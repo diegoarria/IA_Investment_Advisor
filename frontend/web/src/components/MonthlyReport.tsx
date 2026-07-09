@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { FileText, Download, Loader2, TrendingUp, TrendingDown, X, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { reportApi } from "@/lib/api";
 
 interface Position {
@@ -46,6 +47,7 @@ interface MonthlyReportProps {
 }
 
 export default function MonthlyReport({ positions, isPremium, onUpgrade }: MonthlyReportProps) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [report, setReport]   = useState<ReportData | null>(null);
   const [open, setOpen]       = useState(false);
@@ -64,7 +66,7 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
       }));
       const res = await reportApi.monthly(portfolio);
       if (res.data?.error) {
-        alert(`Error: ${res.data.error}`);
+        alert(`${t("monthlyReport.errorPrefix")}: ${res.data.error}`);
         return;
       }
       setReport(res.data);
@@ -72,7 +74,7 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
     } catch (err: unknown) {
       const raw = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
       const msg = typeof raw === "string" ? raw : Array.isArray(raw) ? String(raw[0]?.msg ?? raw[0] ?? "") : "";
-      alert(msg ? `Error: ${msg}` : "No se pudo generar el reporte. Intenta de nuevo.");
+      alert(msg ? `${t("monthlyReport.errorPrefix")}: ${msg}` : t("monthlyReport.generateFailed"));
     } finally {
       setLoading(false);
     }
@@ -117,18 +119,18 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
         <div className="p-6 pt-5">
           <h3 className="text-[22px] font-black tracking-tight text-center mb-1"
               style={{ color: "var(--text)" }}>
-            Reporte Mensual
+            {t("monthlyReport.title")}
           </h3>
           <p className="text-[13px] font-bold text-center mb-5 tracking-wide" style={{ color: TOOL_COLOR }}>
-            Tu portafolio analizado con IA cada mes
+            {t("monthlyReport.subtitle")}
           </p>
 
           {/* Feature list */}
           <div className="rounded-2xl border overflow-hidden mb-5" style={{ borderColor: "var(--border)" }}>
             {[
-              { emoji: "📊", text: "Rendimiento real vs S&P 500 y benchmarks" },
-              { emoji: "📉", text: "Sharpe ratio, volatilidad y drawdown" },
-              { emoji: "✅", text: "3 acciones concretas para el mes siguiente" },
+              { emoji: "📊", text: t("monthlyReport.feature1") },
+              { emoji: "📉", text: t("monthlyReport.feature2") },
+              { emoji: "✅", text: t("monthlyReport.feature3") },
             ].map((f, i, arr) => (
               <div key={f.text}
                    className="flex items-center gap-3 px-3.5 py-3"
@@ -154,8 +156,8 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
             <div className="absolute inset-0 top-0 h-1/2 pointer-events-none"
                  style={{ background: "rgba(255,255,255,0.12)" }} />
             {loading
-              ? <><Loader2 className="w-4 h-4 animate-spin" />Generando...</>
-              : <><Sparkles className="w-4 h-4" />Generar Reporte</>}
+              ? <><Loader2 className="w-4 h-4 animate-spin" />{t("monthlyReport.generating")}</>
+              : <><Sparkles className="w-4 h-4" />{t("monthlyReport.generateCta")}</>}
           </button>
         </div>
       </div>
@@ -171,17 +173,17 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
             <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: "var(--border)" }}>
               <div>
                 <h2 className="font-bold text-base" style={{ color: "var(--text)" }}>
-                  Reporte de Portafolio — {report.month}
+                  {t("monthlyReport.reportTitle")} — {report.month}
                 </h2>
                 <p className="text-[11px] mt-0.5" style={{ color: "var(--muted)" }}>
-                  Generado el {new Date(report.generated_at || "").toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}
+                  {t("monthlyReport.generatedOn")} {new Date(report.generated_at || "").toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={handlePrint}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium"
                         style={{ borderColor: "var(--border)", color: "var(--sub)" }}>
-                  <Download className="w-3.5 h-3.5" /> Exportar PDF
+                  <Download className="w-3.5 h-3.5" /> {t("monthlyReport.exportPdf")}
                 </button>
                 <button onClick={() => setOpen(false)}
                         className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
@@ -195,7 +197,7 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
               {/* Executive summary */}
               {report.executive_summary && (
                 <div className="p-4 rounded-xl" style={{ background: "var(--raised)" }}>
-                  <p className="text-xs font-bold mb-1.5" style={{ color: "var(--muted)" }}>RESUMEN EJECUTIVO</p>
+                  <p className="text-xs font-bold mb-1.5" style={{ color: "var(--muted)" }}>{t("monthlyReport.executiveSummary")}</p>
                   <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>{report.executive_summary}</p>
                 </div>
               )}
@@ -203,10 +205,10 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
               {/* Performance metrics */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
-                  { label: "Rendimiento total", value: `${isPositive ? "+" : ""}${returnPct.toFixed(2)}%`, color: isPositive ? "#22c55e" : "#ef4444" },
-                  { label: "Valor total", value: `$${(report.performance?.total_value ?? 0).toLocaleString()}`, color: "var(--text)" },
-                  { label: "Ganancia no realizada", value: `${(report.performance?.unrealized_gain ?? 0) >= 0 ? "+" : ""}$${(report.performance?.unrealized_gain ?? 0).toLocaleString()}`, color: (report.performance?.unrealized_gain ?? 0) >= 0 ? "#22c55e" : "#ef4444" },
-                  { label: "vs S&P 500", value: report.performance?.vs_sp500 ?? "—", color: "var(--sub)" },
+                  { label: t("monthlyReport.metrics.totalReturn"), value: `${isPositive ? "+" : ""}${returnPct.toFixed(2)}%`, color: isPositive ? "#22c55e" : "#ef4444" },
+                  { label: t("monthlyReport.metrics.totalValue"), value: `$${(report.performance?.total_value ?? 0).toLocaleString()}`, color: "var(--text)" },
+                  { label: t("monthlyReport.metrics.unrealizedGain"), value: `${(report.performance?.unrealized_gain ?? 0) >= 0 ? "+" : ""}$${(report.performance?.unrealized_gain ?? 0).toLocaleString()}`, color: (report.performance?.unrealized_gain ?? 0) >= 0 ? "#22c55e" : "#ef4444" },
+                  { label: t("monthlyReport.metrics.vsSp500"), value: report.performance?.vs_sp500 ?? "—", color: "var(--sub)" },
                 ].map((m) => (
                   <div key={m.label} className="p-3 rounded-xl border text-center"
                        style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
@@ -219,7 +221,7 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
               {/* Best/worst + advanced metrics */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-xl border" style={{ borderColor: "rgba(34,197,94,0.3)", background: "rgba(34,197,94,0.05)" }}>
-                  <p className="text-[10px] font-bold mb-1" style={{ color: "#22c55e" }}>🏆 Mejor posición</p>
+                  <p className="text-[10px] font-bold mb-1" style={{ color: "#22c55e" }}>🏆 {t("monthlyReport.bestPosition")}</p>
                   <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
                     {report.performance?.best_performer?.ticker ?? "—"}
                   </p>
@@ -228,7 +230,7 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
                   </p>
                 </div>
                 <div className="p-3 rounded-xl border" style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.05)" }}>
-                  <p className="text-[10px] font-bold mb-1" style={{ color: "#ef4444" }}>📉 Peor posición</p>
+                  <p className="text-[10px] font-bold mb-1" style={{ color: "#ef4444" }}>📉 {t("monthlyReport.worstPosition")}</p>
                   <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
                     {report.performance?.worst_performer?.ticker ?? "—"}
                   </p>
@@ -243,7 +245,7 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { label: "Sharpe Ratio", value: report.metrics.sharpe_ratio?.toFixed(2) ?? "—" },
-                    { label: "Volatilidad", value: report.metrics.volatility_pct ? `${report.metrics.volatility_pct.toFixed(1)}%` : "—" },
+                    { label: t("monthlyReport.metrics.volatility"), value: report.metrics.volatility_pct ? `${report.metrics.volatility_pct.toFixed(1)}%` : "—" },
                     { label: "Max Drawdown", value: report.metrics.max_drawdown_pct ? `${report.metrics.max_drawdown_pct.toFixed(1)}%` : "—" },
                   ].map((m) => (
                     <div key={m.label} className="p-2.5 rounded-lg border text-center"
@@ -258,7 +260,7 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
               {/* Sector breakdown */}
               {report.sector_breakdown && report.sector_breakdown.length > 0 && (
                 <div>
-                  <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>DISTRIBUCIÓN POR SECTOR</p>
+                  <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>{t("monthlyReport.sectorBreakdown")}</p>
                   <div className="flex rounded-xl overflow-hidden h-3 mb-2">
                     {report.sector_breakdown.map((s) => (
                       <div key={s.sector} style={{ width: `${s.pct}%`, background: s.color }} title={`${s.sector} ${s.pct}%`} />
@@ -279,7 +281,7 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
               {report.mentor_note && (
                 <div className="p-4 rounded-xl border"
                      style={{ borderColor: "rgba(0,168,94,0.3)", background: "rgba(0,168,94,0.06)" }}>
-                  <p className="text-[10px] font-bold mb-1.5" style={{ color: "var(--accent-l)" }}>🎓 NOTA DE TU MENTOR</p>
+                  <p className="text-[10px] font-bold mb-1.5" style={{ color: "var(--accent-l)" }}>🎓 {t("monthlyReport.mentorNote")}</p>
                   <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{report.mentor_note}</p>
                 </div>
               )}
@@ -287,7 +289,7 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
               {/* Action items */}
               {report.action_items && report.action_items.length > 0 && (
                 <div>
-                  <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>✅ ACCIONES PARA EL PRÓXIMO MES</p>
+                  <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>✅ {t("monthlyReport.actionItems")}</p>
                   <div className="space-y-1.5">
                     {report.action_items.map((item, i) => (
                       <div key={i} className="flex items-start gap-2 p-2 rounded-lg"
@@ -303,7 +305,7 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
               {/* Learning insight */}
               {report.learning_insight && (
                 <div className="p-3 rounded-xl" style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)" }}>
-                  <p className="text-[10px] font-bold mb-1" style={{ color: "#a78bfa" }}>💡 INSIGHT CONDUCTUAL DEL MES</p>
+                  <p className="text-[10px] font-bold mb-1" style={{ color: "#a78bfa" }}>💡 {t("monthlyReport.learningInsight")}</p>
                   <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{report.learning_insight}</p>
                 </div>
               )}

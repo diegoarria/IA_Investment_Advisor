@@ -7,6 +7,8 @@ import {
   Zap, Briefcase, Eye,
   BarChart2, Scissors, DollarSign,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { earningsApi } from "@/lib/api";
 
 type EventType = "earnings" | "ex_dividend" | "dividend";
@@ -32,21 +34,45 @@ interface Props {
   onUpgrade?: () => void;
 }
 
-const DAYS   = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-const MONTHS = [
-  "Enero","Febrero","Marzo","Abril","Mayo","Junio",
-  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
-];
+function getDays(t: TFunction): string[] {
+  return [
+    t("watchlistEarningsCalendar.days.sun"),
+    t("watchlistEarningsCalendar.days.mon"),
+    t("watchlistEarningsCalendar.days.tue"),
+    t("watchlistEarningsCalendar.days.wed"),
+    t("watchlistEarningsCalendar.days.thu"),
+    t("watchlistEarningsCalendar.days.fri"),
+    t("watchlistEarningsCalendar.days.sat"),
+  ];
+}
+function getMonths(t: TFunction): string[] {
+  return [
+    t("watchlistEarningsCalendar.months.january"),
+    t("watchlistEarningsCalendar.months.february"),
+    t("watchlistEarningsCalendar.months.march"),
+    t("watchlistEarningsCalendar.months.april"),
+    t("watchlistEarningsCalendar.months.may"),
+    t("watchlistEarningsCalendar.months.june"),
+    t("watchlistEarningsCalendar.months.july"),
+    t("watchlistEarningsCalendar.months.august"),
+    t("watchlistEarningsCalendar.months.september"),
+    t("watchlistEarningsCalendar.months.october"),
+    t("watchlistEarningsCalendar.months.november"),
+    t("watchlistEarningsCalendar.months.december"),
+  ];
+}
 
 function toDateStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-const EVENT_META: Record<EventType, { icon: LucideIcon; label: string; bg: string; color: string; bgPortfolio: string; colorPortfolio: string }> = {
-  earnings:    { icon: BarChart2,   label: "Resultados",   bg: "rgba(59,130,246,0.22)",   color: "#60a5fa", bgPortfolio: "rgba(0,168,94,0.22)",  colorPortfolio: "var(--accent-l)" },
-  ex_dividend: { icon: Scissors,    label: "Ex-Dividendo", bg: "rgba(245,158,11,0.22)",   color: "#f59e0b", bgPortfolio: "rgba(245,158,11,0.28)", colorPortfolio: "#f59e0b" },
-  dividend:    { icon: DollarSign,  label: "Dividendo",    bg: "rgba(168,85,247,0.22)",   color: "#a855f7", bgPortfolio: "rgba(168,85,247,0.28)", colorPortfolio: "#a855f7" },
-};
+function getEventMeta(t: TFunction): Record<EventType, { icon: LucideIcon; label: string; bg: string; color: string; bgPortfolio: string; colorPortfolio: string }> {
+  return {
+    earnings:    { icon: BarChart2,   label: t("watchlistEarningsCalendar.eventTypes.earnings"),    bg: "rgba(59,130,246,0.22)",   color: "#60a5fa", bgPortfolio: "rgba(0,168,94,0.22)",  colorPortfolio: "var(--accent-l)" },
+    ex_dividend: { icon: Scissors,    label: t("watchlistEarningsCalendar.eventTypes.exDividend"), bg: "rgba(245,158,11,0.22)",   color: "#f59e0b", bgPortfolio: "rgba(245,158,11,0.28)", colorPortfolio: "#f59e0b" },
+    dividend:    { icon: DollarSign,  label: t("watchlistEarningsCalendar.eventTypes.dividend"),    bg: "rgba(168,85,247,0.22)",   color: "#a855f7", bgPortfolio: "rgba(168,85,247,0.28)", colorPortfolio: "#a855f7" },
+  };
+}
 
 export default function WatchlistEarningsCalendar({
   watchlistTickers,
@@ -54,6 +80,10 @@ export default function WatchlistEarningsCalendar({
   isPremium = false,
   onUpgrade,
 }: Props) {
+  const { t } = useTranslation();
+  const DAYS = getDays(t);
+  const MONTHS = getMonths(t);
+  const EVENT_META = getEventMeta(t);
   const [events, setEvents]       = useState<CalendarEvent[]>([]);
   const [loading, setLoading]     = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -109,7 +139,7 @@ export default function WatchlistEarningsCalendar({
       const res = await earningsApi.getAnalysis(ticker, 0, 0);
       setAnalysis((prev) => ({ ...prev, [ticker]: res.data.analysis }));
     } catch {
-      setAnalysis((prev) => ({ ...prev, [ticker]: "No se pudo obtener el análisis." }));
+      setAnalysis((prev) => ({ ...prev, [ticker]: t("watchlistEarningsCalendar.analysisFailed") }));
     } finally {
       setAnalyzing(null);
     }
@@ -140,7 +170,7 @@ export default function WatchlistEarningsCalendar({
           {!loading && loadError && (
             <button onClick={loadEvents} className="text-[10px] font-semibold px-2 py-0.5 rounded-full transition-opacity hover:opacity-70"
                     style={{ background: "rgba(239,68,68,0.12)", color: "#f87171" }}>
-              Reintentar
+              {t("watchlistEarningsCalendar.retry")}
             </button>
           )}
         </div>
@@ -243,7 +273,7 @@ export default function WatchlistEarningsCalendar({
         <div className="border-t" style={{ borderColor: "var(--border)" }}>
           <div className="px-4 pt-3 pb-2">
             <p className="text-xs font-bold" style={{ color: "var(--text)" }}>
-              Eventos · {new Date(selectedDay + "T12:00:00").toLocaleDateString("es", {
+              {t("watchlistEarningsCalendar.events")} · {new Date(selectedDay + "T12:00:00").toLocaleDateString("es", {
                 weekday: "long", month: "long", day: "numeric",
               })}
             </p>
@@ -263,12 +293,12 @@ export default function WatchlistEarningsCalendar({
                     {isPortfolio ? (
                       <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
                             style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
-                        <Briefcase className="w-2 h-2" /> Portafolio
+                        <Briefcase className="w-2 h-2" /> {t("watchlistEarningsCalendar.portfolio")}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
                             style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa" }}>
-                        <Eye className="w-2 h-2" /> Watchlist
+                        <Eye className="w-2 h-2" /> {t("watchlistEarningsCalendar.watchlist")}
                       </span>
                     )}
                     {/* Event type badge */}
@@ -279,7 +309,7 @@ export default function WatchlistEarningsCalendar({
                     {/* Status */}
                     <span className="ml-auto text-[9px]"
                           style={{ color: entry.status === "upcoming" || entry.status === "today" ? "var(--accent-l)" : "var(--muted)" }}>
-                      {entry.status === "today" ? "Hoy" : entry.status === "upcoming" ? "Próximo" : "Completado"}
+                      {entry.status === "today" ? t("watchlistEarningsCalendar.status.today") : entry.status === "upcoming" ? t("watchlistEarningsCalendar.status.upcoming") : t("watchlistEarningsCalendar.status.completed")}
                     </span>
                   </div>
 

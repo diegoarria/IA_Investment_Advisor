@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { X, Trash2, RefreshCw, CheckCircle, AlertCircle, Loader2, Link2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { brokerageApi } from "@/lib/api";
 
 interface Connection {
@@ -29,14 +31,16 @@ interface Props {
 
 type Screen = "home" | "iol-form" | "syncing";
 
-const BROKERS = [
-  { id: "ibkr",      name: "Interactive Brokers", domain: "interactivebrokers.com", color: "#e8000d", fallback: "IB",  provider: "plaid", desc: "Acciones, opciones, futuros globales" },
-  { id: "schwab",    name: "Charles Schwab",       domain: "schwab.com",             color: "#00a2e0", fallback: "CS",  provider: "plaid", desc: "Broker líder en EE.UU." },
-  { id: "robinhood", name: "Robinhood",            domain: "robinhood.com",          color: "#00c805", fallback: "RH",  provider: "plaid", desc: "Trading sin comisiones" },
-  { id: "iol",       name: "Invertir Online",      domain: "invertironline.com",     color: "#003087", fallback: "IOL", provider: "iol",   desc: "Bolsa de Buenos Aires + NYSE" },
-  { id: "gbm",       name: "GBM",                  domain: "gbm.com.mx",             color: "#0033a0", fallback: "GBM", provider: "soon",  desc: "Broker líder en México" },
-  { id: "actinver",  name: "Actinver",             domain: "actinver.com",           color: "#c8102e", fallback: "ACT", provider: "soon",  desc: "Casa de bolsa mexicana" },
-];
+function getBrokers(t: TFunction) {
+  return [
+    { id: "ibkr",      name: "Interactive Brokers", domain: "interactivebrokers.com", color: "#e8000d", fallback: "IB",  provider: "plaid", desc: t("brokerConnectModal.brokers.ibkr") },
+    { id: "schwab",    name: "Charles Schwab",       domain: "schwab.com",             color: "#00a2e0", fallback: "CS",  provider: "plaid", desc: t("brokerConnectModal.brokers.schwab") },
+    { id: "robinhood", name: "Robinhood",            domain: "robinhood.com",          color: "#00c805", fallback: "RH",  provider: "plaid", desc: t("brokerConnectModal.brokers.robinhood") },
+    { id: "iol",       name: "Invertir Online",      domain: "invertironline.com",     color: "#003087", fallback: "IOL", provider: "iol",   desc: t("brokerConnectModal.brokers.iol") },
+    { id: "gbm",       name: "GBM",                  domain: "gbm.com.mx",             color: "#0033a0", fallback: "GBM", provider: "soon",  desc: t("brokerConnectModal.brokers.gbm") },
+    { id: "actinver",  name: "Actinver",             domain: "actinver.com",           color: "#c8102e", fallback: "ACT", provider: "soon",  desc: t("brokerConnectModal.brokers.actinver") },
+  ];
+}
 
 function BrokerLogoWeb({ domain, fallback, color }: { domain: string; fallback: string; color: string }) {
   const [err, setErr] = useState(false);
@@ -73,6 +77,8 @@ declare global {
 }
 
 export default function BrokerConnectModal({ onClose, onPositionsImported }: Props) {
+  const { t } = useTranslation();
+  const BROKERS = getBrokers(t);
   const [screen, setScreen] = useState<Screen>("home");
   const [connections, setConnections] = useState<Connection[]>([]);
   const [iolUser, setIolUser] = useState("");
@@ -108,36 +114,36 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
   const handlePlaidBroker = async () => {
     setError("");
     if (!plaidReady || !window.Plaid) {
-      setError("Plaid Link no está listo. Intenta de nuevo.");
+      setError(t("brokerConnectModal.errors.plaidNotReady"));
       return;
     }
     setLoading(true);
     try {
       const res = await brokerageApi.createLinkToken();
       const linkToken = res.data?.link_token;
-      if (!linkToken) throw new Error("No se recibió link token");
+      if (!linkToken) throw new Error(t("brokerConnectModal.errors.noLinkToken"));
       setLoading(false);
 
       const handler = window.Plaid.create({
         token: linkToken,
         onSuccess: async (public_token, metadata) => {
           setScreen("syncing");
-          setSyncMsg("Conectando con el broker...");
+          setSyncMsg(t("brokerConnectModal.status.connectingBroker"));
           try {
             await brokerageApi.exchangePlaidToken(
               public_token,
               metadata.institution.institution_id,
               metadata.institution.name,
             );
-            setSyncMsg("Obteniendo posiciones...");
+            setSyncMsg(t("brokerConnectModal.status.fetchingPositions"));
             const holdingsRes = await brokerageApi.getPlaidHoldings();
             const positions: BrokerPosition[] = holdingsRes.data?.positions ?? [];
             await loadConnections();
             onPositionsImported(positions);
-            setSyncMsg(`✓ ${positions.length} posiciones importadas de ${metadata.institution.name}`);
+            setSyncMsg(`✓ ${t("brokerConnectModal.status.positionsImportedFrom", { count: positions.length, institution: metadata.institution.name })}`);
           } catch {
             setSyncMsg("");
-            setError("Error al obtener posiciones. Intenta de nuevo.");
+            setError(t("brokerConnectModal.errors.fetchPositionsFailed"));
             setScreen("home");
           }
         },
@@ -146,7 +152,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
       handler.open();
     } catch {
       setLoading(false);
-      setError("No se pudo iniciar la conexión con Plaid.");
+      setError(t("brokerConnectModal.errors.plaidStartFailed"));
     }
   };
 
@@ -159,15 +165,15 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
     try {
       await brokerageApi.connectIOL(iolUser, iolPass);
       setScreen("syncing");
-      setSyncMsg("Obteniendo posiciones de IOL...");
+      setSyncMsg(t("brokerConnectModal.status.fetchingIolPositions"));
       const holdingsRes = await brokerageApi.getIOLHoldings();
       const positions: BrokerPosition[] = holdingsRes.data?.positions ?? [];
       await loadConnections();
       onPositionsImported(positions);
-      setSyncMsg(`✓ ${positions.length} posiciones importadas de Invertir Online`);
+      setSyncMsg(`✓ ${t("brokerConnectModal.status.positionsImportedIol", { count: positions.length })}`);
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(msg ?? "Error al conectar con IOL. Verifica tus credenciales.");
+      setError(msg ?? t("brokerConnectModal.errors.iolConnectFailed"));
       setScreen("home");
     } finally {
       setLoading(false);
@@ -180,16 +186,16 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
   const handleSyncAll = async () => {
     setError("");
     setScreen("syncing");
-    setSyncMsg("Sincronizando todos los brokers...");
+    setSyncMsg(t("brokerConnectModal.status.syncingAll"));
     try {
       const res = await brokerageApi.syncAll();
       const positions: BrokerPosition[] = res.data?.positions ?? [];
       onPositionsImported(positions);
-      setSyncMsg(`✓ ${positions.length} posiciones sincronizadas`);
+      setSyncMsg(`✓ ${t("brokerConnectModal.status.positionsSynced", { count: positions.length })}`);
       await loadConnections();
     } catch {
       setSyncMsg("");
-      setError("Error al sincronizar. Intenta de nuevo.");
+      setError(t("brokerConnectModal.errors.syncFailed"));
       setScreen("home");
     }
   };
@@ -218,7 +224,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
           <div className="flex items-center gap-2">
             <Link2 className="w-5 h-5" style={{ color: "var(--accent)" }} />
             <span className="font-bold text-base" style={{ color: "var(--text)" }}>
-              Conectar Broker
+              {t("brokerConnectModal.title")}
             </span>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:opacity-70 transition-opacity">
@@ -244,7 +250,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                   className="px-6 py-2 rounded-xl text-sm font-bold transition-opacity hover:opacity-80"
                   style={{ background: "var(--accent)", color: "#fff" }}
                 >
-                  Listo
+                  {t("brokerConnectModal.done")}
                 </button>
               )}
             </div>
@@ -258,13 +264,13 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                 <div>
                   <p className="font-bold text-sm" style={{ color: "var(--text)" }}>Invertir Online</p>
                   <p className="text-xs" style={{ color: "var(--muted)" }}>
-                    Tus credenciales se usan para obtener el token — nunca se almacenan
+                    {t("brokerConnectModal.iolCredentialsNote")}
                   </p>
                 </div>
               </div>
               <input
                 type="text"
-                placeholder="Usuario IOL"
+                placeholder={t("brokerConnectModal.iolUsernamePlaceholder")}
                 value={iolUser}
                 onChange={(e) => setIolUser(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl text-sm outline-none"
@@ -272,7 +278,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
               />
               <input
                 type="password"
-                placeholder="Contraseña IOL"
+                placeholder={t("brokerConnectModal.iolPasswordPlaceholder")}
                 value={iolPass}
                 onChange={(e) => setIolPass(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleIOLConnect()}
@@ -291,7 +297,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                   className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-opacity hover:opacity-70"
                   style={{ background: "var(--raised)", color: "var(--muted)" }}
                 >
-                  Cancelar
+                  {t("brokerConnectModal.cancel")}
                 </button>
                 <button
                   onClick={handleIOLConnect}
@@ -299,7 +305,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                   className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-opacity hover:opacity-80 disabled:opacity-40"
                   style={{ background: "var(--accent)", color: "#fff" }}
                 >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Conectar"}
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : t("brokerConnectModal.connect")}
                 </button>
               </div>
             </div>
@@ -324,7 +330,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
               {connections.length > 0 && (
                 <div className="mb-4">
                   <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--muted)" }}>
-                    Conectados
+                    {t("brokerConnectModal.connected")}
                   </p>
                   <div className="flex flex-col gap-2">
                     {connections.map((c) => (
@@ -339,7 +345,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                             <p className="text-xs font-semibold" style={{ color: "var(--text)" }}>{c.institution_name}</p>
                             {c.last_sync_at && (
                               <p className="text-[10px]" style={{ color: "var(--dim)" }}>
-                                Última sync: {new Date(c.last_sync_at).toLocaleDateString("es")}
+                                {t("brokerConnectModal.lastSync")}: {new Date(c.last_sync_at).toLocaleDateString("es")}
                               </p>
                             )}
                           </div>
@@ -359,14 +365,14 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                     style={{ background: "var(--raised)", color: "var(--accent)", border: "1px solid var(--accent)" }}
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    Sincronizar todo
+                    {t("brokerConnectModal.syncAll")}
                   </button>
                 </div>
               )}
 
               {/* Broker list */}
               <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--muted)" }}>
-                {connections.length > 0 ? "Agregar broker" : "Selecciona tu broker"}
+                {connections.length > 0 ? t("brokerConnectModal.addBroker") : t("brokerConnectModal.selectBroker")}
               </p>
               <div className="flex flex-col gap-2">
                 {BROKERS.map((broker) => {
@@ -376,7 +382,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                   return (
                     <button
                       key={broker.id}
-                      onClick={() => setError(`🚀 Próximamente — La conexión con ${broker.name} estará disponible muy pronto.`)}
+                      onClick={() => setError(`🚀 ${t("brokerConnectModal.comingSoonMessage", { broker: broker.name })}`)}
                       disabled={isConnected}
                       className="flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all hover:scale-[1.01] disabled:opacity-50"
                       style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
@@ -391,7 +397,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                       ) : (
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-full border"
                               style={{ color: "var(--accent-l)", borderColor: "rgba(0,168,94,0.3)", background: "rgba(0,168,94,0.08)", fontSize: 10 }}>
-                          Próximamente
+                          {t("brokerConnectModal.comingSoonBadge")}
                         </span>
                       )}
                     </button>
@@ -400,7 +406,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
               </div>
 
               <p className="text-[10px] text-center mt-4" style={{ color: "var(--dim)" }}>
-                Solo lectura — Nuvos AI nunca puede ejecutar operaciones en tu cuenta
+                {t("brokerConnectModal.readOnlyNote")}
               </p>
             </>
           )}

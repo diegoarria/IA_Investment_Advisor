@@ -13,6 +13,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { posthog } from "../../config/posthog";
 import { useStockDetail, useStockScore, useRichFinancials, type EntryRange, type EntryRangesMeta } from "../../hooks/useStockDetail";
 import StockChart from "../StockChart";
@@ -67,6 +69,7 @@ function fmtP(n: number) {
 }
 
 function EntryRangesCard({ ranges, meta }: { ranges: EntryRange[]; meta: EntryRangesMeta }) {
+  const { t } = useTranslation();
   return (
     <View style={er.card}>
       {/* Header */}
@@ -75,11 +78,11 @@ function EntryRangesCard({ ranges, meta }: { ranges: EntryRange[]; meta: EntryRa
           <View style={er.iconBox}>
             <Ionicons name="layers-outline" size={13} color={D.green} />
           </View>
-          <Text style={er.title}>¿Cuándo entrar?</Text>
+          <Text style={er.title}>{t("stockDetailScreen.whenToEnter")}</Text>
         </View>
         <View style={er.fairValuePill}>
           <Text style={er.fairValueText}>
-            Valor justo {fmtP(meta.fair_value)}
+            {t("stockDetailScreen.fairValue", { price: fmtP(meta.fair_value) })}
           </Text>
           <Text style={er.fairValueSrc}>{meta.fair_value_src}</Text>
         </View>
@@ -126,7 +129,7 @@ function EntryRangesCard({ ranges, meta }: { ranges: EntryRange[]; meta: EntryRa
               </Text>
               {range.is_current && (
                 <View style={[er.nowBadge, { backgroundColor: range.color + "28" }]}>
-                  <Text style={[er.nowText, { color: range.color }]}>AHORA</Text>
+                  <Text style={[er.nowText, { color: range.color }]}>{t("stockDetailScreen.now")}</Text>
                 </View>
               )}
             </View>
@@ -166,13 +169,14 @@ const SIGNAL_COLOR: Record<string, string> = {
 };
 
 function VerdictSection({ ticker }: { ticker: string }) {
+  const { t } = useTranslation();
   const { data, loading } = useStockScore(ticker);
 
   if (loading) {
     return (
       <View style={vd.loadRow}>
         <ActivityIndicator size="small" color={D.green} />
-        <Text style={[vd.loadText, { color: D.muted }]}>Calculando resumen IA…</Text>
+        <Text style={[vd.loadText, { color: D.muted }]}>{t("stockDetailScreen.calculatingAiSummary")}</Text>
       </View>
     );
   }
@@ -261,7 +265,7 @@ function VerdictSection({ ticker }: { ticker: string }) {
             <View style={[vd.outlookCard, { backgroundColor: "rgba(245,158,11,0.05)", borderColor: "rgba(245,158,11,0.18)" }]}>
               <View style={vd.outlookHeader}>
                 <View style={[vd.outlookDot, { backgroundColor: D.amber }]} />
-                <Text style={[vd.outlookLabel, { color: D.amber }]}>Corto plazo</Text>
+                <Text style={[vd.outlookLabel, { color: D.amber }]}>{t("stockDetailScreen.shortTerm")}</Text>
               </View>
               <Text style={[vd.outlookText, { color: D.sub }]}>{cortoText}</Text>
             </View>
@@ -270,7 +274,7 @@ function VerdictSection({ ticker }: { ticker: string }) {
             <View style={[vd.outlookCard, { backgroundColor: "rgba(34,197,94,0.05)", borderColor: "rgba(34,197,94,0.18)" }]}>
               <View style={vd.outlookHeader}>
                 <View style={[vd.outlookDot, { backgroundColor: "#22c55e" }]} />
-                <Text style={[vd.outlookLabel, { color: "#22c55e" }]}>Largo plazo</Text>
+                <Text style={[vd.outlookLabel, { color: "#22c55e" }]}>{t("stockDetailScreen.longTerm")}</Text>
               </View>
               <Text style={[vd.outlookText, { color: D.sub }]}>{largoText}</Text>
             </View>
@@ -356,29 +360,34 @@ const sh = StyleSheet.create({
 
 // ─── Key Metrics ─────────────────────────────────────────────────────────────
 
-const METRIC_HINTS: Record<string, string> = {
-  "Market Cap":    "Valor total de todas las acciones en el mercado. Mide qué tan grande es la empresa.",
-  "P/E (TTM)":     "Cuántos años de ganancias actuales pagas por cada acción. Un P/E alto significa que el mercado espera mucho crecimiento futuro.",
-  "P/E Fwd":       "P/E usando las ganancias esperadas del próximo año. Refleja las expectativas del mercado.",
-  "EPS (TTM)":     "Ganancia por acción en los últimos 12 meses. Cuánto ganó la empresa por cada acción emitida.",
-  "ROE":           "Cuánto gana la empresa por cada peso de capital que pusieron los accionistas. Mientras más alto, más eficiente.",
-  "Margen Neto":   "De cada $100 de ventas, cuánto queda como ganancia final tras impuestos y todos los costos.",
-  "Div. Yield":    "Dividendo anual como % del precio actual. Es lo que te pagan solo por tener la acción.",
-  "FCF":           "Free Cash Flow: efectivo real que genera la empresa después de sus inversiones. Más confiable que las ganancias contables.",
-  "Beta":          "Volatilidad relativa al mercado. Beta > 1 significa que se mueve más que el S&P 500, para bien y para mal.",
-  "Deuda/Equity":  "Cuánta deuda tiene por cada peso de capital propio. Más bajo es más seguro financieramente.",
-  "52s Máx":       "Precio más alto que alcanzó la acción en los últimos 12 meses.",
-  "52s Mín":       "Precio más bajo que tuvo la acción en los últimos 12 meses.",
-};
+function getMetricHints(t: TFunction): Record<string, string> {
+  return {
+    "Market Cap":    t("stockDetailScreen.metricHints.marketCap"),
+    "P/E (TTM)":     t("stockDetailScreen.metricHints.peTtm"),
+    "P/E Fwd":       t("stockDetailScreen.metricHints.peFwd"),
+    "EPS (TTM)":     t("stockDetailScreen.metricHints.epsTtm"),
+    "ROE":           t("stockDetailScreen.metricHints.roe"),
+    [t("stockDetailScreen.metricLabels.netMargin")]:   t("stockDetailScreen.metricHints.netMargin"),
+    "Div. Yield":    t("stockDetailScreen.metricHints.divYield"),
+    "FCF":           t("stockDetailScreen.metricHints.fcf"),
+    "Beta":          t("stockDetailScreen.metricHints.beta"),
+    [t("stockDetailScreen.metricLabels.debtEquity")]:  t("stockDetailScreen.metricHints.debtEquity"),
+    [t("stockDetailScreen.metricLabels.week52High")]:  t("stockDetailScreen.metricHints.week52High"),
+    [t("stockDetailScreen.metricLabels.week52Low")]:   t("stockDetailScreen.metricHints.week52Low"),
+  };
+}
 
 type ProfileData = ReturnType<typeof useStockDetail>["data"] extends { profile: infer P } | null ? P | undefined : never;
 
 function KeyMetrics({ profile }: { profile?: ProfileData }) {
+  const { t } = useTranslation();
   if (!profile) return null;
+
+  const METRIC_HINTS = getMetricHints(t);
 
   const groups = [
     {
-      label: "Valoración",
+      label: t("stockDetailScreen.groups.valuation"),
       items: [
         { label: "Market Cap",   value: fmtBig(profile.market_cap) },
         { label: "P/E (TTM)",    value: fmtNum(profile.pe_ratio) },
@@ -387,21 +396,21 @@ function KeyMetrics({ profile }: { profile?: ProfileData }) {
       ],
     },
     {
-      label: "Rentabilidad",
+      label: t("stockDetailScreen.groups.profitability"),
       items: [
         { label: "ROE",          value: fmtPct(profile.return_on_equity) },
-        { label: "Margen Neto",  value: fmtPct(profile.profit_margins) },
+        { label: t("stockDetailScreen.metricLabels.netMargin"),  value: fmtPct(profile.profit_margins) },
         { label: "Div. Yield",   value: profile.dividend_yield ? `${profile.dividend_yield.toFixed(2)}%` : "—" },
         { label: "FCF",          value: fmtBig(profile.free_cashflow) },
       ],
     },
     {
-      label: "Riesgo",
+      label: t("stockDetailScreen.groups.risk"),
       items: [
         { label: "Beta",         value: fmtNum(profile.beta) },
-        { label: "Deuda/Equity", value: fmtNum(profile.debt_to_equity) },
-        { label: "52s Máx",      value: profile.week_52_high ? `$${profile.week_52_high.toFixed(0)}` : "—" },
-        { label: "52s Mín",      value: profile.week_52_low  ? `$${profile.week_52_low.toFixed(0)}`  : "—" },
+        { label: t("stockDetailScreen.metricLabels.debtEquity"), value: fmtNum(profile.debt_to_equity) },
+        { label: t("stockDetailScreen.metricLabels.week52High"), value: profile.week_52_high ? `$${profile.week_52_high.toFixed(0)}` : "—" },
+        { label: t("stockDetailScreen.metricLabels.week52Low"),  value: profile.week_52_low  ? `$${profile.week_52_low.toFixed(0)}`  : "—" },
       ],
     },
   ];
@@ -451,6 +460,7 @@ const km = StyleSheet.create({
 // ─── About Section ────────────────────────────────────────────────────────────
 
 function AboutSection({ profile }: { profile?: ProfileData }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   if (!profile) return null;
 
@@ -461,7 +471,7 @@ function AboutSection({ profile }: { profile?: ProfileData }) {
     profile.sector   && { icon: "business-outline" as const,  text: profile.sector },
     profile.industry && { icon: "construct-outline" as const,  text: profile.industry },
     profile.country  && { icon: "location-outline" as const,   text: profile.city ? `${profile.city}, ${profile.country}` : profile.country },
-    profile.employees&& { icon: "people-outline" as const,     text: profile.employees.toLocaleString() + " emp." },
+    profile.employees&& { icon: "people-outline" as const,     text: profile.employees.toLocaleString() + " " + t("stockDetailScreen.employeesAbbr") },
   ].filter(Boolean) as { icon: React.ComponentProps<typeof Ionicons>["name"]; text: string }[];
 
   return (
@@ -471,7 +481,7 @@ function AboutSection({ profile }: { profile?: ProfileData }) {
           <Text style={ab.desc}>{short}</Text>
           {desc.length > 260 && (
             <TouchableOpacity onPress={() => setExpanded(!expanded)} style={{ marginTop: 10 }}>
-              <Text style={ab.toggle}>{expanded ? "Ver menos ↑" : "Ver más ↓"}</Text>
+              <Text style={ab.toggle}>{expanded ? t("stockDetailScreen.seeLess") : t("stockDetailScreen.seeMore")}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -517,12 +527,22 @@ const ab = StyleSheet.create({
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
+function getTabs(t: TFunction) {
+  return [
+    { id: "veredicto",   label: t("stockDetailScreen.tabs.summary"),     icon: "sparkles-outline" as const },
+    { id: "grafica",     label: t("stockDetailScreen.tabs.chart"),       icon: "stats-chart-outline" as const },
+    { id: "financieros", label: t("stockDetailScreen.tabs.financials"),  icon: "bar-chart-outline" as const },
+    { id: "analistas",   label: t("stockDetailScreen.tabs.analysts"),    icon: "people-outline" as const },
+    { id: "empresa",     label: t("stockDetailScreen.tabs.company"),     icon: "business-outline" as const },
+  ] as const;
+}
+
 const TABS = [
-  { id: "veredicto",   label: "Resumen",      icon: "sparkles-outline" as const },
-  { id: "grafica",     label: "Gráfica",      icon: "stats-chart-outline" as const },
-  { id: "financieros", label: "Financieros",  icon: "bar-chart-outline" as const },
-  { id: "analistas",   label: "Analistas",    icon: "people-outline" as const },
-  { id: "empresa",     label: "Empresa",      icon: "business-outline" as const },
+  { id: "veredicto" },
+  { id: "grafica" },
+  { id: "financieros" },
+  { id: "analistas" },
+  { id: "empresa" },
 ] as const;
 
 type TabId = typeof TABS[number]["id"];
@@ -530,10 +550,12 @@ type TabId = typeof TABS[number]["id"];
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function StockDetailScreen({ ticker }: { ticker: string }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { data, loading, error, refetch } = useStockDetail(ticker);
   const [activeTab, setActiveTab] = useState<TabId>("veredicto");
+  const TAB_META = getTabs(t);
 
   useEffect(() => {
     if (ticker) posthog.capture("stock_detail_viewed", { ticker });
@@ -564,7 +586,7 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
       return (
         <View style={s.centered}>
           <ActivityIndicator size="large" color={D.green} />
-          <Text style={s.loadingText}>Cargando análisis…</Text>
+          <Text style={s.loadingText}>{t("stockDetailScreen.loadingAnalysis")}</Text>
         </View>
       );
     }
@@ -575,9 +597,9 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
           <View style={s.errorIcon}>
             <Ionicons name="alert-circle-outline" size={28} color={D.red} />
           </View>
-          <Text style={s.errorText}>No se pudieron cargar los datos</Text>
+          <Text style={s.errorText}>{t("stockDetailScreen.couldNotLoadData")}</Text>
           <TouchableOpacity onPress={refetch} style={s.retryBtn}>
-            <Text style={s.retryText}>Reintentar</Text>
+            <Text style={s.retryText}>{t("stockDetailScreen.retry")}</Text>
           </TouchableOpacity>
         </View>
       );
@@ -592,7 +614,7 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
         return (
           <View style={s.centered}>
             <Ionicons name="bar-chart-outline" size={28} color={D.dim} />
-            <Text style={s.emptyText}>Sin datos financieros</Text>
+            <Text style={s.emptyText}>{t("stockDetailScreen.noFinancialData")}</Text>
           </View>
         );
       }
@@ -604,7 +626,7 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
         return (
           <View style={s.centered}>
             <Ionicons name="people-outline" size={28} color={D.dim} />
-            <Text style={s.emptyText}>Sin datos de analistas</Text>
+            <Text style={s.emptyText}>{t("stockDetailScreen.noAnalystData")}</Text>
           </View>
         );
       }
@@ -614,16 +636,16 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
     if (activeTab === "empresa") {
       return (
         <View style={{ paddingBottom: 48 }}>
-          <SectionHeader title={`Acerca de ${data?.profile?.name ?? ticker}`} icon="business-outline" />
+          <SectionHeader title={t("stockDetailScreen.about", { name: data?.profile?.name ?? ticker })} icon="business-outline" />
           <AboutSection profile={data?.profile} />
 
-          <SectionHeader title="Métricas Clave" icon="stats-chart-outline" />
+          <SectionHeader title={t("stockDetailScreen.keyMetrics")} icon="stats-chart-outline" />
           <KeyMetrics profile={data?.profile} />
 
-          <SectionHeader title="Noticias" icon="newspaper-outline" />
+          <SectionHeader title={t("stockDetailScreen.news")} icon="newspaper-outline" />
           <StockNews ticker={ticker} />
 
-          <SectionHeader title="Empresas Similares" icon="git-compare-outline" />
+          <SectionHeader title={t("stockDetailScreen.similarCompanies")} icon="git-compare-outline" />
           <StockCompetitors ticker={ticker} />
         </View>
       );
@@ -687,7 +709,7 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={tb.tabBarInner}
         >
-          {TABS.map((tab) => {
+          {TAB_META.map((tab) => {
             const active = activeTab === tab.id;
             return (
               <TouchableOpacity

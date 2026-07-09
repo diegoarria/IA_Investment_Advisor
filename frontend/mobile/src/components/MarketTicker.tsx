@@ -4,6 +4,8 @@ import {
   Modal, ActivityIndicator, Pressable, Linking, Image, Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { marketApi } from "../lib/api";
 import { useTheme } from "../lib/ThemeContext";
 
@@ -98,13 +100,13 @@ function fmtPrice(price: number, symbol: string): string {
   return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function relTime(ts: number): string {
+function relTime(ts: number, t: TFunction): string {
   const h = Math.floor((Date.now() / 1000 - ts) / 3600);
-  if (h < 1) return "Ahora";
-  if (h === 1) return "Hace 1h";
-  if (h < 24) return `Hace ${h}h`;
+  if (h < 1) return t("marketTicker.now");
+  if (h === 1) return t("marketTicker.hourAgo");
+  if (h < 24) return t("marketTicker.hoursAgo", { count: h });
   const d = Math.floor(h / 24);
-  return d === 1 ? "Ayer" : `Hace ${d}d`;
+  return d === 1 ? t("marketTicker.yesterday") : t("marketTicker.daysAgo", { count: d });
 }
 
 function LiveDot({ open }: { open: boolean }) {
@@ -134,6 +136,7 @@ function LiveDot({ open }: { open: boolean }) {
 
 export default function MarketTicker() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [data, setData]         = useState<IndexData[]>([]);
   const [loading, setLoading]   = useState(true);
   const [marketOpen, setMarketOpen] = useState(false);
@@ -196,7 +199,7 @@ export default function MarketTicker() {
         </View>
 
         {loading || data.length === 0 ? (
-          <Text style={[styles.placeholder, { color: colors.textDim }]}>Cargando mercados…</Text>
+          <Text style={[styles.placeholder, { color: colors.textDim }]}>{t("marketTicker.loadingMarkets")}</Text>
         ) : (
           <ScrollView
             horizontal
@@ -254,7 +257,7 @@ export default function MarketTicker() {
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>
-                  Noticias — {modalIdx ? (SHORT[modalIdx.symbol] ?? modalIdx.name) : ""}
+                  {t("marketTicker.newsTitle", { name: modalIdx ? (SHORT[modalIdx.symbol] ?? modalIdx.name) : "" })}
                 </Text>
                 {modalIdx?.price != null && (
                   <View style={styles.modalPriceLine}>
@@ -279,7 +282,7 @@ export default function MarketTicker() {
               </View>
             ) : newsItems.length === 0 ? (
               <View style={styles.emptyState}>
-                <Text style={[styles.emptyText, { color: colors.textDim }]}>Sin noticias disponibles</Text>
+                <Text style={[styles.emptyText, { color: colors.textDim }]}>{t("marketTicker.noNews")}</Text>
               </View>
             ) : (
               newsItems.map((item, i) => (
@@ -298,10 +301,10 @@ export default function MarketTicker() {
                         </Text>
                       </View>
                       <Text style={[styles.newsMeta, { color: colors.textDim }]}>
-                        {item.publisher} · {relTime(item.timestamp)}
+                        {item.publisher} · {relTime(item.timestamp, t)}
                       </Text>
                       <Text style={[styles.readMore, { color: colors.accentLight }]}>
-                        Leer artículo →
+                        {t("marketTicker.readArticle")}
                       </Text>
                     </View>
                     {item.thumbnail ? (

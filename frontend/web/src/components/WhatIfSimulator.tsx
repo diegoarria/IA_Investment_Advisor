@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   Zap, TrendingUp, TrendingDown, Minus, Loader2, ChevronDown,
   RefreshCw, DollarSign, Globe, Brain, Edit2, X, Sparkles,
@@ -24,21 +26,18 @@ interface WhatIfSimulatorProps {
   onUpgrade: () => void;
 }
 
-const SCENARIO_TYPES: Array<{ id: string; label: string; icon: LucideIcon; desc: string }> = [
-  { id: "swap",        label: "Cambiar posición",     icon: RefreshCw,  desc: "Vender X y comprar Y con ese dinero" },
-  { id: "add_monthly", label: "Aporte mensual",        icon: DollarSign, desc: "Invertir $X/mes durante N años" },
-  { id: "macro",       label: "Evento macroeconómico", icon: Globe,      desc: "Simular un evento global sobre tu portafolio" },
-  { id: "custom",      label: "Escenario libre",       icon: Edit2,      desc: "Describe cualquier hipótesis" },
-];
+function getScenarioTypes(t: TFunction): Array<{ id: string; label: string; icon: LucideIcon; desc: string }> {
+  return [
+    { id: "swap",        label: t("whatIfSimulator.scenarioTypes.swap.label"),        icon: RefreshCw,  desc: t("whatIfSimulator.scenarioTypes.swap.desc") },
+    { id: "add_monthly", label: t("whatIfSimulator.scenarioTypes.addMonthly.label"),  icon: DollarSign, desc: t("whatIfSimulator.scenarioTypes.addMonthly.desc") },
+    { id: "macro",       label: t("whatIfSimulator.scenarioTypes.macro.label"),       icon: Globe,      desc: t("whatIfSimulator.scenarioTypes.macro.desc") },
+    { id: "custom",      label: t("whatIfSimulator.scenarioTypes.custom.label"),      icon: Edit2,      desc: t("whatIfSimulator.scenarioTypes.custom.desc") },
+  ];
+}
 
-const MACRO_EVENTS = [
-  "La Fed sube tasas al 7%",
-  "Recesión en EE.UU. (-10% PIB)",
-  "Crash del mercado tech -40%",
-  "Boom de IA — tech +50%",
-  "Inflación persistente al 8%",
-  "Dólar se fortalece 20%",
-];
+function getMacroEvents(t: TFunction): string[] {
+  return t("whatIfSimulator.macroEvents", { returnObjects: true }) as string[];
+}
 
 type ImpactDir = "aumenta" | "disminuye" | "neutro";
 
@@ -57,6 +56,9 @@ interface SimResult {
 const TOOL_COLOR = "#f59e0b";
 
 export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: WhatIfSimulatorProps) {
+  const { t } = useTranslation();
+  const SCENARIO_TYPES = getScenarioTypes(t);
+  const MACRO_EVENTS = getMacroEvents(t);
   const [open, setOpen]              = useState(false);
   const [scenarioType, setScenarioType] = useState("swap");
   const [params, setParams]          = useState<Record<string, unknown>>({});
@@ -85,7 +87,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
       const res = await simulateApi.whatIf(scenarioType, params, portfolio);
       setResult(res.data);
     } catch {
-      setResult({ summary: "No se pudo completar la simulación. Intenta de nuevo." });
+      setResult({ summary: t("whatIfSimulator.simulationError") });
     } finally {
       setLoading(false);
     }
@@ -100,25 +102,25 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
     r === "proceder" ? "#22c55e" : r === "proceder_con_cautela" ? "#f59e0b" : r === "no_recomendado" ? "#ef4444" : "var(--muted)";
 
   const recLabel = (r?: string) => ({
-    proceder:             "Proceder",
-    proceder_con_cautela: "Proceder con cautela",
-    no_recomendado:       "No recomendado",
-    mantener_actual:      "🔵 Mantener portafolio actual",
+    proceder:             t("whatIfSimulator.recommendations.proceed"),
+    proceder_con_cautela: t("whatIfSimulator.recommendations.proceedCautiously"),
+    no_recomendado:       t("whatIfSimulator.recommendations.notRecommended"),
+    mantener_actual:      t("whatIfSimulator.recommendations.keepCurrent"),
   }[r ?? ""] ?? r ?? "");
 
   if (!isPremium) {
     return (
       <PremiumToolLocked
-        title="Simulador ¿Qué pasa si?"
-        tagline="Prueba decisiones antes de tomarlas"
-        description="Simula cualquier cambio en tu portafolio antes de ejecutarlo. Cambia posiciones, proyecta aportes mensuales o simula eventos macroeconómicos."
+        title={t("whatIfSimulator.title")}
+        tagline={t("whatIfSimulator.tagline")}
+        description={t("whatIfSimulator.description")}
         icon={Zap}
         color={TOOL_COLOR}
         benefits={[
-          { icon: RefreshCw,  text: "¿Qué pasa si vendo X y compro Y?" },
-          { icon: DollarSign, text: "Proyección de aportes mensuales a N años" },
-          { icon: Globe,      text: "Impacto de eventos macro en tu portafolio" },
-          { icon: Brain,      text: "Resumen de tu mentor en cada escenario" },
+          { icon: RefreshCw,  text: t("whatIfSimulator.benefits.swap") },
+          { icon: DollarSign, text: t("whatIfSimulator.benefits.monthly") },
+          { icon: Globe,      text: t("whatIfSimulator.benefits.macro") },
+          { icon: Brain,      text: t("whatIfSimulator.benefits.mentor") },
         ]}
         onUnlock={onUpgrade}
       />
@@ -153,17 +155,17 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
         <div className="p-6 pt-5">
           <h3 className="text-[22px] font-black tracking-tight text-center mb-1"
               style={{ color: "var(--text)" }}>
-            Simulador ¿Qué pasa si?
+            {t("whatIfSimulator.title")}
           </h3>
           <p className="text-[13px] font-bold text-center mb-5 tracking-wide" style={{ color: TOOL_COLOR }}>
-            Prueba decisiones antes de tomarlas
+            {t("whatIfSimulator.tagline")}
           </p>
 
           <div className="rounded-2xl border overflow-hidden mb-5" style={{ borderColor: "var(--border)" }}>
             {[
-              { emoji: "🔄", text: "¿Qué pasa si vendo X y compro Y?" },
-              { emoji: "💰", text: "Proyección de aportes mensuales a N años" },
-              { emoji: "💡", text: "Resumen de tu mentor en cada escenario" },
+              { emoji: "🔄", text: t("whatIfSimulator.benefits.swap") },
+              { emoji: "💰", text: t("whatIfSimulator.benefits.monthly") },
+              { emoji: "💡", text: t("whatIfSimulator.benefits.mentor") },
             ].map((f, i, arr) => (
               <div key={f.text}
                    className="flex items-center gap-3 px-3.5 py-3"
@@ -187,7 +189,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
             <div className="absolute inset-0 top-0 h-1/2 pointer-events-none"
                  style={{ background: "rgba(255,255,255,0.12)" }} />
             <Sparkles className="w-4 h-4" />
-            Simular Escenario
+            {t("whatIfSimulator.simulateScenario")}
           </button>
         </div>
       </div>
@@ -206,7 +208,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
                  style={{ borderColor: "var(--border)" }}>
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4" style={{ color: TOOL_COLOR }} />
-                <span className="font-bold text-sm" style={{ color: "var(--text)" }}>⚡ ¿Qué pasa si?</span>
+                <span className="font-bold text-sm" style={{ color: "var(--text)" }}>⚡ {t("whatIfSimulator.modalTitle")}</span>
               </div>
               <button onClick={() => setOpen(false)} className="p-1.5 rounded-xl hover:bg-white/5 transition-colors"
                       style={{ color: "var(--muted)" }}>
@@ -218,7 +220,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
               {/* Scenario type selector */}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
-                  Tipo de escenario
+                  {t("whatIfSimulator.scenarioTypeLabel")}
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   {SCENARIO_TYPES.map((s) => {
@@ -243,20 +245,20 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
               {scenarioType === "swap" && (
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>Vender</label>
+                    <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("whatIfSimulator.sell")}</label>
                     <div className="relative">
                       <select className="w-full rounded-xl border px-2 py-1.5 text-xs appearance-none pr-6"
                               style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
                               value={(params.sell_ticker as string) || ""}
                               onChange={(e) => setParams((p) => ({ ...p, sell_ticker: e.target.value }))}>
-                        <option value="">Seleccionar</option>
-                        {tickers.map((t) => <option key={t} value={t}>{t}</option>)}
+                        <option value="">{t("whatIfSimulator.select")}</option>
+                        {tickers.map((tk) => <option key={tk} value={tk}>{tk}</option>)}
                       </select>
                       <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none" style={{ color: "var(--muted)" }} />
                     </div>
                   </div>
                   <div>
-                    <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>Comprar</label>
+                    <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("whatIfSimulator.buy")}</label>
                     <input type="text" placeholder="Ej: VOO"
                            className="w-full rounded-xl border px-2 py-1.5 text-xs"
                            style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
@@ -269,7 +271,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
               {scenarioType === "add_monthly" && (
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>Monto mensual ($)</label>
+                    <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("whatIfSimulator.monthlyAmount")}</label>
                     <input type="number" placeholder="Ej: 300"
                            className="w-full rounded-xl border px-2 py-1.5 text-xs"
                            style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
@@ -277,7 +279,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
                            onChange={(e) => setParams((p) => ({ ...p, amount: Number(e.target.value) }))} />
                   </div>
                   <div>
-                    <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>Durante (años)</label>
+                    <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("whatIfSimulator.forYears")}</label>
                     <input type="number" placeholder="Ej: 5" min={1} max={30}
                            className="w-full rounded-xl border px-2 py-1.5 text-xs"
                            style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
@@ -289,7 +291,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
 
               {scenarioType === "macro" && (
                 <div>
-                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>Evento macroeconómico</label>
+                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("whatIfSimulator.macroEvent")}</label>
                   <div className="grid grid-cols-2 gap-1.5 mb-2">
                     {MACRO_EVENTS.map((evt) => (
                       <button key={evt} onClick={() => setParams({ event: evt })}
@@ -303,7 +305,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
                       </button>
                     ))}
                   </div>
-                  <input type="text" placeholder="O escribe tu propio evento..."
+                  <input type="text" placeholder={t("whatIfSimulator.customEventPlaceholder")}
                          className="w-full rounded-xl border px-2 py-1.5 text-xs"
                          style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
                          value={(params.event as string) || ""}
@@ -313,8 +315,8 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
 
               {scenarioType === "custom" && (
                 <div>
-                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>Describe el escenario</label>
-                  <textarea rows={3} placeholder="Ej: ¿Qué pasa si vendo todo y compro solo SPY?"
+                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("whatIfSimulator.describeScenario")}</label>
+                  <textarea rows={3} placeholder={t("whatIfSimulator.describeScenarioPlaceholder")}
                             className="w-full rounded-xl border px-2 py-1.5 text-xs resize-none"
                             style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
                             value={(params.description as string) || ""}
@@ -326,8 +328,8 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
                       className="w-full py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-60 transition-opacity"
                       style={{ background: TOOL_COLOR }}>
                 {loading
-                  ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Simulando...</span>
-                  : "Simular escenario"}
+                  ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />{t("whatIfSimulator.simulating")}</span>
+                  : t("whatIfSimulator.simulateScenarioButton")}
               </button>
 
               {/* Result */}
@@ -357,7 +359,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
                     <div className="grid grid-cols-2 gap-2">
                       {result.pros && (
                         <div className="p-2 rounded-xl" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)" }}>
-                          <p className="text-[10px] font-bold mb-1" style={{ color: "#22c55e" }}>Pros</p>
+                          <p className="text-[10px] font-bold mb-1" style={{ color: "#22c55e" }}>{t("whatIfSimulator.pros")}</p>
                           {result.pros.map((p) => (
                             <p key={p} className="text-[10px] leading-snug mb-0.5" style={{ color: "var(--sub)" }}>· {p}</p>
                           ))}
@@ -365,7 +367,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
                       )}
                       {result.cons && (
                         <div className="p-2 rounded-xl" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                          <p className="text-[10px] font-bold mb-1" style={{ color: "#ef4444" }}>Contras</p>
+                          <p className="text-[10px] font-bold mb-1" style={{ color: "#ef4444" }}>{t("whatIfSimulator.cons")}</p>
                           {result.cons.map((c) => (
                             <p key={c} className="text-[10px] leading-snug mb-0.5" style={{ color: "var(--sub)" }}>· {c}</p>
                           ))}
@@ -375,7 +377,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
                   )}
                   {result.mentor_verdict && (
                     <div className="p-3 rounded-xl" style={{ background: "rgba(0,168,94,0.06)", border: "1px solid rgba(0,168,94,0.2)" }}>
-                      <p className="text-[10px] font-bold mb-1" style={{ color: "var(--accent-l)" }}>Resumen del mentor</p>
+                      <p className="text-[10px] font-bold mb-1" style={{ color: "var(--accent-l)" }}>{t("whatIfSimulator.mentorSummary")}</p>
                       <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{result.mentor_verdict}</p>
                     </div>
                   )}

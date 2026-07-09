@@ -2964,5 +2964,285 @@
       "fmp": "Financial Modeling Prep",
       "yahoo": "Yahoo Finance"
     }
+  },
+  "marketTicker": {
+    "loadingMarkets": "Cargando mercados…",
+    "newsTitle": "Noticias — {{name}}",
+    "noNews": "Sin noticias disponibles",
+    "readArticle": "Leer artículo →",
+    "now": "Ahora",
+    "hourAgo": "Hace 1h",
+    "hoursAgo": "Hace {{count}}h",
+    "yesterday": "Ayer",
+    "daysAgo": "Hace {{count}}d"
+  },
+  "mobileDecisionDiary": {
+    "heroTitle": "Diario de Sesgos",
+    "heroTagline": "Descubre qué sesgos te cuestan dinero",
+    "feature1": "Diario de cada decisión de compra/venta",
+    "feature2": "Detección de FOMO, pánico y otros sesgos",
+    "feature3": "Score de calidad como inversor sobre 100",
+    "feature4": "Reto semanal personalizado de tu mentor",
+    "unlockPremium": "Desbloquear con Premium",
+    "inlineSub": "Registra tus movimientos y descubre tus sesgos",
+    "register": "Registrar",
+    "tabDiary": "📔 Diario",
+    "tabBiases": "🧠 Análisis de sesgos",
+    "noDecisions": "Sin decisiones registradas aún.",
+    "startLogging": "Empieza registrando tu primera decisión.",
+    "triggerLabel": "Trigger",
+    "analyze": "Analizar",
+    "analyzingPatterns": "Analizando tus patrones con IA...",
+    "realProfileLabel": "PERFIL REAL COMO INVERSOR",
+    "basedOn": "Basado en {{count}} decisiones · {{period}}",
+    "biasesDetected": "SESGOS DETECTADOS",
+    "occurrences": "Ocurrencias",
+    "estimatedCost": "Costo estimado",
+    "realExample": "Ejemplo real",
+    "howToImprove": "Cómo mejorar",
+    "yourStrengths": "TUS FORTALEZAS",
+    "mentorAssessment": "🎓 EVALUACIÓN DE TU MENTOR",
+    "weeklyChallenge": "🎯 RETO DE LA SEMANA",
+    "logTitle": "Registrar decisión",
+    "actionField": "Acción",
+    "tickerField": "Ticker",
+    "tickerPlaceholder": "Ej: AAPL",
+    "whyField": "¿Por qué lo hice?",
+    "notesField": "Notas (opcional)",
+    "notesPlaceholder": "¿Qué pensabas en ese momento?",
+    "saveDecision": "Guardar decisión",
+    "actions": {
+      "buy": "Compré",
+      "sell": "Vendí",
+      "hold": "Mantuve (no actué)",
+      "ignoredAlert": "Ignoré una alerta",
+      "actedOnAlert": "Actué en una alerta"
+    },
+    "triggers": {
+      "manual": "Decisión propia",
+      "alert": "Alerta del sistema",
+      "mentor": "Recomendación del mentor",
+      "fomo": "FOMO",
+      "panic": "Pánico / estrés",
+      "research": "Investigación propia"
+    }
+  },
+  "mobileEarningsCalendar": {
+    "days": {
+      "sun": "D",
+      "mon": "L",
+      "tue": "M",
+      "wed": "X",
+      "thu": "J",
+      "fri": "V",
+      "sat": "S"
+    },
+    "months": {
+      "jan": "Enero",
+      "feb": "Febrero",
+      "mar": "Marzo",
+      "apr": "Abril",
+      "may": "Mayo",
+      "jun": "Junio",
+      "jul": "Julio",
+      "aug": "Agosto",
+      "sep": "Septiembre",
+      "oct": "Octubre",
+      "nov": "Noviembre",
+      "dec": "Diciembre"
+    },
+    "eventTypes": {
+      "earnings": "Resultados",
+      "exDividend": "Ex-Dividendo",
+      "dividend": "Dividendo"
+    },
+    "analysisError": "No se pudo obtener el análisis.",
+    "portfolio": "Portafolio",
+    "watchlist": "Watchlist",
+    "statusUpcoming": "📅 Próximo",
+    "statusToday": "🔔 Hoy",
+    "statusReported": "✅ Reportó",
+    "epsEst": "EPS est.",
+    "range": "Rango",
+    "revEst": "Rev. est.",
+    "dividend": "Dividendo",
+    "yield": "Yield",
+    "analyzingWithAI": "Analizando con IA...",
+    "aiAnalysis": "Análisis IA",
+    "aiAnalysisPremium": "Análisis IA · Premium",
+    "assetsCount": "{{count}} activos"
+  },
+  "mobileMonthlyReport": {
+    "generateError": "No se pudo generar el reporte.",
+    "shareText": "📊 Reporte Nuvos AI — {{month}}\n\n{{summary}}\n\nRendimiento: {{returnPct}}%\nValor total: ${{totalValue}}\n\n🎓 {{mentorNote}}",
+    "shareTitle": "Reporte {{month}}",
+    "title": "Reporte Mensual",
+    "tagline": "Tu portafolio analizado con IA cada mes",
+    "feature1": "Rendimiento real vs S&P 500 y benchmarks",
+    "feature2": "Sharpe ratio, volatilidad y drawdown",
+    "feature3": "3 acciones concretas para el mes siguiente",
+    "generating": "Generando...",
+    "generateReport": "Generar Reporte",
+    "portfolioReport": "Reporte de portafolio",
+    "metricReturn": "Rendimiento",
+    "metricTotalValue": "Valor total",
+    "metricGain": "Ganancia",
+    "metricVsSp500": "vs S&P 500",
+    "best": "🏆 Mejor",
+    "worst": "📉 Peor",
+    "sharpe": "Sharpe",
+    "volatility": "Volatilidad",
+    "drawdown": "Drawdown",
+    "mentorNote": "🎓 NOTA DE TU MENTOR",
+    "nextMonthActions": "✅ ACCIONES PARA EL PRÓXIMO MES",
+    "behavioralInsight": "💡 INSIGHT CONDUCTUAL"
+  },
+  "paywallModal": {
+    "plans": {
+      "yearly": {
+        "label": "Anual",
+        "period": "/año",
+        "sub": "$10.50/mes · Ahorra $29.89",
+        "badge": "MÁS POPULAR"
+      },
+      "monthly": {
+        "label": "Mensual",
+        "period": "/mes",
+        "sub": "Facturado mensualmente"
+      }
+    },
+    "heroFeature1": "Entiende qué hacer con tu dinero, todos los días — sin límite",
+    "heroFeature2": "Sabe exactamente cuánto ganaste o perdiste, y por qué",
+    "heroFeature3": "Nunca te sorprende una noticia — te avisamos antes de que mueva tu dinero",
+    "heroFeature4": "Tu portafolio armado en 30 segundos, sin hojas de cálculo",
+    "heroFeature5": "5 oportunidades concretas cada semana, con la razón y el riesgo",
+    "allFeatures": {
+      "f1": {
+        "text": "Pregunta lo que quieras, cuando quieras — sin límite",
+        "detail": "Un mentor de IA disponible 24/7 que conoce tu portafolio real y te responde con contexto de lo que ya tienes, no en abstracto."
+      },
+      "f2": {
+        "text": "Sé el primero en saber cuando una de tus empresas va a reportar",
+        "detail": "Antes de los resultados trimestrales, la IA te explica qué esperar y si hay algo que te debería importar. Sin sorpresas."
+      },
+      "f3": {
+        "text": "Descubre si tu dinero aguantaría otra crisis como 2008 o el COVID",
+        "detail": "Simula tu portafolio actual en 30 crisis históricas reales. Ve cuánto hubieras perdido y si estarías cómodo con eso."
+      },
+      "f4": {
+        "text": "La IA te dice honestamente qué está mal en tu portafolio",
+        "detail": "Concentración excesiva en un sector, falta de diversificación, posiciones inconsistentes con tu perfil. Concreto, no genérico."
+      },
+      "f5": {
+        "text": "Sube tu estado de cuenta y la IA arma todo solo",
+        "detail": "Sube una foto o PDF de tu broker. La IA detecta automáticamente tus acciones, cantidades y precios de compra."
+      },
+      "f6": {
+        "text": "Cada lunes, 5 ideas de inversión pensadas para tu situación",
+        "detail": "No ideas genéricas. La IA considera lo que ya tienes, tu perfil y lo que está pasando en el mercado esa semana."
+      },
+      "f7": {
+        "text": "Te avisamos por qué se mueve tu dinero — antes de que reacciones",
+        "detail": "Notificaciones cuando algo importante mueve una de tus posiciones — con la explicación del por qué y si deberías hacer algo."
+      },
+      "f8": {
+        "text": "Al cierre de cada mes, sabe si le ganaste al mercado",
+        "detail": "Tu retorno real vs el S&P 500. Una nota personalizada de lo que funcionó y lo que no. Sin excusas, sin lenguaje técnico."
+      },
+      "f9": {
+        "text": "Aprende sobre las empresas que ya tienes en tu portafolio",
+        "detail": "Lecciones diseñadas para lo que tú tienes. Antes de que Apple reporte, entiende qué mirar. Relevante, no genérico."
+      },
+      "f10": {
+        "text": "Ve cómo se compara tu portafolio con el mercado en tiempo real",
+        "detail": "Un panel simple: tu rendimiento hoy, esta semana, este año — frente al S&P 500. Sabes en todo momento si vas bien."
+      },
+      "f11": {
+        "text": "Portafolio ilimitado — sin topes de acciones ni watchlist",
+        "detail": "El plan gratuito tiene límite de 10. Premium elimina ese límite para que tu portafolio sea tuyo, completo."
+      },
+      "f12": {
+        "text": "Nuvos te conoce mejor con el tiempo — y recuerda todo",
+        "detail": "Con Premium construyes tu memoria financiera completa: patrones de comportamiento, timeline de decisiones y evolución de tu portafolio. El plan gratuito solo guarda 10 creencias básicas."
+      }
+    },
+    "trust1": "Cancela cuando quieras",
+    "trust2": "Pago seguro con Stripe",
+    "trust3": "7 días gratis",
+    "paymentError": "No se pudo abrir el pago. Intenta de nuevo.",
+    "premiumBadge": "Nuvos AI Premium",
+    "headlinePrefix": "Conviértete en",
+    "headlineHighlight": "inversionista de verdad",
+    "subHeadline": "El acompañamiento que necesitas para que tu dinero trabaje para ti — todos los días.",
+    "socialProofCount": "+2,400 inversores",
+    "socialProofSuffix": "ya usan Premium",
+    "seeLess": "Ver menos",
+    "seeAllResults": "Ver los {{count}} resultados incluidos",
+    "startNow": "Comenzar ahora · {{price}}{{period}}",
+    "coachingCta": "¿Prefieres una guía 1:1 con Diego?"
+  },
+  "quizModal": {
+    "passed": "¡Quiz aprobado!",
+    "almostThere": "Casi lo logras",
+    "scoreLine": "{{score}}/{{total}} correctas · necesitabas {{passing}}",
+    "markedComplete": "{{emoji}} {{title}} marcado como completado ✓",
+    "continue": "Continuar →",
+    "retry": "Reintentar",
+    "close": "Cerrar",
+    "quizTitle": "Quiz · {{title}}",
+    "seeResult": "Ver resultado →",
+    "next": "Siguiente →"
+  },
+  "stockDetailScreen": {
+    "about": "Acerca de {{name}}",
+    "calculatingAiSummary": "Calculando resumen IA…",
+    "couldNotLoadData": "No se pudieron cargar los datos",
+    "employeesAbbr": "emp.",
+    "fairValue": "Valor justo {{price}}",
+    "groups": {
+      "profitability": "Rentabilidad",
+      "risk": "Riesgo",
+      "valuation": "Valoración"
+    },
+    "keyMetrics": "Métricas Clave",
+    "loadingAnalysis": "Cargando análisis…",
+    "longTerm": "Largo plazo",
+    "metricHints": {
+      "beta": "Volatilidad relativa al mercado. Beta > 1 significa que se mueve más que el S&P 500, para bien y para mal.",
+      "debtEquity": "Cuánta deuda tiene por cada peso de capital propio. Más bajo es más seguro financieramente.",
+      "divYield": "Dividendo anual como % del precio actual. Es lo que te pagan solo por tener la acción.",
+      "epsTtm": "Ganancia por acción en los últimos 12 meses. Cuánto ganó la empresa por cada acción emitida.",
+      "fcf": "Free Cash Flow: efectivo real que genera la empresa después de sus inversiones. Más confiable que las ganancias contables.",
+      "marketCap": "Valor total de todas las acciones en el mercado. Mide qué tan grande es la empresa.",
+      "netMargin": "De cada $100 de ventas, cuánto queda como ganancia final tras impuestos y todos los costos.",
+      "peFwd": "P/E usando las ganancias esperadas del próximo año. Refleja las expectativas del mercado.",
+      "peTtm": "Cuántos años de ganancias actuales pagas por cada acción. Un P/E alto significa que el mercado espera mucho crecimiento futuro.",
+      "roe": "Cuánto gana la empresa por cada peso de capital que pusieron los accionistas. Mientras más alto, más eficiente.",
+      "week52High": "Precio más alto que alcanzó la acción en los últimos 12 meses.",
+      "week52Low": "Precio más bajo que tuvo la acción en los últimos 12 meses."
+    },
+    "metricLabels": {
+      "debtEquity": "Deuda/Equity",
+      "netMargin": "Margen Neto",
+      "week52High": "52s Máx",
+      "week52Low": "52s Mín"
+    },
+    "news": "Noticias",
+    "noAnalystData": "Sin datos de analistas",
+    "noFinancialData": "Sin datos financieros",
+    "now": "AHORA",
+    "retry": "Reintentar",
+    "seeLess": "Ver menos ↑",
+    "seeMore": "Ver más ↓",
+    "shortTerm": "Corto plazo",
+    "similarCompanies": "Empresas Similares",
+    "tabs": {
+      "analysts": "Analistas",
+      "chart": "Gráfica",
+      "company": "Empresa",
+      "financials": "Financieros",
+      "summary": "Resumen"
+    },
+    "whenToEnter": "¿Cuándo entrar?"
   }
 }

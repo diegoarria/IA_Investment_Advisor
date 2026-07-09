@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { QUIZ_DATA, type QuizQuestion } from "../lib/quizData";
 import { useTheme } from "../lib/ThemeContext";
 
@@ -16,6 +17,7 @@ interface Props {
 
 export default function QuizModal({ visible, topicId, topicTitle, topicEmoji, onPass, onClose }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const questions = QUIZ_DATA[topicId] || [];
   const total = questions.length;
   const passing = Math.ceil(total * 0.67);
@@ -68,21 +70,21 @@ export default function QuizModal({ visible, topicId, topicTitle, topicEmoji, on
             <ScrollView contentContainerStyle={{ padding: 24, alignItems: "center" }}>
               <Text style={{ fontSize: 48, marginBottom: 8 }}>{passed ? "🎉" : "📚"}</Text>
               <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text, marginBottom: 4 }}>
-                {passed ? "¡Quiz aprobado!" : "Casi lo logras"}
+                {passed ? t("quizModal.passed") : t("quizModal.almostThere")}
               </Text>
               <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 16 }}>
-                {score}/{total} correctas · necesitabas {passing}
+                {t("quizModal.scoreLine", { score, total, passing })}
               </Text>
 
               {passed ? (
                 <>
                   <View style={{ width: "100%", borderRadius: 16, padding: 14, backgroundColor: "rgba(0,212,126,0.08)", borderWidth: 1, borderColor: "rgba(0,212,126,0.25)", marginBottom: 16 }}>
                     <Text style={{ fontSize: 13, fontWeight: "800", color: "#00d47e", textAlign: "center" }}>
-                      {topicEmoji} {topicTitle} marcado como completado ✓
+                      {t("quizModal.markedComplete", { emoji: topicEmoji, title: topicTitle })}
                     </Text>
                   </View>
                   <TouchableOpacity style={[s.btn, { backgroundColor: "#00d47e", width: "100%" }]} onPress={onPass} activeOpacity={0.8}>
-                    <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>Continuar →</Text>
+                    <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>{t("quizModal.continue")}</Text>
                   </TouchableOpacity>
                 </>
               ) : (
@@ -101,10 +103,10 @@ export default function QuizModal({ visible, topicId, topicTitle, topicEmoji, on
                   )}
                   <View style={{ flexDirection: "row", gap: 8, width: "100%" }}>
                     <TouchableOpacity style={[s.btn, { flex: 1, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border }]} onPress={reset} activeOpacity={0.8}>
-                      <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }}>Reintentar</Text>
+                      <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }}>{t("quizModal.retry")}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[s.btn, { flex: 1, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border }]} onPress={onClose} activeOpacity={0.8}>
-                      <Text style={{ fontSize: 13, fontWeight: "800", color: colors.textMuted }}>Cerrar</Text>
+                      <Text style={{ fontSize: 13, fontWeight: "800", color: colors.textMuted }}>{t("quizModal.close")}</Text>
                     </TouchableOpacity>
                   </View>
                 </>
@@ -118,7 +120,7 @@ export default function QuizModal({ visible, topicId, topicTitle, topicEmoji, on
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
                     <Text style={{ fontSize: 14 }}>{topicEmoji}</Text>
-                    <Text style={{ fontSize: 11, fontWeight: "800", color: colors.accent }}>Quiz · {topicTitle}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: "800", color: colors.accent }}>{t("quizModal.quizTitle", { title: topicTitle })}</Text>
                   </View>
                   {/* Progress bar */}
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -171,7 +173,7 @@ export default function QuizModal({ visible, topicId, topicTitle, topicEmoji, on
                 {answered && (
                   <TouchableOpacity style={[s.btn, { backgroundColor: "#00d47e" }]} onPress={next} activeOpacity={0.8}>
                     <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>
-                      {idx + 1 >= total ? "Ver resultado →" : "Siguiente →"}
+                      {idx + 1 >= total ? t("quizModal.seeResult") : t("quizModal.next")}
                     </Text>
                   </TouchableOpacity>
                 )}

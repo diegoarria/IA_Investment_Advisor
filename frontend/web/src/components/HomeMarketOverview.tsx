@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { market as marketApi } from "@/lib/api";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -21,15 +23,17 @@ interface Props {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const CW = 280, CH = 68;
-const PERIODS: { key: Period; label: string }[] = [
-  { key: "1d",  label: "1D"  },
-  { key: "5d",  label: "5D"  },
-  { key: "6m",  label: "6M"  },
-  { key: "ytd", label: "YTD" },
-  { key: "1y",  label: "1A"  },
-  { key: "5y",  label: "5A"  },
-  { key: "max", label: "MÁX" },
-];
+function getPeriods(t: TFunction): { key: Period; label: string }[] {
+  return [
+    { key: "1d",  label: "1D"  },
+    { key: "5d",  label: "5D"  },
+    { key: "6m",  label: "6M"  },
+    { key: "ytd", label: "YTD" },
+    { key: "1y",  label: t("homeMarketOverview.periods.oneYear")  },
+    { key: "5y",  label: t("homeMarketOverview.periods.fiveYears")  },
+    { key: "max", label: t("homeMarketOverview.periods.max") },
+  ];
+}
 
 // ─── SVG helpers ───────────────────────────────────────────────────────────────
 function buildLine(prices: number[], w = CW, h = CH): string {
@@ -64,20 +68,20 @@ function fmtChange(change: number): string {
   return change >= 0 ? `+${val}` : val;
 }
 
-function timeAgo(d: Date): string {
+function timeAgo(d: Date, t: TFunction): string {
   const s = Math.round((Date.now() - d.getTime()) / 1000);
-  if (s < 5)  return "Ahora";
-  if (s < 60) return `Hace ${s}s`;
-  return `Hace ${Math.round(s / 60)}min`;
+  if (s < 5)  return t("homeMarketOverview.timeAgo.now");
+  if (s < 60) return t("homeMarketOverview.timeAgo.secondsAgo", { count: s });
+  return t("homeMarketOverview.timeAgo.minutesAgo", { count: Math.round(s / 60) });
 }
 
 // ─── VIX sentiment ──────────────────────────────────────────────────────────────
-function vixSentiment(price: number | null): { label: string; desc: string; color: string; bar: number } {
+function vixSentiment(price: number | null, t: TFunction): { label: string; desc: string; color: string; bar: number } {
   if (price == null) return { label: "—",               desc: "",                               color: "var(--muted)", bar: 0 };
-  if (price < 15)    return { label: "Calma",            desc: "Baja volatilidad — mercado estable",     color: "#22c55e",      bar: 15 };
-  if (price < 20)    return { label: "Normal",           desc: "Volatilidad dentro de rangos normales",  color: "#84cc16",      bar: 35 };
-  if (price < 30)    return { label: "Cauteloso",        desc: "Volatilidad elevada — mayor precaución", color: "#f59e0b",      bar: 65 };
-  return                    { label: "Alta volatilidad", desc: "Estrés de mercado — movimientos bruscos",color: "#ef4444",      bar: 100 };
+  if (price < 15)    return { label: t("homeMarketOverview.vix.calmLabel"),            desc: t("homeMarketOverview.vix.calmDesc"),     color: "#22c55e",      bar: 15 };
+  if (price < 20)    return { label: t("homeMarketOverview.vix.normalLabel"),           desc: t("homeMarketOverview.vix.normalDesc"),  color: "#84cc16",      bar: 35 };
+  if (price < 30)    return { label: t("homeMarketOverview.vix.cautiousLabel"),        desc: t("homeMarketOverview.vix.cautiousDesc"), color: "#f59e0b",      bar: 65 };
+  return                    { label: t("homeMarketOverview.vix.highVolLabel"), desc: t("homeMarketOverview.vix.highVolDesc"),color: "#ef4444",      bar: 100 };
 }
 
 // ─── Skeleton card ─────────────────────────────────────────────────────────────
@@ -102,12 +106,14 @@ function calcPeriodReturn(prices: number[]): number | null {
 }
 
 // ─── Single index card ─────────────────────────────────────────────────────────
-function IndexCard({ idx, prices, loading, isBest, period }: {
+function IndexCard({ idx, prices, loading, isBest, period, periods, t }: {
   idx:     IndexData;
   prices:  number[];
   loading: boolean;
   isBest:  boolean;
   period:  Period;
+  periods: { key: Period; label: string }[];
+  t:       TFunction;
 }) {
   const isHistorical = period !== "1d" && period !== "5d";
   const periodReturn = isHistorical ? calcPeriodReturn(prices) : null;
@@ -124,7 +130,7 @@ function IndexCard({ idx, prices, loading, isBest, period }: {
       {isBest && (
         <div className="absolute top-0 right-0 text-[9px] font-black px-2 py-0.5 rounded-bl-xl z-10"
              style={{ background: "#f59e0b", color: "#000", letterSpacing: 0.3 }}>
-          ★ MEJOR
+          ★ {t("homeMarketOverview.best")}
         </div>
       )}
 
@@ -146,7 +152,7 @@ function IndexCard({ idx, prices, loading, isBest, period }: {
           </span>
           {isHistorical && periodReturn != null ? (
             <span className="text-[9px] font-semibold" style={{ color: "var(--dim)" }}>
-              {PERIODS.find(p => p.key === period)?.label}
+              {periods.find(p => p.key === period)?.label}
             </span>
           ) : idx.change !== 0 && (
             <span className="text-[10px]" style={{ color: "var(--dim)", fontVariantNumeric: "tabular-nums" }}>
@@ -158,7 +164,7 @@ function IndexCard({ idx, prices, loading, isBest, period }: {
         {/* Secondary: 1D change shown when viewing historical period */}
         {isHistorical && (
           <p className="text-[9px] mt-0.5" style={{ color: "var(--dim)" }}>
-            Hoy: <span style={{ color: idx.change_pct >= 0 ? "#22c55e" : "#ef4444" }}>
+            {t("homeMarketOverview.today")}: <span style={{ color: idx.change_pct >= 0 ? "#22c55e" : "#ef4444" }}>
               {idx.change_pct >= 0 ? "+" : ""}{idx.change_pct.toFixed(2)}%
             </span>
           </p>
@@ -191,6 +197,8 @@ function IndexCard({ idx, prices, loading, isBest, period }: {
 
 // ─── Main component ────────────────────────────────────────────────────────────
 export default function HomeMarketOverview({ indices, lastRefresh }: Props) {
+  const { t } = useTranslation();
+  const PERIODS = getPeriods(t);
   const [period, setPeriod]         = useState<Period>("1d");
   const [charts, setCharts]         = useState<Record<string, number[]>>({});
   const [chartLoading, setLoading]  = useState(false);
@@ -238,13 +246,13 @@ export default function HomeMarketOverview({ indices, lastRefresh }: Props) {
         return rb > ra ? b : a;
       }, nonVix[0])
     : null;
-  const sentiment = vixSentiment(vixIdx?.price ?? null);
-  const updLabel  = lastRefresh ? timeAgo(lastRefresh) : null;
+  const sentiment = vixSentiment(vixIdx?.price ?? null, t);
+  const updLabel  = lastRefresh ? timeAgo(lastRefresh, t) : null;
 
   if (!indices.length) return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--muted)" }}>Mercados</p>
+        <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--muted)" }}>{t("homeMarketOverview.markets")}</p>
       </div>
       <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none">
         {[1,2,3,4,5].map(i => <SkeletonCard key={i} />)}
@@ -258,7 +266,7 @@ export default function HomeMarketOverview({ indices, lastRefresh }: Props) {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--muted)" }}>
-            Mercados
+            {t("homeMarketOverview.markets")}
           </p>
           {updLabel && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full"
@@ -294,6 +302,8 @@ export default function HomeMarketOverview({ indices, lastRefresh }: Props) {
             loading={chartLoading}
             isBest={best?.symbol === idx.symbol}
             period={period}
+            periods={PERIODS}
+            t={t}
           />
         ))}
       </div>
@@ -304,7 +314,7 @@ export default function HomeMarketOverview({ indices, lastRefresh }: Props) {
              style={{ background: `${sentiment.color}0d`, border: `1px solid ${sentiment.color}25` }}>
           <div className="shrink-0">
             <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
-              Sentimiento
+              {t("homeMarketOverview.sentiment")}
             </p>
             <p className="text-xs font-black mt-0.5" style={{ color: sentiment.color }}>
               {sentiment.label}

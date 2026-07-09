@@ -4,6 +4,8 @@ import {
   ActivityIndicator, StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { decisionsApi } from "../lib/api";
 
@@ -12,20 +14,20 @@ interface Props {
   onUpgrade: () => void;
 }
 
-const ACTION_OPTIONS = [
-  { id: "buy",            label: "Compré" },
-  { id: "sell",           label: "Vendí" },
-  { id: "hold",           label: "Mantuve (no actué)" },
-  { id: "ignored_alert",  label: "Ignoré una alerta" },
-  { id: "acted_on_alert", label: "Actué en una alerta" },
+const getActionOptions = (t: TFunction) => [
+  { id: "buy",            label: t("mobileDecisionDiary.actions.buy") },
+  { id: "sell",           label: t("mobileDecisionDiary.actions.sell") },
+  { id: "hold",           label: t("mobileDecisionDiary.actions.hold") },
+  { id: "ignored_alert",  label: t("mobileDecisionDiary.actions.ignoredAlert") },
+  { id: "acted_on_alert", label: t("mobileDecisionDiary.actions.actedOnAlert") },
 ];
-const TRIGGER_OPTIONS = [
-  { id: "manual",   label: "Decisión propia" },
-  { id: "alert",    label: "Alerta del sistema" },
-  { id: "mentor",   label: "Recomendación del mentor" },
-  { id: "fomo",     label: "FOMO" },
-  { id: "panic",    label: "Pánico / estrés" },
-  { id: "research", label: "Investigación propia" },
+const getTriggerOptions = (t: TFunction) => [
+  { id: "manual",   label: t("mobileDecisionDiary.triggers.manual") },
+  { id: "alert",    label: t("mobileDecisionDiary.triggers.alert") },
+  { id: "mentor",   label: t("mobileDecisionDiary.triggers.mentor") },
+  { id: "fomo",     label: t("mobileDecisionDiary.triggers.fomo") },
+  { id: "panic",    label: t("mobileDecisionDiary.triggers.panic") },
+  { id: "research", label: t("mobileDecisionDiary.triggers.research") },
 ];
 const SEVERITY_COLOR: Record<string, string> = { alto: "#ef4444", medio: "#f59e0b", bajo: "#22c55e" };
 
@@ -33,7 +35,10 @@ const TOOL_COLOR = "#a78bfa";
 
 export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const s = styles(colors);
+  const ACTION_OPTIONS = getActionOptions(t);
+  const TRIGGER_OPTIONS = getTriggerOptions(t);
 
   const [tab, setTab]               = useState<"diary" | "biases">("diary");
   const [decisions, setDecisions]   = useState<any[]>([]);
@@ -97,14 +102,14 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
           </View>
         </View>
         <View style={s.heroContent}>
-          <Text style={[s.heroTitle, { color: colors.text }]}>Diario de Sesgos</Text>
-          <Text style={[s.heroTagline, { color: TOOL_COLOR }]}>Descubre qué sesgos te cuestan dinero</Text>
+          <Text style={[s.heroTitle, { color: colors.text }]}>{t("mobileDecisionDiary.heroTitle")}</Text>
+          <Text style={[s.heroTagline, { color: TOOL_COLOR }]}>{t("mobileDecisionDiary.heroTagline")}</Text>
           <View style={[s.featureList, { borderColor: colors.border }]}>
             {[
-              { icon: "📔", text: "Diario de cada decisión de compra/venta" },
-              { icon: "🧠", text: "Detección de FOMO, pánico y otros sesgos" },
-              { icon: "📊", text: "Score de calidad como inversor sobre 100" },
-              { icon: "🎯", text: "Reto semanal personalizado de tu mentor" },
+              { icon: "📔", text: t("mobileDecisionDiary.feature1") },
+              { icon: "🧠", text: t("mobileDecisionDiary.feature2") },
+              { icon: "📊", text: t("mobileDecisionDiary.feature3") },
+              { icon: "🎯", text: t("mobileDecisionDiary.feature4") },
             ].map((f, i, arr) => (
               <View key={f.text} style={[s.featureRow,
                 i < arr.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
@@ -119,7 +124,7 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
             style={[s.cta, { backgroundColor: TOOL_COLOR }]}>
             <View style={s.ctaGlow} />
             <Ionicons name="lock-open-outline" size={16} color="white" />
-            <Text style={s.ctaText}>Desbloquear con Premium</Text>
+            <Text style={s.ctaText}>{t("mobileDecisionDiary.unlockPremium")}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -141,8 +146,8 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
                 <Ionicons name="book-outline" size={18} color={TOOL_COLOR} />
               </View>
               <View>
-                <Text style={[s.inlineTitle, { color: colors.text }]}>Diario de Sesgos</Text>
-                <Text style={[s.inlineSub, { color: colors.textMuted }]}>Registra tus movimientos y descubre tus sesgos</Text>
+                <Text style={[s.inlineTitle, { color: colors.text }]}>{t("mobileDecisionDiary.heroTitle")}</Text>
+                <Text style={[s.inlineSub, { color: colors.textMuted }]}>{t("mobileDecisionDiary.inlineSub")}</Text>
               </View>
             </View>
             <TouchableOpacity
@@ -150,18 +155,18 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
               style={[s.registerBtn, { backgroundColor: TOOL_COLOR }]}>
               <View style={s.ctaGlow} />
               <Ionicons name="add" size={14} color="white" />
-              <Text style={s.registerBtnText}>Registrar</Text>
+              <Text style={s.registerBtnText}>{t("mobileDecisionDiary.register")}</Text>
             </TouchableOpacity>
           </View>
 
           {/* Tabs */}
           <View style={[s.tabRow, { backgroundColor: colors.bgRaised }]}>
-            {(["diary", "biases"] as const).map((t) => (
-              <TouchableOpacity key={t}
-                style={[s.tabBtn, tab === t && { backgroundColor: colors.card }]}
-                onPress={() => setTab(t)}>
-                <Text style={[s.tabText, { color: tab === t ? colors.text : colors.textMuted }]}>
-                  {t === "diary" ? "📔 Diario" : "🧠 Análisis de sesgos"}
+            {(["diary", "biases"] as const).map((tabId) => (
+              <TouchableOpacity key={tabId}
+                style={[s.tabBtn, tab === tabId && { backgroundColor: colors.card }]}
+                onPress={() => setTab(tabId)}>
+                <Text style={[s.tabText, { color: tab === tabId ? colors.text : colors.textMuted }]}>
+                  {tabId === "diary" ? t("mobileDecisionDiary.tabDiary") : t("mobileDecisionDiary.tabBiases")}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -177,8 +182,8 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
               ) : decisions.length === 0 ? (
                 <View style={s.emptyWrap}>
                   <Ionicons name="book-outline" size={36} color={colors.textMuted} style={{ opacity: 0.4 }} />
-                  <Text style={[s.emptyTitle, { color: colors.textMuted }]}>Sin decisiones registradas aún.</Text>
-                  <Text style={[s.emptySub, { color: colors.textDim }]}>Empieza registrando tu primera decisión.</Text>
+                  <Text style={[s.emptyTitle, { color: colors.textMuted }]}>{t("mobileDecisionDiary.noDecisions")}</Text>
+                  <Text style={[s.emptySub, { color: colors.textDim }]}>{t("mobileDecisionDiary.startLogging")}</Text>
                 </View>
               ) : (
                 decisions.map((d, i) => {
@@ -199,7 +204,7 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
                         </View>
                         {d.trigger && (
                           <Text style={[s.decTrigger, { color: colors.textMuted }]}>
-                            Trigger: {TRIGGER_OPTIONS.find((t) => t.id === d.trigger)?.label ?? d.trigger}
+                            {t("mobileDecisionDiary.triggerLabel")}: {TRIGGER_OPTIONS.find((opt) => opt.id === d.trigger)?.label ?? d.trigger}
                           </Text>
                         )}
                         {d.notes && <Text style={[s.decNotes, { color: colors.textSub }]}>{d.notes}</Text>}
@@ -220,13 +225,13 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
               <TouchableOpacity style={[s.refreshBtn, { borderColor: colors.border }]} onPress={fetchBiases} disabled={loadingB}>
                 <Ionicons name="refresh" size={13} color={colors.textMuted}
                   style={loadingB ? { transform: [{ rotate: "45deg" }] } : undefined} />
-                <Text style={[s.refreshText, { color: colors.textSub }]}>Analizar</Text>
+                <Text style={[s.refreshText, { color: colors.textSub }]}>{t("mobileDecisionDiary.analyze")}</Text>
               </TouchableOpacity>
 
               {loadingB ? (
                 <View style={[s.centered, { gap: 10 }]}>
                   <ActivityIndicator color={TOOL_COLOR} />
-                  <Text style={[s.emptyTitle, { color: colors.textMuted }]}>Analizando tus patrones con IA...</Text>
+                  <Text style={[s.emptyTitle, { color: colors.textMuted }]}>{t("mobileDecisionDiary.analyzingPatterns")}</Text>
                 </View>
               ) : !biases ? null : biases.message ? (
                 <View style={s.emptyWrap}>
@@ -237,20 +242,20 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
                 <View style={{ gap: 12 }}>
                   {/* Score */}
                   <View style={[s.scoreCard, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
-                    <Text style={[s.scoreLabel, { color: colors.textMuted }]}>PERFIL REAL COMO INVERSOR</Text>
+                    <Text style={[s.scoreLabel, { color: colors.textMuted }]}>{t("mobileDecisionDiary.realProfileLabel")}</Text>
                     <Text style={[s.scoreNum, { color: TOOL_COLOR }]}>
                       {biases.overall_score ?? 0}<Text style={{ fontSize: 18 }}>/100</Text>
                     </Text>
                     <Text style={[s.scoreTitle, { color: colors.text }]}>{biases.overall_label}</Text>
                     <Text style={[s.scoreSub, { color: colors.textMuted }]}>
-                      Basado en {biases.total_decisions} decisiones · {biases.analysis_period}
+                      {t("mobileDecisionDiary.basedOn", { count: biases.total_decisions, period: biases.analysis_period })}
                     </Text>
                   </View>
 
                   {/* Biases */}
                   {biases.biases_detected?.length > 0 && (
                     <View style={{ gap: 10 }}>
-                      <Text style={[s.sectionLabel, { color: colors.textMuted }]}>SESGOS DETECTADOS</Text>
+                      <Text style={[s.sectionLabel, { color: colors.textMuted }]}>{t("mobileDecisionDiary.biasesDetected")}</Text>
                       {biases.biases_detected.map((bias: any) => (
                         <View key={bias.name} style={[s.biasCard, {
                           borderColor: `${SEVERITY_COLOR[bias.severity]}30`,
@@ -269,11 +274,11 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
                           {/* 2-column grid: ocurrencias + costo */}
                           <View style={s.biasGrid}>
                             <View style={[s.biasGridCell, { backgroundColor: colors.bgRaised }]}>
-                              <Text style={[s.biasGridLabel, { color: colors.textMuted }]}>Ocurrencias</Text>
+                              <Text style={[s.biasGridLabel, { color: colors.textMuted }]}>{t("mobileDecisionDiary.occurrences")}</Text>
                               <Text style={[s.biasGridVal, { color: colors.text }]}>{bias.occurrences}x</Text>
                             </View>
                             <View style={[s.biasGridCell, { backgroundColor: colors.bgRaised }]}>
-                              <Text style={[s.biasGridLabel, { color: colors.textMuted }]}>Costo estimado</Text>
+                              <Text style={[s.biasGridLabel, { color: colors.textMuted }]}>{t("mobileDecisionDiary.estimatedCost")}</Text>
                               <Text style={[s.biasGridVal, { color: "#ef4444" }]}>{bias.cost_estimate}</Text>
                             </View>
                           </View>
@@ -281,7 +286,7 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
                           {/* Ejemplo real */}
                           {bias.example && (
                             <View style={[s.exampleBox, { backgroundColor: "rgba(239,68,68,0.06)", borderColor: "rgba(239,68,68,0.18)" }]}>
-                              <Text style={[s.exampleLabel, { color: "#ef4444" }]}>Ejemplo real</Text>
+                              <Text style={[s.exampleLabel, { color: "#ef4444" }]}>{t("mobileDecisionDiary.realExample")}</Text>
                               <Text style={[s.exampleText, { color: colors.textSub }]}>{bias.example}</Text>
                             </View>
                           )}
@@ -289,7 +294,7 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
                           {/* Cómo mejorar */}
                           {bias.fix && (
                             <View style={[s.fixBox, { backgroundColor: "rgba(34,197,94,0.06)", borderColor: "rgba(34,197,94,0.18)" }]}>
-                              <Text style={[s.fixLabel, { color: "#22c55e" }]}>Cómo mejorar</Text>
+                              <Text style={[s.fixLabel, { color: "#22c55e" }]}>{t("mobileDecisionDiary.howToImprove")}</Text>
                               <Text style={[s.fixText, { color: colors.textSub }]}>{bias.fix}</Text>
                             </View>
                           )}
@@ -301,7 +306,7 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
                   {/* Strengths */}
                   {biases.strengths?.length > 0 && (
                     <View style={{ gap: 8 }}>
-                      <Text style={[s.sectionLabel, { color: colors.textMuted }]}>TUS FORTALEZAS</Text>
+                      <Text style={[s.sectionLabel, { color: colors.textMuted }]}>{t("mobileDecisionDiary.yourStrengths")}</Text>
                       {biases.strengths.map((st: any) => (
                         <View key={st.name} style={[s.strengthRow, { borderColor: "rgba(34,197,94,0.2)", backgroundColor: "rgba(34,197,94,0.05)" }]}>
                           <Ionicons name="checkmark-circle" size={16} color="#22c55e" style={{ marginTop: 1 }} />
@@ -317,7 +322,7 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
                   {/* Mentor assessment */}
                   {biases.mentor_assessment && (
                     <View style={[s.mentorBox, { backgroundColor: TOOL_COLOR + "0D", borderColor: TOOL_COLOR + "40" }]}>
-                      <Text style={[s.mentorLabel, { color: TOOL_COLOR }]}>🎓 EVALUACIÓN DE TU MENTOR</Text>
+                      <Text style={[s.mentorLabel, { color: TOOL_COLOR }]}>{t("mobileDecisionDiary.mentorAssessment")}</Text>
                       <Text style={[s.mentorText, { color: colors.textSub }]}>{biases.mentor_assessment}</Text>
                     </View>
                   )}
@@ -325,7 +330,7 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
                   {/* Next challenge */}
                   {biases.next_challenge && (
                     <View style={[s.mentorBox, { backgroundColor: TOOL_COLOR + "0D", borderColor: TOOL_COLOR + "40" }]}>
-                      <Text style={[s.mentorLabel, { color: TOOL_COLOR }]}>🎯 RETO DE LA SEMANA</Text>
+                      <Text style={[s.mentorLabel, { color: TOOL_COLOR }]}>{t("mobileDecisionDiary.weeklyChallenge")}</Text>
                       <Text style={[s.mentorText, { color: colors.textSub }]}>{biases.next_challenge}</Text>
                     </View>
                   )}
@@ -340,13 +345,13 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
       <Modal visible={logOpen} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setLogOpen(false)}>
         <View style={[s.logModal, { backgroundColor: colors.bg }]}>
           <View style={[s.logHeader, { borderBottomColor: colors.border }]}>
-            <Text style={[s.logHeaderTitle, { color: colors.text }]}>Registrar decisión</Text>
+            <Text style={[s.logHeaderTitle, { color: colors.text }]}>{t("mobileDecisionDiary.logTitle")}</Text>
             <TouchableOpacity onPress={() => setLogOpen(false)}>
               <Ionicons name="close" size={22} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={s.logContent}>
-            <Text style={[s.fieldLabel, { color: colors.textMuted }]}>Acción</Text>
+            <Text style={[s.fieldLabel, { color: colors.textMuted }]}>{t("mobileDecisionDiary.actionField")}</Text>
             <View style={s.optionsRow}>
               {ACTION_OPTIONS.map((a) => (
                 <TouchableOpacity key={a.id}
@@ -362,42 +367,42 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
               ))}
             </View>
 
-            <Text style={[s.fieldLabel, { color: colors.textMuted }]}>Ticker</Text>
+            <Text style={[s.fieldLabel, { color: colors.textMuted }]}>{t("mobileDecisionDiary.tickerField")}</Text>
             <TextInput
               style={[s.input, { borderColor: colors.border, backgroundColor: colors.bgRaised, color: colors.text }]}
-              placeholder="Ej: AAPL" placeholderTextColor={colors.placeholder}
+              placeholder={t("mobileDecisionDiary.tickerPlaceholder")} placeholderTextColor={colors.placeholder}
               autoCapitalize="characters" value={form.ticker}
-              onChangeText={(t) => setForm((f) => ({ ...f, ticker: t.toUpperCase() }))} />
+              onChangeText={(txt) => setForm((f) => ({ ...f, ticker: txt.toUpperCase() }))} />
 
-            <Text style={[s.fieldLabel, { color: colors.textMuted }]}>¿Por qué lo hice?</Text>
+            <Text style={[s.fieldLabel, { color: colors.textMuted }]}>{t("mobileDecisionDiary.whyField")}</Text>
             <View style={s.optionsRow}>
-              {TRIGGER_OPTIONS.map((t) => (
-                <TouchableOpacity key={t.id}
+              {TRIGGER_OPTIONS.map((opt) => (
+                <TouchableOpacity key={opt.id}
                   style={[s.optionBtn, {
-                    borderColor: form.trigger === t.id ? TOOL_COLOR : colors.border,
-                    backgroundColor: form.trigger === t.id ? TOOL_COLOR + "15" : colors.bgRaised,
+                    borderColor: form.trigger === opt.id ? TOOL_COLOR : colors.border,
+                    backgroundColor: form.trigger === opt.id ? TOOL_COLOR + "15" : colors.bgRaised,
                   }]}
-                  onPress={() => setForm((f) => ({ ...f, trigger: t.id }))}>
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: form.trigger === t.id ? TOOL_COLOR : colors.textMuted }}>
-                    {t.label}
+                  onPress={() => setForm((f) => ({ ...f, trigger: opt.id }))}>
+                  <Text style={{ fontSize: 11, fontWeight: "600", color: form.trigger === opt.id ? TOOL_COLOR : colors.textMuted }}>
+                    {opt.label}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={[s.fieldLabel, { color: colors.textMuted }]}>Notas (opcional)</Text>
+            <Text style={[s.fieldLabel, { color: colors.textMuted }]}>{t("mobileDecisionDiary.notesField")}</Text>
             <TextInput
               style={[s.textArea, { borderColor: colors.border, backgroundColor: colors.bgRaised, color: colors.text }]}
-              placeholder="¿Qué pensabas en ese momento?" placeholderTextColor={colors.placeholder}
+              placeholder={t("mobileDecisionDiary.notesPlaceholder")} placeholderTextColor={colors.placeholder}
               multiline numberOfLines={3} value={form.notes}
-              onChangeText={(t) => setForm((f) => ({ ...f, notes: t }))} />
+              onChangeText={(txt) => setForm((f) => ({ ...f, notes: txt }))} />
 
             <TouchableOpacity
               style={[s.saveBtn, { backgroundColor: TOOL_COLOR, opacity: saving || !form.ticker.trim() ? 0.6 : 1 }]}
               onPress={handleLog} disabled={saving || !form.ticker.trim()}>
               {saving
                 ? <ActivityIndicator color="white" />
-                : <Text style={s.saveBtnText}>Guardar decisión</Text>}
+                : <Text style={s.saveBtnText}>{t("mobileDecisionDiary.saveDecision")}</Text>}
             </TouchableOpacity>
           </ScrollView>
         </View>

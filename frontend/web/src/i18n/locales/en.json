@@ -2275,5 +2275,233 @@
     "newVersionAvailable": "A new version is available",
     "reload": "Reload",
     "close": "Close"
+  },
+  "brokerConnectModal": {
+    "title": "Connect Broker",
+    "done": "Done",
+    "cancel": "Cancel",
+    "connect": "Connect",
+    "connected": "Connected",
+    "lastSync": "Last sync",
+    "syncAll": "Sync all",
+    "addBroker": "Add broker",
+    "selectBroker": "Select your broker",
+    "comingSoonBadge": "Coming soon",
+    "comingSoonMessage": "Coming soon — connecting to {{broker}} will be available very soon.",
+    "readOnlyNote": "Read-only — Nuvos AI can never execute trades on your account",
+    "iolCredentialsNote": "Your credentials are used to obtain the token — they are never stored",
+    "iolUsernamePlaceholder": "IOL Username",
+    "iolPasswordPlaceholder": "IOL Password",
+    "status": {
+      "connectingBroker": "Connecting to broker...",
+      "fetchingPositions": "Fetching positions...",
+      "positionsImportedFrom": "{{count}} positions imported from {{institution}}",
+      "fetchingIolPositions": "Fetching IOL positions...",
+      "positionsImportedIol": "{{count}} positions imported from Invertir Online",
+      "syncingAll": "Syncing all brokers...",
+      "positionsSynced": "{{count}} positions synced"
+    },
+    "errors": {
+      "plaidNotReady": "Plaid Link is not ready. Try again.",
+      "noLinkToken": "Link token not received",
+      "fetchPositionsFailed": "Error fetching positions. Try again.",
+      "plaidStartFailed": "Could not start the Plaid connection.",
+      "iolConnectFailed": "Error connecting to IOL. Check your credentials.",
+      "syncFailed": "Error syncing. Try again."
+    },
+    "brokers": {
+      "ibkr": "Stocks, options, global futures",
+      "schwab": "Leading broker in the US",
+      "robinhood": "Commission-free trading",
+      "iol": "Buenos Aires Stock Exchange + NYSE",
+      "gbm": "Leading broker in Mexico",
+      "actinver": "Mexican brokerage firm"
+    }
+  },
+  "diarioDecisiones": {
+    "headerTitle": "Bias Diary",
+    "headerSubtitle": "Log your moves and discover your biases",
+    "register": "Log decision",
+    "tabDiary": "Diary",
+    "tabBiases": "Bias analysis",
+    "noDecisions": "No decisions logged yet.",
+    "noDecisionsHint": "Start by logging your first decision.",
+    "trigger": "Trigger",
+    "analyze": "Analyze",
+    "analyzingPatterns": "Analyzing your patterns with AI...",
+    "realProfileTitle": "REAL PROFILE AS AN INVESTOR",
+    "basedOn": "Based on {{count}} decisions · {{period}}",
+    "biasesDetected": "BIASES DETECTED",
+    "occurrences": "Occurrences",
+    "estimatedCost": "Estimated cost",
+    "realExample": "Real example",
+    "howToImprove": "How to improve",
+    "yourStrengths": "YOUR STRENGTHS",
+    "mentorAssessment": "YOUR MENTOR'S ASSESSMENT",
+    "weeklyChallenge": "CHALLENGE OF THE WEEK",
+    "actions": {
+      "buy": "Bought",
+      "sell": "Sold",
+      "hold": "Held (decided not to act)",
+      "ignoredAlert": "Ignored an alert",
+      "actedOnAlert": "Acted on an alert"
+    },
+    "triggers": {
+      "manual": "Own decision",
+      "alert": "System alert",
+      "mentor": "Mentor's recommendation",
+      "fomo": "FOMO (fear of missing out)",
+      "panic": "Panic / stress",
+      "research": "Own research"
+    },
+    "locked": {
+      "title": "Bias Diary",
+      "tagline": "Discover which biases are costing you money",
+      "description": "Log every investment decision and the AI detects your behavioral biases over time — the only feature that makes you a better investor.",
+      "benefit1": "Diary of every buy/sell decision",
+      "benefit2": "Detection of FOMO, panic, and other biases",
+      "benefit3": "Investor quality score out of 100",
+      "benefit4": "Personalized weekly challenge from your mentor"
+    },
+    "modal": {
+      "title": "Log decision",
+      "action": "Action",
+      "ticker": "Ticker",
+      "tickerPlaceholder": "E.g.: AAPL",
+      "whyLabel": "Why did I do it?",
+      "notesLabel": "Notes (optional)",
+      "notesPlaceholder": "What were you thinking at that moment?",
+      "saving": "Saving...",
+      "save": "Save decision"
+    }
+  },
+  "homeMarketOverview": {
+    "markets": "Markets",
+    "best": "BEST",
+    "today": "Today",
+    "sentiment": "Sentiment",
+    "periods": {
+      "oneYear": "1Y",
+      "fiveYears": "5Y",
+      "max": "MAX"
+    },
+    "timeAgo": {
+      "now": "Now",
+      "secondsAgo": "{{count}}s ago",
+      "minutesAgo": "{{count}}min ago"
+    },
+    "vix": {
+      "calmLabel": "Calm",
+      "calmDesc": "Low volatility — stable market",
+      "normalLabel": "Normal",
+      "normalDesc": "Volatility within normal ranges",
+      "cautiousLabel": "Cautious",
+      "cautiousDesc": "Elevated volatility — more caution",
+      "highVolLabel": "High volatility",
+      "highVolDesc": "Market stress — sharp movements"
+    }
+  },
+  "monthlyReport": {
+    "title": "Monthly Report",
+    "subtitle": "Your portfolio analyzed with AI every month",
+    "feature1": "Real performance vs S&P 500 and benchmarks",
+    "feature2": "Sharpe ratio, volatility, and drawdown",
+    "feature3": "3 concrete actions for next month",
+    "generating": "Generating...",
+    "generateCta": "Generate Report",
+    "errorPrefix": "Error",
+    "generateFailed": "Could not generate the report. Try again.",
+    "reportTitle": "Portfolio Report",
+    "generatedOn": "Generated on",
+    "exportPdf": "Export PDF",
+    "executiveSummary": "EXECUTIVE SUMMARY",
+    "bestPosition": "Best position",
+    "worstPosition": "Worst position",
+    "sectorBreakdown": "SECTOR BREAKDOWN",
+    "mentorNote": "NOTE FROM YOUR MENTOR",
+    "actionItems": "ACTIONS FOR NEXT MONTH",
+    "learningInsight": "BEHAVIORAL INSIGHT OF THE MONTH",
+    "metrics": {
+      "totalReturn": "Total return",
+      "totalValue": "Total value",
+      "unrealizedGain": "Unrealized gain",
+      "vsSp500": "vs S&P 500",
+      "volatility": "Volatility"
+    }
+  },
+  "voiceCallModal": {
+    "aiMentor": "AI Mentor",
+    "calling": "Calling...",
+    "mute": "Mute",
+    "unmute": "Unmute microphone",
+    "hangUp": "Hang up",
+    "errors": {
+      "connectionFailed": "Could not connect to the Mentor. Check your connection.",
+      "callClosed": "The call closed unexpectedly.",
+      "callClosedWithCode": "The call closed unexpectedly (code {{code}}).",
+      "micAccessFailed": "Could not access the microphone. Grant permission in your browser.",
+      "generic": "An error occurred."
+    }
+  },
+  "whatIfSimulator": {
+    "title": "What-If Simulator",
+    "tagline": "Test decisions before making them",
+    "description": "Simulate any change to your portfolio before making it. Swap positions, project monthly contributions, or simulate macroeconomic events.",
+    "benefits": {
+      "swap": "What if I sell X and buy Y?",
+      "monthly": "Projection of monthly contributions over N years",
+      "macro": "Impact of macro events on your portfolio",
+      "mentor": "Your mentor's summary for each scenario"
+    },
+    "scenarioTypes": {
+      "swap": {
+        "label": "Swap position",
+        "desc": "Sell X and buy Y with that money"
+      },
+      "addMonthly": {
+        "label": "Monthly contribution",
+        "desc": "Invest $X/mo for N years"
+      },
+      "macro": {
+        "label": "Macroeconomic event",
+        "desc": "Simulate a global event affecting your portfolio"
+      },
+      "custom": {
+        "label": "Free-form scenario",
+        "desc": "Describe any hypothesis"
+      }
+    },
+    "macroEvents": [
+      "The Fed raises rates to 7%",
+      "US recession (-10% GDP)",
+      "Tech market crash -40%",
+      "AI boom — tech +50%",
+      "Persistent inflation at 8%",
+      "Dollar strengthens 20%"
+    ],
+    "simulationError": "Couldn't complete the simulation. Try again.",
+    "recommendations": {
+      "proceed": "Proceed",
+      "proceedCautiously": "Proceed with caution",
+      "notRecommended": "Not recommended",
+      "keepCurrent": "🔵 Keep current portfolio"
+    },
+    "simulateScenario": "Simulate Scenario",
+    "modalTitle": "What if?",
+    "scenarioTypeLabel": "Scenario type",
+    "sell": "Sell",
+    "buy": "Buy",
+    "select": "Select",
+    "monthlyAmount": "Monthly amount ($)",
+    "forYears": "For (years)",
+    "macroEvent": "Macroeconomic event",
+    "customEventPlaceholder": "Or write your own event...",
+    "describeScenario": "Describe the scenario",
+    "describeScenarioPlaceholder": "E.g. What if I sell everything and buy only SPY?",
+    "simulating": "Simulating...",
+    "simulateScenarioButton": "Simulate scenario",
+    "pros": "Pros",
+    "cons": "Cons",
+    "mentorSummary": "Mentor's summary"
   }
 }

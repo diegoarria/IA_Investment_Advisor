@@ -4,6 +4,7 @@ import {
   ActivityIndicator, StyleSheet, Share,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { reportApi } from "../lib/api";
 
@@ -19,6 +20,7 @@ interface Props {
 
 export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [report, setReport]   = useState<any>(null);
   const [open, setOpen]       = useState(false);
@@ -37,14 +39,20 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
       setReport(res.data);
       setOpen(true);
     } catch {
-      alert("No se pudo generar el reporte.");
+      alert(t("mobileMonthlyReport.generateError"));
     } finally { setLoading(false); }
   };
 
   const handleShare = async () => {
     if (!report) return;
-    const text = `📊 Reporte Nuvos AI — ${report.month}\n\n${report.executive_summary}\n\nRendimiento: ${report.performance?.total_return_pct?.toFixed(2)}%\nValor total: $${report.performance?.total_value?.toLocaleString()}\n\n🎓 ${report.mentor_note}`;
-    await Share.share({ message: text, title: `Reporte ${report.month}` });
+    const text = t("mobileMonthlyReport.shareText", {
+      month: report.month,
+      summary: report.executive_summary,
+      returnPct: report.performance?.total_return_pct?.toFixed(2),
+      totalValue: report.performance?.total_value?.toLocaleString(),
+      mentorNote: report.mentor_note,
+    });
+    await Share.share({ message: text, title: t("mobileMonthlyReport.shareTitle", { month: report.month }) });
   };
 
   const retPct   = report?.performance?.total_return_pct ?? 0;
@@ -72,14 +80,14 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
 
         {/* Content */}
         <View style={s.cardContent}>
-          <Text style={[s.cardTitle, { color: colors.text }]}>Reporte Mensual</Text>
-          <Text style={[s.cardTagline, { color: TOOL_COLOR }]}>Tu portafolio analizado con IA cada mes</Text>
+          <Text style={[s.cardTitle, { color: colors.text }]}>{t("mobileMonthlyReport.title")}</Text>
+          <Text style={[s.cardTagline, { color: TOOL_COLOR }]}>{t("mobileMonthlyReport.tagline")}</Text>
 
           <View style={[s.featureList, { borderColor: colors.border }]}>
             {[
-              { icon: "📊", text: "Rendimiento real vs S&P 500 y benchmarks" },
-              { icon: "📉", text: "Sharpe ratio, volatilidad y drawdown" },
-              { icon: "✅", text: "3 acciones concretas para el mes siguiente" },
+              { icon: "📊", text: t("mobileMonthlyReport.feature1") },
+              { icon: "📉", text: t("mobileMonthlyReport.feature2") },
+              { icon: "✅", text: t("mobileMonthlyReport.feature3") },
             ].map((f, i, arr) => (
               <View key={f.text} style={[s.featureRow,
                 i < arr.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
@@ -95,8 +103,8 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
             style={[s.cta, { backgroundColor: TOOL_COLOR }]}>
             <View style={s.ctaGlow} />
             {loading
-              ? <><ActivityIndicator color="white" size="small" /><Text style={s.ctaText}>Generando...</Text></>
-              : <><Ionicons name="sparkles" size={16} color="white" /><Text style={s.ctaText}>Generar Reporte</Text></>}
+              ? <><ActivityIndicator color="white" size="small" /><Text style={s.ctaText}>{t("mobileMonthlyReport.generating")}</Text></>
+              : <><Ionicons name="sparkles" size={16} color="white" /><Text style={s.ctaText}>{t("mobileMonthlyReport.generateReport")}</Text></>}
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -107,7 +115,7 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
           <View style={[s.modalHeader, { borderBottomColor: colors.border }]}>
             <View>
               <Text style={[s.modalTitle, { color: colors.text }]}>📊 {report?.month}</Text>
-              <Text style={[s.modalSub, { color: colors.textMuted }]}>Reporte de portafolio</Text>
+              <Text style={[s.modalSub, { color: colors.textMuted }]}>{t("mobileMonthlyReport.portfolioReport")}</Text>
             </View>
             <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
               <TouchableOpacity onPress={handleShare}>
@@ -130,10 +138,10 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
             {/* Key metrics */}
             <View style={s.metricsGrid}>
               {[
-                { label: "Rendimiento", value: `${isPos ? "+" : ""}${retPct.toFixed(2)}%`, color: isPos ? "#22c55e" : "#ef4444" },
-                { label: "Valor total", value: `$${(report?.performance?.total_value ?? 0).toLocaleString()}`, color: colors.text },
-                { label: "Ganancia", value: `${(report?.performance?.unrealized_gain ?? 0) >= 0 ? "+" : ""}$${Math.abs(report?.performance?.unrealized_gain ?? 0).toLocaleString()}`, color: (report?.performance?.unrealized_gain ?? 0) >= 0 ? "#22c55e" : "#ef4444" },
-                { label: "vs S&P 500", value: report?.performance?.vs_sp500 ?? "—", color: colors.textSub },
+                { label: t("mobileMonthlyReport.metricReturn"), value: `${isPos ? "+" : ""}${retPct.toFixed(2)}%`, color: isPos ? "#22c55e" : "#ef4444" },
+                { label: t("mobileMonthlyReport.metricTotalValue"), value: `$${(report?.performance?.total_value ?? 0).toLocaleString()}`, color: colors.text },
+                { label: t("mobileMonthlyReport.metricGain"), value: `${(report?.performance?.unrealized_gain ?? 0) >= 0 ? "+" : ""}$${Math.abs(report?.performance?.unrealized_gain ?? 0).toLocaleString()}`, color: (report?.performance?.unrealized_gain ?? 0) >= 0 ? "#22c55e" : "#ef4444" },
+                { label: t("mobileMonthlyReport.metricVsSp500"), value: report?.performance?.vs_sp500 ?? "—", color: colors.textSub },
               ].map((m) => (
                 <View key={m.label} style={[s.metricCard, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
                   <Text style={[s.metricLabel, { color: colors.textMuted }]}>{m.label}</Text>
@@ -145,12 +153,12 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
             {/* Best/Worst */}
             <View style={s.bwRow}>
               <View style={[s.bwCard, { borderColor: "#22c55e40", backgroundColor: "#22c55e0A" }]}>
-                <Text style={[s.bwLabel, { color: "#22c55e" }]}>🏆 Mejor</Text>
+                <Text style={[s.bwLabel, { color: "#22c55e" }]}>{t("mobileMonthlyReport.best")}</Text>
                 <Text style={[s.bwTicker, { color: colors.text }]}>{report?.performance?.best_performer?.ticker ?? "—"}</Text>
                 <Text style={[s.bwPct, { color: "#22c55e" }]}>+{report?.performance?.best_performer?.gain_pct?.toFixed(2) ?? 0}%</Text>
               </View>
               <View style={[s.bwCard, { borderColor: "#ef444440", backgroundColor: "#ef44440A" }]}>
-                <Text style={[s.bwLabel, { color: "#ef4444" }]}>📉 Peor</Text>
+                <Text style={[s.bwLabel, { color: "#ef4444" }]}>{t("mobileMonthlyReport.worst")}</Text>
                 <Text style={[s.bwTicker, { color: colors.text }]}>{report?.performance?.worst_performer?.ticker ?? "—"}</Text>
                 <Text style={[s.bwPct, { color: "#ef4444" }]}>{report?.performance?.worst_performer?.loss_pct?.toFixed(2) ?? 0}%</Text>
               </View>
@@ -160,9 +168,9 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
             {report?.metrics && (
               <View style={s.advRow}>
                 {[
-                  { label: "Sharpe", value: report.metrics.sharpe_ratio?.toFixed(2) ?? "—" },
-                  { label: "Volatilidad", value: report.metrics.volatility_pct ? `${report.metrics.volatility_pct.toFixed(1)}%` : "—" },
-                  { label: "Drawdown", value: report.metrics.max_drawdown_pct ? `${report.metrics.max_drawdown_pct.toFixed(1)}%` : "—" },
+                  { label: t("mobileMonthlyReport.sharpe"), value: report.metrics.sharpe_ratio?.toFixed(2) ?? "—" },
+                  { label: t("mobileMonthlyReport.volatility"), value: report.metrics.volatility_pct ? `${report.metrics.volatility_pct.toFixed(1)}%` : "—" },
+                  { label: t("mobileMonthlyReport.drawdown"), value: report.metrics.max_drawdown_pct ? `${report.metrics.max_drawdown_pct.toFixed(1)}%` : "—" },
                 ].map((m) => (
                   <View key={m.label} style={[s.advCard, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
                     <Text style={[s.advLabel, { color: colors.textMuted }]}>{m.label}</Text>
@@ -175,7 +183,7 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
             {/* Mentor note */}
             {report?.mentor_note && (
               <View style={[s.mentorBox, { backgroundColor: colors.accent + "0D", borderColor: colors.accent + "40" }]}>
-                <Text style={[s.mentorLabel, { color: colors.accent }]}>🎓 NOTA DE TU MENTOR</Text>
+                <Text style={[s.mentorLabel, { color: colors.accent }]}>{t("mobileMonthlyReport.mentorNote")}</Text>
                 <Text style={[s.mentorText, { color: colors.textSub }]}>{report.mentor_note}</Text>
               </View>
             )}
@@ -183,7 +191,7 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
             {/* Action items */}
             {report?.action_items?.length > 0 && (
               <View>
-                <Text style={[s.sectionLabel, { color: colors.textMuted }]}>✅ ACCIONES PARA EL PRÓXIMO MES</Text>
+                <Text style={[s.sectionLabel, { color: colors.textMuted }]}>{t("mobileMonthlyReport.nextMonthActions")}</Text>
                 {report.action_items.map((item: string, i: number) => (
                   <View key={i} style={[s.actionRow, { backgroundColor: colors.bgRaised }]}>
                     <Text style={[s.actionNum, { color: colors.accent }]}>{i + 1}.</Text>
@@ -196,7 +204,7 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
             {/* Learning insight */}
             {report?.learning_insight && (
               <View style={[s.insightBox, { backgroundColor: "#8b5cf60D", borderColor: "#8b5cf640" }]}>
-                <Text style={[s.insightLabel, { color: "#a78bfa" }]}>💡 INSIGHT CONDUCTUAL</Text>
+                <Text style={[s.insightLabel, { color: "#a78bfa" }]}>{t("mobileMonthlyReport.behavioralInsight")}</Text>
                 <Text style={[s.insightText, { color: colors.textSub }]}>{report.learning_insight}</Text>
               </View>
             )}

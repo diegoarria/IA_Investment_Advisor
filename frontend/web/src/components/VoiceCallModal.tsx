@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PhoneOff, Mic, MicOff } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   onClose: () => void;
@@ -31,6 +32,7 @@ function wsBaseUrl(): string {
 }
 
 export default function VoiceCallModal({ onClose }: Props) {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<CallStatus>("connecting");
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [muted, setMuted] = useState(false);
@@ -124,14 +126,14 @@ export default function VoiceCallModal({ onClose }: Props) {
         console.error("[voice-call] websocket error", ev);
         if (!cancelled) {
           setStatus("error");
-          setErrorMsg("No se pudo conectar con el Mentor. Revisa tu conexión.");
+          setErrorMsg(t("voiceCallModal.errors.connectionFailed"));
         }
       };
       ws.onclose = (ev) => {
         console.debug("[voice-call] websocket closed", ev.code, ev.reason);
         if (!cancelled && !closedRef.current) {
           setStatus("error");
-          setErrorMsg(`La llamada se cerró inesperadamente${ev.code ? ` (código ${ev.code})` : ""}.`);
+          setErrorMsg(ev.code ? t("voiceCallModal.errors.callClosedWithCode", { code: ev.code }) : t("voiceCallModal.errors.callClosed"));
         }
       };
     }
@@ -140,7 +142,7 @@ export default function VoiceCallModal({ onClose }: Props) {
       console.error(err);
       if (!cancelled) {
         setStatus("error");
-        setErrorMsg("No se pudo acceder al micrófono. Da permiso en el navegador.");
+        setErrorMsg(t("voiceCallModal.errors.micAccessFailed"));
       }
     });
 
@@ -185,7 +187,7 @@ export default function VoiceCallModal({ onClose }: Props) {
         stopAllPlayback();
         break;
       case "error":
-        setErrorMsg(msg.detail || "Ocurrió un error.");
+        setErrorMsg(msg.detail || t("voiceCallModal.errors.generic"));
         break;
     }
   }
@@ -366,7 +368,7 @@ export default function VoiceCallModal({ onClose }: Props) {
   const ringColor = status === "assistant_speaking" ? "#00b96d" : status === "user_speaking" ? "#3b82f6" : "#3a3a3a";
   const subLabel =
     status === "error" ? errorMsg
-    : status === "connecting" ? "Llamando..."
+    : status === "connecting" ? t("voiceCallModal.calling")
     : formatDuration(callSeconds);
 
   return (
@@ -385,12 +387,12 @@ export default function VoiceCallModal({ onClose }: Props) {
             className="w-32 h-32 rounded-full flex items-center justify-center transition-colors duration-300"
             style={{ background: "#1c1c1e", border: `2px solid ${ringColor}` }}
           >
-            <span className="text-6xl" role="img" aria-label="Mentor IA">🤖</span>
+            <span className="text-6xl" role="img" aria-label={t("voiceCallModal.aiMentor")}>🤖</span>
           </div>
         </div>
 
         <div className="text-center">
-          <p className="text-2xl font-bold text-white">Mentor IA</p>
+          <p className="text-2xl font-bold text-white">{t("voiceCallModal.aiMentor")}</p>
           <p className="text-sm mt-2 tabular-nums" style={{ color: status === "error" ? "#f87171" : "rgba(255,255,255,0.5)" }}>
             {subLabel}
           </p>
@@ -404,7 +406,7 @@ export default function VoiceCallModal({ onClose }: Props) {
           onClick={toggleMute}
           className="w-14 h-14 rounded-full flex items-center justify-center transition-colors"
           style={{ background: muted ? "#fff" : "rgba(255,255,255,0.14)" }}
-          aria-label={muted ? "Activar micrófono" : "Silenciar"}
+          aria-label={muted ? t("voiceCallModal.unmute") : t("voiceCallModal.mute")}
         >
           {muted ? <MicOff size={22} color="#000" /> : <Mic size={22} color="#fff" />}
         </button>
@@ -412,7 +414,7 @@ export default function VoiceCallModal({ onClose }: Props) {
           onClick={handleHangUp}
           className="w-16 h-16 rounded-full flex items-center justify-center"
           style={{ background: "#ef4444" }}
-          aria-label="Colgar"
+          aria-label={t("voiceCallModal.hangUp")}
         >
           <PhoneOff size={26} color="#fff" />
         </button>

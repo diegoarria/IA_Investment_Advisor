@@ -4,6 +4,8 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { earningsApi } from "../lib/api";
 
@@ -28,17 +30,27 @@ interface Props {
   onUpgrade?: () => void;
 }
 
-const DAYS   = ["D", "L", "M", "X", "J", "V", "S"];
-const MONTHS = [
-  "Enero","Febrero","Marzo","Abril","Mayo","Junio",
-  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
+const getDays = (t: TFunction): string[] => [
+  t("mobileEarningsCalendar.days.sun"),
+  t("mobileEarningsCalendar.days.mon"),
+  t("mobileEarningsCalendar.days.tue"),
+  t("mobileEarningsCalendar.days.wed"),
+  t("mobileEarningsCalendar.days.thu"),
+  t("mobileEarningsCalendar.days.fri"),
+  t("mobileEarningsCalendar.days.sat"),
+];
+const getMonths = (t: TFunction): string[] => [
+  t("mobileEarningsCalendar.months.jan"), t("mobileEarningsCalendar.months.feb"), t("mobileEarningsCalendar.months.mar"),
+  t("mobileEarningsCalendar.months.apr"), t("mobileEarningsCalendar.months.may"), t("mobileEarningsCalendar.months.jun"),
+  t("mobileEarningsCalendar.months.jul"), t("mobileEarningsCalendar.months.aug"), t("mobileEarningsCalendar.months.sep"),
+  t("mobileEarningsCalendar.months.oct"), t("mobileEarningsCalendar.months.nov"), t("mobileEarningsCalendar.months.dec"),
 ];
 
-const EVENT_META: Record<EventType, { icon: string; label: string; bg: string; color: string; bgPortfolio: string; colorPortfolio: string }> = {
-  earnings:    { icon: "bar-chart-outline",  label: "Resultados",   bg: "rgba(59,130,246,0.22)",  color: "#60a5fa", bgPortfolio: "rgba(0,168,94,0.22)",  colorPortfolio: "#00d47e" },
-  ex_dividend: { icon: "cut-outline",        label: "Ex-Dividendo", bg: "rgba(245,158,11,0.22)",  color: "#f59e0b", bgPortfolio: "rgba(245,158,11,0.28)", colorPortfolio: "#f59e0b" },
-  dividend:    { icon: "cash-outline",       label: "Dividendo",    bg: "rgba(168,85,247,0.22)",  color: "#a855f7", bgPortfolio: "rgba(168,85,247,0.28)", colorPortfolio: "#a855f7" },
-};
+const getEventMeta = (t: TFunction): Record<EventType, { icon: string; label: string; bg: string; color: string; bgPortfolio: string; colorPortfolio: string }> => ({
+  earnings:    { icon: "bar-chart-outline",  label: t("mobileEarningsCalendar.eventTypes.earnings"),   bg: "rgba(59,130,246,0.22)",  color: "#60a5fa", bgPortfolio: "rgba(0,168,94,0.22)",  colorPortfolio: "#00d47e" },
+  ex_dividend: { icon: "cut-outline",        label: t("mobileEarningsCalendar.eventTypes.exDividend"), bg: "rgba(245,158,11,0.22)",  color: "#f59e0b", bgPortfolio: "rgba(245,158,11,0.28)", colorPortfolio: "#f59e0b" },
+  dividend:    { icon: "cash-outline",       label: t("mobileEarningsCalendar.eventTypes.dividend"),   bg: "rgba(168,85,247,0.22)",  color: "#a855f7", bgPortfolio: "rgba(168,85,247,0.28)", colorPortfolio: "#a855f7" },
+});
 
 function toDateStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -51,6 +63,10 @@ export default function MobileEarningsCalendar({
   onUpgrade,
 }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
+  const DAYS = getDays(t);
+  const MONTHS = getMonths(t);
+  const EVENT_META = getEventMeta(t);
   const [events, setEvents]         = useState<CalendarEvent[]>([]);
   const [loading, setLoading]       = useState(false);
   const [viewDate, setViewDate]     = useState(() => new Date());
@@ -103,7 +119,7 @@ export default function MobileEarningsCalendar({
       const res = await earningsApi.getAnalysis(ticker, 0, 0);
       setAnalysis((prev) => ({ ...prev, [ticker]: res.data.analysis }));
     } catch {
-      setAnalysis((prev) => ({ ...prev, [ticker]: "No se pudo obtener el análisis." }));
+      setAnalysis((prev) => ({ ...prev, [ticker]: t("mobileEarningsCalendar.analysisError") }));
     } finally {
       setAnalyzing(null);
     }
@@ -266,17 +282,17 @@ export default function MobileEarningsCalendar({
                     {isPortfolio ? (
                       <View style={[s.badge, { backgroundColor: "rgba(0,168,94,0.12)" }]}>
                         <Ionicons name="briefcase-outline" size={8} color={colors.accentLight} />
-                        <Text style={[s.badgeText, { color: colors.accentLight }]}>Portafolio</Text>
+                        <Text style={[s.badgeText, { color: colors.accentLight }]}>{t("mobileEarningsCalendar.portfolio")}</Text>
                       </View>
                     ) : (
                       <View style={[s.badge, { backgroundColor: "rgba(59,130,246,0.12)" }]}>
                         <Ionicons name="eye-outline" size={8} color="#60a5fa" />
-                        <Text style={[s.badgeText, { color: "#60a5fa" }]}>Watchlist</Text>
+                        <Text style={[s.badgeText, { color: "#60a5fa" }]}>{t("mobileEarningsCalendar.watchlist")}</Text>
                       </View>
                     )}
 
                     <Text style={[s.statusText, { color: entry.status === "upcoming" || entry.status === "today" ? accentColor : colors.textMuted }]}>
-                      {entry.status === "upcoming" ? "📅 Próximo" : entry.status === "today" ? "🔔 Hoy" : "✅ Reportó"}
+                      {entry.status === "upcoming" ? t("mobileEarningsCalendar.statusUpcoming") : entry.status === "today" ? t("mobileEarningsCalendar.statusToday") : t("mobileEarningsCalendar.statusReported")}
                     </Text>
                   </View>
 
@@ -285,19 +301,19 @@ export default function MobileEarningsCalendar({
                     <View style={s.metaRow}>
                       {entry.eps_estimate != null && (
                         <View style={[s.metaChip, { backgroundColor: colors.bgRaised }]}>
-                          <Text style={[s.metaChipLabel, { color: colors.textDim }]}>EPS est.</Text>
+                          <Text style={[s.metaChipLabel, { color: colors.textDim }]}>{t("mobileEarningsCalendar.epsEst")}</Text>
                           <Text style={[s.metaChipVal, { color: colors.text }]}>${entry.eps_estimate}</Text>
                         </View>
                       )}
                       {entry.eps_range && (
                         <View style={[s.metaChip, { backgroundColor: colors.bgRaised }]}>
-                          <Text style={[s.metaChipLabel, { color: colors.textDim }]}>Rango</Text>
+                          <Text style={[s.metaChipLabel, { color: colors.textDim }]}>{t("mobileEarningsCalendar.range")}</Text>
                           <Text style={[s.metaChipVal, { color: colors.text }]}>{entry.eps_range}</Text>
                         </View>
                       )}
                       {entry.revenue_estimate && (
                         <View style={[s.metaChip, { backgroundColor: colors.bgRaised }]}>
-                          <Text style={[s.metaChipLabel, { color: colors.textDim }]}>Rev. est.</Text>
+                          <Text style={[s.metaChipLabel, { color: colors.textDim }]}>{t("mobileEarningsCalendar.revEst")}</Text>
                           <Text style={[s.metaChipVal, { color: colors.text }]}>{entry.revenue_estimate}</Text>
                         </View>
                       )}
@@ -308,13 +324,13 @@ export default function MobileEarningsCalendar({
                     <View style={s.metaRow}>
                       {entry.dividend_amount != null && (
                         <View style={[s.metaChip, { backgroundColor: colors.bgRaised }]}>
-                          <Text style={[s.metaChipLabel, { color: colors.textDim }]}>Dividendo</Text>
+                          <Text style={[s.metaChipLabel, { color: colors.textDim }]}>{t("mobileEarningsCalendar.dividend")}</Text>
                           <Text style={[s.metaChipVal, { color: colors.text }]}>${entry.dividend_amount?.toFixed(4)}</Text>
                         </View>
                       )}
                       {entry.dividend_yield != null && (
                         <View style={[s.metaChip, { backgroundColor: colors.bgRaised }]}>
-                          <Text style={[s.metaChipLabel, { color: colors.textDim }]}>Yield</Text>
+                          <Text style={[s.metaChipLabel, { color: colors.textDim }]}>{t("mobileEarningsCalendar.yield")}</Text>
                           <Text style={[s.metaChipVal, { color: "#a855f7" }]}>{entry.dividend_yield?.toFixed(2)}%</Text>
                         </View>
                       )}
@@ -332,7 +348,7 @@ export default function MobileEarningsCalendar({
                     ) : analyzing === entry.ticker ? (
                       <View style={s.analyzingRow}>
                         <ActivityIndicator size="small" color={colors.accentLight} />
-                        <Text style={[s.analyzingText, { color: colors.textMuted }]}>Analizando con IA...</Text>
+                        <Text style={[s.analyzingText, { color: colors.textMuted }]}>{t("mobileEarningsCalendar.analyzingWithAI")}</Text>
                       </View>
                     ) : isPremium ? (
                       <TouchableOpacity
@@ -341,7 +357,7 @@ export default function MobileEarningsCalendar({
                         activeOpacity={0.7}
                       >
                         <Ionicons name="flash-outline" size={12} color={colors.accentLight} />
-                        <Text style={[s.aiBtnText, { color: colors.accentLight }]}>Análisis IA</Text>
+                        <Text style={[s.aiBtnText, { color: colors.accentLight }]}>{t("mobileEarningsCalendar.aiAnalysis")}</Text>
                       </TouchableOpacity>
                     ) : (
                       <TouchableOpacity
@@ -350,7 +366,7 @@ export default function MobileEarningsCalendar({
                         activeOpacity={0.7}
                       >
                         <Ionicons name="flash-outline" size={12} color={colors.textMuted} />
-                        <Text style={[s.aiBtnText, { color: colors.textMuted }]}>Análisis IA · Premium</Text>
+                        <Text style={[s.aiBtnText, { color: colors.textMuted }]}>{t("mobileEarningsCalendar.aiAnalysisPremium")}</Text>
                       </TouchableOpacity>
                     )
                   )}
@@ -365,19 +381,19 @@ export default function MobileEarningsCalendar({
       <View style={[s.legend, { borderTopColor: colors.border }]}>
         <View style={s.legendItem}>
           <View style={[s.legendDot, { backgroundColor: "#60a5fa" }]} />
-          <Text style={[s.legendText, { color: colors.textMuted }]}>Resultados</Text>
+          <Text style={[s.legendText, { color: colors.textMuted }]}>{t("mobileEarningsCalendar.eventTypes.earnings")}</Text>
         </View>
         <View style={s.legendItem}>
           <View style={[s.legendDot, { backgroundColor: "#f59e0b" }]} />
-          <Text style={[s.legendText, { color: colors.textMuted }]}>Ex-Dividendo</Text>
+          <Text style={[s.legendText, { color: colors.textMuted }]}>{t("mobileEarningsCalendar.eventTypes.exDividend")}</Text>
         </View>
         <View style={s.legendItem}>
           <View style={[s.legendDot, { backgroundColor: "#a855f7" }]} />
-          <Text style={[s.legendText, { color: colors.textMuted }]}>Dividendo</Text>
+          <Text style={[s.legendText, { color: colors.textMuted }]}>{t("mobileEarningsCalendar.eventTypes.dividend")}</Text>
         </View>
         {allTickers.length > 0 && (
           <Text style={[s.legendCount, { color: colors.textDim }]}>
-            {allTickers.length} activos
+            {t("mobileEarningsCalendar.assetsCount", { count: allTickers.length })}
           </Text>
         )}
       </View>

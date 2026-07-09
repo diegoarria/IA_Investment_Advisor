@@ -2275,5 +2275,233 @@
     "newVersionAvailable": "Hay una nueva versión disponible",
     "reload": "Recargar",
     "close": "Cerrar"
+  },
+  "brokerConnectModal": {
+    "title": "Conectar Broker",
+    "done": "Listo",
+    "cancel": "Cancelar",
+    "connect": "Conectar",
+    "connected": "Conectados",
+    "lastSync": "Última sync",
+    "syncAll": "Sincronizar todo",
+    "addBroker": "Agregar broker",
+    "selectBroker": "Selecciona tu broker",
+    "comingSoonBadge": "Próximamente",
+    "comingSoonMessage": "Próximamente — La conexión con {{broker}} estará disponible muy pronto.",
+    "readOnlyNote": "Solo lectura — Nuvos AI nunca puede ejecutar operaciones en tu cuenta",
+    "iolCredentialsNote": "Tus credenciales se usan para obtener el token — nunca se almacenan",
+    "iolUsernamePlaceholder": "Usuario IOL",
+    "iolPasswordPlaceholder": "Contraseña IOL",
+    "status": {
+      "connectingBroker": "Conectando con el broker...",
+      "fetchingPositions": "Obteniendo posiciones...",
+      "positionsImportedFrom": "{{count}} posiciones importadas de {{institution}}",
+      "fetchingIolPositions": "Obteniendo posiciones de IOL...",
+      "positionsImportedIol": "{{count}} posiciones importadas de Invertir Online",
+      "syncingAll": "Sincronizando todos los brokers...",
+      "positionsSynced": "{{count}} posiciones sincronizadas"
+    },
+    "errors": {
+      "plaidNotReady": "Plaid Link no está listo. Intenta de nuevo.",
+      "noLinkToken": "No se recibió link token",
+      "fetchPositionsFailed": "Error al obtener posiciones. Intenta de nuevo.",
+      "plaidStartFailed": "No se pudo iniciar la conexión con Plaid.",
+      "iolConnectFailed": "Error al conectar con IOL. Verifica tus credenciales.",
+      "syncFailed": "Error al sincronizar. Intenta de nuevo."
+    },
+    "brokers": {
+      "ibkr": "Acciones, opciones, futuros globales",
+      "schwab": "Broker líder en EE.UU.",
+      "robinhood": "Trading sin comisiones",
+      "iol": "Bolsa de Buenos Aires + NYSE",
+      "gbm": "Broker líder en México",
+      "actinver": "Casa de bolsa mexicana"
+    }
+  },
+  "diarioDecisiones": {
+    "headerTitle": "Diario de Sesgos",
+    "headerSubtitle": "Registra tus movimientos y descubre tus sesgos",
+    "register": "Registrar",
+    "tabDiary": "Diario",
+    "tabBiases": "Análisis de sesgos",
+    "noDecisions": "Sin decisiones registradas aún.",
+    "noDecisionsHint": "Empieza registrando tu primera decisión.",
+    "trigger": "Trigger",
+    "analyze": "Analizar",
+    "analyzingPatterns": "Analizando tus patrones con IA...",
+    "realProfileTitle": "PERFIL REAL COMO INVERSOR",
+    "basedOn": "Basado en {{count}} decisiones · {{period}}",
+    "biasesDetected": "SESGOS DETECTADOS",
+    "occurrences": "Ocurrencias",
+    "estimatedCost": "Costo estimado",
+    "realExample": "Ejemplo real",
+    "howToImprove": "Cómo mejorar",
+    "yourStrengths": "TUS FORTALEZAS",
+    "mentorAssessment": "EVALUACIÓN DE TU MENTOR",
+    "weeklyChallenge": "RETO DE LA SEMANA",
+    "actions": {
+      "buy": "Compré",
+      "sell": "Vendí",
+      "hold": "Mantuve (decidí no actuar)",
+      "ignoredAlert": "Ignoré una alerta",
+      "actedOnAlert": "Actué en una alerta"
+    },
+    "triggers": {
+      "manual": "Decisión propia",
+      "alert": "Alerta del sistema",
+      "mentor": "Recomendación del mentor",
+      "fomo": "FOMO (miedo a perderme algo)",
+      "panic": "Pánico / estrés",
+      "research": "Investigación propia"
+    },
+    "locked": {
+      "title": "Diario de Sesgos",
+      "tagline": "Descubre qué sesgos te están costando dinero",
+      "description": "Registra cada decisión de inversión y la IA detecta tus sesgos conductuales con el tiempo — el único feature que te hace mejor inversor.",
+      "benefit1": "Diario de cada decisión de compra/venta",
+      "benefit2": "Detección de FOMO, pánico y otros sesgos",
+      "benefit3": "Score de calidad como inversor sobre 100",
+      "benefit4": "Reto semanal personalizado de tu mentor"
+    },
+    "modal": {
+      "title": "Registrar decisión",
+      "action": "Acción",
+      "ticker": "Ticker",
+      "tickerPlaceholder": "Ej: AAPL",
+      "whyLabel": "¿Por qué lo hice?",
+      "notesLabel": "Notas (opcional)",
+      "notesPlaceholder": "¿Qué pensabas en ese momento?",
+      "saving": "Guardando...",
+      "save": "Guardar decisión"
+    }
+  },
+  "homeMarketOverview": {
+    "markets": "Mercados",
+    "best": "MEJOR",
+    "today": "Hoy",
+    "sentiment": "Sentimiento",
+    "periods": {
+      "oneYear": "1A",
+      "fiveYears": "5A",
+      "max": "MÁX"
+    },
+    "timeAgo": {
+      "now": "Ahora",
+      "secondsAgo": "Hace {{count}}s",
+      "minutesAgo": "Hace {{count}}min"
+    },
+    "vix": {
+      "calmLabel": "Calma",
+      "calmDesc": "Baja volatilidad — mercado estable",
+      "normalLabel": "Normal",
+      "normalDesc": "Volatilidad dentro de rangos normales",
+      "cautiousLabel": "Cauteloso",
+      "cautiousDesc": "Volatilidad elevada — mayor precaución",
+      "highVolLabel": "Alta volatilidad",
+      "highVolDesc": "Estrés de mercado — movimientos bruscos"
+    }
+  },
+  "monthlyReport": {
+    "title": "Reporte Mensual",
+    "subtitle": "Tu portafolio analizado con IA cada mes",
+    "feature1": "Rendimiento real vs S&P 500 y benchmarks",
+    "feature2": "Sharpe ratio, volatilidad y drawdown",
+    "feature3": "3 acciones concretas para el mes siguiente",
+    "generating": "Generando...",
+    "generateCta": "Generar Reporte",
+    "errorPrefix": "Error",
+    "generateFailed": "No se pudo generar el reporte. Intenta de nuevo.",
+    "reportTitle": "Reporte de Portafolio",
+    "generatedOn": "Generado el",
+    "exportPdf": "Exportar PDF",
+    "executiveSummary": "RESUMEN EJECUTIVO",
+    "bestPosition": "Mejor posición",
+    "worstPosition": "Peor posición",
+    "sectorBreakdown": "DISTRIBUCIÓN POR SECTOR",
+    "mentorNote": "NOTA DE TU MENTOR",
+    "actionItems": "ACCIONES PARA EL PRÓXIMO MES",
+    "learningInsight": "INSIGHT CONDUCTUAL DEL MES",
+    "metrics": {
+      "totalReturn": "Rendimiento total",
+      "totalValue": "Valor total",
+      "unrealizedGain": "Ganancia no realizada",
+      "vsSp500": "vs S&P 500",
+      "volatility": "Volatilidad"
+    }
+  },
+  "voiceCallModal": {
+    "aiMentor": "Mentor IA",
+    "calling": "Llamando...",
+    "mute": "Silenciar",
+    "unmute": "Activar micrófono",
+    "hangUp": "Colgar",
+    "errors": {
+      "connectionFailed": "No se pudo conectar con el Mentor. Revisa tu conexión.",
+      "callClosed": "La llamada se cerró inesperadamente.",
+      "callClosedWithCode": "La llamada se cerró inesperadamente (código {{code}}).",
+      "micAccessFailed": "No se pudo acceder al micrófono. Da permiso en el navegador.",
+      "generic": "Ocurrió un error."
+    }
+  },
+  "whatIfSimulator": {
+    "title": "Simulador ¿Qué pasa si?",
+    "tagline": "Prueba decisiones antes de tomarlas",
+    "description": "Simula cualquier cambio en tu portafolio antes de ejecutarlo. Cambia posiciones, proyecta aportes mensuales o simula eventos macroeconómicos.",
+    "benefits": {
+      "swap": "¿Qué pasa si vendo X y compro Y?",
+      "monthly": "Proyección de aportes mensuales a N años",
+      "macro": "Impacto de eventos macro en tu portafolio",
+      "mentor": "Resumen de tu mentor en cada escenario"
+    },
+    "scenarioTypes": {
+      "swap": {
+        "label": "Cambiar posición",
+        "desc": "Vender X y comprar Y con ese dinero"
+      },
+      "addMonthly": {
+        "label": "Aporte mensual",
+        "desc": "Invertir $X/mes durante N años"
+      },
+      "macro": {
+        "label": "Evento macroeconómico",
+        "desc": "Simular un evento global sobre tu portafolio"
+      },
+      "custom": {
+        "label": "Escenario libre",
+        "desc": "Describe cualquier hipótesis"
+      }
+    },
+    "macroEvents": [
+      "La Fed sube tasas al 7%",
+      "Recesión en EE.UU. (-10% PIB)",
+      "Crash del mercado tech -40%",
+      "Boom de IA — tech +50%",
+      "Inflación persistente al 8%",
+      "Dólar se fortalece 20%"
+    ],
+    "simulationError": "No se pudo completar la simulación. Intenta de nuevo.",
+    "recommendations": {
+      "proceed": "Proceder",
+      "proceedCautiously": "Proceder con cautela",
+      "notRecommended": "No recomendado",
+      "keepCurrent": "🔵 Mantener portafolio actual"
+    },
+    "simulateScenario": "Simular Escenario",
+    "modalTitle": "¿Qué pasa si?",
+    "scenarioTypeLabel": "Tipo de escenario",
+    "sell": "Vender",
+    "buy": "Comprar",
+    "select": "Seleccionar",
+    "monthlyAmount": "Monto mensual ($)",
+    "forYears": "Durante (años)",
+    "macroEvent": "Evento macroeconómico",
+    "customEventPlaceholder": "O escribe tu propio evento...",
+    "describeScenario": "Describe el escenario",
+    "describeScenarioPlaceholder": "Ej: ¿Qué pasa si vendo todo y compro solo SPY?",
+    "simulating": "Simulando...",
+    "simulateScenarioButton": "Simular escenario",
+    "pros": "Pros",
+    "cons": "Contras",
+    "mentorSummary": "Resumen del mentor"
   }
 }

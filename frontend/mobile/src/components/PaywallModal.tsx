@@ -5,66 +5,76 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { billingApi } from "../lib/api";
 import { posthog } from "../config/posthog";
 import { useSubscriptionStore } from "../lib/subscriptionStore";
 import { useTheme } from "../lib/ThemeContext";
 
-const PLANS = [
+const getPlans = (t: TFunction) => [
   {
     key: "yearly"  as const,
-    label:  "Anual",
+    label:  t("paywallModal.plans.yearly.label"),
     price:  "$125.99",
-    period: "/año",
-    sub:    "$10.50/mes · Ahorra $29.89",
-    badge:  "MÁS POPULAR",
+    period: t("paywallModal.plans.yearly.period"),
+    sub:    t("paywallModal.plans.yearly.sub"),
+    badge:  t("paywallModal.plans.yearly.badge"),
   },
   {
     key: "monthly" as const,
-    label:  "Mensual",
+    label:  t("paywallModal.plans.monthly.label"),
     price:  "$12.99",
-    period: "/mes",
-    sub:    "Facturado mensualmente",
+    period: t("paywallModal.plans.monthly.period"),
+    sub:    t("paywallModal.plans.monthly.sub"),
     badge:  null,
   },
 ];
 
-const HERO_FEATURES = [
-  { icon: "chatbubbles-outline"  as const, text: "Entiende qué hacer con tu dinero, todos los días — sin límite" },
-  { icon: "trending-up-outline"  as const, text: "Sabe exactamente cuánto ganaste o perdiste, y por qué" },
-  { icon: "notifications-outline" as const, text: "Nunca te sorprende una noticia — te avisamos antes de que mueva tu dinero" },
-  { icon: "cloud-upload-outline" as const, text: "Tu portafolio armado en 30 segundos, sin hojas de cálculo" },
-  { icon: "search-outline"       as const, text: "5 oportunidades concretas cada semana, con la razón y el riesgo" },
+const getHeroFeatures = (t: TFunction) => [
+  { icon: "chatbubbles-outline"  as const, text: t("paywallModal.heroFeature1") },
+  { icon: "trending-up-outline"  as const, text: t("paywallModal.heroFeature2") },
+  { icon: "notifications-outline" as const, text: t("paywallModal.heroFeature3") },
+  { icon: "cloud-upload-outline" as const, text: t("paywallModal.heroFeature4") },
+  { icon: "search-outline"       as const, text: t("paywallModal.heroFeature5") },
 ];
 
-const ALL_FEATURES = [
-  { text: "Pregunta lo que quieras, cuando quieras — sin límite",       detail: "Un mentor de IA disponible 24/7 que conoce tu portafolio real y te responde con contexto de lo que ya tienes, no en abstracto." },
-  { text: "Sé el primero en saber cuando una de tus empresas va a reportar", detail: "Antes de los resultados trimestrales, la IA te explica qué esperar y si hay algo que te debería importar. Sin sorpresas." },
-  { text: "Descubre si tu dinero aguantaría otra crisis como 2008 o el COVID", detail: "Simula tu portafolio actual en 30 crisis históricas reales. Ve cuánto hubieras perdido y si estarías cómodo con eso." },
-  { text: "La IA te dice honestamente qué está mal en tu portafolio",   detail: "Concentración excesiva en un sector, falta de diversificación, posiciones inconsistentes con tu perfil. Concreto, no genérico." },
-  { text: "Sube tu estado de cuenta y la IA arma todo solo",            detail: "Sube una foto o PDF de tu broker. La IA detecta automáticamente tus acciones, cantidades y precios de compra." },
-  { text: "Cada lunes, 5 ideas de inversión pensadas para tu situación", detail: "No ideas genéricas. La IA considera lo que ya tienes, tu perfil y lo que está pasando en el mercado esa semana." },
-  { text: "Te avisamos por qué se mueve tu dinero — antes de que reacciones", detail: "Notificaciones cuando algo importante mueve una de tus posiciones — con la explicación del por qué y si deberías hacer algo." },
-  { text: "Al cierre de cada mes, sabe si le ganaste al mercado",       detail: "Tu retorno real vs el S&P 500. Una nota personalizada de lo que funcionó y lo que no. Sin excusas, sin lenguaje técnico." },
-  { text: "Aprende sobre las empresas que ya tienes en tu portafolio",  detail: "Lecciones diseñadas para lo que tú tienes. Antes de que Apple reporte, entiende qué mirar. Relevante, no genérico." },
-  { text: "Ve cómo se compara tu portafolio con el mercado en tiempo real", detail: "Un panel simple: tu rendimiento hoy, esta semana, este año — frente al S&P 500. Sabes en todo momento si vas bien." },
-  { text: "Portafolio ilimitado — sin topes de acciones ni watchlist",  detail: "El plan gratuito tiene límite de 10. Premium elimina ese límite para que tu portafolio sea tuyo, completo." },
-  { text: "Nuvos te conoce mejor con el tiempo — y recuerda todo",      detail: "Con Premium construyes tu memoria financiera completa: patrones de comportamiento, timeline de decisiones y evolución de tu portafolio. El plan gratuito solo guarda 10 creencias básicas." },
+const getAllFeatures = (t: TFunction) => [
+  { text: t("paywallModal.allFeatures.f1.text"),  detail: t("paywallModal.allFeatures.f1.detail") },
+  { text: t("paywallModal.allFeatures.f2.text"),  detail: t("paywallModal.allFeatures.f2.detail") },
+  { text: t("paywallModal.allFeatures.f3.text"),  detail: t("paywallModal.allFeatures.f3.detail") },
+  { text: t("paywallModal.allFeatures.f4.text"),  detail: t("paywallModal.allFeatures.f4.detail") },
+  { text: t("paywallModal.allFeatures.f5.text"),  detail: t("paywallModal.allFeatures.f5.detail") },
+  { text: t("paywallModal.allFeatures.f6.text"),  detail: t("paywallModal.allFeatures.f6.detail") },
+  { text: t("paywallModal.allFeatures.f7.text"),  detail: t("paywallModal.allFeatures.f7.detail") },
+  { text: t("paywallModal.allFeatures.f8.text"),  detail: t("paywallModal.allFeatures.f8.detail") },
+  { text: t("paywallModal.allFeatures.f9.text"),  detail: t("paywallModal.allFeatures.f9.detail") },
+  { text: t("paywallModal.allFeatures.f10.text"), detail: t("paywallModal.allFeatures.f10.detail") },
+  { text: t("paywallModal.allFeatures.f11.text"), detail: t("paywallModal.allFeatures.f11.detail") },
+  { text: t("paywallModal.allFeatures.f12.text"), detail: t("paywallModal.allFeatures.f12.detail") },
 ];
 
 const AVATAR_COLORS = ["#8b5cf6", "#3b82f6", "#f59e0b", "#ef4444", "#22c55e"];
-const TRUST_ITEMS  = ["Cancela cuando quieras", "Pago seguro con Stripe", "7 días gratis"];
+const getTrustItems = (t: TFunction) => [
+  t("paywallModal.trust1"), t("paywallModal.trust2"), t("paywallModal.trust3"),
+];
 
 interface Props { visible: boolean; onClose: () => void; reason?: string }
 
 export default function PaywallModal({ visible, onClose, reason }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const fetchStatus = useSubscriptionStore((s) => s.fetchStatus);
   const [plan, setPlan]         = useState<"monthly" | "yearly">("yearly");
   const [showAll, setShowAll]   = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
+
+  const PLANS = getPlans(t);
+  const HERO_FEATURES = getHeroFeatures(t);
+  const ALL_FEATURES = getAllFeatures(t);
+  const TRUST_ITEMS = getTrustItems(t);
 
   const active = PLANS.find((p) => p.key === plan)!;
 
@@ -79,7 +89,7 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
       const res = await billingApi.createCheckout(plan);
       await Linking.openURL(res.data.url);
       setTimeout(fetchStatus, 3000);
-    } catch { setError("No se pudo abrir el pago. Intenta de nuevo."); }
+    } catch { setError(t("paywallModal.paymentError")); }
     finally   { setLoading(false); }
   };
 
@@ -110,17 +120,17 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
               <View style={s.heroBadgeRow}>
                 <View style={s.heroBadge}>
                   <Ionicons name="star" size={11} color="#00d47e" />
-                  <Text style={s.heroBadgeText}>Nuvos AI Premium</Text>
+                  <Text style={s.heroBadgeText}>{t("paywallModal.premiumBadge")}</Text>
                 </View>
               </View>
 
               {/* Headline */}
               <Text style={[s.headline, { color: colors.text }]}>
-                Conviértete en{"\n"}
-                <Text style={s.headlineGreen}>inversionista de verdad</Text>
+                {t("paywallModal.headlinePrefix")}{"\n"}
+                <Text style={s.headlineGreen}>{t("paywallModal.headlineHighlight")}</Text>
               </Text>
               <Text style={[s.subHeadline, { color: colors.textMuted }]}>
-                El acompañamiento que necesitas para que tu dinero trabaje para ti — todos los días.
+                {t("paywallModal.subHeadline")}
               </Text>
 
               {/* Social proof */}
@@ -133,8 +143,8 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
                   ))}
                 </View>
                 <Text style={[s.socialText, { color: colors.textSub }]}>
-                  <Text style={{ fontWeight: "700", color: colors.text }}>+2,400 inversores</Text>
-                  {" "}ya usan Premium
+                  <Text style={{ fontWeight: "700", color: colors.text }}>{t("paywallModal.socialProofCount")}</Text>
+                  {" "}{t("paywallModal.socialProofSuffix")}
                 </Text>
               </View>
 
@@ -198,7 +208,7 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
               >
                 <Ionicons name={showAll ? "chevron-up" : "chevron-down"} size={14} color={colors.textMuted} />
                 <Text style={[s.expandText, { color: colors.textMuted }]}>
-                  {showAll ? "Ver menos" : `Ver los ${ALL_FEATURES.length} resultados incluidos`}
+                  {showAll ? t("paywallModal.seeLess") : t("paywallModal.seeAllResults", { count: ALL_FEATURES.length })}
                 </Text>
               </TouchableOpacity>
 
@@ -241,7 +251,7 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
                 {loading
                   ? <ActivityIndicator color="white" size="small" />
                   : <>
-                      <Text style={s.ctaText}>Comenzar ahora · {active.price}{active.period}</Text>
+                      <Text style={s.ctaText}>{t("paywallModal.startNow", { price: active.price, period: active.period })}</Text>
                       <Ionicons name="arrow-forward" size={16} color="white" />
                     </>
                 }
@@ -249,10 +259,10 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
             </TouchableOpacity>
 
             <View style={s.trustRow}>
-              {TRUST_ITEMS.map((t) => (
-                <View key={t} style={s.trustItem}>
+              {TRUST_ITEMS.map((item) => (
+                <View key={item} style={s.trustItem}>
                   <Ionicons name="checkmark" size={10} color="#00d47e" />
-                  <Text style={[s.trustText, { color: colors.textDim }]}>{t}</Text>
+                  <Text style={[s.trustText, { color: colors.textDim }]}>{item}</Text>
                 </View>
               ))}
             </View>
@@ -265,7 +275,7 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
             >
               <Text style={s.coachingEmoji}>📅</Text>
               <Text style={[s.coachingText, { color: colors.textMuted }]}>
-                ¿Prefieres una guía 1:1 con Diego?
+                {t("paywallModal.coachingCta")}
               </Text>
               <Ionicons name="chevron-forward" size={13} color={colors.textDim} />
             </TouchableOpacity>

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { BookOpen, Loader2, TrendingUp, TrendingDown, CheckCircle, RefreshCw, Plus, X, AlertTriangle, Brain, BookMarked, BarChart2, Target } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import PremiumToolLocked from "@/components/PremiumToolLocked";
 import { decisionsApi } from "@/lib/api";
 
@@ -52,21 +54,25 @@ interface BiasReport {
 
 const ACTION_OPTIONS = ["buy", "sell", "hold", "ignored_alert", "acted_on_alert"];
 const TRIGGER_OPTIONS = ["manual", "alert", "mentor", "fomo", "panic", "research"];
-const ACTION_LABELS: Record<string, string> = {
-  buy: "Compré",
-  sell: "Vendí",
-  hold: "Mantuve (decidí no actuar)",
-  ignored_alert: "Ignoré una alerta",
-  acted_on_alert: "Actué en una alerta",
-};
-const TRIGGER_LABELS: Record<string, string> = {
-  manual: "Decisión propia",
-  alert: "Alerta del sistema",
-  mentor: "Recomendación del mentor",
-  fomo: "FOMO (miedo a perderme algo)",
-  panic: "Pánico / estrés",
-  research: "Investigación propia",
-};
+function getActionLabels(t: TFunction): Record<string, string> {
+  return {
+    buy: t("diarioDecisiones.actions.buy"),
+    sell: t("diarioDecisiones.actions.sell"),
+    hold: t("diarioDecisiones.actions.hold"),
+    ignored_alert: t("diarioDecisiones.actions.ignoredAlert"),
+    acted_on_alert: t("diarioDecisiones.actions.actedOnAlert"),
+  };
+}
+function getTriggerLabels(t: TFunction): Record<string, string> {
+  return {
+    manual: t("diarioDecisiones.triggers.manual"),
+    alert: t("diarioDecisiones.triggers.alert"),
+    mentor: t("diarioDecisiones.triggers.mentor"),
+    fomo: t("diarioDecisiones.triggers.fomo"),
+    panic: t("diarioDecisiones.triggers.panic"),
+    research: t("diarioDecisiones.triggers.research"),
+  };
+}
 const SEVERITY_COLOR: Record<string, string> = {
   alto: "#ef4444",
   medio: "#f59e0b",
@@ -79,6 +85,9 @@ interface Props {
 }
 
 export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
+  const { t } = useTranslation();
+  const ACTION_LABELS = getActionLabels(t);
+  const TRIGGER_LABELS = getTriggerLabels(t);
   const [tab, setTab]             = useState<"diary" | "biases">("diary");
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [biases, setBiases]       = useState<BiasReport | null>(null);
@@ -128,16 +137,16 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
   if (!isPremium) {
     return (
       <PremiumToolLocked
-        title="Diario de Sesgos"
-        tagline="Descubre qué sesgos te están costando dinero"
-        description="Registra cada decisión de inversión y la IA detecta tus sesgos conductuales con el tiempo — el único feature que te hace mejor inversor."
+        title={t("diarioDecisiones.locked.title")}
+        tagline={t("diarioDecisiones.locked.tagline")}
+        description={t("diarioDecisiones.locked.description")}
         icon={Brain}
         color="#a78bfa"
         benefits={[
-          { icon: BookMarked, text: "Diario de cada decisión de compra/venta" },
-          { icon: Brain,      text: "Detección de FOMO, pánico y otros sesgos" },
-          { icon: BarChart2,  text: "Score de calidad como inversor sobre 100" },
-          { icon: Target,     text: "Reto semanal personalizado de tu mentor" },
+          { icon: BookMarked, text: t("diarioDecisiones.locked.benefit1") },
+          { icon: Brain,      text: t("diarioDecisiones.locked.benefit2") },
+          { icon: BarChart2,  text: t("diarioDecisiones.locked.benefit3") },
+          { icon: Target,     text: t("diarioDecisiones.locked.benefit4") },
         ]}
         onUnlock={onUpgrade}
       />
@@ -157,8 +166,8 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
                 <BookOpen className="w-4 h-4" style={{ color: "#a78bfa" }} />
               </div>
               <div>
-                <p className="text-sm font-bold" style={{ color: "var(--text)" }}>Diario de Sesgos</p>
-                <p className="text-[10px]" style={{ color: "var(--muted)" }}>Registra tus movimientos y descubre tus sesgos</p>
+                <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("diarioDecisiones.headerTitle")}</p>
+                <p className="text-[10px]" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.headerSubtitle")}</p>
               </div>
             </div>
             <button
@@ -166,20 +175,20 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white"
               style={{ background: "linear-gradient(90deg,#a78bfa,#7c3aed)" }}
             >
-              <Plus className="w-3.5 h-3.5" /> Registrar
+              <Plus className="w-3.5 h-3.5" /> {t("diarioDecisiones.register")}
             </button>
           </div>
 
           {/* Tabs */}
           <div className="flex rounded-xl p-1" style={{ background: "var(--raised)" }}>
-            {(["diary", "biases"] as const).map((t) => (
-              <button key={t} onClick={() => setTab(t)}
+            {(["diary", "biases"] as const).map((tabKey) => (
+              <button key={tabKey} onClick={() => setTab(tabKey)}
                       className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
                       style={{
-                        background: tab === t ? "var(--card)" : "transparent",
-                        color:      tab === t ? "var(--text)" : "var(--muted)",
+                        background: tab === tabKey ? "var(--card)" : "transparent",
+                        color:      tab === tabKey ? "var(--text)" : "var(--muted)",
                       }}>
-                {t === "diary" ? "📔 Diario" : "🧠 Análisis de sesgos"}
+                {tabKey === "diary" ? `📔 ${t("diarioDecisiones.tabDiary")}` : `🧠 ${t("diarioDecisiones.tabBiases")}`}
               </button>
             ))}
           </div>
@@ -194,8 +203,8 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
               ) : decisions.length === 0 ? (
                 <div className="text-center py-8">
                   <BookOpen className="w-8 h-8 mx-auto mb-2" style={{ color: "var(--muted)", opacity: 0.4 }} />
-                  <p className="text-sm" style={{ color: "var(--muted)" }}>Sin decisiones registradas aún.</p>
-                  <p className="text-xs mt-1" style={{ color: "var(--dim)" }}>Empieza registrando tu primera decisión.</p>
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.noDecisions")}</p>
+                  <p className="text-xs mt-1" style={{ color: "var(--dim)" }}>{t("diarioDecisiones.noDecisionsHint")}</p>
                 </div>
               ) : (
                 decisions.map((d, i) => (
@@ -212,7 +221,7 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
                       </div>
                       {d.trigger && (
                         <p className="text-[10px]" style={{ color: "var(--muted)" }}>
-                          Trigger: {TRIGGER_LABELS[d.trigger] ?? d.trigger}
+                          {t("diarioDecisiones.trigger")}: {TRIGGER_LABELS[d.trigger] ?? d.trigger}
                         </p>
                       )}
                       {d.notes && (
@@ -235,14 +244,14 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
                 <button onClick={fetchBiases} disabled={loadingB}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs"
                         style={{ borderColor: "var(--border)", color: "var(--sub)" }}>
-                  <RefreshCw className={`w-3 h-3 ${loadingB ? "animate-spin" : ""}`} /> Analizar
+                  <RefreshCw className={`w-3 h-3 ${loadingB ? "animate-spin" : ""}`} /> {t("diarioDecisiones.analyze")}
                 </button>
               </div>
 
               {loadingB ? (
                 <div className="flex flex-col items-center py-8 gap-3">
                   <Loader2 className="w-7 h-7 animate-spin" style={{ color: "#a78bfa" }} />
-                  <p className="text-sm" style={{ color: "var(--muted)" }}>Analizando tus patrones con IA...</p>
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.analyzingPatterns")}</p>
                 </div>
               ) : !biases ? null : biases.message ? (
                 <div className="text-center py-8">
@@ -254,20 +263,20 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
                   {/* Score */}
                   <div className="p-4 rounded-xl border text-center"
                        style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
-                    <p className="text-[10px] font-bold mb-1" style={{ color: "var(--muted)" }}>PERFIL REAL COMO INVERSOR</p>
+                    <p className="text-[10px] font-bold mb-1" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.realProfileTitle")}</p>
                     <div className="text-4xl font-black mb-1" style={{ color: "#a78bfa" }}>
                       {biases.overall_score ?? 0}<span className="text-lg">/100</span>
                     </div>
                     <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{biases.overall_label}</p>
                     <p className="text-[10px] mt-1" style={{ color: "var(--muted)" }}>
-                      Basado en {biases.total_decisions} decisiones · {biases.analysis_period}
+                      {t("diarioDecisiones.basedOn", { count: biases.total_decisions, period: biases.analysis_period })}
                     </p>
                   </div>
 
                   {/* Biases detected */}
                   {biases.biases_detected && biases.biases_detected.length > 0 && (
                     <div>
-                      <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>SESGOS DETECTADOS</p>
+                      <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.biasesDetected")}</p>
                       <div className="space-y-3">
                         {biases.biases_detected.map((bias) => (
                           <div key={bias.name} className="p-4 rounded-xl border"
@@ -284,20 +293,20 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
                             <p className="text-xs mb-2" style={{ color: "var(--sub)" }}>{bias.description}</p>
                             <div className="grid grid-cols-2 gap-2 mb-2">
                               <div className="p-2 rounded-lg" style={{ background: "var(--raised)" }}>
-                                <p className="text-[10px] font-bold mb-0.5" style={{ color: "var(--muted)" }}>Ocurrencias</p>
+                                <p className="text-[10px] font-bold mb-0.5" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.occurrences")}</p>
                                 <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{bias.occurrences}x</p>
                               </div>
                               <div className="p-2 rounded-lg" style={{ background: "var(--raised)" }}>
-                                <p className="text-[10px] font-bold mb-0.5" style={{ color: "var(--muted)" }}>Costo estimado</p>
+                                <p className="text-[10px] font-bold mb-0.5" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.estimatedCost")}</p>
                                 <p className="text-xs font-bold" style={{ color: "#ef4444" }}>{bias.cost_estimate}</p>
                               </div>
                             </div>
                             <div className="p-2 rounded-lg mb-2" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>
-                              <p className="text-[10px] font-bold mb-0.5" style={{ color: "#ef4444" }}>Ejemplo real</p>
+                              <p className="text-[10px] font-bold mb-0.5" style={{ color: "#ef4444" }}>{t("diarioDecisiones.realExample")}</p>
                               <p className="text-[10px]" style={{ color: "var(--sub)" }}>{bias.example}</p>
                             </div>
                             <div className="p-2 rounded-lg" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.15)" }}>
-                              <p className="text-[10px] font-bold mb-0.5" style={{ color: "#22c55e" }}>Cómo mejorar</p>
+                              <p className="text-[10px] font-bold mb-0.5" style={{ color: "#22c55e" }}>{t("diarioDecisiones.howToImprove")}</p>
                               <p className="text-[10px]" style={{ color: "var(--sub)" }}>{bias.fix}</p>
                             </div>
                           </div>
@@ -309,7 +318,7 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
                   {/* Strengths */}
                   {biases.strengths && biases.strengths.length > 0 && (
                     <div>
-                      <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>TUS FORTALEZAS</p>
+                      <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.yourStrengths")}</p>
                       <div className="space-y-2">
                         {biases.strengths.map((s) => (
                           <div key={s.name} className="flex items-start gap-2 p-3 rounded-xl border"
@@ -329,7 +338,7 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
                   {biases.mentor_assessment && (
                     <div className="p-4 rounded-xl border"
                          style={{ borderColor: "rgba(167,139,250,0.3)", background: "rgba(167,139,250,0.06)" }}>
-                      <p className="text-[10px] font-bold mb-1.5" style={{ color: "#a78bfa" }}>🎓 EVALUACIÓN DE TU MENTOR</p>
+                      <p className="text-[10px] font-bold mb-1.5" style={{ color: "#a78bfa" }}>🎓 {t("diarioDecisiones.mentorAssessment")}</p>
                       <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{biases.mentor_assessment}</p>
                     </div>
                   )}
@@ -338,7 +347,7 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
                   {biases.next_challenge && (
                     <div className="p-4 rounded-xl border"
                          style={{ borderColor: "rgba(167,139,250,0.3)", background: "rgba(167,139,250,0.06)" }}>
-                      <p className="text-[10px] font-bold mb-1.5" style={{ color: "#a78bfa" }}>🎯 RETO DE LA SEMANA</p>
+                      <p className="text-[10px] font-bold mb-1.5" style={{ color: "#a78bfa" }}>🎯 {t("diarioDecisiones.weeklyChallenge")}</p>
                       <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{biases.next_challenge}</p>
                     </div>
                   )}
@@ -358,14 +367,14 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
             <div className="h-1" style={{ background: "linear-gradient(90deg,#a78bfa,#7c3aed)" }} />
             <div className="p-5">
               <div className="flex items-center justify-between mb-4">
-                <p className="font-bold text-sm" style={{ color: "var(--text)" }}>Registrar decisión</p>
+                <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("diarioDecisiones.modal.title")}</p>
                 <button onClick={() => setLogOpen(false)} style={{ color: "var(--muted)" }}>
                   <X className="w-4 h-4" />
                 </button>
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>Acción</label>
+                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.modal.action")}</label>
                   <select className="w-full rounded-lg border px-2 py-1.5 text-xs"
                           style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
                           value={form.action}
@@ -376,27 +385,27 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>Ticker</label>
-                  <input type="text" placeholder="Ej: AAPL"
+                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.modal.ticker")}</label>
+                  <input type="text" placeholder={t("diarioDecisiones.modal.tickerPlaceholder")}
                          className="w-full rounded-lg border px-2 py-1.5 text-xs uppercase"
                          style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
                          value={form.ticker}
                          onChange={(e) => setForm((f) => ({ ...f, ticker: e.target.value.toUpperCase() }))} />
                 </div>
                 <div>
-                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>¿Por qué lo hice?</label>
+                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.modal.whyLabel")}</label>
                   <select className="w-full rounded-lg border px-2 py-1.5 text-xs"
                           style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
                           value={form.trigger}
                           onChange={(e) => setForm((f) => ({ ...f, trigger: e.target.value }))}>
-                    {TRIGGER_OPTIONS.map((t) => (
-                      <option key={t} value={t}>{TRIGGER_LABELS[t] ?? t}</option>
+                    {TRIGGER_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>{TRIGGER_LABELS[opt] ?? opt}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>Notas (opcional)</label>
-                  <textarea rows={2} placeholder="¿Qué pensabas en ese momento?"
+                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.modal.notesLabel")}</label>
+                  <textarea rows={2} placeholder={t("diarioDecisiones.modal.notesPlaceholder")}
                             className="w-full rounded-lg border px-2 py-1.5 text-xs resize-none"
                             style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
                             value={form.notes}
@@ -405,7 +414,7 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
                 <button onClick={handleLog} disabled={saving || !form.ticker.trim()}
                         className="w-full py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-60"
                         style={{ background: "linear-gradient(90deg,#a78bfa,#7c3aed)" }}>
-                  {saving ? "Guardando..." : "Guardar decisión"}
+                  {saving ? t("diarioDecisiones.modal.saving") : t("diarioDecisiones.modal.save")}
                 </button>
               </div>
             </div>

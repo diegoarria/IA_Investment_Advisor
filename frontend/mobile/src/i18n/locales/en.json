@@ -2964,5 +2964,285 @@
       "fmp": "Financial Modeling Prep",
       "yahoo": "Yahoo Finance"
     }
+  },
+  "marketTicker": {
+    "loadingMarkets": "Loading markets…",
+    "newsTitle": "News — {{name}}",
+    "noNews": "No news available",
+    "readArticle": "Read article →",
+    "now": "Now",
+    "hourAgo": "1h ago",
+    "hoursAgo": "{{count}}h ago",
+    "yesterday": "Yesterday",
+    "daysAgo": "{{count}}d ago"
+  },
+  "mobileDecisionDiary": {
+    "heroTitle": "Bias Diary",
+    "heroTagline": "Discover which biases are costing you money",
+    "feature1": "Diary of every buy/sell decision",
+    "feature2": "Detection of FOMO, panic and other biases",
+    "feature3": "Investor quality score out of 100",
+    "feature4": "Personalized weekly challenge from your mentor",
+    "unlockPremium": "Unlock with Premium",
+    "inlineSub": "Log your moves and discover your biases",
+    "register": "Log",
+    "tabDiary": "📔 Diary",
+    "tabBiases": "🧠 Bias analysis",
+    "noDecisions": "No decisions logged yet.",
+    "startLogging": "Start by logging your first decision.",
+    "triggerLabel": "Trigger",
+    "analyze": "Analyze",
+    "analyzingPatterns": "Analyzing your patterns with AI...",
+    "realProfileLabel": "YOUR REAL INVESTOR PROFILE",
+    "basedOn": "Based on {{count}} decisions · {{period}}",
+    "biasesDetected": "BIASES DETECTED",
+    "occurrences": "Occurrences",
+    "estimatedCost": "Estimated cost",
+    "realExample": "Real example",
+    "howToImprove": "How to improve",
+    "yourStrengths": "YOUR STRENGTHS",
+    "mentorAssessment": "🎓 YOUR MENTOR'S ASSESSMENT",
+    "weeklyChallenge": "🎯 WEEKLY CHALLENGE",
+    "logTitle": "Log decision",
+    "actionField": "Action",
+    "tickerField": "Ticker",
+    "tickerPlaceholder": "E.g.: AAPL",
+    "whyField": "Why did I do it?",
+    "notesField": "Notes (optional)",
+    "notesPlaceholder": "What were you thinking at that moment?",
+    "saveDecision": "Save decision",
+    "actions": {
+      "buy": "Bought",
+      "sell": "Sold",
+      "hold": "Held (no action)",
+      "ignoredAlert": "Ignored an alert",
+      "actedOnAlert": "Acted on an alert"
+    },
+    "triggers": {
+      "manual": "My own decision",
+      "alert": "System alert",
+      "mentor": "Mentor recommendation",
+      "fomo": "FOMO",
+      "panic": "Panic / stress",
+      "research": "My own research"
+    }
+  },
+  "mobileEarningsCalendar": {
+    "days": {
+      "sun": "S",
+      "mon": "M",
+      "tue": "T",
+      "wed": "W",
+      "thu": "T",
+      "fri": "F",
+      "sat": "S"
+    },
+    "months": {
+      "jan": "January",
+      "feb": "February",
+      "mar": "March",
+      "apr": "April",
+      "may": "May",
+      "jun": "June",
+      "jul": "July",
+      "aug": "August",
+      "sep": "September",
+      "oct": "October",
+      "nov": "November",
+      "dec": "December"
+    },
+    "eventTypes": {
+      "earnings": "Earnings",
+      "exDividend": "Ex-Dividend",
+      "dividend": "Dividend"
+    },
+    "analysisError": "Could not get the analysis.",
+    "portfolio": "Portfolio",
+    "watchlist": "Watchlist",
+    "statusUpcoming": "📅 Upcoming",
+    "statusToday": "🔔 Today",
+    "statusReported": "✅ Reported",
+    "epsEst": "EPS est.",
+    "range": "Range",
+    "revEst": "Rev. est.",
+    "dividend": "Dividend",
+    "yield": "Yield",
+    "analyzingWithAI": "Analyzing with AI...",
+    "aiAnalysis": "AI Analysis",
+    "aiAnalysisPremium": "AI Analysis · Premium",
+    "assetsCount": "{{count}} assets"
+  },
+  "mobileMonthlyReport": {
+    "generateError": "Could not generate the report.",
+    "shareText": "📊 Nuvos AI Report — {{month}}\n\n{{summary}}\n\nReturn: {{returnPct}}%\nTotal value: ${{totalValue}}\n\n🎓 {{mentorNote}}",
+    "shareTitle": "Report {{month}}",
+    "title": "Monthly Report",
+    "tagline": "Your portfolio analyzed with AI every month",
+    "feature1": "Real performance vs S&P 500 and benchmarks",
+    "feature2": "Sharpe ratio, volatility and drawdown",
+    "feature3": "3 concrete actions for next month",
+    "generating": "Generating...",
+    "generateReport": "Generate Report",
+    "portfolioReport": "Portfolio report",
+    "metricReturn": "Return",
+    "metricTotalValue": "Total value",
+    "metricGain": "Gain",
+    "metricVsSp500": "vs S&P 500",
+    "best": "🏆 Best",
+    "worst": "📉 Worst",
+    "sharpe": "Sharpe",
+    "volatility": "Volatility",
+    "drawdown": "Drawdown",
+    "mentorNote": "🎓 NOTE FROM YOUR MENTOR",
+    "nextMonthActions": "✅ ACTIONS FOR NEXT MONTH",
+    "behavioralInsight": "💡 BEHAVIORAL INSIGHT"
+  },
+  "paywallModal": {
+    "plans": {
+      "yearly": {
+        "label": "Yearly",
+        "period": "/yr",
+        "sub": "$10.50/mo · Save $29.89",
+        "badge": "MOST POPULAR"
+      },
+      "monthly": {
+        "label": "Monthly",
+        "period": "/mo",
+        "sub": "Billed monthly"
+      }
+    },
+    "heroFeature1": "Understand what to do with your money, every day — no limits",
+    "heroFeature2": "Know exactly how much you gained or lost, and why",
+    "heroFeature3": "Never be surprised by news — we alert you before it moves your money",
+    "heroFeature4": "Your portfolio built in 30 seconds, no spreadsheets",
+    "heroFeature5": "5 concrete opportunities every week, with reasoning and risk",
+    "allFeatures": {
+      "f1": {
+        "text": "Ask whatever you want, whenever you want — no limit",
+        "detail": "An AI mentor available 24/7 that knows your real portfolio and answers with context on what you already have, not in the abstract."
+      },
+      "f2": {
+        "text": "Be the first to know when one of your companies is about to report",
+        "detail": "Before quarterly results, the AI explains what to expect and if there's anything you should care about. No surprises."
+      },
+      "f3": {
+        "text": "Find out if your money would survive another crisis like 2008 or COVID",
+        "detail": "Simulate your current portfolio against 30 real historical crises. See how much you would have lost and if you'd be comfortable with that."
+      },
+      "f4": {
+        "text": "The AI honestly tells you what's wrong with your portfolio",
+        "detail": "Excessive concentration in one sector, lack of diversification, positions inconsistent with your profile. Concrete, not generic."
+      },
+      "f5": {
+        "text": "Upload your statement and the AI builds everything for you",
+        "detail": "Upload a photo or PDF from your broker. The AI automatically detects your stocks, quantities, and purchase prices."
+      },
+      "f6": {
+        "text": "Every Monday, 5 investment ideas tailored to your situation",
+        "detail": "No generic ideas. The AI considers what you already have, your profile, and what's happening in the market that week."
+      },
+      "f7": {
+        "text": "We tell you why your money is moving — before you react",
+        "detail": "Notifications when something important moves one of your positions — with an explanation of why and whether you should do something."
+      },
+      "f8": {
+        "text": "At the end of every month, know if you beat the market",
+        "detail": "Your real return vs the S&P 500. A personalized note on what worked and what didn't. No excuses, no technical jargon."
+      },
+      "f9": {
+        "text": "Learn about the companies you already hold in your portfolio",
+        "detail": "Lessons designed for what you have. Before Apple reports, understand what to watch. Relevant, not generic."
+      },
+      "f10": {
+        "text": "See how your portfolio compares to the market in real time",
+        "detail": "A simple panel: your performance today, this week, this year — against the S&P 500. Know at all times if you're doing well."
+      },
+      "f11": {
+        "text": "Unlimited portfolio — no caps on stocks or watchlist",
+        "detail": "The free plan has a limit of 10. Premium removes that limit so your portfolio is fully yours."
+      },
+      "f12": {
+        "text": "Nuvos knows you better over time — and remembers everything",
+        "detail": "With Premium you build your complete financial memory: behavior patterns, decision timeline, and portfolio evolution. The free plan only stores 10 basic beliefs."
+      }
+    },
+    "trust1": "Cancel anytime",
+    "trust2": "Secure payment with Stripe",
+    "trust3": "7 days free",
+    "paymentError": "Could not open payment. Please try again.",
+    "premiumBadge": "Nuvos AI Premium",
+    "headlinePrefix": "Become a",
+    "headlineHighlight": "real investor",
+    "subHeadline": "The support you need to make your money work for you — every day.",
+    "socialProofCount": "+2,400 investors",
+    "socialProofSuffix": "already use Premium",
+    "seeLess": "See less",
+    "seeAllResults": "See all {{count}} included results",
+    "startNow": "Start now · {{price}}{{period}}",
+    "coachingCta": "Prefer a 1:1 guide with Diego?"
+  },
+  "quizModal": {
+    "passed": "Quiz passed!",
+    "almostThere": "Almost there",
+    "scoreLine": "{{score}}/{{total}} correct · needed {{passing}}",
+    "markedComplete": "{{emoji}} {{title}} marked as completed ✓",
+    "continue": "Continue →",
+    "retry": "Retry",
+    "close": "Close",
+    "quizTitle": "Quiz · {{title}}",
+    "seeResult": "See result →",
+    "next": "Next →"
+  },
+  "stockDetailScreen": {
+    "about": "About {{name}}",
+    "calculatingAiSummary": "Calculating AI summary…",
+    "couldNotLoadData": "Couldn't load the data",
+    "employeesAbbr": "employees",
+    "fairValue": "Fair value {{price}}",
+    "groups": {
+      "profitability": "Profitability",
+      "risk": "Risk",
+      "valuation": "Valuation"
+    },
+    "keyMetrics": "Key Metrics",
+    "loadingAnalysis": "Loading analysis…",
+    "longTerm": "Long term",
+    "metricHints": {
+      "beta": "Volatility relative to the market. Beta > 1 means it moves more than the S&P 500, for better or worse.",
+      "debtEquity": "How much debt the company has per dollar of shareholder equity. Lower is financially safer.",
+      "divYield": "Annual dividend as a % of the current price. It's what you get paid just for holding the stock.",
+      "epsTtm": "Earnings per share over the last 12 months. How much the company made per share issued.",
+      "fcf": "Free Cash Flow: real cash the company generates after its investments. More reliable than accounting earnings.",
+      "marketCap": "Total value of all outstanding shares in the market. Measures how big the company is.",
+      "netMargin": "Out of every $100 in sales, how much is left as final profit after taxes and all costs.",
+      "peFwd": "P/E using next year's expected earnings. Reflects the market's expectations.",
+      "peTtm": "How many years of current earnings you're paying for each share. A high P/E means the market expects a lot of future growth.",
+      "roe": "How much the company earns for every dollar of capital shareholders put in. Higher means more efficient.",
+      "week52High": "The highest price the stock reached in the last 12 months.",
+      "week52Low": "The lowest price the stock traded at in the last 12 months."
+    },
+    "metricLabels": {
+      "debtEquity": "Debt/Equity",
+      "netMargin": "Net Margin",
+      "week52High": "52wk High",
+      "week52Low": "52wk Low"
+    },
+    "news": "News",
+    "noAnalystData": "No analyst data",
+    "noFinancialData": "No financial data",
+    "now": "NOW",
+    "retry": "Retry",
+    "seeLess": "See less ↑",
+    "seeMore": "See more ↓",
+    "shortTerm": "Short term",
+    "similarCompanies": "Similar Companies",
+    "tabs": {
+      "analysts": "Analysts",
+      "chart": "Chart",
+      "company": "Company",
+      "financials": "Financials",
+      "summary": "Summary"
+    },
+    "whenToEnter": "When to buy?"
   }
 }
