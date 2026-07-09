@@ -233,6 +233,13 @@ export const useAuthStore = create<AuthState>()(
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
         set({ token: null, userId: null, isAuthenticated: false, authRestoring: false });
+        // Without this, Supabase's own session (persisted under its own
+        // localStorage key, separate from our access_token) survives logout —
+        // so registering/logging into a DIFFERENT account on the same device
+        // could silently re-authenticate as the old one via the OAuth callback
+        // or the 401-retry fallback, both of which trust an existing Supabase
+        // session if one is present.
+        import("./supabase").then(({ getSupabaseClient }) => getSupabaseClient().auth.signOut()).catch(() => {});
       },
       setAuthRestoring: (v) => set({ authRestoring: v }),
       setSessionExpired: (v) => set({ sessionExpired: v }),

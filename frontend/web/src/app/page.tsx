@@ -164,6 +164,12 @@ export default function Home() {
   const handleGoogleSignIn = async () => {
     setLoading(true); setError("");
     try {
+      // Clear any leftover Supabase session before starting a fresh OAuth flow —
+      // this page is only reachable while logged out of the app, but a stale
+      // Supabase session from a previous account (never explicitly signed out
+      // of) would otherwise get silently reused by the callback page instead
+      // of the account the user is actually trying to sign into now.
+      await getSupabaseClient().auth.signOut();
       const { error } = await getSupabaseClient().auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: `${window.location.origin}/auth/callback` },
@@ -179,6 +185,9 @@ export default function Home() {
     e.preventDefault();
     setLoading(true); setError("");
     try {
+      // Same reasoning as handleGoogleSignIn — clear any leftover Supabase
+      // session from a previous account before establishing this one.
+      await getSupabaseClient().auth.signOut().catch(() => {});
       const fn = mode === "login" ? auth.login : auth.register;
       const res = await fn(email, password);
       setAuth(res.data.access_token, res.data.user_id);
