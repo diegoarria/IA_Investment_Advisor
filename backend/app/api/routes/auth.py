@@ -307,23 +307,54 @@ async def logout():
     return {"message": "Logged out"}
 
 
+# Every table that stores rows keyed by user_id — kept in sync manually since
+# there's no FK-cascade across the app's tables. If a feature adds a new
+# user-scoped table, add it here too, or account deletion silently leaves it
+# behind (which is exactly what caused re-registering with a deleted
+# account's email to skip onboarding: the old row was never actually gone).
+# benchmark_cohort_stats is deliberately excluded — it stores only anonymous
+# aggregate stats, never a user_id.
+_USER_DATA_TABLES = [
+    "user_profiles", "user_portfolio", "portfolio_positions", "user_paper_trading",
+    "user_daily_usage", "web_push_subscriptions", "chat_history",
+    "notifications", "watchlist", "notification_preferences",
+    "notification_log", "notification_analytics", "investment_decisions",
+    "support_tickets", "user_feedback", "price_alerts", "pending_actions",
+    "upsell_dismissals", "upsell_events", "brokerage_connections",
+    "voice_call_transcripts", "user_financial_goals", "user_sector_preferences",
+    "library_items", "habit_engagement",
+    "fmg_memories", "fmg_behavioral_patterns", "fmg_events",
+    "fmg_portfolio_snapshots", "fmg_annual_reports",
+    "valuation_alert_state", "thesis_drift_state",
+    "clip_likes", "clip_saves", "clip_views", "clip_comments",
+]
+
+
 @router.delete("/account")
 async def delete_account(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
-    try:
-        # Delete all user data from app tables
-        for table in ["user_profiles", "user_portfolio", "user_paper_trading",
-                       "user_daily_usage", "push_tokens", "chat_history",
-                       "user_notifications", "watchlist", "notification_preferences",
-                       "notification_log", "notification_analytics"]:
-            try:
-                await run_query(db.table(table).delete().eq("user_id", user_id))
-            except Exception:
-                pass
+    failed_tables: list[str] = []
+    for table in _USER_DATA_TABLES:
+        try:
+            await run_query(db.table(table).delete().eq("user_id", user_id))
+        except Exception as e:
+            # Table-not-found is expected for a couple of legacy/optional names
+            # over time — anything else means real data may have been left
+            # behind, so it needs to be visible, not silently swallowed.
+            failed_tables.append(table)
+            logger.warning("delete_account: failed to clear %s for %s: %s", table, user_id, e)
 
-        # Delete the auth user (requires service key)
+    # Delete the auth user itself (requires service key) — this is the step
+    # that actually frees up the email for reuse. Must succeed, or the user
+    # is left able to log in but with (partially) wiped data, and re-signup
+    # with the same email will fail as "already registered".
+    try:
         await asyncio.to_thread(lambda: db.auth.admin.delete_user(user_id))
     except Exception as e:
+        logger.error("delete_account: failed to delete auth user %s: %s", user_id, e)
         raise HTTPException(status_code=500, detail="No se pudo eliminar la cuenta.")
+
+    if failed_tables:
+        logger.warning("delete_account: user %s deleted with residual data in: %s", user_id, failed_tables)
 
     return {"message": "Cuenta eliminada"}
