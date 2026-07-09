@@ -2855,5 +2855,8 @@
         "desc": "Sábados con análisis premium"
       }
     }
+  },
+  "sessionExpiredBanner": {
+    "message": "Tu sesión ha expirado, por favor inicia sesión para ver tus datos completos."
   }
 }

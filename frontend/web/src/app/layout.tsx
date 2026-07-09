@@ -5,6 +5,7 @@ import ThemeProvider from "@/components/ThemeProvider";
 import NuvosGuide from "@/components/NuvosGuide";
 import UpsellProvider from "@/components/UpsellProvider";
 import FeedbackBanner from "@/components/FeedbackBanner";
+import SessionExpiredBanner from "@/components/SessionExpiredBanner";
 import PostHogProvider from "@/components/PostHogProvider";
 
 const dmSans = DM_Sans({
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <NuvosGuide />
             <UpsellProvider />
             <FeedbackBanner />
+            <SessionExpiredBanner />
           </ThemeProvider>
         </PostHogProvider>
       </body>

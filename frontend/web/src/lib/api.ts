@@ -82,7 +82,10 @@ api.interceptors.response.use(
         // Supabase also has no session — truly expired, clear tokens and force logout
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
-        import("./store").then(({ useAuthStore }) => useAuthStore.getState().clearAuth()).catch(() => {});
+        import("./store").then(({ useAuthStore }) => {
+          useAuthStore.getState().setSessionExpired(true);
+          useAuthStore.getState().clearAuth();
+        }).catch(() => {});
       }
       flushQueue(refreshErr);
       return Promise.reject(refreshErr);
