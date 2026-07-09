@@ -702,7 +702,7 @@ export default function WatchlistScreen() {
 
             {alertModal?.currentPrice != null && (
               <Text style={{ fontSize: 12, color: "#6b7280" }}>
-                {t("watchlist.alertModal.currentPrice")} <Text style={{ fontWeight: "700", color: "#fff" }}>${alertModal.currentPrice.toFixed(2)}</Text>
+                {t("watchlist.alertModal.currentPrice")} <Text style={{ fontWeight: "700", color: "#fff" }}>${alertModal.currentPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
               </Text>
             )}
 

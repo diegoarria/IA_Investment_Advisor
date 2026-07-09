@@ -648,6 +648,15 @@ function fmtMoney(n: number, showSign = false): string {
   return `${neg}${sign}$${abs.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
+// Adds thousand separators as the user types, while keeping the underlying
+// state a plain parseable numeric string (no commas).
+function formatWithCommas(raw: string): string {
+  if (!raw) return "";
+  const [intPart, decPart] = raw.split(".");
+  const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return decPart !== undefined ? `${withCommas}.${decPart}` : withCommas;
+}
+
 
 interface PriceData { price: number | null; currency: string; name: string }
 interface ExtractedPosition { id: string; ticker: string; name: string; shares: number; avg_price: number; purchase_date?: string | null }
@@ -2964,7 +2973,8 @@ export default function PortfolioScreen() {
                 <Text style={[s.calcInputPrefix, { color: "#6b7280" }]}>$</Text>
                 <TextInput
                   style={[s.calcInputInner, { color: "#fff" }]}
-                  value={calcCapital} onChangeText={setCalcCapital}
+                  value={formatWithCommas(calcCapital)}
+                  onChangeText={(v) => { const raw = v.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setCalcCapital(raw); }}
                   placeholder="10,000" placeholderTextColor={"#374151"}
                   keyboardType="numeric"
                 />
@@ -2976,7 +2986,8 @@ export default function PortfolioScreen() {
                 <Text style={[s.calcInputPrefix, { color: "#6b7280" }]}>$</Text>
                 <TextInput
                   style={[s.calcInputInner, { color: "#fff" }]}
-                  value={calcMonthly} onChangeText={setCalcMonthly}
+                  value={formatWithCommas(calcMonthly)}
+                  onChangeText={(v) => { const raw = v.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setCalcMonthly(raw); }}
                   placeholder={t("portfolio.calculator.monthlyPlaceholder") ?? undefined} placeholderTextColor={"#374151"}
                   keyboardType="numeric"
                 />
@@ -3176,7 +3187,7 @@ export default function PortfolioScreen() {
               />
               {portfolioCurrency !== "USD" && editingPos?.avgPrice && !isNaN(parseFloat(editingPos.avgPrice)) && (
                 <Text style={{ fontSize: 11, color: "#4b5563", marginBottom: 10 }}>
-                  ≈ ${(parseFloat(editingPos.avgPrice) / fxRate).toFixed(2)} USD
+                  ≈ ${(parseFloat(editingPos.avgPrice) / fxRate).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                 </Text>
               )}
               <Text style={{ fontSize: 10, color: "#6b7280", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Fecha de compra (YYYY-MM-DD)</Text>

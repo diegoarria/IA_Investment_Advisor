@@ -1654,7 +1654,7 @@ export default function HomeScreen() {
                           numberOfLines={1}>{m.name ?? m.ticker}</Text>
                       </View>
                       <View style={{ alignItems: "flex-end" }}>
-                        <Text style={[ss.moverPrice, { color: colors.text }]}>{sym}{m.curr.toFixed(2)}</Text>
+                        <Text style={[ss.moverPrice, { color: colors.text }]}>{sym}{m.curr.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
                         <View style={[ss.moverBadge, { backgroundColor: m.chg >= 0 ? colors.up + "18" : colors.down + "18" }]}>
                           <Text style={[ss.moverBadgeText, { color: m.chg >= 0 ? colors.up : colors.down }]}>
                             {fmtPct(m.chg)}
@@ -1691,7 +1691,7 @@ export default function HomeScreen() {
                       numberOfLines={1}>{m.name ?? m.ticker}</Text>
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
-                    <Text style={[ss.moverPrice, { color: colors.text }]}>{sym}{m.curr.toFixed(2)}</Text>
+                    <Text style={[ss.moverPrice, { color: colors.text }]}>{sym}{m.curr.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
                     <View style={[ss.moverBadge, { backgroundColor: colors.down + "18" }]}>
                       <Text style={[ss.moverBadgeText, { color: colors.down }]}>
                         {fmtPct(m.chg)}
