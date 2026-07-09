@@ -993,7 +993,8 @@ export default function OnboardingPage() {
     const isFirstTimer = form.has_investments === "no";
     const hasNoBroker  = form.has_broker === "no";
     return (
-      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "var(--bg)" }}>
+      <div className="min-h-screen overflow-y-auto" style={{ background: "var(--bg)" }}>
+        <div className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-sm">
 
           {/* Header */}
@@ -1059,6 +1060,13 @@ export default function OnboardingPage() {
              style={{ background: "var(--accent)" }}>
             Agendar mi Sesión de Bienvenida →
           </a>
+          {isFirstTimer && (
+            <button onClick={() => router.push("/home")}
+                    className="w-full py-3 rounded-2xl text-sm font-semibold mt-2 transition-all"
+                    style={{ color: "var(--muted)", background: "transparent" }}>
+              Saltar y agendar después →
+            </button>
+          )}
           {!isFirstTimer && (
             <button onClick={() => router.push("/home")}
                     className="w-full py-3 rounded-2xl text-sm font-semibold mt-2 transition-all"
@@ -1069,6 +1077,7 @@ export default function OnboardingPage() {
           <p className="text-center text-xs mt-2" style={{ color: "var(--dim)" }}>
             Tu Mentor IA ya conoce todo tu perfil
           </p>
+        </div>
         </div>
       </div>
     );
