@@ -770,7 +770,7 @@ function PortfolioHistoryChart({
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export default function PortfolioPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const sectorLabels = getSectorLabel(t);
   const PORTFOLIO_LEVELS = getPortfolioLevels(t);
   const STRESS_SCENARIOS = getStressScenarios(t);
@@ -1030,17 +1030,17 @@ export default function PortfolioPage() {
   // Period returns
   type PeriodReturn = { pct: number; avg_pct?: number; amount: number; date?: string; breakdown?: Record<string, number>; spy_pct?: number };
   const PERIODS = [
-    { key: "since_purchase", label: "Compra", premium: false },
+    { key: "since_purchase", label: t("portfolio.summary.periods.buy"), premium: false },
     { key: "1d",  label: "1D",   premium: false },
     { key: "5d",  label: "5D",   premium: false },
     { key: "1mo", label: "1M",   premium: false },
     { key: "3mo", label: "3M",   premium: true  },
     { key: "6mo", label: "6M",   premium: true  },
-    { key: "ytd", label: "YTD",  premium: true  },
-    { key: "1y",  label: "1A",   premium: true  },
-    { key: "3y",  label: "3A",   premium: true  },
-    { key: "5y",  label: "5A",   premium: true  },
-    { key: "max", label: "MÁX",  premium: true  },
+    { key: "ytd", label: t("portfolio.summary.periods.ytd"),  premium: true  },
+    { key: "1y",  label: t("portfolio.summary.periods.oneYear"),   premium: true  },
+    { key: "3y",  label: t("portfolio.summary.periods.threeYears"),   premium: true  },
+    { key: "5y",  label: t("portfolio.summary.periods.fiveYears"),   premium: true  },
+    { key: "max", label: t("portfolio.summary.periods.max"),  premium: true  },
   ] as const;
   type PeriodKey = typeof PERIODS[number]["key"];
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("since_purchase");
@@ -1517,9 +1517,9 @@ export default function PortfolioPage() {
              style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
           <div className="flex flex-col gap-2 flex-1 min-w-0">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Mis inversiones</p>
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("portfolio.header.eyebrow")}</p>
               <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>
-                {portfolios.find(p => p.id === activePortfolioId)?.name ?? "Mi Portafolio"}
+                {portfolios.find(p => p.id === activePortfolioId)?.name ?? t("portfolio.header.title")}
               </h1>
             </div>
             {/* ── Portfolio switcher ── */}
@@ -1579,7 +1579,7 @@ export default function PortfolioPage() {
                   onClick={() => { setShowNewPortfolioInput(true); setNewPortfolioName(""); }}
                   style={{ padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700, border: "1.5px dashed var(--border)", background: "transparent", color: "var(--muted)", cursor: "pointer" }}
                 >
-                  + Nuevo
+                  + {t("portfolio.header.newPortfolio")}
                 </button>
               )}
               {showNewPortfolioInput && (
@@ -1604,25 +1604,25 @@ export default function PortfolioPage() {
             {/* Sync status */}
             {syncStatus === "syncing" && (
               <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
-                <RefreshCw className="w-3 h-3 animate-spin" /><span className="hidden sm:inline">Guardando...</span>
+                <RefreshCw className="w-3 h-3 animate-spin" /><span className="hidden sm:inline">{t("portfolio.header.saving")}</span>
               </div>
             )}
             {syncStatus === "saved" && (
               <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "#22c55e" }}
-                   title="Confirmado por el servidor">
-                <Check className="w-3 h-3" /><span className="hidden sm:inline">Guardado en el servidor</span>
+                   title={t("portfolio.header.savedOnServerTitle") ?? undefined}>
+                <Check className="w-3 h-3" /><span className="hidden sm:inline">{t("portfolio.header.savedOnServer")}</span>
               </div>
             )}
             {syncStatus === "error" && (
               <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "#ef4444" }}>
-                <CloudOff className="w-3 h-3" /><span className="hidden sm:inline">Error al guardar</span>
+                <CloudOff className="w-3 h-3" /><span className="hidden sm:inline">{t("portfolio.header.saveError")}</span>
               </div>
             )}
             {syncStatus === "idle" && lastSaved && (
               <div className="flex items-center gap-1 text-[10px]" style={{ color: "var(--dim)" }}
-                   title="Última confirmación del servidor">
+                   title={t("portfolio.header.savedAtTitle") ?? undefined}>
                 <Cloud className="w-3 h-3" />
-                <span className="hidden sm:inline">Guardado {new Date(lastSaved).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}</span>
+                <span className="hidden sm:inline">{t("portfolio.header.savedAt", { time: new Date(lastSaved).toLocaleTimeString(i18n.language === "en" ? "en-US" : "es-MX", { hour: "2-digit", minute: "2-digit" }) })}</span>
               </div>
             )}
             {/* View toggle — hidden on mobile since effectiveViewMode forces "basic" there regardless of what's tapped */}
@@ -1630,33 +1630,36 @@ export default function PortfolioPage() {
               <button onClick={() => { setViewMode("basic"); localStorage.setItem("nuvos_portfolio_view", "basic"); import("@/lib/api").then(({ sync }) => sync.pushPortfolioViewMode("basic").catch(() => {})); }}
                       className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
                       style={{ background: viewMode === "basic" ? "var(--accent)" : "transparent", color: viewMode === "basic" ? "#fff" : "var(--muted)" }}>
-                Básico
+                {t("portfolio.header.basic")}
               </button>
               <button onClick={() => { setViewMode("advanced"); localStorage.setItem("nuvos_portfolio_view", "advanced"); import("@/lib/api").then(({ sync }) => sync.pushPortfolioViewMode("advanced").catch(() => {})); }}
                       className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
                       style={{ background: viewMode === "advanced" ? "var(--accent)" : "transparent", color: viewMode === "advanced" ? "#fff" : "var(--muted)" }}>
-                Avanzado
+                {t("portfolio.header.advanced")}
               </button>
             </div>
             <PremiumBadge />
             <button onClick={fetchPrices}
                     className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
                     style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
-                    title="Actualizar precios">
+                    title={t("portfolio.header.refreshPrices") ?? undefined}>
               <RefreshCw className="w-4 h-4" />
             </button>
             <button
-              title="Compartir portafolio"
+              title={t("portfolio.header.sharePortfolio") ?? undefined}
               className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
               style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
               onClick={() => {
                 const sign = totals.pct >= 0 ? "+" : "";
-                const text = `Mi portafolio en Nuvos AI: ${currencySymbol}${totals.current.toLocaleString("en-US", { maximumFractionDigits: 0 })} (${sign}${totals.pct.toFixed(1)}%) 📈\n\nAnalizo mis inversiones con IA. Pruébalo en nuvosai.com`;
+                const text = t("portfolio.header.shareText", {
+                  value: `${currencySymbol}${totals.current.toLocaleString("en-US", { maximumFractionDigits: 0 })}`,
+                  sign, pct: totals.pct.toFixed(1),
+                });
                 if (navigator.share) {
-                  navigator.share({ title: "Mi portafolio – Nuvos AI", text });
+                  navigator.share({ title: t("portfolio.header.shareTitle") ?? undefined, text });
                 } else {
                   navigator.clipboard.writeText(text);
-                  showToast("¡Texto copiado al portapapeles!", true);
+                  showToast(t("portfolio.header.copiedToClipboard"), true);
                 }
               }}>
               <Share2 className="w-4 h-4" />
@@ -1675,19 +1678,19 @@ export default function PortfolioPage() {
             <button onClick={() => setActiveTab("portfolio")}
                     className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
                     style={{ background: activeTab === "portfolio" ? "var(--card)" : "transparent", color: activeTab === "portfolio" ? "var(--text)" : "var(--muted)" }}>
-              Mi Portafolio
+              {t("portfolio.header.myPortfolioTab")}
             </button>
             {isAtLeast(userLevel, "basico") ? (
               <button onClick={() => setActiveTab("herramientas")}
                       className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5"
                       style={{ background: activeTab === "herramientas" ? "var(--card)" : "transparent", color: activeTab === "herramientas" ? "var(--accent-l)" : "var(--muted)" }}>
-                Herramientas
+                {t("portfolio.header.toolsTab")}
               </button>
             ) : (
               <div className="flex-1 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 opacity-35"
                    style={{ color: "var(--dim)" }}
-                   title="Disponible en nivel Básico">
-                🔒 Herramientas
+                   title={t("portfolio.header.toolsLocked") ?? undefined}>
+                🔒 {t("portfolio.header.toolsTab")}
               </div>
             )}
           </div>
@@ -1704,20 +1707,20 @@ export default function PortfolioPage() {
                   <Cloud className="w-3.5 h-3.5" style={{ color: "#22c55e" }} />
                 </div>
                 <div>
-                  <p className="text-xs font-bold" style={{ color: "var(--text)" }}>Portafolio en la nube</p>
+                  <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{t("portfolio.actions.cloudTitle")}</p>
                   <p className="text-[10px]" style={{ color: "var(--muted)" }}>
-                    Sincronizado en todos tus dispositivos
+                    {t("portfolio.actions.cloudSubtitle")}
                   </p>
                 </div>
               </div>
               {positions.length > 0 && (
                 <button
                   onClick={() => {
-                    setConfirmModal({ msg: `¿Eliminar las ${positions.length} posiciones de tu portafolio? Esta acción no se puede deshacer.`, onConfirm: clearPortfolio });
+                    setConfirmModal({ msg: t("portfolio.actions.emptyConfirm", { count: positions.length }), onConfirm: clearPortfolio });
                   }}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-colors"
                   style={{ color: "#ef4444", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                  <Trash2 className="w-3 h-3" /> Vaciar
+                  <Trash2 className="w-3 h-3" /> {t("portfolio.actions.empty")}
                 </button>
               )}
             </div>
@@ -1728,20 +1731,14 @@ export default function PortfolioPage() {
                 onClick={() => setShowImportSteps(v => !v)}
                 className="w-full flex items-center justify-between px-3 py-2.5 text-left transition-colors"
                 style={{ background: "transparent" }}>
-                <span className="text-xs font-bold" style={{ color: "var(--muted)" }}>¿Cómo importar tu portafolio por captura?</span>
+                <span className="text-xs font-bold" style={{ color: "var(--muted)" }}>{t("portfolio.actions.importHowTo")}</span>
                 {showImportSteps
                   ? <ChevronUp className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted)" }} />
                   : <ChevronDown className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted)" }} />}
               </button>
               {showImportSteps && (
                 <div className="px-3 pb-3" style={{ borderTop: "1px solid var(--border)" }}>
-                  {[
-                    "Ve a tu broker (Robinhood, IBKR, Schwab, etc.)",
-                    "Ingresa a la sección de tu portafolio",
-                    "Toma una captura de pantalla de todas tus posiciones",
-                    'Toca "Importar captura" aquí en Nuvos AI y selecciona la imagen',
-                    "¡Listo! Tu portafolio quedará sincronizado en todos tus dispositivos",
-                  ].map((step, i) => (
+                  {(t("portfolio.actions.importSteps", { returnObjects: true }) as string[]).map((step, i) => (
                     <div key={i} className="flex items-start gap-2.5 pt-2.5">
                       <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-px"
                            style={{ background: "rgba(0,212,126,0.15)", color: "#00d47e" }}>
@@ -1756,7 +1753,7 @@ export default function PortfolioPage() {
 
             {/* Moneda de la captura — selector inline antes de importar */}
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs shrink-0" style={{ color: "var(--muted)" }}>Precios de la captura en:</span>
+              <span className="text-xs shrink-0" style={{ color: "var(--muted)" }}>{t("portfolio.actions.screenshotPricesIn")}</span>
               {["USD", "MXN", "EUR", "GBP"].map((c) => (
                 <button
                   key={c}
@@ -1787,7 +1784,7 @@ export default function PortfolioPage() {
                   boxShadow: showForm ? "none" : "var(--shadow-accent-sm)",
                 }}>
                 <Plus className="w-4 h-4" />
-                Agregar posición
+                {t("portfolio.actions.addPosition")}
                 {!isPremium && (
                   <span className="ml-1 text-xs font-black opacity-80">
                     {positions.length}/{FREE_POSITION_LIMIT}
@@ -1818,11 +1815,11 @@ export default function PortfolioPage() {
                   opacity: screenshotAnalyzing ? 0.7 : 1,
                 }}>
                 {screenshotAnalyzing ? (
-                  <><RefreshCw className="w-4 h-4 animate-spin" /><span>{screenshotProgress || "Analizando..."}</span></>
+                  <><RefreshCw className="w-4 h-4 animate-spin" /><span>{screenshotProgress || t("portfolio.actions.analyzing")}</span></>
                 ) : isDragOver ? (
-                  <><Upload className="w-4 h-4" /><span>¡Suelta aquí!</span></>
+                  <><Upload className="w-4 h-4" /><span>{t("portfolio.actions.dropHere")}</span></>
                 ) : (
-                  <><Upload className="w-4 h-4" /><span>Importar captura o PDF</span></>
+                  <><Upload className="w-4 h-4" /><span>{t("portfolio.actions.importScreenshotOrPdf")}</span></>
                 )}
               </div>
             </div>
@@ -1836,7 +1833,7 @@ export default function PortfolioPage() {
               style={{ background: "var(--raised)", border: "1px solid var(--border)", color: "var(--sub)" }}
             >
               <span>🔗</span>
-              <span>Conectar broker</span>
+              <span>{t("portfolio.actions.connectBroker")}</span>
               {isPremium ? (
                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1"
                   style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent)" }}>
@@ -1855,10 +1852,10 @@ export default function PortfolioPage() {
               <div className="flex items-center gap-2 text-[10px] px-1 mb-1"
                    style={{ color: "var(--dim)" }}>
                 <span>📋</span>
-                <span>También puedes pegar con{" "}
+                <span>{t("portfolio.actions.pasteHintPre")}{" "}
                   <kbd className="px-1 py-0.5 rounded font-mono text-[9px]"
                        style={{ background: "var(--raised)", color: "var(--muted)" }}>⌘V</kbd>
-                  {" "}o arrastrar capturas / PDFs de GBM+, Actinver u otro broker
+                  {" "}{t("portfolio.actions.pasteHintPost")}
                 </span>
               </div>
             )}
@@ -2024,12 +2021,12 @@ export default function PortfolioPage() {
             const progressPct = Math.min((totals.current / goalAmt) * 100, 100);
             const remaining = Math.max(goalAmt - totals.current, 0);
             const GOAL_LABELS: Record<string, string> = {
-              emergency_fund: "Fondo de emergencia",
-              big_purchase:   "Compra importante",
-              retirement:     "Retiro / pensión",
-              independence:   "Independencia financiera",
+              emergency_fund: t("portfolio.goal.emergencyFund", "Fondo de emergencia"),
+              big_purchase:   t("portfolio.goal.bigPurchase", "Compra importante"),
+              retirement:     t("portfolio.goal.retirement", "Retiro / pensión"),
+              independence:   t("portfolio.goal.independence", "Independencia financiera"),
             };
-            const goalLabel = GOAL_LABELS[profile?.investment_goal ?? ""] ?? "Mi meta";
+            const goalLabel = GOAL_LABELS[profile?.investment_goal ?? ""] ?? t("portfolio.goal.default");
             const reached = progressPct >= 100;
             return (
               <div className="rounded-2xl border p-4 mb-4"
@@ -2037,7 +2034,7 @@ export default function PortfolioPage() {
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5"
-                       style={{ color: "var(--accent-l)" }}>META FINANCIERA</p>
+                       style={{ color: "var(--accent-l)" }}>{t("portfolio.goal.label")}</p>
                     <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{goalLabel}</p>
                   </div>
                   <div className="text-right">
@@ -2046,7 +2043,7 @@ export default function PortfolioPage() {
                       {progressPct.toFixed(1)}%
                     </p>
                     <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
-                      {reached ? "¡Alcanzada!" : "completado"}
+                      {reached ? t("portfolio.goal.reached") : t("portfolio.goal.completed")}
                     </p>
                   </div>
                 </div>
@@ -2060,13 +2057,13 @@ export default function PortfolioPage() {
                     <span className="font-semibold" style={{ color: "var(--sub)" }}>
                       {currencySymbol}{totals.current.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                     </span>
-                    {" "}acumulados
+                    {" "}{t("portfolio.goal.accumulated")}
                   </span>
                   {reached ? (
-                    <span className="font-bold" style={{ color: "#22c55e" }}>Meta alcanzada</span>
+                    <span className="font-bold" style={{ color: "#22c55e" }}>{t("portfolio.goal.goalReached")}</span>
                   ) : (
                     <span style={{ color: "var(--muted)" }}>
-                      Faltan{" "}
+                      {t("portfolio.goal.missing")}{" "}
                       <span className="font-semibold" style={{ color: "var(--sub)" }}>
                         {currencySymbol}{remaining.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                       </span>
@@ -2076,7 +2073,7 @@ export default function PortfolioPage() {
                 <div className="mt-2 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
                   <div className="flex items-center justify-between">
                     <span className="text-[10px]" style={{ color: "var(--dim)" }}>
-                      Meta: {currencySymbol}{goalAmt.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                      {t("portfolio.goal.goalPrefix")} {currencySymbol}{goalAmt.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                     </span>
                   </div>
                   {(() => {
@@ -2090,13 +2087,13 @@ export default function PortfolioPage() {
                     if (monthsToGoalPure === null || reached) return null;
                     const yearsToGoal = monthsToGoalPure / 12;
                     const timeLabel = yearsToGoal < 1
-                      ? `${Math.ceil(monthsToGoalPure)} meses`
+                      ? t("portfolio.goal.months", { count: Math.ceil(monthsToGoalPure) })
                       : yearsToGoal < 1.83
-                      ? "~1 año y medio"
-                      : `~${Math.round(yearsToGoal)} años`;
+                      ? t("portfolio.goal.yearAndHalf")
+                      : t("portfolio.goal.years", { count: Math.round(yearsToGoal) });
                     return (
                       <p className="text-[10px] mt-1" style={{ color: "var(--dim)" }}>
-                        A tasa del {rateLabel}/año (histórico), llegas en {timeLabel}
+                        {t("portfolio.goal.rateLabel", { rate: rateLabel, time: timeLabel })}
                       </p>
                     );
                   })()}
@@ -2261,17 +2258,17 @@ export default function PortfolioPage() {
                       {loadingPrices ? (
                         <div className="flex items-center gap-2" style={{ color: "var(--muted)" }}>
                           <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span className="text-sm">Actualizando precios...</span>
+                          <span className="text-sm">{t("portfolio.summary.updatingPrices")}</span>
                         </div>
                       ) : priceError ? (
                         <div className="flex items-center gap-2 py-2">
                           <span className="text-sm" style={{ color: "var(--muted)" }}>
-                            Los precios no están disponibles ahora.{" "}
+                            {t("portfolio.summary.pricesUnavailable")}{" "}
                           </span>
                           <button onClick={fetchPrices}
                                   className="text-sm font-semibold underline hover:opacity-70 transition-opacity"
                                   style={{ color: "var(--accent-l)" }}>
-                            Reintentar
+                            {t("portfolio.summary.retry")}
                           </button>
                         </div>
                       ) : (
@@ -2280,7 +2277,7 @@ export default function PortfolioPage() {
                             <div>
                               <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "var(--dim)" }}>
                                 <span className="flex items-center gap-1.5">
-                                Portafolio
+                                {t("portfolio.summary.label")}
                                 <button onClick={() => setShowCurrencyPicker(true)}
                                         className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold border transition-colors hover:border-[var(--accent)]"
                                         style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--sub)" }}>
@@ -2332,18 +2329,18 @@ export default function PortfolioPage() {
                           {/* Invested + date row */}
                           <div className="flex items-center justify-between">
                             <p className="text-xs" style={{ color: "var(--muted)" }}>
-                              Invertido{" "}
+                              {t("portfolio.summary.invested")}{" "}
                               <span className="font-semibold" style={{ color: "var(--sub)" }}>
                                 {currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                               </span>
-                              {sp?.date && <span style={{ color: "var(--dim)" }}> · desde {sp.date}</span>}
+                              {sp?.date && <span style={{ color: "var(--dim)" }}> · {t("portfolio.summary.since", { date: sp.date })}</span>}
                             </p>
                             {sp?.spy_pct !== undefined && sp?.pct !== undefined && (() => {
                               const diff = sp.pct - sp.spy_pct;
                               const beats = diff >= 0;
                               return (
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px]" style={{ color: "var(--dim)" }}>vs S&P 500</span>
+                                  <span className="text-[10px]" style={{ color: "var(--dim)" }}>{t("portfolio.summary.vsSp500")}</span>
                                   <span className="text-[11px] font-bold" style={{ color: sp.spy_pct >= 0 ? "#22c55e" : "#ef4444" }}>
                                     {sp.spy_pct >= 0 ? "+" : ""}{sp.spy_pct.toFixed(2)}%
                                   </span>
@@ -2382,7 +2379,7 @@ export default function PortfolioPage() {
                               <span className="text-[10px] font-bold whitespace-nowrap leading-tight flex items-center gap-0.5"
                                     style={{ color: locked ? "var(--muted)" : isSel ? tc : "var(--muted)" }}>
                                 {locked && <span className="text-[9px]">🔒</span>}
-                                {key === "since_purchase" ? "Compra" : label}
+                                {label}
                               </span>
                               {locked ? (
                                 <span className="text-[9px] font-black leading-tight blur-[3px] select-none"
@@ -2408,7 +2405,7 @@ export default function PortfolioPage() {
 
                         {/* Rendimiento % */}
                         <div className="rounded-xl p-3" style={{ background: "var(--raised)" }}>
-                          <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--dim)" }}>Rendimiento</p>
+                          <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--dim)" }}>{t("portfolio.summary.kpi.performance")}</p>
                           {displayPct !== undefined ? (
                             <p className="text-base font-black leading-none" style={{ color }}>
                               {up ? "+" : ""}{displayPct.toFixed(2)}%
@@ -2418,12 +2415,12 @@ export default function PortfolioPage() {
                           ) : (
                             <p className="text-base font-black leading-none" style={{ color: "var(--dim)" }}>—</p>
                           )}
-                          {r?.date && <p className="text-[9px] mt-1" style={{ color: "var(--dim)" }}>desde {r.date}</p>}
+                          {r?.date && <p className="text-[9px] mt-1" style={{ color: "var(--dim)" }}>{t("portfolio.summary.since", { date: r.date })}</p>}
                         </div>
 
                         {/* Ganancia $ */}
                         <div className="rounded-xl p-3" style={{ background: "var(--raised)" }}>
-                          <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--dim)" }}>Ganancia</p>
+                          <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--dim)" }}>{t("portfolio.summary.kpi.gain")}</p>
                           {displayAmt !== undefined ? (
                             <p className="text-base font-black leading-none" style={{ color }}>
                               {up ? "+" : ""}{currencySymbol}{Math.abs(displayAmt).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
@@ -2435,7 +2432,7 @@ export default function PortfolioPage() {
 
                         {/* vs S&P 500 */}
                         <div className="rounded-xl p-3" style={{ background: "var(--raised)" }}>
-                          <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--dim)" }}>vs S&P 500</p>
+                          <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--dim)" }}>{t("portfolio.summary.kpi.vsSp500")}</p>
                           {r?.spy_pct !== undefined && displayPct !== undefined ? (
                             <>
                               <p className="text-base font-black leading-none" style={{ color: r.spy_pct >= 0 ? "#22c55e" : "#ef4444" }}>
@@ -2446,7 +2443,7 @@ export default function PortfolioPage() {
                                 const beats = diff >= 0;
                                 return (
                                   <p className="text-[9px] font-bold mt-1" style={{ color: beats ? "#22c55e" : "#ef4444" }}>
-                                    {beats ? "▲" : "▼"} {Math.abs(diff).toFixed(2)}% {beats ? "mejor" : "peor"}
+                                    {beats ? "▲" : "▼"} {Math.abs(diff).toFixed(2)}% {beats ? t("portfolio.summary.kpi.better") : t("portfolio.summary.kpi.worse")}
                                   </p>
                                 );
                               })()}
@@ -2465,7 +2462,7 @@ export default function PortfolioPage() {
                         <div className="h-[220px] flex items-center justify-center gap-2 text-xs"
                              style={{ color: "var(--muted)" }}>
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          Cargando datos históricos...
+                          {t("portfolio.summary.loadingHistory")}
                         </div>
                       ) : chartData && chartData.history.length >= 2 ? (
                         <div className="pt-3">
@@ -2474,7 +2471,7 @@ export default function PortfolioPage() {
                       ) : !chartLoading ? (
                         <div className="h-[160px] flex items-center justify-center text-xs"
                              style={{ color: "var(--dim)" }}>
-                          Sin datos históricos para este período
+                          {t("portfolio.summary.noHistoryForPeriod")}
                         </div>
                       ) : null}
                     </div>
@@ -2482,7 +2479,7 @@ export default function PortfolioPage() {
 
                     {/* ── FOOTER ── */}
                     <div className="border-t px-4 py-2" style={{ borderColor: "var(--border)" }}>
-                      <p className="text-[9px]" style={{ color: "var(--dim)" }}>Yahoo Finance · precios ajustados por splits y dividendos</p>
+                      <p className="text-[9px]" style={{ color: "var(--dim)" }}>{t("portfolio.summary.footer")}</p>
                     </div>
 
                   </div>
@@ -2794,17 +2791,17 @@ export default function PortfolioPage() {
                 <Shield className="w-5 h-5 text-[#ef4444] shrink-0" />
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-extrabold" style={{ color:"var(--text)" }}>Stress Test de Portafolio</h3>
+                    <h3 className="text-sm font-extrabold" style={{ color:"var(--text)" }}>{t("portfolio.stressTest.title")}</h3>
                     {!isPremium && <span className="text-xs px-1.5 py-0.5 rounded-md font-bold" style={{ background:"rgba(245,158,11,0.15)", color:"#f59e0b" }}>Premium</span>}
                   </div>
-                  <p className="text-xs" style={{ color:"var(--muted)" }}>¿Cuánto aguantaría tu portafolio en una crisis?</p>
+                  <p className="text-xs" style={{ color:"var(--muted)" }}>{t("portfolio.stressTest.subtitle")}</p>
                 </div>
               </div>
               {/* Mode toggle: hypothetical crisis scenarios vs. real year-by-year backtest */}
               <div className="flex gap-1.5 mb-3">
                 {([
-                  { id:"scenarios" as const, label:"Escenarios de Crisis" },
-                  { id:"real" as const,      label:"Real, año por año (1985–hoy)" },
+                  { id:"scenarios" as const, label: t("portfolio.stressTest.modeScenarios") },
+                  { id:"real" as const,      label: t("portfolio.stressTest.modeReal") },
                 ]).map((m) => (
                   <button key={m.id}
                           onClick={() => {
@@ -2838,7 +2835,7 @@ export default function PortfolioPage() {
                     {!backtestLoading && backtestResult && backtestResult.length > 0 && (
                       <div className="rounded-2xl border p-4" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
                         <p className="text-xs mb-3" style={{ color:"var(--muted)" }}>
-                          Retorno anual de tu portafolio actual (composición y pesos de hoy aplicados retroactivamente) vs. el S&P 500 real de cada año.
+                          {t("portfolio.stressTest.realDescription")}
                         </p>
                         <div className="space-y-0.5 max-h-96 overflow-y-auto">
                           {backtestResult.map((row) => (
@@ -2846,14 +2843,14 @@ export default function PortfolioPage() {
                               <div className="flex items-center gap-1.5">
                                 <p className="text-sm font-bold" style={{ color:"var(--text)" }}>{row.year}</p>
                                 {row.substituted && (
-                                  <span title="Una o más posiciones no existían aún ese año — se usó el retorno del S&P 500 para esa porción">
+                                  <span title={t("portfolio.stressTest.substitutedTooltip") ?? undefined}>
                                     <AlertTriangle className="w-3 h-3" style={{ color:"#f59e0b" }} />
                                   </span>
                                 )}
                               </div>
                               <div className="flex items-center gap-4">
                                 <div className="text-right">
-                                  <p className="text-[10px]" style={{ color:"var(--dim)" }}>Tu portafolio</p>
+                                  <p className="text-[10px]" style={{ color:"var(--dim)" }}>{t("portfolio.stressTest.yourPortfolio")}</p>
                                   <p className="text-sm font-extrabold" style={{ color:row.portfolio_return_pct>=0?"#22c55e":"#ef4444" }}>
                                     {row.portfolio_return_pct>=0?"+":""}{row.portfolio_return_pct.toFixed(1)}%
                                   </p>
@@ -2872,7 +2869,7 @@ export default function PortfolioPage() {
                              style={{ background:"rgba(234,179,8,0.08)", border:"1px solid rgba(234,179,8,0.25)" }}>
                           <AlertTriangle className="w-3 h-3 text-yellow-600 shrink-0" />
                           <p className="text-[11px] text-yellow-600">
-                            Años marcados ⚠️ incluyen posiciones que aún no cotizaban — se sustituyó por el retorno del S&P 500 de ese año. Estimación basada en datos históricos, no garantiza resultados futuros.
+                            {t("portfolio.stressTest.substitutedDisclaimer")}
                           </p>
                         </div>
                       </div>
@@ -2883,13 +2880,13 @@ export default function PortfolioPage() {
                   {/* Era filter chips */}
                   {(() => {
                     const ERAS: { id: string; label: string }[] = [
-                      { id:"all",         label:"Todos" },
-                      { id:"pre1950",     label:"Hasta 1950" },
-                      { id:"mid_century", label:"1950–1990" },
-                      { id:"late_xx",     label:"1990–2005" },
-                      { id:"2000s",       label:"2005–2015" },
-                      { id:"recent",      label:"2015–Hoy" },
-                      { id:"hypothetical",label:"Hipotéticos" },
+                      { id:"all",         label: t("portfolio.stressTest.eras.all") },
+                      { id:"pre1950",     label: t("portfolio.stressTest.eras.pre1950") },
+                      { id:"mid_century", label: t("portfolio.stressTest.eras.midCentury") },
+                      { id:"late_xx",     label: t("portfolio.stressTest.eras.lateXx") },
+                      { id:"2000s",       label: t("portfolio.stressTest.eras.y2000s") },
+                      { id:"recent",      label: t("portfolio.stressTest.eras.recent") },
+                      { id:"hypothetical",label: t("portfolio.stressTest.eras.hypothetical") },
                     ];
                     return (
                       <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none mb-2 fade-scroll-x">
@@ -2928,9 +2925,9 @@ export default function PortfolioPage() {
                   {/* Fake blurred result */}
                   {!isPremium && (
                     <div className="rounded-2xl border p-4 mt-3" style={{ borderColor:"rgba(239,68,68,0.3)", background:"var(--card)" }}>
-                      <p className="text-sm font-bold mb-3" style={{ color:"var(--text)" }}>💥 Crisis 2008 — Caída del mercado hipotecario</p>
+                      <p className="text-sm font-bold mb-3" style={{ color:"var(--text)" }}>{t("portfolio.stressTest.fakeCrisisTitle")}</p>
                       <div className="rounded-xl p-3 mb-3" style={{ background:"rgba(239,68,68,0.08)" }}>
-                        <p className="text-xs mb-1" style={{ color:"var(--muted)" }}>Impacto total estimado</p>
+                        <p className="text-xs mb-1" style={{ color:"var(--muted)" }}>{t("portfolio.stressTest.totalImpact")}</p>
                         <p className="text-2xl font-black" style={{ color:"#ef4444" }}>-$XX,XXX (-XX.X%)</p>
                         <p className="text-xs mt-1" style={{ color:"var(--dim)" }}>$XX,XXX → $XX,XXX</p>
                       </div>
@@ -2954,7 +2951,7 @@ export default function PortfolioPage() {
                       <div className="rounded-2xl border p-4 mt-3" style={{ borderColor:sc.color+"50", background:"var(--card)" }}>
                         <p className="text-sm font-bold mb-3" style={{ color:"var(--text)" }}>{sc.icon} {sc.name} — {sc.desc}</p>
                         <div className="rounded-xl p-3 mb-3" style={{ background:stressResult.diff>=0?"rgba(34,197,94,0.08)":"rgba(239,68,68,0.08)" }}>
-                          <p className="text-xs mb-1" style={{ color:"var(--muted)" }}>Impacto total estimado</p>
+                          <p className="text-xs mb-1" style={{ color:"var(--muted)" }}>{t("portfolio.stressTest.totalImpact")}</p>
                           <p className="text-2xl font-black" style={{ color:stressResult.diff>=0?"#22c55e":"#ef4444" }}>
                             {stressResult.diff>=0?"+":""}{fmtMoney(Math.abs(stressResult.diff))} ({stressResult.pct>=0?"+":""}{stressResult.pct.toFixed(1)}%)
                           </p>
@@ -2982,7 +2979,7 @@ export default function PortfolioPage() {
                         <div className="flex items-center gap-1.5 mt-3 px-3 py-2 rounded-lg"
                              style={{ background:"rgba(234,179,8,0.08)", border:"1px solid rgba(234,179,8,0.25)" }}>
                           <AlertTriangle className="w-3 h-3 text-yellow-600 shrink-0" />
-                          <p className="text-[11px] text-yellow-600">Estimación basada en datos históricos. No garantiza resultados futuros.</p>
+                          <p className="text-[11px] text-yellow-600">{t("portfolio.stressTest.disclaimer")}</p>
                         </div>
                       </div>
                     );
@@ -2995,12 +2992,12 @@ export default function PortfolioPage() {
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-2xl"
                        style={{ background:"rgba(0,0,0,0.45)", backdropFilter:"blur(2px)" }}>
                     <span className="text-3xl">🛡️</span>
-                    <p className="text-sm font-extrabold text-white text-center px-4">Desbloquea el Stress Test</p>
-                    <p className="text-xs text-white/70 text-center px-6">Simula crisis históricas y ve el impacto real en tu portafolio</p>
+                    <p className="text-sm font-extrabold text-white text-center px-4">{t("portfolio.stressTest.unlockTitle")}</p>
+                    <p className="text-xs text-white/70 text-center px-6">{t("portfolio.stressTest.unlockSubtitle")}</p>
                     <button onClick={() => setPaywallOpen(true)}
                             className="px-5 py-2 rounded-2xl text-sm font-black text-black"
                             style={{ background:"#f59e0b" }}>
-                      Ir a Premium
+                      {t("portfolio.stressTest.goToPremium")}
                     </button>
                   </div>
                 )}
@@ -3014,11 +3011,11 @@ export default function PortfolioPage() {
               <Sparkles className="w-5 h-5 shrink-0" style={{ color:"#22c55e" }} />
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-extrabold" style={{ color:"var(--text)" }}>Analiza tu Portafolio</h3>
+                  <h3 className="text-sm font-extrabold" style={{ color:"var(--text)" }}>{t("portfolio.analyze.title")}</h3>
                   {!isPremium && <span className="text-xs px-1.5 py-0.5 rounded-md font-bold" style={{ background:"rgba(245,158,11,0.15)", color:"#f59e0b" }}>Premium</span>}
                 </div>
                 <p className="text-xs" style={{ color:"var(--muted)" }}>
-                  IA evalúa tus {positions.length} posiciones y te da una calificación detallada
+                  {t("portfolio.analyze.subtitle", { count: positions.length })}
                 </p>
               </div>
             </div>
@@ -3028,19 +3025,19 @@ export default function PortfolioPage() {
               <button onClick={() => setPaywallOpen(true)}
                       className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-opacity"
                       style={{ background:"rgba(245,158,11,0.12)", border:"1px solid rgba(245,158,11,0.35)", color:"#f59e0b" }}>
-                🔒 Desbloquear análisis con IA
+                {t("portfolio.analyze.unlock")}
               </button>
             ) : positions.length > 0 ? (
               <button onClick={runPortfolioAnalysis} disabled={analysisLoading}
                       className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white font-bold text-sm disabled:opacity-40 transition-opacity"
                       style={{ background:"var(--accent)" }}>
                 {analysisLoading
-                  ? <><RefreshCw className="w-4 h-4 animate-spin" /> Analizando tu portafolio...</>
-                  : <><Sparkles className="w-4 h-4" /> Analizar mi portafolio con IA</>}
+                  ? <><RefreshCw className="w-4 h-4 animate-spin" /> {t("portfolio.analyze.analyzing")}</>
+                  : <><Sparkles className="w-4 h-4" /> {t("portfolio.analyze.analyzeButton")}</>}
               </button>
             ) : (
               <div className="text-center py-6 rounded-2xl border" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
-                <p className="text-xs" style={{ color:"var(--muted)" }}>Agrega posiciones a tu portafolio para analizarlo</p>
+                <p className="text-xs" style={{ color:"var(--muted)" }}>{t("portfolio.analyze.emptyState")}</p>
               </div>
             )}
 
@@ -3171,14 +3168,14 @@ export default function PortfolioPage() {
             <div className="flex items-center gap-2 mb-3">
               <Calculator className="w-5 h-5 text-[#6366f1] shrink-0" />
               <div>
-                <h3 className="text-sm font-extrabold" style={{ color:"var(--text)" }}>Calculadora de Inversión</h3>
-                <p className="text-xs" style={{ color:"var(--muted)" }}>¿Cuánto tendrás si inviertes X a Y% por Z años?</p>
+                <h3 className="text-sm font-extrabold" style={{ color:"var(--text)" }}>{t("portfolio.calculator.title")}</h3>
+                <p className="text-xs" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.subtitle")}</p>
               </div>
             </div>
             <div className="rounded-2xl border p-4" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color:"var(--muted)" }}>Capital inicial (USD)</label>
+                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.initialCapital")}</label>
                   <div className="flex items-center rounded-xl border overflow-hidden"
                        style={{ background:"var(--bg)", borderColor:"var(--border)" }}>
                     <span className="px-2 text-sm font-bold" style={{ color:"var(--muted)" }}>$</span>
@@ -3188,7 +3185,7 @@ export default function PortfolioPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color:"var(--muted)" }}>Aportación mensual</label>
+                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.monthlyContribution")}</label>
                   <div className="flex items-center rounded-xl border overflow-hidden"
                        style={{ background:"var(--bg)", borderColor:"var(--border)" }}>
                     <span className="px-2 text-sm font-bold" style={{ color:"var(--muted)" }}>$</span>
@@ -3198,14 +3195,14 @@ export default function PortfolioPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color:"var(--muted)" }}>Rendimiento anual (%)</label>
+                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.annualReturn")}</label>
                   <input value={calcReturn} onChange={(e) => setCalcReturn(e.target.value)} type="number" min="0"
                          className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
                          style={{ background:"var(--bg)", borderColor:"var(--border)", color:"var(--text)" }}
                          placeholder="10" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color:"var(--muted)" }}>Plazo (años)</label>
+                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.termYears")}</label>
                   <input value={calcYears} onChange={(e) => setCalcYears(e.target.value)} type="number" min="0"
                          className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
                          style={{ background:"var(--bg)", borderColor:"var(--border)", color:"var(--text)" }}
@@ -3216,7 +3213,7 @@ export default function PortfolioPage() {
                       disabled={!calcCapital||!calcReturn||!calcYears}
                       className="w-full py-3 rounded-xl text-white font-bold text-sm disabled:opacity-40 transition-colors"
                       style={{ background:"#6366f1" }}>
-                Calcular
+                {t("portfolio.calculator.calculate")}
               </button>
             </div>
             {calcResult && (() => {
@@ -3228,15 +3225,15 @@ export default function PortfolioPage() {
                   {/* Hero */}
                   <div className="p-5 text-center" style={{ background:"rgba(99,102,241,0.07)" }}>
                     <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color:"var(--muted)" }}>
-                      Valor final en {calcYears} {parseInt(calcYears)===1?"año":"años"}
+                      {t("portfolio.calculator.finalValueIn", { years: calcYears, unit: parseInt(calcYears)===1 ? t("portfolio.calculator.oneYear") : t("portfolio.calculator.multipleYears") })}
                     </p>
                     <p className="text-4xl font-black mb-3" style={{ color:"#6366f1" }}>{fmtMoney(calcResult.final)}</p>
                     <div className="flex justify-center gap-2">
                       <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background:"rgba(34,197,94,0.15)", color:"#22c55e" }}>
-                        ×{calcResult.multiplier.toFixed(1)} tu dinero
+                        {t("portfolio.calculator.timesYourMoney", { multiplier: calcResult.multiplier.toFixed(1) })}
                       </span>
                       <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background:"rgba(99,102,241,0.15)", color:"#a78bfa" }}>
-                        +{calcResult.pct.toFixed(0)}% retorno
+                        {t("portfolio.calculator.returnPct", { pct: calcResult.pct.toFixed(0) })}
                       </span>
                     </div>
                   </div>
@@ -3244,9 +3241,9 @@ export default function PortfolioPage() {
                   {/* Stats */}
                   <div className="grid grid-cols-3 border-t border-b" style={{ borderColor:"var(--border)" }}>
                     {[
-                      { label:"Invertido",   val:fmtMoney(calcResult.invested), color:"var(--sub)" },
-                      { label:"Ganancias",   val:`+${fmtMoney(calcResult.gain)}`, color:"#22c55e" },
-                      { label:"Valor real*", val:fmtMoney(calcResult.realFinal),  color:"#f59e0b" },
+                      { label: t("portfolio.calculator.invested"),  val:fmtMoney(calcResult.invested), color:"var(--sub)" },
+                      { label: t("portfolio.calculator.gains"),     val:`+${fmtMoney(calcResult.gain)}`, color:"#22c55e" },
+                      { label: t("portfolio.calculator.realValue"), val:fmtMoney(calcResult.realFinal),  color:"#f59e0b" },
                     ].map((st, i) => (
                       <div key={st.label} className={`text-center py-3 ${i>0?"border-l":""}`} style={{ borderColor:"var(--border)" }}>
                         <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color:"var(--muted)" }}>{st.label}</p>
@@ -3257,7 +3254,7 @@ export default function PortfolioPage() {
 
                   {/* Bar chart */}
                   <div className="p-4">
-                    <p className="text-[9px] font-bold uppercase tracking-wider mb-4" style={{ color:"var(--muted)" }}>Invertido vs Retorno por año</p>
+                    <p className="text-[9px] font-bold uppercase tracking-wider mb-4" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.investedVsReturn")}</p>
                     <div className="flex items-end gap-2" style={{ height: BAR_H + 40 }}>
                       {calcResult.bars.map(bar => {
                         const barH   = Math.max(8, (bar.total/maxTotal)*BAR_H);
@@ -3282,13 +3279,13 @@ export default function PortfolioPage() {
                       })}
                     </div>
                     <div className="flex gap-4 mt-3">
-                      {[{color:"#6366f1",label:"Invertido"},{color:"#22c55e",label:"Retorno"}].map(l=>(
+                      {[{color:"#6366f1",label:t("portfolio.calculator.invested")},{color:"#22c55e",label:t("portfolio.calculator.return")}].map(l=>(
                         <div key={l.label} className="flex items-center gap-1.5">
                           <div className="w-2 h-2 rounded-full" style={{ background:l.color }} />
                           <span className="text-[9px] font-semibold" style={{ color:"var(--muted)" }}>{l.label}</span>
                         </div>
                       ))}
-                      <span className="text-[9px]" style={{ color:"var(--dim)" }}>Opaco = proyección</span>
+                      <span className="text-[9px]" style={{ color:"var(--dim)" }}>{t("portfolio.calculator.opaqueProjection")}</span>
                     </div>
                   </div>
 
@@ -3297,7 +3294,7 @@ export default function PortfolioPage() {
                        style={{ background:"rgba(99,102,241,0.07)", border:"1px solid rgba(99,102,241,0.2)" }}>
                     <BarChart className="w-3 h-3 shrink-0 mt-0.5" style={{ color:"#a78bfa" }} />
                     <p className="text-[10px] leading-relaxed" style={{ color:"#a78bfa" }}>
-                      Interés compuesto mensual. *Valor real descontando 3.5% inflación anual. Rendimientos pasados no garantizan futuros.
+                      {t("portfolio.calculator.disclaimer")}
                     </p>
                   </div>
                 </div>
@@ -3312,7 +3309,7 @@ export default function PortfolioPage() {
           {activeTab === "herramientas" && (
             <div className="space-y-4 pb-8">
               <p className="text-xs" style={{ color: "var(--muted)" }}>
-                Herramientas de análisis avanzado para tu portafolio
+                {t("portfolio.toolsTab.subtitle")}
               </p>
 
               {isPremium

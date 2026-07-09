@@ -63,7 +63,7 @@ export default function MobileEarningsCalendar({
   onUpgrade,
 }: Props) {
   const { colors } = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const DAYS = getDays(t);
   const MONTHS = getMonths(t);
   const EVENT_META = getEventMeta(t);
@@ -248,7 +248,7 @@ export default function MobileEarningsCalendar({
       {selectedDay && selectedEntries.length > 0 && (
         <View style={[s.detailWrap, { borderTopColor: colors.border }]}>
           <Text style={[s.detailTitle, { color: colors.text }]}>
-            {new Date(selectedDay + "T12:00:00").toLocaleDateString("es", {
+            {new Date(selectedDay + "T12:00:00").toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", {
               weekday: "long", month: "long", day: "numeric",
             })}
           </Text>
