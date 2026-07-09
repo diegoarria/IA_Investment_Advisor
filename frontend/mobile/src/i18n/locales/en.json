@@ -1177,7 +1177,13 @@
       "errorTitle": "Analysis error",
       "errorBody": "Couldn't complete the analysis ({{status}}: {{detail}}). Try again.",
       "unknownConn": "network",
-      "noDetail": "no details"
+      "noDetail": "no details",
+      "sectionTitle": "Analyze Your Portfolio",
+      "sectionSubtitle": "AI evaluates your {{count}} positions and gives a detailed rating",
+      "unlockButton": "Unlock AI analysis",
+      "analyzeButton": "Analyze my portfolio with AI",
+      "emptyState": "Add positions to analyze your portfolio",
+      "disclaimer": "Educational analysis. Not financial advice."
     },
     "calculator": {
       "title": "Investment Calculator",

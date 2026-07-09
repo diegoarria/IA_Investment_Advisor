@@ -1177,7 +1177,13 @@
       "errorTitle": "Error al analizar",
       "errorBody": "No se pudo completar el análisis ({{status}}: {{detail}}). Intenta de nuevo.",
       "unknownConn": "red",
-      "noDetail": "sin detalle"
+      "noDetail": "sin detalle",
+      "sectionTitle": "Analiza tu Portafolio",
+      "sectionSubtitle": "IA evalúa tus {{count}} posiciones y da una calificación detallada",
+      "unlockButton": "Desbloquear análisis con IA",
+      "analyzeButton": "Analizar mi portafolio con IA",
+      "emptyState": "Agrega posiciones para analizar tu portafolio",
+      "disclaimer": "Análisis educativo. No es asesoramiento financiero."
     },
     "calculator": {
       "title": "Calculadora de Inversión",

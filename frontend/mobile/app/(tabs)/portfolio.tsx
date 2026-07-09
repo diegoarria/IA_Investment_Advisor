@@ -866,7 +866,7 @@ function PortfolioHistoryChart({
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export default function PortfolioScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { colors } = useTheme();
   const s = portfolioStyles;
   const { tour } = useLocalSearchParams<{ tour?: string }>();
@@ -1749,8 +1749,8 @@ export default function PortfolioScreen() {
                   ? t("portfolio.sync.error")
                   : lastSaved
                   ? (syncStatus === "saved"
-                    ? t("portfolio.sync.savedChecked", { time: new Date(lastSaved).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }) })
-                    : t("portfolio.sync.saved", { time: new Date(lastSaved).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }) }))
+                    ? t("portfolio.sync.savedChecked", { time: new Date(lastSaved).toLocaleTimeString(i18n.language === "en" ? "en-US" : "es-MX", { hour: "2-digit", minute: "2-digit" }) })
+                    : t("portfolio.sync.saved", { time: new Date(lastSaved).toLocaleTimeString(i18n.language === "en" ? "en-US" : "es-MX", { hour: "2-digit", minute: "2-digit" }) }))
                   : t("portfolio.sync.allDevices")}
               </Text>
             </View>
@@ -2558,7 +2558,7 @@ export default function PortfolioScreen() {
               <Ionicons name="shield-half-outline" size={20} color="#ef4444" />
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                  <Text style={s.sectionTitle}>Stress Test de Portafolio</Text>
+                  <Text style={s.sectionTitle}>{t("portfolio.stressTest.title")}</Text>
                   {!isPremiumAccess && (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#f59e0b18", borderWidth: 1, borderColor: "#f59e0b40", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
                       <Ionicons name="star" size={9} color="#f59e0b" />
@@ -2567,7 +2567,7 @@ export default function PortfolioScreen() {
                   )}
                 </View>
                 <Text style={[s.simSubtitle, { color: "#6b7280" }]}>
-                  ¿Cuánto aguantaría tu portafolio en una crisis histórica?
+                  {t("portfolio.stressTest.subtitle")}
                 </Text>
               </View>
             </View>
@@ -2678,7 +2678,7 @@ export default function PortfolioScreen() {
                       ))}
                       <View style={s.disclaimer}>
                         <Ionicons name="warning-outline" size={12} color="#ca8a04" />
-                        <Text style={s.disclaimerText}>Estimación basada en datos históricos. No garantiza resultados futuros.</Text>
+                        <Text style={s.disclaimerText}>{t("portfolio.stressTest.disclaimer")}</Text>
                       </View>
                     </View>
                   );
@@ -2693,16 +2693,16 @@ export default function PortfolioScreen() {
                   alignItems: "center", justifyContent: "center", gap: 10, padding: 20,
                 }}>
                   <Text style={{ fontSize: 32 }}>🛡️</Text>
-                  <Text style={{ fontSize: 15, fontWeight: "900", color: "#fff", textAlign: "center" }}>Desbloquea el Stress Test</Text>
+                  <Text style={{ fontSize: 15, fontWeight: "900", color: "#fff", textAlign: "center" }}>{t("portfolio.stressTest.unlockTitle")}</Text>
                   <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", textAlign: "center" }}>
-                    Simula crisis históricas y ve el impacto real en tu portafolio
+                    {t("portfolio.stressTest.unlockDesc")}
                   </Text>
                   <TouchableOpacity
                     onPress={() => setPaywallOpen(true)}
                     style={{ paddingHorizontal: 22, paddingVertical: 11, borderRadius: 18, backgroundColor: "#f59e0b", marginTop: 4 }}
                     activeOpacity={0.85}
                   >
-                    <Text style={{ fontSize: 13, fontWeight: "900", color: "#000" }}>Ir a Premium</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "900", color: "#000" }}>{t("portfolio.stressTest.unlockBtn")}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -2796,7 +2796,7 @@ export default function PortfolioScreen() {
           <Ionicons name="sparkles-outline" size={20} color="#22c55e" />
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
-              <Text style={s.sectionTitle}>Analiza tu Portafolio</Text>
+              <Text style={s.sectionTitle}>{t("portfolio.analysis.sectionTitle")}</Text>
               {!isPremiumAccess && (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#f59e0b18", borderWidth: 1, borderColor: "#f59e0b40", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
                   <Ionicons name="star" size={9} color="#f59e0b" />
@@ -2805,7 +2805,7 @@ export default function PortfolioScreen() {
               )}
             </View>
             <Text style={[s.simSubtitle, { color: "#6b7280" }]}>
-              IA evalúa tus {positions.length} posiciones y da una calificación detallada
+              {t("portfolio.analysis.sectionSubtitle", { count: positions.length })}
             </Text>
           </View>
         </View>
@@ -2818,7 +2818,7 @@ export default function PortfolioScreen() {
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Text style={{ fontSize: 15 }}>🔒</Text>
-              <Text style={[s.simBtnText, { color: "#f59e0b" }]}>Desbloquear análisis con IA</Text>
+              <Text style={[s.simBtnText, { color: "#f59e0b" }]}>{t("portfolio.analysis.unlockButton")}</Text>
             </View>
           </TouchableOpacity>
         ) : positions.length > 0 ? (
@@ -2832,13 +2832,13 @@ export default function PortfolioScreen() {
             ) : (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <Ionicons name="sparkles-outline" size={16} color="white" />
-                <Text style={s.simBtnText}>Analizar mi portafolio con IA</Text>
+                <Text style={s.simBtnText}>{t("portfolio.analysis.analyzeButton")}</Text>
               </View>
             )}
           </TouchableOpacity>
         ) : (
           <View style={[s.resultCard, { backgroundColor: "#111318", borderColor: "#1f2330", alignItems: "center", paddingVertical: 20 }]}>
-            <Text style={{ color: "#6b7280", fontSize: 12 }}>Agrega posiciones para analizar tu portafolio</Text>
+            <Text style={{ color: "#6b7280", fontSize: 12 }}>{t("portfolio.analysis.emptyState")}</Text>
           </View>
         )}
 
@@ -2937,7 +2937,7 @@ export default function PortfolioScreen() {
               {/* Disclaimer */}
               <View style={s.disclaimer}>
                 <Ionicons name="warning-outline" size={12} color="#ca8a04" />
-                <Text style={s.disclaimerText}>Análisis educativo. No es asesoramiento financiero.</Text>
+                <Text style={s.disclaimerText}>{t("portfolio.analysis.disclaimer")}</Text>
               </View>
 
             </View>
@@ -2949,9 +2949,9 @@ export default function PortfolioScreen() {
         <View style={s.simHeader}>
           <Ionicons name="calculator-outline" size={20} color="#6366f1" />
           <View style={{ flex: 1 }}>
-            <Text style={[s.sectionTitle, { marginBottom: 2 }]}>Calculadora de Inversión</Text>
+            <Text style={[s.sectionTitle, { marginBottom: 2 }]}>{t("portfolio.calculator.title")}</Text>
             <Text style={[s.simSubtitle, { color: "#6b7280" }]}>
-              ¿Cuánto tendrás si inviertes X a Y% por Z años?
+              {t("portfolio.calculator.subtitle")}
             </Text>
           </View>
         </View>
@@ -2959,7 +2959,7 @@ export default function PortfolioScreen() {
         <View style={[s.calcCard, { backgroundColor: "#111318", borderColor: "#1f2330" }]}>
           <View style={s.calcRow}>
             <View style={s.calcField}>
-              <Text style={[s.calcLabel, { color: "#6b7280" }]}>Capital inicial (USD)</Text>
+              <Text style={[s.calcLabel, { color: "#6b7280" }]}>{t("portfolio.calculator.initialCapital")}</Text>
               <View style={[s.calcInputWrap, { backgroundColor: "#0a0d12", borderColor: "#1f2330" }]}>
                 <Text style={[s.calcInputPrefix, { color: "#6b7280" }]}>$</Text>
                 <TextInput
@@ -2971,13 +2971,13 @@ export default function PortfolioScreen() {
               </View>
             </View>
             <View style={s.calcField}>
-              <Text style={[s.calcLabel, { color: "#6b7280" }]}>Aportación mensual (USD)</Text>
+              <Text style={[s.calcLabel, { color: "#6b7280" }]}>{t("portfolio.calculator.monthlyContribution")}</Text>
               <View style={[s.calcInputWrap, { backgroundColor: "#0a0d12", borderColor: "#1f2330" }]}>
                 <Text style={[s.calcInputPrefix, { color: "#6b7280" }]}>$</Text>
                 <TextInput
                   style={[s.calcInputInner, { color: "#fff" }]}
                   value={calcMonthly} onChangeText={setCalcMonthly}
-                  placeholder="500 (opcional)" placeholderTextColor={"#374151"}
+                  placeholder={t("portfolio.calculator.monthlyPlaceholder") ?? undefined} placeholderTextColor={"#374151"}
                   keyboardType="numeric"
                 />
               </View>
@@ -2985,7 +2985,7 @@ export default function PortfolioScreen() {
           </View>
           <View style={s.calcRow}>
             <View style={s.calcField}>
-              <Text style={[s.calcLabel, { color: "#6b7280" }]}>Rendimiento anual (%)</Text>
+              <Text style={[s.calcLabel, { color: "#6b7280" }]}>{t("portfolio.calculator.annualReturn")}</Text>
               <TextInput
                 style={[s.calcInput, { color: "#fff", backgroundColor: "#0a0d12", borderColor: "#1f2330" }]}
                 value={calcReturn} onChangeText={setCalcReturn}
@@ -2994,7 +2994,7 @@ export default function PortfolioScreen() {
               />
             </View>
             <View style={s.calcField}>
-              <Text style={[s.calcLabel, { color: "#6b7280" }]}>Plazo (años)</Text>
+              <Text style={[s.calcLabel, { color: "#6b7280" }]}>{t("portfolio.calculator.term")}</Text>
               <TextInput
                 style={[s.calcInput, { color: "#fff", backgroundColor: "#0a0d12", borderColor: "#1f2330" }]}
                 value={calcYears} onChangeText={setCalcYears}
@@ -3008,7 +3008,7 @@ export default function PortfolioScreen() {
             onPress={calculateCompound}
             disabled={!calcCapital || !calcReturn || !calcYears}
           >
-            <Text style={s.calcBtnText}>Calcular</Text>
+            <Text style={s.calcBtnText}>{t("portfolio.calculator.calculate")}</Text>
           </TouchableOpacity>
         </View>
 
@@ -3030,12 +3030,12 @@ export default function PortfolioScreen() {
                 <View style={s.calcHeroRow}>
                   <View style={[s.calcHeroBadge, { backgroundColor: "#22c55e18" }]}>
                     <Text style={[s.calcHeroBadgeText, { color: "#22c55e" }]}>
-                      ×{calcResult.multiplier.toFixed(1)} tu dinero
+                      {t("portfolio.calculator.multiplierBadge", { x: calcResult.multiplier.toFixed(1) })}
                     </Text>
                   </View>
                   <View style={[s.calcHeroBadge, { backgroundColor: "#6366f118" }]}>
                     <Text style={[s.calcHeroBadgeText, { color: "#a78bfa" }]}>
-                      +{calcResult.pct.toFixed(0)}% retorno
+                      {t("portfolio.calculator.returnBadge", { pct: calcResult.pct.toFixed(0) })}
                     </Text>
                   </View>
                 </View>
@@ -3044,9 +3044,9 @@ export default function PortfolioScreen() {
               {/* ── Stats row ── */}
               <View style={[s.calcStatsRow, { borderColor: "#1f2330" }]}>
                 {[
-                  { label: "Invertido",    val: `$${fmtMoney(calcResult.invested)}`,  col: "#9ca3af" },
-                  { label: "Ganancias",    val: `+$${fmtMoney(calcResult.gain)}`,      col: "#22c55e"      },
-                  { label: "Valor real*",  val: `$${fmtMoney(calcResult.realFinal)}`,  col: "#f59e0b"      },
+                  { label: t("portfolio.calculator.invested"),    val: `$${fmtMoney(calcResult.invested)}`,  col: "#9ca3af" },
+                  { label: t("portfolio.calculator.gains"),    val: `+$${fmtMoney(calcResult.gain)}`,      col: "#22c55e"      },
+                  { label: t("portfolio.calculator.realValue"),  val: `$${fmtMoney(calcResult.realFinal)}`,  col: "#f59e0b"      },
                 ].map((st, i) => (
                   <View key={st.label} style={[s.calcStatItem, i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: "#1f2330" }]}>
                     <Text style={[s.calcStatLabel, { color: "#6b7280" }]}>{st.label}</Text>
@@ -3057,7 +3057,7 @@ export default function PortfolioScreen() {
 
               {/* ── Bar chart ── */}
               <View style={s.chartSection}>
-                <Text style={[s.chartTitle, { color: "#6b7280" }]}>Invertido vs Retorno por año</Text>
+                <Text style={[s.chartTitle, { color: "#6b7280" }]}>{t("portfolio.calculator.chartTitle")}</Text>
 
                 <View style={s.chartBars}>
                   {calcResult.bars.map((bar) => {
@@ -3093,15 +3093,15 @@ export default function PortfolioScreen() {
                 <View style={s.chartLegend}>
                   <View style={s.legendItem}>
                     <View style={[s.legendDot, { backgroundColor: "#6366f1" }]} />
-                    <Text style={[s.legendText, { color: "#6b7280" }]}>Invertido</Text>
+                    <Text style={[s.legendText, { color: "#6b7280" }]}>{t("portfolio.calculator.legendInvested")}</Text>
                   </View>
                   <View style={s.legendItem}>
                     <View style={[s.legendDot, { backgroundColor: "#22c55e" }]} />
-                    <Text style={[s.legendText, { color: "#6b7280" }]}>Retorno</Text>
+                    <Text style={[s.legendText, { color: "#6b7280" }]}>{t("portfolio.calculator.legendReturns")}</Text>
                   </View>
                   <View style={s.legendItem}>
                     <View style={[s.legendDot, { backgroundColor: "#f59e0b", width: 8, height: 8, borderRadius: 2 }]} />
-                    <Text style={[s.legendText, { color: "#6b7280" }]}>Opaco = proyección</Text>
+                    <Text style={[s.legendText, { color: "#6b7280" }]}>{t("portfolio.calculator.legendProjection")}</Text>
                   </View>
                 </View>
               </View>
@@ -3110,7 +3110,7 @@ export default function PortfolioScreen() {
               <View style={[s.calcDisclaimer, { borderColor: "#6366f120", backgroundColor: "#6366f108" }]}>
                 <Ionicons name="information-circle-outline" size={12} color="#a78bfa" />
                 <Text style={[s.calcDisclaimerText, { color: "#a78bfa" }]}>
-                  Interés compuesto mensual. *Valor real descontando 3.5% inflación anual. Rendimientos pasados no garantizan futuros.
+                  {t("portfolio.calculator.disclaimer")}
                 </Text>
               </View>
             </View>
