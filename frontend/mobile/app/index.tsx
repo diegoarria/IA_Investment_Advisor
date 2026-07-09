@@ -21,6 +21,7 @@ import { useSubscriptionStore } from "../src/lib/subscriptionStore";
 import { useChatStore } from "../src/lib/chatStore";
 import { useWatchlistStore } from "../src/lib/watchlistStore";
 import { useLearnStore } from "../src/lib/learnStore";
+import { useLanguage } from "../src/lib/LanguageContext";
 import { useTranslation } from "react-i18next";
 
 const IS_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
@@ -48,6 +49,7 @@ const BIOMETRIC_ENABLED_KEY  = "biometric_enabled";
 
 export default function AuthScreen() {
   const { t } = useTranslation();
+  const { language, setLanguage } = useLanguage();
   const setProfile = useAppStore((s) => s.setProfile);
 
   const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
@@ -379,6 +381,22 @@ export default function AuthScreen() {
     <View style={S.screen}>
       <View style={S.glowOrb} />
       <SafeAreaView style={{ flex: 1 }}>
+        <View style={S.langToggle}>
+          <TouchableOpacity
+            onPress={() => setLanguage("en")}
+            style={[S.langBtn, language === "en" && S.langBtnActive]}
+            activeOpacity={0.8}
+          >
+            <Text style={[S.langBtnText, language === "en" && S.langBtnTextActive]}>EN🇺🇸</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setLanguage("es")}
+            style={[S.langBtn, language === "es" && S.langBtnActive]}
+            activeOpacity={0.8}
+          >
+            <Text style={[S.langBtnText, language === "es" && S.langBtnTextActive]}>ES🇪🇸</Text>
+          </TouchableOpacity>
+        </View>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
           <ScrollView
             contentContainerStyle={S.scroll}
@@ -661,6 +679,18 @@ const S = StyleSheet.create({
   },
 
   scroll: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 12, paddingBottom: 48 },
+
+  // ── Language toggle ──
+  langToggle: {
+    flexDirection: "row", alignSelf: "flex-end", gap: 4,
+    marginTop: 8, marginRight: 20,
+    backgroundColor: "#111318", borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)", borderRadius: 12, padding: 3,
+  },
+  langBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9 },
+  langBtnActive: { backgroundColor: "#00d47e" },
+  langBtnText: { fontSize: 11, fontWeight: "700", color: "#9ca3af" },
+  langBtnTextActive: { color: "#0a0d12" },
 
   // ── Splash / loading ──
   splashLogoShell: {
