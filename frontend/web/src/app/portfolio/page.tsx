@@ -1055,7 +1055,7 @@ export default function PortfolioPage() {
   const [chartOverrides, setChartOverrides] = useState<Partial<Record<string, PeriodReturn>>>({});
 
   // Chart state
-  type ChartData = { history: ChartPoint[]; period_pct: number; period_amount: number };
+  type ChartData = { history: ChartPoint[]; period_pct: number; period_amount: number; spy_pct?: number };
   const [chartData, setChartData] = useState<ChartData | null>(null);
   const [chartLoading, setChartLoading] = useState(false);
   const [hovData, setHovData] = useState<ChartHovData | null>(null);
@@ -1115,7 +1115,10 @@ export default function PortfolioPage() {
       marketApi.getPortfolioChart(posPayload(), key)
         .then((res: { data: ChartData }) => {
           if (res?.data?.period_pct !== undefined) {
-            setChartOverrides((prev) => ({ ...prev, [key]: { pct: res.data.period_pct, amount: res.data.period_amount } }));
+            setChartOverrides((prev) => ({
+              ...prev,
+              [key]: { pct: res.data.period_pct, amount: res.data.period_amount, spy_pct: res.data.spy_pct },
+            }));
           }
         })
         .catch(() => {});

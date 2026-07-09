@@ -1494,6 +1494,10 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     shares_map = {p.ticker.upper(): p.shares for p in positions}
     avg_price_map = {p.ticker.upper(): p.avg_price for p in positions if p.avg_price and p.avg_price > 0}
     purchase_date_map = {p.ticker.upper(): p.purchase_date for p in positions if p.purchase_date}
+    # ^GSPC (no-dividend index) preferred over SPY — fetched alongside the
+    # portfolio tickers in the same window so the S&P 500 comparison is real
+    # data computed over the exact same period, not a separately-fetched number.
+    fetch_tickers = list(dict.fromkeys(tickers + ["^GSPC", "SPY"]))
 
     today = _dt.now()
     today_ts = int(today.timestamp())
@@ -1512,7 +1516,7 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     # Use direct Yahoo Finance API — same as getPrices (guaranteed to work)
     if period in ("1d", "5d"):
         range_str = "2d" if period == "1d" else "5d"
-        close = _build_close_df_range(tickers, range_str, interval="1h")
+        close = _build_close_df_range(fetch_tickers, range_str, interval="1h")
         intraday = True
     elif period == "since_purchase":
         if not purchase_date_map:
@@ -1525,7 +1529,7 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
         except Exception:
             interval = "1d"
         start_ts = int(_dt.fromisoformat(oldest_str).timestamp())
-        close, rt_prices = _build_close_df(tickers, start_ts, today_ts, interval=interval)
+        close, rt_prices = _build_close_df(fetch_tickers, start_ts, today_ts, interval=interval)
         intraday = False
     else:
         PERIOD_CFG: dict[str, tuple[int, str]] = {
@@ -1545,7 +1549,7 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
             start_ts = int(_dt(1993, 1, 1).timestamp())
         else:
             start_ts = int((today - _td(days=days_back)).timestamp())
-        close, rt_prices = _build_close_df(tickers, start_ts, today_ts, interval=interval)
+        close, rt_prices = _build_close_df(fetch_tickers, start_ts, today_ts, interval=interval)
         intraday = False
 
     if close is None or close.empty:
@@ -1634,10 +1638,21 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     period_pct    = round((end_val - base) / base * 100, 2) if base > 0 else 0.0
     period_amount = round(end_val - base, 2)
 
+    # S&P 500 return over the exact same window, from the same fetch — real
+    # data every time, never a placeholder or a separately-fetched number.
+    spy_pct = None
+    _bench = "^GSPC" if "^GSPC" in close.columns else ("SPY" if "SPY" in close.columns else None)
+    if _bench and not close.empty:
+        spy_start = _safe_price(close.iloc[0], _bench)
+        spy_end = rt_prices.get(_bench) if (not intraday and rt_prices and _bench in rt_prices) else _safe_price(close.iloc[-1], _bench)
+        if spy_start and spy_start > 0 and spy_end and spy_end > 0:
+            spy_pct = round((spy_end - spy_start) / spy_start * 100, 2)
+
     return {
         "history": history,
         "period_pct": period_pct,
         "period_amount": period_amount,
+        **({"spy_pct": spy_pct} if spy_pct is not None else {}),
         "inferred_dates": {t: purchase_date_map[t] for t in tickers if t in purchase_date_map},
     }
 
