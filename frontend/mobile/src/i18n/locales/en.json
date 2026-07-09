@@ -1451,6 +1451,15 @@
             "We adjust your learning path",
             "We answer your questions as you go"
           ]
+        },
+        {
+          "title": "Nuvos Deep Research",
+          "features": [
+            "Open-ended research: compare companies, not just a fixed report",
+            "Real financial analysis, valuation and risks",
+            "Personalized with your current portfolio",
+            "Saved, searchable and downloadable as PDF"
+          ]
         }
       ]
     },
@@ -3301,5 +3310,51 @@
       "watchlist": "Watchlist"
     },
     "yourEvolution": "Your evolution as an investor"
+  },
+  "research": {
+    "title": "Nuvos Deep Research",
+    "subtitle": "Delegate a full investment research task to the AI — results in 2 to 5 minutes.",
+    "compose": {
+      "placeholder": "E.g. Compare Amazon, MercadoLibre and Alibaba and tell me which best fits my portfolio...",
+      "submit": "Research",
+      "planError": "Couldn't interpret your request. Try again.",
+      "tickerPrefill": "Deep research on {{ticker}}"
+    },
+    "plan": {
+      "title": "Here's what we'll research",
+      "confirm": "Confirm and pay",
+      "back": "Change my request",
+      "checkoutError": "Couldn't start checkout. Try again.",
+      "freePrice": "Price (Free account)",
+      "premiumPrice": "Price (Premium, discounted)",
+      "premiumUpsell": "With Premium you'd pay only ${{price}}",
+      "checkoutOpened": "Complete payment in your browser. Come back to this screen when you're done."
+    },
+    "progress": {
+      "starting": "Starting research...",
+      "elapsed": "{{seconds}}s elapsed",
+      "estimate": "Estimated time: 2-5 minutes",
+      "genericError": "Something went wrong during the research.",
+      "tryAgain": "Try again"
+    },
+    "report": {
+      "downloadPdf": "Download PDF",
+      "back": "Research History",
+      "loading": "Loading report...",
+      "notFound": "Report not found"
+    },
+    "history": {
+      "title": "Research History",
+      "empty": "You don't have any saved research yet."
+    },
+    "tools": {
+      "title": "Nuvos Deep Research",
+      "description": "Delegate a full research task — comparisons, valuation, personalization with your portfolio."
+    },
+    "banner": {
+      "title": "Want deep research on {{ticker}}?",
+      "subtitle": "Nuvos Deep Research compares, values and personalizes with your portfolio in minutes.",
+      "cta": "Research"
+    }
   }
 }

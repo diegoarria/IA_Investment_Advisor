@@ -327,6 +327,7 @@ _USER_DATA_TABLES = [
     "fmg_portfolio_snapshots", "fmg_annual_reports",
     "valuation_alert_state", "thesis_drift_state",
     "clip_likes", "clip_saves", "clip_views", "clip_comments",
+    "research_jobs", "research_reports",
 ]
 
 

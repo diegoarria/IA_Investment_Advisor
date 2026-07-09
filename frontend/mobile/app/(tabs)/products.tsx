@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
@@ -64,6 +65,15 @@ function getOneTimeItems(t: TFunction): OneTimeItem[] {
       note: items[2].note,
       offer: "session",
       variant: "bundle",
+    },
+    {
+      emoji: "🔬",
+      title: items[3].title,
+      features: items[3].features,
+      priceFree: "$19.99 USD",
+      pricePremium: "$9.99 USD",
+      offer: "deep_research",
+      variant: "default",
     },
   ];
 }
@@ -234,7 +244,7 @@ export default function ProductsScreen() {
                 )}
 
                 <TouchableOpacity
-                  onPress={() => handleCheckout(p.offer, p.variant)}
+                  onPress={() => p.offer === "deep_research" ? router.push("/research") : handleCheckout(p.offer, p.variant)}
                   disabled={checkoutLoading === p.offer + p.variant}
                   style={{ backgroundColor: "#00d47e", borderRadius: 12, paddingVertical: 10, alignItems: "center", marginBottom: 12, opacity: checkoutLoading === p.offer + p.variant ? 0.6 : 1 }}
                   activeOpacity={0.85}

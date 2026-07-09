@@ -33,7 +33,7 @@ import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
   Cloud, CloudOff, Check, BarChart2, TrendingUp, TrendingDown, GraduationCap, CheckSquare, Bell, Users, Share2,
-  ChevronDown, ChevronUp, Loader2,
+  ChevronDown, ChevronUp, Loader2, Microscope, ArrowRight,
 } from "lucide-react";
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
@@ -3391,6 +3391,29 @@ export default function PortfolioPage() {
               />
 
               <WeeklyScreenerCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} tickers={positions.map(p => p.ticker)} />
+
+              {/* Nuvos Deep Research — available to every tier, just cheaper for
+                  Premium, so this isn't gated behind PremiumToolLocked's paywall. */}
+              <button onClick={() => router.push("/research")}
+                      className="w-full text-left rounded-3xl overflow-hidden transition-transform hover:scale-[1.01] active:scale-[0.99]"
+                      style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+                <div className="flex items-center gap-4 p-5">
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
+                       style={{ background: "linear-gradient(135deg,#8b5cf6,#6366f1)" }}>
+                    <Microscope className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-black" style={{ color: "var(--text)" }}>{t("research.tools.title")}</p>
+                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background: "rgba(139,92,246,0.15)", color: "#a78bfa" }}>
+                        ${isPremium ? "9.99" : "19.99"}
+                      </span>
+                    </div>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{t("research.tools.description")}</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
+                </div>
+              </button>
 
             </div>
           )}

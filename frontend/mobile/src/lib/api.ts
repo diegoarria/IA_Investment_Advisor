@@ -217,8 +217,18 @@ export const billingApi = {
 };
 
 export const upsellsApi = {
-  checkout: (offer: string, variant: string, trigger_source: string) =>
-    api.post("/api/upsells/checkout", { offer, variant, trigger_source }),
+  checkout: (offer: string, variant: string, trigger_source: string, extra?: Record<string, unknown>) =>
+    api.post("/api/upsells/checkout", { offer, variant, trigger_source, ...extra }),
+};
+
+export const researchApi = {
+  createPlan: (requestText: string) =>
+    api.post("/api/research/plan", { request_text: requestText }),
+  getActiveJob: () => api.get("/api/research/jobs/active"),
+  getJob: (jobId: string) => api.get(`/api/research/jobs/${jobId}`),
+  listReports: () => api.get("/api/research/reports"),
+  getReport: (id: string) => api.get(`/api/research/reports/${id}`),
+  downloadPdfUrl: (id: string) => `${BASE_URL}/api/research/reports/${id}/pdf`,
 };
 
 export const learnApi = {

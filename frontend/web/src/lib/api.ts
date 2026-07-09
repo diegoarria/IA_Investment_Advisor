@@ -322,8 +322,22 @@ export const billing = {
 };
 
 export const upsells = {
-  checkout: (offer: string, variant: string, trigger_source: string) =>
-    api.post("/api/upsells/checkout", { offer, variant, trigger_source }),
+  checkout: (offer: string, variant: string, trigger_source: string, extra?: Record<string, unknown>) =>
+    api.post("/api/upsells/checkout", { offer, variant, trigger_source, ...extra }),
+};
+
+export const researchApi = {
+  createPlan: (requestText: string) =>
+    api.post("/api/research/plan", { request_text: requestText }),
+  start: (jobId: string, stripeSessionId: string) =>
+    api.post("/api/research/start", { job_id: jobId, stripe_session_id: stripeSessionId }),
+  getJob: (jobId: string) => api.get(`/api/research/jobs/${jobId}`),
+  getActiveJob: () => api.get("/api/research/jobs/active"),
+  listReports: () => api.get("/api/research/reports"),
+  getReport: (id: string) => api.get(`/api/research/reports/${id}`),
+  // Protected endpoint — needs the auth header, so this fetches a blob and
+  // triggers the download client-side rather than linking directly to the URL.
+  downloadPdf: (id: string) => api.get(`/api/research/reports/${id}/pdf`, { responseType: "blob" }),
 };
 
 export const feedbackApi = {

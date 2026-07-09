@@ -1738,6 +1738,30 @@ export default function PortfolioScreen() {
                 />
             }
 
+            {/* Nuvos Deep Research — available to every tier, just cheaper for
+                Premium, so this isn't gated behind PremiumToolCard's paywall. */}
+            <TouchableOpacity
+              onPress={() => router.push("/research")}
+              activeOpacity={0.85}
+              style={{ borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden" }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, backgroundColor: "#151821" }}>
+                <View style={{ width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#6d5cf6" }}>
+                  <Ionicons name="flask-outline" size={24} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "900", color: "#fff" }}>{t("research.tools.title")}</Text>
+                    <View style={{ backgroundColor: "rgba(139,92,246,0.15)", borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2 }}>
+                      <Text style={{ fontSize: 9, fontWeight: "900", color: "#a78bfa" }}>${isPremiumAccess ? "9.99" : "19.99"}</Text>
+                    </View>
+                  </View>
+                  <Text style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{t("research.tools.description")}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+              </View>
+            </TouchableOpacity>
+
           </View>
         )}
 

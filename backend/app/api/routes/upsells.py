@@ -37,6 +37,7 @@ PRICES = {
     "annual_report": {"free": 34.99, "premium": 19.99},
     "session":       {"free": 149.0, "premium": 99.0, "bundle": 247.0},
     "family_plan":   {"monthly": 19.99, "yearly": 199.99},
+    "deep_research": {"free": 19.99, "premium": 9.99},
 }
 
 DISMISS_COOLDOWN_DAYS = 14
@@ -51,6 +52,8 @@ def _price_id_for(offer: str, tier: str, variant: str = "default") -> str:
         ("session", "bundle"):        settings.stripe_price_session_bundle,
         ("family_plan", "monthly"):   settings.stripe_price_family_monthly,
         ("family_plan", "yearly"):    settings.stripe_price_family_yearly,
+        ("deep_research", "free"):    settings.stripe_price_deep_research_free,
+        ("deep_research", "premium"): settings.stripe_price_deep_research_premium,
     }
     if offer == "family_plan":
         key = variant          # "monthly" or "yearly"
@@ -179,7 +182,7 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
     offer = body.get("offer")
     variant = body.get("variant", "default")  # 'bundle' | 'monthly' | 'yearly' | tier
 
-    if offer not in ("annual_report", "session", "family_plan"):
+    if offer not in ("annual_report", "session", "family_plan", "deep_research"):
         return {"error": "Invalid offer"}
 
     if not settings.stripe_secret_key:
@@ -210,13 +213,24 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
 
     base = settings.frontend_url.rstrip("/") if settings.frontend_url not in ("*", "") else "https://nuvosai.com"
     mode = "subscription" if offer == "family_plan" else "payment"
+    metadata = {"offer": offer, "variant": key, "user_tier": tier}
+    # Deep Research's plan is already persisted as a research_jobs row before
+    # checkout (see /api/research/plan) — carry its id through so the success
+    # redirect can resume the exact request that was priced/confirmed, rather
+    # than re-deriving anything from Stripe metadata alone.
+    if offer == "deep_research":
+        job_id = body.get("job_id", "")
+        metadata["job_id"] = job_id
+        success_url = f"{base}/research?job_id={job_id}&session_id={{CHECKOUT_SESSION_ID}}"
+    else:
+        success_url = f"{base}/upsell-success?offer={offer}&session_id={{CHECKOUT_SESSION_ID}}"
     params: dict = {
         "mode": mode,
         "payment_method_types": ["card"],
         "line_items": [{"price": price_id, "quantity": 1}],
         "client_reference_id": user_id,
-        "metadata": {"offer": offer, "variant": key, "user_tier": tier},
-        "success_url": f"{base}/upsell-success?offer={offer}&session_id={{CHECKOUT_SESSION_ID}}",
+        "metadata": metadata,
+        "success_url": success_url,
         "cancel_url": f"{base}/profile",
     }
     if customer_id:
