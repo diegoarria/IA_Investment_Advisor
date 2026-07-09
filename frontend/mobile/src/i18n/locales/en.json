@@ -3244,5 +3244,24 @@
       "summary": "Summary"
     },
     "whenToEnter": "When to buy?"
+  },
+  "earningsCalendar": {
+    "analysisError": "Couldn't get the analysis.",
+    "analyzingWithAi": "Analyzing with AI...",
+    "dateTbd": "Date TBD",
+    "daysAgo": "{{days}}d ago",
+    "eventsCount_one": "{{count}} event",
+    "eventsCount_other": "{{count}} events",
+    "inDays": "In {{days}}d",
+    "loadingAnalysis": "Loading analysis...",
+    "loadingEarnings": "Loading earnings...",
+    "premiumSub": "Earnings with AI analysis · Estimated EPS and impact on your investment",
+    "recentReports": "Recent reports",
+    "revActual": "Actual rev. {{value}}",
+    "title": "Earnings Calendar",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "upcomingCount_one": "{{count}} upcoming · {{total}} total",
+    "upcomingCount_other": "{{count}} upcoming · {{total}} total"
   }
 }

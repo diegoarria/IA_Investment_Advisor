@@ -3244,5 +3244,24 @@
       "summary": "Resumen"
     },
     "whenToEnter": "¿Cuándo entrar?"
+  },
+  "earningsCalendar": {
+    "analysisError": "No se pudo obtener el análisis.",
+    "analyzingWithAi": "Analizando con IA...",
+    "dateTbd": "Fecha por confirmar",
+    "daysAgo": "Hace {{days}}d",
+    "eventsCount_one": "{{count}} evento",
+    "eventsCount_other": "{{count}} eventos",
+    "inDays": "En {{days}}d",
+    "loadingAnalysis": "Cargando análisis...",
+    "loadingEarnings": "Cargando earnings...",
+    "premiumSub": "Earnings con análisis IA · EPS estimado e impacto en tu inversión",
+    "recentReports": "Reportes recientes",
+    "revActual": "Rev. real {{value}}",
+    "title": "Calendario de Earnings",
+    "today": "Hoy",
+    "tomorrow": "Mañana",
+    "upcomingCount_one": "{{count}} próximo · {{total}} total",
+    "upcomingCount_other": "{{count}} próximos · {{total}} total"
   }
 }

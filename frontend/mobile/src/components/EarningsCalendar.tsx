@@ -3,6 +3,8 @@ import {
   View, Text, TouchableOpacity, ActivityIndicator, StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { earningsApi } from "../lib/api";
 import { useTheme } from "../lib/ThemeContext";
 import Markdown from "react-native-markdown-display";
@@ -27,13 +29,13 @@ interface Props {
   onUpgrade: () => void;
 }
 
-function daysLabel(dateStr: string | null, status: string): string {
-  if (!dateStr) return "Fecha por confirmar";
+function daysLabel(t: TFunction, dateStr: string | null, status: string): string {
+  if (!dateStr) return t("earningsCalendar.dateTbd");
   const diff = Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
-  if (status === "today" || diff === 0) return "Hoy";
-  if (diff === 1) return "Mañana";
-  if (diff < 0) return `Hace ${Math.abs(diff)}d`;
-  return `En ${diff}d`;
+  if (status === "today" || diff === 0) return t("earningsCalendar.today");
+  if (diff === 1) return t("earningsCalendar.tomorrow");
+  if (diff < 0) return t("earningsCalendar.daysAgo", { days: Math.abs(diff) });
+  return t("earningsCalendar.inDays", { days: diff });
 }
 
 function formatDate(dateStr: string | null): string {
@@ -44,6 +46,7 @@ function formatDate(dateStr: string | null): string {
 
 export default function EarningsCalendar({ positions, isPremium, onUpgrade }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [calendar, setCalendar] = useState<EarningsEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -60,7 +63,7 @@ export default function EarningsCalendar({ positions, isPremium, onUpgrade }: Pr
       const res: any = await earningsApi.getAnalysis(ticker, pos?.shares ?? 0, pos?.avg_cost ?? 0);
       setAnalysis(prev => ({ ...prev, [ticker]: res.data.analysis }));
     } catch {
-      setAnalysis(prev => ({ ...prev, [ticker]: "No se pudo obtener el análisis." }));
+      setAnalysis(prev => ({ ...prev, [ticker]: t("earningsCalendar.analysisError") }));
     } finally {
       setAnalyzing(prev => ({ ...prev, [ticker]: false }));
     }
@@ -121,13 +124,13 @@ export default function EarningsCalendar({ positions, isPremium, onUpgrade }: Pr
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
               <Text style={{ fontSize: 16 }}>📅</Text>
-              <Text style={[s.title, { color: colors.text }]}>Calendario de Earnings</Text>
+              <Text style={[s.title, { color: colors.text }]}>{t("earningsCalendar.title")}</Text>
               <View style={{ backgroundColor: "#f59e0b22", borderWidth: 1, borderColor: "#f59e0b44", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
                 <Text style={{ fontSize: 9, fontWeight: "800", color: "#f59e0b" }}>PREMIUM</Text>
               </View>
             </View>
             <Text style={[s.sub, { color: colors.textMuted }]}>
-              Earnings con análisis IA · EPS estimado e impacto en tu inversión
+              {t("earningsCalendar.premiumSub")}
             </Text>
           </View>
           <Ionicons name="lock-closed-outline" size={18} color="#f59e0b" style={{ marginLeft: 8 }} />
@@ -140,7 +143,7 @@ export default function EarningsCalendar({ positions, isPremium, onUpgrade }: Pr
     return (
       <View style={[s.card, { borderColor: colors.border, backgroundColor: colors.card, padding: 24, alignItems: "center", gap: 8 }]}>
         <ActivityIndicator color={colors.accent} />
-        <Text style={{ fontSize: 12, color: colors.textMuted }}>Cargando earnings...</Text>
+        <Text style={{ fontSize: 12, color: colors.textMuted }}>{t("earningsCalendar.loadingEarnings")}</Text>
       </View>
     );
   }
@@ -155,11 +158,11 @@ export default function EarningsCalendar({ positions, isPremium, onUpgrade }: Pr
       <View style={[s.header, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
         <Text style={{ fontSize: 16 }}>📅</Text>
         <View style={{ flex: 1, marginLeft: 10 }}>
-          <Text style={[s.title, { color: colors.text }]}>Calendario de Earnings</Text>
+          <Text style={[s.title, { color: colors.text }]}>{t("earningsCalendar.title")}</Text>
           <Text style={[s.sub, { color: colors.textMuted }]}>
             {upcoming.length > 0
-              ? `${upcoming.length} próximo${upcoming.length !== 1 ? "s" : ""} · ${calendar.length} total`
-              : `${calendar.length} evento${calendar.length !== 1 ? "s" : ""}`}
+              ? t("earningsCalendar.upcomingCount", { count: upcoming.length, total: calendar.length })
+              : t("earningsCalendar.eventsCount", { count: calendar.length })}
           </Text>
         </View>
       </View>
@@ -173,7 +176,7 @@ export default function EarningsCalendar({ positions, isPremium, onUpgrade }: Pr
       {/* ── Section divider ── */}
       {past.length > 0 && (
         <View style={{ paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.raised ?? "#0d0f14", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
-          <Text style={{ fontSize: 10, fontWeight: "800", color: colors.textDim, textTransform: "uppercase", letterSpacing: 1 }}>Reportes recientes</Text>
+          <Text style={{ fontSize: 10, fontWeight: "800", color: colors.textDim, textTransform: "uppercase", letterSpacing: 1 }}>{t("earningsCalendar.recentReports")}</Text>
         </View>
       )}
       {past.map((entry) => (
@@ -186,7 +189,7 @@ export default function EarningsCalendar({ positions, isPremium, onUpgrade }: Pr
         <View>
           {(upcoming.length > 0 || past.length > 0) && (
             <View style={{ paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.raised ?? "#0d0f14", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
-              <Text style={{ fontSize: 10, fontWeight: "800", color: colors.textDim, textTransform: "uppercase", letterSpacing: 1 }}>Fecha por confirmar</Text>
+              <Text style={{ fontSize: 10, fontWeight: "800", color: colors.textDim, textTransform: "uppercase", letterSpacing: 1 }}>{t("earningsCalendar.dateTbd")}</Text>
             </View>
           )}
           {unknown.map((entry) => (
@@ -196,7 +199,7 @@ export default function EarningsCalendar({ positions, isPremium, onUpgrade }: Pr
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>{entry.ticker}</Text>
-                <Text style={{ fontSize: 11, color: colors.textDim }}>Fecha por confirmar</Text>
+                <Text style={{ fontSize: 11, color: colors.textDim }}>{t("earningsCalendar.dateTbd")}</Text>
               </View>
               <Ionicons name="help-circle-outline" size={16} color={colors.textDim} />
             </View>
@@ -211,6 +214,7 @@ function EntryRow({ entry, expanded, onExpand, analysis, analyzing, colors, s }:
   entry: EarningsEntry; expanded: string | null; onExpand: (e: EarningsEntry) => void;
   analysis?: string; analyzing: boolean; colors: any; s: any;
 }) {
+  const { t } = useTranslation();
   const isExpanded = expanded === entry.ticker;
   const isUpcoming = entry.status === "upcoming" || entry.status === "today";
   const beat = entry.eps_actual != null && entry.eps_estimate != null && entry.eps_actual >= entry.eps_estimate;
@@ -227,7 +231,7 @@ function EntryRow({ entry, expanded, onExpand, analysis, analyzing, colors, s }:
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
-              {daysLabel(entry.event_date, entry.status)}
+              {daysLabel(t, entry.event_date, entry.status)}
             </Text>
             {entry.event_date && (
               <Text style={{ fontSize: 11, color: colors.textDim }}>{formatDate(entry.event_date)}</Text>
@@ -268,7 +272,7 @@ function EntryRow({ entry, expanded, onExpand, analysis, analyzing, colors, s }:
               )}
               {entry.revenue_actual && (
                 <View style={[s.chip, { backgroundColor: "rgba(99,102,241,0.08)", borderWidth: 1, borderColor: "rgba(99,102,241,0.2)" }]}>
-                  <Text style={{ fontSize: 10, color: "#818cf8", fontWeight: "700" }}>Rev. real {entry.revenue_actual}</Text>
+                  <Text style={{ fontSize: 10, color: "#818cf8", fontWeight: "700" }}>{t("earningsCalendar.revActual", { value: entry.revenue_actual })}</Text>
                 </View>
               )}
             </View>
@@ -277,7 +281,7 @@ function EntryRow({ entry, expanded, onExpand, analysis, analyzing, colors, s }:
           {analyzing ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 }}>
               <ActivityIndicator size="small" color={colors.accent} />
-              <Text style={{ fontSize: 12, color: colors.textMuted }}>Analizando con IA...</Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted }}>{t("earningsCalendar.analyzingWithAi")}</Text>
             </View>
           ) : analysis ? (
             <Markdown style={{
@@ -290,7 +294,7 @@ function EntryRow({ entry, expanded, onExpand, analysis, analyzing, colors, s }:
           ) : (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 }}>
               <ActivityIndicator size="small" color={colors.accent} />
-              <Text style={{ fontSize: 12, color: colors.textMuted }}>Cargando análisis...</Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted }}>{t("earningsCalendar.loadingAnalysis")}</Text>
             </View>
           )}
         </View>
