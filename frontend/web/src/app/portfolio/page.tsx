@@ -1046,6 +1046,10 @@ export default function PortfolioPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("since_purchase");
   const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
   const [loadingReturns, setLoadingReturns] = useState(false);
+  // YTD comes from the same endpoint/params as the Home page (getPortfolioChart)
+  // so both pages always show the exact same number — /portfolio-returns' own
+  // "ytd" bucket uses a different calculation and can drift from it.
+  const [ytdOverride, setYtdOverride] = useState<PeriodReturn | null>(null);
 
   // Chart state
   type ChartData = { history: ChartPoint[]; period_pct: number; period_amount: number };
@@ -1099,17 +1103,30 @@ export default function PortfolioPage() {
       .finally(() => { if (resetChart) setChartLoading(false); });
   }, [positions, selectedPeriod, posPayload]);
 
+  const fetchYtd = useCallback(() => {
+    if (positions.length === 0 || !isPremium) return;
+    marketApi.getPortfolioChart(posPayload(), "ytd")
+      .then((res: { data: ChartData }) => {
+        if (res?.data?.period_pct !== undefined) {
+          setYtdOverride({ pct: res.data.period_pct, amount: res.data.period_amount });
+        }
+      })
+      .catch(() => {});
+  }, [positions, posPayload, isPremium]);
+
   // Initial load
   useEffect(() => { fetchReturns(true); }, [positions.length]);
   useEffect(() => { fetchChart(true); }, [selectedPeriod, positions.length]);
+  useEffect(() => { fetchYtd(); }, [positions.length]);
 
   // Auto-refresh en tiempo real — returns cada 30s, chart cada 60s
   useEffect(() => {
     if (positions.length === 0) return;
     const ri = setInterval(() => fetchReturns(false), 30_000);
     const ci = setInterval(() => fetchChart(false), 60_000);
-    return () => { clearInterval(ri); clearInterval(ci); };
-  }, [positions.length, fetchReturns, fetchChart]);
+    const yi = setInterval(() => fetchYtd(), 60_000);
+    return () => { clearInterval(ri); clearInterval(ci); clearInterval(yi); };
+  }, [positions.length, fetchReturns, fetchChart, fetchYtd]);
 
   // Currency symbol for display
   const currencySymbol = portfolioCurrency === "USD" ? "$"
@@ -2236,7 +2253,7 @@ export default function PortfolioPage() {
               {/* ── Unified Performance Card ── */}
               {(() => {
                 const sp   = periodReturns["since_purchase"];
-                const r    = periodReturns[selectedPeriod];
+                const r    = selectedPeriod === "ytd" && ytdOverride ? ytdOverride : periodReturns[selectedPeriod];
                 const displayPct = r?.pct !== undefined ? r.pct : chartData?.period_pct;
                 const displayAmtUSD = r?.amount !== undefined ? r.amount : chartData?.period_amount;
                 const displayAmt = displayAmtUSD !== undefined ? displayAmtUSD * fxRate : undefined;
@@ -2361,7 +2378,7 @@ export default function PortfolioPage() {
                       <div className="flex gap-1 overflow-x-auto scrollbar-none">
                         {PERIODS.map(({ key, label, premium: needsPremium }) => {
                           const locked = needsPremium && !isPremium;
-                          const ret    = locked ? null : periodReturns[key];
+                          const ret    = locked ? null : (key === "ytd" && ytdOverride ? ytdOverride : periodReturns[key]);
                           const isSel  = selectedPeriod === key;
                           const isUp   = ret ? ret.pct >= 0 : null;
                           const tc     = locked ? "var(--muted)" : (isUp === null ? "#22c55e" : isUp ? "#22c55e" : "#ef4444");
