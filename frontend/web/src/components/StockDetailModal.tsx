@@ -6,6 +6,8 @@ import {
   BarChart3, Loader2, ChevronRight, Activity,
   ArrowUpRight, ArrowDownRight, DollarSign,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { market as marketApi } from "@/lib/api";
 import IncomeStatementTab from "@/components/IncomeStatementTab";
 import BalanceSheetTab from "@/components/BalanceSheetTab";
@@ -129,12 +131,26 @@ function recColor(r?: string) {
   return "var(--muted)";
 }
 
-function recLabel(r?: string) {
+// Translates the internal (Spanish-keyed) consensus text used for display only.
+// The raw consensusText string itself stays untranslated since it's also used
+// for color/logic matching (.includes("Compra"), signalToAngle, etc.)
+function getConsensusLabel(t: TFunction, s: string): string {
+  const map: Record<string, string> = {
+    "Sin datos": t("stockDetailModal.noData"),
+    "Compra Fuerte": t("stockDetailModal.recommendation.strongBuy"),
+    "Compra": t("stockDetailModal.recommendation.buy"),
+    "Mantener": t("stockDetailModal.recommendation.hold"),
+    "Vender": t("stockDetailModal.recommendation.sell"),
+  };
+  return map[s] ?? s;
+}
+
+function getRecLabel(t: TFunction, r?: string) {
   if (!r) return "—";
   const map: Record<string, string> = {
-    strong_buy: "Compra Fuerte", strongbuy: "Compra Fuerte",
-    buy: "Compra", hold: "Mantener", neutral: "Neutral",
-    sell: "Vender", strong_sell: "Venta Fuerte",
+    strong_buy: t("stockDetailModal.recommendation.strongBuy"), strongbuy: t("stockDetailModal.recommendation.strongBuy"),
+    buy: t("stockDetailModal.recommendation.buy"), hold: t("stockDetailModal.recommendation.hold"), neutral: t("stockDetailModal.recommendation.neutral"),
+    sell: t("stockDetailModal.recommendation.sell"), strong_sell: t("stockDetailModal.recommendation.strongSell"),
   };
   return map[r.toLowerCase()] ?? r;
 }
@@ -194,38 +210,23 @@ function MiniAvatar({ ticker }: { ticker: string }) {
   );
 }
 
-const METRIC_HINTS: Record<string, string> = {
-  "Cap. Mkt":          "Valor total de todas las acciones en el mercado. Mide qué tan grande es la empresa.",
-  "EV":                "Precio real para comprar toda la empresa: capitalización + deuda − efectivo.",
-  "P/E (TTM)":         "Cuántos años de ganancias actuales pagas por cada acción. Un P/E alto significa que el mercado espera mucho crecimiento futuro.",
-  "P/E Fwd":           "P/E usando las ganancias esperadas del próximo año. Refleja las expectativas del mercado.",
-  "PEG":               "P/E ajustado por el crecimiento esperado. Menor a 1 puede indicar que la acción está subvalorada.",
-  "P/S":               "Precio dividido entre las ventas anuales. Útil para empresas que aún no son rentables.",
-  "P/B":               "Precio de mercado vs valor contable. Menor a 1 puede indicar que cotiza por debajo de su valor en libros.",
-  "EV/EBITDA":         "Valoración de la empresa vs su rentabilidad operativa. Menos es generalmente más barato.",
-  "EV/Revenue":        "Parecido al P/S pero usa el valor completo de la empresa incluyendo deuda.",
-  "Margen Bruto":      "De cada $100 de ventas, cuánto queda después de pagar el costo directo de producir o vender.",
-  "Margen Op.":        "De cada $100 de ventas, cuánto queda después de todos los gastos operativos del negocio.",
-  "Margen Neto":       "De cada $100 de ventas, cuánto queda como ganancia final tras impuestos y todos los costos.",
-  "EBITDA %":          "Rentabilidad antes de intereses, impuestos, depreciación y amortización. Muestra el potencial operativo puro.",
-  "ROE":               "Cuánto gana la empresa por cada peso de capital de los accionistas. Mientras más alto, más eficiente.",
-  "ROA":               "Cuánto gana la empresa por cada peso de activos que tiene. Mide qué tan bien usa sus recursos.",
-  "Crec. Rev.":        "Qué tan rápido crecieron las ventas respecto al mismo período del año anterior.",
-  "Crec. Ganancias":   "Qué tan rápido crecieron las ganancias respecto al mismo período del año anterior.",
-  "Flujo Libre":       "Efectivo real que genera la empresa después de sus inversiones. Más confiable que las ganancias contables.",
-  "Deuda/Capital":     "Cuánta deuda tiene por cada peso de capital propio. Más bajo es más seguro financieramente.",
-  "Ratio Corriente":   "Capacidad de pagar sus deudas en el corto plazo. Por encima de 1 es buena señal.",
-  "Ratio Rápido":      "Como el Ratio Corriente pero sin contar inventarios. Más conservador y exigente.",
-  "Efectivo":          "Dinero en caja y activos líquidos disponibles.",
-  "Deuda Total":       "Suma de toda la deuda de la empresa, tanto corto como largo plazo.",
-  "Book Value":        "Valor contable por acción según el balance general.",
-  "SMA 50":            "Precio promedio de los últimos 50 días. Si el precio cotiza encima, es señal alcista de corto plazo.",
-  "SMA 200":           "Precio promedio de los últimos 200 días. La referencia clave de tendencia de largo plazo.",
-  "Beta":              "Volatilidad relativa al mercado. Beta > 1 significa que se mueve más que el S&P 500, para bien y para mal.",
-  "Short %":           "Porcentaje de acciones que traders apuestan a que bajan. Muy alto puede indicar riesgo o posible 'short squeeze'.",
-  "Short Ratio":       "Días que tardarían los vendedores en corto en cubrir sus posiciones. Más días = más presión potencial al alza.",
-  "Acciones":          "Total de acciones en circulación en el mercado.",
-};
+function getMetricInfo(t: TFunction): Record<string, { label: string; hint: string }> {
+  const keys = [
+    "capMkt", "ev", "peTtm", "peFwd", "peg", "ps", "pb", "evEbitda", "evRevenue",
+    "grossMargin", "opMargin", "netMargin", "ebitdaPct", "roe", "roa", "revGrowth",
+    "earningsGrowth", "freeCashFlow", "debtEquity", "currentRatio", "quickRatio",
+    "cash", "totalDebt", "bookValue", "sma50", "sma200", "beta", "shortPct",
+    "shortRatio", "shares",
+  ] as const;
+  const info: Record<string, { label: string; hint: string }> = {};
+  for (const key of keys) {
+    info[key] = {
+      label: t(`stockDetailModal.metricLabels.${key}`),
+      hint: t(`stockDetailModal.metricHints.${key}`),
+    };
+  }
+  return info;
+}
 
 function StatCard({ label, value, color, hint }: {
   label: string; value: string; color?: string; hint?: string;
@@ -256,14 +257,15 @@ function StatCard({ label, value, color, hint }: {
 }
 
 function RatingsBar({ ratings }: { ratings: Ratings }) {
+  const { t } = useTranslation();
   const total = ratings.strong_buy + ratings.buy + ratings.hold + ratings.sell + ratings.strong_sell;
-  if (!total) return <p className="text-xs" style={{ color: "var(--muted)" }}>Sin datos de analistas</p>;
+  if (!total) return <p className="text-xs" style={{ color: "var(--muted)" }}>{t("stockDetailModal.noAnalystData")}</p>;
   const segments = [
-    { label: "Compra Fuerte", value: ratings.strong_buy,  color: "#16a34a" },
-    { label: "Compra",        value: ratings.buy,          color: "#22c55e" },
-    { label: "Mantener",      value: ratings.hold,         color: "#f59e0b" },
-    { label: "Vender",        value: ratings.sell,         color: "#f97316" },
-    { label: "Venta Fuerte",  value: ratings.strong_sell,  color: "#ef4444" },
+    { label: t("stockDetailModal.recommendation.strongBuy"), value: ratings.strong_buy,  color: "#16a34a" },
+    { label: t("stockDetailModal.recommendation.buy"),       value: ratings.buy,          color: "#22c55e" },
+    { label: t("stockDetailModal.recommendation.hold"),      value: ratings.hold,         color: "#f59e0b" },
+    { label: t("stockDetailModal.recommendation.sell"),      value: ratings.sell,         color: "#f97316" },
+    { label: t("stockDetailModal.recommendation.strongSell"),value: ratings.strong_sell,  color: "#ef4444" },
   ];
   return (
     <div>
@@ -283,7 +285,7 @@ function RatingsBar({ ratings }: { ratings: Ratings }) {
           </div>
         ))}
       </div>
-      <p className="text-[10px] mt-1.5" style={{ color: "var(--dim)" }}>{total} analistas en total</p>
+      <p className="text-[10px] mt-1.5" style={{ color: "var(--dim)" }}>{t("stockDetailModal.totalAnalysts", { count: total })}</p>
     </div>
   );
 }
@@ -440,11 +442,13 @@ function MetricCard({ metric }: { metric: ScoreMetric }) {
 
 // ─── Google Finance-style chart ──────────────────────────────────────────────
 
-const PERIODS = [
-  { label: "1D", key: "1d" }, { label: "5D", key: "5d" }, { label: "1M", key: "1m" },
-  { label: "3M", key: "3m" }, { label: "6M", key: "6m" }, { label: "1A", key: "1y" },
-  { label: "5A", key: "5y" }, { label: "Máx", key: "max" },
-];
+function getPeriods(t: TFunction) {
+  return [
+    { label: t("stockDetailModal.periods.d1"), key: "1d" }, { label: t("stockDetailModal.periods.d5"), key: "5d" }, { label: t("stockDetailModal.periods.m1"), key: "1m" },
+    { label: t("stockDetailModal.periods.m3"), key: "3m" }, { label: t("stockDetailModal.periods.m6"), key: "6m" }, { label: t("stockDetailModal.periods.y1"), key: "1y" },
+    { label: t("stockDetailModal.periods.y5"), key: "5y" }, { label: t("stockDetailModal.periods.max"), key: "max" },
+  ];
+}
 
 function fmtChartDate(ts: string | undefined, intraday: boolean) {
   if (!ts) return "";
@@ -455,9 +459,11 @@ function fmtChartDate(ts: string | undefined, intraday: boolean) {
 }
 
 function PeriodBar({ period, onChange }: { period: string; onChange: (p: string) => void }) {
+  const { t } = useTranslation();
+  const periods = getPeriods(t);
   return (
     <div className="flex gap-0.5 px-4 pt-3 pb-1 flex-wrap">
-      {PERIODS.map(({ label, key }) => (
+      {periods.map(({ label, key }) => (
         <button key={key} onClick={() => onChange(key)}
                 className="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors"
                 style={{
@@ -476,6 +482,7 @@ function GoogleFinanceChart({ prices, timestamps, changePct, loading, period, on
   prices: number[]; timestamps: string[]; changePct: number;
   loading: boolean; period: string; onPeriodChange: (p: string) => void;
 }) {
+  const { t } = useTranslation();
   const svgRef = useRef<SVGSVGElement>(null);
   const [hovered, setHovered] = useState<number | null>(null);
   const intraday = period === "1d" || period === "5d";
@@ -510,7 +517,7 @@ function GoogleFinanceChart({ prices, timestamps, changePct, loading, period, on
           <span className="text-xs" style={{ color: isUp ? "#22c55e" : "#ef4444" }}>
             {isUp ? "+" : ""}{changePct.toFixed(2)}%
             <span className="ml-2" style={{ color: "var(--dim)" }}>
-              {period === "1d" ? "hoy" : "período seleccionado"}
+              {period === "1d" ? t("stockDetailModal.today") : t("stockDetailModal.selectedPeriod")}
             </span>
           </span>
         )}
@@ -522,7 +529,7 @@ function GoogleFinanceChart({ prices, timestamps, changePct, loading, period, on
           </div>
         ) : !prices.length ? (
           <div className="flex items-center justify-center" style={{ height: H }}>
-            <p className="text-xs" style={{ color: "var(--muted)" }}>Sin datos</p>
+            <p className="text-xs" style={{ color: "var(--muted)" }}>{t("stockDetailModal.noData")}</p>
           </div>
         ) : (() => {
           const min = Math.min(...prices), max = Math.max(...prices);
@@ -628,6 +635,7 @@ function ForecastChart({ prices, current, targetLow, targetMean, targetHigh }: {
   prices: number[]; current: number;
   targetLow?: number | null; targetMean?: number | null; targetHigh?: number | null;
 }) {
+  const { t } = useTranslation();
   const W = 500, H = 180, PL = 8, PR = 76, PT = 24, PB = 22;
   const cW = W - PL - PR, cH = H - PT - PB;
   const hist = prices.slice(-60);
@@ -648,9 +656,9 @@ function ForecastChart({ prices, current, targetLow, targetMean, targetHigh }: {
   const area = `${linePts} L${shx(hist.length - 1).toFixed(1)},${(PT + cH).toFixed(1)} L${PL},${(PT + cH).toFixed(1)} Z`;
 
   const foreLines = [
-    { target: targetHigh, color: "#16a34a", label: "Alto" },
-    { target: targetMean, color: "#6b7280", label: "Prom." },
-    { target: targetLow,  color: "#dc2626", label: "Bajo" },
+    { target: targetHigh, color: "#16a34a", label: t("stockDetailModal.forecastHigh") },
+    { target: targetMean, color: "#6b7280", label: t("stockDetailModal.forecastAvg") },
+    { target: targetLow,  color: "#dc2626", label: t("stockDetailModal.forecastLow") },
   ].filter((f): f is typeof f & { target: number } => f.target != null);
 
   return (
@@ -662,8 +670,8 @@ function ForecastChart({ prices, current, targetLow, targetMean, targetHigh }: {
         </linearGradient>
       </defs>
       {/* Labels */}
-      <text x={PL + histW / 2} y={PT - 6} fontSize="8.5" fill="var(--muted)" textAnchor="middle">Últimos 12 meses</text>
-      <text x={PL + histW + foreW / 2} y={PT - 6} fontSize="8.5" fill="var(--muted)" textAnchor="middle">Pronóstico 12m</text>
+      <text x={PL + histW / 2} y={PT - 6} fontSize="8.5" fill="var(--muted)" textAnchor="middle">{t("stockDetailModal.last12Months")}</text>
+      <text x={PL + histW + foreW / 2} y={PT - 6} fontSize="8.5" fill="var(--muted)" textAnchor="middle">{t("stockDetailModal.forecast12m")}</text>
       {/* Separator */}
       <line x1={fX} y1={PT - 10} x2={fX} y2={PT + cH} stroke="var(--border)" strokeWidth="1" strokeDasharray="3,3" />
       {/* Area + line */}
@@ -687,9 +695,9 @@ function ForecastChart({ prices, current, targetLow, targetMean, targetHigh }: {
       {/* Dot at current */}
       <circle cx={fX} cy={lastY} r="3" fill="#ef4444" stroke="var(--card)" strokeWidth="1.5" />
       {/* X labels */}
-      <text x={PL} y={H - 4} fontSize="8.5" fill="var(--muted)" textAnchor="start">hace 1 año</text>
-      <text x={fX} y={H - 4} fontSize="8.5" fill="var(--muted)" textAnchor="middle">hoy</text>
-      <text x={fEndX} y={H - 4} fontSize="8.5" fill="var(--muted)" textAnchor="end">+12 meses</text>
+      <text x={PL} y={H - 4} fontSize="8.5" fill="var(--muted)" textAnchor="start">{t("stockDetailModal.oneYearAgo")}</text>
+      <text x={fX} y={H - 4} fontSize="8.5" fill="var(--muted)" textAnchor="middle">{t("stockDetailModal.today")}</text>
+      <text x={fEndX} y={H - 4} fontSize="8.5" fill="var(--muted)" textAnchor="end">{t("stockDetailModal.plus12Months")}</text>
     </svg>
   );
 }
@@ -700,19 +708,23 @@ function ForecastChart({ prices, current, targetLow, targetMean, targetHigh }: {
 
 type Tab = "verdict" | "chart" | "financials" | "analyst" | "company";
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: "verdict",    label: "Resumen" },
-  { key: "chart",      label: "Gráfica" },
-  { key: "financials", label: "Financieros" },
-  { key: "analyst",    label: "Analistas" },
-  { key: "company",    label: "Empresa" },
-];
+function getTabs(t: TFunction): { key: Tab; label: string }[] {
+  return [
+    { key: "verdict",    label: t("stockDetailModal.tabs.verdict") },
+    { key: "chart",      label: t("stockDetailModal.tabs.chart") },
+    { key: "financials", label: t("stockDetailModal.tabs.financials") },
+    { key: "analyst",    label: t("stockDetailModal.tabs.analyst") },
+    { key: "company",    label: t("stockDetailModal.tabs.company") },
+  ];
+}
 
 // ─── Main Modal ───────────────────────────────────────────────────────────────
 
 interface Props { ticker: string; onClose: () => void }
 
 export default function StockDetailModal({ ticker, onClose }: Props) {
+  const { t } = useTranslation();
+
   useEffect(() => {
     document.documentElement.setAttribute("data-stock-modal", "1");
     return () => document.documentElement.removeAttribute("data-stock-modal");
@@ -880,12 +892,12 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   {pricePct != null && priceChange != null && (
                     <p className="text-sm font-bold flex items-center gap-1 mt-1" style={{ color: priceColor }}>
                       {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                      {priceChange >= 0 ? "+" : ""}{priceChange.toFixed(2)} ({fmtPct(pricePct)}) hoy
+                      {priceChange >= 0 ? "+" : ""}{priceChange.toFixed(2)} ({fmtPct(pricePct)}) {t("stockDetailModal.today")}
                     </p>
                   )}
                 </>
               ) : dataError ? (
-                <p className="text-sm font-bold" style={{ color: "#ef4444" }}>Sin datos</p>
+                <p className="text-sm font-bold" style={{ color: "#ef4444" }}>{t("stockDetailModal.noData")}</p>
               ) : null}
             </div>
             {/* AI signal badge */}
@@ -913,7 +925,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
               ) : profile?.recommendation ? (
                 <span className="text-xs font-bold px-3 py-1.5 rounded-full"
                       style={{ background: `${recColor(profile.recommendation)}18`, color: recColor(profile.recommendation), border: `1px solid ${recColor(profile.recommendation)}30` }}>
-                  {recLabel(profile.recommendation)}
+                  {getRecLabel(t, profile.recommendation)}
                 </span>
               ) : null}
             </div>
@@ -928,8 +940,8 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
             return (
               <div className="mt-3 px-1">
                 <div className="flex justify-between mb-1">
-                  <span className="text-[9px] font-semibold" style={{ color: "var(--dim)" }}>52s Mín ${low52.toFixed(0)}</span>
-                  <span className="text-[9px] font-semibold" style={{ color: "var(--dim)" }}>52s Máx ${high52.toFixed(0)}</span>
+                  <span className="text-[9px] font-semibold" style={{ color: "var(--dim)" }}>{t("stockDetailModal.week52Low")} ${low52.toFixed(0)}</span>
+                  <span className="text-[9px] font-semibold" style={{ color: "var(--dim)" }}>{t("stockDetailModal.week52High")} ${high52.toFixed(0)}</span>
                 </div>
                 <div className="relative h-1.5 rounded-full" style={{ background: "var(--border)" }}>
                   <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: `linear-gradient(90deg, #22c55e, ${recColor(profile.recommendation)})` }} />
@@ -944,7 +956,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
         {/* ── Tab bar ── */}
         <div className="shrink-0" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
           <div style={{ display: "flex", gap: 6, padding: "10px 16px", overflowX: "auto" }}>
-            {TABS.map(({ key, label }) => (
+            {getTabs(t).map(({ key, label }) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
@@ -973,7 +985,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
               {loadingScore ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3">
                   <Loader2 className="w-7 h-7 animate-spin" style={{ color: "var(--accent-l)" }} />
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>Analizando el negocio…</p>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>{t("stockDetailModal.analyzingBusiness")}</p>
                 </div>
               ) : score ? (
                 <>
@@ -1059,7 +1071,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                                style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.2)" }}>
                             <div className="flex items-center gap-2 mb-2">
                               <div className="w-2 h-2 rounded-full shrink-0" style={{ background: "#f59e0b" }} />
-                              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#f59e0b" }}>Corto plazo</span>
+                              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#f59e0b" }}>{t("stockDetailModal.shortTerm")}</span>
                             </div>
                             <p className="text-[12px] leading-relaxed" style={{ color: "var(--sub)" }}>{cortoText}</p>
                           </div>
@@ -1069,7 +1081,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                                style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)" }}>
                             <div className="flex items-center gap-2 mb-2">
                               <div className="w-2 h-2 rounded-full shrink-0" style={{ background: "#22c55e" }} />
-                              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#22c55e" }}>Largo plazo</span>
+                              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#22c55e" }}>{t("stockDetailModal.longTerm")}</span>
                             </div>
                             <p className="text-[12px] leading-relaxed" style={{ color: "var(--sub)" }}>{largoText}</p>
                           </div>
@@ -1083,10 +1095,10 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     <div className="rounded-3xl p-5" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
                       <div className="flex items-center justify-between mb-4">
                         <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>
-                          ¿Cuándo entrar?
+                          {t("stockDetailModal.whenToEnter")}
                         </span>
                         <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "var(--border)", color: "var(--muted)" }}>
-                          Valor justo ${score.entry_ranges_meta.fair_value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · {score.entry_ranges_meta.fair_value_src}
+                          {t("stockDetailModal.fairValue", { value: score.entry_ranges_meta.fair_value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), src: score.entry_ranges_meta.fair_value_src })}
                         </span>
                       </div>
                       <div className="flex flex-col gap-2">
@@ -1115,7 +1127,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                               {range.is_current && (
                                 <span className="text-[9px] font-black px-2 py-0.5 rounded-full shrink-0"
                                       style={{ background: range.color + "30", color: range.color }}>
-                                  AHORA
+                                  {t("stockDetailModal.now")}
                                 </span>
                               )}
                             </div>
@@ -1164,12 +1176,12 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   ))}
 
                   <p className="text-[9px] text-center pt-1" style={{ color: "var(--dim)" }}>
-                    Score calculado sobre datos SEC / Yahoo Finance · Análisis por IA · No es asesoramiento financiero
+                    {t("stockDetailModal.scoreFootnote")}
                   </p>
                 </>
               ) : (
                 <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>
-                  No se pudo calcular el score
+                  {t("stockDetailModal.couldNotCalculateScore")}
                 </p>
               )}
             </div>
@@ -1179,9 +1191,9 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
           {tab === "chart" && (
             chartError && !loadingChart ? (
               <div className="flex flex-col items-center justify-center py-20 gap-2 px-6 text-center">
-                <p className="text-sm font-bold" style={{ color: "#ef4444" }}>No se pudieron cargar los datos</p>
+                <p className="text-sm font-bold" style={{ color: "#ef4444" }}>{t("stockDetailModal.couldNotLoadChart")}</p>
                 <p className="text-xs" style={{ color: "var(--muted)" }}>
-                  Intenta con otro período o vuelve a intentarlo más tarde
+                  {t("stockDetailModal.tryAnotherPeriod")}
                 </p>
               </div>
             ) : (
@@ -1218,14 +1230,14 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   : (data?.financials?.cashflow?.[src] ?? []).slice().reverse();
 
                 if (!income.length && !balance.length && !cashflow.length) {
-                  return <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>Sin datos financieros</p>;
+                  return <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>{t("stockDetailModal.noFinancialData")}</p>;
                 }
 
 
                 const FIN_TABS: { key: "income" | "balance" | "cashflow"; label: string }[] = [
-                  { key: "income",   label: "Est. Resultados" },
-                  { key: "balance",  label: "Balance General" },
-                  { key: "cashflow", label: "Flujo de Caja"   },
+                  { key: "income",   label: t("stockDetailModal.finTabs.income") },
+                  { key: "balance",  label: t("stockDetailModal.finTabs.balance") },
+                  { key: "cashflow", label: t("stockDetailModal.finTabs.cashflow") },
                 ];
 
                 return (
@@ -1240,7 +1252,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                                   color: finPeriod === p ? "var(--accent-l)" : "var(--muted)",
                                   border: `1px solid ${finPeriod === p ? "rgba(0,168,94,0.3)" : "var(--border)"}`,
                                 }}>
-                          {p === "annual" ? "Anual" : "Trimestral"}
+                          {p === "annual" ? t("stockDetailModal.annual") : t("stockDetailModal.quarterly")}
                         </button>
                       ))}
                       <span className="ml-auto text-[9px]" style={{ color: "var(--dim)" }}>
@@ -1311,7 +1323,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     {/* ── Forecast hero: gauge left + chart right ── */}
                     <div>
                       <h2 className="text-base font-black mb-3" style={{ color: "var(--text)" }}>
-                        Pronóstico y Consenso de Analistas
+                        {t("stockDetailModal.forecastConsensusTitle")}
                       </h2>
 
                       <div className="flex gap-4 items-start">
@@ -1319,11 +1331,10 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                         <div className="w-44 shrink-0 space-y-2">
                           {total > 0 && cur && (
                             <p className="text-[10px] leading-relaxed" style={{ color: "var(--sub)" }}>
-                              Según <span className="font-bold">{analyst?.n_analysts ?? total}</span> analistas,{" "}
-                              consenso de{" "}
-                              <span className="font-bold" style={{ color: cColor }}>"{consensusText}"</span>.
+                              {t("stockDetailModal.accordingTo")} <span className="font-bold">{analyst?.n_analysts ?? total}</span> {t("stockDetailModal.analystsConsensusOf")}{" "}
+                              <span className="font-bold" style={{ color: cColor }}>"{getConsensusLabel(t, consensusText)}"</span>.
                               {mean && upside != null && (
-                                <> Precio objetivo <span className="font-bold" style={{ color: "var(--text)" }}>${mean.toFixed(2)}</span>{" "}
+                                <> {t("stockDetailModal.priceTargetInline")} <span className="font-bold" style={{ color: "var(--text)" }}>${mean.toFixed(2)}</span>{" "}
                                 (<span style={{ color: upside >= 0 ? "#22c55e" : "#ef4444" }}>
                                   {upside >= 0 ? "+" : ""}{upside.toFixed(2)}%
                                 </span>).</>
@@ -1334,7 +1345,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                           {mean && cur && upside != null && (
                             <div>
                               <p className="text-[9px] font-semibold mb-0.5" style={{ color: "var(--muted)" }}>
-                                Precio Objetivo:
+                                {t("stockDetailModal.priceTargetLabel")}
                               </p>
                               <p className="text-xl font-black leading-tight" style={{ color: cColor }}>
                                 ${mean.toFixed(2)}
@@ -1348,7 +1359,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                           <div className="flex flex-col items-center -mx-2">
                             <SpeedometerGauge signal={consensusText} />
                             <p className="text-xs font-black -mt-1" style={{ color: cColor }}>
-                              {consensusText}
+                              {getConsensusLabel(t, consensusText)}
                             </p>
                           </div>
                         </div>
@@ -1365,7 +1376,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                             />
                           ) : (
                             <div className="flex items-center justify-center" style={{ height: 180 }}>
-                              <p className="text-xs" style={{ color: "var(--muted)" }}>Cargando gráfica…</p>
+                              <p className="text-xs" style={{ color: "var(--muted)" }}>{t("stockDetailModal.loadingChart")}</p>
                             </div>
                           )}
                         </div>
@@ -1378,7 +1389,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                         <table className="w-full text-xs">
                           <thead>
                             <tr style={{ background: "var(--raised)", borderBottom: "1px solid var(--border)" }}>
-                              {["Objetivo", "Mínimo", "Promedio", "Máximo"].map((h) => (
+                              {[t("stockDetailModal.priceTargetTable.target"), t("stockDetailModal.priceTargetTable.low"), t("stockDetailModal.priceTargetTable.avg"), t("stockDetailModal.priceTargetTable.high")].map((h) => (
                                 <th key={h} className="px-3 py-2 text-right first:text-left font-semibold"
                                     style={{ color: "var(--muted)" }}>{h}</th>
                               ))}
@@ -1386,15 +1397,15 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                           </thead>
                           <tbody>
                             <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                              <td className="px-3 py-2 font-semibold" style={{ color: "var(--sub)" }}>Precio</td>
+                              <td className="px-3 py-2 font-semibold" style={{ color: "var(--sub)" }}>{t("stockDetailModal.priceTargetTable.price")}</td>
                               <td className="px-3 py-2 text-right font-bold tabular-nums" style={{ color: "var(--text)" }}>${low.toFixed(2)}</td>
                               <td className="px-3 py-2 text-right font-bold tabular-nums" style={{ color: "#22c55e" }}>${mean.toFixed(2)}</td>
                               <td className="px-3 py-2 text-right font-bold tabular-nums" style={{ color: "var(--text)" }}>${high.toFixed(2)}</td>
                             </tr>
                             <tr>
-                              <td className="px-3 py-2 font-semibold" style={{ color: "var(--sub)" }}>Potencial</td>
-                              {[low, mean, high].map((t, i) => {
-                                const pct = ((t - cur) / cur * 100);
+                              <td className="px-3 py-2 font-semibold" style={{ color: "var(--sub)" }}>{t("stockDetailModal.priceTargetTable.potential")}</td>
+                              {[low, mean, high].map((val, i) => {
+                                const pct = ((val - cur) / cur * 100);
                                 return (
                                   <td key={i} className="px-3 py-2 text-right font-semibold tabular-nums"
                                       style={{ color: pct >= 0 ? "#22c55e" : "#ef4444" }}>
@@ -1412,11 +1423,11 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     <div>
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="text-sm font-bold" style={{ color: "var(--text)" }}>
-                          Distribución de Recomendaciones
+                          {t("stockDetailModal.recommendationDistribution")}
                         </h3>
                         {analyst?.n_analysts ? (
                           <span className="text-[10px]" style={{ color: "var(--muted)" }}>
-                            {analyst.n_analysts} analistas
+                            {t("stockDetailModal.analystsCount", { count: analyst.n_analysts })}
                           </span>
                         ) : null}
                       </div>
@@ -1428,13 +1439,13 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       <div>
                         <h3 className="text-sm font-bold mb-2" style={{ color: "var(--text)" }}>
                           <Activity className="w-4 h-4 inline mr-1.5" />
-                          Sorpresas EPS
+                          {t("stockDetailModal.epsSurprises")}
                         </h3>
                         <div className="flex items-center gap-4 text-[10px] mb-1 px-0.5" style={{ color: "var(--dim)" }}>
-                          <span className="w-20">Período</span>
-                          <span className="w-14 text-right">Real</span>
-                          <span className="w-14 text-right">Estimado</span>
-                          <span className="ml-auto">Sorpresa</span>
+                          <span className="w-20">{t("stockDetailModal.columnPeriod")}</span>
+                          <span className="w-14 text-right">{t("stockDetailModal.columnActual")}</span>
+                          <span className="w-14 text-right">{t("stockDetailModal.columnEstimate")}</span>
+                          <span className="ml-auto">{t("stockDetailModal.columnSurprise")}</span>
                         </div>
                         {analyst!.eps_surprises.map((s) => <EpsSurpriseRow key={s.period} item={s} />)}
                       </div>
@@ -1445,13 +1456,13 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       <div>
                         <h3 className="text-sm font-bold mb-2" style={{ color: "var(--text)" }}>
                           <BarChart3 className="w-4 h-4 inline mr-1.5" />
-                          Estimaciones EPS Futuras
+                          {t("stockDetailModal.epsEstimates")}
                         </h3>
                         <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
                           <table className="w-full text-xs">
                             <thead>
                               <tr style={{ background: "var(--raised)", borderBottom: "1px solid var(--border)" }}>
-                                {["Período", "Prom.", "Mín", "Máx", "Crecim."].map((h) => (
+                                {[t("stockDetailModal.columnPeriod"), t("stockDetailModal.columnAvg"), t("stockDetailModal.columnLow"), t("stockDetailModal.columnHigh"), t("stockDetailModal.columnGrowth")].map((h) => (
                                   <th key={h} className="px-3 py-2 text-right first:text-left font-semibold"
                                       style={{ color: "var(--muted)" }}>{h}</th>
                                 ))}
@@ -1480,13 +1491,13 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       <div>
                         <h3 className="text-sm font-bold mb-2" style={{ color: "var(--text)" }}>
                           <DollarSign className="w-4 h-4 inline mr-1.5" />
-                          Estimaciones de Ingresos
+                          {t("stockDetailModal.revenueEstimates")}
                         </h3>
                         <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
                           <table className="w-full text-xs">
                             <thead>
                               <tr style={{ background: "var(--raised)", borderBottom: "1px solid var(--border)" }}>
-                                {["Período", "Prom.", "Mín", "Máx", "Crecim."].map((h) => (
+                                {[t("stockDetailModal.columnPeriod"), t("stockDetailModal.columnAvg"), t("stockDetailModal.columnLow"), t("stockDetailModal.columnHigh"), t("stockDetailModal.columnGrowth")].map((h) => (
                                   <th key={h} className="px-3 py-2 text-right first:text-left font-semibold"
                                       style={{ color: "var(--muted)" }}>{h}</th>
                                 ))}
@@ -1511,7 +1522,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     )}
 
                     <p className="text-[9px] text-center" style={{ color: "var(--dim)" }}>
-                      Fuente: {data?.sources?.analyst === "finnhub" ? "Finnhub" : data?.sources?.analyst === "fmp" ? "Financial Modeling Prep" : "Yahoo Finance"} · Wall Street
+                      {t("stockDetailModal.source")}: {data?.sources?.analyst === "finnhub" ? "Finnhub" : data?.sources?.analyst === "fmp" ? "Financial Modeling Prep" : "Yahoo Finance"} · {t("stockDetailModal.wallStreet")}
                     </p>
                   </>
                 );
@@ -1526,24 +1537,26 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 <div className="flex justify-center py-8">
                   <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent-l)" }} />
                 </div>
-              ) : profile ? (
+              ) : profile ? (() => {
+                const M = getMetricInfo(t);
+                return (
                 <>
                   {/* Valoración */}
                   <div>
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
-                      <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>💰 Valoración</span>
+                      <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>💰 {t("stockDetailModal.valuation")}</span>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
-                      <StatCard label="Cap. Mkt"   value={fmtBig(profile.market_cap)}          hint={METRIC_HINTS["Cap. Mkt"]} />
-                      <StatCard label="EV"          value={fmtBig(profile.enterprise_value)}    hint={METRIC_HINTS["EV"]} />
-                      <StatCard label="P/E (TTM)"   value={fmtNum(profile.pe_ratio)}            hint={METRIC_HINTS["P/E (TTM)"]} />
-                      <StatCard label="P/E Fwd"     value={fmtNum(profile.forward_pe)}          hint={METRIC_HINTS["P/E Fwd"]} />
-                      <StatCard label="PEG"         value={fmtNum(profile.peg_ratio)}           hint={METRIC_HINTS["PEG"]} />
-                      <StatCard label="P/S"         value={fmtNum(profile.ps_ratio)}            hint={METRIC_HINTS["P/S"]} />
-                      <StatCard label="P/B"         value={fmtNum(profile.pb_ratio)}            hint={METRIC_HINTS["P/B"]} />
-                      <StatCard label="EV/EBITDA"   value={fmtNum(profile.ev_to_ebitda)}        hint={METRIC_HINTS["EV/EBITDA"]} />
-                      <StatCard label="EV/Revenue"  value={fmtNum(profile.ev_to_revenue)}       hint={METRIC_HINTS["EV/Revenue"]} />
+                      <StatCard label={M.capMkt.label}   value={fmtBig(profile.market_cap)}          hint={M.capMkt.hint} />
+                      <StatCard label={M.ev.label}          value={fmtBig(profile.enterprise_value)}    hint={M.ev.hint} />
+                      <StatCard label={M.peTtm.label}   value={fmtNum(profile.pe_ratio)}            hint={M.peTtm.hint} />
+                      <StatCard label={M.peFwd.label}     value={fmtNum(profile.forward_pe)}          hint={M.peFwd.hint} />
+                      <StatCard label={M.peg.label}         value={fmtNum(profile.peg_ratio)}           hint={M.peg.hint} />
+                      <StatCard label={M.ps.label}         value={fmtNum(profile.ps_ratio)}            hint={M.ps.hint} />
+                      <StatCard label={M.pb.label}         value={fmtNum(profile.pb_ratio)}            hint={M.pb.hint} />
+                      <StatCard label={M.evEbitda.label}   value={fmtNum(profile.ev_to_ebitda)}        hint={M.evEbitda.hint} />
+                      <StatCard label={M.evRevenue.label}  value={fmtNum(profile.ev_to_revenue)}       hint={M.evRevenue.hint} />
                     </div>
                   </div>
 
@@ -1551,18 +1564,18 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   <div>
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
-                      <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>📊 Rentabilidad &amp; Márgenes</span>
+                      <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>📊 {t("stockDetailModal.profitabilityMargins")}</span>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
-                      <StatCard label="Margen Bruto"    value={profile.gross_margins != null ? `${profile.gross_margins.toFixed(1)}%` : "—"}        hint={METRIC_HINTS["Margen Bruto"]} />
-                      <StatCard label="Margen Op."      value={profile.operating_margins != null ? `${profile.operating_margins.toFixed(1)}%` : "—"} hint={METRIC_HINTS["Margen Op."]} />
-                      <StatCard label="Margen Neto"     value={profile.profit_margins != null ? `${profile.profit_margins.toFixed(1)}%` : "—"}       hint={METRIC_HINTS["Margen Neto"]} />
-                      <StatCard label="EBITDA %"        value={profile.ebitda_margins != null ? `${profile.ebitda_margins.toFixed(1)}%` : "—"}       hint={METRIC_HINTS["EBITDA %"]} />
-                      <StatCard label="ROE"             value={profile.return_on_equity != null ? `${profile.return_on_equity.toFixed(1)}%` : "—"}   hint={METRIC_HINTS["ROE"]} />
-                      <StatCard label="ROA"             value={profile.return_on_assets != null ? `${profile.return_on_assets.toFixed(1)}%` : "—"}   hint={METRIC_HINTS["ROA"]} />
-                      <StatCard label="Crec. Rev."      value={fmtPct(profile.revenue_growth)}   color={profile.revenue_growth != null ? (profile.revenue_growth >= 0 ? "#22c55e" : "#ef4444") : undefined}   hint={METRIC_HINTS["Crec. Rev."]} />
-                      <StatCard label="Crec. Ganancias" value={fmtPct(profile.earnings_growth)}  color={profile.earnings_growth != null ? (profile.earnings_growth >= 0 ? "#22c55e" : "#ef4444") : undefined}  hint={METRIC_HINTS["Crec. Ganancias"]} />
-                      <StatCard label="Flujo Libre"     value={fmtBig(profile.free_cashflow)}    hint={METRIC_HINTS["Flujo Libre"]} />
+                      <StatCard label={M.grossMargin.label}    value={profile.gross_margins != null ? `${profile.gross_margins.toFixed(1)}%` : "—"}        hint={M.grossMargin.hint} />
+                      <StatCard label={M.opMargin.label}      value={profile.operating_margins != null ? `${profile.operating_margins.toFixed(1)}%` : "—"} hint={M.opMargin.hint} />
+                      <StatCard label={M.netMargin.label}     value={profile.profit_margins != null ? `${profile.profit_margins.toFixed(1)}%` : "—"}       hint={M.netMargin.hint} />
+                      <StatCard label={M.ebitdaPct.label}        value={profile.ebitda_margins != null ? `${profile.ebitda_margins.toFixed(1)}%` : "—"}       hint={M.ebitdaPct.hint} />
+                      <StatCard label={M.roe.label}             value={profile.return_on_equity != null ? `${profile.return_on_equity.toFixed(1)}%` : "—"}   hint={M.roe.hint} />
+                      <StatCard label={M.roa.label}             value={profile.return_on_assets != null ? `${profile.return_on_assets.toFixed(1)}%` : "—"}   hint={M.roa.hint} />
+                      <StatCard label={M.revGrowth.label}      value={fmtPct(profile.revenue_growth)}   color={profile.revenue_growth != null ? (profile.revenue_growth >= 0 ? "#22c55e" : "#ef4444") : undefined}   hint={M.revGrowth.hint} />
+                      <StatCard label={M.earningsGrowth.label} value={fmtPct(profile.earnings_growth)}  color={profile.earnings_growth != null ? (profile.earnings_growth >= 0 ? "#22c55e" : "#ef4444") : undefined}  hint={M.earningsGrowth.hint} />
+                      <StatCard label={M.freeCashFlow.label}     value={fmtBig(profile.free_cashflow)}    hint={M.freeCashFlow.hint} />
                     </div>
                   </div>
 
@@ -1570,15 +1583,15 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   <div>
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
-                      <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>🏛️ Balance &amp; Liquidez</span>
+                      <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>🏛️ {t("stockDetailModal.balanceLiquidity")}</span>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
-                      <StatCard label="Deuda/Capital"   value={fmtNum(profile.debt_to_equity)}                                         hint={METRIC_HINTS["Deuda/Capital"]} />
-                      <StatCard label="Ratio Corriente" value={fmtNum(profile.current_ratio)}                                          hint={METRIC_HINTS["Ratio Corriente"]} />
-                      <StatCard label="Ratio Rápido"    value={fmtNum(profile.quick_ratio)}                                            hint={METRIC_HINTS["Ratio Rápido"]} />
-                      <StatCard label="Efectivo"        value={fmtBig(profile.total_cash)}                                             hint={METRIC_HINTS["Efectivo"]} />
-                      <StatCard label="Deuda Total"     value={fmtBig(profile.total_debt)}                                             hint={METRIC_HINTS["Deuda Total"]} />
-                      <StatCard label="Book Value"      value={profile.book_value != null ? `$${profile.book_value.toFixed(2)}` : "—"} hint={METRIC_HINTS["Book Value"]} />
+                      <StatCard label={M.debtEquity.label}   value={fmtNum(profile.debt_to_equity)}                                         hint={M.debtEquity.hint} />
+                      <StatCard label={M.currentRatio.label} value={fmtNum(profile.current_ratio)}                                          hint={M.currentRatio.hint} />
+                      <StatCard label={M.quickRatio.label}    value={fmtNum(profile.quick_ratio)}                                            hint={M.quickRatio.hint} />
+                      <StatCard label={M.cash.label}        value={fmtBig(profile.total_cash)}                                             hint={M.cash.hint} />
+                      <StatCard label={M.totalDebt.label}     value={fmtBig(profile.total_debt)}                                             hint={M.totalDebt.hint} />
+                      <StatCard label={M.bookValue.label}      value={profile.book_value != null ? `$${profile.book_value.toFixed(2)}` : "—"} hint={M.bookValue.hint} />
                     </div>
                   </div>
 
@@ -1586,15 +1599,15 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   <div>
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
-                      <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>📈 Precio &amp; Volumen</span>
+                      <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>📈 {t("stockDetailModal.priceVolume")}</span>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
-                      <StatCard label="SMA 50"      value={profile.sma_50 ? `$${profile.sma_50.toFixed(2)}` : "—"}                   hint={METRIC_HINTS["SMA 50"]} />
-                      <StatCard label="SMA 200"     value={profile.sma_200 ? `$${profile.sma_200.toFixed(2)}` : "—"}                 hint={METRIC_HINTS["SMA 200"]} />
-                      <StatCard label="Beta"        value={fmtNum(profile.beta)}                                                      hint={METRIC_HINTS["Beta"]} />
-                      <StatCard label="Short %"     value={profile.short_pct_float != null ? `${profile.short_pct_float.toFixed(1)}%` : "—"} hint={METRIC_HINTS["Short %"]} />
-                      <StatCard label="Short Ratio" value={fmtNum(profile.short_ratio)}                                               hint={METRIC_HINTS["Short Ratio"]} />
-                      <StatCard label="Acciones"    value={fmtK(profile.shares_outstanding)}                                          hint={METRIC_HINTS["Acciones"]} />
+                      <StatCard label={M.sma50.label}      value={profile.sma_50 ? `$${profile.sma_50.toFixed(2)}` : "—"}                   hint={M.sma50.hint} />
+                      <StatCard label={M.sma200.label}     value={profile.sma_200 ? `$${profile.sma_200.toFixed(2)}` : "—"}                 hint={M.sma200.hint} />
+                      <StatCard label={M.beta.label}        value={fmtNum(profile.beta)}                                                      hint={M.beta.hint} />
+                      <StatCard label={M.shortPct.label}     value={profile.short_pct_float != null ? `${profile.short_pct_float.toFixed(1)}%` : "—"} hint={M.shortPct.hint} />
+                      <StatCard label={M.shortRatio.label} value={fmtNum(profile.short_ratio)}                                               hint={M.shortRatio.hint} />
+                      <StatCard label={M.shares.label}    value={fmtK(profile.shares_outstanding)}                                          hint={M.shares.hint} />
                     </div>
                   </div>
 
@@ -1603,7 +1616,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
-                        <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>💵 Historial de Dividendos</span>
+                        <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>💵 {t("stockDetailModal.dividendHistory")}</span>
                         {profile.dividend_yield != null && profile.dividend_yield > 0 && (
                           <span className="ml-2 font-bold" style={{ color: "var(--accent-l)" }}>
                             {profile.dividend_yield.toFixed(2)}% yield
@@ -1614,8 +1627,8 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                         <table className="w-full text-xs">
                           <thead>
                             <tr style={{ background: "var(--raised)", borderBottom: "1px solid var(--border)" }}>
-                              <th className="px-3 py-2 text-left font-semibold" style={{ color: "var(--muted)" }}>Fecha</th>
-                              <th className="px-3 py-2 text-right font-semibold" style={{ color: "var(--muted)" }}>Dividendo</th>
+                              <th className="px-3 py-2 text-left font-semibold" style={{ color: "var(--muted)" }}>{t("stockDetailModal.columnDate")}</th>
+                              <th className="px-3 py-2 text-right font-semibold" style={{ color: "var(--muted)" }}>{t("stockDetailModal.columnDividend")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1639,16 +1652,16 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
-                        <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>🏦 Tenedores Institucionales</span>
+                        <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>🏦 {t("stockDetailModal.institutionalHolders")}</span>
                       </div>
                       <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
                         <table className="w-full text-xs">
                           <thead>
                             <tr style={{ background: "var(--raised)", borderBottom: "1px solid var(--border)" }}>
-                              <th className="px-3 py-2 text-left font-semibold" style={{ color: "var(--muted)" }}>Institución</th>
-                              <th className="px-3 py-2 text-right font-semibold" style={{ color: "var(--muted)" }}>Acciones</th>
-                              <th className="px-3 py-2 text-right font-semibold" style={{ color: "var(--muted)" }}>Valor</th>
-                              <th className="px-3 py-2 text-right font-semibold" style={{ color: "var(--muted)" }}>% Float</th>
+                              <th className="px-3 py-2 text-left font-semibold" style={{ color: "var(--muted)" }}>{t("stockDetailModal.columnInstitution")}</th>
+                              <th className="px-3 py-2 text-right font-semibold" style={{ color: "var(--muted)" }}>{t("stockDetailModal.columnShares")}</th>
+                              <th className="px-3 py-2 text-right font-semibold" style={{ color: "var(--muted)" }}>{t("stockDetailModal.columnValue")}</th>
+                              <th className="px-3 py-2 text-right font-semibold" style={{ color: "var(--muted)" }}>{t("stockDetailModal.columnPctFloat")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1674,8 +1687,8 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
-                        <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>🔍 Transacciones de Insiders</span>
-                        <span className="text-[10px]" style={{ color: "var(--dim)" }}>directivos y directores</span>
+                        <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>🔍 {t("stockDetailModal.insiderTransactions")}</span>
+                        <span className="text-[10px]" style={{ color: "var(--dim)" }}>{t("stockDetailModal.officersAndDirectors")}</span>
                       </div>
                       <div className="space-y-1.5">
                         {data!.insiders!.slice(0, 10).map((ins, i) => {
@@ -1691,7 +1704,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                               </div>
                               <div className="text-right shrink-0">
                                 <p className="text-xs font-bold" style={{ color: isBuy ? "#22c55e" : "#ef4444" }}>
-                                  {isBuy ? "Compra" : "Venta"} · {fmtK(ins.shares)}
+                                  {isBuy ? t("stockDetailModal.buy") : t("stockDetailModal.sell")} · {fmtK(ins.shares)}
                                 </p>
                                 <p className="text-[10px]" style={{ color: "var(--muted)" }}>
                                   {ins.value ? fmtBig(ins.value) : (ins.price ? `@ $${ins.price.toFixed(2)}` : "")}
@@ -1703,7 +1716,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                         })}
                       </div>
                       <p className="text-[9px] mt-2 text-center" style={{ color: "var(--dim)" }}>
-                        Fuente: {data?.sources?.insiders === "finnhub" ? "Finnhub" : "SEC EDGAR via Yahoo Finance"}
+                        {t("stockDetailModal.source")}: {data?.sources?.insiders === "finnhub" ? "Finnhub" : "SEC EDGAR via Yahoo Finance"}
                       </p>
                     </div>
                   )}
@@ -1733,7 +1746,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       {profile.employees && (
                         <span className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
                               style={{ background: "var(--raised)", color: "var(--sub)" }}>
-                          <Users className="w-3 h-3" /> {fmtK(profile.employees)} empleados
+                          <Users className="w-3 h-3" /> {fmtK(profile.employees)} {t("stockDetailModal.employeesAbbr")}
                         </span>
                       )}
                     </div>
@@ -1762,7 +1775,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
-                        <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>🔎 Empresas Similares</span>
+                        <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>🔎 {t("stockDetailModal.similarCompanies")}</span>
                       </div>
                       {loadingPeers ? (
                         <div className="flex justify-center py-4">
@@ -1803,8 +1816,9 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     </div>
                   )}
                 </>
-              ) : (
-                <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>Sin datos de empresa</p>
+                );
+              })() : (
+                <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>{t("stockDetailModal.noCompanyData")}</p>
               )}
             </div>
           )}
