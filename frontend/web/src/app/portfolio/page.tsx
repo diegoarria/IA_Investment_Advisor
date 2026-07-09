@@ -2044,8 +2044,12 @@ export default function PortfolioPage() {
 
           {/* ── Goal progress widget ── */}
           {(() => {
-            const goalAmt = parseFloat(profile?.investment_goal_amount ?? "0");
-            if (!goalAmt || goalAmt <= 0) return null;
+            // The goal is stored in USD (entered without a currency picker in
+            // onboarding/profile) — convert it the same way positions are, so
+            // it tracks whatever currency is selected instead of staying in USD.
+            const goalAmtUSD = parseFloat(profile?.investment_goal_amount ?? "0");
+            if (!goalAmtUSD || goalAmtUSD <= 0) return null;
+            const goalAmt = goalAmtUSD * fxRate;
             const progressPct = Math.min((totals.current / goalAmt) * 100, 100);
             const remaining = Math.max(goalAmt - totals.current, 0);
             const GOAL_LABELS: Record<string, string> = {
