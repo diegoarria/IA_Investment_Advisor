@@ -1000,12 +1000,12 @@ export default function HomePage() {
                   </div>
 
                   {/* Profile avatar */}
-                  <div className="shrink-0 w-14 h-14 rounded-full overflow-hidden border-2"
+                  <div className="shrink-0 w-20 h-20 rounded-full overflow-hidden border-2"
                        style={{ borderColor: "var(--border)" }}>
                     {profile?.avatar_url ? (
                       <img src={profile.avatar_url} className="w-full h-full object-cover" alt="avatar" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xl font-black"
+                      <div className="w-full h-full flex items-center justify-center text-2xl font-black"
                            style={{ background: "var(--accent)22", color: "var(--accent-l)" }}>
                         {profile?.name?.charAt(0)?.toUpperCase() ?? "?"}
                       </div>
