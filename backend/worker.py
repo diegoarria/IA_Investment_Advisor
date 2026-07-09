@@ -2050,8 +2050,8 @@ def _fetch_ticker_news(ticker: str) -> list[str]:
 
 
 async def _generate_price_alert_why(ticker: str, change_pct: float, price: float, news_headlines: list[str]) -> str:
-    from app.services.price_alert_service import generate_price_alert_why
-    return await generate_price_alert_why(ticker, change_pct, price, news_headlines)
+    from app.services.price_alert_service import get_price_move_why
+    return await get_price_move_why(ticker, change_pct, price, news_headlines)
 
 
 async def job_ipo_alerts():
@@ -4697,7 +4697,6 @@ async def main():
     # ── AI Portfolio Manager — proactive alerts (written earlier, now scheduled) ──
     scheduler.add_job(job_risk_mgmt_push,        "cron", day_of_week="fri",     hour=15, minute=0, timezone="America/New_York")
     scheduler.add_job(job_market_crash_alert,    "cron", day_of_week="mon-fri", hour="9-15", minute="*/5", timezone="America/New_York")
-    scheduler.add_job(job_diversification_push,  "cron", day_of_week="sat",     hour=11, minute=0, timezone="America/New_York")
     scheduler.add_job(job_concentration_risk_push, "cron", day_of_week="tue",   hour=13, minute=0, timezone="America/New_York")
     scheduler.add_job(job_opportunity_push,      "cron", day_of_week="wed,fri", hour=13, minute=0, timezone="America/New_York")
     scheduler.add_job(job_social_proof_push,     "cron", day_of_week="sat",     hour=15, minute=0, timezone="America/New_York")
@@ -4706,7 +4705,6 @@ async def main():
     scheduler.add_job(job_thesis_drift_push,     "cron", day_of_week="thu",     hour=13, minute=0, timezone="America/New_York")
 
     # ── Daily habit system ──────────────────────────────────────────────────────
-    scheduler.add_job(job_evening_capsule_push,      "cron",                    hour=19, minute=30, timezone="America/New_York")
     scheduler.add_job(job_sunday_portfolio_review,   "cron", day_of_week="sun", hour=17, minute=0,  timezone="America/New_York")
     scheduler.add_job(job_compute_benchmarks,        "cron", day_of_week="sun", hour=6,  minute=0,  timezone="America/New_York")
     scheduler.add_job(job_quarterly_earnings_digest, "cron", month="1,4,7,10", day=5, hour=9, minute=0, timezone="America/New_York")

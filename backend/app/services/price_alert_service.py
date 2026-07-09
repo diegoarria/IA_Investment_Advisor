@@ -52,11 +52,61 @@ def fetch_ticker_news(ticker: str) -> list[dict]:
     return items[:5]
 
 
+async def search_price_catalyst(ticker: str, change_pct: float) -> str:
+    """
+    Real-time web search (Perplexity) for why a ticker moved today — used as a
+    fallback when Finnhub/yfinance news is thin or stale (e.g. breaking news
+    that hasn't hit those feeds yet). Returns "" if no API key configured or
+    the search comes back empty; callers should treat that as "still no catalyst".
+    """
+    from app.services.perplexity_service import search_web
+
+    direction = "cayó" if change_pct < 0 else "subió"
+    query = (
+        f"¿Por qué {direction} la acción {ticker} hoy ({change_pct:+.1f}%)? "
+        f"Busca la noticia, anuncio o evento específico de hoy que explique el movimiento, "
+        f"con fecha y fuente si es posible."
+    )
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(search_web, query, False),
+            timeout=9.0,
+        )
+    except Exception as e:
+        logger.warning("Perplexity price catalyst search failed for %s: %s", ticker, e)
+        return ""
+
+
+async def get_price_move_why(
+    ticker: str,
+    change_pct: float,
+    price: float,
+    news_items: list[dict],
+) -> str:
+    """
+    Orchestrates the full WHY pipeline for a price move: try Finnhub/yfinance
+    news first (cheap, no external search cost), and only escalate to a live
+    Perplexity web search when that comes up empty — most breaking-news moves
+    (the kind free news feeds haven't indexed yet) get caught here instead of
+    falling back to the generic "no concrete news" message.
+    """
+    why = await generate_price_alert_why(ticker, change_pct, price, news_items)
+    if why != NO_CATALYST:
+        return why
+
+    web_context = await search_price_catalyst(ticker, change_pct)
+    if not web_context:
+        return NO_CATALYST
+
+    return await generate_price_alert_why(ticker, change_pct, price, news_items, extra_context=web_context)
+
+
 async def generate_price_alert_why(
     ticker: str,
     change_pct: float,
     price: float,
     news_items: list[dict],
+    extra_context: str = "",
 ) -> str:
     """
     Generate a WHY explanation for a price move via Claude.
@@ -83,6 +133,8 @@ async def generate_price_alert_why(
     else:
         news_str = ""
 
+    web_section = f"\n\nBÚSQUEDA WEB EN TIEMPO REAL:\n{extra_context}" if extra_context else ""
+
     prompt = f"""Eres el sistema de notificaciones push de Nuvos AI.
 
 DATOS DEL MOVIMIENTO:
@@ -90,7 +142,7 @@ DATOS DEL MOVIMIENTO:
 - Movimiento: {change_pct:+.2f}% hoy, precio actual ${price:.2f}
 
 NOTICIAS RECIENTES (últimas 72h):
-{news_str or "(sin noticias disponibles)"}
+{news_str or "(sin noticias disponibles)"}{web_section}
 
 TU TAREA:
 Escribe el body de una notificación push en español que explique POR QUÉ {ticker} {direction} {abs(change_pct):.1f}%.

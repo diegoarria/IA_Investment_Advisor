@@ -30,18 +30,21 @@ def _needs_web_search(message: str) -> bool:
     return any(kw in msg for kw in kws)
 
 
-def search_web(query: str) -> str:
+def search_web(query: str, label: bool = True) -> str:
     """
     Search for real-time financial information using Perplexity API.
     Returns a formatted block ready for injection into AI context.
     Cached 5 minutes per query hash.
+
+    `label=False` returns the raw answer with no "[Búsqueda web...]" prefix —
+    for callers that feed the result into their own prompt (vs. AI chat context).
     """
     from app.core.config import settings
     api_key = getattr(settings, "perplexity_api_key", "") or os.getenv("PERPLEXITY_API_KEY", "")
     if not api_key:
         return ""
 
-    cache_key = "perp:" + hashlib.md5(query.encode()).hexdigest()[:16]
+    cache_key = "perp:" + hashlib.md5(f"{query}|{label}".encode()).hexdigest()[:16]
     cached = cache_get(cache_key)
     if cached:
         return cached
@@ -75,7 +78,7 @@ def search_web(query: str) -> str:
         content = (r.json().get("choices") or [{}])[0].get("message", {}).get("content", "")
         if not content:
             return ""
-        result = f"**[Búsqueda web en tiempo real — Perplexity]**\n{content.strip()}"
+        result = f"**[Búsqueda web en tiempo real — Perplexity]**\n{content.strip()}" if label else content.strip()
         cache_set(cache_key, result, ttl=_SEARCH_CACHE_TTL)
         return result
     except Exception:

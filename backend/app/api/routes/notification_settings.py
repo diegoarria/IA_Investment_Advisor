@@ -527,7 +527,7 @@ async def trigger_price_alerts(
 
     # 4. Pre-generate WHY explanations via Claude — once per ticker, reused across users
     import asyncio
-    from app.services.price_alert_service import fetch_ticker_news, generate_price_alert_why
+    from app.services.price_alert_service import fetch_ticker_news, get_price_move_why
 
     ticker_why:   dict = {}
     ticker_title: dict = {}
@@ -535,7 +535,7 @@ async def trigger_price_alerts(
         pct   = mv["pct"]
         price = mv["price"]
         news  = await asyncio.to_thread(fetch_ticker_news, ticker)
-        why   = await generate_price_alert_why(ticker, pct, price, news)
+        why   = await get_price_move_why(ticker, pct, price, news)
         ticker_why[ticker]   = why
         emoji = "📉" if pct <= -5 else "🔻" if pct < 0 else "🚀" if pct >= 5 else "📈"
         ticker_title[ticker] = f"{emoji} {ticker} {pct:+.1f}% hoy"
