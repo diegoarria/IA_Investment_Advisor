@@ -650,7 +650,10 @@ export default function HomeScreen() {
         const newsRes = await marketApi.getNews(tickers.slice(0, 6)).catch(() => null);
         if (newsRes) setNews((newsRes.data?.articles ?? newsRes.data?.news ?? []).slice(0, 6));
 
-        const posPayload = positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice }));
+        // Must match Portfolio page's posPayload exactly (including purchase_date) —
+        // the backend uses purchase_date to adjust the base for mid-period buys, so
+        // omitting it here would make the same endpoint return a different number.
+        const posPayload = positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice, purchase_date: p.purchaseDate ?? null }));
         if (isPremium) {
           marketApi.getPortfolioChart(posPayload, "ytd").then((res: any) => {
             if (res?.data) { setYtdGain(res.data.period_amount ?? null); setYtdPct(res.data.period_pct ?? null); }
@@ -659,7 +662,7 @@ export default function HomeScreen() {
           marketApi.getPortfolioChart(posPayload, "5d").then((res: any) => {
             if (res?.data) { setYtdGain(res.data.period_amount ?? null); setYtdPct(res.data.period_pct ?? null); }
           }).catch(() => {});
-          marketApi.getPortfolioChart(posPayload, "1m").then((res: any) => {
+          marketApi.getPortfolioChart(posPayload, "1mo").then((res: any) => {
             if (res?.data) { setShortGain(res.data.period_amount ?? null); setShortPct(res.data.period_pct ?? null); }
           }).catch(() => {});
         }

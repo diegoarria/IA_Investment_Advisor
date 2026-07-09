@@ -307,7 +307,7 @@ export default function HomePage() {
           marketApi.getPortfolioChart(posPayload, "5d").then((res) => {
             if (res?.data) { setYtdGain(res.data.period_amount ?? null); setYtdPct(res.data.period_pct ?? null); }
           }).catch(() => {});
-          marketApi.getPortfolioChart(posPayload, "1m").then((res) => {
+          marketApi.getPortfolioChart(posPayload, "1mo").then((res) => {
             if (res?.data) { setShortGain(res.data.period_amount ?? null); setShortPct(res.data.period_pct ?? null); }
           }).catch(() => {});
         }
