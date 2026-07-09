@@ -2858,5 +2858,56 @@
   },
   "sessionExpiredBanner": {
     "message": "Your session has expired — please sign in to see your full data."
+  },
+  "watchlistEarningsCalendar": {
+    "days": {
+      "sun": "SUN",
+      "mon": "MON",
+      "tue": "TUE",
+      "wed": "WED",
+      "thu": "THU",
+      "fri": "FRI",
+      "sat": "SAT"
+    },
+    "months": {
+      "january": "January",
+      "february": "February",
+      "march": "March",
+      "april": "April",
+      "may": "May",
+      "june": "June",
+      "july": "July",
+      "august": "August",
+      "september": "September",
+      "october": "October",
+      "november": "November",
+      "december": "December"
+    },
+    "retry": "Retry",
+    "analysisFailed": "Couldn't generate the analysis",
+    "events": "Events",
+    "portfolio": "Portfolio",
+    "watchlist": "Watchlist",
+    "status": {
+      "today": "Today",
+      "upcoming": "Upcoming",
+      "completed": "Completed"
+    },
+    "eventTypes": {
+      "earnings": "Earnings",
+      "exDividend": "Ex-Dividend",
+      "dividend": "Dividend Payment"
+    },
+    "exDividendExplainerPre": "To receive the dividend you must hold shares",
+    "exDividendExplainerBold": "before",
+    "exDividendExplainerPost": "this date",
+    "dividendPaymentDate": "Dividend payment date",
+    "perShare": "/ share",
+    "yieldLabel": "Yield",
+    "revenueEstLabel": "Revenue est.",
+    "analyzingWithAi": "Analyzing with AI...",
+    "aiAnalysisLabel": "AI Analysis",
+    "aiAnalysisPremiumLabel": "AI Analysis · Premium",
+    "assets": "assets"
   }
 }

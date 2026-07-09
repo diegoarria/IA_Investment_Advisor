@@ -80,7 +80,7 @@ export default function WatchlistEarningsCalendar({
   isPremium = false,
   onUpgrade,
 }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const DAYS = getDays(t);
   const MONTHS = getMonths(t);
   const EVENT_META = getEventMeta(t);
@@ -273,7 +273,7 @@ export default function WatchlistEarningsCalendar({
         <div className="border-t" style={{ borderColor: "var(--border)" }}>
           <div className="px-4 pt-3 pb-2">
             <p className="text-xs font-bold" style={{ color: "var(--text)" }}>
-              {t("watchlistEarningsCalendar.events")} · {new Date(selectedDay + "T12:00:00").toLocaleDateString("es", {
+              {t("watchlistEarningsCalendar.events")} · {new Date(selectedDay + "T12:00:00").toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", {
                 weekday: "long", month: "long", day: "numeric",
               })}
             </p>
@@ -318,19 +318,23 @@ export default function WatchlistEarningsCalendar({
                     <div className="text-[10px] mb-1.5 flex gap-3 flex-wrap"
                          style={{ color: "var(--sub)" }}>
                       {entry.event_type === "ex_dividend" && (
-                        <span>Para recibir el dividendo debes poseer acciones <strong>antes</strong> de esta fecha</span>
+                        <span>
+                          {t("watchlistEarningsCalendar.exDividendExplainerPre")}{" "}
+                          <strong>{t("watchlistEarningsCalendar.exDividendExplainerBold")}</strong>{" "}
+                          {t("watchlistEarningsCalendar.exDividendExplainerPost")}
+                        </span>
                       )}
                       {entry.event_type === "dividend" && (
-                        <span>Fecha de pago del dividendo</span>
+                        <span>{t("watchlistEarningsCalendar.dividendPaymentDate")}</span>
                       )}
                       {entry.dividend_amount != null && (
                         <span className="font-semibold" style={{ color: "#f59e0b" }}>
-                          ${entry.dividend_amount.toFixed(4)} / acción
+                          ${entry.dividend_amount.toFixed(4)} {t("watchlistEarningsCalendar.perShare")}
                         </span>
                       )}
                       {entry.dividend_yield != null && entry.dividend_yield > 0 && (
                         <span style={{ color: "var(--muted)" }}>
-                          Yield: {entry.dividend_yield.toFixed(2)}%
+                          {t("watchlistEarningsCalendar.yieldLabel")}: {entry.dividend_yield.toFixed(2)}%
                         </span>
                       )}
                     </div>
@@ -348,7 +352,7 @@ export default function WatchlistEarningsCalendar({
                       )}
                       {entry.revenue_estimate && (
                         <span>
-                          Ingresos est. <strong style={{ color: "#60a5fa" }}>{entry.revenue_estimate}</strong>
+                          {t("watchlistEarningsCalendar.revenueEstLabel")} <strong style={{ color: "#60a5fa" }}>{entry.revenue_estimate}</strong>
                         </span>
                       )}
                     </div>
@@ -365,7 +369,7 @@ export default function WatchlistEarningsCalendar({
                       <div className="flex items-center gap-1.5 py-1">
                         <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--accent-l)" }} />
                         <span className="text-[10px]" style={{ color: "var(--muted)" }}>
-                          Analizando con IA...
+                          {t("watchlistEarningsCalendar.analyzingWithAi")}
                         </span>
                       </div>
                     ) : isPremium ? (
@@ -374,7 +378,7 @@ export default function WatchlistEarningsCalendar({
                         className="flex items-center gap-1 text-[10px] font-semibold transition-opacity hover:opacity-70"
                         style={{ color: "var(--accent-l)" }}
                       >
-                        <Zap className="w-2.5 h-2.5" /> Análisis IA
+                        <Zap className="w-2.5 h-2.5" /> {t("watchlistEarningsCalendar.aiAnalysisLabel")}
                       </button>
                     ) : (
                       <button
@@ -382,7 +386,7 @@ export default function WatchlistEarningsCalendar({
                         className="flex items-center gap-1 text-[10px] font-semibold transition-opacity hover:opacity-70"
                         style={{ color: "var(--muted)" }}
                       >
-                        <Zap className="w-2.5 h-2.5" /> Análisis IA · Premium
+                        <Zap className="w-2.5 h-2.5" /> {t("watchlistEarningsCalendar.aiAnalysisPremiumLabel")}
                       </button>
                     )
                   )}
@@ -398,19 +402,19 @@ export default function WatchlistEarningsCalendar({
            style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center gap-1">
           <BarChart2 className="w-2.5 h-2.5" style={{ color: "#60a5fa" }} />
-          <span className="text-[10px]" style={{ color: "var(--muted)" }}>Resultados</span>
+          <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("watchlistEarningsCalendar.eventTypes.earnings")}</span>
         </div>
         <div className="flex items-center gap-1">
           <Scissors className="w-2.5 h-2.5" style={{ color: "#f59e0b" }} />
-          <span className="text-[10px]" style={{ color: "var(--muted)" }}>Ex-Dividendo</span>
+          <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("watchlistEarningsCalendar.eventTypes.exDividend")}</span>
         </div>
         <div className="flex items-center gap-1">
           <DollarSign className="w-2.5 h-2.5" style={{ color: "#a855f7" }} />
-          <span className="text-[10px]" style={{ color: "var(--muted)" }}>Pago Dividendo</span>
+          <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("watchlistEarningsCalendar.eventTypes.dividend")}</span>
         </div>
         {allTickers.length > 0 && (
           <span className="text-[10px] ml-auto" style={{ color: "var(--dim)" }}>
-            {allTickers.length} activos
+            {allTickers.length} {t("watchlistEarningsCalendar.assets")}
           </span>
         )}
       </div>

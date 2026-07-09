@@ -2858,5 +2858,56 @@
   },
   "sessionExpiredBanner": {
     "message": "Tu sesión ha expirado, por favor inicia sesión para ver tus datos completos."
+  },
+  "watchlistEarningsCalendar": {
+    "days": {
+      "sun": "DOM",
+      "mon": "LUN",
+      "tue": "MAR",
+      "wed": "MIÉ",
+      "thu": "JUE",
+      "fri": "VIE",
+      "sat": "SÁB"
+    },
+    "months": {
+      "january": "Enero",
+      "february": "Febrero",
+      "march": "Marzo",
+      "april": "Abril",
+      "may": "Mayo",
+      "june": "Junio",
+      "july": "Julio",
+      "august": "Agosto",
+      "september": "Septiembre",
+      "october": "Octubre",
+      "november": "Noviembre",
+      "december": "Diciembre"
+    },
+    "retry": "Reintentar",
+    "analysisFailed": "No se pudo generar el análisis",
+    "events": "Eventos",
+    "portfolio": "Portafolio",
+    "watchlist": "Watchlist",
+    "status": {
+      "today": "Hoy",
+      "upcoming": "Próximo",
+      "completed": "Completado"
+    },
+    "eventTypes": {
+      "earnings": "Resultados",
+      "exDividend": "Ex-Dividendo",
+      "dividend": "Pago Dividendo"
+    },
+    "exDividendExplainerPre": "Para recibir el dividendo debes poseer acciones",
+    "exDividendExplainerBold": "antes",
+    "exDividendExplainerPost": "de esta fecha",
+    "dividendPaymentDate": "Fecha de pago del dividendo",
+    "perShare": "/ acción",
+    "yieldLabel": "Yield",
+    "revenueEstLabel": "Ingresos est.",
+    "analyzingWithAi": "Analizando con IA...",
+    "aiAnalysisLabel": "Análisis IA",
+    "aiAnalysisPremiumLabel": "Análisis IA · Premium",
+    "assets": "activos"
   }
 }
