@@ -5,6 +5,7 @@ import { Heart, MessageCircle, Bookmark, Share2, Play, Pause, Volume2, VolumeX, 
 import { feedApi } from "@/lib/api";
 import { useProfileStore, useAuthStore } from "@/lib/store";
 import Hls from "hls.js";
+import { useTranslation } from "react-i18next";
 
 interface Clip {
   id: string;
@@ -76,6 +77,7 @@ interface VideoCardProps {
 export default function VideoCard({
   clip, isActive, isMuted, onMuteToggle, onLikeChange, onSaveChange,
 }: VideoCardProps) {
+  const { t } = useTranslation();
   const myProfile = useProfileStore((s) => s.profile);
   const myUserId  = useAuthStore((s) => s.userId);
   const videoRef      = useRef<HTMLVideoElement>(null);
@@ -437,7 +439,7 @@ export default function VideoCard({
       user_id: myUserId || "",
       text: body.trim(),
       created_at: new Date().toISOString(),
-      user_profiles: { name: myProfile?.name || "Tú", avatar_url: myProfile?.avatar_url ?? undefined },
+      user_profiles: { name: myProfile?.name || t("videoCard.you"), avatar_url: myProfile?.avatar_url ?? undefined },
       replies: [],
     };
     if (parentId) {
@@ -669,7 +671,7 @@ export default function VideoCard({
                     ))}
                   </div>
                   <span className="text-xs font-bold tracking-wide" style={{ color: "#e2d9ff" }}>
-                    {phase === "pre" ? "Introducción IA" : "Análisis IA"}
+                    {phase === "pre" ? t("videoCard.preAudioLabel") : t("videoCard.postAudioLabel")}
                   </span>
                   {audioRemaining > 0 && (
                     <span className="text-[10px] font-semibold tabular-nums" style={{ color: "rgba(167,139,250,0.8)" }}>
@@ -709,7 +711,7 @@ export default function VideoCard({
                 borderRadius: 4,
                 letterSpacing: "0.03em",
               }}>
-              Saltar
+              {t("videoCard.skip")}
               <SkipForward className="w-3.5 h-3.5" />
             </button>
           </>
@@ -806,7 +808,7 @@ export default function VideoCard({
               </div>
               <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: "var(--border)" }}>
                 <p className="font-bold text-sm" style={{ color: "var(--text)" }}>
-                  Comentarios ({commentCount})
+                  {t("videoCard.commentsTitle", { count: commentCount })}
                 </p>
                 <button onClick={closeComments}>
                   <ChevronDown className="w-5 h-5" style={{ color: "var(--muted)" }} />
@@ -818,11 +820,11 @@ export default function VideoCard({
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
               {comments.length === 0 ? (
                 <p className="text-center py-6 text-sm" style={{ color: "var(--muted)" }}>
-                  Sé el primero en comentar
+                  {t("videoCard.beFirstComment")}
                 </p>
               ) : (
                 comments.map((c) => {
-                  const cName = c.user_profiles?.name || "Usuario";
+                  const cName = c.user_profiles?.name || t("videoCard.user");
                   return (
                     <div key={c.id} className="space-y-2">
                       {/* Top-level comment */}
@@ -853,7 +855,7 @@ export default function VideoCard({
                             onClick={() => setReplyingTo(replyingTo?.id === c.id ? null : { id: c.id, name: cName })}
                             className="text-[11px] font-semibold mt-1"
                             style={{ color: replyingTo?.id === c.id ? "var(--accent)" : "var(--muted)" }}>
-                            Responder
+                            {t("videoCard.reply")}
                           </button>
                         </div>
                       </div>
@@ -862,7 +864,7 @@ export default function VideoCard({
                       {c.replies && c.replies.length > 0 && (
                         <div className="ml-9 space-y-2 border-l pl-3" style={{ borderColor: "var(--border)" }}>
                           {c.replies.map((r) => {
-                            const rName = r.user_profiles?.name || "Usuario";
+                            const rName = r.user_profiles?.name || t("videoCard.user");
                             return (
                               <div key={r.id} className="flex items-start gap-2">
                                 {r.user_profiles?.avatar_url ? (
@@ -900,7 +902,7 @@ export default function VideoCard({
                           <input
                             autoFocus
                             type="text"
-                            placeholder={`Responder a ${replyingTo.name}…`}
+                            placeholder={t("videoCard.replyPlaceholder", { name: replyingTo.name })}
                             value={replyText}
                             onChange={(e) => setReplyText(e.target.value)}
                             onKeyDown={(e) => e.key === "Enter" && postComment(replyText, c.id)}
@@ -926,7 +928,7 @@ export default function VideoCard({
             <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-t" style={{ borderColor: "var(--border)" }}>
               <input
                 type="text"
-                placeholder="Escribe un comentario..."
+                placeholder={t("videoCard.commentPlaceholder")}
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && postComment()}
@@ -938,7 +940,7 @@ export default function VideoCard({
                 disabled={!commentText.trim()}
                 className="px-3 py-1.5 rounded-full text-xs font-bold disabled:opacity-40"
                 style={{ background: "var(--accent)", color: "#000" }}>
-                Enviar
+                {t("videoCard.send")}
               </button>
             </div>
           </div>
@@ -970,7 +972,7 @@ export default function VideoCard({
             <Bookmark className="w-5 h-5" fill={saved ? "#ffd700" : "none"}
                       style={{ color: saved ? "#ffd700" : "var(--text)" }} />
           </div>
-          <span className="text-[10px] font-semibold" style={{ color: "var(--sub)" }}>{saved ? "Guardado" : "Guardar"}</span>
+          <span className="text-[10px] font-semibold" style={{ color: "var(--sub)" }}>{saved ? t("videoCard.saved") : t("videoCard.save")}</span>
         </button>
 
         <button onClick={handleDownload} disabled={downloading} className="flex flex-col items-center gap-0.5">
@@ -979,7 +981,7 @@ export default function VideoCard({
             <Download className="w-4 h-4" style={{ color: downloading ? "var(--accent)" : "var(--text)" }} />
           </div>
           <span className="text-[10px] font-semibold" style={{ color: "var(--sub)" }}>
-            {downloading ? "..." : "Bajar"}
+            {downloading ? "..." : t("videoCard.download")}
           </span>
         </button>
 
@@ -1009,7 +1011,7 @@ export default function VideoCard({
                           color: captionLang === lang ? "var(--accent)" : "var(--text)",
                           background: captionLang === lang ? "var(--accent-pulse)" : "transparent",
                         }}>
-                  {lang === "off" ? "Apagado" : lang === "es" ? "🇪🇸 Español" : "🇺🇸 English"}
+                  {lang === "off" ? t("videoCard.captionOff") : lang === "es" ? t("videoCard.captionEs") : t("videoCard.captionEn")}
                 </button>
               ))}
             </div>
@@ -1023,7 +1025,7 @@ export default function VideoCard({
                  style={{ background: shareOpen ? "var(--accent-glow)" : "var(--raised)" }}>
               <Share2 className="w-5 h-5" style={{ color: shareOpen ? "var(--accent-l)" : "var(--text)" }} />
             </div>
-            <span className="text-[10px] font-semibold" style={{ color: "var(--sub)" }}>Compartir</span>
+            <span className="text-[10px] font-semibold" style={{ color: "var(--sub)" }}>{t("videoCard.share")}</span>
           </button>
 
           {shareOpen && (
@@ -1033,7 +1035,7 @@ export default function VideoCard({
             >
               {/* Historia section */}
               <p className="text-[10px] font-bold px-3 pt-3 pb-1 uppercase tracking-wider" style={{ color: "var(--muted)" }}>
-                Historia
+                {t("videoCard.story")}
               </p>
               <button
                 onClick={() => shareToStories("instagram")}
@@ -1048,8 +1050,8 @@ export default function VideoCard({
                   }
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold" style={{ color: "var(--text)" }}>Instagram</p>
-                  <p className="text-[10px]" style={{ color: "var(--muted)" }}>Historia</p>
+                  <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{t("videoCard.instagram")}</p>
+                  <p className="text-[10px]" style={{ color: "var(--muted)" }}>{t("videoCard.story")}</p>
                 </div>
               </button>
               <button
@@ -1065,8 +1067,8 @@ export default function VideoCard({
                   }
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold" style={{ color: "var(--text)" }}>Facebook</p>
-                  <p className="text-[10px]" style={{ color: "var(--muted)" }}>Historia</p>
+                  <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{t("videoCard.facebook")}</p>
+                  <p className="text-[10px]" style={{ color: "var(--muted)" }}>{t("videoCard.story")}</p>
                 </div>
               </button>
 
@@ -1075,7 +1077,7 @@ export default function VideoCard({
 
               {/* WhatsApp */}
               <p className="text-[10px] font-bold px-3 pt-2 pb-1 uppercase tracking-wider" style={{ color: "var(--muted)" }}>
-                Enviar a contactos
+                {t("videoCard.sendToContacts")}
               </p>
               <button
                 onClick={shareToWhatsApp}
@@ -1088,8 +1090,8 @@ export default function VideoCard({
                   </svg>
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold" style={{ color: "var(--text)" }}>WhatsApp</p>
-                  <p className="text-[10px]" style={{ color: "var(--muted)" }}>Enviar link a contactos</p>
+                  <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{t("videoCard.whatsapp")}</p>
+                  <p className="text-[10px]" style={{ color: "var(--muted)" }}>{t("videoCard.whatsappSubtitle")}</p>
                 </div>
               </button>
             </div>

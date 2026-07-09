@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronUp, ChevronDown, ChevronsUpDown, Loader2, Wifi, WifiOff, Trash2, Pencil } from "lucide-react";
 import { market as marketApi } from "@/lib/api";
 import { finnhubWS } from "@/lib/services/websocketService";
@@ -130,6 +131,7 @@ function LiveDot({ live }: { live: boolean }) {
 // ─── Delete button with 2-tap confirm ─────────────────────────────────────────
 
 function DeleteBtn({ ticker, onRemove }: { ticker: string; onRemove: (t: string) => void }) {
+  const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -158,10 +160,10 @@ function DeleteBtn({ ticker, onRemove }: { ticker: string; onRemove: (t: string)
         color: confirming ? "#ef4444" : "var(--dim)",
         border: confirming ? "1px solid rgba(239,68,68,0.3)" : "1px solid transparent",
       }}
-      title={confirming ? "Toca para confirmar" : "Eliminar"}
+      title={confirming ? t("advancedStockTable.tapToConfirm") : t("advancedStockTable.delete")}
     >
       {confirming
-        ? <span className="text-xs font-black whitespace-nowrap">¿OK?</span>
+        ? <span className="text-xs font-black whitespace-nowrap">{t("advancedStockTable.confirmOk")}</span>
         : <Trash2 className="w-4 h-4 opacity-50 hover:opacity-100 transition-opacity" />}
     </button>
   );
@@ -170,6 +172,7 @@ function DeleteBtn({ ticker, onRemove }: { ticker: string; onRemove: (t: string)
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado", fxRate = 1, onRemove, onEdit, onRowClick }: Props) {
+  const { t } = useTranslation();
   // All columns visible — the Avanzado toggle already gates access to this table
   const showVol      = true;
   const showCap      = true;
@@ -263,11 +266,11 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
            style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
         <span className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
           {wsConnected
-            ? <><Wifi className="w-3.5 h-3.5" style={{ color: "#22c55e" }} /> Tiempo real</>
-            : <><WifiOff className="w-3.5 h-3.5" /> Polling 15s</>}
+            ? <><Wifi className="w-3.5 h-3.5" style={{ color: "#22c55e" }} /> {t("advancedStockTable.realTime")}</>
+            : <><WifiOff className="w-3.5 h-3.5" /> {t("advancedStockTable.polling15s")}</>}
         </span>
         <span className="text-xs" style={{ color: "var(--dim)" }}>
-          {sorted.length} {sorted.length === 1 ? "acción" : "acciones"}
+          {sorted.length} {sorted.length === 1 ? t("advancedStockTable.stockCountOne") : t("advancedStockTable.stockCountOther")}
         </span>
       </div>
 
@@ -294,11 +297,11 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
             <tr style={{ background: "var(--raised)" }}>
               <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide whitespace-nowrap"
                   style={{ color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>
-                Símbolo
+                {t("advancedStockTable.symbol")}
               </th>
-              <Th label="Precio"   sortKey="price"        {...colProps} />
-              <Th label="Var %"    sortKey="changePct"    {...colProps} />
-              {showVol      && <Th label="Vol"      sortKey="volume"       {...colProps} />}
+              <Th label={t("advancedStockTable.price")}      sortKey="price"        {...colProps} />
+              <Th label={t("advancedStockTable.changePct")}  sortKey="changePct"    {...colProps} />
+              {showVol      && <Th label={t("advancedStockTable.volume")} sortKey="volume"       {...colProps} />}
               {showAH       && <Th label="AH"       sortKey="extPct"       {...colProps} tip={<FinancialTip term="AH" userLevel={userLevel}>AH</FinancialTip>} />}
               {showCap      && <Th label="Cap"      sortKey="marketCap"    {...colProps} tip={<FinancialTip term="Market Cap" userLevel={userLevel}>Cap</FinancialTip>} />}
               {showPE       && <Th label="P/E"      sortKey="pe"           {...colProps} tip={<FinancialTip term="P/E" userLevel={userLevel}>P/E</FinancialTip>} />}
@@ -306,8 +309,8 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
               {show52W      && <Th label="52W"      sortKey="week52High"   {...colProps} tip={<FinancialTip term="52W High" userLevel={userLevel}>52W</FinancialTip>} />}
               {mode === "portfolio" && (
                 <>
-                  <Th label="Valor" sortKey="positionValue" {...colProps} />
-                  <Th label="G/P %" sortKey="gainLossPct"   {...colProps} />
+                  <Th label={t("advancedStockTable.value")}       sortKey="positionValue" {...colProps} />
+                  <Th label={t("advancedStockTable.gainLossPct")} sortKey="gainLossPct"   {...colProps} />
                 </>
               )}
               {onEdit && (
@@ -477,7 +480,7 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
                         onClick={(e) => { e.stopPropagation(); onEdit(row.ticker); }}
                         className="flex items-center justify-center rounded-lg transition-all mx-auto"
                         style={{ width: "28px", height: "28px", color: "var(--dim)", border: "1px solid transparent" }}
-                        title="Editar posición"
+                        title={t("advancedStockTable.editPosition")}
                         onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--accent-l)"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(0,168,94,0.3)"; }}
                         onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--dim)"; (e.currentTarget as HTMLElement).style.borderColor = "transparent"; }}
                       >
@@ -501,7 +504,7 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
 
       {sorted.length === 0 && (
         <p className="text-sm text-center py-8" style={{ color: "var(--muted)" }}>
-          Sin datos
+          {t("advancedStockTable.noData")}
         </p>
       )}
     </div>
