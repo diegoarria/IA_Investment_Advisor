@@ -75,6 +75,10 @@ interface PortfolioStore {
   clearPortfolio: () => void;
   retrySync: () => void;
   loadFromServer: () => Promise<void>;
+  // Resolves once every push() currently queued/in-flight has landed (or
+  // failed) — logout must await this before switching accounts, otherwise a
+  // save still in flight when the session is torn down can be lost.
+  flushPendingSync: () => Promise<void>;
 
   // Multi-portfolio management
   switchPortfolio: (portfolioId: string) => void;
@@ -266,6 +270,8 @@ export const usePortfolioStore = create<PortfolioStore>()(
           const active = getActive();
           push(active.positions, active.currency, active.id, active.name, active.closedPositions, active.inceptionDate);
         },
+
+        flushPendingSync: () => pushChain,
 
         switchPortfolio: (portfolioId) => {
           const { portfolios } = get();

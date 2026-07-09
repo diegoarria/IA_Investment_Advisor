@@ -744,7 +744,7 @@ export default function ChatPage() {
               </span>
             )}
           </button>
-          <button onClick={() => { clearAuth(); router.push("/"); }}
+          <button onClick={async () => { await clearAuth(); router.push("/"); }}
                   className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
                   style={{ color: "var(--muted)" }}>
             <LogOut className="w-4 h-4" />

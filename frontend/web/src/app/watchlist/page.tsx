@@ -688,7 +688,7 @@ export default function WatchlistPage() {
                 <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
               </button>
               <button
-                onClick={() => { clearAuth(); router.push("/"); }}
+                onClick={async () => { await clearAuth(); router.push("/"); }}
                 className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
                 style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
                 title={t("watchlist.header.logout")}

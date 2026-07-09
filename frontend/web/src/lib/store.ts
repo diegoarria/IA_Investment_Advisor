@@ -147,7 +147,7 @@ interface AuthState {
   authRestoring: boolean;
   sessionExpired: boolean;
   setAuth: (token: string, userId: string) => void;
-  clearAuth: () => void;
+  clearAuth: () => Promise<void>;
   setAuthRestoring: (v: boolean) => void;
   setSessionExpired: (v: boolean) => void;
 }
@@ -229,17 +229,31 @@ export const useAuthStore = create<AuthState>()(
         localStorage.setItem("access_token", token);
         set({ token, userId, isAuthenticated: true, authRestoring: false, sessionExpired: false });
       },
-      clearAuth: () => {
+      clearAuth: async () => {
+        // Never tear down the session while a portfolio save is still in
+        // flight — the fetch has keepalive so it can survive navigation, but
+        // NOT a token that's already been invalidated. Waiting here (with a
+        // safety cap so a dead network can't hang the logout button forever)
+        // is what guarantees the last edit before switching accounts is never
+        // silently lost.
+        try {
+          const { usePortfolioStore } = await import("./portfolioStore");
+          await Promise.race([
+            usePortfolioStore.getState().flushPendingSync(),
+            new Promise((resolve) => setTimeout(resolve, 5000)),
+          ]);
+        } catch {}
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
         set({ token: null, userId: null, isAuthenticated: false, authRestoring: false });
-        // Without this, Supabase's own session (persisted under its own
-        // localStorage key, separate from our access_token) survives logout —
-        // so registering/logging into a DIFFERENT account on the same device
-        // could silently re-authenticate as the old one via the OAuth callback
-        // or the 401-retry fallback, both of which trust an existing Supabase
-        // session if one is present.
-        import("./supabase").then(({ getSupabaseClient }) => getSupabaseClient().auth.signOut()).catch(() => {});
+        // Supabase's own session (persisted under its own localStorage key,
+        // separate from our access_token) must go too — otherwise logging
+        // into a DIFFERENT account on the same device can silently
+        // re-authenticate as the old one via the OAuth callback or the
+        // 401-retry fallback, both of which trust an existing Supabase
+        // session if one is present. Done last, after the flush above, so it
+        // can never race with — and invalidate — an in-flight save.
+        try { const { getSupabaseClient } = await import("./supabase"); await getSupabaseClient().auth.signOut(); } catch {}
       },
       setAuthRestoring: (v) => set({ authRestoring: v }),
       setSessionExpired: (v) => set({ sessionExpired: v }),

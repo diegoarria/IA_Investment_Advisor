@@ -72,9 +72,9 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
   const pathname = usePathname();
   const { isAuthenticated, clearAuth } = useAuthStore();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     sessionStorage.removeItem("nuvos_chat_active");
-    clearAuth();
+    await clearAuth();
     // Full page reload so Zustand stores reinitialize empty for the next user.
     window.location.href = "/";
   };

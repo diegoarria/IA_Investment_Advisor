@@ -290,9 +290,9 @@ export default function ProfilePage() {
     setLetterLoading(false);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (confirm(t("profile.confirmLogout"))) {
-      clearAuth();
+      await clearAuth();
       router.push("/");
     }
   };
@@ -339,7 +339,7 @@ export default function ProfilePage() {
     setDeleteError(null);
     try {
       await authApi.deleteAccount();
-      clearAuth();
+      await clearAuth();
       router.push("/");
     } catch {
       setDeleteError(t("profile.deleteAccountError"));

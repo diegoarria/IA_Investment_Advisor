@@ -1109,7 +1109,7 @@ export default function OnboardingPage() {
           )}
 
           <div className="flex gap-3 mt-5">
-            <button onClick={() => { if (step === 0) { clearAuth(); router.push("/"); } else setStep(step - 1); }}
+            <button onClick={async () => { if (step === 0) { await clearAuth(); router.push("/"); } else setStep(step - 1); }}
                     className="flex items-center gap-1.5 px-4 py-3 border rounded-xl text-sm font-medium transition-colors"
                     style={{ borderColor: "var(--border)", color: "var(--sub)" }}>
               <ChevronLeft className="w-4 h-4" />
