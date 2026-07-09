@@ -26,8 +26,10 @@ export default function AuthCallback() {
         setProfile(p.data);
         window.location.href = "/home";
       } catch (err: any) {
-        const alreadyOnboarded = localStorage.getItem("nuvos_ob") === "1";
-        window.location.href = (!alreadyOnboarded && err?.response?.status === 404) ? "/onboarding" : "/home";
+        // See app/page.tsx's handleSubmit for why this no longer checks the
+        // (formerly cross-account-leaking) "nuvos_ob" flag — a 404 always
+        // means onboarding, full stop.
+        window.location.href = err?.response?.status === 404 ? "/onboarding" : "/home";
       }
     }
 

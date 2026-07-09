@@ -245,6 +245,10 @@ export const useAuthStore = create<AuthState>()(
         } catch {}
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
+        // "guest mode" positions/watchlist data is stored under a shared,
+        // un-namespaced "guest" bucket (see userStorage below) — clear the
+        // flag so a real account logged into next doesn't inherit it.
+        localStorage.removeItem("nuvos_guest");
         set({ token: null, userId: null, isAuthenticated: false, authRestoring: false });
         // Supabase's own session (persisted under its own localStorage key,
         // separate from our access_token) must go too — otherwise logging

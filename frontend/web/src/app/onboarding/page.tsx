@@ -146,9 +146,12 @@ export default function OnboardingPage() {
 
   useEffect(() => { if (!authRestoring && !isAuthenticated && !localStorage.getItem("access_token") && !localStorage.getItem("refresh_token")) router.push("/"); }, [isAuthenticated, authRestoring]);
 
-  // Guard: if user already completed onboarding, never show it again
+  // Guard: if this account already has a profile, never show onboarding again.
+  // (This used to also short-circuit on a global "nuvos_ob" localStorage flag,
+  // which stayed set from whichever account last onboarded on this device —
+  // silently bouncing a genuinely new second account away from onboarding.
+  // The profileApi.get() check below is the real, per-account source of truth.)
   useEffect(() => {
-    if (localStorage.getItem("nuvos_ob") === "1") { window.location.href = "/home"; return; }
     profileApi.get().then(() => { window.location.href = "/home"; }).catch(() => {});
   }, []);
   if (!authRestoring && !isAuthenticated && (typeof window === "undefined" || (!localStorage.getItem("access_token") && !localStorage.getItem("refresh_token")))) return null;
