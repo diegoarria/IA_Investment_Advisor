@@ -19,6 +19,8 @@ import { usePortfolioStore } from "../src/lib/portfolioStore";
 import { usePaperStore } from "../src/lib/paperStore";
 import { useSubscriptionStore } from "../src/lib/subscriptionStore";
 import { useChatStore } from "../src/lib/chatStore";
+import { useWatchlistStore } from "../src/lib/watchlistStore";
+import { useLearnStore } from "../src/lib/learnStore";
 import { useTranslation } from "react-i18next";
 
 const IS_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
@@ -156,7 +158,19 @@ export default function AuthScreen() {
     await SecureStore.setItemAsync("access_token", accessToken);
     await SecureStore.setItemAsync("user_id", userId);
     if (refreshToken) await SecureStore.setItemAsync("refresh_token", refreshToken);
-    await useChatStore.persist.rehydrate();
+    // Re-hydrate every persisted store from THIS account's scoped storage keys —
+    // without this, switching accounts on the same device kept the previous
+    // account's in-memory state until the server sync happened to overwrite it
+    // (and some of that sync logic is "max wins", so it sometimes never did).
+    await Promise.all([
+      useChatStore.persist.rehydrate(),
+      useAppStore.persist.rehydrate(),
+      usePortfolioStore.persist.rehydrate(),
+      usePaperStore.persist.rehydrate(),
+      useSubscriptionStore.persist.rehydrate(),
+      useWatchlistStore.persist.rehydrate(),
+      useLearnStore.persist.rehydrate(),
+    ]);
     try {
       const [profileRes, syncRes] = await Promise.allSettled([
         profileApi.get(),
