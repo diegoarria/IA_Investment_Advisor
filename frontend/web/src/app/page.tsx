@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { auth, profile as profileApi, referral as referralApi } from "@/lib/api";
 import { getSupabaseClient } from "@/lib/supabase";
-import { useAuthStore, useProfileStore } from "@/lib/store";
+import { useAuthStore, useProfileStore, useLanguageStore } from "@/lib/store";
 import { Eye, EyeOff, ArrowRight, User } from "lucide-react";
 
 function getPillars(t: TFunction) {
@@ -35,6 +35,7 @@ function getPillars(t: TFunction) {
 
 export default function Home() {
   const { t } = useTranslation();
+  const { language, setLanguage } = useLanguageStore();
   const PILLARS = getPillars(t);
   const [mode, setMode]             = useState<"login" | "register" | "forgot">("login");
   const [email, setEmail]           = useState("");
@@ -213,6 +214,27 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex relative" style={{ background: "var(--bg)" }}>
+
+      {/* Language toggle */}
+      <div className="fixed top-4 right-4 z-20 flex items-center gap-1 rounded-xl border p-1"
+           style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+        <button onClick={() => setLanguage("en")}
+                className="h-8 px-2.5 flex items-center justify-center rounded-lg text-[11px] font-bold transition-colors"
+                style={{
+                  background: language === "en" ? "var(--accent)" : "transparent",
+                  color: language === "en" ? "#000" : "var(--sub)",
+                }}>
+          EN🇺🇸
+        </button>
+        <button onClick={() => setLanguage("es")}
+                className="h-8 px-2.5 flex items-center justify-center rounded-lg text-[11px] font-bold transition-colors"
+                style={{
+                  background: language === "es" ? "var(--accent)" : "transparent",
+                  color: language === "es" ? "#000" : "var(--sub)",
+                }}>
+          ES🇪🇸
+        </button>
+      </div>
 
       {/* Ambient background */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
