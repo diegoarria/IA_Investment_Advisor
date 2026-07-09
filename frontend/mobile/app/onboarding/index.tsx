@@ -118,6 +118,7 @@ type FormState = {
   name: string; birth_day: string; birth_month: string; birth_year: string;
   country: string;
   knowledge_level: QuizAnswer | "";
+  monthly_income: string;
   initial_capital: string;
   monthly_contribution: string; investment_goal_amount: string;
   investment_horizon: string; investment_goal: string;
@@ -153,7 +154,7 @@ export default function OnboardingScreen() {
   const [form, setForm] = useState<FormState>({
     name: "", birth_day: "", birth_month: "", birth_year: "",
     country: "",
-    knowledge_level: "", initial_capital: "",
+    knowledge_level: "", monthly_income: "", initial_capital: "",
     monthly_contribution: "", investment_goal_amount: "",
     investment_horizon: "", investment_goal: "", q1: "", q4: "",
     has_broker: "", broker_name: "", has_investments: "",
@@ -350,6 +351,21 @@ export default function OnboardingScreen() {
       isValid: () => pmt > 0 && parseFloat(form.investment_goal_amount) > 0 && horizonYrs >= 1,
       content: (
         <View style={{ gap: 20 }}>
+          <View>
+            <Text style={S.label}>{t("onboarding.step2.monthlyIncome")}</Text>
+            <View style={S.prefixWrap}>
+              <Text style={S.prefix}>$</Text>
+              <TextInput
+                style={[S.input, S.prefixInput]}
+                value={formatWithCommas(form.monthly_income)}
+                onChangeText={(v) => { const raw = v.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setForm(f => ({ ...f, monthly_income: raw })); }}
+                placeholder="2,000" placeholderTextColor="#374151"
+                keyboardType="numeric"
+              />
+              <Text style={[S.prefix, { paddingRight: 18, fontSize: 13 }]}>{t("profileEdit.perMonth")}</Text>
+            </View>
+            <Text style={S.hint}>{t("onboarding.step2.monthlyIncomeHint")}</Text>
+          </View>
           <View>
             <Text style={S.label}>{t("onboarding.step2.currentCapital")}</Text>
             <View style={S.prefixWrap}>
@@ -741,6 +757,7 @@ export default function OnboardingScreen() {
         name:                   form.name.trim(),
         birth_date:             birthDateStr || undefined,
         country:                form.country || undefined,
+        monthly_income:         form.monthly_income || undefined,
         initial_capital:        form.initial_capital || undefined,
         monthly_contribution:   form.monthly_contribution,
         investment_goal:        form.investment_goal,

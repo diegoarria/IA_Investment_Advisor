@@ -2405,7 +2405,9 @@
       "targetWealth": "How much net worth do you want to reach?",
       "title": "Your financial plan",
       "wealthHint": "The app will calculate when you'll reach this goal.",
-      "years": "For how many years do you want to invest?"
+      "years": "For how many years do you want to invest?",
+      "monthlyIncome": "What is your monthly income?",
+      "monthlyIncomeHint": "Helps us tailor how much makes sense for you to invest."
     },
     "step3": {
       "sub": "Personalize your plan based on what matters most to you.",

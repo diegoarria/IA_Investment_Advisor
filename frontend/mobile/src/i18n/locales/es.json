@@ -2405,7 +2405,9 @@
       "targetWealth": "¿Cuánto patrimonio quieres alcanzar?",
       "title": "Tu plan financiero",
       "wealthHint": "La app calculará cuándo llegarás a esta meta.",
-      "years": "¿Por cuántos años quieres invertir?"
+      "years": "¿Por cuántos años quieres invertir?",
+      "monthlyIncome": "¿Cuáles son tus ingresos mensuales?",
+      "monthlyIncomeHint": "Nos ayuda a personalizar cuánto tiene sentido que inviertas."
     },
     "step3": {
       "sub": "Personaliza tu plan según lo que más te importa lograr.",

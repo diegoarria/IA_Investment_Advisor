@@ -121,6 +121,7 @@ type FormState = {
   birth_year: string;
   country: string;
   knowledge_level: QuizAnswer | "";
+  monthly_income: string;
   monthly_contribution: string;
   initial_capital: string;
   investment_goal_amount: string;
@@ -148,7 +149,7 @@ export default function OnboardingPage() {
 
   const [form, setForm] = useState<FormState>({
     name: "", birth_day: "", birth_month: "", birth_year: "", country: "",
-    knowledge_level: "", monthly_contribution: "", initial_capital: "",
+    knowledge_level: "", monthly_income: "", monthly_contribution: "", initial_capital: "",
     investment_goal_amount: "", investment_horizon: "", investment_goal: "",
     q1: "", q4: "", has_broker: "", broker_name: "", has_investments: "",
   });
@@ -375,6 +376,26 @@ export default function OnboardingPage() {
       valid: () => pmt > 0 && parseFloat(form.investment_goal_amount) > 0 && horizonYrs >= 1,
       content: (
         <div className="space-y-5">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              ¿Cuáles son tus ingresos mensuales?
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "var(--muted)" }}>$</span>
+              <input type="text" inputMode="decimal"
+                     value={formatWithCommas(form.monthly_income)}
+                     onChange={(e) => { const raw = e.target.value.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setForm(f => ({ ...f, monthly_income: raw })); }}
+                     className="w-full rounded-xl border pl-8 pr-16 py-3 text-sm outline-none"
+                     placeholder="2,000"
+                     style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold" style={{ color: "var(--muted)" }}>/mes</span>
+            </div>
+            <p className="text-xs mt-1.5" style={{ color: "var(--dim)" }}>
+              Nos ayuda a personalizar cuánto tiene sentido que inviertas.
+            </p>
+          </div>
+
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
               ¿Cuánto tienes disponible para empezar a invertir hoy?
@@ -921,6 +942,7 @@ export default function OnboardingPage() {
         name:                   form.name.trim(),
         birth_date:             birthDateStr || undefined,
         country:                form.country || undefined,
+        monthly_income:         form.monthly_income || undefined,
         monthly_contribution:   form.monthly_contribution,
         initial_capital:        form.initial_capital || undefined,
         investment_goal:        form.investment_goal,
