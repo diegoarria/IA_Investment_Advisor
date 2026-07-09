@@ -63,14 +63,14 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
         if (error) throw error;
       } catch {
         // Supabase couldn't restore — try our backend refresh endpoint as fallback
-        if (!refreshToken) { clearStored(); return; }
+        if (!refreshToken) { await clearStored(); return; }
         try {
           const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
             method:  "POST",
             headers: { "Content-Type": "application/json" },
             body:    JSON.stringify({ refresh_token: refreshToken }),
           });
-          if (!res.ok) { clearStored(); return; }
+          if (!res.ok) { await clearStored(); return; }
           const json = await res.json();
           localStorage.setItem("access_token",  json.access_token);
           if (json.refresh_token) localStorage.setItem("refresh_token", json.refresh_token);
@@ -78,13 +78,18 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
           const supabase = getSupabaseClient();
           const { data: userData } = await supabase.auth.getUser(json.access_token);
           if (userData.user) setAuth(json.access_token, userData.user.id);
-        } catch { clearStored(); }
+        } catch { await clearStored(); }
       }
     }
 
-    function clearStored() {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
+    // Both the raw tokens AND the persisted "auth-store" isAuthenticated flag
+    // must be cleared together — clearing only the tokens (as this used to do)
+    // left a stale isAuthenticated:true in localStorage that / would read and
+    // bounce straight back to /home, which /home would then bounce right back
+    // to / for having no tokens: an infinite redirect loop that looked to the
+    // user like the screen endlessly reloading itself.
+    async function clearStored() {
+      await useAuthStore.getState().clearAuth();
       setAuthRestoring(false);
     }
 
