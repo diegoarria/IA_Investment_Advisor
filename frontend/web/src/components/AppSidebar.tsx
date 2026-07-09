@@ -161,7 +161,6 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const dragItem = useRef<string | null>(null);
-  const draggingFromGrip = useRef(false);
 
   const orderedNav = navOrder.map((href) => MAIN_NAV.find((n) => n.href === href)!).filter(Boolean);
   const userLevel  = getUserLevel(profile);
@@ -394,17 +393,8 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
               return (
                 <button
                   key={href}
-                  draggable={!locked}
-                  onDragStart={(e) => {
-                    // Safari fix: draggable={true} on a button blocks click events in Safari
-                    // because Safari captures mousedown to track potential drag motion.
-                    // Only allow drag when the user explicitly grabbed the grip handle.
-                    if (!draggingFromGrip.current) { e.preventDefault(); return; }
-                    if (!locked) handleDragStart(href);
-                  }}
                   onDragOver={(e) => !locked && handleDragOver(e, href)}
                   onDrop={(e) => !locked && handleDrop(e, href)}
-                  onDragEnd={() => { draggingFromGrip.current = false; handleDragEnd(); }}
                   onClick={() => locked ? navigate("/profile") : navigate(href)}
                   className={`nav-item ${active ? "active" : ""} group transition-opacity`}
                   style={{
@@ -412,11 +402,18 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
                     borderTop: dragOver === href ? "2px solid var(--accent)" : undefined,
                   }}
                 >
-                  <GripVertical
-                    className="w-2.5 h-2.5 shrink-0 opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing transition-opacity"
-                    style={{ color: "var(--muted)" }}
-                    onPointerDown={(e) => { if (!locked) { e.stopPropagation(); draggingFromGrip.current = true; } }}
-                  />
+                  {/* Safari fix: draggable on the whole button blocks its own click
+                      events (WebKit captures mousedown to watch for a drag gesture).
+                      Only the grip handle itself is draggable, so a plain tap on the
+                      button always reaches onClick. */}
+                  <span
+                    draggable={!locked}
+                    onDragStart={(e) => { e.stopPropagation(); if (!locked) handleDragStart(href); }}
+                    onDragEnd={(e) => { e.stopPropagation(); handleDragEnd(); }}
+                    className="shrink-0 opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing transition-opacity"
+                  >
+                    <GripVertical className="w-2.5 h-2.5" style={{ color: "var(--muted)" }} />
+                  </span>
                   <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: locked ? "var(--dim)" : undefined }} />
                   <span style={{ color: locked ? "var(--dim)" : undefined }}>{t(labelKey)}</span>
                   {locked && (
