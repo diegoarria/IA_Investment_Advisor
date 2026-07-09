@@ -33,7 +33,7 @@ import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
   Cloud, CloudOff, Check, BarChart2, TrendingUp, TrendingDown, GraduationCap, CheckSquare, Bell, Users, Share2,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, Loader2,
 } from "lucide-react";
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
@@ -933,6 +933,11 @@ export default function PortfolioPage() {
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
   type StressResult = { total:number; stressed:number; diff:number; pct:number; rows:{ticker:string;invested:number;stressed:number;diff:number;pct:number;sector:string}[] };
   const [stressResult, setStressResult] = useState<StressResult|null>(null);
+  const [stressMode, setStressMode] = useState<"scenarios"|"real">("scenarios");
+  type BacktestYear = { year:number; portfolio_return_pct:number; sp500_return_pct:number; substituted:boolean };
+  const [backtestResult, setBacktestResult] = useState<BacktestYear[]|null>(null);
+  const [backtestLoading, setBacktestLoading] = useState(false);
+  const [backtestError, setBacktestError] = useState<string|null>(null);
 
   // Portfolio Analyzer
   const [portfolioAnalysis, setPortfolioAnalysis] = useState<{
@@ -1397,6 +1402,20 @@ export default function PortfolioPage() {
     const stressedTotal = rows.reduce((a,r) => a+r.stressed, 0);
     setStressResult({ total, stressed:stressedTotal, diff:stressedTotal-total, pct:total>0?((stressedTotal-total)/total)*100:0, rows });
     upsellTrigger("stress_test_done");
+  };
+
+  const runHistoricalBacktest = async () => {
+    if (positions.length === 0 || backtestLoading) return;
+    setBacktestLoading(true); setBacktestError(null);
+    try {
+      const posPayload = positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice }));
+      const res = await marketApi.getHistoricalBacktest(posPayload);
+      setBacktestResult(res.data?.years ?? []);
+      upsellTrigger("stress_test_done");
+    } catch {
+      setBacktestError("No pudimos calcular el backtest histórico. Intenta de nuevo.");
+    }
+    setBacktestLoading(false);
   };
 
   // ── Portfolio Analyzer ───────────────────────────────────────────────────
@@ -2781,9 +2800,86 @@ export default function PortfolioPage() {
                   <p className="text-xs" style={{ color:"var(--muted)" }}>¿Cuánto aguantaría tu portafolio en una crisis?</p>
                 </div>
               </div>
+              {/* Mode toggle: hypothetical crisis scenarios vs. real year-by-year backtest */}
+              <div className="flex gap-1.5 mb-3">
+                {([
+                  { id:"scenarios" as const, label:"Escenarios de Crisis" },
+                  { id:"real" as const,      label:"Real, año por año (1985–hoy)" },
+                ]).map((m) => (
+                  <button key={m.id}
+                          onClick={() => {
+                            setStressMode(m.id);
+                            if (m.id === "real" && isPremium && !backtestResult && !backtestLoading) runHistoricalBacktest();
+                          }}
+                          className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all"
+                          style={{
+                            borderColor: stressMode===m.id ? "var(--accent)" : "var(--border)",
+                            background: stressMode===m.id ? "var(--accent)" : "transparent",
+                            color: stressMode===m.id ? "#000" : "var(--muted)",
+                          }}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+
               {/* Scenarios — always visible, blurred for free */}
               <div className="relative">
                 <div className={!isPremium ? "pointer-events-none select-none" : ""} style={!isPremium ? { filter:"blur(3px)", opacity:0.6 } : {}}>
+                {stressMode === "real" ? (
+                  <>
+                    {backtestLoading && (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-5 h-5 animate-spin" style={{ color:"var(--accent)" }} />
+                      </div>
+                    )}
+                    {backtestError && (
+                      <p className="text-xs text-center py-4" style={{ color:"#ef4444" }}>{backtestError}</p>
+                    )}
+                    {!backtestLoading && backtestResult && backtestResult.length > 0 && (
+                      <div className="rounded-2xl border p-4" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
+                        <p className="text-xs mb-3" style={{ color:"var(--muted)" }}>
+                          Retorno anual de tu portafolio actual (composición y pesos de hoy aplicados retroactivamente) vs. el S&P 500 real de cada año.
+                        </p>
+                        <div className="space-y-0.5 max-h-96 overflow-y-auto">
+                          {backtestResult.map((row) => (
+                            <div key={row.year} className="flex items-center justify-between py-2 border-t" style={{ borderColor:"var(--border)" }}>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm font-bold" style={{ color:"var(--text)" }}>{row.year}</p>
+                                {row.substituted && (
+                                  <span title="Una o más posiciones no existían aún ese año — se usó el retorno del S&P 500 para esa porción">
+                                    <AlertTriangle className="w-3 h-3" style={{ color:"#f59e0b" }} />
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <div className="text-right">
+                                  <p className="text-[10px]" style={{ color:"var(--dim)" }}>Tu portafolio</p>
+                                  <p className="text-sm font-extrabold" style={{ color:row.portfolio_return_pct>=0?"#22c55e":"#ef4444" }}>
+                                    {row.portfolio_return_pct>=0?"+":""}{row.portfolio_return_pct.toFixed(1)}%
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-[10px]" style={{ color:"var(--dim)" }}>S&P 500</p>
+                                  <p className="text-sm font-semibold" style={{ color:row.sp500_return_pct>=0?"#22c55e":"#ef4444" }}>
+                                    {row.sp500_return_pct>=0?"+":""}{row.sp500_return_pct.toFixed(1)}%
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-3 px-3 py-2 rounded-lg"
+                             style={{ background:"rgba(234,179,8,0.08)", border:"1px solid rgba(234,179,8,0.25)" }}>
+                          <AlertTriangle className="w-3 h-3 text-yellow-600 shrink-0" />
+                          <p className="text-[11px] text-yellow-600">
+                            Años marcados ⚠️ incluyen posiciones que aún no cotizaban — se sustituyó por el retorno del S&P 500 de ese año. Estimación basada en datos históricos, no garantiza resultados futuros.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                <>
                   {/* Era filter chips */}
                   {(() => {
                     const ERAS: { id: string; label: string }[] = [
@@ -2891,6 +2987,8 @@ export default function PortfolioPage() {
                       </div>
                     );
                   })()}
+                </>
+                )}
                 </div>
                 {/* Paywall overlay for free users */}
                 {!isPremium && (

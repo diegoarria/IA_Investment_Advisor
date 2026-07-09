@@ -602,6 +602,20 @@ async def get_chart(
     return payload
 
 
+@router.post("/portfolio/historical-backtest")
+async def historical_backtest(
+    body: dict,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Real year-by-year backtest (1985-today) of the user's current portfolio composition."""
+    from app.services.historical_backtest_service import run_historical_backtest
+
+    positions = body.get("positions", [])
+    if not positions:
+        return {"years": []}
+    return await run_historical_backtest(positions)
+
+
 @router.post("/portfolio")
 async def simulate_portfolio(
     request: PortfolioScenarioRequest,

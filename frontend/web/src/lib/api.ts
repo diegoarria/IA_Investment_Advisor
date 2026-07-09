@@ -233,6 +233,8 @@ export const market = {
     api.post("/api/market/portfolio-chart", { positions, period }),
   getFinancials: (ticker: string, limit = 5) =>
     api.get(`/api/stocks/${encodeURIComponent(ticker)}/financials`, { params: { limit } }),
+  getHistoricalBacktest: (positions: { ticker: string; shares: number; avg_price: number }[]) =>
+    api.post("/api/market/portfolio/historical-backtest", { positions }),
 };
 
 export const learn = {
