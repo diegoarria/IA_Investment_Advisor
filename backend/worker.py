@@ -1551,7 +1551,7 @@ async def job_portfolio_alerts():
             news  = await asyncio.to_thread(_fetch_ticker_news, ticker)
             why   = await _generate_price_alert_why(ticker, pct, price, news)
             ticker_why[ticker]   = why
-            ticker_title[ticker] = f"{ticker} Alerta de Precio"
+            ticker_title[ticker] = f"{ticker} Alerta de Precio ({pct:+.2f}%)"
             if why == NO_CATALYST:
                 logger.info("Portfolio alerts: no catalyst for %s — premium users will not receive this", ticker)
             await asyncio.sleep(0.05)
