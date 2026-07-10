@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
 import {
   X, TrendingUp, TrendingDown, Globe, Users, Building2,
   BarChart3, Loader2, ChevronRight, Activity,
-  ArrowUpRight, ArrowDownRight, DollarSign, Microscope,
+  ArrowUpRight, ArrowDownRight, DollarSign,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -725,14 +724,12 @@ interface Props { ticker: string; onClose: () => void }
 
 export default function StockDetailModal({ ticker, onClose }: Props) {
   const { t } = useTranslation();
-  const router = useRouter();
 
   useEffect(() => {
     document.documentElement.setAttribute("data-stock-modal", "1");
     return () => document.documentElement.removeAttribute("data-stock-modal");
   }, []);
 
-  const [deepResearchDismissed, setDeepResearchDismissed] = useState(false);
   const [tab, setTab] = useState<Tab>("chart");
   const [finPeriod, setFinPeriod] = useState<"annual" | "quarterly">("annual");
   const [finSection, setFinSection] = useState<"income" | "balance" | "cashflow">("income");
@@ -956,32 +953,6 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
           })()}
         </div>
 
-        {/* ── Deep Research promo banner — visible regardless of active tab ── */}
-        {!deepResearchDismissed && (
-          <div className="mx-4 mb-3 rounded-2xl border p-3 flex items-start gap-3"
-               style={{ background: "rgba(139,92,246,0.07)", borderColor: "rgba(139,92,246,0.25)" }}>
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-                 style={{ background: "rgba(139,92,246,0.15)" }}>
-              <Microscope className="w-4 h-4" style={{ color: "#a78bfa" }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold" style={{ color: "var(--text)" }}>
-                {t("research.banner.title", { ticker })}
-              </p>
-              <p className="text-[11px] mt-0.5" style={{ color: "var(--muted)" }}>
-                {t("research.banner.subtitle")}
-              </p>
-              <button onClick={() => router.push(`/research?ticker=${encodeURIComponent(ticker)}`)}
-                      className="mt-1.5 text-[11px] font-bold transition-opacity hover:opacity-70"
-                      style={{ color: "#a78bfa" }}>
-                {t("research.banner.cta")} →
-              </button>
-            </div>
-            <button onClick={() => setDeepResearchDismissed(true)} className="p-1 shrink-0">
-              <X className="w-3.5 h-3.5" style={{ color: "var(--dim)" }} />
-            </button>
-          </div>
-        )}
 
         {/* ── Tab bar ── */}
         <div className="shrink-0" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>

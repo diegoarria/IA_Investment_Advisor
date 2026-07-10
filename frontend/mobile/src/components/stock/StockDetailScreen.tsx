@@ -555,7 +555,6 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
   const insets = useSafeAreaInsets();
   const { data, loading, error, refetch } = useStockDetail(ticker);
   const [activeTab, setActiveTab] = useState<TabId>("veredicto");
-  const [researchBannerDismissed, setResearchBannerDismissed] = useState(false);
   const TAB_META = getTabs(t);
 
   useEffect(() => {
@@ -702,26 +701,6 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
           )}
         </View>
       </View>
-
-      {/* ── Nuvos Deep Research banner ── */}
-      {!researchBannerDismissed && (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 14, marginTop: 10, padding: 10, borderRadius: 14, backgroundColor: "rgba(139,92,246,0.10)", borderWidth: 1, borderColor: "rgba(139,92,246,0.25)" }}>
-          <View style={{ width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#6d5cf6" }}>
-            <Ionicons name="flask-outline" size={16} color="#fff" />
-          </View>
-          <TouchableOpacity
-            style={{ flex: 1 }}
-            activeOpacity={0.8}
-            onPress={() => router.push({ pathname: "/research", params: { ticker } })}
-          >
-            <Text style={{ fontSize: 12, fontWeight: "800", color: D.text }}>{t("research.banner.title", { ticker })}</Text>
-            <Text style={{ fontSize: 11, color: D.sub, marginTop: 1 }}>{t("research.banner.subtitle")}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setResearchBannerDismissed(true)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Ionicons name="close" size={16} color={D.sub} />
-          </TouchableOpacity>
-        </View>
-      )}
 
       {/* ── Tab Bar ── */}
       <View style={tb.tabBarOuter}>
