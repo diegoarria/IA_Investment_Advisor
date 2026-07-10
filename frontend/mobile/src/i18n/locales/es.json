@@ -1167,7 +1167,14 @@
       "unlockDesc": "Simula crisis históricas y ve el impacto real en tu portafolio",
       "unlockBtn": "Ir a Premium",
       "sampleTitle": "💥 Crisis 2008 — Caída hipotecaria",
-      "sampleSector": "Tecnología"
+      "sampleSector": "Tecnología",
+      "modeScenarios": "Escenarios de Crisis",
+      "modeReal": "Real, año por año (1985–hoy)",
+      "realDescription": "Retorno anual de tu portafolio actual (composición y pesos de hoy aplicados retroactivamente) vs. el S&P 500 real de cada año.",
+      "yourPortfolio": "Tu portafolio",
+      "substitutedTooltip": "Una o más posiciones no existían aún ese año — se usó el retorno del S&P 500 para esa porción",
+      "substitutedDisclaimer": "Años marcados ⚠️ incluyen posiciones que aún no cotizaban — se sustituyó por el retorno del S&P 500 de ese año. Estimación basada en datos históricos, no garantiza resultados futuros.",
+      "realError": "No pudimos calcular el backtest histórico. Intenta de nuevo."
     },
     "analysis": {
       "noResultTitle": "Sin resultado",

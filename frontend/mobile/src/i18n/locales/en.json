@@ -1167,7 +1167,14 @@
       "unlockDesc": "Simulate historical crises and see the real impact on your portfolio",
       "unlockBtn": "Go Premium",
       "sampleTitle": "💥 2008 Crisis — Mortgage collapse",
-      "sampleSector": "Technology"
+      "sampleSector": "Technology",
+      "modeScenarios": "Crisis Scenarios",
+      "modeReal": "Real, year by year (1985–today)",
+      "realDescription": "Annual return of your current portfolio (today's composition and weights applied retroactively) vs. the real S&P 500 for each year.",
+      "yourPortfolio": "Your portfolio",
+      "substitutedTooltip": "One or more positions didn't exist yet that year — the S&P 500 return was used for that portion",
+      "substitutedDisclaimer": "Years marked ⚠️ include positions that weren't trading yet — substituted with that year's S&P 500 return. Estimate based on historical data, doesn't guarantee future results.",
+      "realError": "We couldn't calculate the historical backtest. Please try again."
     },
     "analysis": {
       "noResultTitle": "No result",

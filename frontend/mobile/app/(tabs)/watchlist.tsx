@@ -756,7 +756,7 @@ export default function WatchlistScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0a0d12" },
+  container: { flex: 1, backgroundColor: "#090f1f" }, // matches header/tab bar's colors.card
   scroll: { padding: 16, gap: 12, paddingBottom: 40 },
 
   // Sub-tab bar

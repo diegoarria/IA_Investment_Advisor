@@ -354,7 +354,6 @@ function WebSidebar() {
             <Image source={require("../../assets/images/logo_new.png")} style={styles.logoBox} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.appName, { color: colors.text }]}>Nuvos AI</Text>
-              <Text style={[styles.appSub, { color: colors.textMuted }]}>{t("common.sidebar.tagline")}</Text>
             </View>
           </>
         )}
@@ -477,7 +476,6 @@ function MobileSidebar() {
           <Image source={require("../../assets/images/logo_new.png")} style={styles.logoBox} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.appName, { color: colors.text }]}>Nuvos AI</Text>
-            <Text style={[styles.appSub, { color: colors.textMuted }]}>{t("common.sidebar.tagline")}</Text>
           </View>
           <TouchableOpacity
             onPress={closeSidebar}

@@ -6,7 +6,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import { dark as colors } from "../src/lib/ThemeContext";
 import * as SecureStore from "expo-secure-store";
 import * as LocalAuthentication from "expo-local-authentication";
 import Constants, { ExecutionEnvironment } from "expo-constants";
@@ -47,6 +49,26 @@ const BIOMETRIC_EMAIL_KEY    = "biometric_email";
 const BIOMETRIC_PASSWORD_KEY = "biometric_password";
 const BIOMETRIC_ENABLED_KEY  = "biometric_enabled";
 
+// Mirrors the web app's `.btn-primary` — a diagonal accent→accent-light
+// gradient (web: `--grad-green`), instead of the flat single-color button
+// this screen used before.
+function GradientButton({
+  onPress, disabled, style, children,
+}: { onPress: () => void; disabled?: boolean; style?: any; children: React.ReactNode }) {
+  return (
+    <TouchableOpacity onPress={onPress} disabled={disabled} activeOpacity={0.85} style={style}>
+      <LinearGradient
+        colors={disabled ? [colors.textDim, colors.textDim] : [colors.accent, colors.accentLight]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={S.submitBtn}
+      >
+        {children}
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+}
+
 export default function AuthScreen() {
   const { t } = useTranslation();
   const { language, setLanguage } = useLanguage();
@@ -55,6 +77,8 @@ export default function AuthScreen() {
   const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [refCode, setRefCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -358,13 +382,12 @@ export default function AuthScreen() {
   if (checking) {
     return (
       <View style={S.screen}>
-        <View style={S.glowOrb} />
         <SafeAreaView style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <View style={S.splashLogoShell}>
             <Image source={require("../assets/images/logo_new.png")} style={S.splashLogo} />
           </View>
           <Text style={S.brandName}>Nuvos AI</Text>
-          <ActivityIndicator size="small" color="#00d47e" style={{ marginTop: 32 }} />
+          <ActivityIndicator size="small" color={colors.accentLight} style={{ marginTop: 32 }} />
         </SafeAreaView>
       </View>
     );
@@ -379,7 +402,6 @@ export default function AuthScreen() {
   // ─── Main render ──────────────────────────────────────────────────────────────
   return (
     <View style={S.screen}>
-      <View style={S.glowOrb} />
       <SafeAreaView style={{ flex: 1 }}>
         <View style={S.langToggle}>
           <TouchableOpacity
@@ -410,10 +432,11 @@ export default function AuthScreen() {
               </View>
               <Text style={S.brandName}>Nuvos AI</Text>
               <Text style={S.tagline}>{t("index.tagline")}</Text>
-              <View style={S.pill}>
-                <Text style={S.pillText}>{t("index.pillText")}</Text>
-              </View>
+              <Text style={S.pillText}>{t("index.pillText")}</Text>
             </View>
+
+            {/* ── Auth card — mirrors the web app's glass login card ── */}
+            <View style={S.authCard}>
 
             {/* ── Face ID ── */}
             {biometricAvailable && mode === "login" && (
@@ -424,11 +447,11 @@ export default function AuthScreen() {
                 activeOpacity={0.8}
               >
                 {biometricLoading ? (
-                  <ActivityIndicator color="#00d47e" size="small" style={{ margin: 4 }} />
+                  <ActivityIndicator color={colors.accentLight} size="small" style={{ margin: 4 }} />
                 ) : (
                   <>
                     <View style={S.biometricIcon}>
-                      <Ionicons name="scan-circle-outline" size={26} color="#00d47e" />
+                      <Ionicons name="scan-circle-outline" size={26} color={colors.accentLight} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={S.biometricTitle}>
@@ -438,7 +461,7 @@ export default function AuthScreen() {
                         {biometricReady ? t("index.tapToAuthenticate") : t("index.enterOnceWithEmail")}
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={18} color="#374151" />
+                    <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                   </>
                 )}
               </TouchableOpacity>
@@ -458,18 +481,17 @@ export default function AuthScreen() {
                 {forgotDone ? (
                   <View style={{ alignItems: "center", paddingVertical: 32 }}>
                     <View style={S.successIcon}>
-                      <Ionicons name="checkmark-circle" size={40} color="#00d47e" />
+                      <Ionicons name="checkmark-circle" size={40} color={colors.accentLight} />
                     </View>
                     <Text style={[S.sectionTitle, { marginTop: 16, marginBottom: 8 }]}>{t("index.passwordUpdated")}</Text>
                     <Text style={[S.sectionSub, { textAlign: "center", marginBottom: 28 }]}>
                       {t("index.passwordUpdatedBody")}
                     </Text>
-                    <TouchableOpacity
-                      style={S.submitBtn}
+                    <GradientButton
                       onPress={() => { setMode("login"); setForgotStep("email"); setForgotDone(false); }}
                     >
                       <Text style={S.submitText}>{t("index.login")}</Text>
-                    </TouchableOpacity>
+                    </GradientButton>
                   </View>
                 ) : (
                   <>
@@ -477,8 +499,8 @@ export default function AuthScreen() {
                       onPress={() => { setMode("login"); setForgotStep("email"); }}
                       style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 28 }}
                     >
-                      <Ionicons name="arrow-back" size={18} color="#00d47e" />
-                      <Text style={{ color: "#00d47e", fontSize: 14, fontWeight: "600" }}>{t("index.backToLogin")}</Text>
+                      <Ionicons name="arrow-back" size={18} color={colors.accentLight} />
+                      <Text style={{ color: colors.accentLight, fontSize: 14, fontWeight: "600" }}>{t("index.backToLogin")}</Text>
                     </TouchableOpacity>
 
                     <Text style={S.sectionTitle}>
@@ -503,7 +525,7 @@ export default function AuthScreen() {
                               style={[S.methodTab, forgotMethod === m && S.methodTabActive]}
                               onPress={() => setForgotMethod(m)}
                             >
-                              <Text style={[S.methodTabText, forgotMethod === m && { color: "#fff" }]}>
+                              <Text style={[S.methodTabText, forgotMethod === m && { color: colors.text }]}>
                                 {m === "email" ? t("index.emailOption") : t("index.smsOption")}
                               </Text>
                             </TouchableOpacity>
@@ -512,7 +534,7 @@ export default function AuthScreen() {
                         <Text style={S.inputLabel}>{t("index.emailLabel")}</Text>
                         <TextInput
                           style={S.input} value={forgotEmail} onChangeText={setForgotEmail}
-                          placeholder="tu@email.com" placeholderTextColor="#374151"
+                          placeholder="tu@email.com" placeholderTextColor={colors.placeholder}
                           keyboardType="email-address" autoCapitalize="none" autoFocus
                         />
                         {forgotMethod === "sms" && (
@@ -520,7 +542,7 @@ export default function AuthScreen() {
                             <Text style={[S.inputLabel, { marginTop: 16 }]}>{t("index.phoneLabel")}</Text>
                             <TextInput
                               style={S.input} value={forgotPhone} onChangeText={setForgotPhone}
-                              placeholder="+52 55 1234 5678" placeholderTextColor="#374151"
+                              placeholder="+52 55 1234 5678" placeholderTextColor={colors.placeholder}
                               keyboardType="phone-pad"
                             />
                             <Text style={S.hint}>{t("index.countryCodeHint")}</Text>
@@ -535,13 +557,13 @@ export default function AuthScreen() {
                           style={[S.input, { textAlign: "center", fontSize: 32, fontWeight: "900", letterSpacing: 14 }]}
                           value={forgotCode}
                           onChangeText={(v) => setForgotCode(v.replace(/\D/g, "").slice(0, 6))}
-                          placeholder="000000" placeholderTextColor="#374151"
+                          placeholder="000000" placeholderTextColor={colors.placeholder}
                           keyboardType="number-pad" maxLength={6} autoFocus
                         />
                         <View style={{ alignItems: "center", marginTop: 16 }}>
                           {resendCooldown > 0 ? (
-                            <Text style={{ color: "#4b5563", fontSize: 13 }}>
-                              {t("index.resendIn")} <Text style={{ color: "#00d47e", fontWeight: "700" }}>{resendCooldown}s</Text>
+                            <Text style={{ color: colors.textMuted, fontSize: 13 }}>
+                              {t("index.resendIn")} <Text style={{ color: colors.accentLight, fontWeight: "700" }}>{resendCooldown}s</Text>
                             </Text>
                           ) : (
                             <TouchableOpacity
@@ -556,7 +578,7 @@ export default function AuthScreen() {
                                 setLoading(false);
                               }}
                             >
-                              <Text style={{ color: "#00d47e", fontWeight: "700", fontSize: 13 }}>{t("index.resendCode")}</Text>
+                              <Text style={{ color: colors.accentLight, fontWeight: "700", fontSize: 13 }}>{t("index.resendCode")}</Text>
                             </TouchableOpacity>
                           )}
                         </View>
@@ -568,14 +590,14 @@ export default function AuthScreen() {
                         <Text style={S.inputLabel}>{t("index.newPasswordLabel")}</Text>
                         <TextInput
                           style={S.input} value={forgotNewPass} onChangeText={setForgotNewPass}
-                          placeholder={t("index.min6Chars")} placeholderTextColor="#374151"
+                          placeholder={t("index.min6Chars")} placeholderTextColor={colors.placeholder}
                           secureTextEntry autoFocus
                         />
                       </>
                     )}
 
-                    <TouchableOpacity
-                      style={[S.submitBtn, { marginTop: 24 }, forgotDisabled && S.submitDisabled]}
+                    <GradientButton
+                      style={{ marginTop: 24 }}
                       onPress={handleForgotSubmit}
                       disabled={forgotDisabled}
                     >
@@ -584,7 +606,7 @@ export default function AuthScreen() {
                           {forgotStep === "email" ? t("index.sendCode") : forgotStep === "code" ? t("index.verify") : t("index.updatePassword")}
                         </Text>
                       )}
-                    </TouchableOpacity>
+                    </GradientButton>
                   </>
                 )}
               </View>
@@ -594,8 +616,10 @@ export default function AuthScreen() {
                 <View style={S.inputGroup}>
                   <Text style={S.inputLabel}>{t("index.emailLabel")}</Text>
                   <TextInput
-                    style={S.input} value={email} onChangeText={setEmail}
-                    placeholder="tu@email.com" placeholderTextColor="#374151"
+                    style={[S.input, focusedField === "email" && S.inputFocused]}
+                    value={email} onChangeText={setEmail}
+                    onFocus={() => setFocusedField("email")} onBlur={() => setFocusedField(null)}
+                    placeholder="tu@email.com" placeholderTextColor={colors.placeholder}
                     keyboardType="email-address" autoCapitalize="none"
                   />
                 </View>
@@ -605,14 +629,25 @@ export default function AuthScreen() {
                     <Text style={S.inputLabel}>{t("index.passwordLabel")}</Text>
                     {mode === "login" && (
                       <TouchableOpacity onPress={() => { setMode("forgot"); setForgotEmail(email); setForgotStep("email"); }}>
-                        <Text style={{ color: "#00d47e", fontSize: 13, fontWeight: "600" }}>{t("index.forgot")}</Text>
+                        <Text style={{ color: colors.accentLight, fontSize: 13, fontWeight: "600" }}>{t("index.forgot")}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
-                  <TextInput
-                    style={S.input} value={password} onChangeText={setPassword}
-                    placeholder="••••••••" placeholderTextColor="#374151" secureTextEntry
-                  />
+                  <View style={{ position: "relative", justifyContent: "center" }}>
+                    <TextInput
+                      style={[S.input, { paddingRight: 48 }, focusedField === "password" && S.inputFocused]}
+                      value={password} onChangeText={setPassword}
+                      onFocus={() => setFocusedField("password")} onBlur={() => setFocusedField(null)}
+                      placeholder="••••••••" placeholderTextColor={colors.placeholder} secureTextEntry={!showPassword}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowPassword((v) => !v)}
+                      style={S.eyeToggle}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textMuted} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 {mode === "register" && (
@@ -621,31 +656,27 @@ export default function AuthScreen() {
                     <TextInput
                       style={S.input} value={refCode}
                       onChangeText={(v) => setRefCode(v.toUpperCase())}
-                      placeholder={t("index.referralPlaceholder")} placeholderTextColor="#374151"
+                      placeholder={t("index.referralPlaceholder")} placeholderTextColor={colors.placeholder}
                       autoCapitalize="characters" maxLength={8}
                     />
                   </View>
                 )}
 
-                <TouchableOpacity
-                  style={[S.submitBtn, loading && S.submitDisabled]}
-                  onPress={handleSubmit}
-                  disabled={loading}
-                >
+                <GradientButton onPress={handleSubmit} disabled={loading}>
                   {loading ? (
                     <ActivityIndicator color="#000" />
                   ) : (
                     <Text style={S.submitText}>{mode === "login" ? t("index.login") : t("index.createAccount")}</Text>
                   )}
-                </TouchableOpacity>
+                </GradientButton>
 
                 <TouchableOpacity
                   onPress={() => setMode(mode === "login" ? "register" : "login")}
                   style={{ marginTop: 22, alignItems: "center" }}
                 >
-                  <Text style={{ color: "#6b7280", fontSize: 14, textAlign: "center" }}>
+                  <Text style={{ color: colors.textMuted, fontSize: 14, textAlign: "center" }}>
                     {mode === "login" ? t("index.noAccount") : t("index.hasAccount")}
-                    <Text style={{ color: "#00d47e", fontWeight: "700" }}>
+                    <Text style={{ color: colors.accentLight, fontWeight: "700" }}>
                       {mode === "login" ? t("index.createOne") : t("index.login")}
                     </Text>
                   </Text>
@@ -660,6 +691,7 @@ export default function AuthScreen() {
                 </TouchableOpacity>
               </View>
             )}
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -669,32 +701,33 @@ export default function AuthScreen() {
 
 // ─── Styles — always dark, like Spotify ──────────────────────────────────────
 const S = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#0a0d12" },
-
-  // Subtle green atmospheric glow at top
-  glowOrb: {
-    position: "absolute", top: -120, alignSelf: "center",
-    width: 340, height: 340, borderRadius: 170,
-    backgroundColor: "rgba(0,212,126,0.055)",
-  },
+  screen: { flex: 1, backgroundColor: colors.bg },
 
   scroll: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 12, paddingBottom: 48 },
+
+  // ── Auth card — the web login page's "glass" card translated to a solid
+  // card + hairline border (no backdrop-blur equivalent used here, to avoid
+  // adding a new native dependency for one screen) ──
+  authCard: {
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
+    borderRadius: 28, padding: 22,
+  },
 
   // ── Language toggle ──
   langToggle: {
     flexDirection: "row", alignSelf: "flex-end", gap: 4,
     marginTop: 8, marginRight: 20,
-    backgroundColor: "#111318", borderWidth: 1,
+    backgroundColor: colors.bgRaised, borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)", borderRadius: 12, padding: 3,
   },
   langBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9 },
-  langBtnActive: { backgroundColor: "#00d47e" },
-  langBtnText: { fontSize: 11, fontWeight: "700", color: "#9ca3af" },
-  langBtnTextActive: { color: "#0a0d12" },
+  langBtnActive: { backgroundColor: colors.accentLight },
+  langBtnText: { fontSize: 11, fontWeight: "700", color: colors.textSub },
+  langBtnTextActive: { color: colors.bg },
 
   // ── Splash / loading ──
   splashLogoShell: {
-    shadowColor: "#00d47e", shadowRadius: 32, shadowOpacity: 0.5,
+    shadowColor: colors.accentLight, shadowRadius: 32, shadowOpacity: 0.5,
     shadowOffset: { width: 0, height: 0 }, marginBottom: 20,
   },
   splashLogo: { width: 80, height: 80, borderRadius: 20 },
@@ -702,23 +735,18 @@ const S = StyleSheet.create({
   // ── Hero ──
   hero: { alignItems: "center", paddingTop: 28, marginBottom: 44 },
   logoShell: {
-    shadowColor: "#00d47e", shadowRadius: 28, shadowOpacity: 0.45,
+    shadowColor: colors.accentLight, shadowRadius: 28, shadowOpacity: 0.45,
     shadowOffset: { width: 0, height: 0 }, marginBottom: 22,
   },
   logo: { width: 88, height: 88, borderRadius: 22 },
-  brandName: { fontSize: 38, fontWeight: "900", color: "#fff", letterSpacing: -1.2, marginBottom: 10 },
-  tagline: { fontSize: 17, fontWeight: "800", color: "#fff", textAlign: "center", lineHeight: 24, marginBottom: 12 },
-  pill: {
-    backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)", borderRadius: 14,
-    paddingHorizontal: 18, paddingVertical: 10, marginHorizontal: 8,
-  },
-  pillText: { color: "#9ca3af", fontSize: 13, lineHeight: 20, textAlign: "center" },
+  brandName: { fontSize: 38, fontWeight: "900", color: colors.text, letterSpacing: -1.2, marginBottom: 10 },
+  tagline: { fontSize: 17, fontWeight: "800", color: colors.text, textAlign: "center", lineHeight: 24, marginBottom: 12 },
+  pillText: { color: colors.textSub, fontSize: 13, lineHeight: 20, textAlign: "center", paddingHorizontal: 12 },
 
   // ── Face ID card ──
   biometricCard: {
     flexDirection: "row", alignItems: "center", gap: 14,
-    backgroundColor: "#111318", borderWidth: 1,
+    backgroundColor: colors.bgRaised, borderWidth: 1,
     borderColor: "rgba(0,212,126,0.28)", borderRadius: 18,
     padding: 18, marginBottom: 20,
   },
@@ -727,54 +755,62 @@ const S = StyleSheet.create({
     backgroundColor: "rgba(0,212,126,0.1)",
     alignItems: "center", justifyContent: "center",
   },
-  biometricTitle: { color: "#fff", fontSize: 15, fontWeight: "700", marginBottom: 3 },
-  biometricSub: { color: "#6b7280", fontSize: 12 },
+  biometricTitle: { color: colors.text, fontSize: 15, fontWeight: "700", marginBottom: 3 },
+  biometricSub: { color: colors.textMuted, fontSize: 12 },
 
   // ── Divider ──
   divider: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 26 },
-  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: "#1f2330" },
-  dividerLabel: { color: "#374151", fontSize: 12, fontWeight: "500" },
+  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderStrong },
+  dividerLabel: { color: colors.placeholder, fontSize: 12, fontWeight: "500" },
 
   // ── Form ──
   inputGroup: { marginBottom: 16 },
-  inputLabel: { color: "#9ca3af", fontSize: 13, fontWeight: "600", letterSpacing: 0.2, marginBottom: 9 },
+  inputLabel: { color: colors.textSub, fontSize: 13, fontWeight: "600", letterSpacing: 0.2, marginBottom: 9 },
   input: {
-    backgroundColor: "#111318", borderWidth: 1, borderColor: "#1a1d27",
+    backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border,
     borderRadius: 14, paddingHorizontal: 18, paddingVertical: 16,
-    color: "#fff", fontSize: 16,
+    color: colors.text, fontSize: 16,
   },
-  hint: { color: "#4b5563", fontSize: 11, marginTop: 6, lineHeight: 16 },
+  // Mirrors the web login page's `.input-premium` focus state — accent
+  // border + a soft glow ring — instead of no focus feedback at all.
+  inputFocused: {
+    borderColor: colors.accent,
+    shadowColor: colors.accent, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5, shadowRadius: 6, elevation: 3,
+  },
+  eyeToggle: { position: "absolute", right: 16 },
+  hint: { color: colors.textMuted, fontSize: 11, marginTop: 6, lineHeight: 16 },
 
-  // ── Primary CTA ──
+  // ── Primary CTA — gradient fill supplied by <GradientButton>, this just
+  // shapes the container it renders into ──
   submitBtn: {
-    backgroundColor: "#00d47e", borderRadius: 16, paddingVertical: 17,
+    borderRadius: 16, paddingVertical: 17,
     alignItems: "center", marginTop: 8,
-    shadowColor: "#00d47e", shadowOffset: { width: 0, height: 6 },
+    shadowColor: colors.accentLight, shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.28, shadowRadius: 18, elevation: 8,
   },
-  submitDisabled: { opacity: 0.45 },
   submitText: { color: "#000", fontSize: 16, fontWeight: "900", letterSpacing: 0.2 },
 
   // ── Ghost CTA ──
   guestBtn: {
     marginTop: 14, alignItems: "center", paddingVertical: 16,
-    borderWidth: 1, borderColor: "#1a1d27", borderRadius: 16,
+    borderWidth: 1, borderColor: colors.border, borderRadius: 16,
   },
-  guestText: { color: "#374151", fontSize: 14, fontWeight: "600" },
+  guestText: { color: colors.placeholder, fontSize: 14, fontWeight: "600" },
 
   // ── Forgot flow ──
-  sectionTitle: { fontSize: 24, fontWeight: "900", color: "#fff", letterSpacing: -0.5, marginBottom: 6 },
-  sectionSub: { color: "#6b7280", fontSize: 14, lineHeight: 20 },
+  sectionTitle: { fontSize: 24, fontWeight: "900", color: colors.text, letterSpacing: -0.5, marginBottom: 6 },
+  sectionSub: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
   successIcon: {
     width: 72, height: 72, borderRadius: 36,
     backgroundColor: "rgba(0,212,126,0.1)",
     alignItems: "center", justifyContent: "center",
   },
   methodPicker: {
-    flexDirection: "row", backgroundColor: "#0d1117", borderRadius: 12,
-    padding: 4, marginBottom: 20, borderWidth: 1, borderColor: "#1a1d27",
+    flexDirection: "row", backgroundColor: colors.bg, borderRadius: 12,
+    padding: 4, marginBottom: 20, borderWidth: 1, borderColor: colors.border,
   },
   methodTab: { flex: 1, paddingVertical: 11, borderRadius: 9, alignItems: "center" },
-  methodTabActive: { backgroundColor: "#1f2330" },
-  methodTabText: { color: "#6b7280", fontSize: 14, fontWeight: "600" },
+  methodTabActive: { backgroundColor: colors.borderStrong },
+  methodTabText: { color: colors.textMuted, fontSize: 14, fontWeight: "600" },
 });

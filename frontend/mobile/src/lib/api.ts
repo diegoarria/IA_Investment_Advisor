@@ -185,6 +185,8 @@ export const marketApi = {
     api.post("/api/market/portfolio-returns", { positions, closed_positions: closedPositions ?? [], inception_date: inceptionDate ?? null }),
   getPortfolioChart: (positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[], period: string) =>
     api.post("/api/market/portfolio-chart", { positions, period }),
+  getHistoricalBacktest: (positions: { ticker: string; shares: number; avg_price: number }[]) =>
+    api.post("/api/market/portfolio/historical-backtest", { positions }),
   getStockDetail: (symbol: string, includeScore = false) =>
     api.get(`/api/market/stock-detail/${encodeURIComponent(symbol)}`, {
       params: includeScore ? { include_score: true } : undefined,

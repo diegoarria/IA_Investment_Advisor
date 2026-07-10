@@ -21,7 +21,6 @@ import { useTheme } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
 import MobileMonthlyReport from "../../src/components/MobileMonthlyReport";
 import MobileWeeklyScreener from "../../src/components/MobileWeeklyScreener";
-import EarningsCalendar from "../../src/components/EarningsCalendar";
 import PremiumToolCard from "../../src/components/PremiumToolCard";
 import { useAppStore, getAge, UserProfile } from "../../src/lib/profileStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -1433,6 +1432,32 @@ export default function PortfolioScreen() {
     rows: { ticker: string; invested: number; stressed: number; diff: number; pct: number; sector: string }[];
   }>(null);
 
+  // "scenarios" = hypothetical crisis simulations (above); "real" = the real
+  // year-by-year historical backtest of the current portfolio from 1985 to
+  // today vs. the S&P 500 — same feature/endpoint as the web app's Stress
+  // Test "real" mode.
+  const [stressMode, setStressMode] = useState<"scenarios" | "real">("scenarios");
+  const [backtestResult, setBacktestResult] = useState<null | {
+    year: number; portfolio_return_pct: number; sp500_return_pct: number; substituted: boolean;
+  }[]>(null);
+  const [backtestLoading, setBacktestLoading] = useState(false);
+  const [backtestError, setBacktestError] = useState<string | null>(null);
+
+  const runHistoricalBacktest = async () => {
+    if (positions.length === 0 || backtestLoading) return;
+    setBacktestLoading(true);
+    setBacktestError(null);
+    try {
+      const posPayload = positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice }));
+      const res = await marketApi.getHistoricalBacktest(posPayload);
+      setBacktestResult(res.data?.years ?? []);
+      posthog.capture("stress_test_done", { mode: "real", position_count: positions.length });
+    } catch {
+      setBacktestError(t("portfolio.stressTest.realError"));
+    }
+    setBacktestLoading(false);
+  };
+
   // ── Calculadora de Inversión ────────────────────────────────────────────
   const [calcCapital, setCalcCapital] = useState("");
   const [calcMonthly, setCalcMonthly] = useState("");
@@ -1650,10 +1675,10 @@ export default function PortfolioScreen() {
         </Modal>
 
         {/* ── TAB SWITCHER ── */}
-        <View style={[s.subTabBar, { backgroundColor: "#0a0d12" }]}>
-          <View style={[s.subTabInner, { backgroundColor: "#1a1d27" }]}>
+        <View style={[s.subTabBar, { backgroundColor: "#090f1f" }]}>
+          <View style={[s.subTabInner, { backgroundColor: "#0d1526" }]}>
             <TouchableOpacity
-              style={[s.subTab, activeSection === "portafolio" && [s.subTabActive, { backgroundColor: "#111318" }]]}
+              style={[s.subTab, activeSection === "portafolio" && [s.subTabActive, { backgroundColor: "#162035" }]]}
               onPress={() => setActiveSection("portafolio")}
               activeOpacity={0.75}
             >
@@ -1667,7 +1692,7 @@ export default function PortfolioScreen() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[s.subTab, activeSection === "herramientas" && [s.subTabActive, { backgroundColor: "#111318" }]]}
+              style={[s.subTab, activeSection === "herramientas" && [s.subTabActive, { backgroundColor: "#162035" }]]}
               onPress={() => setActiveSection("herramientas")}
               activeOpacity={0.75}
             >
@@ -2571,18 +2596,6 @@ export default function PortfolioScreen() {
           </>
         ) : null}
 
-        {/* ── EARNINGS CALENDAR ── */}
-        {positions.length > 0 && (
-          <>
-            <View style={[s.divider, { borderTopColor: "#1f2330" }]} />
-            <EarningsCalendar
-              positions={positions.map(p => ({ ticker: p.ticker, shares: p.shares, avg_cost: p.avgPrice }))}
-              isPremium={isPremiumAccess}
-              onUpgrade={() => setPaywallOpen(true)}
-            />
-          </>
-        )}
-
         {/* ── STRESS TEST ── */}
         {positions.length > 0 && (
           <>
@@ -2605,9 +2618,93 @@ export default function PortfolioScreen() {
               </View>
             </View>
 
+            {/* Mode toggle: hypothetical crisis scenarios vs. real year-by-year backtest */}
+            <View style={{ flexDirection: "row", gap: 6, marginBottom: 12 }}>
+              {([
+                { id: "scenarios" as const, label: t("portfolio.stressTest.modeScenarios") },
+                { id: "real" as const,      label: t("portfolio.stressTest.modeReal") },
+              ]).map((m) => {
+                const active = stressMode === m.id;
+                return (
+                  <TouchableOpacity
+                    key={m.id}
+                    onPress={() => {
+                      setStressMode(m.id);
+                      if (m.id === "real" && isPremiumAccess && !backtestResult && !backtestLoading) runHistoricalBacktest();
+                    }}
+                    style={{
+                      paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1,
+                      borderColor: active ? "#00d47e" : "#1f2330",
+                      backgroundColor: active ? "#00d47e" : "transparent",
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "800", color: active ? "#000" : "#6b7280" }}>{m.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
             <View style={{ position: "relative" }}>
               {/* Content — blurred for free users */}
               <View style={!isPremiumAccess ? { opacity: 0.4 } : undefined} pointerEvents={!isPremiumAccess ? "none" : "auto"}>
+                {stressMode === "real" ? (
+                  <>
+                    {backtestLoading && (
+                      <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                        <ActivityIndicator color="#00d47e" />
+                      </View>
+                    )}
+                    {backtestError && (
+                      <Text style={{ color: "#ef4444", fontSize: 12, textAlign: "center", paddingVertical: 16 }}>{backtestError}</Text>
+                    )}
+                    {!backtestLoading && backtestResult && backtestResult.length > 0 && (
+                      <View style={[s.stressResultCard, { backgroundColor: "#111318", borderColor: "#1f2330" }]}>
+                        <Text style={{ color: "#6b7280", fontSize: 11, marginBottom: 10 }}>
+                          {t("portfolio.stressTest.realDescription")}
+                        </Text>
+                        <View>
+                          {backtestResult.map((row) => (
+                            <View
+                              key={row.year}
+                              style={{
+                                flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                                paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#1f2330",
+                              }}
+                            >
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>{row.year}</Text>
+                                {row.substituted && <Ionicons name="alert-circle-outline" size={13} color="#f59e0b" />}
+                              </View>
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+                                <View style={{ alignItems: "flex-end" }}>
+                                  <Text style={{ color: "#4b5563", fontSize: 9 }}>{t("portfolio.stressTest.yourPortfolio")}</Text>
+                                  <Text style={{ color: row.portfolio_return_pct >= 0 ? "#22c55e" : "#ef4444", fontSize: 13, fontWeight: "800" }}>
+                                    {row.portfolio_return_pct >= 0 ? "+" : ""}{row.portfolio_return_pct.toFixed(1)}%
+                                  </Text>
+                                </View>
+                                <View style={{ alignItems: "flex-end" }}>
+                                  <Text style={{ color: "#4b5563", fontSize: 9 }}>S&P 500</Text>
+                                  <Text style={{ color: row.sp500_return_pct >= 0 ? "#22c55e" : "#ef4444", fontSize: 13, fontWeight: "700" }}>
+                                    {row.sp500_return_pct >= 0 ? "+" : ""}{row.sp500_return_pct.toFixed(1)}%
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                        {backtestResult.some((r) => r.substituted) && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, padding: 9, borderRadius: 10, backgroundColor: "rgba(234,179,8,0.08)", borderWidth: 1, borderColor: "rgba(234,179,8,0.25)" }}>
+                            <Ionicons name="warning-outline" size={12} color="#ca8a04" />
+                            <Text style={{ color: "#ca8a04", fontSize: 10, flex: 1 }}>
+                              {t("portfolio.stressTest.substitutedDisclaimer")}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </>
+                ) : (
+                <>
                 {/* Era filter chips */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6 }}>
                   {[
@@ -2716,6 +2813,8 @@ export default function PortfolioScreen() {
                     </View>
                   );
                 })()}
+                </>
+                )}
               </View>
 
               {/* Paywall overlay for free users */}
@@ -3478,7 +3577,7 @@ export default function PortfolioScreen() {
 }
 
 const portfolioStyles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#0a0d12" },
+    container: { flex: 1, backgroundColor: "#090f1f" }, // matches header/tab bar's colors.card
     subTabBar: {
       paddingHorizontal: 16, paddingVertical: 10,
     },
