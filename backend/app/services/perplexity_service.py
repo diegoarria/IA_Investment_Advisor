@@ -80,7 +80,7 @@ def search_web(query: str, label: bool = True) -> str:
                 ],
                 "max_tokens": 450,
             },
-            timeout=12,
+            timeout=30,
         )
         if r.status_code != 200:
             logger.warning("Perplexity API returned status %s for query: %s — body: %s", r.status_code, query[:200], r.text[:300])

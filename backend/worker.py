@@ -281,6 +281,23 @@ def _company_name(ticker: str) -> str:
     return _COMPANY_NAMES.get(ticker, ticker)
 
 
+def _truncate_at_word(text: str, max_len: int) -> str:
+    """Truncate at the last word boundary before max_len, with an ellipsis —
+    a hard character-index cut here previously produced garbled notification
+    text like "...más allá de Diego, ganaste..." (the reason text getting cut
+    mid-word and running straight into the next sentence with no visual
+    break)."""
+    if len(text) <= max_len:
+        return text
+    if max_len <= 1:
+        return text[:max_len]
+    cut = text[:max_len - 1]
+    last_space = cut.rfind(" ")
+    if last_space > 0:
+        cut = cut[:last_space]
+    return cut.rstrip(".,;: ") + "…"
+
+
 # ── Risk-tiered ticker universes ───────────────────────────────────────────────
 
 _RISK_SUGGESTIONS: dict[str, list[str]] = {
@@ -1543,7 +1560,7 @@ async def job_portfolio_alerts():
         # 5. Pre-generate WHY explanations — 1 Claude call per mover, reused across users.
         # Tickers with no specific catalyst are stored as NO_CATALYST and skipped for premium users;
         # free users still get a plain price-move notification without the WHY.
-        from app.services.price_alert_service import NO_CATALYST
+        from app.services.price_alert_service import NO_CATALYST, should_send_price_alert
         ticker_why:   dict[str, str] = {}
         ticker_title: dict[str, str] = {}
         for ticker, pct in movers.items():
@@ -1598,7 +1615,26 @@ async def job_portfolio_alerts():
                 # Every notification opens with this exact sentence — matches the
                 # requested format: "{Name} hoy está subiendo/cayendo un {pct}%."
                 move_sentence = f"{company} hoy {direction_verb} un {pct:+.2f}%."
+                has_catalyst = why != NO_CATALYST
+                push_category = f"price_mover_{ticker}"
+
                 if is_prem:
+                    # Decide whether this specific push should go out at all —
+                    # allows exactly one "we found out why" follow-up later in
+                    # the day if the first alert went out with no catalyst and
+                    # a real one has since turned up, instead of leaving the
+                    # user stuck with "no news" all day even after the actual
+                    # reason breaks.
+                    should_send, is_correction = should_send_price_alert(uid, ticker, has_catalyst)
+                    if not should_send:
+                        continue
+                    if is_correction:
+                        # Distinct category so notification_engine's own generic
+                        # per-category-per-day dedup doesn't block this second
+                        # send — the first alert already consumed the plain
+                        # "price_mover_{ticker}" slot for today.
+                        push_category = f"price_mover_{ticker}_correction"
+
                     if why == NO_CATALYST:
                         no_news = "No hay noticias respecto a esto, posiblemente solo es volatilidad del mercado."
                         if is_portfolio:
@@ -1613,7 +1649,7 @@ async def job_portfolio_alerts():
                         else:
                             body = f"{move_sentence} {no_news}"
                     elif is_portfolio:
-                        # Move sentence + WHY + financial impact + CTA
+                        # Move sentence (or update opener) + WHY + financial impact + CTA
                         shares         = port_map[ticker].get("shares", 0.0)
                         position_value = shares * price if shares else 0.0
                         dollar_delta   = position_value * pct / 100 if position_value else None
@@ -1623,22 +1659,26 @@ async def job_portfolio_alerts():
                         else:
                             impact = " "
                         cta   = "¿Cambia tu tesis? Abre Nuvos."
-                        head  = f"{move_sentence} "
+                        head  = f"Ya sabemos por qué: " if is_correction else f"{move_sentence} "
                         max_b = 230 - len(head) - len(impact) - len(cta)
-                        body  = head + (why[:max_b] if len(why) > max_b else why) + impact + cta
+                        body  = head + _truncate_at_word(why, max_b) + impact + cta
                     else:
-                        # Move sentence + WHY + watchlist suffix + action prompt
+                        # Move sentence (or update opener) + WHY + watchlist suffix + action prompt
                         suffix = " La tienes en watchlist. ¿Vale la pena analizarla ahora?"
-                        head   = f"{move_sentence} "
+                        head   = f"Ya sabemos por qué: " if is_correction else f"{move_sentence} "
                         max_b  = 230 - len(head) - len(suffix)
-                        body   = head + (why[:max_b] if len(why) > max_b else why) + suffix
+                        body   = head + _truncate_at_word(why, max_b) + suffix
+
+                    if is_correction:
+                        title = f"{ticker} — Actualización ({pct:+.2f}%)"
                 else:
-                    # Free tier — plain price alert, no WHY
+                    # Free tier — plain price alert, no WHY, no correction logic
+                    # (their message never varies based on catalyst discovery)
                     body = f"{move_sentence} Activa Premium para ver el análisis completo."
 
                 await send_push(
                     uid,
-                    f"price_mover_{ticker}",
+                    push_category,
                     title, body,
                     {"ticker": ticker, "change_pct": pct, "price": price, "screen": screen},
                     db,

@@ -4,11 +4,50 @@ Used by both the background worker and the admin trigger endpoint.
 """
 import asyncio
 import logging
+from datetime import datetime, timezone
+
+from app.core.cache import cache_get, cache_set
 
 logger = logging.getLogger(__name__)
 
 # Sentinel returned when no specific catalyst is found — callers should skip the notification.
 NO_CATALYST = "__NO_CATALYST__"
+
+
+def should_send_price_alert(user_id: str, ticker: str, has_catalyst: bool) -> tuple[bool, bool]:
+    """
+    Decide whether THIS specific price-mover push should go out, allowing up
+    to two sends per ticker per user per day:
+      1. The first alert today for this ticker, whatever its content.
+      2. Exactly ONE follow-up "we found out why" correction — only when the
+         first alert went out with no catalyst and a real one has since been
+         found (the same 5-min job re-checks Perplexity every cycle a ticker
+         stays a mover, so a catalyst that breaks 10-20 min after the initial
+         alert is now something the user actually gets told about, instead of
+         being stuck with "no news" for the rest of the day).
+
+    A ticker that already got a real-catalyst alert never sends again that
+    day (nothing new to say), and a second no-catalyst ping is also
+    suppressed (still nothing new to say). State is tracked separately from
+    notification_engine's generic per-category dedup — this is price-alert-
+    specific "have we already told this user why, and how well."
+
+    Returns (should_send, is_correction).
+    """
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    state_key = f"pricealert_state:{user_id}:{ticker}:{today}"
+    state = cache_get(state_key)  # None | "no_catalyst" | "catalyst"
+
+    if state is None:
+        cache_set(state_key, "catalyst" if has_catalyst else "no_catalyst", ttl=26 * 3600)
+        return True, False
+
+    if state == "no_catalyst" and has_catalyst:
+        cache_set(state_key, "catalyst", ttl=26 * 3600)
+        logger.info("Sending price-alert CORRECTION for user %s / %s — catalyst found after an earlier no-catalyst alert today", user_id, ticker)
+        return True, True
+
+    return False, False
 
 
 def fetch_ticker_news(ticker: str) -> list[dict]:
@@ -62,7 +101,7 @@ async def search_price_catalyst(ticker: str, change_pct: float) -> str:
     try:
         result = await asyncio.wait_for(
             asyncio.to_thread(search_web, query, False),
-            timeout=15.0,
+            timeout=35.0,
         )
         if not result:
             # search_web() itself already logs the specific reason (missing key,
@@ -72,7 +111,7 @@ async def search_price_catalyst(ticker: str, change_pct: float) -> str:
             logger.warning("Perplexity returned no catalyst text for %s (%+.1f%%) — query: %s", ticker, change_pct, query)
         return result
     except asyncio.TimeoutError:
-        logger.warning("Perplexity price catalyst search TIMED OUT for %s (>15s) — falling back to NO_CATALYST", ticker)
+        logger.warning("Perplexity price catalyst search TIMED OUT for %s (>35s) — falling back to NO_CATALYST", ticker)
         return ""
     except Exception as e:
         logger.warning("Perplexity price catalyst search failed for %s: %s", ticker, e)
