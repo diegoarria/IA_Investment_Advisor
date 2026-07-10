@@ -1,7 +1,10 @@
 import os
 import hashlib
+import logging
 import requests
 from app.core.cache import cache_get, cache_set
+
+logger = logging.getLogger(__name__)
 
 _SEARCH_CACHE_TTL = 300  # 5 minutes
 
@@ -42,6 +45,12 @@ def search_web(query: str, label: bool = True) -> str:
     from app.core.config import settings
     api_key = getattr(settings, "perplexity_api_key", "") or os.getenv("PERPLEXITY_API_KEY", "")
     if not api_key:
+        # This is a silent no-op that looks identical to "search found nothing"
+        # to every caller — logging it loudly here is the only way to tell
+        # "Perplexity isn't configured" apart from "there's really no news"
+        # further up the stack (e.g. price-alert notifications reporting
+        # NO_CATALYST far more often than expected).
+        logger.warning("perplexity_service.search_web called with no API key configured — returning empty, query was: %s", query[:200])
         return ""
 
     cache_key = "perp:" + hashlib.md5(f"{query}|{label}".encode()).hexdigest()[:16]
@@ -71,15 +80,18 @@ def search_web(query: str, label: bool = True) -> str:
                 ],
                 "max_tokens": 450,
             },
-            timeout=9,
+            timeout=12,
         )
         if r.status_code != 200:
+            logger.warning("Perplexity API returned status %s for query: %s — body: %s", r.status_code, query[:200], r.text[:300])
             return ""
         content = (r.json().get("choices") or [{}])[0].get("message", {}).get("content", "")
         if not content:
+            logger.warning("Perplexity API returned an empty answer for query: %s", query[:200])
             return ""
         result = f"**[Búsqueda web en tiempo real — Perplexity]**\n{content.strip()}" if label else content.strip()
         cache_set(cache_key, result, ttl=_SEARCH_CACHE_TTL)
         return result
-    except Exception:
+    except Exception as e:
+        logger.warning("Perplexity API call raised an exception for query %s: %s", query[:200], e)
         return ""

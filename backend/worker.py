@@ -1551,8 +1551,7 @@ async def job_portfolio_alerts():
             news  = await asyncio.to_thread(_fetch_ticker_news, ticker)
             why   = await _generate_price_alert_why(ticker, pct, price, news)
             ticker_why[ticker]   = why
-            emoji = "📉" if pct <= -5 else "🔻" if pct < 0 else "🚀" if pct >= 5 else "📈"
-            ticker_title[ticker] = f"{emoji} {ticker} {pct:+.1f}% hoy"
+            ticker_title[ticker] = f"{ticker} Alerta de Precio"
             if why == NO_CATALYST:
                 logger.info("Portfolio alerts: no catalyst for %s — premium users will not receive this", ticker)
             await asyncio.sleep(0.05)
@@ -1594,52 +1593,48 @@ async def job_portfolio_alerts():
                 screen       = "portfolio" if is_portfolio else "watchlist"
 
                 why = ticker_why[ticker]
-                direction = "bajó" if pct < 0 else "subió"
+                company = _company_name(ticker)
+                direction_verb = "está cayendo" if pct < 0 else "está subiendo"
+                # Every notification opens with this exact sentence — matches the
+                # requested format: "{Name} hoy está subiendo/cayendo un {pct}%."
+                move_sentence = f"{company} hoy {direction_verb} un {pct:+.2f}%."
                 if is_prem:
                     if why == NO_CATALYST:
-                        no_news = "Sin noticias concretas — movimiento normal de mercado."
+                        no_news = "No hay noticias respecto a esto, posiblemente solo es volatilidad del mercado."
                         if is_portfolio:
                             shares         = port_map[ticker].get("shares", 0.0)
                             position_value = shares * price if shares else 0.0
                             dollar_delta   = position_value * pct / 100 if position_value else None
                             if position_value and dollar_delta is not None:
                                 gl   = "perdiste" if pct < 0 else "ganaste"
-                                body = f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. {no_news} {first}, {gl} ~${abs(dollar_delta):,.0f}."
+                                body = f"{move_sentence} {no_news} {first}, {gl} ~${abs(dollar_delta):,.0f}."
                             else:
-                                body = f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. {no_news}"
+                                body = f"{move_sentence} {no_news}"
                         else:
-                            body = f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. {no_news}"
+                            body = f"{move_sentence} {no_news}"
                     elif is_portfolio:
-                        # WHY + financial impact + 3-question framework
+                        # Move sentence + WHY + financial impact + CTA
                         shares         = port_map[ticker].get("shares", 0.0)
                         position_value = shares * price if shares else 0.0
                         dollar_delta   = position_value * pct / 100 if position_value else None
                         if position_value and dollar_delta is not None:
-                            gl         = "perdiste" if pct < 0 else "ganaste"
-                            shares_fmt = f"{shares:.4f}".rstrip("0").rstrip(".") if shares < 1 else f"{shares:.2f}".rstrip("0").rstrip(".")
+                            gl     = "perdiste" if pct < 0 else "ganaste"
                             impact = f" {first}, {gl} ~${abs(dollar_delta):,.0f} hoy. "
                         else:
                             impact = " "
-                        cta = "¿Cambia tu tesis? Abre Nuvos."
-                        max_b = 230 - len(impact) - len(cta)
-                        body  = (why[:max_b] if len(why) > max_b else why) + impact + cta
+                        cta   = "¿Cambia tu tesis? Abre Nuvos."
+                        head  = f"{move_sentence} "
+                        max_b = 230 - len(head) - len(impact) - len(cta)
+                        body  = head + (why[:max_b] if len(why) > max_b else why) + impact + cta
                     else:
-                        # WHY + watchlist suffix + action prompt
+                        # Move sentence + WHY + watchlist suffix + action prompt
                         suffix = " La tienes en watchlist. ¿Vale la pena analizarla ahora?"
-                        max_b  = 230 - len(suffix)
-                        body   = (why[:max_b] if len(why) > max_b else why) + suffix
+                        head   = f"{move_sentence} "
+                        max_b  = 230 - len(head) - len(suffix)
+                        body   = head + (why[:max_b] if len(why) > max_b else why) + suffix
                 else:
-                    # Free tier — plain price alert
-                    if is_portfolio:
-                        body = (
-                            f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. "
-                            f"Activa Premium para ver el análisis completo."
-                        )
-                    else:
-                        body = (
-                            f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. "
-                            f"Activa Premium para ver el análisis completo."
-                        )
+                    # Free tier — plain price alert, no WHY
+                    body = f"{move_sentence} Activa Premium para ver el análisis completo."
 
                 await send_push(
                     uid,

@@ -13,13 +13,17 @@ NO_CATALYST = "__NO_CATALYST__"
 
 def fetch_ticker_news(ticker: str) -> list[dict]:
     """
-    Return up to 5 recent news items for a ticker.
-    Combines Finnhub (fresher, has summaries) + Yahoo Finance (fallback).
+    Return up to 5 recent news items for a ticker via Finnhub — a secondary/
+    background source now. Perplexity (search_price_catalyst) is the primary
+    source for the WHY pipeline (see get_price_move_why); this just adds
+    supplementary headlines/summaries when Finnhub happens to have them.
     Each item: {headline, summary}
+
+    yfinance was removed as a fallback here — Yahoo's news endpoint has been
+    unreliable (frequently raising "Failed to retrieve the news" errors) and
+    added latency/failure surface for a source that's now secondary anyway.
     """
     items: list[dict] = []
-
-    # 1. Finnhub — fresher, includes summaries
     try:
         from app.core.finnhub import fh_news
         fh_items = fh_news(ticker, days=3) or []
@@ -28,50 +32,48 @@ def fetch_ticker_news(ticker: str) -> list[dict]:
             s = (n.get("summary") or "").strip()
             if h and len(h) > 10:
                 items.append({"headline": h, "summary": s[:300] if s else ""})
-        if len(items) >= 3:
-            return items[:5]
-    except Exception:
-        pass
-
-    # 2. Yahoo Finance fallback
-    try:
-        import yfinance as yf
-        news = yf.Ticker(ticker).news or []
-        for item in news[:8]:
-            title = (item.get("title") or item.get("headline") or "").strip()
-            body  = (item.get("summary") or "").strip()
-            if title and len(title) > 10:
-                existing = {i["headline"] for i in items}
-                if title not in existing:
-                    items.append({"headline": title, "summary": body[:300] if body else ""})
-            if len(items) >= 5:
-                break
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Finnhub news fetch failed for %s (non-fatal, Perplexity is primary): %s", ticker, e)
 
     return items[:5]
 
 
 async def search_price_catalyst(ticker: str, change_pct: float) -> str:
     """
-    Real-time web search (Perplexity) for why a ticker moved today — used as a
-    fallback when Finnhub/yfinance news is thin or stale (e.g. breaking news
-    that hasn't hit those feeds yet). Returns "" if no API key configured or
-    the search comes back empty; callers should treat that as "still no catalyst".
+    Real-time web search (Perplexity) for why a ticker moved today — the
+    PRIMARY source for the WHY pipeline (see get_price_move_why). Finnhub is
+    only a secondary/background source now, since it frequently doesn't have
+    same-day breaking news indexed yet. Returns "" if no API key configured
+    or the search comes back empty; callers should treat that as "still no
+    catalyst" (Finnhub's headlines, if any, are tried as a last resort).
     """
     from app.services.perplexity_service import search_web
 
     direction = "cayó" if change_pct < 0 else "subió"
     query = (
         f"¿Por qué {direction} la acción {ticker} hoy ({change_pct:+.1f}%)? "
-        f"Busca la noticia, anuncio o evento específico de hoy que explique el movimiento, "
-        f"con fecha y fuente si es posible."
+        f"Busca la noticia, anuncio o evento específico de hoy o de los últimos días que "
+        f"explique el movimiento — considera declaraciones de directivos (CEO/CFO/junta), "
+        f"decisiones o negociaciones de gobiernos/reguladores, noticias del sector o de "
+        f"competidores, acciones de analistas o bancos de inversión (upgrades/downgrades/"
+        f"precio objetivo), movimientos de fondos institucionales, earnings, demandas, o "
+        f"cualquier otro factor externo relevante. Da fecha y fuente si es posible."
     )
     try:
-        return await asyncio.wait_for(
+        result = await asyncio.wait_for(
             asyncio.to_thread(search_web, query, False),
-            timeout=9.0,
+            timeout=15.0,
         )
+        if not result:
+            # search_web() itself already logs the specific reason (missing key,
+            # non-200 response, exception) — this just makes it visible at the
+            # call site too, since an empty string here is what silently turns
+            # into "no news" in the push notification the user actually sees.
+            logger.warning("Perplexity returned no catalyst text for %s (%+.1f%%) — query: %s", ticker, change_pct, query)
+        return result
+    except asyncio.TimeoutError:
+        logger.warning("Perplexity price catalyst search TIMED OUT for %s (>15s) — falling back to NO_CATALYST", ticker)
+        return ""
     except Exception as e:
         logger.warning("Perplexity price catalyst search failed for %s: %s", ticker, e)
         return ""
@@ -84,20 +86,21 @@ async def get_price_move_why(
     news_items: list[dict],
 ) -> str:
     """
-    Orchestrates the full WHY pipeline for a price move: try Finnhub/yfinance
-    news first (cheap, no external search cost), and only escalate to a live
-    Perplexity web search when that comes up empty — most breaking-news moves
-    (the kind free news feeds haven't indexed yet) get caught here instead of
-    falling back to the generic "no concrete news" message.
+    Orchestrates the full WHY pipeline for a price move. Perplexity (live web
+    search) is now the PRIMARY source — it runs on every call, since it's the
+    only source that reliably surfaces same-day breaking news, government/
+    regulatory decisions, analyst actions, etc. Finnhub's headlines (if any
+    were passed in via news_items) are included as background/supplementary
+    context in the same call rather than as a separate fallback pass — this
+    also means only ONE Claude call per ticker now instead of up to two.
+
+    Falls back to Finnhub-only context if Perplexity itself returns nothing
+    (missing API key, timeout, or a genuinely empty search) — better to try
+    with whatever's available than to give up immediately.
     """
-    why = await generate_price_alert_why(ticker, change_pct, price, news_items)
-    if why != NO_CATALYST:
-        return why
-
     web_context = await search_price_catalyst(ticker, change_pct)
-    if not web_context:
+    if not web_context and not news_items:
         return NO_CATALYST
-
     return await generate_price_alert_why(ticker, change_pct, price, news_items, extra_context=web_context)
 
 
@@ -111,15 +114,15 @@ async def generate_price_alert_why(
     """
     Generate a WHY explanation for a price move via Claude.
 
-    Returns the notification body string when a specific named catalyst is found,
-    or NO_CATALYST when the news is too generic — callers must skip the push in that case.
+    Returns just the reason clause (e.g. "La razón principal es que...") when a real
+    catalyst is found — NOT the full notification body, callers prepend the "{company}
+    hoy está subiendo/cayendo un {pct}%." sentence themselves — or NO_CATALYST when the
+    news is too generic.
 
     Called once per ticker and reused across all users.
     """
     import anthropic
     from app.core.config import settings
-
-    direction = "está cayendo" if change_pct < 0 else "está subiendo"
 
     # Support both old list[str] callers and new list[dict] callers
     if news_items and isinstance(news_items[0], str):
@@ -133,7 +136,12 @@ async def generate_price_alert_why(
     else:
         news_str = ""
 
-    web_section = f"\n\nBÚSQUEDA WEB EN TIEMPO REAL:\n{extra_context}" if extra_context else ""
+    web_section = (
+        f"BÚSQUEDA WEB EN TIEMPO REAL (fuente principal):\n{extra_context}"
+        if extra_context
+        else "BÚSQUEDA WEB EN TIEMPO REAL (fuente principal):\n(sin resultados)"
+    )
+    news_section = f"\n\nNOTICIAS DE FINNHUB (fuente secundaria, últimas 72h):\n{news_str or '(sin noticias disponibles)'}"
 
     prompt = f"""Eres el sistema de notificaciones push de Nuvos AI.
 
@@ -141,38 +149,65 @@ DATOS DEL MOVIMIENTO:
 - Ticker: {ticker}
 - Movimiento: {change_pct:+.2f}% hoy, precio actual ${price:.2f}
 
-NOTICIAS RECIENTES (últimas 72h):
-{news_str or "(sin noticias disponibles)"}{web_section}
+{web_section}{news_section}
 
 TU TAREA:
-Escribe el body de una notificación push en español que explique POR QUÉ {ticker} {direction} {abs(change_pct):.1f}%.
+La notificación push YA incluye una primera oración con el nombre de la empresa, el
+movimiento y el porcentaje (ej. "NVIDIA hoy está subiendo un +4.58%."). Tu trabajo es
+escribir SOLO la razón que sigue a esa oración — no repitas el nombre de la empresa, el
+verbo de movimiento (subió/bajó/está subiendo/está cayendo) ni el porcentaje, eso ya
+está cubierto.
 
-REGLAS ESTRICTAS:
-1. SOLO escribe la notificación si puedes nombrar un catalizador ESPECÍFICO con al menos UNO de:
-   - Un nombre de persona real (CEO, directivo, analista)
-   - Una empresa o institución concreta
-   - Un anuncio, producto, acuerdo, dato económico o evento específico
-   - Un resultado financiero concreto (earnings, revenue, guidance)
+REGLAS:
+1. Escribe una razón si las noticias mencionan CUALQUIERA de estas fuentes/tipos de catalizador
+   real — la lista es intencionalmente amplia, no hace falta un nombre propio ni que el hecho
+   sea exclusivo de hoy, con que esté claramente conectado a esta empresa alcanza:
+   - DIRECTIVA de la empresa: CEO, CFO, junta directiva, cambios de liderazgo, declaraciones
+     de ejecutivos, renuncias/contrataciones
+   - GOBIERNOS y reguladores: decisiones, negociaciones, aranceles, permisos de exportación/
+     importación, aprobaciones regulatorias, demandas, sanciones, políticas de cualquier país
+     que afecten a esta empresa o su industria
+   - SECTOR/INDUSTRIA: noticias de competidores, proveedores, clientes clave, tendencias de
+     toda la industria que expliquen razonablemente el movimiento de ESTA empresa
+   - ANALISTAS: upgrades, downgrades, cambios de precio objetivo, iniciaciones de cobertura,
+     notas de research de cualquier casa de análisis
+   - BANCOS y instituciones financieras: cambios de rating, comentarios de bancos de inversión,
+     fondos importantes tomando o vendiendo posiciones, movimientos de instituciones grandes
+   - Anuncios, productos, acuerdos, negociaciones, fusiones/adquisiciones, earnings, revenue,
+     guidance, litigios, huelgas, problemas de cadena de suministro
+   - Cualquier otro factor externo real (macroeconómico, geopolítico, climático, tecnológico,
+     de mercado) que esté conectado de forma creíble al movimiento de esta empresa específica
 
-2. Si las noticias son demasiado genéricas, antiguas, o no hay noticias → responde exactamente: NO_CATALYST
+2. Usa NO_CATALYST únicamente cuando las noticias disponibles NO mencionan absolutamente ningún
+   hecho, evento, declaración o decisión relacionada con la empresa, su sector, o alguno de los
+   factores de la lista de arriba — es decir, cuando genuinamente no hay nada, más allá de
+   frases vagas tipo "sentimiento del mercado" o "expectativas" sin ningún hecho detrás. Ante
+   la duda, prefiere usar la noticia disponible en vez de responder NO_CATALYST — es mejor dar
+   un contexto real aunque sea parcial o indirecto que decir que no hay noticias cuando sí las
+   hay.
 
-3. Si hay catalizador claro:
-   - Usa el nombre completo de la empresa si lo conoces, si no usa "{ticker}"
+3. Si hay catalizador (aunque sea parcial):
+   - Empieza con algo como "La razón principal es que..." / "Esto pasó después de que..." /
+     "Esto se debe a..." — una transición natural, como si un amigo te estuviera explicando
    - Menciona el catalizador específico en 1 oración directa
    - Tono: como un amigo explicándote qué pasó, sin jerga financiera
-   - Máximo 200 caracteres
-   - Sin emojis, sin mencionar "Nuvos AI"
+   - Máximo 170 caracteres
+   - Sin emojis, sin mencionar "Nuvos AI", sin repetir el ticker/porcentaje
    - Solo el texto, nada más
 
-EJEMPLOS BUENOS:
-"Apple subió 4.2% tras reportar ingresos de $124B en Q2, superando las estimaciones de Wall Street."
-"NVIDIA sube 6% después de que Jensen Huang anunciara la arquitectura Blackwell Ultra para centros de datos IA."
-"Amazon cayó 3.8% luego de que la FTC presentó una demanda antimonopolio por sus prácticas en AWS."
+EJEMPLOS BUENOS (recuerda: esto es SOLO la razón, la oración del movimiento va aparte):
+"La razón principal es que reportó ingresos de $124B en Q2, superando las estimaciones de Wall Street."
+"Esto pasó después de que Jensen Huang anunciara la arquitectura Blackwell Ultra para centros de datos IA."
+"Esto se debe a que la FTC presentó una demanda antimonopolio por sus prácticas en AWS."
+"La razón principal es que el gobierno chino está negociando permitir la venta de sus chips H200 en China."
+"Esto se debe a que un competidor clave (TSMC) reportó guidance débil para todo el sector de semiconductores."
+"Esto pasó después de que Goldman Sachs subiera su precio objetivo citando mejores márgenes esperados."
+"La razón principal es la renuncia sorpresiva de su CFO, lo que generó incertidumbre entre los inversores."
 
-EJEMPLO MALO → responde NO_CATALYST en este caso:
-"Tesla subió por noticias positivas del sector automotriz y expectativas del mercado."
+EJEMPLO MALO → responde NO_CATALYST en este caso (no hay ningún hecho concreto detrás):
+"Esto se debe al sentimiento positivo del mercado y expectativas generales de los inversores."
 
-Responde solo con el texto de la notificación o con NO_CATALYST."""
+Responde solo con el texto de la razón o con NO_CATALYST."""
 
     try:
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
@@ -182,18 +217,29 @@ Responde solo con el texto de la notificación o con NO_CATALYST."""
                 max_tokens=180,
                 messages=[{"role": "user", "content": prompt}],
             ),
-            timeout=10.0,
+            timeout=15.0,
         )
         result = resp.content[0].text.strip().strip('"').strip("'")
 
         if result.startswith("NO_CATALYST"):
-            logger.info("No specific catalyst for %s — notification suppressed", ticker)
+            logger.info(
+                "No specific catalyst for %s (%+.1f%%, has_news=%s, has_web_context=%s) — "
+                "this is a genuine 'no catalyst found' from Claude, not an API failure",
+                ticker, change_pct, bool(news_items), bool(extra_context),
+            )
             return NO_CATALYST
 
         if len(result) > 230:
             result = result[:227] + "..."
         return result
 
+    except asyncio.TimeoutError:
+        # Distinguishing this from "genuinely no catalyst" (above) is the whole
+        # point — a timeout here silently used to look identical to a real
+        # NO_CATALYST in the notification the user sees, making it impossible
+        # to tell "there really was no news" from "the API was just slow."
+        logger.warning("Claude price alert WHY call TIMED OUT for %s (>15s) — treating as NO_CATALYST but this is a failure, not a real finding", ticker)
+        return NO_CATALYST
     except Exception as e:
-        logger.warning("Claude price alert why failed for %s: %s", ticker, e)
+        logger.warning("Claude price alert WHY call FAILED for %s: %s — treating as NO_CATALYST but this is a failure, not a real finding", ticker, e)
         return NO_CATALYST
