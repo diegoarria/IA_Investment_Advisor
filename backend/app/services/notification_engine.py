@@ -8,6 +8,8 @@ import random
 from datetime import datetime, timezone
 from typing import Optional
 
+from app.core.cache import acquire_lock
+
 logger = logging.getLogger(__name__)
 
 
@@ -75,12 +77,21 @@ async def can_send_push(user_id: str, category: str, db) -> bool:
 
     today = _today_et()
 
-    # 3. Dedup: same category + same user + same day
-    dedup_key = f"{user_id}:{category}:{today}"
-    dup_res = await run_query(
-        db.table("notification_log").select("id").eq("dedup_key", dedup_key).eq("type", "push").limit(1)
-    )
-    if dup_res.data:
+    # 3. Dedup: same category + same user + same day.
+    #
+    # Previously this was a plain SELECT-then-later-INSERT: the actual log
+    # row was only written AFTER the push send completed (see send_push
+    # below), so two overlapping calls for the same user/category/day (e.g.
+    # a cron tick that runs long enough to overlap the next scheduled tick)
+    # could both pass this SELECT before either had logged anything, and the
+    # user got the same push twice. Reserving the slot atomically via a
+    # distributed lock (Redis SET NX when configured — see app/core/cache.py)
+    # BEFORE sending closes that race: only the first caller to reserve
+    # "user:category:day" ever proceeds; every other concurrent or later
+    # caller that day sees the slot already taken and skips, with no window
+    # where both could have passed the check.
+    dedup_key = f"pushdedup:{user_id}:{category}:{today}"
+    if acquire_lock(dedup_key, ttl=26 * 3600) is None:
         return False
 
     return True

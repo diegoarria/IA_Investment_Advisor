@@ -15,7 +15,8 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 _PRICES_POOL = ThreadPoolExecutor(max_workers=10, thread_name_prefix="watchlist-prices")
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from app.core.limiter import limiter
 import httpx
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
@@ -209,8 +210,9 @@ def _enrich_logos_background(items_without_logo: list[dict]) -> None:
 
 
 @router.post("/batch-prices")
-async def get_batch_prices(body: dict):
-    """Get extended prices (pre/post market) for a list of tickers. No auth required."""
+@limiter.limit("30/minute")
+async def get_batch_prices(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
+    """Get extended prices (pre/post market) for a list of tickers."""
     tickers = [t.strip().upper() for t in body.get("tickers", []) if t]
     if not tickers:
         return {}

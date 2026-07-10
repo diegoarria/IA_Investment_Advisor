@@ -1,11 +1,14 @@
 import asyncio
 import base64
+import logging
 import os
 import concurrent.futures
 
 _ENRICH_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="chat-enrich")
 import re
 import json
+
+logger = logging.getLogger("uvicorn.error")
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from fastapi.responses import StreamingResponse
@@ -285,20 +288,32 @@ async def chat_stream(
         )
 
     async def generate():
-        async for chunk in ai_service.chat_stream(
-            message=enriched,
-            conversation_history=body.conversation_history,
-            profile=profile,
-            mentor=body.mentor,
-            images=images,
-            memory_context=memory,
-            notification_context=body.notification_context,
-            deep_context=deep_ctx,
-            fmg_context=fmg_ctx,
-            progress_context=progress_ctx,
-            is_premium=premium,
-        ):
-            yield chunk
+        # This used to have no exception handling at all: if Claude erred
+        # mid-stream (rate limit, 529 overloaded, network blip), the HTTP 200
+        # + streaming headers were already sent, so the client just received
+        # a silently truncated response with no error and no retry hint —
+        # the core product's most exposed dependency degrading invisibly.
+        # Yielding a clear terminal marker instead lets the frontend show
+        # "the assistant had trouble responding, try again" rather than a
+        # response that just stops mid-sentence with no explanation.
+        try:
+            async for chunk in ai_service.chat_stream(
+                message=enriched,
+                conversation_history=body.conversation_history,
+                profile=profile,
+                mentor=body.mentor,
+                images=images,
+                memory_context=memory,
+                notification_context=body.notification_context,
+                deep_context=deep_ctx,
+                fmg_context=fmg_ctx,
+                progress_context=progress_ctx,
+                is_premium=premium,
+            ):
+                yield chunk
+        except Exception as e:
+            logger.error("chat_stream failed mid-response for user %s: %s", user_id, e)
+            yield "\n\n[[NUVOS_STREAM_ERROR]] Tuvimos un problema generando la respuesta. Intenta de nuevo."
 
     return StreamingResponse(generate(), media_type="text/plain")
 

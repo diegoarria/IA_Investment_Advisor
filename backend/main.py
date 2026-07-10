@@ -109,4 +109,65 @@ async def root():
 
 @app.get("/health")
 async def health():
+    """Liveness only — always 200 if the process is up. Use /health/ready for
+    a real dependency check (what orchestration/monitoring should actually
+    poll before routing traffic to this instance)."""
     return {"status": "healthy"}
+
+
+@app.get("/health/ready")
+async def health_ready():
+    """Readiness check: verifies the dependencies real requests actually need
+    are reachable, not just that the Python process is alive. A previous
+    audit flagged /health as liveness-only — meaning orchestration could keep
+    routing traffic to an instance that's up but can't actually serve
+    anything (e.g. Supabase unreachable). This is what should be polled
+    instead for routing/alerting decisions.
+    """
+    import asyncio
+    from app.core.database import get_supabase
+    from app.core.config import settings
+
+    checks: dict[str, dict] = {}
+    overall_ok = True
+
+    # Supabase — a trivial, cheap query (RLS-exempt via service_role, limited
+    # to 1 row) just to confirm the connection + credentials are alive.
+    try:
+        db = get_supabase()
+        await asyncio.wait_for(
+            asyncio.to_thread(lambda: db.table("user_profiles").select("user_id").limit(1).execute()),
+            timeout=5,
+        )
+        checks["supabase"] = {"ok": True}
+    except Exception as e:
+        checks["supabase"] = {"ok": False, "error": str(e)[:200]}
+        overall_ok = False
+
+    # Redis — only meaningful if configured; if REDIS_URL is unset we report
+    # that explicitly rather than silently passing, since running without it
+    # in production means caching/rate-limiting are per-process only (see
+    # app/core/cache.py, app/core/limiter.py).
+    if settings.redis_url:
+        try:
+            from app.core.cache import cache_set, cache_get
+            probe_key = "health:redis:probe"
+            await asyncio.to_thread(cache_set, probe_key, True, 10)
+            ok = await asyncio.to_thread(cache_get, probe_key)
+            checks["redis"] = {"ok": bool(ok), "configured": True}
+            if not ok:
+                overall_ok = False
+        except Exception as e:
+            checks["redis"] = {"ok": False, "configured": True, "error": str(e)[:200]}
+            overall_ok = False
+    else:
+        checks["redis"] = {"ok": False, "configured": False, "note": "REDIS_URL not set — caching/rate-limiting are per-process only"}
+
+    # Anthropic — presence-only check (a real API call here would cost money
+    # on every health poll); a missing key is fail-fast at boot anyway since
+    # it has no default in config.py, but confirmed here for completeness.
+    checks["anthropic_key_present"] = {"ok": bool(settings.anthropic_api_key)}
+
+    status_code = 200 if overall_ok else 503
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=status_code, content={"status": "healthy" if overall_ok else "degraded", "checks": checks})

@@ -2,11 +2,17 @@ import asyncio
 import logging
 import secrets
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from app.core.database import get_supabase, run_query
 from app.models.user import AuthRequest, TokenResponse
 from app.api.deps import get_current_user_id
 from app.core.cache import cache_get, cache_set, cache_delete
+from app.core.limiter import limiter
+from app.core.security import (
+    check_login_lockout, record_login_failure, record_login_success,
+    check_reset_code_lockout, record_reset_code_failure, record_reset_code_success,
+    log_security_event, client_ip,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -136,19 +142,20 @@ async def _send_welcome_email(email: str, attempt: int = 1) -> None:
 
 
 @router.post("/register", response_model=TokenResponse)
-async def register(request: AuthRequest):
+@limiter.limit("5/hour")
+async def register(request: Request, body: AuthRequest):
     try:
         db = get_supabase()
         result = db.auth.sign_up({
-            "email": request.email,
-            "password": request.password,
+            "email": body.email,
+            "password": body.password,
         })
         if result.user is None:
             raise HTTPException(status_code=400, detail="No se pudo crear la cuenta")
         if result.session is None:
             raise HTTPException(status_code=400, detail="Cuenta creada. Revisa tu correo para confirmar.")
 
-        _fire(_send_welcome_email(request.email))
+        _fire(_send_welcome_email(body.email))
 
         return TokenResponse(
             access_token=result.session.access_token,
@@ -160,20 +167,31 @@ async def register(request: AuthRequest):
     except Exception as e:
         msg = str(e)
         if "already registered" in msg or "already been registered" in msg or "User already registered" in msg:
+            log_security_event("register_duplicate_email", email=body.email, ip=client_ip(request))
             raise HTTPException(status_code=400, detail="Este email ya tiene una cuenta. Inicia sesión.")
         raise HTTPException(status_code=400, detail=f"Error al crear cuenta: {msg}")
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(request: AuthRequest):
+@limiter.limit("15/minute")
+async def login(request: Request, body: AuthRequest):
+    email = body.email.strip().lower()
+    ip = client_ip(request)
+    # Reject before ever touching Supabase if this email or IP is already
+    # locked out from prior failures — this is what actually stops
+    # brute-force/credential-stuffing, not just the per-minute rate limit
+    # above (which alone would still allow ~15 guesses/min indefinitely).
+    check_login_lockout(email, ip)
     try:
         db = get_supabase()
         result = db.auth.sign_in_with_password({
-            "email": request.email,
-            "password": request.password,
+            "email": email,
+            "password": body.password,
         })
         if result.user is None:
+            record_login_failure(email, ip)
             raise HTTPException(status_code=401, detail="Credenciales inválidas")
+        record_login_success(email, ip)
         return TokenResponse(
             access_token=result.session.access_token,
             refresh_token=result.session.refresh_token,
@@ -182,13 +200,15 @@ async def login(request: AuthRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Login error: {str(e)}")
+        record_login_failure(email, ip)
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
 
 @router.post("/refresh")
-async def refresh_token(request: dict):
+@limiter.limit("30/minute")
+async def refresh_token(request: Request, body: dict):
     try:
-        token = request.get("refresh_token", "")
+        token = body.get("refresh_token", "")
         if not token:
             raise HTTPException(status_code=401, detail="refresh_token requerido")
         db = get_supabase()
@@ -206,10 +226,12 @@ async def refresh_token(request: dict):
 
 
 @router.post("/forgot-password")
-async def forgot_password(request: dict):
-    email = request.get("email", "").strip().lower()
+@limiter.limit("3/hour")
+async def forgot_password(request: Request, body: dict):
+    email = body.get("email", "").strip().lower()
     if not email:
         raise HTTPException(status_code=400, detail="Email requerido")
+    log_security_event("password_reset_requested", email=email, ip=client_ip(request))
     db = get_supabase()
     try:
         users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
@@ -237,11 +259,13 @@ async def forgot_password(request: dict):
 
 
 @router.post("/forgot-password-sms")
-async def forgot_password_sms(request: dict):
-    email = request.get("email", "").strip().lower()
-    phone = request.get("phone", "").strip()
+@limiter.limit("3/hour")
+async def forgot_password_sms(request: Request, body: dict):
+    email = body.get("email", "").strip().lower()
+    phone = body.get("phone", "").strip()
     if not email or not phone:
         raise HTTPException(status_code=400, detail="Email y teléfono requeridos")
+    log_security_event("password_reset_sms_requested", email=email, ip=client_ip(request), detail=phone)
     db = get_supabase()
     try:
         users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
@@ -257,16 +281,25 @@ async def forgot_password_sms(request: dict):
 
 
 @router.post("/reset-password")
-async def reset_password(request: dict):
-    phone = request.get("phone", "").strip()
-    email = request.get("email", "").strip().lower()
-    code  = request.get("code", "").strip()
-    new_password = request.get("new_password", "")
+@limiter.limit("10/hour")
+async def reset_password(request: Request, body: dict):
+    phone = body.get("phone", "").strip()
+    email = body.get("email", "").strip().lower()
+    code  = body.get("code", "").strip()
+    new_password = body.get("new_password", "")
 
     if not code or not new_password:
         raise HTTPException(status_code=400, detail="Todos los campos son requeridos")
     if len(new_password) < 6:
         raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
+
+    # The identity used for lockout tracking must match whichever key the
+    # code itself is stored under (phone for the SMS flow, email otherwise)
+    # — this is what actually closes the brute-force gap: the 6-digit code
+    # has a 1-in-1,000,000 chance per guess, but with no attempt limit an
+    # attacker had the entire 15-minute TTL window to try all of them.
+    identity = phone if phone else email
+    check_reset_code_lockout(identity)
 
     if phone:
         # SMS flow: look up code by phone
@@ -274,6 +307,7 @@ async def reset_password(request: dict):
         if not entry:
             raise HTTPException(status_code=400, detail="Código inválido o expirado")
         if entry["code"] != code:
+            record_reset_code_failure(identity)
             raise HTTPException(status_code=400, detail="Código incorrecto")
         email = entry["email"]
         _del_reset_code(f"reset_code:phone:{phone}")
@@ -285,8 +319,12 @@ async def reset_password(request: dict):
         if not entry:
             raise HTTPException(status_code=400, detail="Código inválido o expirado")
         if entry["code"] != code:
+            record_reset_code_failure(identity)
             raise HTTPException(status_code=400, detail="Código incorrecto")
         _del_reset_code(f"reset_code:email:{email}")
+
+    record_reset_code_success(identity)
+    log_security_event("password_reset_completed", email=email, ip=client_ip(request))
 
     db = get_supabase()
     users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
@@ -307,13 +345,16 @@ async def logout():
     return {"message": "Logged out"}
 
 
-# Every table that stores rows keyed by user_id — kept in sync manually since
-# there's no FK-cascade across the app's tables. If a feature adds a new
-# user-scoped table, add it here too, or account deletion silently leaves it
-# behind (which is exactly what caused re-registering with a deleted
-# account's email to skip onboarding: the old row was never actually gone).
-# benchmark_cohort_stats is deliberately excluded — it stores only anonymous
-# aggregate stats, never a user_id.
+# Every table that stores rows keyed by user_id. Kept for reference/visibility
+# — the actual deletion now runs atomically inside the delete_user_data()
+# Postgres function (migrations/035_atomic_account_deletion.sql), which MUST
+# be kept in sync with this list. Previously this list drove a per-table
+# Python loop with its own try/except per table and no rollback: a failure
+# partway through left the auth user deleted (email freed for reuse) while
+# some tables still held orphaned rows keyed to a user_id with no matching
+# account — exactly what caused re-registering with a deleted account's
+# email to skip onboarding once before. Running the deletes inside a single
+# Postgres function body means Postgres itself guarantees all-or-nothing.
 _USER_DATA_TABLES = [
     "user_profiles", "user_portfolio", "portfolio_positions", "user_paper_trading",
     "user_daily_usage", "web_push_subscriptions", "chat_history",
@@ -327,35 +368,32 @@ _USER_DATA_TABLES = [
     "fmg_portfolio_snapshots", "fmg_annual_reports",
     "valuation_alert_state", "thesis_drift_state",
     "clip_likes", "clip_saves", "clip_views", "clip_comments",
-    "research_jobs", "research_reports",
+    "research_jobs", "research_reports", "security_events",
 ]
 
 
 @router.delete("/account")
 async def delete_account(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
-    failed_tables: list[str] = []
-    for table in _USER_DATA_TABLES:
-        try:
-            await run_query(db.table(table).delete().eq("user_id", user_id))
-        except Exception as e:
-            # Table-not-found is expected for a couple of legacy/optional names
-            # over time — anything else means real data may have been left
-            # behind, so it needs to be visible, not silently swallowed.
-            failed_tables.append(table)
-            logger.warning("delete_account: failed to clear %s for %s: %s", table, user_id, e)
+
+    # Atomic: either every table listed above is cleared, or (on any single
+    # failure) NONE of them are — Postgres rolls the whole function body
+    # back. No more "deleted from 20 of 35 tables" partial state.
+    try:
+        await run_query(db.rpc("delete_user_data", {"p_user_id": user_id}))
+    except Exception as e:
+        logger.error("delete_account: atomic data deletion failed for %s (fully rolled back): %s", user_id, e)
+        raise HTTPException(status_code=500, detail="No se pudo eliminar los datos de la cuenta. Intenta de nuevo.")
 
     # Delete the auth user itself (requires service key) — this is the step
-    # that actually frees up the email for reuse. Must succeed, or the user
-    # is left able to log in but with (partially) wiped data, and re-signup
-    # with the same email will fail as "already registered".
+    # that actually frees up the email for reuse. If THIS fails, the account
+    # still exists but now has zero associated data — the user (or a retry
+    # of this same endpoint) can safely call delete again, since re-running
+    # delete_user_data against already-empty tables is a harmless no-op.
     try:
         await asyncio.to_thread(lambda: db.auth.admin.delete_user(user_id))
     except Exception as e:
-        logger.error("delete_account: failed to delete auth user %s: %s", user_id, e)
+        logger.error("delete_account: failed to delete auth user %s (data already fully cleared): %s", user_id, e)
         raise HTTPException(status_code=500, detail="No se pudo eliminar la cuenta.")
-
-    if failed_tables:
-        logger.warning("delete_account: user %s deleted with residual data in: %s", user_id, failed_tables)
 
     return {"message": "Cuenta eliminada"}

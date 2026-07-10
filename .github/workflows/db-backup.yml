@@ -1,0 +1,50 @@
+name: Nightly database backup
+
+# Runs scripts/backup_db.sh on a schedule so the independent pg_dump backup
+# layer (see docs/DISASTER_RECOVERY.md) actually executes automatically
+# instead of depending on someone remembering to run it by hand. Requires
+# repo secrets to be configured (see docs/DISASTER_RECOVERY.md "Setup"):
+#   DATABASE_URL       — Supabase Settings → Database → Connection string
+#   BACKUP_S3_BUCKET   — destination bucket name
+#   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_DEFAULT_REGION
+#     — credentials for a role scoped to PutObject on that bucket only
+#
+# Until those secrets are added, this workflow will run and fail loudly
+# (rather than silently no-op) — that failure notification is itself the
+# signal that the backup layer isn't wired up yet.
+
+on:
+  schedule:
+    - cron: "17 8 * * *"   # 08:17 UTC daily — off the hour, avoids GH Actions' top-of-hour congestion
+  workflow_dispatch: {}      # allows manually triggering a backup on demand
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install postgresql-client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Run backup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+        run: ./backend/scripts/backup_db.sh
+
+      - name: Upload dump as workflow artifact (short-term fallback copy)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: backend/backups/*.dump
+          retention-days: 7

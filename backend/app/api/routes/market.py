@@ -21,7 +21,7 @@ from app.core.database import get_supabase, run_query
 from app.models.user import UserProfile
 from app.models.market import AssetAnalysisRequest, PortfolioScenarioRequest
 from app.services import market_service, ai_service
-from app.core.cache import cache_get, cache_set
+from app.core.cache import cache_get, cache_set, cache_incr, cache_delete, acquire_lock, release_lock
 from app.core.limiter import limiter
 
 # Semaphore for the sync Anthropic call in the screenshot/pdf endpoints
@@ -206,7 +206,8 @@ def _fetch_indices() -> list[dict]:
 
 
 @router.get("/indices")
-async def get_indices(user_id: str = Depends(get_current_user_id)):
+@limiter.limit("30/minute")
+async def get_indices(request: Request, user_id: str = Depends(get_current_user_id)):
     import asyncio
     data = await asyncio.to_thread(_fetch_indices)
     return data
@@ -275,8 +276,9 @@ async def search_tickers(q: str = Query(""), user_id: str = Depends(get_current_
 
 
 @router.post("/prices")
-async def get_prices(request: dict, user_id: str = Depends(get_current_user_id)):
-    symbols = [s.upper() for s in request.get("symbols", [])]
+@limiter.limit("30/minute")
+async def get_prices(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
+    symbols = [s.upper() for s in body.get("symbols", [])]
 
     def _fetch(symbol: str) -> tuple[str, dict]:
         import httpx
@@ -553,7 +555,9 @@ def _yfinance_chart_fallback(symbol: str, yf_period: str, interval: str) -> dict
 
 
 @router.get("/chart/{ticker:path}")
+@limiter.limit("60/minute")
 async def get_chart(
+    request: Request,
     ticker: str,
     period: str = "1y",
     user_id: str = Depends(get_current_user_id),
@@ -949,7 +953,9 @@ def _fetch_symbol_news(symbol: str) -> list[dict]:
 
 
 @router.get("/news")
+@limiter.limit("30/minute")
 async def get_portfolio_news(
+    request: Request,
     symbols: str = Query(..., description="Comma-separated tickers, e.g. AAPL,NVDA"),
     user_id: str = Depends(get_current_user_id)
 ):
@@ -1144,14 +1150,71 @@ def _yf_symbol(ticker: str) -> str:
     return re.sub(r'\.([A-Z])$', r'-\1', ticker)
 
 
+_YF_BREAKER_KEY = "yf:breaker:open"
+_YF_BREAKER_FAIL_KEY = "yf:breaker:fails"
+_YF_BREAKER_THRESHOLD = 15   # consecutive ticker failures across the process before tripping
+_YF_BREAKER_COOLDOWN = 90    # seconds to skip Yahoo direct entirely once tripped
+
+
+def _yf_breaker_is_open() -> bool:
+    """True if Yahoo Finance's direct API has been failing enough that we
+    should stop hammering it and go straight to the yfinance-library
+    fallback for a cooldown window. Shared across all backend processes via
+    the cache layer (Redis when configured), so one worker tripping the
+    breaker protects the whole fleet's egress IP reputation, not just itself."""
+    return bool(cache_get(_YF_BREAKER_KEY))
+
+
+def _yf_breaker_record_failure() -> None:
+    count = cache_incr(_YF_BREAKER_FAIL_KEY, ttl=120)
+    if count >= _YF_BREAKER_THRESHOLD:
+        cache_set(_YF_BREAKER_KEY, True, ttl=_YF_BREAKER_COOLDOWN)
+        logger.warning("Yahoo Finance circuit breaker OPEN — falling back to yfinance library for %ss", _YF_BREAKER_COOLDOWN)
+
+
+def _yf_breaker_record_success() -> None:
+    cache_delete(_YF_BREAKER_FAIL_KEY)
+
+
+def _yfinance_history_fallback(
+    ticker: str, period1: int, period2: int, interval: str = "1d"
+) -> tuple[list[int], list[float], float | None]:
+    """Second-tier fallback for _fetch_ticker_history: the `yfinance` library
+    itself (different code path/session handling than our direct httpx calls
+    to Yahoo's v8 endpoint — enough to sometimes succeed when the direct
+    calls are being throttled). Returns the same shape as _fetch_ticker_history."""
+    try:
+        start = _dt.fromtimestamp(period1, tz=_tz.utc)
+        end = _dt.fromtimestamp(period2, tz=_tz.utc)
+        t = yf.Ticker(_yf_symbol(ticker))
+        hist = t.history(start=start, end=end, interval=interval, raise_errors=False, auto_adjust=True)
+        if hist is None or hist.empty:
+            return [], [], None
+        closes = [float(c) for c in hist["Close"].dropna().tolist()]
+        ts = [int(idx.timestamp()) for idx in hist.index]
+        rt_price = None
+        try:
+            rt_price = float(t.fast_info.last_price)
+        except Exception:
+            pass
+        return ts, closes, rt_price
+    except Exception:
+        return [], [], None
+
+
 def _fetch_ticker_history(
     ticker: str, period1: int, period2: int, interval: str = "1d"
 ) -> tuple[list[int], list[float], float | None]:
-    """Fetch historical adjusted-close prices + regularMarketPrice via Yahoo Finance Chart API.
+    """Fetch historical adjusted-close prices + regularMarketPrice via Yahoo Finance Chart API,
+    with a circuit breaker + yfinance-library fallback so a Yahoo throttling episode degrades
+    gracefully instead of returning empty data to every user simultaneously.
 
     Returns (timestamps, closes, rt_price) where rt_price is always the current real-time price
     from the meta field — regardless of what the historical bars show (which can lag one day).
     """
+    if _yf_breaker_is_open():
+        return _yfinance_history_fallback(ticker, period1, period2, interval)
+
     import httpx
     encoded = _yf_symbol(ticker).replace("^", "%5E")
     params = {"period1": period1, "period2": period2, "interval": interval, "includePrePost": "false"}
@@ -1173,20 +1236,49 @@ def _fetch_ticker_history(
             if not closes:
                 closes = (res.get("indicators", {}).get("quote") or [{}])[0].get("close")
             if ts and closes and len(ts) == len(closes):
+                _yf_breaker_record_success()
                 return ts, closes, float(rt_price) if rt_price else None
         except Exception:
             continue
-    return [], [], None
+
+    # Direct Yahoo call failed for this ticker on both mirrors — count it
+    # toward the breaker, then try the yfinance-library fallback before
+    # giving up entirely.
+    _yf_breaker_record_failure()
+    return _yfinance_history_fallback(ticker, period1, period2, interval)
+
+
+_CLOSE_DF_CACHE_TTL = 60        # matches the frontend's fastest poll cadence — see portfolio page
+_CLOSE_DF_LOCK_TTL = 20         # generous vs. typical fetch time, bounds worst-case staleness
+_CLOSE_DF_LOCK_WAIT = 8.0       # how long a follower waits for the winner before fetching itself
+_CLOSE_DF_LOCK_POLL = 0.2
 
 
 def _build_close_df(
     tickers: list[str], period1: int, period2: int, interval: str = "1d"
 ) -> "tuple[_pd.DataFrame, dict[str, float]]":
-    """Parallel fetch of historical close prices via direct Yahoo Finance API. Index is timezone-naive.
+    """Parallel fetch of historical close prices via direct Yahoo Finance API (with circuit-breaker
+    fallback — see _fetch_ticker_history), cached and single-flighted so that if 1,000 users are all
+    asking about the same tickers within the same ~minute, only ONE outbound fetch actually happens —
+    everyone else reads the cache the winner just populated. Index is timezone-naive.
 
     Returns (df, rt_prices) where rt_prices maps ticker → regularMarketPrice (always current).
     Historical adjclose can lag one day; rt_prices is always up to date.
     """
+    # Bucket period2 (usually "now") to the cache TTL granularity so requests
+    # arriving within the same window share a cache key instead of each
+    # computing a unique key from the current second.
+    bucket = period2 - (period2 % _CLOSE_DF_CACHE_TTL)
+    cache_key = f"closedf:{','.join(sorted(t.upper() for t in tickers))}:{period1}:{bucket}:{interval}"
+
+    cached = cache_get(cache_key)
+    if cached is not None:
+        try:
+            df = _pd.read_json(cached["df"], orient="split")
+            df.index = _pd.to_datetime(df.index)
+            return df, cached["rt_prices"]
+        except Exception:
+            pass  # fall through and refetch on any deserialization hiccup
 
     def _one(t: str) -> "tuple[str, _pd.Series | None, float | None]":
         ts, closes, rt_price = _fetch_ticker_history(t, period1, period2, interval)
@@ -1201,13 +1293,48 @@ def _build_close_df(
         dates, vals = zip(*pairs)
         return t, _pd.Series(list(vals), index=list(dates), name=t, dtype=float), rt_price
 
-    results = list(_MARKET_POOL.map(_one, tickers))
+    def _fetch_fresh() -> "tuple[_pd.DataFrame, dict[str, float]]":
+        results = list(_MARKET_POOL.map(_one, tickers))
+        rt_prices: dict[str, float] = {t: rt for t, _, rt in results if rt is not None}
+        series = [s for _, s, _ in results if s is not None]
+        if not series:
+            return _pd.DataFrame(), rt_prices
+        return _pd.concat(series, axis=1).ffill().dropna(how="all"), rt_prices
 
-    rt_prices: dict[str, float] = {t: rt for t, _, rt in results if rt is not None}
-    series = [s for _, s, _ in results if s is not None]
-    if not series:
-        return _pd.DataFrame(), rt_prices
-    return _pd.concat(series, axis=1).ffill().dropna(how="all"), rt_prices
+    lock_key = f"lock:{cache_key}"
+    token = acquire_lock(lock_key, ttl=_CLOSE_DF_LOCK_TTL)
+    if token is None:
+        # Someone else is already fetching this exact (tickers, window,
+        # interval) combination — wait briefly for them to populate the
+        # cache rather than issuing a duplicate outbound fetch storm.
+        waited = 0.0
+        while waited < _CLOSE_DF_LOCK_WAIT:
+            time.sleep(_CLOSE_DF_LOCK_POLL)
+            waited += _CLOSE_DF_LOCK_POLL
+            cached = cache_get(cache_key)
+            if cached is not None:
+                try:
+                    df = _pd.read_json(cached["df"], orient="split")
+                    df.index = _pd.to_datetime(df.index)
+                    return df, cached["rt_prices"]
+                except Exception:
+                    break
+        # Winner never finished in time (or we couldn't deserialize its
+        # result) — fetch ourselves rather than waiting indefinitely.
+        df, rt_prices = _fetch_fresh()
+        return df, rt_prices
+
+    try:
+        df, rt_prices = _fetch_fresh()
+        if not df.empty:
+            try:
+                cache_set(cache_key, {"df": df.to_json(orient="split", date_format="iso"), "rt_prices": rt_prices},
+                          ttl=_CLOSE_DF_CACHE_TTL)
+            except Exception:
+                pass
+        return df, rt_prices
+    finally:
+        release_lock(lock_key, token)
 
 
 def _build_close_df_range(
@@ -1469,7 +1596,9 @@ def _compute_portfolio_returns(
 
 
 @router.post("/portfolio-returns")
+@limiter.limit("20/minute")
 async def get_portfolio_returns(
+    request: Request,
     body: _PortfolioReturnsRequest,
     user_id: str = Depends(get_current_user_id),
 ):
@@ -1658,7 +1787,9 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
 
 
 @router.post("/portfolio-chart")
+@limiter.limit("30/minute")
 async def get_portfolio_chart(
+    request: Request,
     body: _PortfolioChartRequest,
     user_id: str = Depends(get_current_user_id),
 ):
@@ -1813,7 +1944,9 @@ def _fetch_quote_details(tickers: list[str]) -> dict[str, dict]:
 
 
 @router.get("/quote-details")
+@limiter.limit("30/minute")
 async def get_quote_details(
+    request: Request,
     symbols: str = "",
     user_id: str = Depends(get_current_user_id),
 ):

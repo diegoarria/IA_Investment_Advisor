@@ -101,6 +101,95 @@ def cache_delete(key: str) -> None:
     _mem.pop(key, None)
 
 
+def cache_incr(key: str, ttl: int) -> int:
+    """Atomically increment a counter, setting its expiry only on first creation.
+
+    Used for rate limiting, brute-force attempt counting, and any other
+    "how many times has X happened in this window" check. Truly atomic (and
+    therefore safe across multiple backend processes/replicas) only when
+    Redis is configured — the in-memory fallback is a best-effort
+    single-process approximation, correct enough for local dev but not a
+    substitute for Redis in a horizontally-scaled deployment.
+    """
+    r = _get_redis()
+    if r:
+        try:
+            pipe = r.pipeline()
+            pipe.incr(key, 1)
+            pipe.expire(key, ttl, nx=True)  # only set TTL if key has none yet
+            count, _ = pipe.execute()
+            return int(count)
+        except Exception:
+            pass
+    # In-memory fallback — good enough for single-process local dev.
+    entry = _mem.get(key)
+    now = time.time()
+    if entry is None or now > entry[1]:
+        _mem[key] = (1, now + ttl)
+        return 1
+    count = int(entry[0]) + 1
+    _mem[key] = (count, entry[1])
+    return count
+
+
+_RELEASE_LUA = """
+if redis.call("get", KEYS[1]) == ARGV[1] then
+  return redis.call("del", KEYS[1])
+else
+  return 0
+end
+"""
+
+_locks_mem: dict[str, tuple[str, float]] = {}  # key -> (token, expires_at) — in-memory fallback
+
+
+def acquire_lock(key: str, ttl: int = 30) -> str | None:
+    """Distributed single-flight lock. Returns a token to pass to release_lock()
+    if acquired, or None if someone else already holds it.
+
+    Purpose: when N concurrent requests all want the same expensive resource
+    (e.g. "fetch AAPL's 5y history"), only the request that wins the lock
+    does the real work; everyone else should back off and read the cache
+    that the winner is about to populate. Only truly cross-process safe when
+    Redis is configured — the in-memory fallback only dedupes within a
+    single worker process, which is still a meaningful reduction (most
+    request storms hit whichever process/thread pool is under load) but not
+    a full guarantee under multiple gunicorn workers without Redis.
+    """
+    import uuid
+    token = uuid.uuid4().hex
+    r = _get_redis()
+    if r:
+        try:
+            if r.set(key, token, nx=True, ex=ttl):
+                return token
+            return None
+        except Exception:
+            pass
+    now = time.time()
+    held = _locks_mem.get(key)
+    if held is None or now > held[1]:
+        _locks_mem[key] = (token, now + ttl)
+        return token
+    return None
+
+
+def release_lock(key: str, token: str) -> None:
+    """Release a lock acquired via acquire_lock(), only if we still hold it
+    (compare-and-delete — never release a lock some other holder acquired
+    after ours expired)."""
+    r = _get_redis()
+    if r:
+        try:
+            r.eval(_RELEASE_LUA, 1, key, token)
+            return
+        except Exception:
+            pass
+    held = _locks_mem.get(key)
+    if held and held[0] == token:
+        _locks_mem.pop(key, None)
+
+
 def cache_get_with_ts(key: str) -> tuple[Any | None, float]:
     """Returns (value, timestamp) where timestamp is when it was cached (0 if miss)."""
     r = _get_redis()

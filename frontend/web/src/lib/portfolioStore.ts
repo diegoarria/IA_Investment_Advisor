@@ -36,7 +36,7 @@ export interface Portfolio {
   currency: string;
 }
 
-export type SyncStatus = "idle" | "syncing" | "saved" | "error";
+export type SyncStatus = "idle" | "syncing" | "saved" | "error" | "conflict";
 
 interface PortfolioStore {
   // Multi-portfolio state
@@ -107,6 +107,13 @@ export const usePortfolioStore = create<PortfolioStore>()(
       // after the delete lands, since the still-active portfolio during the
       // deletion window is the one being removed.
       let deletingPortfolioId: string | null = null;
+      // Per-portfolio "what server state was this client's last edit based on"
+      // — sent back as base_updated_at so the server can detect a concurrent
+      // write from another device (see sync.py's 409 sync_conflict) instead of
+      // blindly last-write-wins clobbering it. Updated on every successful
+      // push AND every successful load, since both are "we've now seen this
+      // server state."
+      const lastServerUpdatedAt: Record<string, string> = {};
 
       /** Push active portfolio to server — returns Promise so callers can await completion */
       const push = (
@@ -136,21 +143,37 @@ export const usePortfolioStore = create<PortfolioStore>()(
               portfolio_name: portfolioName,
               closed_positions: closedPositions,
               inception_date: inceptionDate,
+              base_updated_at: lastServerUpdatedAt[portfolioId] ?? null,
             }),
             keepalive: true,
           })
             .then(async (res) => {
+              if (res.status === 409) {
+                // Another device wrote a newer state after this client last
+                // saw the server. Do NOT overwrite it with our stale-based
+                // edit — surface the conflict and adopt the server's
+                // updated_at as our new baseline, so the *next* save attempt
+                // (the local edit is still held in this device's state, so
+                // nothing is lost) is based on current reality and will
+                // succeed instead of conflicting again.
+                const data = await res.json().catch(() => null);
+                const serverUpdatedAt = data?.detail?.server_updated_at;
+                if (serverUpdatedAt) lastServerUpdatedAt[portfolioId] = serverUpdatedAt;
+                set({ syncStatus: "conflict", pendingSync: false, pendingSyncSetAt: null });
+                throw new Error("sync_conflict");
+              }
               if (!res.ok) throw new Error(`HTTP ${res.status}`);
               // Prefer the server's own commit timestamp over the client clock, so
               // "lastSaved" is proof the write actually landed, not just that the
               // request didn't throw.
               const data = await res.json().catch(() => null);
               const confirmedAt = data?.updated_at ?? new Date().toISOString();
+              if (data?.updated_at) lastServerUpdatedAt[portfolioId] = data.updated_at;
               set({ syncStatus: "saved", lastSaved: confirmedAt, pendingSync: false, pendingSyncSetAt: null });
               setTimeout(() => { if (get().syncStatus === "saved") set({ syncStatus: "idle" }); }, 4000);
             })
             .catch((err) => {
-              set({ syncStatus: "error" });
+              set((s) => (s.syncStatus === "conflict" ? s : { syncStatus: "error" }));
               throw err;
             });
         };
@@ -390,6 +413,9 @@ export const usePortfolioStore = create<PortfolioStore>()(
                 currency: p.currency ?? "USD",
               }));
               if (serverPortfolios.length > 0) get()._setPortfolios(serverPortfolios, get().activePortfolioId);
+              for (const p of (res.data.portfolios ?? [])) {
+                if (p.updated_at) lastServerUpdatedAt[p.portfolio_id] = p.updated_at;
+              }
             } catch {
               // Fallback: old single-portfolio endpoint (pre-migration)
               const res = await sync.getPortfolio();
@@ -397,6 +423,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
               const closedPositions: ClosedPosition[] = (res.data.closed_positions ?? []).map((c: any, i: number) => ({ ...c, id: c.id ?? `${c.ticker}-closed-${i}` }));
               const inceptionDate: string | null = res.data.inception_date ?? null;
               const currency: string = res.data.currency ?? "USD";
+              if (res.data.updated_at) lastServerUpdatedAt["default"] = res.data.updated_at;
               if (positions.length > 0) {
                 const current = get();
                 const updated = current.portfolios.map(p => p.id === "default" ? { ...p, positions, closedPositions, inceptionDate, currency } : p);

@@ -213,11 +213,20 @@ async def _personalize(plan: dict, data: dict, findings: list[dict]) -> dict | N
             return "Otro"
 
     candidate_tickers = [c["ticker"] for c in data.get("companies", [])]
-    sector_by_ticker = {t: await asyncio.to_thread(_sector, t) for t in candidate_tickers}
-    for p in positions:
-        t = p.get("ticker", "").upper()
-        if t not in sector_by_ticker:
-            sector_by_ticker[t] = await asyncio.to_thread(_sector, t)
+    held_extra_tickers = [
+        p.get("ticker", "").upper() for p in positions
+        if p.get("ticker", "").upper() not in candidate_tickers
+    ]
+    # Previously these were two sequential `for` loops each `await`-ing one
+    # ticker at a time — for a 10-position portfolio + 3 candidate tickers,
+    # that's ~13 blocking yfinance calls run one after another (each
+    # potentially 1-2s), adding up to 15-20s of pure serial latency on every
+    # personalized report. Running them concurrently via asyncio.gather cuts
+    # that down to roughly the slowest single lookup instead of the sum of
+    # all of them.
+    all_tickers = list(dict.fromkeys(candidate_tickers + held_extra_tickers))
+    sectors = await asyncio.gather(*(asyncio.to_thread(_sector, t) for t in all_tickers))
+    sector_by_ticker = dict(zip(all_tickers, sectors))
 
     before = _sector_weights(positions, sector_by_ticker)
 
@@ -291,41 +300,116 @@ Incluye un bloque "key_takeaways" (lista de 3-5 puntos) y "sources" (lista de fu
 
 
 # ── Orchestration ─────────────────────────────────────────────────────────────
+#
+# Jobs are claimed atomically from Postgres (claim_research_job(), see
+# migrations/034_research_job_queue.sql — FOR UPDATE SKIP LOCKED, safe for any
+# number of concurrent claimers) by worker.py's job_deep_research_worker(),
+# NOT fired off via asyncio.create_task from the web request that happened to
+# call /start. This is what makes a backend restart mid-job survivable: the
+# job row itself is the durable queue entry, not an in-memory asyncio.Task
+# that dies with the process. A stale heartbeat means the worker that claimed
+# it is gone; reap_stale_jobs() requeues it (or fails+refunds it once
+# max_attempts is exhausted) rather than leaving it stuck forever.
+
+_HEARTBEAT_STALE_SECONDS = 600  # 10 min — generous vs. a typical 2-5 min run
+_WORKER_ID = None
+
+
+def _worker_id() -> str:
+    global _WORKER_ID
+    if _WORKER_ID is None:
+        import os, socket
+        _WORKER_ID = f"{socket.gethostname()}:{os.getpid()}"
+    return _WORKER_ID
+
 
 async def _set_stage(db, job_id: str, stage_key: str) -> None:
     await run_query(
         db.table("research_jobs")
-        .update({"status": "researching", "current_stage": _STAGE_LABELS[stage_key]})
+        .update({"status": "researching", "current_stage": _STAGE_LABELS[stage_key], "heartbeat_at": datetime.now(timezone.utc).isoformat()})
         .eq("id", job_id)
     )
 
 
-async def run_pipeline(job_id: str, user_id: str) -> None:
-    """Runs stages 2-6 in the background. Called via asyncio.create_task from
-    POST /api/research/start — must never raise, always leaves the job row in
-    a terminal state (completed/failed)."""
+class _JobCancelled(Exception):
+    pass
+
+
+async def _check_cancelled(db, job_id: str) -> None:
+    """Raised between stages so a user-requested cancellation stops the
+    pipeline promptly instead of finishing (and charging Anthropic for) work
+    nobody wants anymore."""
+    res = await run_query(db.table("research_jobs").select("cancel_requested").eq("id", job_id).single())
+    if res.data and res.data.get("cancel_requested"):
+        raise _JobCancelled()
+
+
+async def claim_one_job() -> dict | None:
+    """Atomically claim a single pending job (does not run it — see
+    run_claimed_job). Used by worker.py's job_deep_research_worker() to fill
+    open concurrency slots; splitting claim from run lets the worker spawn
+    each job as its own concurrent asyncio.Task instead of processing the
+    queue one job at a time."""
     db = get_supabase()
+    claim_res = await run_query(db.rpc("claim_research_job", {"p_worker_id": _worker_id()}))
+    rows = claim_res.data or []
+    return rows[0] if rows else None
+
+
+async def run_claimed_job(job: dict) -> None:
+    """Public entry point for running a job this process already claimed —
+    intended to be wrapped in asyncio.create_task by the caller so N of these
+    can run concurrently, bounded by worker.py's own concurrency limit."""
+    db = get_supabase()
+    await _run_claimed_job(db, job)
+
+
+async def _run_claimed_job(db, job: dict) -> None:
+    job_id = job["id"]
+    user_id = job["user_id"]
     try:
-        job_res = await run_query(db.table("research_jobs").select("plan").eq("id", job_id).single())
-        plan = job_res.data["plan"]
+        # Idempotent-resume: if a previous attempt crashed AFTER inserting the
+        # report but BEFORE marking the job completed (a narrow but real
+        # window), don't re-run the whole pipeline (re-billing Anthropic and
+        # producing a duplicate report) — just finalize using what's already
+        # there.
+        existing = await run_query(
+            db.table("research_reports").select("id").eq("job_id", job_id).limit(1)
+        )
+        if existing.data:
+            await run_query(
+                db.table("research_jobs").update({
+                    "status": "completed", "current_stage": "Listo",
+                    "report_id": existing.data[0]["id"],
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                }).eq("id", job_id)
+            )
+            return
+
+        plan = job["plan"]
 
         await _set_stage(db, job_id, "collect")
         data = await _collect_data(plan, user_id)
+        await _check_cancelled(db, job_id)
 
         await _set_stage(db, job_id, "analyze")
         findings = await asyncio.gather(*(
             _analyze_company(c["ticker"], c["context"]) for c in data["companies"]
         ))
         findings = list(findings)
+        await _check_cancelled(db, job_id)
 
         await _set_stage(db, job_id, "compare")
         comparison = await _compare_and_value(findings, plan) if findings else {}
+        await _check_cancelled(db, job_id)
 
         await _set_stage(db, job_id, "personalize")
         personalization = await _personalize(plan, data, findings)
+        await _check_cancelled(db, job_id)
 
         await _set_stage(db, job_id, "synthesize")
         report = await _synthesize_report(plan, findings, comparison, personalization)
+        await _check_cancelled(db, job_id)
 
         report_res = await run_query(
             db.table("research_reports").insert({
@@ -357,12 +441,75 @@ async def run_pipeline(job_id: str, user_id: str) -> None:
         except Exception:
             pass
 
-    except Exception as exc:
-        _log.error("research pipeline failed for job %s: %s\n%s", job_id, exc, traceback.format_exc())
+    except _JobCancelled:
+        _log.info("research job %s cancelled by user", job_id)
         await run_query(
             db.table("research_jobs").update({
-                "status": "failed",
-                "error": str(exc),
+                "status": "cancelled",
+                "current_stage": "Cancelado",
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", job_id)
         )
+        await _maybe_refund(job)
+
+    except Exception as exc:
+        _log.error("research pipeline failed for job %s: %s\n%s", job_id, exc, traceback.format_exc())
+        attempts = job.get("attempts", 1)
+        max_attempts = job.get("max_attempts", 3)
+        if attempts < max_attempts:
+            # Requeue for another attempt rather than failing outright on the
+            # first transient error (a Claude 529, a flaky market-data fetch).
+            await run_query(
+                db.table("research_jobs").update({
+                    "status": "pending", "claimed_by": None, "claimed_at": None,
+                    "error": str(exc)[:500],
+                }).eq("id", job_id)
+            )
+        else:
+            await run_query(
+                db.table("research_jobs").update({
+                    "status": "failed",
+                    "error": str(exc)[:500],
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                }).eq("id", job_id)
+            )
+            await _maybe_refund(job)
+
+
+async def _maybe_refund(job: dict) -> None:
+    """A paid job that ends in permanent failure or user cancellation must
+    not silently keep the user's money — issue a Stripe refund automatically.
+    Best-effort: never raises (a refund failure shouldn't crash the reaper/
+    pipeline), but does log loudly since this is a real money issue that
+    needs a human to notice if the automatic path fails."""
+    if job.get("refunded") or not job.get("stripe_session_id"):
+        return
+    db = get_supabase()
+    try:
+        import stripe
+        if not settings.stripe_secret_key:
+            return
+        stripe.api_key = settings.stripe_secret_key
+        session = await asyncio.to_thread(stripe.checkout.Session.retrieve, job["stripe_session_id"])
+        payment_intent = session.get("payment_intent")
+        if not payment_intent:
+            return
+        await asyncio.to_thread(stripe.Refund.create, payment_intent=payment_intent)
+        await run_query(db.table("research_jobs").update({"refunded": True}).eq("id", job["id"]))
+        _log.info("Refunded Stripe payment for failed/cancelled research job %s", job["id"])
+    except Exception as e:
+        _log.error("REFUND FAILED for research job %s — needs manual handling: %s", job["id"], e)
+
+
+async def reap_stale_jobs() -> int:
+    """Requeue (or permanently fail + refund) jobs whose claimed worker went
+    silent — called periodically by worker.py. Returns the number reaped."""
+    db = get_supabase()
+    res = await run_query(db.rpc("reap_stale_research_jobs", {"p_stale_after_seconds": _HEARTBEAT_STALE_SECONDS}))
+    reaped = res.data or []
+    for job in reaped:
+        if job["status"] == "failed":
+            await _maybe_refund(job)
+    if reaped:
+        _log.warning("Reaped %d stale research job(s) (stuck past %ds with no heartbeat)", len(reaped), _HEARTBEAT_STALE_SECONDS)
+    return len(reaped)

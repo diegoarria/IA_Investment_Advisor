@@ -1,4 +1,9 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
+
+_DEV_SECRET_KEY = "dev-secret-key-32chars-for-local-only"
+_DEV_SUPABASE_URL = "http://localhost"
+_DEV_SUPABASE_SERVICE_KEY = "dummy"
 
 
 class Settings(BaseSettings):
@@ -6,6 +11,12 @@ class Settings(BaseSettings):
     supabase_url: str = "http://localhost"
     supabase_anon_key: str = "dummy"
     supabase_service_key: str = "dummy"
+    # Direct Postgres connection string (Supabase dashboard → Settings →
+    # Database → Connection string). NOT used by the running app (which only
+    # ever talks to Supabase via its REST client) — only by
+    # scripts/backup_db.sh for the independent nightly pg_dump backup layer.
+    # See docs/DISASTER_RECOVERY.md.
+    database_url: str = ""
     secret_key: str = "dev-secret-key-32chars-for-local-only"
     frontend_url: str = "*"
     environment: str = "production"  # set to "development" locally to enable /docs
@@ -44,6 +55,33 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+
+    @model_validator(mode="after")
+    def _fail_fast_on_dev_defaults_in_production(self) -> "Settings":
+        """Previously, a misconfigured production deploy (e.g. a typo'd env
+        var name on Railway) would boot successfully against
+        supabase_url="http://localhost" or a placeholder service key —
+        silently trying to talk to nothing and failing every single request
+        with a confusing low-level connection error, instead of a clear
+        startup failure. Fail fast instead: refuse to boot in production with
+        a known dev/placeholder value in any of the three settings that
+        gate every single request (DB connection + JWT signing)."""
+        if self.environment != "production":
+            return self
+        problems = []
+        if self.supabase_url == _DEV_SUPABASE_URL:
+            problems.append("SUPABASE_URL is unset (defaulting to http://localhost)")
+        if self.supabase_service_key == _DEV_SUPABASE_SERVICE_KEY:
+            problems.append("SUPABASE_SERVICE_KEY is unset (defaulting to a placeholder)")
+        if self.secret_key == _DEV_SECRET_KEY:
+            problems.append("SECRET_KEY is unset (defaulting to a publicly-known dev value)")
+        if problems:
+            raise ValueError(
+                "Refusing to start in production with dev/placeholder config: "
+                + "; ".join(problems)
+                + ". Set these environment variables, or set ENVIRONMENT=development if this is intentional."
+            )
+        return self
 
 
 settings = Settings()

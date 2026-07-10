@@ -115,17 +115,37 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
     closed_positions = body.get("closed_positions")
     has_inception_key = "inception_date" in body
     inception_date = body.get("inception_date")
-    if closed_positions is None or not has_inception_key:
-        existing = await run_query(
-            db.table("user_portfolio").select("positions")
-            .eq("user_id", user_id).eq("portfolio_id", portfolio_id)
-        )
-        if existing.data:
+    # base_updated_at: the server updated_at this client's edit was BASED on
+    # (i.e. what it last successfully read or synced). Optional for backward
+    # compatibility with older clients that don't send it yet — in that case
+    # this falls back to pure last-write-wins, same as before. When present,
+    # it's what turns "last write wins" into real optimistic concurrency: if
+    # another device has written a NEWER state since this client last saw the
+    # server, we reject instead of silently clobbering that other edit.
+    base_updated_at = body.get("base_updated_at")
+    existing = await run_query(
+        db.table("user_portfolio").select("positions, updated_at")
+        .eq("user_id", user_id).eq("portfolio_id", portfolio_id)
+    )
+    if existing.data:
+        current_updated_at = existing.data[0]["updated_at"]
+        if base_updated_at and current_updated_at and base_updated_at != current_updated_at:
+            # Someone else's write landed after this client last read the
+            # server state — surface a real conflict instead of overwriting
+            # it. The client is expected to re-fetch (GET /sync/portfolio),
+            # reconcile, and retry with the fresh base_updated_at.
             existing_parsed = _parse_portfolio(existing.data[0]["positions"])
-            if closed_positions is None:
-                closed_positions = existing_parsed["closed_positions"]
-            if not has_inception_key:
-                inception_date = existing_parsed["inception_date"]
+            raise HTTPException(status_code=409, detail={
+                "code": "sync_conflict",
+                "message": "Este portafolio fue modificado desde otro dispositivo. Actualiza antes de guardar.",
+                "server_state": existing_parsed,
+                "server_updated_at": current_updated_at,
+            })
+        existing_parsed = _parse_portfolio(existing.data[0]["positions"])
+        if closed_positions is None:
+            closed_positions = existing_parsed["closed_positions"]
+        if not has_inception_key:
+            inception_date = existing_parsed["inception_date"]
     closed_positions = closed_positions or []
 
     portfolio_state = {

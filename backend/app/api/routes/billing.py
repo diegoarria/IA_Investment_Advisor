@@ -63,7 +63,11 @@ async def create_checkout(body: CheckoutRequest, user_id: str = Depends(get_curr
     if customer_id:
         params["customer"] = customer_id
 
-    session = s.checkout.Session.create(**params)
+    try:
+        session = await asyncio.to_thread(s.checkout.Session.create, **params)
+    except Exception as e:
+        logger.error("Stripe checkout session creation failed for user %s: %s", user_id, e)
+        raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
     return {"url": session.url}
 
 
@@ -160,15 +164,20 @@ async def broker_call_checkout(
     price_id = _BROKER_CALL_PRICE_49 if offer == "49" else _BROKER_CALL_PRICE_89
 
     base = settings.frontend_url if settings.frontend_url not in ("*", "", None) else "https://nuvosai.com"
-    session = s.checkout.Session.create(
-        mode="payment",
-        payment_method_types=["card"],
-        line_items=[{"price": price_id, "quantity": 1}],
-        client_reference_id=user_id,
-        metadata={"offer": "broker_call", "price": offer},
-        success_url="https://calendly.com/nuvosai/onboarding",
-        cancel_url=f"{base}/home",
-    )
+    try:
+        session = await asyncio.to_thread(
+            s.checkout.Session.create,
+            mode="payment",
+            payment_method_types=["card"],
+            line_items=[{"price": price_id, "quantity": 1}],
+            client_reference_id=user_id,
+            metadata={"offer": "broker_call", "price": offer},
+            success_url="https://calendly.com/nuvosai/onboarding",
+            cancel_url=f"{base}/home",
+        )
+    except Exception as e:
+        logger.error("Stripe broker-call checkout failed for user %s: %s", user_id, e)
+        raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
     return {"url": session.url}
 
 

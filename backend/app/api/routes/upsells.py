@@ -2,6 +2,7 @@
 Upsell system: Annual Report, Family Plan, 1:1 Session with Diego.
 Trigger evaluation runs server-side; frontend decides when to call based on user events.
 """
+import asyncio
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, Query
 import stripe
@@ -236,7 +237,11 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
     if customer_id:
         params["customer"] = customer_id
 
-    session = stripe.checkout.Session.create(**params)
+    try:
+        session = await asyncio.to_thread(stripe.checkout.Session.create, **params)
+    except Exception as e:
+        logger.error("Stripe upsell checkout failed for user %s (offer=%s): %s", user_id, offer, e)
+        return {"error": "Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos."}
 
     await _track(db, user_id, "upsell_converted", offer, tier, body.get("trigger_source"), {"variant": key})
     return {"url": session.url}

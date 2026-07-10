@@ -4672,6 +4672,56 @@ async def job_proactive_rebalancing():
         logger.error("job_proactive_rebalancing failed: %s", e)
 
 
+# ── Deep Research job queue worker ────────────────────────────────────────────
+#
+# Deep Research jobs are claimed atomically from Postgres (see
+# claim_research_job() in migrations/034_research_job_queue.sql — FOR UPDATE
+# SKIP LOCKED) and run HERE, in this always-single-instance process, instead
+# of via a fire-and-forget asyncio.create_task in the web request that called
+# /api/research/start. That's what makes an in-flight paid research job
+# survive a Railway restart/redeploy of the web service: nothing about
+# running the pipeline lives in the web process anymore, only the durable
+# job row does. This same claim-based design is also what makes it safe to
+# later run MULTIPLE worker instances for true horizontal scaling (to
+# "hundreds of simultaneous jobs," per the product requirement) — SKIP
+# LOCKED guarantees two workers can never claim the same row, so scaling out
+# is just "run more of this process," no code change required.
+_RESEARCH_MAX_CONCURRENT = int(os.getenv("RESEARCH_MAX_CONCURRENT_JOBS", "5"))
+_research_tasks: set[asyncio.Task] = set()
+
+
+async def job_deep_research_worker():
+    """Ticked every 10s (see scheduler.add_job below). Tops up concurrently-
+    running Deep Research jobs up to _RESEARCH_MAX_CONCURRENT by claiming
+    pending jobs and running each as its own task."""
+    from app.services import research_service
+    _research_tasks.difference_update({t for t in list(_research_tasks) if t.done()})
+    open_slots = _RESEARCH_MAX_CONCURRENT - len(_research_tasks)
+    for _ in range(max(0, open_slots)):
+        try:
+            job = await research_service.claim_one_job()
+        except Exception as e:
+            logger.error("claim_one_job failed: %s", e)
+            break
+        if not job:
+            break
+        task = asyncio.create_task(research_service.run_claimed_job(job))
+        _research_tasks.add(task)
+        task.add_done_callback(_research_tasks.discard)
+        logger.info("Deep Research job %s claimed and started (worker now running %d)", job["id"], len(_research_tasks))
+
+
+async def job_reap_stale_research_jobs():
+    """Every 5 minutes: requeue (or permanently fail + auto-refund) any job
+    whose claiming worker went silent — see reap_stale_research_jobs() in
+    migrations/034_research_job_queue.sql and research_service.reap_stale_jobs()."""
+    try:
+        from app.services import research_service
+        await research_service.reap_stale_jobs()
+    except Exception as e:
+        logger.error("job_reap_stale_research_jobs failed: %s", e)
+
+
 async def main():
     # misfire_grace_time: if Railway restarts the worker near a job's fire time,
     # APScheduler will still run the job if it missed by less than this window.
@@ -4727,6 +4777,10 @@ async def main():
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     scheduler.add_job(job_cleanup_analytics,    "interval", hours=1)
+
+    # ── Deep Research job queue (see job_deep_research_worker's docstring) ────
+    scheduler.add_job(job_deep_research_worker,          "interval", seconds=10)
+    scheduler.add_job(job_reap_stale_research_jobs,      "interval", minutes=5)
 
     # Backfill notification_preferences for existing users who never opened settings.
     # Without this row the worker can't find them and push never fires.
