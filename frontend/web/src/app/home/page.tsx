@@ -1030,9 +1030,12 @@ export default function HomePage() {
                       <p className="text-[11px] font-medium mb-1" style={{ color: "var(--muted)" }}>{t("home.portfolioHero.today")}</p>
                       <p className="text-xl font-black tracking-tight leading-none" style={{ color: dayGain >= 0 ? "#22c55e" : "#ef4444" }}>
                         {fmtPct(dayGainPct)}
+                        <span className="text-sm font-semibold ml-1">
+                          ({dayGain >= 0 ? "+" : ""}{fmt(dayGain, portfolioCurrency)})
+                        </span>
                       </p>
                       <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
-                        {t("home.portfolioHero.todayReturn")} ({dayGain >= 0 ? "+" : ""}{fmt(dayGain, portfolioCurrency)})
+                        {t("home.portfolioHero.todayReturn")}
                       </p>
                     </div>
                     {/* Divider */}
@@ -1044,9 +1047,12 @@ export default function HomePage() {
                         <>
                           <p className="text-xl font-black tracking-tight leading-none" style={{ color: (ytdPct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
                             {fmtPct(ytdPct ?? 0)}
+                            <span className="text-sm font-semibold ml-1">
+                              ({ytdGain >= 0 ? "+" : ""}{fmt(ytdGain * fxRate, portfolioCurrency)})
+                            </span>
                           </p>
                           <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
-                            {isPremium ? t("home.portfolioHero.ytd") : t("home.portfolioHero.last5Days")} ({ytdGain >= 0 ? "+" : ""}{fmt(ytdGain * fxRate, portfolioCurrency)})
+                            {isPremium ? t("home.portfolioHero.ytd") : t("home.portfolioHero.last5Days")}
                           </p>
                         </>
                       ) : (
