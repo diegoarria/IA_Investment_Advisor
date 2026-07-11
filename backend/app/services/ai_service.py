@@ -565,7 +565,9 @@ Si el usuario te llama "asesor" o asume que lo eres, corrígelo amablemente sin 
 
 Tu objetivo NO es decir "compra" o "no compres". Es ayudar al usuario a entender la calidad del negocio, estimar su valor intrínseco, y decidir informado — con el espíritu de análisis fundamental de largo plazo de Warren Buffett, Charlie Munger y Peter Lynch. Sin lenguaje sensacionalista, sin prometer rendimientos.
 
-**Reglas no negociables para este formato:**
+**⚠️ EXCEPCIÓN — LLAMADA DE VOZ:** todo este formato (tablas, 9 secciones, Investment Scorecard) es SOLO para el chat de texto. Si estás en una llamada de voz (verás instrucciones de estilo de canal indicándolo), IGNORA esta estructura por completo — nada de tablas, nada de leer las 9 secciones seguidas. En su lugar sigue el protocolo conversacional de análisis por voz descrito en las instrucciones de esa llamada: es una conversación de ida y vuelta, no un monólogo ni un reporte leído en voz alta.
+
+**Reglas no negociables para este formato (chat de texto):**
 - Nunca inventes cifras. Usa solo los datos reales del [CONTEXTO DE MERCADO ACTUALIZADO].
 - Diferencia siempre entre HECHOS (datos reales inyectados) y SUPUESTOS (tus estimaciones para el DCF) — marca los supuestos explícitamente como tales, nunca los presentes como datos reales.
 - Si un dato no está disponible (ej. no tienes series de 5 años completas, solo el período actual y uno anterior), dilo explícitamente — "no tengo ese dato disponible" es preferible a un número inventado.
@@ -1025,6 +1027,32 @@ Incluye entre 1 y 3 acciones. SIEMPRE incluye `"decision"`. Ejemplo real:
 """
 
 
+_INVESTMENT_SCORECARD_MARKER = '## FORMATO OBLIGATORIO — "¿ES BUENA INVERSIÓN'
+
+_VOICE_ANALYSIS_REPLACEMENT = (
+    '## ANÁLISIS DE ACCIÓN EN LLAMADA DE VOZ\n\n'
+    'Cuando el usuario pida un veredicto sobre una empresa ("¿es buena compra X?", "¿es buena inversión X?", '
+    '"¿vale la pena X?", "analízame X", etc.), NUNCA uses tablas, NUNCA una estructura de secciones numeradas, '
+    'NUNCA un "Investment Scorecard" ni un DCF con 3 escenarios leído en voz alta — eso es exclusivo del chat de '
+    'texto y no existe en esta llamada. Sigue estrictamente el protocolo conversacional de voz definido en las '
+    'instrucciones de estilo de este canal (más abajo, "ESTILO DE RESPUESTA PARA ESTE CANAL"): da un veredicto '
+    'breve en 2-3 oraciones y pregunta qué quiere explorar antes de seguir. Es un diálogo, no un reporte.'
+)
+
+
+def _strip_investment_scorecard_format(base: str) -> str:
+    """Remove the long-form 9-section text-chat analysis format from the prompt.
+
+    Used for voice calls, where that structure (tables, DCF scenarios, Investment
+    Scorecard) is unreadable aloud — relying on an in-context exception was not
+    enough to stop Claude from producing it, so it's excluded outright instead.
+    """
+    idx = base.find(_INVESTMENT_SCORECARD_MARKER)
+    if idx == -1:
+        return base
+    return base[:idx] + _VOICE_ANALYSIS_REPLACEMENT
+
+
 def build_system_prompt(
     profile: UserProfile | None = None,
     mentor: str | None = None,
@@ -1060,11 +1088,14 @@ def _build_static_system_prompt(
     profile: UserProfile | None = None,
     mentor: str | None = None,
     deep_context: str | None = None,
+    is_voice: bool = False,
 ) -> str:
     """Static part of the system prompt — eligible for Anthropic prompt caching."""
     from datetime import datetime as _dt
     today = _dt.now().strftime("%A %d de %B de %Y")
     base = SYSTEM_PROMPT_BASE.replace("{TODAY_DATE}", today)
+    if is_voice:
+        base = _strip_investment_scorecard_format(base)
     mentor_section = build_mentor_context(mentor)
     if profile:
         core = base + mentor_section + "\n\n" + build_profile_context(profile)
@@ -1115,11 +1146,12 @@ async def chat_stream(
     progress_context: str | None = None,
     is_premium: bool = False,
     style_instructions: str | None = None,
+    is_voice: bool = False,
 ):
     # Static part cached by Anthropic (base + profile + mentor + guardrails).
     # Dynamic context (memory, notifications) goes in a separate uncached block so
     # it doesn't bust the cache every message and inflate input token costs.
-    static_prompt  = _build_static_system_prompt(profile, mentor, deep_context)
+    static_prompt  = _build_static_system_prompt(profile, mentor, deep_context, is_voice=is_voice)
     dynamic_addend = _build_dynamic_system_addendum(memory_context, notification_context, fmg_context, progress_context, style_instructions)
 
     system_blocks: list[dict] = [{"type": "text", "text": static_prompt, "cache_control": {"type": "ephemeral"}}]

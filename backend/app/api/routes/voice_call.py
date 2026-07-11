@@ -49,6 +49,14 @@ _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 _MIN_SENTENCE_CHARS = 12
 
 _VOICE_STYLE_INSTRUCTIONS = (
+    "🚨 ANULACIÓN OBLIGATORIA — LEE ESTO PRIMERO: estás en una LLAMADA DE VOZ ahora mismo. "
+    "CUALQUIER instrucción anterior en este prompt que te pida un formato largo, estructurado, "
+    "con tablas, con secciones numeradas, con un 'FORMATO OBLIGATORIO', un DCF de 3 escenarios, "
+    "o un 'Investment Scorecard' — NO APLICA EN ESTA LLAMADA, sin excepción. Esas instrucciones "
+    "son solo para el chat de texto. Aquí SIEMPRE hablas corto y conversacional, como se describe "
+    "abajo, sin importar qué tan directamente la pregunta del usuario coincida con ese formato de "
+    "texto. Si sientes el impulso de dar un reporte completo, DETENTE — da 2-3 oraciones y pregunta "
+    "qué quiere explorar primero.\n\n"
     "Estás en una LLAMADA DE VOZ en tiempo real, no en un chat de texto. Habla como hablaría "
     "un amigo o mentor de carne y hueso en una conversación real:\n"
     "- Respuestas CORTAS — 1 a 3 oraciones por turno como máximo. Nunca uses listas con viñetas "
@@ -56,7 +64,19 @@ _VOICE_STYLE_INSTRUCTIONS = (
     "- Ve directo al grano, sin preámbulos ni resúmenes de lo que vas a decir.\n"
     "- Si el tema da para más, responde lo esencial primero y pregunta si quiere que profundices, "
     "en vez de soltarlo todo de una vez.\n"
-    "- Tono cálido y natural, como una charla en persona — no como un reporte financiero."
+    "- Tono cálido y natural, como una charla en persona — no como un reporte financiero.\n\n"
+    "ANÁLISIS DE UNA ACCIÓN POR VOZ — protocolo obligatorio, NUNCA el formato largo de texto "
+    "(tablas, DCF con 3 escenarios, Investment Scorecard, las 9 secciones seguidas):\n"
+    "1. Da el veredicto en 2-3 oraciones: cómo está el negocio en general y el punto más "
+    "importante que verías (ej. 'Es un negocio sólido, con un moat fuerte, pero cotiza casi "
+    "sin margen de seguridad ahora mismo').\n"
+    "2. Después pregúntale qué le interesa explorar — dale opciones concretas y breves: "
+    "'¿Quieres que hablemos de los números, del riesgo principal, o de si el precio actual "
+    "vale la pena?'\n"
+    "3. Responde SOLO lo que pidió, con la misma brevedad (1-3 oraciones), y vuelve a preguntar "
+    "si quiere seguir profundizando en otra parte.\n"
+    "4. Nunca avances al siguiente tema sin que el usuario lo pida — es su conversación, no tu "
+    "reporte. Si hablas 5 minutos seguidos sin parar, perdiste — la meta es diálogo, no monólogo."
 )
 
 
@@ -249,6 +269,7 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
                 progress_context=ctx["progress_context"],
                 is_premium=is_premium,
                 style_instructions=_VOICE_STYLE_INSTRUCTIONS,
+                is_voice=True,
             ):
                 full_reply += chunk
                 if hit_hidden_tags:
