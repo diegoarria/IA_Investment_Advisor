@@ -648,12 +648,50 @@ def _col_label(df, col: int) -> str:
             return "—"
 
 
+def _nasdaq_quote(ticker: str) -> dict | None:
+    """
+    Price-only fallback when Finnhub doesn't have a quote for this ticker —
+    Nasdaq's public quote API, no key required. Used ONLY as a last resort;
+    Finnhub (fh_quote) is the primary source everywhere in this function.
+    """
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/json",
+    }
+    for assetclass in ("stocks", "etf"):
+        try:
+            r = requests.get(
+                f"https://api.nasdaq.com/api/quote/{ticker}/info",
+                params={"assetclass": assetclass}, headers=headers, timeout=8,
+            )
+            if r.status_code != 200:
+                continue
+            d = r.json()["data"]["primaryData"]
+            curr = float(d["lastSalePrice"].replace("$", "").replace(",", ""))
+            net  = float(d["netChange"].replace("+", "").replace(",", ""))
+            prev = curr - net
+            if curr > 0:
+                return {"price": curr, "prev_close": prev if prev > 0 else None}
+        except Exception:
+            continue
+    return None
+
+
 def _build_company_context(ticker: str) -> str:
     try:
         from app.services.sec_edgar_service import get_sec_financials
+        from app.core.finnhub import fh_quote, fh_metrics, fh_profile, fh_price_target, fh_recommendation
 
-        # Fetch 9 sources in parallel:
-        # yfinance: info, quarterly & annual financials/bs/cf, news
+        # Fetch in parallel:
+        # Finnhub: quote, fundamental metrics, profile, analyst target/recommendation
+        #          (PRIMARY — real-time price/valuation snapshot, no Yahoo Finance)
+        # yfinance: quarterly & annual financial statement tables, news
+        #          (Finnhub's free tier has no equivalent full statement endpoint;
+        #          SEC EDGAR below is the authoritative source when available —
+        #          this is only a fallback layer for the statement tables)
         # SEC EDGAR: authoritative 10-Q/10-K financial statements
         # NOTE: never use `or None` on a DataFrame — bool(df) raises ValueError
         def _fetch(attr: str):
@@ -662,23 +700,39 @@ def _build_company_context(ticker: str) -> str:
             except Exception:
                 return None
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=9) as ex:
-            f_info  = ex.submit(_fetch, "info")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=12) as ex:
+            f_fh_q    = ex.submit(fh_quote, ticker)
+            f_fh_m    = ex.submit(fh_metrics, ticker)
+            f_fh_p    = ex.submit(fh_profile, ticker)
+            f_fh_tgt  = ex.submit(fh_price_target, ticker)
+            f_fh_rec  = ex.submit(fh_recommendation, ticker)
             f_qfin  = ex.submit(_fetch, "quarterly_financials")
             f_qbs   = ex.submit(_fetch, "quarterly_balance_sheet")
             f_qcf   = ex.submit(_fetch, "quarterly_cashflow")
             f_fin   = ex.submit(_fetch, "financials")       # annual fallback
             f_bs    = ex.submit(_fetch, "balance_sheet")    # annual fallback
             f_cf    = ex.submit(_fetch, "cashflow")         # annual fallback
-            f_news  = ex.submit(_fetch, "news")
             f_sec   = ex.submit(get_sec_financials, ticker)  # SEC EDGAR XBRL
 
-            info = {}; qfin = qbs = qcf = fin = bs = cf = None
-            raw_news = []; sec_block = ""
-            try:
-                r = f_info.result(timeout=15)
-                info = r if isinstance(r, dict) else {}
+            qfin = qbs = qcf = fin = bs = cf = None
+            sec_block = ""
+            fhq = fhm = fhp = fhtgt = fhrec = None
+            try: fhq = f_fh_q.result(timeout=10)
             except Exception: pass
+            try: fhm = f_fh_m.result(timeout=10)
+            except Exception: pass
+            try: fhp = f_fh_p.result(timeout=10)
+            except Exception: pass
+            try: fhtgt = f_fh_tgt.result(timeout=10)
+            except Exception: pass
+            try: fhrec = f_fh_rec.result(timeout=10)
+            except Exception: pass
+            # Nasdaq price fallback ONLY if Finnhub had nothing — no point
+            # spending the extra round-trip when Finnhub already answered.
+            if not fhq or not fhq.get("price"):
+                nq = _nasdaq_quote(ticker)
+                if nq:
+                    fhq = {**(fhq or {}), **nq}
             try: qfin = f_qfin.result(timeout=15)
             except Exception: pass
             try: qbs  = f_qbs.result(timeout=15)
@@ -692,22 +746,21 @@ def _build_company_context(ticker: str) -> str:
             try: cf   = f_cf.result(timeout=15)
             except Exception: pass
             try:
-                r = f_news.result(timeout=15)
-                raw_news = r if isinstance(r, list) else []
-            except Exception: pass
-            try:
                 r = f_sec.result(timeout=20)
                 sec_block = r if isinstance(r, str) else ""
             except Exception: pass
 
-        name = info.get("longName") or info.get("shortName") or ticker
+        fhm = fhm or {}
+        fhp = fhp or {}
+        fhq = fhq or {}
+        name = fhp.get("name") or ticker
         lines: list[str] = [f"\n### 📊 DATOS EN TIEMPO REAL — {name} ({ticker})"]
 
-        # ── Price ──
-        price      = info.get("currentPrice") or info.get("regularMarketPrice")
-        prev_close = info.get("previousClose")
-        wk52_hi    = info.get("fiftyTwoWeekHigh")
-        wk52_lo    = info.get("fiftyTwoWeekLow")
+        # ── Price — Finnhub primary, Nasdaq fallback (see _nasdaq_quote above) ──
+        price      = fhq.get("price")
+        prev_close = fhq.get("prev_close")
+        wk52_hi    = fhm.get("52WeekHigh")
+        wk52_lo    = fhm.get("52WeekLow")
 
         if price:
             lines.append(f"**Precio actual:** ${price:.2f}")
@@ -719,30 +772,38 @@ def _build_company_context(ticker: str) -> str:
             rng = f"${wk52_lo:.2f} – ${wk52_hi:.2f}" if wk52_lo else f"máx ${wk52_hi:.2f}"
             lines.append(f"**Rango 52 sem:** {rng} | vs máximo: {from_hi:+.1f}%")
 
-        # ── Valuación rápida (from info) ──
-        mkt_cap  = info.get("marketCap")
-        pe       = info.get("trailingPE")
-        fwd_pe   = info.get("forwardPE")
-        ps       = info.get("priceToSalesTrailing12Months")
-        peg      = info.get("pegRatio")
-        roe      = info.get("returnOnEquity")
-        roa      = info.get("returnOnAssets")
-        de       = info.get("debtToEquity")
-        rev_g    = info.get("revenueGrowth")
-        earn_g   = info.get("earningsGrowth")
-        gm       = info.get("grossMargins")
-        om       = info.get("operatingMargins")
-        pm       = info.get("profitMargins")
-        fcf_inf  = info.get("freeCashflow")
-        cash_inf = info.get("totalCash")
+        # ── Valuación rápida (Finnhub /stock/metric) ──
+        # Finnhub returns growth/margin/return metrics already as percentages
+        # (e.g. netProfitMarginTTM = 21.5 meaning 21.5%) — divide by 100 before
+        # passing to _fmt_pct(), which expects a 0-1 ratio and multiplies by 100.
+        mkt_cap_m = fhm.get("marketCapitalization")  # Finnhub: millions
+        mkt_cap   = mkt_cap_m * 1_000_000 if mkt_cap_m else None
+        pe       = fhm.get("peBasicExclExtraTTM") or fhm.get("peNormalizedAnnual")
+        fwd_pe   = fhm.get("forwardPE")
+        ps       = fhm.get("psTTM") or fhm.get("psAnnual")
+        peg      = fhm.get("pegTTM") or fhm.get("forwardPEG")
+        roe_pct  = fhm.get("roeTTM") if fhm.get("roeTTM") is not None else fhm.get("roeRfy")
+        roa_pct  = fhm.get("roaTTM") if fhm.get("roaTTM") is not None else fhm.get("roaRfy")
+        roe      = roe_pct / 100.0 if roe_pct is not None else None
+        roa      = roa_pct / 100.0 if roa_pct is not None else None
+        de       = fhm.get("totalDebt/totalEquityQuarterly") or fhm.get("totalDebt/totalEquityAnnual")
+        rev_g_pct  = fhm.get("revenueGrowthTTMYoy")
+        earn_g_pct = fhm.get("epsGrowthTTMYoy")
+        rev_g    = rev_g_pct / 100.0 if rev_g_pct is not None else None
+        earn_g   = earn_g_pct / 100.0 if earn_g_pct is not None else None
+        gm_pct   = fhm.get("grossMarginTTM")
+        om_pct   = fhm.get("operatingMarginTTM")
+        pm_pct   = fhm.get("netProfitMarginTTM")
+        gm       = gm_pct / 100.0 if gm_pct is not None else None
+        om       = om_pct / 100.0 if om_pct is not None else None
+        pm       = pm_pct / 100.0 if pm_pct is not None else None
 
-        lines.append("\n**Valuación y métricas clave:**")
+        lines.append("\n**Valuación y métricas clave (Finnhub):**")
         lines.append(f"- Market cap: {_fmt_num(mkt_cap)}")
         lines.append(f"- P/E: {f'{pe:.1f}' if pe else 'N/D'} | P/E fwd: {f'{fwd_pe:.1f}' if fwd_pe else 'N/D'} | P/S: {f'{ps:.1f}' if ps else 'N/D'} | PEG: {f'{peg:.1f}' if peg else 'N/D'}")
         lines.append(f"- ROE: {_fmt_pct(roe)} | ROA: {_fmt_pct(roa)} | D/E: {f'{de:.1f}' if de else 'N/D'}")
         lines.append(f"- Crecimiento ingresos YoY: {_fmt_pct(rev_g)} | Ganancias YoY: {_fmt_pct(earn_g)}")
         lines.append(f"- Márgenes: Bruto {_fmt_pct(gm)} | Operativo {_fmt_pct(om)} | Neto {_fmt_pct(pm)}")
-        lines.append(f"- FCF (TTM, info): {_fmt_num(fcf_inf)} | Efectivo: {_fmt_num(cash_inf)}")
 
         # ── Income Statement — quarterly (most recent Q vs same Q last year) ──
         fin_src = qfin if (qfin is not None and not qfin.empty) else fin
@@ -849,10 +910,24 @@ def _build_company_context(ticker: str) -> str:
             if buy_v is not None: lines.append(f"- Recompra de acciones: {_fmt_num(buy_v)}")
             if div_v is not None: lines.append(f"- Dividendos pagados: {_fmt_num(div_v)}")
 
-        # ── Analyst consensus ──
-        target     = info.get("targetMeanPrice")
-        recom      = info.get("recommendationKey", "").replace("_", " ").upper()
-        n_analysts = info.get("numberOfAnalystOpinions")
+        # ── Analyst consensus (Finnhub /stock/price-target + /stock/recommendation) ──
+        fhtgt = fhtgt or {}
+        fhrec = fhrec or {}
+        target = fhtgt.get("target_mean")
+        n_analysts = None
+        recom = ""
+        if fhrec:
+            buy_total  = (fhrec.get("buy") or 0) + (fhrec.get("strong_buy") or 0)
+            sell_total = (fhrec.get("sell") or 0) + (fhrec.get("strong_sell") or 0)
+            hold_total = fhrec.get("hold") or 0
+            n_analysts = buy_total + sell_total + hold_total
+            if n_analysts:
+                if buy_total >= sell_total and buy_total >= hold_total:
+                    recom = "COMPRA"
+                elif sell_total >= buy_total and sell_total >= hold_total:
+                    recom = "VENTA"
+                else:
+                    recom = "MANTENER"
         if target or recom:
             lines.append("\n**Consenso analistas:**")
             if recom:
@@ -866,7 +941,7 @@ def _build_company_context(ticker: str) -> str:
         if fh_earnings:
             lines.append("\n" + fh_earnings)
 
-        # ── Recent news — Finnhub (primary, more reliable) + yfinance fallback ──
+        # ── Recent news — Finnhub only (no yfinance fallback) ──
         fh_news = _fetch_finnhub_company_news(ticker, days=5)
         if fh_news:
             lines.append("\n**Noticias recientes (Finnhub):**")
@@ -874,24 +949,14 @@ def _build_company_context(ticker: str) -> str:
                 lines.append(f"- [{art['date']}] {art['headline']} — *{art['source']}*")
                 if art["summary"]:
                     lines.append(f"  ↳ {art['summary']}")
-        else:
-            # fallback to yfinance news
-            news_items = (raw_news or [])[:6]
-            if news_items:
-                lines.append("\n**Noticias recientes:**")
-                for art in news_items:
-                    title = art.get("title", "")
-                    pub   = art.get("publisher", "")
-                    ts    = art.get("providerPublishTime", 0)
-                    dt    = datetime.fromtimestamp(ts).strftime("%d/%m/%Y") if ts else "?"
-                    lines.append(f"- [{dt}] {title} — *{pub}*")
 
         # ── SEC EDGAR block (authoritative 10-Q/10-K financial statements) ──
         if sec_block:
             lines.append(sec_block)
         else:
             lines.append(
-                "\n*Fuente: Yahoo Finance. Datos trimestrales del último reporte disponible. "
+                "\n*Fuente: Finnhub (precio, valoración, analistas) + yfinance "
+                "(estados financieros trimestrales) + SEC EDGAR cuando está disponible. "
                 "Se actualiza automáticamente cuando la empresa publica nuevos resultados.*"
             )
         return "\n".join(lines)
@@ -919,5 +984,5 @@ def get_market_context_for_message(message: str) -> str:
                 pass
     if not blocks:
         return ""
-    header = "\n---\n[CONTEXTO DE MERCADO ACTUALIZADO — extraído de Yahoo Finance ahora mismo]\n"
+    header = "\n---\n[CONTEXTO DE MERCADO ACTUALIZADO — extraído en tiempo real ahora mismo]\n"
     return header + "\n".join(blocks) + "\n---"

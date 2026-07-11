@@ -204,6 +204,62 @@ def fh_metrics(symbol: str) -> dict:
     return result
 
 
+def fh_price_target(symbol: str) -> dict | None:
+    """
+    Analyst price target consensus.
+
+    Returns {target_high, target_low, target_mean, target_median, last_updated}
+    or None on error / no coverage.
+    """
+    ck = f"fh:price_target:{symbol}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
+
+    d = _get("/stock/price-target", {"symbol": symbol})
+    if not d or not d.get("targetMean"):
+        return None
+
+    result = {
+        "target_high":   d.get("targetHigh"),
+        "target_low":    d.get("targetLow"),
+        "target_mean":   d.get("targetMean"),
+        "target_median": d.get("targetMedian"),
+        "last_updated":  d.get("lastUpdated"),
+    }
+    cache_set(ck, result, ttl=6 * 3600)
+    return result
+
+
+def fh_recommendation(symbol: str) -> dict | None:
+    """
+    Most recent analyst recommendation trend (buy/hold/sell counts).
+
+    Returns {buy, hold, sell, strong_buy, strong_sell, period} for the most
+    recent period, or None on error / no coverage.
+    """
+    ck = f"fh:recommendation:{symbol}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
+
+    d = _get("/stock/recommendation", {"symbol": symbol})
+    if not d or not isinstance(d, list) or not d:
+        return None
+
+    latest = d[0]
+    result = {
+        "buy":         latest.get("buy", 0),
+        "hold":        latest.get("hold", 0),
+        "sell":        latest.get("sell", 0),
+        "strong_buy":  latest.get("strongBuy", 0),
+        "strong_sell": latest.get("strongSell", 0),
+        "period":      latest.get("period"),
+    }
+    cache_set(ck, result, ttl=6 * 3600)
+    return result
+
+
 def fh_news(symbol: str, days: int = 7) -> list[dict]:
     """
     Company news for the last `days` days.
