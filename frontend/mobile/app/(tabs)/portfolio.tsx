@@ -792,7 +792,7 @@ function PortfolioHistoryChart({
             {yTicks.map((g, i) => (
               <Text key={i} pointerEvents="none" style={{
                 position: "absolute", left: 6, top: g.y - 7,
-                fontSize: 9, fontWeight: "600", color: "#4b5563", opacity: 0.65,
+                fontSize: 9, fontWeight: "600", color: "#5b6270", opacity: 0.65,
               }}>
                 {currencySymbol}{fmtY(g.v)}
               </Text>
@@ -849,8 +849,8 @@ function PortfolioHistoryChart({
                 position: "absolute", bottom: 4,
                 left: Math.min(Math.max(hovX - 40, 0), W - 90),
               }}>
-                <Text style={{ fontSize: 9, fontWeight: "600", color: "#4b5563",
-                  backgroundColor: "#1a1d27", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 9, fontWeight: "600", color: "#8b93a3",
+                  backgroundColor: "#161a22", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
                   {fmtChartDate(hovPt.date, true)}
                 </Text>
               </View>
@@ -860,7 +860,7 @@ function PortfolioHistoryChart({
           {/* X-axis date labels */}
           <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 2, paddingHorizontal: 2 }}>
             {xIdxs.map(idx => (
-              <Text key={idx} style={{ fontSize: 9, fontWeight: "500", color: "#4b5563" }}>
+              <Text key={idx} style={{ fontSize: 9, fontWeight: "500", color: "#5b6270" }}>
                 {fmtChartDate(history[idx].date)}
               </Text>
             ))}
@@ -1001,6 +1001,8 @@ export default function PortfolioScreen() {
 
   // Edit position
   const [editingPos, setEditingPos] = useState<{ id: string; ticker: string; originalShares: number; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
+  // Which holdings row currently has its edit/delete menu expanded
+  const [rowMenu, setRowMenu] = useState<string | null>(null);
   // When editing reduces shares, we don't know if it's a sale or a data-entry
   // correction — ask, since only a real sale should be archived into the
   // since-inception performance ledger.
@@ -2128,15 +2130,13 @@ export default function PortfolioScreen() {
               const up = histPct !== undefined ? histPct >= 0 : totals.diff >= 0;
               const color = up ? "#22c55e" : "#ef4444";
               return (
-                <View style={[s.totalsCard, { backgroundColor: "#111318", borderColor: color + "30" }]}>
-                  {/* Colored accent top line */}
-                  <View style={{ height: 3, backgroundColor: color, marginHorizontal: -20, marginTop: -20, marginBottom: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20 }} />
+                <View style={{ borderRadius: 22, borderWidth: 1, borderColor: "#181b24", backgroundColor: "#0d0f14", padding: 18, marginBottom: 12 }}>
                   {loadingPrices ? (
-                    <ActivityIndicator color="#22c55e" />
+                    <ActivityIndicator color="#00d47e" />
                   ) : (
                     <>
-                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <Text style={[s.totalsLabel, { color: "#6b7280" }]}>{t("portfolio.totals.label")}</Text>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: "#5b6270", letterSpacing: 0.3 }}>{t("portfolio.totals.label")}</Text>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                           <TouchableOpacity
                             onPress={() => {
@@ -2145,48 +2145,50 @@ export default function PortfolioScreen() {
                                 message: t("portfolio.totals.shareMessage", { value: `${currencySymbol}${totals.current.toLocaleString("en-US", { maximumFractionDigits: 0 })}`, sign, pct: totals.pct.toFixed(1) }),
                               });
                             }}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             activeOpacity={0.7}>
-                            <Ionicons name="share-social-outline" size={17} color={"#6b7280"} />
+                            <Ionicons name="share-social-outline" size={16} color={"#5b6270"} />
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() => setShowCurrencyPicker(true)}
-                            style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#1a1d27", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "#1f2330" }}
+                            style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#161a22", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: "#20242f" }}
                             activeOpacity={0.7}>
                             <Text style={{ fontSize: 11, fontWeight: "800", color: "#fff" }}>{portfolioCurrency}</Text>
-                            <Ionicons name="chevron-down" size={10} color={"#4b5563"} />
+                            <Ionicons name="chevron-down" size={10} color={"#5b6270"} />
                           </TouchableOpacity>
                         </View>
                       </View>
-                      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 12 }}>
-                        <Text style={[s.totalsValue, { color: "#fff" }]}>
+                      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 14 }}>
+                        <Text style={{ fontSize: 34, fontFamily: "DMSans_800ExtraBold", color: "#fff", letterSpacing: -0.5, fontVariant: ["tabular-nums"] }}>
                           {currencySymbol}{totals.current.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Text>
                         {histPct !== undefined ? (
-                          <View style={{ alignItems: "flex-end", gap: 4 }}>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: color + "18", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 }}>
-                              <Text style={{ fontSize: 13, color }}>{up ? "▲" : "▼"}</Text>
-                              <Text style={{ fontSize: 16, fontWeight: "900", color }}>
-                                {up ? "+" : ""}{histPct.toFixed(2)}%
+                          <View style={{ alignItems: "flex-end" }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                              <Ionicons name={up ? "caret-up" : "caret-down"} size={11} color={color} />
+                              <Text style={{ fontSize: 16, fontWeight: "800", color, fontVariant: ["tabular-nums"] }}>
+                                {histPct.toFixed(2)}%
                               </Text>
                             </View>
                             {histAmt !== undefined && (
-                              <Text style={{ fontSize: 12, fontWeight: "700", color }}>
-                                {up ? "+" : ""}{currencySymbol}{Math.abs(histAmt).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                              <Text style={{ fontSize: 12, fontWeight: "700", color, marginTop: 2, fontVariant: ["tabular-nums"] }}>
+                                {up ? "+" : "-"}{currencySymbol}{Math.abs(histAmt).toLocaleString("en-US", { minimumFractionDigits: 2 })}
                               </Text>
                             )}
                           </View>
                         ) : (
-                          <View style={{ backgroundColor: (totals.diff >= 0 ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)"), borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 }}>
-                            <Text style={[s.totalsDiff, { color: totals.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
-                              {totals.diff >= 0 ? "▲ +" : "▼ "}{totals.pct.toFixed(2)}%
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                            <Ionicons name={totals.diff >= 0 ? "caret-up" : "caret-down"} size={11} color={totals.diff >= 0 ? "#00d47e" : "#ff5c5c"} />
+                            <Text style={{ fontSize: 16, fontWeight: "800", color: totals.diff >= 0 ? "#00d47e" : "#ff5c5c", fontVariant: ["tabular-nums"] }}>
+                              {totals.pct.toFixed(2)}%
                             </Text>
                           </View>
                         )}
                       </View>
-                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTopWidth: 1, borderTopColor: "#1f2330" }}>
-                        <Text style={{ fontSize: 11, color: "#6b7280" }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#181b24" }}>
+                        <Text style={{ fontSize: 11.5, color: "#5b6270" }}>
                           {t("portfolio.totals.invested")}{" "}
-                          <Text style={{ fontWeight: "700", color: "#9ca3af" }}>{currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
+                          <Text style={{ fontWeight: "700", color: "#8b93a3" }}>{currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
                           {histDate ? `  ·  ${t("portfolio.totals.since", { date: histDate })}` : ""}
                         </Text>
                         {spyPct !== undefined && histPct !== undefined && (() => {
@@ -2194,12 +2196,11 @@ export default function PortfolioScreen() {
                           const beats = diff >= 0;
                           return (
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                              <Text style={{ fontSize: 10, color: "#6b7280" }}>{t("portfolio.totals.vsSp")}</Text>
-                              <View style={{ backgroundColor: beats ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 }}>
-                                <Text style={{ fontSize: 10, fontWeight: "800", color: beats ? "#22c55e" : "#ef4444" }}>
-                                  {beats ? "▲" : "▼"} {Math.abs(diff).toFixed(2)}%
-                                </Text>
-                              </View>
+                              <Text style={{ fontSize: 10.5, color: "#5b6270" }}>{t("portfolio.totals.vsSp")}</Text>
+                              <Ionicons name={beats ? "caret-up" : "caret-down"} size={9} color={beats ? "#00d47e" : "#ff5c5c"} />
+                              <Text style={{ fontSize: 11, fontWeight: "800", color: beats ? "#00d47e" : "#ff5c5c" }}>
+                                {Math.abs(diff).toFixed(2)}%
+                              </Text>
                             </View>
                           );
                         })()}
@@ -2217,65 +2218,71 @@ export default function PortfolioScreen() {
               const displayAmt = r?.amount !== undefined ? r.amount : chartData?.period_amount;
               const up = displayPct !== undefined ? displayPct >= 0 : true;
               const color = up ? "#22c55e" : "#ef4444";
+              const mutedGain = up ? "#00d47e" : "#ff5c5c";
               return (
-                <View style={{ borderRadius: 20, overflow: "hidden", borderWidth: 1, borderColor: `${color}28`, backgroundColor: "#111318", marginBottom: 12 }}>
-                  {/* Top accent line */}
-                  <View style={{ height: 2.5, backgroundColor: color }} />
+                <View style={{ borderRadius: 22, overflow: "hidden", borderWidth: 1, borderColor: "#181b24", backgroundColor: "#0d0f14", marginBottom: 12 }}>
 
                   {/* Stats header */}
-                  <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 }}>
+                  <View style={{ paddingHorizontal: 18, paddingTop: 16, paddingBottom: 10 }}>
                     <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
                       <View>
-                        <Text style={{ fontSize: 9, fontWeight: "800", color: "#4b5563", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>
+                        <Text style={{ fontSize: 10, fontWeight: "800", color: "#5b6270", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>
                           {hovData ? t("portfolio.chart.onThisDate") : t("portfolio.chart.historical")}
                         </Text>
                         {hovData ? (
-                          <Text style={{ fontSize: 9, color: "#4b5563" }}>{fmtChartDate(hovData.date, true)}</Text>
+                          <Text style={{ fontSize: 10, color: "#5b6270" }}>{fmtChartDate(hovData.date, true)}</Text>
                         ) : r?.date ? (
-                          <Text style={{ fontSize: 9, color: "#4b5563" }}>{t("portfolio.chart.since", { date: r.date })}</Text>
+                          <Text style={{ fontSize: 10, color: "#5b6270" }}>{t("portfolio.chart.since", { date: r.date })}</Text>
                         ) : null}
                       </View>
                       <View style={{ alignItems: "flex-end" }}>
                         {hovData ? (
                           <>
-                            <Text style={{ fontSize: 26, fontWeight: "900", color: hovData.isUp ? "#22c55e" : "#ef4444", lineHeight: 28 }}>
+                            <Text style={{ fontSize: 26, fontFamily: "DMSans_800ExtraBold", color: hovData.isUp ? "#00d47e" : "#ff5c5c", lineHeight: 28, fontVariant: ["tabular-nums"] }}>
                               {currencySymbol}{hovData.value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </Text>
-                            <Text style={{ fontSize: 13, fontWeight: "800", color: hovData.isUp ? "#22c55e" : "#ef4444", marginTop: 2 }}>
-                              {hovData.isUp ? "+" : ""}{hovData.chgP.toFixed(2)}%
-                            </Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 3 }}>
+                              <Ionicons name={hovData.isUp ? "caret-up" : "caret-down"} size={10} color={hovData.isUp ? "#00d47e" : "#ff5c5c"} />
+                              <Text style={{ fontSize: 13, fontWeight: "800", color: hovData.isUp ? "#00d47e" : "#ff5c5c", fontVariant: ["tabular-nums"] }}>
+                                {hovData.chgP.toFixed(2)}%
+                              </Text>
+                            </View>
                           </>
                         ) : displayPct !== undefined ? (
                           <>
-                            <Text style={{ fontSize: 26, fontWeight: "900", color, lineHeight: 28 }}>
-                              {up ? "+" : ""}{displayPct.toFixed(2)}%
-                            </Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                              <Ionicons name={up ? "caret-up" : "caret-down"} size={16} color={mutedGain} />
+                              <Text style={{ fontSize: 26, fontFamily: "DMSans_800ExtraBold", color: mutedGain, lineHeight: 28, fontVariant: ["tabular-nums"] }}>
+                                {displayPct.toFixed(2)}%
+                              </Text>
+                            </View>
                             {displayAmt !== undefined && (
-                              <Text style={{ fontSize: 12, fontWeight: "700", color, marginTop: 2 }}>
-                                {up ? "+" : ""}{currencySymbol}{Math.abs(displayAmt).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              <Text style={{ fontSize: 12.5, fontWeight: "700", color: mutedGain, marginTop: 2, fontVariant: ["tabular-nums"] }}>
+                                {up ? "+" : "-"}{currencySymbol}{Math.abs(displayAmt).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </Text>
                             )}
                           </>
                         ) : chartLoading ? (
-                          <Text style={{ fontSize: 18, color: "#6b7280" }}>···</Text>
+                          <Text style={{ fontSize: 18, color: "#5b6270" }}>···</Text>
                         ) : null}
                       </View>
                     </View>
 
                     {/* vs S&P 500 */}
                     {r?.spy_pct !== undefined && displayPct !== undefined && (
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
-                        <Text style={{ fontSize: 10, fontWeight: "600", color: "#6b7280" }}>{t("portfolio.chart.vsSp500")}</Text>
-                        <Text style={{ fontSize: 11, fontWeight: "800", color: r.spy_pct >= 0 ? "#22c55e" : "#ef4444" }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 7, marginTop: 10 }}>
+                        <Text style={{ fontSize: 10.5, fontWeight: "600", color: "#5b6270" }}>{t("portfolio.chart.vsSp500")}</Text>
+                        <Text style={{ fontSize: 11, fontWeight: "800", color: r.spy_pct >= 0 ? "#00d47e" : "#ff5c5c" }}>
                           {r.spy_pct >= 0 ? "+" : ""}{r.spy_pct.toFixed(2)}%
                         </Text>
                         {(() => {
                           const diff = displayPct - r.spy_pct;
                           const beats = diff >= 0;
                           return (
-                            <View style={{ backgroundColor: beats ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 }}>
-                              <Text style={{ fontSize: 10, fontWeight: "800", color: beats ? "#22c55e" : "#ef4444" }}>
-                                {beats ? "▲" : "▼"} {Math.abs(diff).toFixed(2)}% {beats ? t("portfolio.chart.better") : t("portfolio.chart.worse")}
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: beats ? "rgba(0,212,126,0.10)" : "rgba(255,92,92,0.10)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 }}>
+                              <Ionicons name={beats ? "caret-up" : "caret-down"} size={9} color={beats ? "#00d47e" : "#ff5c5c"} />
+                              <Text style={{ fontSize: 10, fontWeight: "800", color: beats ? "#00d47e" : "#ff5c5c" }}>
+                                {Math.abs(diff).toFixed(2)}% {beats ? t("portfolio.chart.better") : t("portfolio.chart.worse")}
                               </Text>
                             </View>
                           );
@@ -2288,59 +2295,59 @@ export default function PortfolioScreen() {
                   <View style={{ paddingHorizontal: 10, paddingBottom: 4 }}>
                     {chartLoading ? (
                       <View style={{ height: 230, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 }}>
-                        <ActivityIndicator size="small" color={"#6b7280"} />
-                        <Text style={{ fontSize: 11, color: "#6b7280" }}>{t("portfolio.chart.loadingHistory")}</Text>
+                        <ActivityIndicator size="small" color={"#5b6270"} />
+                        <Text style={{ fontSize: 11, color: "#5b6270" }}>{t("portfolio.chart.loadingHistory")}</Text>
                       </View>
                     ) : chartData && chartData.history.length >= 2 ? (
                       <PortfolioHistoryChart
                         history={chartData.history}
-                        color={color}
+                        color={mutedGain}
                         currencySymbol={currencySymbol}
                         onHoverChange={setHovData}
                       />
                     ) : !chartLoading ? (
                       <View style={{ height: 230, alignItems: "center", justifyContent: "center" }}>
-                        <Text style={{ fontSize: 11, color: "#4b5563" }}>{t("portfolio.chart.noHistory")}</Text>
+                        <Text style={{ fontSize: 11, color: "#3b3f4a" }}>{t("portfolio.chart.noHistory")}</Text>
                       </View>
                     ) : null}
                   </View>
 
                   {/* Period pills — below chart, inside card */}
-                  <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#1f2330", marginTop: 4 }}>
+                  <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#181b24", marginTop: 4 }}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, gap: 6 }}>
                       {PERIODS.map(({ key, label, premium: needsPremium }) => {
                         const locked = needsPremium && !isPremiumAccess;
                         const ret = locked ? null : periodReturns[key];
                         const isSel = selectedPeriod === key;
                         const isUp = ret ? ret.pct >= 0 : null;
-                        const pillColor = locked ? "#6b7280" : (isUp === true ? "#22c55e" : isUp === false ? "#ef4444" : "#00d47e");
+                        const pillColor = locked ? "#5b6270" : (isUp === true ? "#00d47e" : isUp === false ? "#ff5c5c" : "#00d47e");
                         return (
                           <TouchableOpacity
                             key={key}
                             onPress={() => locked ? setPaywallOpen(true) : setSelectedPeriod(key)}
                             style={{
-                              alignItems: "center", paddingHorizontal: 12, paddingVertical: 7,
-                              borderRadius: 10,
-                              backgroundColor: locked ? "#1a1d27" : isSel ? pillColor + "18" : "transparent",
+                              alignItems: "center", paddingHorizontal: 13, paddingVertical: 7,
+                              borderRadius: 20,
+                              backgroundColor: locked ? "#161a22" : isSel ? pillColor : "#161a22",
                               borderWidth: 1,
-                              borderColor: locked ? "#1f2330" : isSel ? pillColor + "55" : "transparent",
+                              borderColor: locked ? "#20242f" : isSel ? pillColor : "#20242f",
                               opacity: locked ? 0.75 : 1,
                             }}>
-                            <Text style={{ fontSize: 12, fontWeight: isSel ? "800" : "600", color: locked ? "#6b7280" : isSel ? pillColor : "#6b7280" }}>
+                            <Text style={{ fontSize: 12, fontWeight: isSel ? "800" : "600", color: locked ? "#5b6270" : isSel ? "#04150e" : "#8b93a3" }}>
                               {locked ? `🔒 ${label}` : label}
                             </Text>
                             {locked ? (
-                              <Text style={{ fontSize: 9, fontWeight: "700", color: "#22c55e", marginTop: 1, opacity: 0.15 }}>
+                              <Text style={{ fontSize: 9, fontWeight: "700", color: "#00d47e", marginTop: 1, opacity: 0.15 }}>
                                 +9.9%
                               </Text>
                             ) : ret && !loadingReturns ? (
-                              <Text style={{ fontSize: 9, fontWeight: "700", color: isUp ? "#22c55e" : "#ef4444", marginTop: 1 }}>
+                              <Text style={{ fontSize: 9, fontWeight: "700", color: isSel ? "#04150e" : (isUp ? "#00d47e" : "#ff5c5c"), marginTop: 1, opacity: isSel ? 0.75 : 1 }}>
                                 {isUp ? "+" : ""}{ret.pct.toFixed(1)}%
                               </Text>
                             ) : loadingReturns ? (
-                              <Text style={{ fontSize: 9, color: "#4b5563", marginTop: 1 }}>···</Text>
+                              <Text style={{ fontSize: 9, color: "#3b3f4a", marginTop: 1 }}>···</Text>
                             ) : (
-                              <Text style={{ fontSize: 9, color: "#4b5563", marginTop: 1 }}>—</Text>
+                              <Text style={{ fontSize: 9, color: "#3b3f4a", marginTop: 1 }}>—</Text>
                             )}
                           </TouchableOpacity>
                         );
@@ -2349,7 +2356,7 @@ export default function PortfolioScreen() {
                   </View>
 
                   {/* Source */}
-                  <Text style={{ fontSize: 9, color: "#4b5563", paddingHorizontal: 16, paddingBottom: 10, opacity: 0.7 }}>
+                  <Text style={{ fontSize: 9, color: "#3b3f4a", paddingHorizontal: 18, paddingBottom: 12, opacity: 0.7 }}>
                     {t("portfolio.chart.source")}
                   </Text>
                 </View>
@@ -2454,144 +2461,144 @@ export default function PortfolioScreen() {
               );
             })()}
 
-            {/* ── TABLA DE POSICIONES (estilo broker) ── */}
-            <View style={{ borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: "#1f2330", backgroundColor: "#111318", marginBottom: 12 }}>
+            {/* ── HOLDINGS (estilo Robinhood) ── */}
+            <View style={{ marginBottom: 12 }}>
 
-              {/* Table toolbar */}
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#1f2330", backgroundColor: "#1a1d27" }}>
-                <Text style={{ fontSize: 10, fontWeight: "800", color: "#4b5563", letterSpacing: 1, textTransform: "uppercase" }}>
+              {/* Section header */}
+              <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 12, paddingHorizontal: 2 }}>
+                <Text style={{ fontSize: 17, fontFamily: "DMSans_800ExtraBold", color: "#fff", letterSpacing: -0.2 }}>
+                  {t("portfolio.table.holdingsTitle")}
+                </Text>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: "#5b6270" }}>
                   {sortedPositions.length} {sortedPositions.length !== 1 ? t("portfolio.table.positionsPlural") : t("portfolio.table.position")}
                 </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={{ flexDirection: "row", gap: 5 }}>
-                    {([
-                      { field: "return"   as const, label: t("portfolio.table.sortReturn") },
-                      { field: "invested" as const, label: t("portfolio.table.sortInvested") },
-                      { field: "price"    as const, label: t("portfolio.table.sortPrice") },
-                    ]).map(({ field, label }) => {
-                      const active = sortField === field;
-                      return (
-                        <TouchableOpacity key={field} onPress={() => handleSort(field)}
-                          style={{ flexDirection: "row", alignItems: "center", gap: 3,
-                            paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8,
-                            backgroundColor: active ? "rgba(0,212,126,0.13)" : "#0a0d12",
-                            borderWidth: 1, borderColor: active ? "rgba(0,212,126,0.4)" : "#1f2330" }}>
-                          <Text style={{ fontSize: 10, fontWeight: "700", color: active ? "#00d47e" : "#6b7280" }}>
-                            {label}{active ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </ScrollView>
               </View>
 
-              {/* Column headers */}
-              <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#1f2330" }}>
-                <Text style={{ flex: 5, fontSize: 9, fontWeight: "700", color: "#4b5563", letterSpacing: 0.6, textTransform: "uppercase" }}>{t("portfolio.table.colStock")}</Text>
-                <Text style={{ flex: 3, fontSize: 9, fontWeight: "700", color: "#4b5563", letterSpacing: 0.6, textTransform: "uppercase", textAlign: "right" }}>{t("portfolio.table.colValue")}</Text>
-                <Text style={{ flex: 3, fontSize: 9, fontWeight: "700", color: "#4b5563", letterSpacing: 0.6, textTransform: "uppercase", textAlign: "right" }}>{t("portfolio.table.colGain")}</Text>
-                <View style={{ width: 52 }} />
-              </View>
+              {/* Sort control */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ paddingHorizontal: 2 }}>
+                <View style={{ flexDirection: "row", gap: 6 }}>
+                  {([
+                    { field: "return"   as const, label: t("portfolio.table.sortReturn") },
+                    { field: "invested" as const, label: t("portfolio.table.sortInvested") },
+                    { field: "price"    as const, label: t("portfolio.table.sortPrice") },
+                  ]).map(({ field, label }) => {
+                    const active = sortField === field;
+                    return (
+                      <TouchableOpacity key={field} onPress={() => handleSort(field)} activeOpacity={0.75}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 4,
+                          paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+                          backgroundColor: active ? "#00d47e" : "#161a22",
+                          borderWidth: 1, borderColor: active ? "#00d47e" : "#20242f" }}>
+                        <Text style={{ fontSize: 11.5, fontWeight: "800", color: active ? "#04150e" : "#8b93a3" }}>
+                          {label}
+                        </Text>
+                        {active && (
+                          <Ionicons name={sortDir === "desc" ? "arrow-down" : "arrow-up"} size={10} color="#04150e" />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
 
               {/* Rows */}
-              {sortedPositions.map((pos, idx) => {
-                const pd = prices[pos.ticker];
-                const cpUSD = pd?.price;
-                const cp = cpUSD ? cpUSD * fxRate : null;
-                const hasCost = pos.avgPrice > 0;
-                const currentVal = cp ? pos.shares * cp : null;
-                const investedVal = hasCost ? pos.shares * pos.avgPrice * fxRate : null;
-                const diff = currentVal !== null && investedVal !== null ? currentVal - investedVal : null;
-                const pct = diff !== null && investedVal! > 0 ? (diff / investedVal!) * 100 : null;
-                const isUp = diff !== null ? diff >= 0 : null;
-                const rowColor = isUp === true ? "#22c55e" : isUp === false ? "#ef4444" : "#1f2330";
+              <View style={{ borderRadius: 22, backgroundColor: "#0d0f14", borderWidth: 1, borderColor: "#181b24" }}>
+                {sortedPositions.map((pos, idx) => {
+                  const pd = prices[pos.ticker];
+                  const cpUSD = pd?.price;
+                  const cp = cpUSD ? cpUSD * fxRate : null;
+                  const hasCost = pos.avgPrice > 0;
+                  const currentVal = cp ? pos.shares * cp : null;
+                  const investedVal = hasCost ? pos.shares * pos.avgPrice * fxRate : null;
+                  const diff = currentVal !== null && investedVal !== null ? currentVal - investedVal : null;
+                  const pct = diff !== null && investedVal! > 0 ? (diff / investedVal!) * 100 : null;
+                  const isUp = diff !== null ? diff >= 0 : null;
+                  const gainColor = isUp === true ? "#00d47e" : isUp === false ? "#ff5c5c" : "#5b6270";
+                  const sharesLabel = `${pos.shares % 1 === 0 ? pos.shares : pos.shares.toFixed(3)} ${t("portfolio.preview.sharesAbbrev")}`;
 
-                const fmtCompact = (v: number) => {
-                  const abs = Math.abs(v);
-                  if (abs >= 1e6) return `${currencySymbol}${(abs / 1e6).toFixed(1)}M`;
-                  if (abs >= 1e3) return `${currencySymbol}${(abs / 1e3).toFixed(1)}K`;
-                  return `${currencySymbol}${abs.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-                };
+                  const fmtCompact = (v: number) => {
+                    const abs = Math.abs(v);
+                    if (abs >= 1e6) return `${currencySymbol}${(abs / 1e6).toFixed(2)}M`;
+                    if (abs >= 1e4) return `${currencySymbol}${(abs / 1e3).toFixed(1)}K`;
+                    return `${currencySymbol}${abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                  };
 
-                return (
-                  <View key={pos.id}>
-                    <TouchableOpacity
-                      activeOpacity={0.75}
-                      onPress={() => router.push(`/stock/${pos.ticker}` as any)}
-                      style={{ flexDirection: "row", alignItems: "center", paddingVertical: 11, paddingRight: 10 }}
-                    >
-                      {/* Left accent bar */}
-                      <View style={{ width: 3, alignSelf: "stretch", backgroundColor: rowColor, marginRight: 11, borderRadius: 2 }} />
+                  return (
+                    <View key={pos.id}>
+                      <TouchableOpacity
+                        activeOpacity={0.6}
+                        onPress={() => router.push(`/stock/${pos.ticker}` as any)}
+                        style={{ flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingLeft: 14, paddingRight: 6 }}
+                      >
+                        <StockAvatar ticker={pos.ticker} size={42} />
 
-                      {/* Logo + ticker + meta */}
-                      <View style={{ flex: 5, flexDirection: "row", alignItems: "center", gap: 9 }}>
-                        <StockAvatar ticker={pos.ticker} size={34} />
-                        <View style={{ flexShrink: 1 }}>
-                          <Text style={{ fontSize: 13, fontWeight: "800", color: "#fff" }} numberOfLines={1}>{pos.ticker}</Text>
-                          <Text style={{ fontSize: 10, color: "#6b7280", marginTop: 1 }} numberOfLines={1}>
-                            {pos.shares % 1 === 0 ? pos.shares : pos.shares.toFixed(3)} {t("portfolio.preview.sharesAbbrev")}{hasCost ? ` · ${currencySymbol}${(pos.avgPrice * fxRate).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/${t("portfolio.preview.sharesAbbrev")}` : ""}
+                        {/* Ticker + name/shares */}
+                        <View style={{ flex: 1, marginLeft: 12, marginRight: 8 }}>
+                          <Text style={{ fontSize: 15, fontFamily: "DMSans_700Bold", color: "#fff", letterSpacing: -0.1 }} numberOfLines={1}>
+                            {pos.ticker}
+                          </Text>
+                          <Text style={{ fontSize: 12, color: "#5b6270", marginTop: 2 }} numberOfLines={1}>
+                            {pd?.name || sharesLabel}
                           </Text>
                         </View>
-                      </View>
 
-                      {/* Current value + cost */}
-                      <View style={{ flex: 3, alignItems: "flex-end" }}>
-                        <Text style={{ fontSize: 13, fontWeight: "700", color: "#fff" }}>
-                          {currentVal != null ? fmtCompact(currentVal) : "—"}
-                        </Text>
-                        {investedVal != null && (
-                          <Text style={{ fontSize: 10, color: "#6b7280", marginTop: 1 }}>
-                            {fmtCompact(investedVal)} {t("portfolio.table.investedShort")}
+                        {/* Value + P&L */}
+                        <View style={{ alignItems: "flex-end", minWidth: 84 }}>
+                          <Text style={{ fontSize: 14.5, fontFamily: "DMSans_700Bold", color: "#fff", fontVariant: ["tabular-nums"] }}>
+                            {currentVal != null ? fmtCompact(currentVal) : "—"}
                           </Text>
-                        )}
-                      </View>
-
-                      {/* P&L % + $ */}
-                      <View style={{ flex: 3, alignItems: "flex-end" }}>
-                        {pct !== null && diff !== null ? (
-                          <>
-                            <View style={{ backgroundColor: rowColor + "20", borderRadius: 7, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 2 }}>
-                              <Text style={{ fontSize: 11, fontWeight: "900", color: rowColor }}>
-                                {isUp ? "+" : ""}{pct.toFixed(2)}%
+                          {pct !== null && diff !== null ? (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 3 }}>
+                              <Ionicons name={isUp ? "caret-up" : "caret-down"} size={9} color={gainColor} />
+                              <Text style={{ fontSize: 12.5, fontWeight: "700", color: gainColor, fontVariant: ["tabular-nums"] }}>
+                                {Math.abs(pct).toFixed(2)}%
                               </Text>
                             </View>
-                            <Text style={{ fontSize: 10, fontWeight: "600", color: rowColor }}>
-                              {isUp ? "+" : "-"}{fmtCompact(Math.abs(diff))}
-                            </Text>
-                          </>
-                        ) : (
-                          <Text style={{ fontSize: 11, color: "#4b5563" }}>—</Text>
-                        )}
-                      </View>
+                          ) : (
+                            <Text style={{ fontSize: 11, color: "#3b3f4a", marginTop: 3 }}>—</Text>
+                          )}
+                        </View>
 
-                      {/* Actions */}
-                      <View style={{ width: 52, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4, paddingLeft: 4 }}>
+                        {/* Row menu */}
                         <TouchableOpacity
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            setEditSaleChoice(null); setEditSalePrice("");
-                            setEditingPos({ id: pos.id, ticker: pos.ticker, originalShares: pos.shares, shares: String(pos.shares), avgPrice: portfolioCurrency === "USD" ? String(pos.avgPrice) : String(parseFloat((pos.avgPrice * fxRate).toFixed(4))), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] });
-                          }}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
-                          activeOpacity={0.7}>
-                          <Ionicons name="pencil-outline" size={14} color={"#4b5563"} />
+                          onPress={(e) => { e.stopPropagation(); setRowMenu(rowMenu === pos.id ? null : pos.id); }}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          activeOpacity={0.6}
+                          style={{ width: 30, alignItems: "center", justifyContent: "center", marginLeft: 4 }}>
+                          <Ionicons name="ellipsis-vertical" size={16} color="#3b3f4a" />
                         </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={(e) => { e.stopPropagation(); posthog.capture("portfolio_position_removed", { ticker: pos.ticker }); setSellPrice(""); setSellConfirm({ id: pos.id, ticker: pos.ticker, shares: pos.shares }); }}
-                          hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
-                          activeOpacity={0.7}>
-                          <Ionicons name="trash-outline" size={14} color="#ef444470" />
-                        </TouchableOpacity>
-                      </View>
-                    </TouchableOpacity>
+                      </TouchableOpacity>
 
-                    {idx < sortedPositions.length - 1 && (
-                      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: "#1f2330", marginLeft: 58 }} />
-                    )}
-                  </View>
-                );
-              })}
+                      {rowMenu === pos.id && (
+                        <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingBottom: 12, marginTop: -4 }}>
+                          <TouchableOpacity
+                            onPress={() => {
+                              setRowMenu(null);
+                              setEditSaleChoice(null); setEditSalePrice("");
+                              setEditingPos({ id: pos.id, ticker: pos.ticker, originalShares: pos.shares, shares: String(pos.shares), avgPrice: portfolioCurrency === "USD" ? String(pos.avgPrice) : String(parseFloat((pos.avgPrice * fxRate).toFixed(4))), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] });
+                            }}
+                            activeOpacity={0.75}
+                            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 12, backgroundColor: "#161a22", borderWidth: 1, borderColor: "#20242f" }}>
+                            <Ionicons name="pencil-outline" size={13} color="#c5cad4" />
+                            <Text style={{ fontSize: 12.5, fontWeight: "700", color: "#c5cad4" }}>{t("common.edit") || "Editar"}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => { setRowMenu(null); posthog.capture("portfolio_position_removed", { ticker: pos.ticker }); setSellPrice(""); setSellConfirm({ id: pos.id, ticker: pos.ticker, shares: pos.shares }); }}
+                            activeOpacity={0.75}
+                            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 12, backgroundColor: "rgba(255,92,92,0.08)", borderWidth: 1, borderColor: "rgba(255,92,92,0.25)" }}>
+                            <Ionicons name="trash-outline" size={13} color="#ff5c5c" />
+                            <Text style={{ fontSize: 12.5, fontWeight: "700", color: "#ff5c5c" }}>{t("common.delete") || "Eliminar"}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {idx < sortedPositions.length - 1 && (
+                        <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: "#181b24", marginLeft: 68 }} />
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
             </View>
           </>
         ) : null}

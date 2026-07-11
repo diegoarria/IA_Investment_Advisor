@@ -1148,6 +1148,7 @@
       "timeYears": "~{{count}} years"
     },
     "table": {
+      "holdingsTitle": "Your stocks",
       "position": "position",
       "positionsPlural": "positions",
       "sortReturn": "Return",

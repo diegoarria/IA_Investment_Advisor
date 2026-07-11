@@ -57,7 +57,7 @@ function MarketStateBadge({ state }: { state: string }) {
     return (
       <View style={[badge.wrap, { backgroundColor: "rgba(34,197,94,0.12)" }]}>
         <View style={badge.dot} />
-        <Text style={[badge.text, { color: "#22c55e" }]}>{t("watchlist.marketState.live")}</Text>
+        <Text style={[badge.text, { color: "#00d47e" }]}>{t("watchlist.marketState.live")}</Text>
       </View>
     );
   }
@@ -84,7 +84,7 @@ function MarketStateBadge({ state }: { state: string }) {
 
 const badge = StyleSheet.create({
   wrap: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#22c55e" },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#00d47e" },
   text: { fontSize: 10, fontWeight: "700", letterSpacing: 0.2 },
 });
 
@@ -108,7 +108,7 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRe
   const { t } = useTranslation();
   const p = prices[item.ticker] as ExtPrice | undefined;
   const dayUp  = (p?.change_pct ?? 0) >= 0;
-  const dayCol = dayUp ? "#22c55e" : "#ef4444";
+  const dayCol = dayUp ? "#00d47e" : "#ff5c5c";
   const ms = (p?.market_state ?? "").toUpperCase();
   const showPre  = (ms === "PRE"  || ms === "PREPRE")  && !!p?.pre_market_price;
   const showPost = (ms === "POST" || ms === "POSTPOST") && !!p?.post_market_price;
@@ -122,9 +122,7 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRe
   const primaryPctColor = showPre ? "#f59e0b" : showPost ? "#818cf8" : dayCol;
 
   return (
-    <View style={[rw.row, { borderTopColor: "#1f2330" }]}>
-      <View style={[rw.colorBar, { backgroundColor: dayCol }]} />
-
+    <View style={[rw.row, { borderTopColor: "#181b24" }]}>
       {editMode ? (
         <View style={rw.reorderCol}>
           <TouchableOpacity
@@ -133,7 +131,7 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRe
             style={[rw.arrowBtn, { opacity: index === 0 ? 0.2 : 1 }]}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           >
-            <Ionicons name="chevron-up" size={18} color="#9ca3af" />
+            <Ionicons name="chevron-up" size={18} color="#8b93a3" />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => onMoveDown(index)}
@@ -141,7 +139,7 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRe
             style={[rw.arrowBtn, { opacity: index === itemCount - 1 ? 0.2 : 1 }]}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           >
-            <Ionicons name="chevron-down" size={18} color="#9ca3af" />
+            <Ionicons name="chevron-down" size={18} color="#8b93a3" />
           </TouchableOpacity>
         </View>
       ) : null}
@@ -149,21 +147,21 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRe
       <TouchableOpacity
         style={rw.inner}
         onPress={() => router.push(`/stock/${item.ticker}` as any)}
-        activeOpacity={0.7}
+        activeOpacity={0.6}
       >
-        <StockAvatar ticker={item.ticker} size={38} />
+        <StockAvatar ticker={item.ticker} size={42} />
 
-        <View style={{ flex: 1, marginLeft: 10 }}>
+        <View style={{ flex: 1, marginLeft: 12 }}>
           <View style={rw.tickerRow}>
             <Text style={[rw.ticker, { color: "#fff" }]}>{item.ticker}</Text>
             {p && <MarketStateBadge state={p.market_state} />}
           </View>
-          <Text style={[rw.name, { color: "#6b7280" }]} numberOfLines={1}>
+          <Text style={[rw.name, { color: "#5b6270" }]} numberOfLines={1}>
             {p?.name ?? item.name}
           </Text>
           {(showPre || showPost) && p?.change_pct != null && (
             <View style={rw.dayChangeRow}>
-              <Ionicons name={dayUp ? "trending-up" : "trending-down"} size={10} color={dayCol} />
+              <Ionicons name={dayUp ? "caret-up" : "caret-down"} size={9} color={dayCol} />
               <Text style={[rw.dayChangeText, { color: dayCol }]}>
                 {fmtPct(p.change_pct)} {t("watchlist.row.vsPrevClose")}
               </Text>
@@ -172,23 +170,23 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRe
         </View>
 
         <View style={rw.rightCol}>
-          <Text style={[rw.price, { color: primaryColor }]}>
+          <Text style={[rw.price, { color: primaryColor, fontVariant: ["tabular-nums"] }]}>
             {primaryPrice != null ? fmtPrice(primaryPrice, p?.currency) : "—"}
           </Text>
           {primaryPct != null && (
             <View style={rw.pctRow}>
               <Ionicons
-                name={(primaryPct ?? 0) >= 0 ? "trending-up" : "trending-down"}
-                size={11}
+                name={(primaryPct ?? 0) >= 0 ? "caret-up" : "caret-down"}
+                size={9}
                 color={primaryPctColor}
               />
-              <Text style={[rw.changePct, { color: primaryPctColor }]}>
+              <Text style={[rw.changePct, { color: primaryPctColor, fontVariant: ["tabular-nums"] }]}>
                 {fmtPct(primaryPct)}
               </Text>
             </View>
           )}
           {(showPre || showPost) && p?.price != null && (
-            <Text style={[rw.closeLabel, { color: "#6b7280" }]}>
+            <Text style={[rw.closeLabel, { color: "#5b6270" }]}>
               {showPre ? t("watchlist.row.regShort") : t("watchlist.row.close")} {fmtPrice(p.price, p.currency)}
             </Text>
           )}
@@ -214,16 +212,16 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRe
           >
             <Ionicons
               name={hasAlert ? "notifications" : "notifications-outline"}
-              size={17}
-              color={hasAlert ? "#00d47e" : "#4b5563"}
+              size={16}
+              color={hasAlert ? "#00d47e" : "#3b3f4a"}
             />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => onRemove(item.ticker)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            style={{ paddingHorizontal: 8 }}
+            style={{ paddingHorizontal: 6, paddingRight: 4 }}
           >
-            <Ionicons name="close-outline" size={18} color="#4b5563" />
+            <Ionicons name="close-outline" size={17} color="#3b3f4a" />
           </TouchableOpacity>
         </View>
       )}
@@ -232,20 +230,19 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRe
 }
 
 const rw = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", minHeight: 72, borderTopWidth: StyleSheet.hairlineWidth },
-  colorBar: { width: 3, alignSelf: "stretch" },
-  reorderCol: { width: 38, alignItems: "center", justifyContent: "center", gap: 0 },
+  row: { flexDirection: "row", alignItems: "center", minHeight: 76, borderTopWidth: StyleSheet.hairlineWidth, paddingLeft: 14 },
+  reorderCol: { width: 32, alignItems: "center", justifyContent: "center", gap: 0 },
   arrowBtn: { paddingVertical: 4, paddingHorizontal: 4 },
-  inner: { flex: 1, flexDirection: "row", alignItems: "center", paddingRight: 6, paddingVertical: 10 },
+  inner: { flex: 1, flexDirection: "row", alignItems: "center", paddingRight: 8, paddingVertical: 12 },
   tickerRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
-  ticker: { fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
-  name: { fontSize: 11, marginBottom: 1 },
+  ticker: { fontSize: 15, fontFamily: "DMSans_700Bold", letterSpacing: -0.1 },
+  name: { fontSize: 12, marginBottom: 1 },
   dayChangeRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
   dayChangeText: { fontSize: 10, fontWeight: "600" },
   rightCol: { alignItems: "flex-end", gap: 2, marginLeft: 8 },
-  price: { fontSize: 14, fontWeight: "700" },
-  pctRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 1 },
-  changePct: { fontSize: 11, fontWeight: "700" },
+  price: { fontSize: 14.5, fontFamily: "DMSans_700Bold" },
+  pctRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 3 },
+  changePct: { fontSize: 12.5, fontWeight: "700" },
   closeLabel: { fontSize: 10, marginTop: 1 },
 });
 
@@ -435,9 +432,9 @@ export default function WatchlistScreen() {
                 <Ionicons
                   name={active ? iconFilled : icon}
                   size={14}
-                  color={active ? "#00d47e" : "#6b7280"}
+                  color={active ? "#00d47e" : "#5b6270"}
                 />
-                <Text style={[s.subTabText, { color: active ? "#fff" : "#6b7280" }]}>
+                <Text style={[s.subTabText, { color: active ? "#fff" : "#5b6270" }]}>
                   {label}
                 </Text>
               </TouchableOpacity>
@@ -454,12 +451,12 @@ export default function WatchlistScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Search */}
-          <View style={[s.searchWrap, { borderColor: isTour ? "#00d47e" : "#1f2330", borderWidth: isTour ? 2 : 1 }]}>
-            <Ionicons name="search-outline" size={16} color="#6b7280" />
+          <View style={[s.searchWrap, { borderColor: isTour ? "#00d47e" : "#181b24", borderWidth: isTour ? 2 : 1 }]}>
+            <Ionicons name="search-outline" size={16} color="#5b6270" />
             <TextInput
               style={s.searchInput}
               placeholder={t("watchlist.search.placeholder")}
-              placeholderTextColor="#374151"
+              placeholderTextColor="#3b3f4a"
               value={query}
               onChangeText={handleSearch}
               autoCapitalize="characters"
@@ -468,7 +465,7 @@ export default function WatchlistScreen() {
             {searching && <ActivityIndicator size="small" color="#00d47e" />}
             {query.length > 0 && !searching && (
               <TouchableOpacity onPress={() => { setQuery(""); setSuggestions([]); }}>
-                <Ionicons name="close-circle" size={16} color="#6b7280" />
+                <Ionicons name="close-circle" size={16} color="#5b6270" />
               </TouchableOpacity>
             )}
           </View>
@@ -479,7 +476,7 @@ export default function WatchlistScreen() {
               {suggestions.map((sg) => (
                 <TouchableOpacity
                   key={sg.ticker}
-                  style={[s.suggRow, { borderTopColor: "#1f2330" }]}
+                  style={[s.suggRow, { borderTopColor: "#181b24" }]}
                   onPress={() => handleAdd(sg.ticker, sg.name)}
                   disabled={addingTicker === sg.ticker}
                 >
@@ -541,19 +538,19 @@ export default function WatchlistScreen() {
                   <View style={s.sortRow}>
                     <TouchableOpacity
                       onPress={() => setSortMode((v) => v === "gainers" ? "default" : "gainers")}
-                      style={[s.sortBtn, sortMode === "gainers" && { backgroundColor: "#22c55e22", borderColor: "#22c55e" }]}
+                      style={[s.sortBtn, sortMode === "gainers" && { backgroundColor: "#00d47e22", borderColor: "#00d47e" }]}
                       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                     >
-                      <Ionicons name="arrow-up" size={11} color={sortMode === "gainers" ? "#22c55e" : "#4b5563"} />
-                      <Text style={[s.sortBtnText, { color: sortMode === "gainers" ? "#22c55e" : "#4b5563" }]}>{t("watchlist.sort.gainers")}</Text>
+                      <Ionicons name="arrow-up" size={11} color={sortMode === "gainers" ? "#00d47e" : "#3b3f4a"} />
+                      <Text style={[s.sortBtnText, { color: sortMode === "gainers" ? "#00d47e" : "#3b3f4a" }]}>{t("watchlist.sort.gainers")}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => setSortMode((v) => v === "losers" ? "default" : "losers")}
-                      style={[s.sortBtn, sortMode === "losers" && { backgroundColor: "#ef444422", borderColor: "#ef4444" }]}
+                      style={[s.sortBtn, sortMode === "losers" && { backgroundColor: "#ff5c5c22", borderColor: "#ff5c5c" }]}
                       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                     >
-                      <Ionicons name="arrow-down" size={11} color={sortMode === "losers" ? "#ef4444" : "#4b5563"} />
-                      <Text style={[s.sortBtnText, { color: sortMode === "losers" ? "#ef4444" : "#4b5563" }]}>{t("watchlist.sort.losers")}</Text>
+                      <Ionicons name="arrow-down" size={11} color={sortMode === "losers" ? "#ff5c5c" : "#3b3f4a"} />
+                      <Text style={[s.sortBtnText, { color: sortMode === "losers" ? "#ff5c5c" : "#3b3f4a" }]}>{t("watchlist.sort.losers")}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -561,10 +558,10 @@ export default function WatchlistScreen() {
                 {items.length > 1 && sortMode === "default" && (
                   <TouchableOpacity
                     onPress={() => setEditMode((v) => !v)}
-                    style={[s.editBtn, { backgroundColor: editMode ? "rgba(0,212,126,0.12)" : "#1a1d27", borderColor: editMode ? "#00d47e" : "#1f2330" }]}
+                    style={[s.editBtn, { backgroundColor: editMode ? "rgba(0,212,126,0.12)" : "#161a22", borderColor: editMode ? "#00d47e" : "#181b24" }]}
                   >
-                    <Ionicons name={editMode ? "checkmark" : "reorder-three-outline"} size={13} color={editMode ? "#00d47e" : "#4b5563"} />
-                    <Text style={[s.editBtnText, { color: editMode ? "#00d47e" : "#4b5563" }]}>
+                    <Ionicons name={editMode ? "checkmark" : "reorder-three-outline"} size={13} color={editMode ? "#00d47e" : "#3b3f4a"} />
+                    <Text style={[s.editBtnText, { color: editMode ? "#00d47e" : "#3b3f4a" }]}>
                       {editMode ? t("watchlist.edit.done") : t("watchlist.edit.reorder")}
                     </Text>
                   </TouchableOpacity>
@@ -577,7 +574,7 @@ export default function WatchlistScreen() {
                       style={[s.sortBtn, viewMode === "advanced" && { backgroundColor: "rgba(99,102,241,0.12)", borderColor: "#6366f1" }]}
                       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                     >
-                      <Text style={[s.sortBtnText, { color: viewMode === "advanced" ? "#818cf8" : "#4b5563" }]}>
+                      <Text style={[s.sortBtnText, { color: viewMode === "advanced" ? "#818cf8" : "#3b3f4a" }]}>
                         {viewMode === "basic" ? t("watchlist.viewMode.basic") : t("watchlist.viewMode.advanced")}
                       </Text>
                     </TouchableOpacity>
@@ -588,7 +585,7 @@ export default function WatchlistScreen() {
                           style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
                           onPress={() => { loadPrices(); setSecondsLeft(60); }}
                         >
-                          <Ionicons name="refresh-outline" size={13} color="#4b5563" />
+                          <Ionicons name="refresh-outline" size={13} color="#3b3f4a" />
                           <Text style={s.counterText}>{secondsLeft}s</Text>
                         </TouchableOpacity>
                       )
@@ -640,8 +637,8 @@ export default function WatchlistScreen() {
             : clips.length === 0
             ? (
               <View style={{ alignItems: "center", padding: 40, gap: 12 }}>
-                <Ionicons name="play-circle-outline" size={48} color="#4b5563" />
-                <Text style={{ color: "#6b7280", fontSize: 14, textAlign: "center" }}>
+                <Ionicons name="play-circle-outline" size={48} color="#3b3f4a" />
+                <Text style={{ color: "#5b6270", fontSize: 14, textAlign: "center" }}>
                   {t("watchlist.videos.empty")}
                 </Text>
               </View>
@@ -656,8 +653,8 @@ export default function WatchlistScreen() {
                 {clip.thumbnail_url
                   ? <Image source={{ uri: clip.thumbnail_url }} style={s.videoThumb} />
                   : (
-                    <View style={[s.videoThumb, { backgroundColor: "#1a1d27", alignItems: "center", justifyContent: "center" }]}>
-                      <Ionicons name="play-circle-outline" size={32} color="#4b5563" />
+                    <View style={[s.videoThumb, { backgroundColor: "#161a22", alignItems: "center", justifyContent: "center" }]}>
+                      <Ionicons name="play-circle-outline" size={32} color="#3b3f4a" />
                     </View>
                   )
                 }
@@ -689,28 +686,28 @@ export default function WatchlistScreen() {
           activeOpacity={1} onPress={() => setAlertModal(null)}
         >
           <TouchableOpacity activeOpacity={1} onPress={() => {}}
-            style={{ width: "100%", borderRadius: 22, padding: 20, gap: 16, backgroundColor: "#111318", borderWidth: 1, borderColor: "#1f2330" }}>
+            style={{ width: "100%", borderRadius: 22, padding: 20, gap: 16, backgroundColor: "#0d0f14", borderWidth: 1, borderColor: "#181b24" }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <View>
-                <Text style={{ fontSize: 10, fontWeight: "700", color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{t("watchlist.alertModal.title")}</Text>
+                <Text style={{ fontSize: 10, fontWeight: "700", color: "#5b6270", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{t("watchlist.alertModal.title")}</Text>
                 <Text style={{ fontSize: 18, fontWeight: "900", color: "#fff" }}>{alertModal?.ticker}</Text>
               </View>
               <TouchableOpacity onPress={() => setAlertModal(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="close" size={20} color="#6b7280" />
+                <Ionicons name="close" size={20} color="#5b6270" />
               </TouchableOpacity>
             </View>
 
             {alertModal?.currentPrice != null && (
-              <Text style={{ fontSize: 12, color: "#6b7280" }}>
+              <Text style={{ fontSize: 12, color: "#5b6270" }}>
                 {t("watchlist.alertModal.currentPrice")} <Text style={{ fontWeight: "700", color: "#fff" }}>${alertModal.currentPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
               </Text>
             )}
 
-            <View style={{ flexDirection: "row", borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: "#1f2330" }}>
+            <View style={{ flexDirection: "row", borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: "#181b24" }}>
               {(["below", "above"] as const).map((c) => (
                 <TouchableOpacity key={c} onPress={() => setAlertCondition(c)} activeOpacity={0.8}
-                  style={{ flex: 1, paddingVertical: 10, alignItems: "center", backgroundColor: alertCondition === c ? "#00d47e" : "#1a1d27" }}>
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: alertCondition === c ? "#000" : "#6b7280" }}>
+                  style={{ flex: 1, paddingVertical: 10, alignItems: "center", backgroundColor: alertCondition === c ? "#00d47e" : "#161a22" }}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: alertCondition === c ? "#000" : "#5b6270" }}>
                     {c === "below" ? t("watchlist.alertModal.below") : t("watchlist.alertModal.above")}
                   </Text>
                 </TouchableOpacity>
@@ -719,18 +716,18 @@ export default function WatchlistScreen() {
 
             <TextInput
               placeholder={t("watchlist.alertModal.placeholder")}
-              placeholderTextColor="#374151"
+              placeholderTextColor="#3b3f4a"
               keyboardType="numeric"
               value={alertPrice}
               onChangeText={setAlertPrice}
-              style={{ backgroundColor: "#1a1d27", borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, fontWeight: "600", color: "#fff", borderWidth: 1, borderColor: "#1f2330" }}
+              style={{ backgroundColor: "#161a22", borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, fontWeight: "600", color: "#fff", borderWidth: 1, borderColor: "#181b24" }}
             />
 
             <View style={{ flexDirection: "row", gap: 10 }}>
               {alertModal && alerts[alertModal.ticker] && (
                 <TouchableOpacity onPress={() => deleteAlert(alertModal.ticker)} activeOpacity={0.8}
-                  style={{ flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center", borderWidth: 1, borderColor: "#ef4444" }}>
-                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#ef4444" }}>{t("common.delete")}</Text>
+                  style={{ flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center", borderWidth: 1, borderColor: "#ff5c5c" }}>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#ff5c5c" }}>{t("common.delete")}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity onPress={saveAlert} activeOpacity={0.8} disabled={savingAlert || !alertPrice}
@@ -761,56 +758,56 @@ const s = StyleSheet.create({
 
   // Sub-tab bar
   subTabBar: { paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#0a0d12" },
-  subTabInner: { flexDirection: "row", borderRadius: 14, padding: 3, gap: 2, backgroundColor: "#111318" },
+  subTabInner: { flexDirection: "row", borderRadius: 14, padding: 3, gap: 2, backgroundColor: "#0d0f14" },
   subTab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 9, borderRadius: 11 },
-  subTabActive: { backgroundColor: "#1f2330" },
+  subTabActive: { backgroundColor: "#181b24" },
   subTabText: { fontSize: 13, fontWeight: "600" },
 
   // Search
   searchWrap: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingHorizontal: 14, paddingVertical: 12,
-    borderRadius: 14, backgroundColor: "#111318",
+    borderRadius: 16, borderWidth: 1, borderColor: "#181b24", backgroundColor: "#0d0f14",
   },
   searchInput: { flex: 1, fontSize: 14, fontWeight: "500", color: "#fff" },
 
   // Suggestions
-  suggestionsCard: { borderRadius: 16, borderWidth: 1, borderColor: "rgba(0,212,126,0.2)", overflow: "hidden", backgroundColor: "#111318" },
+  suggestionsCard: { borderRadius: 16, borderWidth: 1, borderColor: "rgba(0,212,126,0.2)", overflow: "hidden", backgroundColor: "#0d0f14" },
   suggRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth },
   suggTicker: { fontSize: 13, fontWeight: "700", letterSpacing: -0.2, color: "#00d47e" },
-  suggName: { fontSize: 11, marginTop: 1, color: "#6b7280" },
+  suggName: { fontSize: 11, marginTop: 1, color: "#5b6270" },
 
   // Tier bar
-  tierBar: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "#1f2330", backgroundColor: "#111318", gap: 8 },
+  tierBar: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "#181b24", backgroundColor: "#0d0f14", gap: 8 },
   tierTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  tierLabel: { fontSize: 12, fontWeight: "600", color: "#6b7280" },
+  tierLabel: { fontSize: 12, fontWeight: "600", color: "#5b6270" },
   tierUpgrade: { fontSize: 12, fontWeight: "700", color: "#00d47e" },
-  tierTrack: { height: 4, borderRadius: 2, backgroundColor: "#1f2330" },
+  tierTrack: { height: 4, borderRadius: 2, backgroundColor: "#181b24" },
   tierFill: { height: 4, borderRadius: 2 },
 
   // Empty state
-  emptyCard: { alignItems: "center", padding: 40, borderRadius: 20, borderWidth: 1, borderColor: "#1f2330", borderStyle: "dashed", backgroundColor: "#111318" },
+  emptyCard: { alignItems: "center", padding: 40, borderRadius: 20, borderWidth: 1, borderColor: "#181b24", borderStyle: "dashed", backgroundColor: "#0d0f14" },
   emptyIcon: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,212,126,0.1)", borderWidth: 1, borderColor: "rgba(0,212,126,0.2)", marginBottom: 14 },
   emptyTitle: { fontSize: 15, fontWeight: "800", marginBottom: 8, color: "#fff" },
-  emptySub: { fontSize: 13, textAlign: "center", lineHeight: 20, color: "#6b7280" },
+  emptySub: { fontSize: 13, textAlign: "center", lineHeight: 20, color: "#5b6270" },
 
   // List card
-  listCard: { borderRadius: 20, borderWidth: 1, borderColor: "#1f2330", overflow: "hidden", backgroundColor: "#111318" },
-  listHeader: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 12 },
-  listHeaderText: { fontSize: 13, fontWeight: "700", color: "#fff" },
+  listCard: { borderRadius: 22, borderWidth: 1, borderColor: "#181b24", overflow: "hidden", backgroundColor: "#0d0f14" },
+  listHeader: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 14 },
+  listHeaderText: { fontSize: 14, fontFamily: "DMSans_700Bold", color: "#fff" },
   editBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
   editBtnText: { fontSize: 11, fontWeight: "700" },
-  counterText: { fontSize: 11, color: "#4b5563" },
+  counterText: { fontSize: 11, color: "#3b3f4a" },
   sortRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  sortBtn: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: "transparent" },
+  sortBtn: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: "#20242f", backgroundColor: "#161a22" },
   sortBtnText: { fontSize: 10, fontWeight: "700" },
 
   // Video cards
-  videoCard: { borderRadius: 16, borderWidth: 1, borderColor: "#1f2330", flexDirection: "row", overflow: "hidden", backgroundColor: "#111318" },
+  videoCard: { borderRadius: 16, borderWidth: 1, borderColor: "#181b24", flexDirection: "row", overflow: "hidden", backgroundColor: "#0d0f14" },
   videoThumb: { width: 100, height: 80 },
   videoInfo: { flex: 1, padding: 10, gap: 4 },
   videoTitle: { fontSize: 13, fontWeight: "600", lineHeight: 18, color: "#fff" },
-  videoSpeaker: { fontSize: 11, fontWeight: "400", color: "#6b7280" },
+  videoSpeaker: { fontSize: 11, fontWeight: "400", color: "#5b6270" },
   videoTag: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: "rgba(0,212,126,0.1)" },
   videoTagText: { fontSize: 10, fontWeight: "600", color: "#00d47e" },
 });
