@@ -9,6 +9,10 @@ export interface OnboardingStep {
   title: string;
   description: string;
   completed: boolean;
+  // Optional lighter-weight way to complete this step without taking the
+  // primary action (e.g. "ya tengo cuenta en broker" instead of booking a
+  // call).
+  secondaryAction?: { label: string; onPress: () => void };
 }
 
 interface Props {
@@ -93,6 +97,14 @@ export default function MobileOnboardingChecklist({ steps, onStepPress }: Props)
               {step.title}
             </Text>
             <Text style={[s.stepDesc, { color: colors.textDim }]}>{step.description}</Text>
+            {!step.completed && step.secondaryAction && (
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation(); step.secondaryAction!.onPress(); }}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Text style={[s.stepSecondary, { color: "#00d47e" }]}>{step.secondaryAction.label}</Text>
+              </TouchableOpacity>
+            )}
           </View>
           {!step.completed && (
             <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
@@ -156,4 +168,5 @@ const s = StyleSheet.create({
   stepText: { flex: 1 },
   stepTitle: { fontSize: 13, fontWeight: "700", lineHeight: 17 },
   stepDesc: { fontSize: 11, marginTop: 1, lineHeight: 15 },
+  stepSecondary: { fontSize: 11, fontWeight: "800", marginTop: 4, textDecorationLine: "underline" },
 });

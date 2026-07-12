@@ -796,12 +796,28 @@ export default function HomeScreen() {
   const firstName = profile?.name?.split(" ")[0] ?? t("home.investorFallback");
 
   // ── Onboarding checklist ──────────────────────────────────────────────────
+  const markBrokerConfigured = async () => {
+    if (profile?.has_broker) return;
+    try {
+      await profileApi.update({ has_broker: true });
+      const fresh = await profileApi.get();
+      setProfile(fresh.data);
+    } catch {}
+  };
+
   const onboardingSteps: OnboardingStep[] = [
     { emoji: "💼", title: t("home.onboarding.step1Title"), description: t("home.onboarding.step1Desc"), completed: positions.length > 0 },
     { emoji: "🎯", title: t("home.onboarding.step2Title"), description: t("home.onboarding.step2Desc"), completed: !!goalName },
     { emoji: "🤖", title: t("home.onboarding.step3Title"), description: t("home.onboarding.step3Desc"), completed: hasChatted },
     { emoji: "📚", title: t("home.onboarding.step4Title"), description: t("home.onboarding.step4Desc"), completed: streak > 0 },
     { emoji: "👀", title: t("home.onboarding.step5Title"), description: t("home.onboarding.step5Desc"), completed: watchlistItems.length > 0 },
+    {
+      emoji: "📞",
+      title: t("home.onboarding.step6Title"),
+      description: t("home.onboarding.step6Desc"),
+      completed: !!profile?.has_broker,
+      secondaryAction: { label: t("home.onboarding.step6AlreadyHave"), onPress: markBrokerConfigured },
+    },
   ];
   const allOnboardingDone = onboardingSteps.every((s) => s.completed);
 
@@ -846,6 +862,10 @@ export default function HomeScreen() {
 
   const handleOnboardingStep = (index: number) => {
     if (index === 1) { openGoalModal(); return; }
+    if (index === 5) {
+      Linking.openURL("https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai");
+      return;
+    }
     const routes: (string | null)[] = [
       "/(tabs)/portfolio",
       null,

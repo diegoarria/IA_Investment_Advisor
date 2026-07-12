@@ -488,12 +488,28 @@ export default function HomePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
+  const markBrokerConfigured = async () => {
+    if (profile?.has_broker) return;
+    try {
+      await profileApi.update({ has_broker: true });
+      const fresh = await profileApi.get();
+      setProfile(fresh.data);
+    } catch {}
+  };
+
   const onboardingSteps: OnboardingStep[] = [
     { emoji: "💼", title: t("home.onboarding.addFirstPosition.title"),  description: t("home.onboarding.addFirstPosition.desc"), completed: positions.length > 0 },
     { emoji: "🎯", title: t("home.onboarding.configureGoal.title"),     description: t("home.onboarding.configureGoal.desc"),    completed: !!profile?.investment_goal },
     { emoji: "🤖", title: t("home.onboarding.talkToNuvos.title"),       description: t("home.onboarding.talkToNuvos.desc"),      completed: hasChatted },
     { emoji: "📚", title: t("home.onboarding.firstLesson.title"),       description: t("home.onboarding.firstLesson.desc"),      completed: streak > 0 },
     { emoji: "👀", title: t("home.onboarding.addToWatchlist.title"),    description: t("home.onboarding.addToWatchlist.desc"),   completed: watchlistCount > 0 },
+    {
+      emoji: "📞",
+      title: t("home.onboarding.bookCall.title"),
+      description: t("home.onboarding.bookCall.desc"),
+      completed: !!profile?.has_broker,
+      secondaryAction: { label: t("home.onboarding.bookCall.alreadyHaveBroker"), onClick: markBrokerConfigured },
+    },
   ];
   const allOnboardingDone = checklistPermanentlyDone || onboardingSteps.every((s) => s.completed);
 
@@ -514,6 +530,10 @@ export default function HomePage() {
 
   const handleOnboardingStep = (index: number) => {
     if (index === 1) { openGoalModal(); return; }
+    if (index === 5) {
+      window.open("https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai", "_blank", "noopener,noreferrer");
+      return;
+    }
     const hrefs = ["/portfolio?tour=1", null, "/chat?tour=3", "/academy?tour=4", "/watchlist?tour=5"];
     const href = hrefs[index];
     if (href) router.push(href);

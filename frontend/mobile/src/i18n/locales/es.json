@@ -352,7 +352,10 @@
       "step4Title": "Completa tu primera lección",
       "step4Desc": "Empieza tu racha de aprendizaje diario",
       "step5Title": "Agrega una acción a tu watchlist",
-      "step5Desc": "Monitorea empresas que te interesan"
+      "step5Desc": "Monitorea empresas que te interesan",
+      "step6Title": "Agenda una llamada y crea tu cuenta en un broker gratis",
+      "step6Desc": "Una sesión 1-a-1 para abrir tu cuenta y empezar con confianza",
+      "step6AlreadyHave": "Ya tengo cuenta en broker"
     },
     "goalOptions": {
       "passive_income": "Vivir de inversiones"
@@ -2447,9 +2450,15 @@
       "starting": "Empezando",
       "sub": "Esto nos ayuda a saber cómo acompañarte mejor desde el primer día.",
       "title": "¿Ya tienes experiencia en el mercado?",
-      "welcomeSessionDesc": "Como es tu primera inversión, al final del onboarding te agendaremos una sesión 1:1 con Diego para ayudarte a comenzar con el pie derecho.",
-      "welcomeSessionIncluded": "✨ Sesión de Bienvenida incluida",
+      "welcomeSessionDesc": "Nuvos te va a acompañar paso a paso — y cuando quieras, puedes agendar una sesión 1:1 gratis con Diego desde tu inicio.",
+      "welcomeSessionIncluded": "✨ Perfecto punto de partida",
       "yesHave": "Sí tengo"
+    },
+    "stepKnowledge": {
+      "title": "¿Qué has escuchado sobre las inversiones?",
+      "sub": "Cuéntanos lo que sepas, hayas leído o te hayan dicho — no hay respuesta incorrecta.",
+      "placeholder": "Ej. Que hay que diversificar, que el S&P 500 sube con el tiempo...",
+      "helper": "Con tu respuesta la IA conocerá más detalles iniciales de ti. Es completamente opcional — puedes dejarlo en blanco y seguir."
     },
     "step7": {
       "ageValue": "{{age}} años",

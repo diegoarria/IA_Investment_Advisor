@@ -132,6 +132,7 @@ type FormState = {
   has_broker: "yes" | "no" | "";
   broker_name: string;
   has_investments: "yes" | "no" | "";
+  investing_knowledge: string;
 };
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -143,7 +144,6 @@ export default function OnboardingPage() {
   const [step, setStep]     = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState("");
-  const [success, setSuccess] = useState(false);
   const [acceptedTerms, setAcceptedTerms]           = useState(false);
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
 
@@ -151,7 +151,7 @@ export default function OnboardingPage() {
     name: "", birth_day: "", birth_month: "", birth_year: "", country: "",
     knowledge_level: "", monthly_income: "", monthly_contribution: "", initial_capital: "",
     investment_goal_amount: "", investment_horizon: "", investment_goal: "",
-    q1: "", q4: "", has_broker: "", broker_name: "", has_investments: "",
+    q1: "", q4: "", has_broker: "", broker_name: "", has_investments: "", investing_knowledge: "",
   });
 
   useEffect(() => { if (!authRestoring && !isAuthenticated && !localStorage.getItem("access_token") && !localStorage.getItem("refresh_token")) router.push("/"); }, [isAuthenticated, authRestoring]);
@@ -603,11 +603,36 @@ export default function OnboardingPage() {
                    style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
                 <span className="text-xl shrink-0">🎯</span>
                 <p className="text-xs leading-relaxed" style={{ color: "#22c55e" }}>
-                  <strong>¡Perfecto punto de partida!</strong> Al terminar el onboarding te esperará una Sesión de Bienvenida personalizada para que hagas tu primera inversión con confianza.
+                  <strong>¡Perfecto punto de partida!</strong> Nuvos te va a acompañar paso a paso para que hagas tu primera inversión con confianza.
                 </p>
               </div>
             )}
           </div>
+        </div>
+      ),
+    },
+
+    // 6.5 — Qué ha escuchado sobre invertir (abierta, opcional)
+    {
+      subtitle: "CONOCIÉNDOTE MEJOR",
+      title: `${firstName ? `${firstName}, ¿qué` : "¿Qué"} has escuchado sobre las inversiones?`,
+      valid: () => true,
+      content: (
+        <div className="space-y-3">
+          <p className="text-sm" style={{ color: "var(--sub)" }}>
+            Cuéntanos lo que sepas, hayas leído o te hayan dicho — de amigos, redes, lo que sea. No hay respuesta incorrecta.
+          </p>
+          <textarea
+            value={form.investing_knowledge}
+            onChange={(e) => setForm(f => ({ ...f, investing_knowledge: e.target.value }))}
+            rows={5}
+            className="w-full rounded-xl border px-4 py-3 text-sm outline-none resize-none"
+            placeholder="Ej. Que hay que diversificar, que el S&P 500 sube con el tiempo, que las criptomonedas son riesgosas..."
+            style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+          />
+          <p className="text-xs" style={{ color: "var(--dim)" }}>
+            Con tu respuesta la IA conocerá más detalles iniciales de ti. Es completamente opcional — puedes dejarlo en blanco y seguir.
+          </p>
         </div>
       ),
     },
@@ -950,7 +975,7 @@ export default function OnboardingPage() {
         investment_horizon:     form.investment_horizon,
         knowledge_level:        form.knowledge_level,
         risk_tolerance:         calculated,
-        quiz_answers:           { q1: form.q1, q4: form.q4 },
+        quiz_answers:           { q1: form.q1, q4: form.q4, investing_knowledge: form.investing_knowledge.trim() || undefined },
         has_broker:             form.has_broker === "yes",
         broker_name:            form.has_broker === "yes" ? (form.broker_name || undefined) : undefined,
         has_investments:        form.has_investments === "yes",
@@ -987,16 +1012,11 @@ export default function OnboardingPage() {
         ? "y ya tienes experiencia en el mercado"
         : "y será tu primera vez invirtiendo — lo mejor que te puede pasar";
       const _welcomeMsg =
-        `¡Bienvenido a tu **Sesión de Bienvenida**, **${firstName}**! 🎉\n\n` +
+        `¡Bienvenido a Nuvos, **${firstName}**! 🎉\n\n` +
         `Ya revisé tu perfil completo. Eres un inversionista **${riskCfg.label}** con meta de **${_goalLabel[form.investment_goal] ?? form.investment_goal}**.` +
         `${_yrsPart}\n\n` +
         `${_brokerContext} ${_invContext}.\n\n` +
         `${_levelIntro}\n\n` +
-        `Esta sesión está diseñada para que salgas con **todo listo**:\n` +
-        `✅ Objetivos claros\n` +
-        `✅ Broker configurado\n` +
-        `✅ Portafolio armado\n` +
-        `✅ Nuvos AI 100% personalizado para ti\n\n` +
         `**¿Por dónde quieres empezar?**`;
 
       const _chat = useChatStore.getState();
@@ -1009,7 +1029,7 @@ export default function OnboardingPage() {
       localStorage.setItem("nuvos_guided_tour", "1");
       localStorage.setItem("nuvos_guided_step", "1");
       if (form.knowledge_level === "B") localStorage.setItem("nuvos_first_steps_active", "1");
-      setSuccess(true);
+      router.push("/home");
     } catch (err: unknown) {
       const raw = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
       const msg = typeof raw === "string" ? raw : Array.isArray(raw) ? String(raw[0]?.msg ?? "") : "";
@@ -1020,100 +1040,6 @@ export default function OnboardingPage() {
   };
 
   // ── Sesión de Bienvenida screen ─────────────────────────────────────────────
-  if (success) {
-    const isFirstTimer = form.has_investments === "no";
-    const hasNoBroker  = form.has_broker === "no";
-    return (
-      <div className="min-h-screen overflow-y-auto" style={{ background: "var(--bg)" }}>
-        <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-sm">
-
-          {/* Header */}
-          <div className="text-center mb-6">
-            <div className="text-5xl mb-3">🎉</div>
-            <h1 className="text-3xl font-black mb-1" style={{ color: "var(--text)" }}>
-              ¡Bienvenido, {firstName}!
-            </h1>
-            <p className="text-sm font-semibold" style={{ color: "var(--muted)" }}>
-              Tu Sesión de Bienvenida está lista
-            </p>
-          </div>
-
-          {/* Profile badge */}
-          <div className="rounded-2xl border px-4 py-3 mb-5 flex items-center gap-3"
-               style={{ background: "var(--card)", borderColor: riskCfg.color + "40" }}>
-            <span className="text-2xl">{riskCfg.emoji}</span>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Tu perfil de inversionista</p>
-              <p className="text-sm font-black" style={{ color: riskCfg.color }}>
-                {riskCfg.label} · {levelInfo?.label ?? ""}
-              </p>
-            </div>
-          </div>
-
-          {/* Session agenda */}
-          <div className="rounded-2xl border p-5 mb-5 space-y-3"
-               style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-            <p className="text-xs font-black uppercase tracking-widest mb-4" style={{ color: "var(--muted)" }}>
-              En esta sesión vamos a:
-            </p>
-            {[
-              { icon: "🎯", text: "Definir tus objetivos de inversión con claridad" },
-              { icon: "📚", text: "Explicarte el proceso de inversión paso a paso" },
-              ...(hasNoBroker
-                ? [{ icon: "🏦", text: "Ayudarte a abrir tu cuenta en un broker" }]
-                : [{ icon: "🏦", text: "Conectar y revisar tu broker actual" }]),
-              { icon: "📊", text: "Configurar tu portafolio en Nuvos AI" },
-              { icon: "🤖", text: "Personalizar tu Mentor IA al máximo" },
-              ...(isFirstTimer
-                ? [{ icon: "🚀", text: "Acompañarte en tu primera inversión, si decides hacerla" }]
-                : [{ icon: "🔍", text: "Analizar tus inversiones actuales y detectar mejoras" }]),
-            ].map((item, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <span className="text-lg shrink-0">{item.icon}</span>
-                <p className="text-sm" style={{ color: "var(--sub)" }}>{item.text}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Outcome promise */}
-          <div className="rounded-xl px-4 py-3 mb-5 space-y-1.5"
-               style={{ background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.25)" }}>
-            <p className="text-xs font-bold" style={{ color: "#22c55e" }}>Al terminar saldrás con:</p>
-            {["✅ Objetivos claros", "✅ Broker configurado", "✅ Portafolio armado", "✅ Nuvos AI listo para ti"].map(t => (
-              <p key={t} className="text-xs" style={{ color: "var(--sub)" }}>{t}</p>
-            ))}
-          </div>
-
-          <a href="https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"
-             target="_blank" rel="noopener noreferrer"
-             className="block w-full py-4 rounded-2xl text-black font-black text-base text-center transition-all"
-             style={{ background: "var(--accent)" }}>
-            Agendar mi Sesión de Bienvenida →
-          </a>
-          {isFirstTimer && (
-            <button onClick={() => router.push("/home")}
-                    className="w-full py-3 rounded-2xl text-sm font-semibold mt-2 transition-all"
-                    style={{ color: "var(--muted)", background: "transparent" }}>
-              Saltar y agendar después →
-            </button>
-          )}
-          {!isFirstTimer && (
-            <button onClick={() => router.push("/home")}
-                    className="w-full py-3 rounded-2xl text-sm font-semibold mt-2 transition-all"
-                    style={{ color: "var(--muted)", background: "transparent" }}>
-              Ya tengo todo configurado — ir al inicio →
-            </button>
-          )}
-          <p className="text-center text-xs mt-2" style={{ color: "var(--dim)" }}>
-            Tu Mentor IA ya conoce todo tu perfil
-          </p>
-        </div>
-        </div>
-      </div>
-    );
-  }
-
   // ── Main layout ──────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "var(--bg)" }}>

@@ -352,7 +352,10 @@
       "step4Title": "Complete your first lesson",
       "step4Desc": "Start your daily learning streak",
       "step5Title": "Add a stock to your watchlist",
-      "step5Desc": "Track companies you're interested in"
+      "step5Desc": "Track companies you're interested in",
+      "step6Title": "Book a call and open a free broker account",
+      "step6Desc": "A 1-on-1 session to open your account and start with confidence",
+      "step6AlreadyHave": "I already have a broker account"
     },
     "goalOptions": {
       "passive_income": "Live off investments"
@@ -2447,9 +2450,15 @@
       "starting": "Just starting",
       "sub": "This helps us know how to support you best from day one.",
       "title": "Do you already have market experience?",
-      "welcomeSessionDesc": "Since this is your first investment, we'll schedule a 1:1 session with Diego at the end of onboarding to help you start off right.",
-      "welcomeSessionIncluded": "✨ Welcome Session included",
+      "welcomeSessionDesc": "Nuvos will guide you step by step — and whenever you want, you can book a free 1:1 session with Diego from your home screen.",
+      "welcomeSessionIncluded": "✨ Perfect starting point",
       "yesHave": "I have one"
+    },
+    "stepKnowledge": {
+      "title": "What have you heard about investing?",
+      "sub": "Tell us what you know, have read, or been told — there's no wrong answer.",
+      "placeholder": "E.g. That you should diversify, that the S&P 500 goes up over time...",
+      "helper": "Your answer helps the AI know more about you from the start. It's completely optional — feel free to leave it blank and continue."
     },
     "step7": {
       "ageValue": "{{age}} years",

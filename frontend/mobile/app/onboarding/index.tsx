@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Image, Linking,
+  StyleSheet, Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -126,6 +126,7 @@ type FormState = {
   has_broker: "yes" | "no" | "";
   broker_name: string;
   has_investments: "yes" | "no" | "";
+  investing_knowledge: string;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -157,11 +158,8 @@ export default function OnboardingScreen() {
     knowledge_level: "", monthly_income: "", initial_capital: "",
     monthly_contribution: "", investment_goal_amount: "",
     investment_horizon: "", investment_goal: "", q1: "", q4: "",
-    has_broker: "", broker_name: "", has_investments: "",
+    has_broker: "", broker_name: "", has_investments: "", investing_knowledge: "",
   });
-  const [showSession, setShowSession] = useState(false);
-  const isFirstTimer = form.has_investments !== "yes";
-
   const firstName  = form.name.trim().split(" ")[0];
   const calculated = calculateRisk(form.q1, form.q4);
   const riskCfg    = RISK_CONFIG[calculated];
@@ -556,6 +554,30 @@ export default function OnboardingScreen() {
       ),
     },
 
+    // 6.5 — Qué ha escuchado sobre invertir (abierta, opcional)
+    {
+      emoji: "💬",
+      title: t("onboarding.stepKnowledge.title"),
+      sub: t("onboarding.stepKnowledge.sub"),
+      isValid: () => true,
+      content: (
+        <View style={{ gap: 10 }}>
+          <TextInput
+            style={[S.input, { minHeight: 110, textAlignVertical: "top", paddingTop: 12 }]}
+            value={form.investing_knowledge}
+            onChangeText={(v) => setForm(f => ({ ...f, investing_knowledge: v }))}
+            placeholder={t("onboarding.stepKnowledge.placeholder")}
+            placeholderTextColor="#374151"
+            multiline
+            numberOfLines={5}
+          />
+          <Text style={{ color: "#6b7280", fontSize: 11, lineHeight: 16 }}>
+            {t("onboarding.stepKnowledge.helper")}
+          </Text>
+        </View>
+      ),
+    },
+
     // 7 — Perfil del inversor (reveal)
     {
       emoji: riskCfg?.color ? "" : "🎉",
@@ -765,7 +787,7 @@ export default function OnboardingScreen() {
         investment_horizon:     form.investment_horizon,
         knowledge_level:        form.knowledge_level,
         risk_tolerance:         calculated,
-        quiz_answers:           { q1: form.q1, q4: form.q4 },
+        quiz_answers:           { q1: form.q1, q4: form.q4, investing_knowledge: form.investing_knowledge.trim() || undefined },
         has_broker:             form.has_broker === "yes",
         broker_name:            form.has_broker === "yes" ? (form.broker_name || undefined) : undefined,
         has_investments:        form.has_investments === "yes",
@@ -781,7 +803,7 @@ export default function OnboardingScreen() {
         has_investments: form.has_investments === "yes",
         country: form.country,
       });
-      setShowSession(true);
+      router.replace("/(tabs)/home");
     } catch {
       setError(t("onboarding.saveProfileError"));
     } finally {
@@ -789,94 +811,6 @@ export default function OnboardingScreen() {
     }
   };
 
-  // ─── Sesión de Bienvenida ────────────────────────────────────────────────────
-  if (showSession) {
-    const agendaItems = [
-      t("onboarding.session.agenda.defineGoals"),
-      form.has_broker !== "yes" ? t("onboarding.session.agenda.openBroker") : t("onboarding.session.agenda.reviewBroker"),
-      form.has_investments !== "yes" ? t("onboarding.session.agenda.firstInvestment") : t("onboarding.session.agenda.reviewInvestments"),
-      t("onboarding.session.agenda.fullySetUp"),
-    ];
-    return (
-      <View style={S.screen}>
-        <View style={S.glowOrb} />
-        <SafeAreaView style={{ flex: 1 }}>
-          <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-            {/* Badge */}
-            <View style={{ alignItems: "center", marginBottom: 28 }}>
-              <View style={{ backgroundColor: "rgba(0,212,126,0.12)", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 6,
-                             borderWidth: 1, borderColor: "rgba(0,212,126,0.3)", flexDirection: "row", gap: 6, alignItems: "center" }}>
-                <Text style={{ fontSize: 14 }}>{RISK_EXTRA[calculated].emoji}</Text>
-                <Text style={{ color: "#00d47e", fontSize: 12, fontWeight: "800" }}>
-                  {t("onboarding.session.profileBadge", { label: riskCfg.label, pct: riskCfg.pct * 100 | 0 })}
-                </Text>
-              </View>
-            </View>
-
-            {/* Headline */}
-            <Text style={{ fontSize: 28, fontWeight: "900", color: "#fff", textAlign: "center", lineHeight: 34, marginBottom: 8 }}>
-              {isFirstTimer ? t("onboarding.session.welcomeHeadline") : t("onboarding.session.almostReadyHeadline", { name: firstName })}
-            </Text>
-            <Text style={{ fontSize: 14, color: "#6b7280", textAlign: "center", lineHeight: 21, marginBottom: 28 }}>
-              {isFirstTimer
-                ? t("onboarding.session.welcomeSub")
-                : t("onboarding.session.almostReadySub")}
-            </Text>
-
-            {/* Agenda */}
-            {isFirstTimer && (
-              <View style={{ backgroundColor: "#111318", borderRadius: 16, padding: 16, borderWidth: 1,
-                             borderColor: "#1f2330", marginBottom: 20, gap: 12 }}>
-                <Text style={{ color: "#9ca3af", fontSize: 11, fontWeight: "700", letterSpacing: 1.2,
-                               textTransform: "uppercase", marginBottom: 4 }}>{t("onboarding.session.inYourSession")}</Text>
-                {agendaItems.map((item, i) => (
-                  <View key={i} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
-                    <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(0,212,126,0.15)",
-                                   alignItems: "center", justifyContent: "center", marginTop: 1 }}>
-                      <Text style={{ color: "#00d47e", fontSize: 10, fontWeight: "800" }}>{i + 1}</Text>
-                    </View>
-                    <Text style={{ color: "#d1d5db", fontSize: 13, lineHeight: 20, flex: 1 }}>{item}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* Outcomes */}
-            <View style={{ gap: 8, marginBottom: 28 }}>
-              {[t("onboarding.session.outcomes.0"), t("onboarding.session.outcomes.1"), t("onboarding.session.outcomes.2"), t("onboarding.session.outcomes.3")].map((o) => (
-                <View key={o} style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-                  <Text style={{ color: "#00d47e", fontSize: 14 }}>✅</Text>
-                  <Text style={{ color: "#9ca3af", fontSize: 13 }}>{o}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* CTA */}
-            {isFirstTimer ? (
-              <TouchableOpacity
-                onPress={() => Linking.openURL("https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai")}
-                style={{ backgroundColor: "#00d47e", borderRadius: 16, paddingVertical: 16,
-                         alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, marginBottom: 12 }}
-              >
-                <Text style={{ fontSize: 16 }}>📅</Text>
-                <Text style={{ color: "#000", fontSize: 16, fontWeight: "900" }}>{t("onboarding.session.scheduleCta")}</Text>
-              </TouchableOpacity>
-            ) : null}
-
-            {/* Skip / Explore */}
-            <TouchableOpacity
-              onPress={() => router.replace("/(tabs)/chat")}
-              style={{ paddingVertical: 14, alignItems: "center" }}
-            >
-              <Text style={{ color: "#6b7280", fontSize: 14, fontWeight: "600" }}>
-                {isFirstTimer ? t("onboarding.session.exploreFirst") : t("onboarding.session.goToApp")}
-              </Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </SafeAreaView>
-      </View>
-    );
-  }
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (

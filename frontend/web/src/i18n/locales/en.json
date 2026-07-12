@@ -356,6 +356,11 @@
       "addToWatchlist": {
         "title": "Add a stock to your watchlist",
         "desc": "Track companies you're interested in"
+      },
+      "bookCall": {
+        "title": "Book a call and open a free broker account",
+        "desc": "A 1-on-1 session to open your account and start with confidence",
+        "alreadyHaveBroker": "I already have a broker account"
       }
     }
   },

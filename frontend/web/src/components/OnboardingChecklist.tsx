@@ -7,6 +7,11 @@ export interface OnboardingStep {
   title: string;
   description: string;
   completed: boolean;
+  // Optional second, lighter-weight way to complete this step without
+  // taking the primary action (e.g. "ya tengo cuenta en broker" instead of
+  // actually booking a call) — stops propagation so it doesn't also fire
+  // the row's own onStepClick.
+  secondaryAction?: { label: string; onClick: () => void };
 }
 
 interface Props {
@@ -106,6 +111,16 @@ export default function OnboardingChecklist({ steps, onStepClick }: Props) {
               <p className="text-[11px] mt-0.5" style={{ color: "var(--dim)" }}>
                 {step.description}
               </p>
+              {!step.completed && step.secondaryAction && (
+                <span
+                  role="button"
+                  onClick={(e) => { e.stopPropagation(); step.secondaryAction!.onClick(); }}
+                  className="inline-block text-[11px] font-bold underline mt-1"
+                  style={{ color: "var(--accent-l)" }}
+                >
+                  {step.secondaryAction.label}
+                </span>
+              )}
             </div>
 
             {!step.completed && (

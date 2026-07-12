@@ -25,6 +25,11 @@ export interface UserProfile {
   investment_goal_amount?: string | null;
   investment_horizon?: string | null;
   knowledge_level?: string | null;
+  country?: string | null;
+  initial_capital?: string | null;
+  has_broker?: boolean | null;
+  broker_name?: string | null;
+  has_investments?: boolean | null;
   created_at: string;
   updated_at: string;
 }

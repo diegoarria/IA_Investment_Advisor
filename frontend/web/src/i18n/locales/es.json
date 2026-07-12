@@ -356,6 +356,11 @@
       "addToWatchlist": {
         "title": "Agrega una acción a tu watchlist",
         "desc": "Monitorea empresas que te interesan"
+      },
+      "bookCall": {
+        "title": "Agenda una llamada y crea tu cuenta en un broker gratis",
+        "desc": "Una sesión 1-a-1 para abrir tu cuenta y empezar con confianza",
+        "alreadyHaveBroker": "Ya tengo cuenta en broker"
       }
     }
   },

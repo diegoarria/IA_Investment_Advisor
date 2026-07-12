@@ -27,6 +27,11 @@ export interface UserProfile {
   quiz_answers: Partial<QuizAnswers>;
   mentor?: string | null;
   avatarUri?: string | null;
+  country?: string | null;
+  initial_capital?: string | null;
+  has_broker?: boolean | null;
+  broker_name?: string | null;
+  has_investments?: boolean | null;
 }
 
 /** Scores: A=1, B=2, C=3, D=4. avg<=2→conservative, <=3→moderate, >3→aggressive */
