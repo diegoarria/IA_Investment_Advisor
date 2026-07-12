@@ -46,14 +46,14 @@ function Header({ rows }: { rows: Row[] }) {
     <div className="flex items-center sticky top-0 z-10 border-b"
          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
       <div className="shrink-0 px-4 py-3" style={{ width: 200, minWidth: 160 }}>
-        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>
+        <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>
           {t("incomeStatementTab.metric")}
         </span>
       </div>
       {rows.map((r, i) => (
         <div key={i} className="flex-1 text-right px-4 py-3"
              style={{ background: i === rows.length - 1 ? "rgba(0,168,94,0.05)" : undefined, borderLeft: "1px solid var(--border)" }}>
-          <span className="text-[13px] font-black tabular-nums"
+          <span className="text-[14.5px] font-black tabular-nums"
                 style={{ color: i === rows.length - 1 ? "var(--text)" : "var(--muted)" }}>
             {fmtYear(String(r.period ?? ""))}
           </span>
@@ -67,7 +67,7 @@ function Section({ label, color = "var(--dim)" }: { label: string; color?: strin
   return (
     <div className="flex items-center px-4 py-1.5 border-b"
          style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-      <span className="text-[9px] font-black uppercase tracking-widest" style={{ color }}>
+      <span className="text-[11px] font-black uppercase tracking-widest" style={{ color }}>
         {label}
       </span>
     </div>
@@ -100,7 +100,7 @@ function ValueRow({ rows, field, label, isTotal, zeroAsDash, showGrowth, indent,
         {indent && (
           <div className="w-[2px] h-3.5 rounded-full shrink-0 mr-2" style={{ background: "var(--border)" }} />
         )}
-        <span className="text-[12px] leading-tight"
+        <span className="text-[13.5px] leading-tight"
               style={{ fontWeight: isTotal ? 700 : indent ? 400 : 600,
                        color: isTotal ? "var(--text)" : indent ? "var(--muted)" : "var(--sub)" }}>
           {label}
@@ -115,11 +115,11 @@ function ValueRow({ rows, field, label, isTotal, zeroAsDash, showGrowth, indent,
           <div key={i} className="flex-1 flex flex-col items-end justify-center gap-0.5 px-4 py-2.5"
                style={{ background: isLast ? "rgba(0,168,94,0.04)" : undefined, borderLeft: "1px solid var(--border)" }}>
             <span className="tabular-nums leading-none"
-                  style={{ fontSize: isTotal ? 13 : 12, fontWeight: isTotal ? 700 : isLast ? 600 : 400, color }}>
+                  style={{ fontSize: isTotal ? 15 : 13.5, fontWeight: isTotal ? 700 : isLast ? 600 : 400, color }}>
               {v != null ? (isEPS ? fmtEPS(v) : fmtMoney(v)) : "—"}
             </span>
             {growth != null && (
-              <span className="text-[10px] font-bold tabular-nums leading-none flex items-center gap-0.5"
+              <span className="text-[11px] font-bold tabular-nums leading-none flex items-center gap-0.5"
                     style={{ color: growth >= 0 ? "#22c55e" : "#ef4444" }}>
                 {growth >= 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
                 {Math.abs(growth).toFixed(1)}%
@@ -169,17 +169,17 @@ function MarginRow({ rows, field, label, numeratorField, fallbackPct }: MarginRo
          style={{ borderColor: "var(--border)", background: "rgba(0,0,0,0.018)" }}>
       <div className="shrink-0 flex items-center px-4 py-2" style={{ width: 200, minWidth: 160 }}>
         <div className="w-[2px] h-3.5 rounded-full shrink-0 mr-2" style={{ background: "var(--border)" }} />
-        <span className="text-[11px] font-semibold" style={{ color: "var(--muted)" }}>{label}</span>
+        <span className="text-[12.5px] font-semibold" style={{ color: "var(--muted)" }}>{label}</span>
       </div>
       {pairs.map(({ pct, dollars }, i) => (
         <div key={i} className="flex-1 flex flex-col items-end justify-center gap-0.5 px-4 py-2"
              style={{ background: i === pairs.length - 1 ? "rgba(0,168,94,0.04)" : undefined, borderLeft: "1px solid var(--border)" }}>
-          <span className="text-[12px] font-bold tabular-nums leading-none"
+          <span className="text-[13.5px] font-bold tabular-nums leading-none"
                 style={{ color: pct == null ? "var(--dim)" : marginColor(pct) }}>
             {pct != null ? `${pct.toFixed(1)}%` : "N/A"}
           </span>
           {dollars != null && (
-            <span className="text-[10px] tabular-nums leading-none" style={{ color: "var(--dim)" }}>
+            <span className="text-[11px] tabular-nums leading-none" style={{ color: "var(--dim)" }}>
               {fmtMoney(dollars)}
             </span>
           )}
@@ -220,7 +220,7 @@ export default function IncomeStatementTab({
           {/* Title bar */}
           <div className="flex items-center justify-between px-4 py-2.5 border-b"
                style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-            <span className="text-[10px] font-black uppercase tracking-widest"
+            <span className="text-[11px] font-black uppercase tracking-widest"
                   style={{ color: "var(--accent-l)", opacity: 0.85 }}>
               {t("incomeStatementTab.titleBar")}
             </span>
