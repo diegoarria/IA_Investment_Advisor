@@ -1148,6 +1148,24 @@ export default function PortfolioPage() {
     return () => { clearInterval(ri); clearInterval(ci); clearInterval(oi); };
   }, [positions.length, fetchReturns, fetchChart, fetchChartOverrides]);
 
+  // Per-position gain/loss for the currently selected period. The backend's
+  // /portfolio-returns already returns a purchase-date-aware breakdown per
+  // ticker for every period (clamped to the purchase date when it falls
+  // inside the period, with the date itself inferred from cost-basis-vs-
+  // history when the user never entered one) — this just wires that into
+  // the table/cards instead of always showing the flat since-purchase %.
+  const getPeriodGainLoss = useCallback((ticker: string, currentVal: number | null, investedVal: number | null) => {
+    const bd = selectedPeriod !== "since_purchase" ? periodReturns[selectedPeriod]?.breakdown?.[ticker] : undefined;
+    if (bd != null && currentVal != null) {
+      const startVal = currentVal / (1 + bd / 100);
+      return { pct: bd, diff: currentVal - startVal };
+    }
+    if (currentVal != null && investedVal != null && investedVal > 0) {
+      return { pct: ((currentVal - investedVal) / investedVal) * 100, diff: currentVal - investedVal };
+    }
+    return { pct: null as number | null, diff: null as number | null };
+  }, [selectedPeriod, periodReturns]);
+
   // Currency symbol for display
   const currencySymbol = portfolioCurrency === "USD" ? "$"
     : portfolioCurrency === "EUR" ? "€"
@@ -2551,8 +2569,7 @@ export default function PortfolioPage() {
                       const cp = pd?.price ? pd.price * fxRate : null;
                       const currentVal = cp ? pos.shares * cp : null;
                       const investedVal = pos.avgPrice > 0 ? pos.shares * pos.avgPrice * fxRate : null;
-                      const gainLossPct = currentVal !== null && investedVal !== null && investedVal > 0
-                        ? ((currentVal - investedVal) / investedVal) * 100 : null;
+                      const { pct: gainLossPct } = getPeriodGainLoss(pos.ticker, currentVal, investedVal);
                       return {
                         ticker: pos.ticker,
                         name: pd?.name ?? pos.ticker,
@@ -2606,8 +2623,7 @@ export default function PortfolioPage() {
                 const hasCost = pos.avgPrice > 0;
                 const currentVal = cp ? pos.shares * cp : null;
                 const investedVal = hasCost ? pos.shares * pos.avgPrice * fxRate : null;
-                const diff = currentVal !== null && investedVal !== null ? currentVal - investedVal : null;
-                const pct = diff !== null && investedVal! > 0 ? (diff / investedVal!) * 100 : null;
+                const { pct, diff } = getPeriodGainLoss(pos.ticker, currentVal, investedVal);
                 const isUp = diff !== null && diff >= 0;
                 const priceRevealed = revealedPrices.has(pos.id);
                 return (
