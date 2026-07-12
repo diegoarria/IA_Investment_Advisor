@@ -259,7 +259,7 @@ function StatCard({ label, value, color, hint }: {
 function RatingsBar({ ratings }: { ratings: Ratings }) {
   const { t } = useTranslation();
   const total = ratings.strong_buy + ratings.buy + ratings.hold + ratings.sell + ratings.strong_sell;
-  if (!total) return <p className="text-xs" style={{ color: "var(--muted)" }}>{t("stockDetailModal.noAnalystData")}</p>;
+  if (!total) return <p className="text-sm" style={{ color: "var(--muted)" }}>{t("stockDetailModal.noAnalystData")}</p>;
   const segments = [
     { label: t("stockDetailModal.recommendation.strongBuy"), value: ratings.strong_buy,  color: "#16a34a" },
     { label: t("stockDetailModal.recommendation.buy"),       value: ratings.buy,          color: "#22c55e" },
@@ -269,23 +269,23 @@ function RatingsBar({ ratings }: { ratings: Ratings }) {
   ];
   return (
     <div>
-      <div className="flex h-3 rounded-full overflow-hidden mb-3">
+      <div className="flex h-4 rounded-full overflow-hidden mb-4 gap-[1px]">
         {segments.map((s) => s.value > 0 && (
           <div key={s.label}
                style={{ width: `${(s.value / total) * 100}%`, background: s.color }}
                title={`${s.label}: ${s.value}`} />
         ))}
       </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+      <div className="flex flex-wrap gap-x-5 gap-y-2">
         {segments.map((s) => (
-          <div key={s.label} className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
-            <span className="text-[10px]" style={{ color: "var(--muted)" }}>{s.label}</span>
-            <span className="text-[10px] font-bold" style={{ color: "var(--text)" }}>{s.value}</span>
+          <div key={s.label} className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color }} />
+            <span className="text-[13px] font-medium" style={{ color: "var(--muted)" }}>{s.label}</span>
+            <span className="text-[13px] font-bold" style={{ color: "var(--text)" }}>{s.value}</span>
           </div>
         ))}
       </div>
-      <p className="text-[10px] mt-1.5" style={{ color: "var(--dim)" }}>{t("stockDetailModal.totalAnalysts", { count: total })}</p>
+      <p className="text-[12.5px] mt-2.5" style={{ color: "var(--dim)" }}>{t("stockDetailModal.totalAnalysts", { count: total })}</p>
     </div>
   );
 }
@@ -293,22 +293,23 @@ function RatingsBar({ ratings }: { ratings: Ratings }) {
 function EpsSurpriseRow({ item }: { item: EpsSurprise }) {
   const beat = (item.surprise ?? 0) >= 0;
   return (
-    <div className="flex items-center gap-3 py-2 border-b" style={{ borderColor: "var(--border)" }}>
-      <span className="text-[10px] font-semibold w-20 shrink-0" style={{ color: "var(--muted)" }}>
+    <div className="flex items-center gap-4 py-3.5 px-2 rounded-xl transition-colors hover:bg-white/[0.03]">
+      <span className="text-[13px] font-semibold w-24 shrink-0" style={{ color: "var(--muted)" }}>
         {item.period?.slice(0, 7)}
       </span>
-      <span className="text-xs font-bold w-14 text-right tabular-nums" style={{ color: "var(--text)" }}>
+      <span className="text-[15px] font-bold w-16 text-right tabular-nums" style={{ color: "var(--text)" }}>
         {item.actual != null ? `$${item.actual.toFixed(2)}` : "—"}
       </span>
-      <span className="text-xs w-14 text-right tabular-nums" style={{ color: "var(--muted)" }}>
+      <span className="text-[14px] w-16 text-right tabular-nums" style={{ color: "var(--muted)" }}>
         {item.estimate != null ? `$${item.estimate.toFixed(2)}` : "—"}
       </span>
-      <div className="flex items-center gap-1 ml-auto">
+      <div className="flex items-center gap-1 ml-auto px-2 py-1 rounded-md"
+           style={{ background: beat ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.14)" }}>
         {beat
-          ? <ArrowUpRight className="w-3 h-3" style={{ color: "#22c55e" }} />
-          : <ArrowDownRight className="w-3 h-3" style={{ color: "#ef4444" }} />
+          ? <ArrowUpRight className="w-3.5 h-3.5" style={{ color: "#22c55e" }} />
+          : <ArrowDownRight className="w-3.5 h-3.5" style={{ color: "#ef4444" }} />
         }
-        <span className="text-[10px] font-bold" style={{ color: beat ? "#22c55e" : "#ef4444" }}>
+        <span className="text-[12.5px] font-bold" style={{ color: beat ? "#22c55e" : "#ef4444" }}>
           {item.surprise_pct != null ? `${beat ? "+" : ""}${item.surprise_pct.toFixed(1)}%` : "—"}
         </span>
       </div>
@@ -571,7 +572,7 @@ function GoogleFinanceChart({ prices, timestamps, changePct, loading, period, on
                 </text>
               ))}
               {xIdxs.map((idx) => (
-                <text key={idx} x={sx(idx)} y={H - 4} fontSize="9" fill="var(--muted)" textAnchor="middle">
+                <text key={idx} x={sx(idx)} y={H - 4} fontSize="10" fill="var(--muted)" textAnchor="middle">
                   {fmtChartDate(timestamps[idx], intraday)}
                 </text>
               ))}
@@ -620,7 +621,7 @@ function SpeedometerGauge({ signal }: { signal?: string }) {
   const nx = +(CX - R * 0.7 * Math.cos(θr)).toFixed(2);
   const ny = +(CY - R * 0.7 * Math.sin(θr)).toFixed(2);
   return (
-    <svg viewBox="0 0 200 100" style={{ width: "100%", maxWidth: 200, height: "auto" }}>
+    <svg viewBox="0 0 200 100" style={{ width: "100%", maxWidth: 220, height: "auto" }}>
       {SEGS.map((s) => <path key={s.t1} d={gaugeArcPath(CX, CY, R, r, s.t1, s.t2)} fill={s.color} />)}
       <line x1={CX} y1={CY} x2={nx} y2={ny} stroke="var(--text)" strokeWidth="2.5" strokeLinecap="round" />
       <circle cx={CX} cy={CY} r="5" fill="var(--text)" />
@@ -670,8 +671,8 @@ function ForecastChart({ prices, current, targetLow, targetMean, targetHigh }: {
         </linearGradient>
       </defs>
       {/* Labels */}
-      <text x={PL + histW / 2} y={PT - 6} fontSize="8.5" fill="var(--muted)" textAnchor="middle">{t("stockDetailModal.last12Months")}</text>
-      <text x={PL + histW + foreW / 2} y={PT - 6} fontSize="8.5" fill="var(--muted)" textAnchor="middle">{t("stockDetailModal.forecast12m")}</text>
+      <text x={PL + histW / 2} y={PT - 6} fontSize="10" fill="var(--muted)" textAnchor="middle">{t("stockDetailModal.last12Months")}</text>
+      <text x={PL + histW + foreW / 2} y={PT - 6} fontSize="10" fill="var(--muted)" textAnchor="middle">{t("stockDetailModal.forecast12m")}</text>
       {/* Separator */}
       <line x1={fX} y1={PT - 10} x2={fX} y2={PT + cH} stroke="var(--border)" strokeWidth="1" strokeDasharray="3,3" />
       {/* Area + line */}
@@ -684,9 +685,9 @@ function ForecastChart({ prices, current, targetLow, targetMean, targetHigh }: {
         return (
           <g key={f.label}>
             <line x1={fX} y1={lastY} x2={fEndX} y2={fy} stroke={f.color} strokeWidth="1.5" strokeDasharray="6,3" />
-            <text x={fEndX + 4} y={fy - 2} fontSize="8.5" fill={f.color} textAnchor="start" fontWeight="bold">{f.label}</text>
-            <text x={fEndX + 4} y={fy + 9} fontSize="8.5" fill={f.color} textAnchor="start">${f.target.toFixed(0)}</text>
-            <text x={fEndX + 4} y={fy + 19} fontSize="7.5" fill={f.color} textAnchor="start" opacity="0.8">
+            <text x={fEndX + 4} y={fy - 2} fontSize="10" fill={f.color} textAnchor="start" fontWeight="bold">{f.label}</text>
+            <text x={fEndX + 4} y={fy + 9} fontSize="10" fill={f.color} textAnchor="start">${f.target.toFixed(0)}</text>
+            <text x={fEndX + 4} y={fy + 19} fontSize="9" fill={f.color} textAnchor="start" opacity="0.8">
               {upside >= 0 ? "+" : ""}{upside.toFixed(1)}%
             </text>
           </g>
@@ -695,9 +696,9 @@ function ForecastChart({ prices, current, targetLow, targetMean, targetHigh }: {
       {/* Dot at current */}
       <circle cx={fX} cy={lastY} r="3" fill="#ef4444" stroke="var(--card)" strokeWidth="1.5" />
       {/* X labels */}
-      <text x={PL} y={H - 4} fontSize="8.5" fill="var(--muted)" textAnchor="start">{t("stockDetailModal.oneYearAgo")}</text>
-      <text x={fX} y={H - 4} fontSize="8.5" fill="var(--muted)" textAnchor="middle">{t("stockDetailModal.today")}</text>
-      <text x={fEndX} y={H - 4} fontSize="8.5" fill="var(--muted)" textAnchor="end">{t("stockDetailModal.plus12Months")}</text>
+      <text x={PL} y={H - 4} fontSize="10" fill="var(--muted)" textAnchor="start">{t("stockDetailModal.oneYearAgo")}</text>
+      <text x={fX} y={H - 4} fontSize="10" fill="var(--muted)" textAnchor="middle">{t("stockDetailModal.today")}</text>
+      <text x={fEndX} y={H - 4} fontSize="10" fill="var(--muted)" textAnchor="end">{t("stockDetailModal.plus12Months")}</text>
     </svg>
   );
 }
@@ -1296,9 +1297,9 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
             </div>
           )}
 
-          {/* ── ANALISTAS — StockAnalysis.com style ── */}
+          {/* ── ANALISTAS — Google/Yahoo Finance style ── */}
           {tab === "analyst" && (
-            <div className="px-5 py-4 space-y-5">
+            <div className="px-4 py-4 space-y-7">
               {loading ? (
                 <div className="flex justify-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-l)" }} />
@@ -1322,17 +1323,17 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 return (
                   <>
                     {/* ── Forecast hero: gauge left + chart right ── */}
-                    <div>
-                      <h2 className="text-base font-black mb-3" style={{ color: "var(--text)" }}>
+                    <div className="rounded-2xl p-6" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+                      <h2 className="text-[15px] font-black mb-4 uppercase tracking-wide" style={{ color: "var(--dim)" }}>
                         {t("stockDetailModal.forecastConsensusTitle")}
                       </h2>
 
-                      <div className="flex gap-4 items-start">
+                      <div className="flex gap-6 items-start flex-wrap">
                         {/* Left panel */}
-                        <div className="w-44 shrink-0 space-y-2">
+                        <div className="w-56 shrink-0 space-y-3">
                           {total > 0 && cur && (
-                            <p className="text-[10px] leading-relaxed" style={{ color: "var(--sub)" }}>
-                              {t("stockDetailModal.accordingTo")} <span className="font-bold">{analyst?.n_analysts ?? total}</span> {t("stockDetailModal.analystsConsensusOf")}{" "}
+                            <p className="text-[14px] leading-relaxed" style={{ color: "var(--sub)" }}>
+                              {t("stockDetailModal.accordingTo")} <span className="font-bold" style={{ color: "var(--text)" }}>{analyst?.n_analysts ?? total}</span> {t("stockDetailModal.analystsConsensusOf")}{" "}
                               <span className="font-bold" style={{ color: cColor }}>"{getConsensusLabel(t, consensusText)}"</span>.
                               {mean && upside != null && (
                                 <> {t("stockDetailModal.priceTargetInline")} <span className="font-bold" style={{ color: "var(--text)" }}>${mean.toFixed(2)}</span>{" "}
@@ -1345,28 +1346,28 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
                           {mean && cur && upside != null && (
                             <div>
-                              <p className="text-[9px] font-semibold mb-0.5" style={{ color: "var(--muted)" }}>
+                              <p className="text-[11.5px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--muted)" }}>
                                 {t("stockDetailModal.priceTargetLabel")}
                               </p>
-                              <p className="text-xl font-black leading-tight" style={{ color: cColor }}>
+                              <p className="text-[32px] font-black leading-none tracking-tight" style={{ color: cColor }}>
                                 ${mean.toFixed(2)}
                               </p>
-                              <p className="text-sm font-bold" style={{ color: upside >= 0 ? "#22c55e" : "#ef4444" }}>
+                              <p className="text-[15px] font-bold mt-1" style={{ color: upside >= 0 ? "#22c55e" : "#ef4444" }}>
                                 ({upside >= 0 ? "+" : ""}{upside.toFixed(2)}%)
                               </p>
                             </div>
                           )}
 
-                          <div className="flex flex-col items-center -mx-2">
+                          <div className="flex flex-col items-center">
                             <SpeedometerGauge signal={consensusText} />
-                            <p className="text-xs font-black -mt-1" style={{ color: cColor }}>
+                            <p className="text-[15px] font-black -mt-1" style={{ color: cColor }}>
                               {getConsensusLabel(t, consensusText)}
                             </p>
                           </div>
                         </div>
 
                         {/* Right: forecast chart */}
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-[280px]">
                           {(chartData?.prices?.length ?? 0) > 10 ? (
                             <ForecastChart
                               prices={chartData!.prices}
@@ -1377,57 +1378,48 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                             />
                           ) : (
                             <div className="flex items-center justify-center" style={{ height: 180 }}>
-                              <p className="text-xs" style={{ color: "var(--muted)" }}>{t("stockDetailModal.loadingChart")}</p>
+                              <p className="text-sm" style={{ color: "var(--muted)" }}>{t("stockDetailModal.loadingChart")}</p>
                             </div>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    {/* ── Price target table ── */}
+                    {/* ── Price target range ── */}
                     {mean && low && high && cur && (
-                      <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr style={{ background: "var(--raised)", borderBottom: "1px solid var(--border)" }}>
-                              {[t("stockDetailModal.priceTargetTable.target"), t("stockDetailModal.priceTargetTable.low"), t("stockDetailModal.priceTargetTable.avg"), t("stockDetailModal.priceTargetTable.high")].map((h) => (
-                                <th key={h} className="px-3 py-2 text-right first:text-left font-semibold"
-                                    style={{ color: "var(--muted)" }}>{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                              <td className="px-3 py-2 font-semibold" style={{ color: "var(--sub)" }}>{t("stockDetailModal.priceTargetTable.price")}</td>
-                              <td className="px-3 py-2 text-right font-bold tabular-nums" style={{ color: "var(--text)" }}>${low.toFixed(2)}</td>
-                              <td className="px-3 py-2 text-right font-bold tabular-nums" style={{ color: "#22c55e" }}>${mean.toFixed(2)}</td>
-                              <td className="px-3 py-2 text-right font-bold tabular-nums" style={{ color: "var(--text)" }}>${high.toFixed(2)}</td>
-                            </tr>
-                            <tr>
-                              <td className="px-3 py-2 font-semibold" style={{ color: "var(--sub)" }}>{t("stockDetailModal.priceTargetTable.potential")}</td>
-                              {[low, mean, high].map((val, i) => {
-                                const pct = ((val - cur) / cur * 100);
-                                return (
-                                  <td key={i} className="px-3 py-2 text-right font-semibold tabular-nums"
-                                      style={{ color: pct >= 0 ? "#22c55e" : "#ef4444" }}>
-                                    {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          </tbody>
-                        </table>
+                      <div className="rounded-2xl overflow-hidden" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+                        <div className="flex items-stretch">
+                          {[
+                            { label: t("stockDetailModal.priceTargetTable.low"), val: low, color: "var(--text)" },
+                            { label: t("stockDetailModal.priceTargetTable.avg"), val: mean, color: "#22c55e" },
+                            { label: t("stockDetailModal.priceTargetTable.high"), val: high, color: "var(--text)" },
+                          ].map(({ label, val, color }, i) => {
+                            const pct = ((val - cur) / cur * 100);
+                            return (
+                              <div key={i} className="flex-1 flex flex-col items-center justify-center gap-1.5 py-5 px-3"
+                                   style={{ borderLeft: i > 0 ? "1px solid var(--border)" : undefined }}>
+                                <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{label}</span>
+                                <span className="text-[22px] font-black tabular-nums leading-none" style={{ color }}>${val.toFixed(2)}</span>
+                                <span className="text-[12.5px] font-bold tabular-nums px-1.5 py-0.5 rounded-md"
+                                      style={{ color: pct >= 0 ? "#22c55e" : "#ef4444",
+                                               background: pct >= 0 ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)" }}>
+                                  {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
 
                     {/* ── Ratings bar ── */}
                     <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-sm font-bold" style={{ color: "var(--text)" }}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-[16px] font-black" style={{ color: "var(--text)" }}>
                           {t("stockDetailModal.recommendationDistribution")}
                         </h3>
                         {analyst?.n_analysts ? (
-                          <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                          <span className="text-[13px] font-medium" style={{ color: "var(--muted)" }}>
                             {t("stockDetailModal.analystsCount", { count: analyst.n_analysts })}
                           </span>
                         ) : null}
@@ -1438,14 +1430,14 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     {/* ── EPS surprises ── */}
                     {(analyst?.eps_surprises?.length ?? 0) > 0 && (
                       <div>
-                        <h3 className="text-sm font-bold mb-2" style={{ color: "var(--text)" }}>
-                          <Activity className="w-4 h-4 inline mr-1.5" />
+                        <h3 className="text-[16px] font-black mb-3 flex items-center" style={{ color: "var(--text)" }}>
+                          <Activity className="w-4.5 h-4.5 inline mr-2" />
                           {t("stockDetailModal.epsSurprises")}
                         </h3>
-                        <div className="flex items-center gap-4 text-[10px] mb-1 px-0.5" style={{ color: "var(--dim)" }}>
-                          <span className="w-20">{t("stockDetailModal.columnPeriod")}</span>
-                          <span className="w-14 text-right">{t("stockDetailModal.columnActual")}</span>
-                          <span className="w-14 text-right">{t("stockDetailModal.columnEstimate")}</span>
+                        <div className="flex items-center gap-4 text-[11.5px] font-bold uppercase tracking-wide mb-1 px-2" style={{ color: "var(--dim)" }}>
+                          <span className="w-24">{t("stockDetailModal.columnPeriod")}</span>
+                          <span className="w-16 text-right">{t("stockDetailModal.columnActual")}</span>
+                          <span className="w-16 text-right">{t("stockDetailModal.columnEstimate")}</span>
                           <span className="ml-auto">{t("stockDetailModal.columnSurprise")}</span>
                         </div>
                         {analyst!.eps_surprises.map((s) => <EpsSurpriseRow key={s.period} item={s} />)}
@@ -1455,34 +1447,28 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     {/* ── EPS estimates ── */}
                     {(analyst?.eps_estimates?.length ?? 0) > 0 && (
                       <div>
-                        <h3 className="text-sm font-bold mb-2" style={{ color: "var(--text)" }}>
-                          <BarChart3 className="w-4 h-4 inline mr-1.5" />
+                        <h3 className="text-[16px] font-black mb-3 flex items-center" style={{ color: "var(--text)" }}>
+                          <BarChart3 className="w-4.5 h-4.5 inline mr-2" />
                           {t("stockDetailModal.epsEstimates")}
                         </h3>
-                        <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr style={{ background: "var(--raised)", borderBottom: "1px solid var(--border)" }}>
-                                {[t("stockDetailModal.columnPeriod"), t("stockDetailModal.columnAvg"), t("stockDetailModal.columnLow"), t("stockDetailModal.columnHigh"), t("stockDetailModal.columnGrowth")].map((h) => (
-                                  <th key={h} className="px-3 py-2 text-right first:text-left font-semibold"
-                                      style={{ color: "var(--muted)" }}>{h}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {analyst!.eps_estimates.map((e, i) => (
-                                <tr key={e.period} style={{ borderBottom: i < analyst!.eps_estimates.length - 1 ? "1px solid var(--border)" : "none" }}>
-                                  <td className="px-3 py-2 font-semibold" style={{ color: "var(--sub)" }}>{e.period}</td>
-                                  <td className="px-3 py-2 text-right font-bold" style={{ color: "var(--text)" }}>${fmtNum(e.avg)}</td>
-                                  <td className="px-3 py-2 text-right" style={{ color: "var(--muted)" }}>${fmtNum(e.low)}</td>
-                                  <td className="px-3 py-2 text-right" style={{ color: "var(--muted)" }}>${fmtNum(e.high)}</td>
-                                  <td className="px-3 py-2 text-right font-semibold" style={{ color: (e.growth ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
-                                    {fmtPct(e.growth)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                        <div className="rounded-2xl overflow-hidden" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+                          <div className="flex items-center px-5 py-3" style={{ boxShadow: "0 1px 0 var(--border)" }}>
+                            {[t("stockDetailModal.columnPeriod"), t("stockDetailModal.columnAvg"), t("stockDetailModal.columnLow"), t("stockDetailModal.columnHigh"), t("stockDetailModal.columnGrowth")].map((h, i) => (
+                              <span key={h} className={`text-[11.5px] font-bold uppercase tracking-wide ${i === 0 ? "flex-[1.4]" : "flex-1 text-right"}`}
+                                    style={{ color: "var(--dim)" }}>{h}</span>
+                            ))}
+                          </div>
+                          {analyst!.eps_estimates.map((e) => (
+                            <div key={e.period} className="flex items-center px-5 py-3.5 transition-colors hover:bg-white/[0.03]">
+                              <span className="text-[14px] font-semibold flex-[1.4]" style={{ color: "var(--sub)" }}>{e.period}</span>
+                              <span className="text-[15px] font-bold flex-1 text-right tabular-nums" style={{ color: "var(--text)" }}>${fmtNum(e.avg)}</span>
+                              <span className="text-[13.5px] flex-1 text-right tabular-nums" style={{ color: "var(--muted)" }}>${fmtNum(e.low)}</span>
+                              <span className="text-[13.5px] flex-1 text-right tabular-nums" style={{ color: "var(--muted)" }}>${fmtNum(e.high)}</span>
+                              <span className="text-[13.5px] font-bold flex-1 text-right tabular-nums" style={{ color: (e.growth ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
+                                {fmtPct(e.growth)}
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
@@ -1490,39 +1476,33 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     {/* ── Revenue estimates ── */}
                     {(analyst?.revenue_estimates?.length ?? 0) > 0 && (
                       <div>
-                        <h3 className="text-sm font-bold mb-2" style={{ color: "var(--text)" }}>
-                          <DollarSign className="w-4 h-4 inline mr-1.5" />
+                        <h3 className="text-[16px] font-black mb-3 flex items-center" style={{ color: "var(--text)" }}>
+                          <DollarSign className="w-4.5 h-4.5 inline mr-2" />
                           {t("stockDetailModal.revenueEstimates")}
                         </h3>
-                        <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr style={{ background: "var(--raised)", borderBottom: "1px solid var(--border)" }}>
-                                {[t("stockDetailModal.columnPeriod"), t("stockDetailModal.columnAvg"), t("stockDetailModal.columnLow"), t("stockDetailModal.columnHigh"), t("stockDetailModal.columnGrowth")].map((h) => (
-                                  <th key={h} className="px-3 py-2 text-right first:text-left font-semibold"
-                                      style={{ color: "var(--muted)" }}>{h}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {analyst!.revenue_estimates.map((e, i) => (
-                                <tr key={e.period} style={{ borderBottom: i < analyst!.revenue_estimates.length - 1 ? "1px solid var(--border)" : "none" }}>
-                                  <td className="px-3 py-2 font-semibold" style={{ color: "var(--sub)" }}>{e.period}</td>
-                                  <td className="px-3 py-2 text-right font-bold" style={{ color: "var(--text)" }}>{fmtBig(e.avg)}</td>
-                                  <td className="px-3 py-2 text-right" style={{ color: "var(--muted)" }}>{fmtBig(e.low)}</td>
-                                  <td className="px-3 py-2 text-right" style={{ color: "var(--muted)" }}>{fmtBig(e.high)}</td>
-                                  <td className="px-3 py-2 text-right font-semibold" style={{ color: (e.growth ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
-                                    {fmtPct(e.growth)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                        <div className="rounded-2xl overflow-hidden" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+                          <div className="flex items-center px-5 py-3" style={{ boxShadow: "0 1px 0 var(--border)" }}>
+                            {[t("stockDetailModal.columnPeriod"), t("stockDetailModal.columnAvg"), t("stockDetailModal.columnLow"), t("stockDetailModal.columnHigh"), t("stockDetailModal.columnGrowth")].map((h, i) => (
+                              <span key={h} className={`text-[11.5px] font-bold uppercase tracking-wide ${i === 0 ? "flex-[1.4]" : "flex-1 text-right"}`}
+                                    style={{ color: "var(--dim)" }}>{h}</span>
+                            ))}
+                          </div>
+                          {analyst!.revenue_estimates.map((e) => (
+                            <div key={e.period} className="flex items-center px-5 py-3.5 transition-colors hover:bg-white/[0.03]">
+                              <span className="text-[14px] font-semibold flex-[1.4]" style={{ color: "var(--sub)" }}>{e.period}</span>
+                              <span className="text-[15px] font-bold flex-1 text-right tabular-nums" style={{ color: "var(--text)" }}>{fmtBig(e.avg)}</span>
+                              <span className="text-[13.5px] flex-1 text-right tabular-nums" style={{ color: "var(--muted)" }}>{fmtBig(e.low)}</span>
+                              <span className="text-[13.5px] flex-1 text-right tabular-nums" style={{ color: "var(--muted)" }}>{fmtBig(e.high)}</span>
+                              <span className="text-[13.5px] font-bold flex-1 text-right tabular-nums" style={{ color: (e.growth ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
+                                {fmtPct(e.growth)}
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
 
-                    <p className="text-[9px] text-center" style={{ color: "var(--dim)" }}>
+                    <p className="text-[11.5px] text-center" style={{ color: "var(--dim)" }}>
                       {t("stockDetailModal.source")}: {data?.sources?.analyst === "finnhub" ? "Finnhub" : data?.sources?.analyst === "fmp" ? "Financial Modeling Prep" : "Yahoo Finance"} · {t("stockDetailModal.wallStreet")}
                     </p>
                   </>
