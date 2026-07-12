@@ -620,9 +620,10 @@ Instrucciones críticas:
 
     if (isUser) {
       return (
+        <View style={{ alignItems: "flex-end", marginBottom: 8 }}>
+          <Text style={styles.senderNameUser}>{t("chat.you")}</Text>
         <View style={styles.userRow}>
           <View style={styles.userBubble}>
-            <View style={styles.userTail} />
             {item.images && item.images.length > 0 && (
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginBottom: item.content ? 6 : 0 }}>
                 {item.images.map((img, idx) => (
@@ -635,13 +636,14 @@ Instrucciones críticas:
             {!!timeStr && (
               <View style={styles.timeRowUser}>
                 <Text style={styles.timeUser}>{timeStr}</Text>
-                <Ionicons name="checkmark-done-outline" size={12} color="rgba(255,255,255,0.7)" />
+                <Ionicons name="checkmark-done-outline" size={12} color={colors.textDim} />
               </View>
             )}
           </View>
           <TouchableOpacity style={styles.editBtn} onPress={() => handleEditMessage(index, item.content)}>
             <Ionicons name="pencil" size={14} color={colors.textSub} />
           </TouchableOpacity>
+        </View>
         </View>
       );
     }
@@ -660,29 +662,29 @@ Instrucciones críticas:
           {!!timeStr && item.content !== "" && (
             <Text style={styles.timeAI}>{timeStr}</Text>
           )}
+          {item.content !== "" && !(streaming && isLastAssistant) && (
+            <View style={styles.aiFooter}>
+              <Text style={[styles.aiDisclaimer, { flex: 1 }]}>
+                {t("chat.disclaimer")}
+              </Text>
+              <TouchableOpacity
+                onPress={() => playMessageAudio(item.content, index)}
+                disabled={isLoadingAudio && playingIdx !== index}
+                style={styles.speakerBtn}
+              >
+                <Ionicons
+                  name={
+                    playingIdx === index
+                      ? isLoadingAudio ? "hourglass-outline" : "stop-circle-outline"
+                      : "volume-medium-outline"
+                  }
+                  size={15}
+                  color={playingIdx === index ? colors.accentLight : colors.textMuted}
+                />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-        {item.content !== "" && !(streaming && isLastAssistant) && (
-          <View style={styles.aiFooter}>
-            <Text style={[styles.aiDisclaimer, { flex: 1 }]}>
-              {t("chat.disclaimer")}
-            </Text>
-            <TouchableOpacity
-              onPress={() => playMessageAudio(item.content, index)}
-              disabled={isLoadingAudio && playingIdx !== index}
-              style={styles.speakerBtn}
-            >
-              <Ionicons
-                name={
-                  playingIdx === index
-                    ? isLoadingAudio ? "hourglass-outline" : "stop-circle-outline"
-                    : "volume-medium-outline"
-                }
-                size={15}
-                color={playingIdx === index ? colors.accentLight : colors.textMuted}
-              />
-            </TouchableOpacity>
-          </View>
-        )}
         {showChart && <StockChart ticker={lastTicker!} />}
         {isLastAssistant && pendingActions && !streaming && (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6, marginLeft: 4 }}>
@@ -1370,7 +1372,6 @@ function makeStyles(c: Colors) {
       flexDirection: "row" as const,
       justifyContent: "flex-end" as const,
       alignItems: "flex-end" as const,
-      marginBottom: 8,
       gap: 4,
     },
 
@@ -1396,36 +1397,37 @@ function makeStyles(c: Colors) {
     },
     principlePillText: { fontSize: 11, fontWeight: "600", letterSpacing: 0.2 },
 
-    // User bubble (WhatsApp style — right, green, tail)
-    userBubble: {
-      maxWidth: "78%" as const,
-      backgroundColor: c.accent,
-      borderRadius: 18,
-      borderBottomRightRadius: 4,
-      paddingHorizontal: 13,
-      paddingVertical: 9,
-      shadowColor: c.accent,
-      shadowOpacity: 0.25,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 2 },
-      elevation: 3,
+    // Sender label above the user bubble (mirrors web's "You" label)
+    senderNameUser: {
+      fontSize: 10, fontWeight: "600" as const, color: c.textDim,
+      marginBottom: 3, marginRight: 4, letterSpacing: 0.1,
+      fontFamily: "Inter_400Regular",
     },
-    userTail: {
-      position: "absolute" as const, bottom: 0, right: -8,
-      width: 10, height: 10,
-      backgroundColor: c.accent,
-      borderBottomLeftRadius: 8,
+    // User bubble — translucent glass, matches web's .bubble-user exactly
+    userBubble: {
+      maxWidth: "72%" as const,
+      backgroundColor: "rgba(255,255,255,0.07)",
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.10)",
+      borderRadius: 20,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      shadowColor: "#000",
+      shadowOpacity: 0.14,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 1 },
+      elevation: 1,
     },
     // AI bubble (full-width card, mentor-accent left border added inline)
     aiBubble: {
       backgroundColor: c.card,
-      borderRadius: 16,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
+      borderRadius: 20,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
       borderWidth: 1,
       borderColor: c.border,
       shadowColor: "#000",
-      shadowOpacity: 0.05,
+      shadowOpacity: 0.3,
       shadowRadius: 3,
       shadowOffset: { width: 0, height: 1 },
       elevation: 1,
@@ -1435,9 +1437,9 @@ function makeStyles(c: Colors) {
       flexDirection: "row" as const, justifyContent: "flex-end" as const,
       alignItems: "center" as const, gap: 3, marginTop: 5,
     },
-    timeUser: { fontSize: 10, color: "rgba(255,255,255,0.75)", fontFamily: "Inter_400Regular" },
+    timeUser: { fontSize: 10, color: c.textDim, fontFamily: "Inter_400Regular" },
     timeAI: { fontSize: 10, color: c.textDim, fontFamily: "Inter_400Regular", textAlign: "right" as const, marginTop: 6 },
-    userText: { color: "white", fontSize: 15, lineHeight: 22, flexWrap: "wrap" as const, fontFamily: "Inter_400Regular" },
+    userText: { color: c.text, fontSize: 14.5, lineHeight: 23, flexWrap: "wrap" as const, fontFamily: "Inter_400Regular" },
 
     input: {
       flex: 1,
@@ -1471,8 +1473,12 @@ function makeStyles(c: Colors) {
     },
     msgCounterText: { fontSize: 11, fontWeight: "500" as const, flex: 1 },
     editBtn: { alignSelf: "flex-end", marginTop: 3, padding: 4 },
-    aiDisclaimer: { fontSize: 10, lineHeight: 14, marginTop: 4, color: c.textDim, fontFamily: "Inter_400Regular" },
-    aiFooter: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, marginTop: 4 },
+    aiDisclaimer: { fontSize: 10, lineHeight: 14, color: c.textDim, fontFamily: "Inter_400Regular" },
+    aiFooter: {
+      flexDirection: "row" as const, alignItems: "center" as const, gap: 6,
+      marginTop: 10, paddingTop: 8,
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border,
+    },
     speakerBtn: { padding: 3 },
 
     // Diagnostic

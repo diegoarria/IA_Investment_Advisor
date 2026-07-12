@@ -57,7 +57,9 @@ function fmtNum(n?: number | null, dec = 2): string {
 }
 
 function fmtPct(n?: number | null): string {
-  return n != null ? `${(n * 100).toFixed(1)}%` : "—";
+  // profile.* margin/return fields already arrive percentage-scale from the
+  // backend (e.g. 62.97 meaning 62.97%) — do NOT multiply by 100 again here.
+  return n != null ? `${n.toFixed(1)}%` : "—";
 }
 
 // ─── Entry Ranges (¿Cuándo entrar?) ──────────────────────────────────────────
@@ -367,7 +369,11 @@ function getMetricHints(t: TFunction): Record<string, string> {
     "P/E Fwd":       t("stockDetailScreen.metricHints.peFwd"),
     "EPS (TTM)":     t("stockDetailScreen.metricHints.epsTtm"),
     "ROE":           t("stockDetailScreen.metricHints.roe"),
-    [t("stockDetailScreen.metricLabels.netMargin")]:   t("stockDetailScreen.metricHints.netMargin"),
+    "ROA":           t("stockDetailScreen.metricHints.roa"),
+    "ROIC":          t("stockDetailScreen.metricHints.roic"),
+    [t("stockDetailScreen.metricLabels.netMargin")]:       t("stockDetailScreen.metricHints.netMargin"),
+    [t("stockDetailScreen.metricLabels.grossMargin")]:     t("stockDetailScreen.metricHints.grossMargin"),
+    [t("stockDetailScreen.metricLabels.operatingMargin")]: t("stockDetailScreen.metricHints.operatingMargin"),
     "Div. Yield":    t("stockDetailScreen.metricHints.divYield"),
     "FCF":           t("stockDetailScreen.metricHints.fcf"),
     "Beta":          t("stockDetailScreen.metricHints.beta"),
@@ -399,7 +405,11 @@ function KeyMetrics({ profile }: { profile?: ProfileData }) {
       label: t("stockDetailScreen.groups.profitability"),
       items: [
         { label: "ROE",          value: fmtPct(profile.return_on_equity) },
-        { label: t("stockDetailScreen.metricLabels.netMargin"),  value: fmtPct(profile.profit_margins) },
+        { label: "ROA",          value: fmtPct(profile.return_on_assets) },
+        { label: "ROIC",         value: fmtPct(profile.roic) },
+        { label: t("stockDetailScreen.metricLabels.netMargin"),       value: fmtPct(profile.profit_margins) },
+        { label: t("stockDetailScreen.metricLabels.grossMargin"),     value: fmtPct(profile.gross_margins) },
+        { label: t("stockDetailScreen.metricLabels.operatingMargin"), value: fmtPct(profile.operating_margins) },
         { label: "Div. Yield",   value: profile.dividend_yield ? `${profile.dividend_yield.toFixed(2)}%` : "—" },
         { label: "FCF",          value: fmtBig(profile.free_cashflow) },
       ],

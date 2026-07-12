@@ -1884,6 +1884,7 @@
     "helloName": "Hola, {{name}}",
     "mentorAiFallback": "Mentor IA",
     "nuvosAi": "Nuvos AI",
+    "you": "Tú",
     "mentorSub": "Tu mentor de inversiones con IA",
     "positionsCount": "💼 {{count}} posiciones",
     "msgRemaining": "{{count}} msg restantes",
@@ -2945,6 +2946,8 @@
   },
   "stockFinancials": {
     "noStatements": "Sin estados financieros",
+    "viewingYear": "Viendo {{year}}",
+    "backToLatest": "Volver a lo último ›",
     "period": {
       "annual": "Anual",
       "quarterly": "Trimestral"
@@ -3240,15 +3243,21 @@
       "fcf": "Free Cash Flow: efectivo real que genera la empresa después de sus inversiones. Más confiable que las ganancias contables.",
       "marketCap": "Valor total de todas las acciones en el mercado. Mide qué tan grande es la empresa.",
       "netMargin": "De cada $100 de ventas, cuánto queda como ganancia final tras impuestos y todos los costos.",
+      "grossMargin": "De cada $100 de ventas, cuánto queda después de restar solo el costo directo de producir el producto o servicio.",
+      "operatingMargin": "De cada $100 de ventas, cuánto queda como ganancia operativa antes de intereses e impuestos.",
       "peFwd": "P/E usando las ganancias esperadas del próximo año. Refleja las expectativas del mercado.",
       "peTtm": "Cuántos años de ganancias actuales pagas por cada acción. Un P/E alto significa que el mercado espera mucho crecimiento futuro.",
       "roe": "Cuánto gana la empresa por cada peso de capital que pusieron los accionistas. Mientras más alto, más eficiente.",
+      "roa": "Cuánto gana la empresa por cada peso de activos totales que tiene, sin importar cómo los financió (deuda o capital propio).",
+      "roic": "Cuánto retorno genera la empresa sobre todo el capital invertido (deuda + capital propio). Es la métrica preferida de Buffett para medir calidad de negocio.",
       "week52High": "Precio más alto que alcanzó la acción en los últimos 12 meses.",
       "week52Low": "Precio más bajo que tuvo la acción en los últimos 12 meses."
     },
     "metricLabels": {
       "debtEquity": "Deuda/Equity",
       "netMargin": "Margen Neto",
+      "grossMargin": "Margen Bruto",
+      "operatingMargin": "Margen Operativo",
       "week52High": "52s Máx",
       "week52Low": "52s Mín"
     },

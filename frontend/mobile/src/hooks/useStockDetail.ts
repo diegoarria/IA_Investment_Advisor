@@ -36,8 +36,10 @@ export interface StockProfile {
   sma_200?: number;
   return_on_equity?: number;
   return_on_assets?: number;
+  roic?: number;
   profit_margins?: number;
   gross_margins?: number;
+  operating_margins?: number;
   debt_to_equity?: number;
   current_ratio?: number;
   free_cashflow?: number;

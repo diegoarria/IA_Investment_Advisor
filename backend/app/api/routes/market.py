@@ -2038,14 +2038,18 @@ def _fmp_income(symbol: str) -> list[dict]:
         data = r.json() if r.status_code == 200 else []
         result = []
         for d in data:
-            revenue  = _fmt_number(d.get("revenue"))
-            cost_rev = _fmt_number(d.get("costOfRevenue"))
-            gross    = _fmt_number(d.get("grossProfit"))
-            # Derive gross profit from revenue − COGS when FMP returns missing/zero
+            revenue   = _fmt_number(d.get("revenue"))
+            cost_rev  = _fmt_number(d.get("costOfRevenue"))
+            gross     = _fmt_number(d.get("grossProfit"))
+            op_income = _fmt_number(d.get("operatingIncome"))
+            # Derive gross profit from revenue − COGS when FMP returns missing/zero.
+            # (op_income was previously only assigned inside this branch, which threw
+            # UnboundLocalError — caught silently below — whenever FMP DID return a
+            # normal grossProfit, making this endpoint return [] almost always.)
             if not gross and revenue is not None and cost_rev is not None and cost_rev != 0:
                 gross = round(float(revenue) - float(cost_rev), 4)
-                op_income = _fmt_number(d.get("operatingIncome"))
             net_income = _fmt_number(d.get("netIncome"))
+            tax_prov   = _fmt_number(d.get("incomeTaxExpense"))
             # Derive margin %
             gross_margin  = round(float(gross) / float(revenue) * 100, 2) if gross and revenue else None
             op_margin     = round(float(op_income) / float(revenue) * 100, 2) if op_income and revenue else None
@@ -2063,6 +2067,7 @@ def _fmp_income(symbol: str) -> list[dict]:
                 "Net Income":          net_income,
                 "Net Margin %":        net_margin,
                 "Diluted EPS":         _fmt_number(d.get("epsdiluted")),
+                "Tax Provision":       tax_prov,
             })
         return result
     except Exception:
@@ -2526,8 +2531,12 @@ def _fetch_stock_detail(symbol: str) -> dict:
     symbol = _yf_symbol(symbol)
     cache_key = f"detail2:{symbol}"
     cached = cache_get(cache_key)
-    # Discard stale cache entries where name wasn't resolved (empty data bug)
-    if cached and cached.get("name") and cached.get("name") != symbol:
+    # Discard stale cache entries where name wasn't resolved (empty data bug).
+    # Name lives under profile.name, not top-level — fixed a bug where this
+    # check always read None and the cache was never actually reused, meaning
+    # every request re-hit yfinance live even during its frequent rate-limits.
+    _cached_name = (cached or {}).get("profile", {}).get("name") if cached else None
+    if cached and _cached_name and _cached_name != symbol:
         return cached
 
     t = yf.Ticker(symbol)
@@ -2691,6 +2700,21 @@ def _fetch_stock_detail(symbol: str) -> dict:
         "ebitda_ttm":      _fmt_number(info.get("ebitda")),
     }
 
+    # Finnhub as primary source for ROE / net margin — yfinance's returnOnEquity
+    # and profitMargins go stale or blank whenever Yahoo rate-limits (frequent),
+    # silently showing 0% instead of a real number. Finnhub's TTM metrics are
+    # already percentage-scale, matching this field's expected format.
+    if _FINNHUB_KEY:
+        try:
+            from app.core.finnhub import fh_metrics as _fh_metrics
+            _fhm = _fh_metrics(symbol)
+            if _fhm.get("netProfitMarginTTM") is not None:
+                profile["profit_margins"] = _fmt_number(_fhm.get("netProfitMarginTTM"))
+            if _fhm.get("roeTTM") is not None:
+                profile["return_on_equity"] = _fmt_number(_fhm.get("roeTTM"))
+        except Exception:
+            pass
+
     # ── Financial Statements ─────────────────────────────────────────────────
     IS_ROWS = [
         "Total Revenue", "Cost Of Revenue", "Gross Profit", "Gross Margin %",
@@ -2813,6 +2837,30 @@ def _fetch_stock_detail(symbol: str) -> dict:
         "cashflow": {"annual": cashflow_annual, "quarterly": cf_quarterly},
         "source":   "fmp" if _FMP_KEY else "yfinance",
     }
+
+    # ── ROIC (computed — not provided directly by Finnhub's basic tier or
+    # yfinance's .info; derived from the same statements already fetched above) ──
+    profile["roic"] = None
+    try:
+        _is_latest = income_annual[-1] if income_annual else {}
+        _bs_latest = balance_annual[-1] if balance_annual else {}
+        _op_income = _is_latest.get("Operating Income")
+        _tax_prov  = _is_latest.get("Tax Provision")
+        _net_inc   = _is_latest.get("Net Income")
+        _equity    = _bs_latest.get("Stockholders Equity") or _bs_latest.get("Common Stock Equity")
+        _total_debt = _bs_latest.get("Total Debt")
+        _cash      = (_bs_latest.get("Cash And Cash Equivalents")
+                      or _bs_latest.get("Cash Cash Equivalents And Short Term Investments"))
+        if _op_income is not None and _equity is not None:
+            _pretax = (_net_inc + _tax_prov) if (_net_inc is not None and _tax_prov is not None) else None
+            _tax_rate = (_tax_prov / _pretax) if (_pretax and _pretax > 0 and _tax_prov is not None) else 0.21
+            _tax_rate = max(0.0, min(_tax_rate, 0.45))
+            _nopat = _op_income * (1 - _tax_rate)
+            _invested_capital = (_total_debt or 0) + _equity - (_cash or 0)
+            if _invested_capital > 0:
+                profile["roic"] = _fmt_number((_nopat / _invested_capital) * 100)
+    except Exception:
+        pass
 
     # ── Analyst Data — priority: Finnhub > FMP > yfinance ────────────────────
     ratings = {"strong_buy": 0, "buy": 0, "hold": 0, "sell": 0, "strong_sell": 0}

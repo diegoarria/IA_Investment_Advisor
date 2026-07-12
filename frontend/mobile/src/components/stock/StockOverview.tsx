@@ -26,8 +26,10 @@ function fmtNum(n?: number | null, decimals = 2): string {
 }
 
 function fmtPct(n?: number | null): string {
+  // profile.* margin/return fields already arrive percentage-scale from the
+  // backend (e.g. 62.97 meaning 62.97%) — do NOT multiply by 100 again here.
   if (n == null) return "—";
-  return `${(n * 100).toFixed(2)}%`;
+  return `${n.toFixed(2)}%`;
 }
 
 function fmtK(n?: number | null): string {

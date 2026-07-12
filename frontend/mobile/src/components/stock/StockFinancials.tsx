@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, ActivityIndicator,
 } from "react-native";
-import Svg, { Rect, G, Text as SvgText, Line } from "react-native-svg";
+import Svg, { Rect, G, Text as SvgText, Line, Defs, LinearGradient, Stop } from "react-native-svg";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { marketApi } from "../../lib/api";
@@ -11,9 +11,11 @@ import type { Financials, FinancialPeriod, RichFinancials } from "../../hooks/us
 const { width: SCREEN_W } = Dimensions.get("window");
 const PAD = 16;
 const CHART_W = SCREEN_W - PAD * 2;
-const CHART_H = 150;
-const LABEL_H = 18;
-const DRAW_H  = CHART_H - LABEL_H;
+const CHART_H   = 190;
+const BOTTOM_H  = 24; // x-axis year labels
+const TOP_PAD   = 28; // reserved so the tallest bar's value label never clips
+const PLOT_H    = CHART_H - BOTTOM_H - TOP_PAD;
+const BASE_Y    = CHART_H - BOTTOM_H;
 
 const D = {
   bg:     "#0a0d12",
@@ -58,10 +60,12 @@ function yoyChange(curr: number | null | undefined, prev: number | null | undefi
 
 // ─── Bar Chart ────────────────────────────────────────────────────────────────
 
-function MiniBarChart({ periods, field, accent }: {
+function MiniBarChart({ periods, field, accent, activeIndex, onSelect }: {
   periods: FinancialPeriod[];
   field: keyof FinancialPeriod;
   accent: string;
+  activeIndex: number;
+  onSelect: (i: number) => void;
 }) {
   const data = periods.slice(-5).map((p) => ({
     label: yearLabel(p.period),
@@ -72,58 +76,89 @@ function MiniBarChart({ periods, field, accent }: {
 
   const maxAbs = Math.max(...valid.map((d) => Math.abs(d.value!)));
   const n = data.length;
-  const gap = 8;
+  const gap = 10;
   const barW = (CHART_W - gap * (n - 1)) / n;
+  const gradId = `barGrad_${String(field).replace(/\s/g, "")}`;
+
+  // Faint horizontal guides at 1/3 and 2/3 of the plot height
+  const guides = [0.33, 0.66].map((f) => BASE_Y - PLOT_H * f);
 
   return (
-    <Svg width={CHART_W} height={CHART_H}>
-      <Line x1={0} y1={DRAW_H} x2={CHART_W} y2={DRAW_H} stroke="#2a3040" strokeWidth={1} />
-      {data.map((d, i) => {
-        const x = i * (barW + gap);
-        const val = d.value ?? 0;
-        const barH = maxAbs > 0 ? (Math.abs(val) / maxAbs) * (DRAW_H - 8) : 0;
-        const y = DRAW_H - barH;
-        const color = val < 0 ? D.red : accent;
-        const isLast = i === n - 1;
-        return (
-          <G key={i}>
-            {barH > 0 && (
-              <Rect
-                x={x} y={y} width={barW} height={barH}
-                rx={4}
-                fill={color}
-                opacity={isLast ? 1 : 0.6}
-              />
-            )}
-            <SvgText x={x + barW / 2} y={CHART_H - 2} textAnchor="middle" fontSize={10} fill={isLast ? "#c4c9d4" : "#7a8494"} fontWeight="600">
-              {d.label}
-            </SvgText>
-            {barH > 14 && (
-              <SvgText x={x + barW / 2} y={y - 4} textAnchor="middle" fontSize={8} fill={color} fontWeight="700">
-                {fmtBig(val)}
+    <View>
+      <Svg width={CHART_W} height={CHART_H}>
+        <Defs>
+          <LinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={accent} stopOpacity="1" />
+            <Stop offset="1" stopColor={accent} stopOpacity="0.55" />
+          </LinearGradient>
+        </Defs>
+
+        {guides.map((gy, i) => (
+          <Line key={i} x1={0} y1={gy} x2={CHART_W} y2={gy} stroke="#20242f" strokeWidth={1} />
+        ))}
+        <Line x1={0} y1={BASE_Y} x2={CHART_W} y2={BASE_Y} stroke="#2a3040" strokeWidth={1} />
+
+        {data.map((d, i) => {
+          const x = i * (barW + gap);
+          const val = d.value ?? 0;
+          const hasVal = d.value != null;
+          const barH = maxAbs > 0 ? (Math.abs(val) / maxAbs) * PLOT_H : 0;
+          const y = BASE_Y - barH;
+          const isNeg = val < 0;
+          const active = i === activeIndex;
+          const fill = !hasVal ? "#20242f" : isNeg ? D.red : active ? `url(#${gradId})` : accent;
+          const labelY = Math.max(y - 8, TOP_PAD - 12);
+          return (
+            <G key={i}>
+              {/* Track — full-height faint column, also the tap target for this year */}
+              <Rect x={x} y={TOP_PAD} width={barW} height={PLOT_H} rx={7}
+                fill={active ? "#181e18" : "#12141a"}
+                stroke={active ? accent + "55" : "transparent"} strokeWidth={active ? 1 : 0}
+                onPress={() => hasVal && onSelect(i)} />
+              {barH > 0 && (
+                <Rect
+                  x={x} y={y} width={barW} height={Math.max(barH, 3)}
+                  rx={7}
+                  fill={fill}
+                  opacity={active || isNeg ? 1 : 0.55}
+                />
+              )}
+              <SvgText x={x + barW / 2} y={CHART_H - 6} textAnchor="middle" fontSize={10.5} fill={active ? "#e5e8ee" : "#6b7280"} fontWeight={active ? "800" : "600"}>
+                {d.label}
               </SvgText>
-            )}
-          </G>
-        );
-      })}
-    </Svg>
+              {hasVal && (
+                <SvgText
+                  x={x + barW / 2} y={labelY} textAnchor="middle"
+                  fontSize={active ? 11.5 : 10} fill={isNeg ? D.red : active ? "#fff" : "#9aa1b0"}
+                  fontWeight={active ? "800" : "700"}
+                >
+                  {fmtBig(val)}
+                </SvgText>
+              )}
+            </G>
+          );
+        })}
+      </Svg>
+    </View>
   );
 }
 
 // ─── Metric Row ───────────────────────────────────────────────────────────────
 
 function MetricRow({
-  label, periods, field, isMargin = false, indent = false,
+  label, periods, field, isMargin = false, indent = false, selIndex,
 }: {
   label: string;
   periods: FinancialPeriod[];
   field: keyof FinancialPeriod;
   isMargin?: boolean;
   indent?: boolean;
+  selIndex: number;
 }) {
   const last5  = periods.slice(-5);
-  const latest = last5[last5.length - 1]?.[field] as number | null | undefined;
-  const prev   = last5[last5.length - 2]?.[field] as number | null | undefined;
+  const idx    = Math.min(Math.max(selIndex, 0), last5.length - 1);
+  const latest = last5[idx]?.[field] as number | null | undefined;
+  const prev   = last5[idx - 1]?.[field] as number | null | undefined;
   if (latest == null && !isMargin) return null;
 
   const change = isMargin
@@ -138,11 +173,11 @@ function MetricRow({
   return (
     <View style={[mr.row, indent && mr.indented]}>
       {indent && <View style={mr.indentBar} />}
-      <Text style={[mr.label, { color: indent ? D.muted : "#c4c9d4", fontSize: indent ? 12 : 13 }]}>
+      <Text style={[mr.label, { color: indent ? D.muted : "#dfe2e8", fontSize: indent ? 13.5 : 15 }]}>
         {label.replace(/^\s+/, "")}
       </Text>
       <View style={mr.right}>
-        <Text style={[mr.value, { color: valueColor, fontSize: indent ? 12 : 14 }]}>
+        <Text style={[mr.value, { color: valueColor, fontSize: indent ? 14.5 : 17 }]}>
           {latest == null ? "—" : isMargin ? fmtPct(latest) : fmtBig(latest)}
         </Text>
         {change != null && (
@@ -158,14 +193,14 @@ function MetricRow({
 }
 
 const mr = StyleSheet.create({
-  row:       { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#1f2330", gap: 10 },
+  row:       { flexDirection: "row", alignItems: "center", paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#1f2330", gap: 10 },
   indented:  { paddingLeft: 16 },
-  indentBar: { width: 2, height: 16, borderRadius: 1, backgroundColor: "#2a3040", marginRight: 2 },
+  indentBar: { width: 2, height: 18, borderRadius: 1, backgroundColor: "#2a3040", marginRight: 2 },
   label:     { flex: 1, fontWeight: "500" },
   right:     { flexDirection: "row", alignItems: "center", gap: 8 },
-  value:     { fontWeight: "700" },
-  pill:      { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
-  pillText:  { fontSize: 10, fontWeight: "700" },
+  value:     { fontWeight: "800" },
+  pill:      { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  pillText:  { fontSize: 11.5, fontWeight: "700" },
 });
 
 // ─── AI Analysis ──────────────────────────────────────────────────────────────
@@ -221,31 +256,69 @@ function SectionLabel({ title }: { title: string }) {
 }
 
 const sl = StyleSheet.create({
-  text: { fontSize: 9, fontFamily: "DMSans_800ExtraBold", letterSpacing: 0.8, textTransform: "uppercase", color: D.green, paddingHorizontal: PAD, paddingTop: 18, paddingBottom: 8 },
+  text: { fontSize: 10.5, fontFamily: "DMSans_800ExtraBold", letterSpacing: 0.8, textTransform: "uppercase", color: D.green, paddingHorizontal: PAD, paddingTop: 18, paddingBottom: 8 },
+});
+
+// ─── Selected-year indicator ──────────────────────────────────────────────────
+
+function usePeriodSelection(periods: FinancialPeriod[]) {
+  const last5 = periods.slice(-5);
+  const defaultIdx = Math.max(last5.length - 1, 0);
+  const [selIdx, setSelIdx] = useState(defaultIdx);
+  const key = periods.map((p) => p.period).join("|");
+  const prevKey = useRef(key);
+  if (prevKey.current !== key) {
+    prevKey.current = key;
+    // Periods changed (ticker switch, annual/quarterly toggle) — snap back to latest
+    if (selIdx !== defaultIdx) setSelIdx(defaultIdx);
+  }
+  const selectedPeriod = last5[selIdx]?.period;
+  const isLatest = selIdx === defaultIdx;
+  return { selIdx, setSelIdx, selectedPeriod, isLatest, defaultIdx };
+}
+
+function YearIndicator({ periodLabel, isLatest, onReset }: { periodLabel?: string; isLatest: boolean; onReset: () => void }) {
+  const { t } = useTranslation();
+  if (isLatest || !periodLabel) return null;
+  const year = periodLabel.slice(0, 4);
+  return (
+    <TouchableOpacity onPress={onReset} activeOpacity={0.7} style={yi.wrap}>
+      <Text style={yi.text}>{t("stockFinancials.viewingYear", { year })}</Text>
+      <Text style={yi.reset}>{t("stockFinancials.backToLatest")}</Text>
+    </TouchableOpacity>
+  );
+}
+
+const yi = StyleSheet.create({
+  wrap: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: PAD, marginTop: 10, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: "rgba(0,212,126,0.08)", borderWidth: 1, borderColor: "rgba(0,212,126,0.25)" },
+  text: { fontSize: 11.5, fontFamily: "DMSans_700Bold", color: D.green },
+  reset: { fontSize: 11, fontFamily: "DMSans_600SemiBold", color: D.muted },
 });
 
 // ─── Tab content ──────────────────────────────────────────────────────────────
 
 function IncomeTab({ periods, ticker }: { periods: FinancialPeriod[]; ticker?: string }) {
   const { t } = useTranslation();
+  const { selIdx, setSelIdx, selectedPeriod, isLatest, defaultIdx } = usePeriodSelection(periods);
   return (
     <View>
       <SectionLabel title={t("stockFinancials.income.totalRevenueSection")} />
       <View style={{ paddingHorizontal: PAD }}>
-        <MiniBarChart periods={periods} field="Total Revenue" accent={D.green} />
+        <MiniBarChart periods={periods} field="Total Revenue" accent={D.green} activeIndex={selIdx} onSelect={setSelIdx} />
       </View>
+      <YearIndicator periodLabel={selectedPeriod} isLatest={isLatest} onReset={() => setSelIdx(defaultIdx)} />
       <View style={{ paddingHorizontal: PAD, paddingTop: 6 }}>
-        <MetricRow label={t("stockFinancials.income.totalRevenue")}    periods={periods} field="Total Revenue" />
-        <MetricRow label={t("stockFinancials.income.costOfRevenue")}   periods={periods} field="Cost Of Revenue" />
-        <MetricRow label={t("stockFinancials.income.grossProfit")}     periods={periods} field="Gross Profit" />
-        <MetricRow label={"  " + t("stockFinancials.income.grossMargin")}      periods={periods} field="Gross Margin %" isMargin indent />
-        <MetricRow label={t("stockFinancials.income.operatingExpenses")} periods={periods} field="Operating Expenses" />
-        <MetricRow label={t("stockFinancials.income.operatingIncome")}  periods={periods} field="Operating Income" />
-        <MetricRow label={"  " + t("stockFinancials.income.operatingMargin")}  periods={periods} field="Operating Margin %" isMargin indent />
-        <MetricRow label={t("stockFinancials.income.ebitda")}              periods={periods} field="EBITDA" />
-        <MetricRow label={t("stockFinancials.income.netIncome")}       periods={periods} field="Net Income" />
-        <MetricRow label={"  " + t("stockFinancials.income.netMargin")}       periods={periods} field="Net Margin %" isMargin indent />
-        <MetricRow label={t("stockFinancials.income.dilutedEps")}         periods={periods} field="Diluted EPS" />
+        <MetricRow label={t("stockFinancials.income.totalRevenue")}    periods={periods} field="Total Revenue" selIndex={selIdx} />
+        <MetricRow label={t("stockFinancials.income.costOfRevenue")}   periods={periods} field="Cost Of Revenue" selIndex={selIdx} />
+        <MetricRow label={t("stockFinancials.income.grossProfit")}     periods={periods} field="Gross Profit" selIndex={selIdx} />
+        <MetricRow label={"  " + t("stockFinancials.income.grossMargin")}      periods={periods} field="Gross Margin %" isMargin indent selIndex={selIdx} />
+        <MetricRow label={t("stockFinancials.income.operatingExpenses")} periods={periods} field="Operating Expenses" selIndex={selIdx} />
+        <MetricRow label={t("stockFinancials.income.operatingIncome")}  periods={periods} field="Operating Income" selIndex={selIdx} />
+        <MetricRow label={"  " + t("stockFinancials.income.operatingMargin")}  periods={periods} field="Operating Margin %" isMargin indent selIndex={selIdx} />
+        <MetricRow label={t("stockFinancials.income.ebitda")}              periods={periods} field="EBITDA" selIndex={selIdx} />
+        <MetricRow label={t("stockFinancials.income.netIncome")}       periods={periods} field="Net Income" selIndex={selIdx} />
+        <MetricRow label={"  " + t("stockFinancials.income.netMargin")}       periods={periods} field="Net Margin %" isMargin indent selIndex={selIdx} />
+        <MetricRow label={t("stockFinancials.income.dilutedEps")}         periods={periods} field="Diluted EPS" selIndex={selIdx} />
       </View>
       {ticker && <AIAnalysis ticker={ticker} />}
       <View style={{ height: 16 }} />
@@ -255,18 +328,20 @@ function IncomeTab({ periods, ticker }: { periods: FinancialPeriod[]; ticker?: s
 
 function BalanceTab({ periods }: { periods: FinancialPeriod[] }) {
   const { t } = useTranslation();
+  const { selIdx, setSelIdx, selectedPeriod, isLatest, defaultIdx } = usePeriodSelection(periods);
   return (
     <View>
       <SectionLabel title={t("stockFinancials.balance.totalAssetsSection")} />
       <View style={{ paddingHorizontal: PAD }}>
-        <MiniBarChart periods={periods} field="Total Assets" accent="#3b82f6" />
+        <MiniBarChart periods={periods} field="Total Assets" accent="#3b82f6" activeIndex={selIdx} onSelect={setSelIdx} />
       </View>
+      <YearIndicator periodLabel={selectedPeriod} isLatest={isLatest} onReset={() => setSelIdx(defaultIdx)} />
       <View style={{ paddingHorizontal: PAD, paddingTop: 6 }}>
-        <MetricRow label={t("stockFinancials.balance.totalAssets")}    periods={periods} field="Total Assets" />
-        <MetricRow label={t("stockFinancials.balance.currentAssets")} periods={periods} field="Current Assets" />
-        <MetricRow label={t("stockFinancials.balance.totalLiabilities")}    periods={periods} field="Total Liabilities Net Minority Interest" />
-        <MetricRow label={t("stockFinancials.balance.stockholdersEquity")}    periods={periods} field="Stockholders Equity" />
-        <MetricRow label={t("stockFinancials.balance.totalDebt")}        periods={periods} field="Total Debt" />
+        <MetricRow label={t("stockFinancials.balance.totalAssets")}    periods={periods} field="Total Assets" selIndex={selIdx} />
+        <MetricRow label={t("stockFinancials.balance.currentAssets")} periods={periods} field="Current Assets" selIndex={selIdx} />
+        <MetricRow label={t("stockFinancials.balance.totalLiabilities")}    periods={periods} field="Total Liabilities Net Minority Interest" selIndex={selIdx} />
+        <MetricRow label={t("stockFinancials.balance.stockholdersEquity")}    periods={periods} field="Stockholders Equity" selIndex={selIdx} />
+        <MetricRow label={t("stockFinancials.balance.totalDebt")}        periods={periods} field="Total Debt" selIndex={selIdx} />
       </View>
       <View style={{ height: 16 }} />
     </View>
@@ -275,16 +350,18 @@ function BalanceTab({ periods }: { periods: FinancialPeriod[] }) {
 
 function CashFlowTab({ periods }: { periods: FinancialPeriod[] }) {
   const { t } = useTranslation();
+  const { selIdx, setSelIdx, selectedPeriod, isLatest, defaultIdx } = usePeriodSelection(periods);
   return (
     <View>
       <SectionLabel title={t("stockFinancials.cashflow.operatingSection")} />
       <View style={{ paddingHorizontal: PAD }}>
-        <MiniBarChart periods={periods} field="Operating Cash Flow" accent={D.amber} />
+        <MiniBarChart periods={periods} field="Operating Cash Flow" accent={D.amber} activeIndex={selIdx} onSelect={setSelIdx} />
       </View>
+      <YearIndicator periodLabel={selectedPeriod} isLatest={isLatest} onReset={() => setSelIdx(defaultIdx)} />
       <View style={{ paddingHorizontal: PAD, paddingTop: 6 }}>
-        <MetricRow label={t("stockFinancials.cashflow.operatingCashFlow")}     periods={periods} field="Operating Cash Flow" />
-        <MetricRow label={t("stockFinancials.cashflow.freeCashFlow")} periods={periods} field="Free Cash Flow" />
-        <MetricRow label={t("stockFinancials.cashflow.capex")}               periods={periods} field="Capital Expenditure" />
+        <MetricRow label={t("stockFinancials.cashflow.operatingCashFlow")}     periods={periods} field="Operating Cash Flow" selIndex={selIdx} />
+        <MetricRow label={t("stockFinancials.cashflow.freeCashFlow")} periods={periods} field="Free Cash Flow" selIndex={selIdx} />
+        <MetricRow label={t("stockFinancials.cashflow.capex")}               periods={periods} field="Capital Expenditure" selIndex={selIdx} />
       </View>
       <View style={{ height: 16 }} />
     </View>

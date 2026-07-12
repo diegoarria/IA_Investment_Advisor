@@ -142,10 +142,10 @@ const goalStyles = StyleSheet.create({
 // ─── Fixed nav items ──────────────────────────────────────────────────────────
 
 const MAIN_NAV = [
-  { icon: "home-outline",                 labelKey: "common.nav.home",     path: "/home",          minLevel: "basico" as const },
-  { icon: "chatbubble-ellipses-outline",  labelKey: "common.nav.mentor",   path: "/chat",          minLevel: "basico" as const },
-  { icon: "pie-chart-outline",            labelKey: "common.nav.patrimonio", path: "/portfolio",  minLevel: "basico" as const },
-  { icon: "school-outline",              labelKey: "common.nav.academy",  path: "/learn",         minLevel: "basico" as const },
+  { icon: "home-outline",       labelKey: "common.nav.home",       path: "/home",       minLevel: "basico" as const },
+  { icon: "sparkles-outline",   labelKey: "common.nav.mentor",     path: "/chat",       minLevel: "basico" as const },
+  { icon: "wallet-outline",     labelKey: "common.nav.patrimonio", path: "/patrimonio", minLevel: "basico" as const },
+  { icon: "school-outline",     labelKey: "common.nav.academy",    path: "/academy",    minLevel: "basico" as const },
 ];
 
 const SECONDARY_NAV = [

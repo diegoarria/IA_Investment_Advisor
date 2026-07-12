@@ -1884,6 +1884,7 @@
     "helloName": "Hi, {{name}}",
     "mentorAiFallback": "AI Mentor",
     "nuvosAi": "Nuvos AI",
+    "you": "You",
     "mentorSub": "Your AI investment mentor",
     "positionsCount": "💼 {{count}} positions",
     "msgRemaining": "{{count}} msgs left",
@@ -2945,6 +2946,8 @@
   },
   "stockFinancials": {
     "noStatements": "No financial statements",
+    "viewingYear": "Viewing {{year}}",
+    "backToLatest": "Back to latest ›",
     "period": {
       "annual": "Annual",
       "quarterly": "Quarterly"
@@ -3240,15 +3243,21 @@
       "fcf": "Free Cash Flow: real cash the company generates after its investments. More reliable than accounting earnings.",
       "marketCap": "Total value of all outstanding shares in the market. Measures how big the company is.",
       "netMargin": "Out of every $100 in sales, how much is left as final profit after taxes and all costs.",
+      "grossMargin": "Out of every $100 in sales, how much is left after subtracting just the direct cost of producing the product or service.",
+      "operatingMargin": "Out of every $100 in sales, how much is left as operating profit before interest and taxes.",
       "peFwd": "P/E using next year's expected earnings. Reflects the market's expectations.",
       "peTtm": "How many years of current earnings you're paying for each share. A high P/E means the market expects a lot of future growth.",
       "roe": "How much the company earns for every dollar of capital shareholders put in. Higher means more efficient.",
+      "roa": "How much the company earns for every dollar of total assets it has, regardless of how they were financed (debt or equity).",
+      "roic": "How much return the company generates on all invested capital (debt + equity). Buffett's preferred metric for judging business quality.",
       "week52High": "The highest price the stock reached in the last 12 months.",
       "week52Low": "The lowest price the stock traded at in the last 12 months."
     },
     "metricLabels": {
       "debtEquity": "Debt/Equity",
       "netMargin": "Net Margin",
+      "grossMargin": "Gross Margin",
+      "operatingMargin": "Operating Margin",
       "week52High": "52wk High",
       "week52Low": "52wk Low"
     },
