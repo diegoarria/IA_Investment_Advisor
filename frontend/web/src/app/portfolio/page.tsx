@@ -906,7 +906,9 @@ export default function PortfolioPage() {
   // ticker you already hold happens right here, not in the top-level
   // "Agregar posición" box.
   const [addingLot, setAddingLot] = useState(false);
-  const [lotForm, setLotForm] = useState({ shares: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
+  // Asks for money invested + price per share, not share count directly —
+  // shares = amount / price, computed live, fractional or whole either way.
+  const [lotForm, setLotForm] = useState({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
   const [lotAddLoading, setLotAddLoading] = useState(false);
 
   // Edit position modal — edits exactly one purchase lot. Buying more of a
@@ -936,9 +938,10 @@ export default function PortfolioPage() {
   };
   const [confirmModal, setConfirmModal] = useState<{ msg: string; onConfirm: () => void } | null>(null);
 
-  // Manual form
+  // Manual form — asks for money invested + price per share, not share count
+  // directly; shares = amount / price, computed live.
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ ticker:"", shares:"", avgPrice:"", purchaseDate: new Date().toISOString().split("T")[0] });
+  const [form, setForm] = useState({ ticker:"", amount:"", avgPrice:"", purchaseDate: new Date().toISOString().split("T")[0] });
   const [addingLoading, setAddingLoading] = useState(false);
 
   // Currency modal (shown after screenshot or Excel import)
@@ -1453,20 +1456,21 @@ export default function PortfolioPage() {
 
   const handleAdd = async () => {
     const ticker = form.ticker.trim().toUpperCase();
-    const shares = parseFloat(form.shares);
+    const amount = parseFloat(form.amount);
     const enteredPrice = parseFloat(form.avgPrice);
-    if (!ticker || !shares || !enteredPrice) { showToast("Completa todos los campos"); return; }
+    if (!ticker || !amount || !enteredPrice) { showToast("Completa todos los campos"); return; }
     if (!isPremium && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
+    const shares = amount / enteredPrice;
     // avgPrice always stored in USD
     const avgPrice = portfolioCurrency === "USD" ? enteredPrice : enteredPrice / fxRate;
     setAddingLoading(true);
     try {
       const res = await marketApi.getPrices([ticker]);
-      addPosition({ ticker, shares, avgPrice: parseFloat(avgPrice.toFixed(6)), name: res.data[ticker]?.name, purchaseDate: form.purchaseDate });
+      addPosition({ ticker, shares: parseFloat(shares.toFixed(6)), avgPrice: parseFloat(avgPrice.toFixed(6)), name: res.data[ticker]?.name, purchaseDate: form.purchaseDate });
     } catch {
-      addPosition({ ticker, shares, avgPrice: parseFloat(avgPrice.toFixed(6)), purchaseDate: form.purchaseDate });
+      addPosition({ ticker, shares: parseFloat(shares.toFixed(6)), avgPrice: parseFloat(avgPrice.toFixed(6)), purchaseDate: form.purchaseDate });
     }
-    setForm({ ticker:"", shares:"", avgPrice:"", purchaseDate: new Date().toISOString().split("T")[0] });
+    setForm({ ticker:"", amount:"", avgPrice:"", purchaseDate: new Date().toISOString().split("T")[0] });
     setShowForm(false);
     setAddingLoading(false);
   };
@@ -1475,19 +1479,20 @@ export default function PortfolioPage() {
   // de compras" panel — same as handleAdd, but stays inside that panel
   // instead of routing to the top-level "Agregar posición" box.
   const handleAddLot = async (ticker: string) => {
-    const shares = parseFloat(lotForm.shares);
+    const amount = parseFloat(lotForm.amount);
     const enteredPrice = parseFloat(lotForm.avgPrice);
-    if (!shares || !enteredPrice) { showToast("Completa acciones y precio"); return; }
+    if (!amount || !enteredPrice) { showToast("Completa el monto y el precio"); return; }
     if (!isPremium && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
+    const shares = amount / enteredPrice;
     const avgPrice = portfolioCurrency === "USD" ? enteredPrice : enteredPrice / fxRate;
     setLotAddLoading(true);
     try {
       const res = await marketApi.getPrices([ticker]);
-      addPosition({ ticker, shares, avgPrice: parseFloat(avgPrice.toFixed(6)), name: res.data[ticker]?.name, purchaseDate: lotForm.purchaseDate });
+      addPosition({ ticker, shares: parseFloat(shares.toFixed(6)), avgPrice: parseFloat(avgPrice.toFixed(6)), name: res.data[ticker]?.name, purchaseDate: lotForm.purchaseDate });
     } catch {
-      addPosition({ ticker, shares, avgPrice: parseFloat(avgPrice.toFixed(6)), purchaseDate: lotForm.purchaseDate });
+      addPosition({ ticker, shares: parseFloat(shares.toFixed(6)), avgPrice: parseFloat(avgPrice.toFixed(6)), purchaseDate: lotForm.purchaseDate });
     }
-    setLotForm({ shares: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
+    setLotForm({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
     setAddingLot(false);
     setLotAddLoading(false);
   };
@@ -2061,15 +2066,15 @@ export default function PortfolioPage() {
                   />
                   <div className="grid grid-cols-2 gap-2 mb-2">
                     <div>
-                      <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Acciones / unidades</label>
-                      <input value={form.shares} onChange={(e) => setForm({ ...form, shares: e.target.value })}
+                      <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>¿Cuánto invertiste? ({portfolioCurrency})</label>
+                      <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
                              type="number" min="0"
                              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
                              style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
-                             placeholder="10" />
+                             placeholder="500" />
                     </div>
                     <div>
-                      <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Precio promedio ({portfolioCurrency})</label>
+                      <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Precio por acción ({portfolioCurrency})</label>
                       <input value={form.avgPrice} onChange={(e) => setForm({ ...form, avgPrice: e.target.value })}
                              type="number" min="0"
                              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
@@ -2077,6 +2082,16 @@ export default function PortfolioPage() {
                              placeholder={portfolioCurrency === "USD" ? "150.00" : (150 * fxRate).toFixed(0)} />
                     </div>
                   </div>
+                  {parseFloat(form.amount) > 0 && parseFloat(form.avgPrice) > 0 && (() => {
+                    const calcShares = parseFloat(form.amount) / parseFloat(form.avgPrice);
+                    const isWhole = Math.abs(calcShares - Math.round(calcShares)) < 0.0005;
+                    return (
+                      <p className="text-[11px] mb-2 px-0.5" style={{ color: "var(--accent-l)" }}>
+                        ≈ <span className="font-bold">{calcShares.toLocaleString("en-US", { maximumFractionDigits: 6 })}</span> acciones
+                        {" "}({isWhole ? "completas" : "fraccionadas"})
+                      </p>
+                    );
+                  })()}
                   <div>
                     <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Fecha de compra (opcional)</label>
                     <input value={form.purchaseDate} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })}
@@ -3628,7 +3643,7 @@ export default function PortfolioPage() {
         const closeLotsPanel = () => {
           setLotsTicker(null);
           setAddingLot(false);
-          setLotForm({ shares: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
+          setLotForm({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
         };
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -3690,15 +3705,15 @@ export default function PortfolioPage() {
                   <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Acciones</label>
-                        <input value={lotForm.shares} onChange={(e) => setLotForm({ ...lotForm, shares: e.target.value })}
+                        <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>¿Cuánto invertiste?</label>
+                        <input value={lotForm.amount} onChange={(e) => setLotForm({ ...lotForm, amount: e.target.value })}
                                type="number" min="0" autoFocus
                                className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                                style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--text)" }}
-                               placeholder="10" />
+                               placeholder="500" />
                       </div>
                       <div>
-                        <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Precio ({portfolioCurrency})</label>
+                        <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Precio/acción ({portfolioCurrency})</label>
                         <input value={lotForm.avgPrice} onChange={(e) => setLotForm({ ...lotForm, avgPrice: e.target.value })}
                                type="number" min="0"
                                className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
@@ -3706,6 +3721,16 @@ export default function PortfolioPage() {
                                placeholder="150.00" />
                       </div>
                     </div>
+                    {parseFloat(lotForm.amount) > 0 && parseFloat(lotForm.avgPrice) > 0 && (() => {
+                      const calcShares = parseFloat(lotForm.amount) / parseFloat(lotForm.avgPrice);
+                      const isWhole = Math.abs(calcShares - Math.round(calcShares)) < 0.0005;
+                      return (
+                        <p className="text-[11px] px-0.5" style={{ color: "var(--accent-l)" }}>
+                          ≈ <span className="font-bold">{calcShares.toLocaleString("en-US", { maximumFractionDigits: 6 })}</span> acciones
+                          {" "}({isWhole ? "completas" : "fraccionadas"})
+                        </p>
+                      );
+                    })()}
                     <div>
                       <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Fecha de compra</label>
                       <input value={lotForm.purchaseDate} onChange={(e) => setLotForm({ ...lotForm, purchaseDate: e.target.value })}
@@ -3714,7 +3739,7 @@ export default function PortfolioPage() {
                              style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--text)" }} />
                     </div>
                     <div className="flex gap-2 pt-1">
-                      <button onClick={() => { setAddingLot(false); setLotForm({ shares: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] }); }}
+                      <button onClick={() => { setAddingLot(false); setLotForm({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] }); }}
                               className="flex-1 py-2 rounded-lg text-xs font-semibold border"
                               style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
                         Cancelar
