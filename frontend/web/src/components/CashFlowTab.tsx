@@ -1,7 +1,7 @@
 "use client";
 
-import { TrendingUp, TrendingDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import FinancialHeroChart from "./FinancialHeroChart";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -38,31 +38,32 @@ type Row = Record<string, unknown>;
 function Header({ rows }: { rows: Row[] }) {
   const { t } = useTranslation();
   return (
-    <div className="flex items-center sticky top-0 z-10 border-b"
-         style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-      <div className="shrink-0 px-4 py-3" style={{ width: 200, minWidth: 160 }}>
+    <div className="flex items-center sticky top-0 z-10"
+         style={{ background: "var(--card)", boxShadow: "0 1px 0 var(--border)" }}>
+      <div className="shrink-0 px-5 py-3.5" style={{ width: 220, minWidth: 180 }}>
         <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>
           {t("cashFlowTab.metric")}
         </span>
       </div>
-      {rows.map((r, i) => (
-        <div key={i} className="flex-1 text-right px-4 py-3"
-             style={{ background: i === rows.length - 1 ? "rgba(0,168,94,0.05)" : undefined, borderLeft: "1px solid var(--border)" }}>
-          <span className="text-[14.5px] font-black tabular-nums"
-                style={{ color: i === rows.length - 1 ? "var(--accent-l)" : "var(--muted)" }}>
-            {fmtYear(String(r.period ?? ""))}
-          </span>
-        </div>
-      ))}
+      {rows.map((r, i) => {
+        const isLast = i === rows.length - 1;
+        return (
+          <div key={i} className="flex-1 text-right px-5 py-3.5">
+            <span className="text-[15px] font-black tabular-nums"
+                  style={{ color: isLast ? "var(--accent-l)" : "var(--muted)" }}>
+              {fmtYear(String(r.period ?? ""))}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 function Section({ label, color = "var(--dim)" }: { label: string; color?: string }) {
   return (
-    <div className="flex items-center px-4 py-1.5 border-b"
-         style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-      <span className="text-[11px] font-black uppercase tracking-widest" style={{ color }}>
+    <div className="flex items-center px-5 pt-6 pb-1.5">
+      <span className="text-[10.5px] font-black uppercase tracking-widest" style={{ color, opacity: 0.85 }}>
         {label}
       </span>
     </div>
@@ -89,14 +90,11 @@ function ValueRow({ rows, field, label, isTotal, isNeg, zeroAsDash, showGrowth, 
   if (!vals.some((v) => v != null)) return null;
 
   return (
-    <div className="flex items-stretch border-b transition-colors hover:bg-white/[0.015]"
-         style={{
-           borderColor: "var(--border)",
-           background: highlight ? "rgba(0,168,94,0.04)" : isTotal ? "rgba(0,0,0,0.02)" : undefined,
-         }}>
-      <div className="shrink-0 flex items-center px-4 py-2.5" style={{ width: 200, minWidth: 160 }}>
+    <div className="flex items-stretch rounded-lg transition-colors hover:bg-white/[0.025]"
+         style={{ background: highlight ? "rgba(0,168,94,0.05)" : undefined }}>
+      <div className="shrink-0 flex items-center gap-2 px-5 py-3" style={{ width: 220, minWidth: 180 }}>
         {indent && (
-          <div className="w-[2px] h-3.5 rounded-full shrink-0 mr-2" style={{ background: "var(--border)" }} />
+          <div className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: "var(--border)" }} />
         )}
         <span className="text-[13.5px] leading-tight"
               style={{ fontWeight: highlight ? 800 : isTotal ? 700 : indent ? 400 : 600,
@@ -113,18 +111,17 @@ function ValueRow({ rows, field, label, isTotal, isNeg, zeroAsDash, showGrowth, 
           : isNeg ? (v <= 0 ? "#ef4444" : "#22c55e")
           : v >= 0 ? "var(--text)" : "#ef4444";
         return (
-          <div key={i} className="flex-1 flex flex-col items-end justify-center gap-0.5 px-4 py-2.5"
-               style={{ background: isLast ? (highlight ? "rgba(0,168,94,0.08)" : "rgba(0,168,94,0.04)") : undefined, borderLeft: "1px solid var(--border)" }}>
+          <div key={i} className="flex-1 flex items-center justify-end gap-2 px-5 py-3">
             <span className="tabular-nums leading-none"
                   style={{ fontSize: highlight ? 16 : isTotal ? 15 : 13.5,
                            fontWeight: highlight ? 800 : isTotal ? 700 : isLast ? 600 : 400, color }}>
               {v != null ? fmtMoney(v) : "—"}
             </span>
             {growth != null && (
-              <span className="text-[11px] font-bold tabular-nums leading-none flex items-center gap-0.5"
-                    style={{ color: growth >= 0 ? "#22c55e" : "#ef4444" }}>
-                {growth >= 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                {Math.abs(growth).toFixed(1)}%
+              <span className="text-[10.5px] font-bold tabular-nums leading-none px-1.5 py-0.5 rounded-md whitespace-nowrap"
+                    style={{ color: growth >= 0 ? "#22c55e" : "#ef4444",
+                             background: growth >= 0 ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)" }}>
+                {growth >= 0 ? "▲" : "▼"} {Math.abs(growth).toFixed(1)}%
               </span>
             )}
           </div>
@@ -145,52 +142,52 @@ export default function CashFlowTab({ cashflow }: { cashflow: Row[] }) {
     </div>
   );
 
+  const heroData = rows.map((r) => ({ label: fmtYear(String(r.period ?? "")), value: safeNum(r["Free Cash Flow"]) }));
+
   return (
-    <div className="overflow-x-auto scrollbar-thin">
-      <div style={{ minWidth: 480 }}>
-        {/* Title bar */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b"
-             style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-          <span className="text-[11px] font-black uppercase tracking-widest"
-                style={{ color: "var(--accent-l)", opacity: 0.85 }}>
-            {t("cashFlowTab.titleBar")}
-          </span>
+    <div>
+      <FinancialHeroChart title={t("cashFlowTab.fcf")} data={heroData} color="#f59e0b" />
+
+      <div className="overflow-x-auto scrollbar-thin mt-2">
+        <div style={{ minWidth: 520 }}>
+
+          <Header rows={rows} />
+
+          {/* ── FCF Hero — lo más importante arriba ── */}
+          <ValueRow rows={rows} field="Free Cash Flow"    label={t("cashFlowTab.fcf")} highlight showGrowth />
+          <ValueRow rows={rows} field="Operating Cash Flow" label={t("cashFlowTab.operatingCashFlow")} isTotal showGrowth />
+
+          {/* ── Operativo ── */}
+          <Section label={t("cashFlowTab.operatingBreakdown")} color="#3b82f6" />
+          <ValueRow rows={rows} field="Net Income"                    label={t("cashFlowTab.netIncome")} indent />
+          <ValueRow rows={rows} field="Depreciation And Amortization" label={t("cashFlowTab.depreciation")} indent zeroAsDash />
+          <ValueRow rows={rows} field="Stock Based Compensation"      label={t("cashFlowTab.stockCompensation")} indent zeroAsDash />
+          <ValueRow rows={rows} field="Change In Working Capital"     label={t("cashFlowTab.workingCapitalChange")} indent zeroAsDash />
+
+          {/* ── Inversión ── */}
+          <Section label={t("cashFlowTab.investingActivities")} color="#f59e0b" />
+          <ValueRow rows={rows} field="Capital Expenditure"             label={t("cashFlowTab.capex")} isNeg indent />
+          <ValueRow rows={rows} field="Acquisitions Net"                label={t("cashFlowTab.acquisitions")} isNeg indent zeroAsDash />
+          <ValueRow rows={rows} field="Purchases Of Investments"        label={t("cashFlowTab.purchasesOfInvestments")} isNeg indent zeroAsDash />
+          <ValueRow rows={rows} field="Sales Maturities Of Investments" label={t("cashFlowTab.salesOfInvestments")} indent zeroAsDash />
+          <ValueRow rows={rows} field="Investing Cash Flow"             label={t("cashFlowTab.totalInvestingCashFlow")} isTotal isNeg />
+
+          {/* ── Financiamiento ── */}
+          <Section label={t("cashFlowTab.financingActivities")} color="#8b5cf6" />
+          <ValueRow rows={rows} field="Repurchase Of Capital Stock" label={t("cashFlowTab.stockRepurchase")} isNeg indent zeroAsDash />
+          <ValueRow rows={rows} field="Issuance Of Common Stock"    label={t("cashFlowTab.stockIssuance")} indent zeroAsDash />
+          <ValueRow rows={rows} field="Dividends Paid"              label={t("cashFlowTab.dividendsPaid")} isNeg indent zeroAsDash />
+          <ValueRow rows={rows} field="Repayment Of Debt"           label={t("cashFlowTab.debtRepayment")} isNeg indent zeroAsDash />
+          <ValueRow rows={rows} field="Financing Cash Flow"         label={t("cashFlowTab.totalFinancingCashFlow")} isTotal isNeg />
+
+          {/* ── Resumen ── */}
+          <Section label={t("cashFlowTab.cashSummary")} color="var(--accent-l)" />
+          <ValueRow rows={rows} field="Net Change In Cash"          label={t("cashFlowTab.netCashChange")} showGrowth />
+          <ValueRow rows={rows} field="Cash At Beginning Of Period" label={t("cashFlowTab.cashBeginning")} indent zeroAsDash />
+          <ValueRow rows={rows} field="Cash At End Of Period"       label={t("cashFlowTab.cashEnding")} indent zeroAsDash />
+
+          <div className="h-4" />
         </div>
-
-        <Header rows={rows} />
-
-        {/* ── FCF Hero — lo más importante arriba ── */}
-        <ValueRow rows={rows} field="Free Cash Flow"    label={t("cashFlowTab.fcf")} highlight showGrowth />
-        <ValueRow rows={rows} field="Operating Cash Flow" label={t("cashFlowTab.operatingCashFlow")} isTotal showGrowth />
-
-        {/* ── Operativo ── */}
-        <Section label={t("cashFlowTab.operatingBreakdown")} color="#3b82f6" />
-        <ValueRow rows={rows} field="Net Income"                    label={t("cashFlowTab.netIncome")} indent />
-        <ValueRow rows={rows} field="Depreciation And Amortization" label={t("cashFlowTab.depreciation")} indent zeroAsDash />
-        <ValueRow rows={rows} field="Stock Based Compensation"      label={t("cashFlowTab.stockCompensation")} indent zeroAsDash />
-        <ValueRow rows={rows} field="Change In Working Capital"     label={t("cashFlowTab.workingCapitalChange")} indent zeroAsDash />
-
-        {/* ── Inversión ── */}
-        <Section label={t("cashFlowTab.investingActivities")} color="#f59e0b" />
-        <ValueRow rows={rows} field="Capital Expenditure"             label={t("cashFlowTab.capex")} isNeg indent />
-        <ValueRow rows={rows} field="Acquisitions Net"                label={t("cashFlowTab.acquisitions")} isNeg indent zeroAsDash />
-        <ValueRow rows={rows} field="Purchases Of Investments"        label={t("cashFlowTab.purchasesOfInvestments")} isNeg indent zeroAsDash />
-        <ValueRow rows={rows} field="Sales Maturities Of Investments" label={t("cashFlowTab.salesOfInvestments")} indent zeroAsDash />
-        <ValueRow rows={rows} field="Investing Cash Flow"             label={t("cashFlowTab.totalInvestingCashFlow")} isTotal isNeg />
-
-        {/* ── Financiamiento ── */}
-        <Section label={t("cashFlowTab.financingActivities")} color="#8b5cf6" />
-        <ValueRow rows={rows} field="Repurchase Of Capital Stock" label={t("cashFlowTab.stockRepurchase")} isNeg indent zeroAsDash />
-        <ValueRow rows={rows} field="Issuance Of Common Stock"    label={t("cashFlowTab.stockIssuance")} indent zeroAsDash />
-        <ValueRow rows={rows} field="Dividends Paid"              label={t("cashFlowTab.dividendsPaid")} isNeg indent zeroAsDash />
-        <ValueRow rows={rows} field="Repayment Of Debt"           label={t("cashFlowTab.debtRepayment")} isNeg indent zeroAsDash />
-        <ValueRow rows={rows} field="Financing Cash Flow"         label={t("cashFlowTab.totalFinancingCashFlow")} isTotal isNeg />
-
-        {/* ── Resumen ── */}
-        <Section label={t("cashFlowTab.cashSummary")} color="var(--accent-l)" />
-        <ValueRow rows={rows} field="Net Change In Cash"          label={t("cashFlowTab.netCashChange")} showGrowth />
-        <ValueRow rows={rows} field="Cash At Beginning Of Period" label={t("cashFlowTab.cashBeginning")} indent zeroAsDash />
-        <ValueRow rows={rows} field="Cash At End Of Period"       label={t("cashFlowTab.cashEnding")} indent zeroAsDash />
       </div>
     </div>
   );

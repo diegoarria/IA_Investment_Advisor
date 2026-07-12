@@ -1,7 +1,7 @@
 "use client";
 
-import { TrendingUp, TrendingDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import FinancialHeroChart from "./FinancialHeroChart";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -43,31 +43,32 @@ type Row = Record<string, unknown>;
 function Header({ rows }: { rows: Row[] }) {
   const { t } = useTranslation();
   return (
-    <div className="flex items-center sticky top-0 z-10 border-b"
-         style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-      <div className="shrink-0 px-4 py-3" style={{ width: 200, minWidth: 160 }}>
+    <div className="flex items-center sticky top-0 z-10"
+         style={{ background: "var(--card)", boxShadow: "0 1px 0 var(--border)" }}>
+      <div className="shrink-0 px-5 py-3.5" style={{ width: 220, minWidth: 180 }}>
         <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>
           {t("incomeStatementTab.metric")}
         </span>
       </div>
-      {rows.map((r, i) => (
-        <div key={i} className="flex-1 text-right px-4 py-3"
-             style={{ background: i === rows.length - 1 ? "rgba(0,168,94,0.05)" : undefined, borderLeft: "1px solid var(--border)" }}>
-          <span className="text-[14.5px] font-black tabular-nums"
-                style={{ color: i === rows.length - 1 ? "var(--text)" : "var(--muted)" }}>
-            {fmtYear(String(r.period ?? ""))}
-          </span>
-        </div>
-      ))}
+      {rows.map((r, i) => {
+        const isLast = i === rows.length - 1;
+        return (
+          <div key={i} className="flex-1 text-right px-5 py-3.5">
+            <span className="text-[15px] font-black tabular-nums"
+                  style={{ color: isLast ? "var(--accent-l)" : "var(--muted)" }}>
+              {fmtYear(String(r.period ?? ""))}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function Section({ label, color = "var(--dim)" }: { label: string; color?: string }) {
+function Section({ label, color = "var(--accent-l)" }: { label: string; color?: string }) {
   return (
-    <div className="flex items-center px-4 py-1.5 border-b"
-         style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-      <span className="text-[11px] font-black uppercase tracking-widest" style={{ color }}>
+    <div className="flex items-center px-5 pt-6 pb-1.5">
+      <span className="text-[10.5px] font-black uppercase tracking-widest" style={{ color, opacity: 0.85 }}>
         {label}
       </span>
     </div>
@@ -94,11 +95,10 @@ function ValueRow({ rows, field, label, isTotal, zeroAsDash, showGrowth, indent,
   if (!vals.some((v) => v != null)) return null;
 
   return (
-    <div className="flex items-stretch border-b transition-colors hover:bg-white/[0.015]"
-         style={{ borderColor: "var(--border)", background: isTotal ? "rgba(0,0,0,0.02)" : undefined }}>
-      <div className="shrink-0 flex items-center px-4 py-2.5" style={{ width: 200, minWidth: 160 }}>
+    <div className="flex items-stretch rounded-lg transition-colors hover:bg-white/[0.025]">
+      <div className="shrink-0 flex items-center gap-2 px-5 py-3" style={{ width: 220, minWidth: 180 }}>
         {indent && (
-          <div className="w-[2px] h-3.5 rounded-full shrink-0 mr-2" style={{ background: "var(--border)" }} />
+          <div className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: "var(--border)" }} />
         )}
         <span className="text-[13.5px] leading-tight"
               style={{ fontWeight: isTotal ? 700 : indent ? 400 : 600,
@@ -112,17 +112,16 @@ function ValueRow({ rows, field, label, isTotal, zeroAsDash, showGrowth, indent,
         const growth = showGrowth && v != null && prev != null ? pctChange(v, prev) : null;
         const color = v == null ? "var(--dim)" : "var(--text)";
         return (
-          <div key={i} className="flex-1 flex flex-col items-end justify-center gap-0.5 px-4 py-2.5"
-               style={{ background: isLast ? "rgba(0,168,94,0.04)" : undefined, borderLeft: "1px solid var(--border)" }}>
+          <div key={i} className="flex-1 flex items-center justify-end gap-2 px-5 py-3">
             <span className="tabular-nums leading-none"
                   style={{ fontSize: isTotal ? 15 : 13.5, fontWeight: isTotal ? 700 : isLast ? 600 : 400, color }}>
               {v != null ? (isEPS ? fmtEPS(v) : fmtMoney(v)) : "—"}
             </span>
             {growth != null && (
-              <span className="text-[11px] font-bold tabular-nums leading-none flex items-center gap-0.5"
-                    style={{ color: growth >= 0 ? "#22c55e" : "#ef4444" }}>
-                {growth >= 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                {Math.abs(growth).toFixed(1)}%
+              <span className="text-[10.5px] font-bold tabular-nums leading-none px-1.5 py-0.5 rounded-md whitespace-nowrap"
+                    style={{ color: growth >= 0 ? "#22c55e" : "#ef4444",
+                             background: growth >= 0 ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)" }}>
+                {growth >= 0 ? "▲" : "▼"} {Math.abs(growth).toFixed(1)}%
               </span>
             )}
           </div>
@@ -165,15 +164,13 @@ function MarginRow({ rows, field, label, numeratorField, fallbackPct }: MarginRo
   const marginColor = (v: number) => v >= 0 ? "#22c55e" : "#ef4444";
 
   return (
-    <div className="flex items-stretch border-b"
-         style={{ borderColor: "var(--border)", background: "rgba(0,0,0,0.018)" }}>
-      <div className="shrink-0 flex items-center px-4 py-2" style={{ width: 200, minWidth: 160 }}>
-        <div className="w-[2px] h-3.5 rounded-full shrink-0 mr-2" style={{ background: "var(--border)" }} />
+    <div className="flex items-stretch rounded-lg" style={{ background: "rgba(0,168,94,0.025)" }}>
+      <div className="shrink-0 flex items-center gap-2 px-5 py-2.5" style={{ width: 220, minWidth: 180 }}>
+        <div className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: "var(--border)" }} />
         <span className="text-[12.5px] font-semibold" style={{ color: "var(--muted)" }}>{label}</span>
       </div>
       {pairs.map(({ pct, dollars }, i) => (
-        <div key={i} className="flex-1 flex flex-col items-end justify-center gap-0.5 px-4 py-2"
-             style={{ background: i === pairs.length - 1 ? "rgba(0,168,94,0.04)" : undefined, borderLeft: "1px solid var(--border)" }}>
+        <div key={i} className="flex-1 flex flex-col items-end justify-center gap-0.5 px-5 py-2.5">
           <span className="text-[13.5px] font-bold tabular-nums leading-none"
                 style={{ color: pct == null ? "var(--dim)" : marginColor(pct) }}>
             {pct != null ? `${pct.toFixed(1)}%` : "N/A"}
@@ -212,20 +209,14 @@ export default function IncomeStatementTab({
     );
   }
 
+  const heroData = rows.map((r) => ({ label: fmtYear(String(r.period ?? "")), value: safeNum(r["Total Revenue"]) }));
+
   return (
     <div>
-      <div className="overflow-x-auto scrollbar-thin">
-        <div style={{ minWidth: 480 }}>
+      <FinancialHeroChart title={t("incomeStatementTab.totalRevenue")} data={heroData} color="#00a85e" />
 
-          {/* Title bar */}
-          <div className="flex items-center justify-between px-4 py-2.5 border-b"
-               style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-            <span className="text-[11px] font-black uppercase tracking-widest"
-                  style={{ color: "var(--accent-l)", opacity: 0.85 }}>
-              {t("incomeStatementTab.titleBar")}
-            </span>
-            <span className="text-[9px]" style={{ color: "var(--dim)" }}>{t("incomeStatementTab.vsPriorYear")}</span>
-          </div>
+      <div className="overflow-x-auto scrollbar-thin mt-2">
+        <div style={{ minWidth: 520 }}>
 
           <Header rows={rows} />
 
@@ -260,6 +251,7 @@ export default function IncomeStatementTab({
           <ValueRow rows={rows} field="Diluted EPS"                   label={t("incomeStatementTab.dilutedEps")}    isEPS indent zeroAsDash />
           <ValueRow rows={rows} field="Basic EPS"                     label={t("incomeStatementTab.basicEps")}     isEPS indent zeroAsDash />
 
+          <div className="h-4" />
         </div>
       </div>
 
