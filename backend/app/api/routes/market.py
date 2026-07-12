@@ -1089,6 +1089,7 @@ from typing import Optional as _Opt
 import pandas as _pd
 
 class _PortfolioReturnsItem(_BaseModel):
+    id: _Opt[str] = None       # position/lot id — lets inferred dates be written back precisely
     ticker: str
     shares: float
     purchase_date: _Opt[str] = None  # "YYYY-MM-DD"
@@ -1400,10 +1401,13 @@ def _compute_portfolio_returns(
             }
         return results, {}
 
-    tickers = [p.ticker.upper() for p in positions]
-    shares_map = {p.ticker.upper(): p.shares for p in positions}
-    avg_price_map = {p.ticker.upper(): p.avg_price for p in positions if p.avg_price and p.avg_price > 0}
-    purchase_date_map = {p.ticker.upper(): p.purchase_date for p in positions if p.purchase_date}
+    # Each entry in `positions` is an individual purchase lot — the same ticker
+    # can appear more than once (bought at different dates/prices). Everything
+    # below works per-lot and aggregates into per-ticker totals afterward,
+    # instead of collapsing straight into ticker-keyed dicts up front (which
+    # silently kept only the *last* lot whenever a ticker had more than one —
+    # e.g. a 2025 buy immediately followed by a 2026 top-up would lose 2025).
+    tickers = list(dict.fromkeys(p.ticker.upper() for p in positions))
 
     today = _dt.now()
     # Include ^GSPC (S&P 500 index) as benchmark — preferred over SPY because the index
@@ -1416,14 +1420,22 @@ def _compute_portfolio_returns(
     start_ts = int((today - _td(days=1835)).timestamp())
     close, rt_prices = _build_close_df(all_tickers, start_ts, today_ts, interval="1d")
 
-    # Infer purchase dates for positions that have avg_price but no purchase_date
+    # Infer purchase dates per lot (not per ticker) — two lots of the same
+    # ticker bought at different times have different avg_price, so each
+    # infers its own date independently. Keyed by lot id (falling back to a
+    # ticker:index key for older clients that don't send one yet) so the
+    # client can write the inferred date back onto exactly the right lot.
     inferred_dates: dict[str, str] = {}
-    for t in tickers:
-        if t not in purchase_date_map and t in avg_price_map and t in close.columns:
-            inferred = _infer_purchase_date(t, avg_price_map[t], close)
+    lot_purchase_date: list[_Opt[str]] = []
+    for i, p in enumerate(positions):
+        t = p.ticker.upper()
+        pd_str = p.purchase_date
+        if not pd_str and p.avg_price and p.avg_price > 0 and t in close.columns:
+            inferred = _infer_purchase_date(t, p.avg_price, close)
             if inferred:
-                purchase_date_map[t] = inferred
-                inferred_dates[t] = inferred
+                pd_str = inferred
+                inferred_dates[p.id or f"{t}:{i}"] = inferred
+        lot_purchase_date.append(pd_str)
 
     if close.empty and not rt_prices:
         return {}, inferred_dates
@@ -1448,8 +1460,8 @@ def _compute_portfolio_returns(
         return _safe_price(current_row, t) if current_row is not None else 0.0
 
     current_val = sum(
-        shares_map.get(t, 0) * _cp(t)
-        for t in tickers if t in close.columns or t in rt_prices
+        p.shares * _cp(p.ticker.upper())
+        for p in positions if p.ticker.upper() in close.columns or p.ticker.upper() in rt_prices
     )
     if current_val <= 0:
         return {}, inferred_dates
@@ -1475,16 +1487,18 @@ def _compute_portfolio_returns(
 
     results: dict[str, dict] = {}
 
-    # "Desde compra" — weighted by each position's individual purchase date,
+    # "Desde compra" — each lot's own purchase date, aggregated per ticker,
     # plus realized gain/loss from anything already sold (closed_positions).
-    if purchase_date_map or closed_positions:
+    if any(lot_purchase_date) or closed_positions:
         try:
             total_cost = 0.0; total_gain = 0.0
-            breakdown: dict[str, float] = {}
+            cost_by_ticker: dict[str, float] = {}
+            gain_by_ticker: dict[str, float] = {}
             oldest_date_str: _Opt[str] = None
 
-            for t in tickers:
-                pd_str = purchase_date_map.get(t)
+            for i, p in enumerate(positions):
+                t = p.ticker.upper()
+                pd_str = lot_purchase_date[i]
                 if not pd_str or (t not in close.columns and t not in rt_prices):
                     continue
                 cutoff = _pd.Timestamp(pd_str)
@@ -1492,15 +1506,23 @@ def _compute_portfolio_returns(
                 if subset.empty and t not in rt_prices:
                     continue
                 # Use avg_price (real cost paid) when available — more accurate than historical close
-                sp = avg_price_map.get(t) or (_safe_price(subset.iloc[0], t) if not subset.empty else 0.0)
+                sp = (p.avg_price if p.avg_price and p.avg_price > 0 else None) \
+                    or (_safe_price(subset.iloc[0], t) if not subset.empty else 0.0)
                 cp = _cp(t)
                 if sp > 0 and cp > 0:
-                    shares = shares_map.get(t, 0)
-                    total_cost += shares * sp
-                    total_gain += shares * (cp - sp)
-                    breakdown[t] = round((cp - sp) / sp * 100, 2)
+                    cost = p.shares * sp
+                    gain = p.shares * (cp - sp)
+                    total_cost += cost
+                    total_gain += gain
+                    cost_by_ticker[t] = cost_by_ticker.get(t, 0.0) + cost
+                    gain_by_ticker[t] = gain_by_ticker.get(t, 0.0) + gain
                     if oldest_date_str is None or pd_str < oldest_date_str:
                         oldest_date_str = pd_str
+
+            breakdown = {
+                t: round(gain_by_ticker[t] / cost_by_ticker[t] * 100, 2)
+                for t in cost_by_ticker if cost_by_ticker[t] > 0
+            }
 
             # Fold in realized performance from positions no longer held — this
             # is what keeps "since inception" accurate after a sale, instead of
@@ -1554,27 +1576,38 @@ def _compute_portfolio_returns(
             short_period = key in ("1d", "5d")
             start_cost = 0.0
             end_value  = 0.0
-            breakdown  = {}
-            for t in tickers:
+            cost_by_ticker: dict[str, float] = {}
+            value_by_ticker: dict[str, float] = {}
+            for i, p in enumerate(positions):
+                t = p.ticker.upper()
                 if t not in close.columns and t not in rt_prices:
                     continue
-                shares = shares_map.get(t, 0)
+                shares = p.shares
                 cp = _cp(t)
-                pd_str = purchase_date_map.get(t)
+                pd_str = lot_purchase_date[i]
                 if not short_period and pd_str and _pd.Timestamp(pd_str) > cutoff:
                     # Bought mid-period (only for periods > 5D): cost is what we actually paid
                     mid_subset = close[close.index >= _pd.Timestamp(pd_str)] if not close.empty else _pd.DataFrame()
-                    sp = avg_price_map.get(t) or (_safe_price(mid_subset.iloc[0], t) if not mid_subset.empty else 0.0)
+                    sp = (p.avg_price if p.avg_price and p.avg_price > 0 else None) \
+                        or (_safe_price(mid_subset.iloc[0], t) if not mid_subset.empty else 0.0)
                 else:
                     # Use price at start of period (always for 1D/5D)
                     sp = _safe_price(start_row, t) if not close.empty else 0.0
                 if sp > 0 and cp > 0:
-                    start_cost += shares * sp
-                    end_value  += shares * cp
-                    breakdown[t] = round((cp - sp) / sp * 100, 2)
+                    cost = shares * sp
+                    value = shares * cp
+                    start_cost += cost
+                    end_value  += value
+                    cost_by_ticker[t]  = cost_by_ticker.get(t, 0.0) + cost
+                    value_by_ticker[t] = value_by_ticker.get(t, 0.0) + value
 
             if start_cost <= 0:
                 continue
+
+            breakdown = {
+                t: round((value_by_ticker[t] - cost_by_ticker[t]) / cost_by_ticker[t] * 100, 2)
+                for t in cost_by_ticker if cost_by_ticker[t] > 0
+            }
 
             # S&P 500 benchmark (always from period start, independent of positions)
             spy_pct = None
@@ -1619,10 +1652,12 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     if not positions:
         return {"history": []}
 
-    tickers = [p.ticker.upper() for p in positions]
-    shares_map = {p.ticker.upper(): p.shares for p in positions}
-    avg_price_map = {p.ticker.upper(): p.avg_price for p in positions if p.avg_price and p.avg_price > 0}
-    purchase_date_map = {p.ticker.upper(): p.purchase_date for p in positions if p.purchase_date}
+    # Each entry in `positions` is an individual lot — the same ticker can
+    # repeat (bought at different dates). Everything below tracks per-lot
+    # purchase dates/costs instead of collapsing into ticker-keyed dicts,
+    # which previously kept only the last lot's shares/date per ticker and
+    # silently undercounted total shares whenever a ticker had more than one.
+    tickers = list(dict.fromkeys(p.ticker.upper() for p in positions))
     # ^GSPC (no-dividend index) preferred over SPY — fetched alongside the
     # portfolio tickers in the same window so the S&P 500 comparison is real
     # data computed over the exact same period, not a separately-fetched number.
@@ -1632,15 +1667,16 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     today_ts = int(today.timestamp())
 
     # Pre-fetch 5y to infer purchase dates from avg_price before deciding chart range
-    if any(t not in purchase_date_map and t in avg_price_map for t in tickers):
-        all_tickers_inf = list(dict.fromkeys(tickers))
+    lot_purchase_date: list[_Opt[str]] = [p.purchase_date for p in positions]
+    if any(lot_purchase_date[i] is None and positions[i].avg_price for i in range(len(positions))):
         start_inf = int((today - _td(days=1835)).timestamp())
-        close_inf, _ = _build_close_df(all_tickers_inf, start_inf, today_ts, interval="1d")
-        for t in tickers:
-            if t not in purchase_date_map and t in avg_price_map and t in close_inf.columns:
-                inferred = _infer_purchase_date(t, avg_price_map[t], close_inf)
+        close_inf, _ = _build_close_df(tickers, start_inf, today_ts, interval="1d")
+        for i, p in enumerate(positions):
+            t = p.ticker.upper()
+            if lot_purchase_date[i] is None and p.avg_price and p.avg_price > 0 and t in close_inf.columns:
+                inferred = _infer_purchase_date(t, p.avg_price, close_inf)
                 if inferred:
-                    purchase_date_map[t] = inferred
+                    lot_purchase_date[i] = inferred
 
     # Use direct Yahoo Finance API — same as getPrices (guaranteed to work)
     if period in ("1d", "5d"):
@@ -1648,9 +1684,10 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
         close = _build_close_df_range(fetch_tickers, range_str, interval="1h")
         intraday = True
     elif period == "since_purchase":
-        if not purchase_date_map:
+        dated = [d for d in lot_purchase_date if d]
+        if not dated:
             return {"history": []}
-        oldest_str = min(v for v in purchase_date_map.values() if v)
+        oldest_str = min(dated)
         try:
             oldest_dt = _dt.fromisoformat(oldest_str)
             days_held = (today - oldest_dt).days
@@ -1700,23 +1737,24 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     if close.empty or len(close) < 2:
         return {"history": []}
 
-    # Build portfolio value time series — each position only counts from its own purchase date
+    # Build portfolio value time series — each LOT only counts from its own
+    # purchase date, so two lots of the same ticker bought months apart
+    # correctly phase in their shares at different points on the chart.
     fmt = "%Y-%m-%d %H:%M" if intraday else "%Y-%m-%d"
-    purchase_ts_map = {
-        t: _pd.Timestamp(pd_str)
-        for t, pd_str in purchase_date_map.items()
-        if pd_str
-    }
+    lot_purchase_ts: list[_Opt["_pd.Timestamp"]] = [
+        _pd.Timestamp(d) if d else None for d in lot_purchase_date
+    ]
     history: list[dict] = []
     for idx, row in close.iterrows():
         val = 0.0
-        for t in tickers:
+        for i, p in enumerate(positions):
+            t = p.ticker.upper()
             if t not in close.columns:
                 continue
-            # Skip if position wasn't purchased yet at this date
-            if t in purchase_ts_map and idx < purchase_ts_map[t]:
+            ts = lot_purchase_ts[i]
+            if ts is not None and idx < ts:
                 continue
-            val += shares_map.get(t, 0) * _safe_price(row, t)
+            val += p.shares * _safe_price(row, t)
         if val > 0:
             try:
                 date_str = idx.strftime(fmt)
@@ -1730,11 +1768,12 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     # For non-intraday charts, replace the last data point with real-time prices so the
     # chart always ends at the current price (adjclose from daily bars lags one session).
     if not intraday and rt_prices:
+        last_idx = close.index[-1] if not close.empty else _pd.Timestamp.now()
         rt_end_val = sum(
-            shares_map.get(t, 0) * rt_prices[t]
-            for t in tickers
-            if t in rt_prices
-            and (t not in purchase_ts_map or (close.index[-1] if not close.empty else _pd.Timestamp.now()) >= purchase_ts_map[t])
+            p.shares * rt_prices[p.ticker.upper()]
+            for i, p in enumerate(positions)
+            if p.ticker.upper() in rt_prices
+            and (lot_purchase_ts[i] is None or last_idx >= lot_purchase_ts[i])
         )
         if rt_end_val > 0:
             history[-1]["value"] = round(rt_end_val, 2)
@@ -1743,22 +1782,20 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     end_val   = history[-1]["value"]
 
     if period == "since_purchase":
-        # Base = what you actually paid for all positions
-        total_cost = sum(
-            shares_map.get(t, 0) * avg_price_map[t]
-            for t in tickers if t in avg_price_map
-        )
+        # Base = what you actually paid across all lots
+        total_cost = sum(p.shares * p.avg_price for p in positions if p.avg_price and p.avg_price > 0)
         base = total_cost if total_cost > 0 else start_val
     else:
-        # For other periods: base = start_val + cost of positions bought mid-period.
-        # history[0] only includes positions held at period start, so mid-period
+        # For other periods: base = start_val + cost of lots bought mid-period.
+        # history[0] only includes lots held at period start, so mid-period
         # purchases aren't in the denominator — we add their cost to fix this.
         first_chart_ts = close.index[0] if len(close) > 0 else None
         extra_cost = 0.0
         if first_chart_ts is not None:
-            for t, ts in purchase_ts_map.items():
-                if ts > first_chart_ts and avg_price_map.get(t):
-                    extra_cost += shares_map.get(t, 0) * avg_price_map[t]
+            for i, p in enumerate(positions):
+                ts = lot_purchase_ts[i]
+                if ts is not None and ts > first_chart_ts and p.avg_price:
+                    extra_cost += p.shares * p.avg_price
         base = (start_val + extra_cost) if (start_val + extra_cost) > 0 else start_val
 
     for h in history:
@@ -1782,7 +1819,10 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
         "period_pct": period_pct,
         "period_amount": period_amount,
         **({"spy_pct": spy_pct} if spy_pct is not None else {}),
-        "inferred_dates": {t: purchase_date_map[t] for t in tickers if t in purchase_date_map},
+        "inferred_dates": {
+            (p.id or f"{p.ticker.upper()}:{i}"): lot_purchase_date[i]
+            for i, p in enumerate(positions) if lot_purchase_date[i] and not p.purchase_date
+        },
     }
 
 

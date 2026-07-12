@@ -33,7 +33,7 @@ import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
   Cloud, CloudOff, Check, BarChart2, TrendingUp, TrendingDown, GraduationCap, CheckSquare, Bell, Users, Share2,
-  ChevronDown, ChevronUp, Loader2, Microscope, ArrowRight,
+  ChevronDown, ChevronUp, Loader2, Microscope, ArrowRight, Lock,
 } from "lucide-react";
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
@@ -900,7 +900,11 @@ export default function PortfolioPage() {
   const [showImportSteps, setShowImportSteps] = useState(false);
 
   // Edit position modal
-  const [editingPos, setEditingPos] = useState<{ id: string; ticker: string; originalShares: number; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
+  const [editingPos, setEditingPos] = useState<{ id: string; ticker: string; originalShares: number; shares: string; avgPrice: string; purchaseDate: string; dateLocked: boolean } | null>(null);
+  // The purchase date is locked by default once saved (see dateLocked) — this
+  // is a deliberate, explicit unlock for fixing a genuine data-entry mistake,
+  // distinct from the normal "add a new lot" path for a later purchase.
+  const [dateCorrectionMode, setDateCorrectionMode] = useState(false);
   const [editConfirm, setEditConfirm] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editSaveError, setEditSaveError] = useState(false);
@@ -1071,7 +1075,7 @@ export default function PortfolioPage() {
 
   const posPayload = useCallback(
     () => positions.map((p) => ({
-      ticker: p.ticker, shares: p.shares,
+      id: p.id, ticker: p.ticker, shares: p.shares,
       purchase_date: p.purchaseDate ?? null,
       avg_price: p.avgPrice ?? null,
     })),
@@ -1095,10 +1099,13 @@ export default function PortfolioPage() {
       .then((res: { data: { returns?: Record<string, PeriodReturn>; inferred_dates?: Record<string, string> } }) => {
         setPeriodReturns(res.data.returns ?? {});
         if (showLoader) {
+          // Keyed by position id (falls back to "TICKER:index" for lots the
+          // client never sent an id for) so each lot's inferred date lands
+          // on exactly that lot, even when the same ticker has several.
           const inferred = res.data.inferred_dates ?? {};
-          for (const [ticker, date] of Object.entries(inferred)) {
-            const pos = positions.find((p) => p.ticker === ticker && !p.purchaseDate);
-            if (pos) updatePosition(pos.id, { purchaseDate: date });
+          for (const [id, date] of Object.entries(inferred)) {
+            const pos = positions.find((p) => p.id === id) ?? positions.find((p) => p.ticker === id.split(":")[0] && !p.purchaseDate);
+            if (pos && !pos.purchaseDate) updatePosition(pos.id, { purchaseDate: date });
           }
         }
       })
@@ -2556,8 +2563,8 @@ export default function PortfolioPage() {
                     onEdit={(ticker) => {
                       const pos = sortedPositions.find((p) => p.ticker === ticker);
                       if (pos) {
-                        setEditConfirm(false); setEditSaleChoice(null); setEditSalePrice("");
-                        setEditingPos({ id: pos.id, ticker: pos.ticker, originalShares: pos.shares, shares: String(pos.shares), avgPrice: String(portfolioCurrency === "USD" ? pos.avgPrice : parseFloat((pos.avgPrice * fxRate).toFixed(4))), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] });
+                        setEditConfirm(false); setEditSaleChoice(null); setEditSalePrice(""); setDateCorrectionMode(false);
+                        setEditingPos({ id: pos.id, ticker: pos.ticker, originalShares: pos.shares, shares: String(pos.shares), avgPrice: String(portfolioCurrency === "USD" ? pos.avgPrice : parseFloat((pos.avgPrice * fxRate).toFixed(4))), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0], dateLocked: !!pos.purchaseDate });
                       }
                     }}
                     onRemove={(ticker) => {
@@ -2660,8 +2667,8 @@ export default function PortfolioPage() {
                         )}
                         <button
                           onClick={() => {
-                            setEditConfirm(false); setEditSaleChoice(null); setEditSalePrice("");
-                            setEditingPos({ id: pos.id, ticker: pos.ticker, originalShares: pos.shares, shares: String(pos.shares), avgPrice: String(portfolioCurrency === "USD" ? pos.avgPrice : parseFloat((pos.avgPrice * fxRate).toFixed(4))), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] });
+                            setEditConfirm(false); setEditSaleChoice(null); setEditSalePrice(""); setDateCorrectionMode(false);
+                            setEditingPos({ id: pos.id, ticker: pos.ticker, originalShares: pos.shares, shares: String(pos.shares), avgPrice: String(portfolioCurrency === "USD" ? pos.avgPrice : parseFloat((pos.avgPrice * fxRate).toFixed(4))), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0], dateLocked: !!pos.purchaseDate });
                           }}
                           className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border transition-colors hover:border-[var(--accent)] hover:text-[var(--accent-l)]"
                           style={{ borderColor: "var(--border)", color: "var(--sub)", background: "var(--raised)" }}>
@@ -3589,7 +3596,7 @@ export default function PortfolioPage() {
             <div className="p-5">
               <div className="flex items-center justify-between mb-4">
                 <p className="font-bold text-sm" style={{ color:"var(--text)" }}>Editar posición</p>
-                <button onClick={() => { setEditingPos(null); setEditConfirm(false); setEditSaleChoice(null); setEditSalePrice(""); }} style={{ color:"var(--muted)" }}>
+                <button onClick={() => { setEditingPos(null); setEditConfirm(false); setEditSaleChoice(null); setEditSalePrice(""); setDateCorrectionMode(false); }} style={{ color:"var(--muted)" }}>
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -3623,15 +3630,49 @@ export default function PortfolioPage() {
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase block mb-1" style={{ color:"var(--muted)" }}>Fecha de compra</label>
-                  <input
-                    type="date"
-                    value={editingPos.purchaseDate}
-                    max={new Date().toISOString().split("T")[0]}
-                    onChange={(e) => setEditingPos((p) => p ? { ...p, purchaseDate: e.target.value } : p)}
-                    className="w-full rounded-xl border px-3 py-2 text-sm"
-                    style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--text)" }}
-                  />
+                  {editingPos.dateLocked && !dateCorrectionMode ? (
+                    <>
+                      <div className="w-full rounded-xl border px-3 py-2 text-sm flex items-center gap-2"
+                           style={{ background:"var(--card)", borderColor:"var(--border)", color:"var(--muted)" }}>
+                        <Lock className="w-3 h-3 shrink-0" />
+                        {editingPos.purchaseDate}
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-[10px]" style={{ color:"var(--dim)" }}>
+                          Si compraste más acciones después, usa &quot;Agregar posición&quot; en vez de cambiar esto.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setDateCorrectionMode(true)}
+                          className="text-[10px] font-semibold shrink-0 ml-2 underline"
+                          style={{ color: "var(--muted)" }}>
+                          ¿Fecha incorrecta?
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        type="date"
+                        value={editingPos.purchaseDate}
+                        max={new Date().toISOString().split("T")[0]}
+                        onChange={(e) => setEditingPos((p) => p ? { ...p, purchaseDate: e.target.value } : p)}
+                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--text)" }}
+                      />
+                      {dateCorrectionMode && (
+                        <p className="text-[10px] mt-1" style={{ color: "#f59e0b" }}>
+                          Modo corrección: úsalo solo si la fecha original estaba mal capturada, no para registrar una compra nueva.
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
+                {parseFloat(editingPos.shares || "0") > editingPos.originalShares && (
+                  <p className="text-[10px] rounded-lg px-3 py-2" style={{ background: "rgba(245,158,11,0.1)", color: "#f59e0b" }}>
+                    Para sumar acciones compradas en otra fecha, usa &quot;Agregar posición&quot; en vez de editar esta — así cada compra guarda su propia fecha y costo.
+                  </p>
+                )}
                 {editSaleChoice === "ask" ? (
                   <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
                     <p className="text-xs font-bold text-center" style={{ color: "var(--text)" }}>
@@ -3688,14 +3729,16 @@ export default function PortfolioPage() {
                   </div>
                 ) : !editConfirm ? (
                   <button
+                    disabled={parseFloat(editingPos.shares || "0") > editingPos.originalShares}
                     onClick={() => {
                       const shares = parseFloat(editingPos.shares);
                       if (isNaN(shares) || shares <= 0) return;
+                      if (shares > editingPos.originalShares) return;
                       if (shares < editingPos.originalShares && editSaleChoice === null) { setEditSaleChoice("ask"); return; }
                       setEditConfirm(true);
                     }}
                     className="w-full py-2.5 rounded-xl text-sm font-bold text-white"
-                    style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
+                    style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)", opacity: parseFloat(editingPos.shares || "0") > editingPos.originalShares ? 0.4 : 1 }}>
                     Guardar cambios
                   </button>
                 ) : (
@@ -3738,6 +3781,7 @@ export default function PortfolioPage() {
                             setEditConfirm(false);
                             setEditSaleChoice(null);
                             setEditSalePrice("");
+                            setDateCorrectionMode(false);
                           } catch {
                             setEditSaveError(true);
                           } finally {
