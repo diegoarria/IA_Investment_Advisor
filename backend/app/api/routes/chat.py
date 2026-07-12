@@ -21,6 +21,7 @@ from app.services.market_data_service import (
     get_global_market_context,
     detect_tickers,
 )
+from app.core.finnhub import fh_quote
 from app.services.perplexity_service import search_web, _needs_web_search
 from app.core.limiter import limiter
 
@@ -197,7 +198,25 @@ async def _get_mentor_deep_context(user_id: str) -> str | None:
         if not isinstance(extended_res, Exception) and extended_res.data:
             extended = extended_res.data[0]
 
-        return ai_service.build_deep_user_context(extended, positions, decisions, watchlist)
+        # Fetch a live quote for every position + watchlist ticker in parallel so the
+        # mentor always reasons over current market value/P&L, not just cost basis.
+        # fh_quote() is cached 60s, so this is cheap even on every chat message.
+        tickers = {
+            (p.get("ticker") or "").upper() for p in positions if p.get("ticker")
+        } | {
+            (w.get("ticker") or "").upper() for w in watchlist if w.get("ticker")
+        }
+        quotes: dict[str, dict] = {}
+        if tickers:
+            results = await asyncio.gather(
+                *(asyncio.to_thread(fh_quote, t) for t in tickers),
+                return_exceptions=True,
+            )
+            for t, q in zip(tickers, results):
+                if not isinstance(q, Exception) and q:
+                    quotes[t] = q
+
+        return ai_service.build_deep_user_context(extended, positions, decisions, watchlist, quotes)
     except Exception:
         return None
 

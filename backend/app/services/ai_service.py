@@ -750,8 +750,15 @@ def build_deep_user_context(
     positions: list[dict],
     decisions: list[dict],
     watchlist: list[dict],
+    quotes: dict[str, dict] | None = None,
 ) -> str:
-    """Build a rich mentor context from all available user data."""
+    """Build a rich mentor context from all available user data.
+
+    `quotes` maps ticker -> fh_quote() result ({price, change_pct, ...}) for every
+    position/watchlist ticker, fetched by the caller right before this runs so the
+    mentor always reasons over current market value/P&L, not just cost basis.
+    """
+    quotes = quotes or {}
     parts = ["\n## 🧬 LO QUE SABES DE ESTE USUARIO (úsalo en CADA respuesta — eres su mentor, no un chatbot):"]
 
     # ── Portfolio real ─────────────────────────────────────────────────────────
@@ -760,24 +767,50 @@ def build_deep_user_context(
             float(p.get("shares", 0) or 0) * float(p.get("avg_price", 0) or 0)
             for p in positions
         )
+        total_value = 0.0
         pos_sorted = sorted(
             positions,
             key=lambda x: float(x.get("shares", 0) or 0) * float(x.get("avg_price", 0) or 0),
             reverse=True,
         )
-        parts.append(f"\n### 💼 PORTAFOLIO REAL ({len(positions)} posición{'es' if len(positions) != 1 else ''}, invertido ≈${total_cost:,.0f}):")
+        any_price = any(quotes.get((p.get("ticker") or "").upper()) for p in pos_sorted)
+        pos_lines: list[str] = []
         for p in pos_sorted:
-            ticker = p.get("ticker", "?")
-            shares = p.get("shares", 0)
-            avg    = p.get("avg_price", 0)
-            cost   = float(shares or 0) * float(avg or 0)
+            ticker = (p.get("ticker") or "?").upper()
+            shares = float(p.get("shares", 0) or 0)
+            avg    = float(p.get("avg_price", 0) or 0)
+            cost   = shares * avg
             pct    = round(cost / total_cost * 100) if total_cost > 0 else 0
-            parts.append(f"  - {ticker}: {shares} acciones @ ${avg} ≈ ${cost:,.0f} ({pct}%)")
+            q = quotes.get(ticker)
+            if q and q.get("price"):
+                price = float(q["price"])
+                value = shares * price
+                total_value += value
+                pl = value - cost
+                pl_pct = (pl / cost * 100) if cost > 0 else 0
+                sign = "+" if pl >= 0 else ""
+                pos_lines.append(
+                    f"  - {ticker}: {shares:g} acciones @ ${avg} (costo ≈${cost:,.0f}, {pct}%) → "
+                    f"precio actual ${price:,.2f}, valor ≈${value:,.0f}, P&L {sign}${pl:,.0f} ({sign}{pl_pct:.1f}%)"
+                )
+            else:
+                total_value += cost
+                pos_lines.append(f"  - {ticker}: {shares:g} acciones @ ${avg} ≈ ${cost:,.0f} ({pct}%) — precio actual no disponible")
+
+        header = f"\n### 💼 PORTAFOLIO REAL ({len(positions)} {'posiciones' if len(positions) != 1 else 'posición'}, invertido ≈${total_cost:,.0f}"
+        if any_price:
+            total_pl = total_value - total_cost
+            total_pl_pct = (total_pl / total_cost * 100) if total_cost > 0 else 0
+            sign = "+" if total_pl >= 0 else ""
+            header += f", valor actual ≈${total_value:,.0f}, P&L total {sign}${total_pl:,.0f} ({sign}{total_pl_pct:.1f}%)"
+        header += "):"
+        parts.append(header)
+        parts.extend(pos_lines)
         parts.append(
-            "  → Al hablar de estas posiciones en tu respuesta, prioriza el monto invertido en "
-            "dólares sobre la cantidad de acciones — di \"tienes ~$X invertidos en {ticker}\" en "
-            "vez de mencionar cuántas acciones tiene, salvo que el usuario pregunte explícitamente "
-            "por la cantidad de acciones."
+            "  → Los precios y P&L de arriba son en tiempo real (vía Finnhub, caché ≤60s) — úsalos "
+            "directamente, no digas que no tienes acceso a precios actuales. Al hablar de estas "
+            "posiciones, prioriza el monto invertido y la ganancia/pérdida real en dólares sobre la "
+            "cantidad de acciones."
         )
         # Concentration flags
         tech_set = {"NVDA","AAPL","MSFT","GOOGL","GOOG","META","AMZN","TSLA","AMD","INTC","QCOM","AVGO","CRM","ORCL","NFLX","UBER","SNAP","SPOT","PLTR","SQ","PYPL","COIN","RBLX","HOOD","SOFI","MSTR","SMCI","ARM","APP"}
@@ -797,7 +830,15 @@ def build_deep_user_context(
     # ── Watchlist ──────────────────────────────────────────────────────────────
     if watchlist:
         tickers_w = [w.get("ticker", "") for w in watchlist if w.get("ticker")]
-        parts.append(f"\n### 👀 WATCHLIST — monitoreando pero sin comprar ({len(tickers_w)}): {', '.join(tickers_w)}")
+        parts.append(f"\n### 👀 WATCHLIST — monitoreando pero sin comprar ({len(tickers_w)}):")
+        for t in tickers_w:
+            q = quotes.get(t.upper())
+            if q and q.get("price"):
+                chg = q.get("change_pct") or 0.0
+                sign = "+" if chg >= 0 else ""
+                parts.append(f"  - {t.upper()}: ${float(q['price']):,.2f} ({sign}{chg:.2f}% hoy)")
+            else:
+                parts.append(f"  - {t.upper()}: precio actual no disponible")
         parts.append("  → Señal de lo que le llama la atención. Úsalo para anticipar sus intereses y preguntas.")
     else:
         parts.append("\n### 👀 WATCHLIST: Vacío")
