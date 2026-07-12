@@ -902,6 +902,12 @@ export default function PortfolioPage() {
   // "Historial de compras" panel — the table shows one combined row per
   // ticker; this lists every purchase lot behind that ticker individually.
   const [lotsTicker, setLotsTicker] = useState<string | null>(null);
+  // Inline "add another purchase" form inside that same panel — adding to a
+  // ticker you already hold happens right here, not in the top-level
+  // "Agregar posición" box.
+  const [addingLot, setAddingLot] = useState(false);
+  const [lotForm, setLotForm] = useState({ shares: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
+  const [lotAddLoading, setLotAddLoading] = useState(false);
 
   // Edit position modal — edits exactly one purchase lot. Buying more of a
   // ticker never touches this lot; it always goes through "Agregar otra
@@ -1463,6 +1469,27 @@ export default function PortfolioPage() {
     setForm({ ticker:"", shares:"", avgPrice:"", purchaseDate: new Date().toISOString().split("T")[0] });
     setShowForm(false);
     setAddingLoading(false);
+  };
+
+  // Adds another purchase lot for a ticker already shown in the "Historial
+  // de compras" panel — same as handleAdd, but stays inside that panel
+  // instead of routing to the top-level "Agregar posición" box.
+  const handleAddLot = async (ticker: string) => {
+    const shares = parseFloat(lotForm.shares);
+    const enteredPrice = parseFloat(lotForm.avgPrice);
+    if (!shares || !enteredPrice) { showToast("Completa acciones y precio"); return; }
+    if (!isPremium && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
+    const avgPrice = portfolioCurrency === "USD" ? enteredPrice : enteredPrice / fxRate;
+    setLotAddLoading(true);
+    try {
+      const res = await marketApi.getPrices([ticker]);
+      addPosition({ ticker, shares, avgPrice: parseFloat(avgPrice.toFixed(6)), name: res.data[ticker]?.name, purchaseDate: lotForm.purchaseDate });
+    } catch {
+      addPosition({ ticker, shares, avgPrice: parseFloat(avgPrice.toFixed(6)), purchaseDate: lotForm.purchaseDate });
+    }
+    setLotForm({ shares: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
+    setAddingLot(false);
+    setLotAddLoading(false);
   };
 
   // ── Stress Test ──────────────────────────────────────────────────────────
@@ -3598,10 +3625,15 @@ export default function PortfolioPage() {
         const lots = [...positions]
           .filter((p) => p.ticker === lotsTicker)
           .sort((a, b) => (a.purchaseDate ?? "").localeCompare(b.purchaseDate ?? ""));
+        const closeLotsPanel = () => {
+          setLotsTicker(null);
+          setAddingLot(false);
+          setLotForm({ shares: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
+        };
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
                style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
-               onClick={() => setLotsTicker(null)}>
+               onClick={closeLotsPanel}>
             <div className="w-full max-w-sm rounded-2xl border overflow-hidden"
                  style={{ background: "var(--card)", borderColor: "var(--border)" }}
                  onClick={(e) => e.stopPropagation()}>
@@ -3609,7 +3641,7 @@ export default function PortfolioPage() {
               <div className="p-5">
                 <div className="flex items-center justify-between mb-1">
                   <p className="font-bold text-sm" style={{ color:"var(--text)" }}>Tus compras de {lotsTicker}</p>
-                  <button onClick={() => setLotsTicker(null)} style={{ color:"var(--muted)" }}>
+                  <button onClick={closeLotsPanel} style={{ color:"var(--muted)" }}>
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -3654,18 +3686,56 @@ export default function PortfolioPage() {
                     );
                   })}
                 </div>
-                <button
-                  onClick={() => {
-                    setForm({ ticker: lotsTicker, shares: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
-                    setShowForm(true);
-                    setLotsTicker(null);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                  className="w-full py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2"
-                  style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-                  <Plus className="w-4 h-4" />
-                  Agregar otra compra
-                </button>
+                {addingLot ? (
+                  <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Acciones</label>
+                        <input value={lotForm.shares} onChange={(e) => setLotForm({ ...lotForm, shares: e.target.value })}
+                               type="number" min="0" autoFocus
+                               className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                               style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--text)" }}
+                               placeholder="10" />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Precio ({portfolioCurrency})</label>
+                        <input value={lotForm.avgPrice} onChange={(e) => setLotForm({ ...lotForm, avgPrice: e.target.value })}
+                               type="number" min="0"
+                               className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                               style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--text)" }}
+                               placeholder="150.00" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Fecha de compra</label>
+                      <input value={lotForm.purchaseDate} onChange={(e) => setLotForm({ ...lotForm, purchaseDate: e.target.value })}
+                             type="date" max={new Date().toISOString().split("T")[0]}
+                             className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                             style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--text)" }} />
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => { setAddingLot(false); setLotForm({ shares: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] }); }}
+                              className="flex-1 py-2 rounded-lg text-xs font-semibold border"
+                              style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                        Cancelar
+                      </button>
+                      <button onClick={() => handleAddLot(lotsTicker)} disabled={lotAddLoading}
+                              className="flex-[2] py-2 rounded-lg text-xs font-bold text-white disabled:opacity-40 flex items-center justify-center gap-1.5"
+                              style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
+                        {lotAddLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                        Guardar compra
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddingLot(true)}
+                    className="w-full py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2"
+                    style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
+                    <Plus className="w-4 h-4" />
+                    Agregar otra compra
+                  </button>
+                )}
               </div>
             </div>
           </div>
