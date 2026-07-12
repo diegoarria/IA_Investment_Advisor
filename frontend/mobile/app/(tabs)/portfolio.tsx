@@ -999,10 +999,18 @@ export default function PortfolioScreen() {
   // Currency picker
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
 
-  // Edit position
+  // Edit position — edits exactly one purchase lot. Buying more of a ticker
+  // never touches this lot; it always goes through the lots panel's
+  // "Agregar otra compra", which creates a brand new one.
   const [editingPos, setEditingPos] = useState<{ id: string; ticker: string; originalShares: number; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
   // Which holdings row currently has its edit/delete menu expanded
   const [rowMenu, setRowMenu] = useState<string | null>(null);
+  // "Historial de compras" — the holdings list shows one combined row per
+  // ticker; this lists every purchase lot behind that ticker individually.
+  const [lotsTicker, setLotsTicker] = useState<string | null>(null);
+  const [addingLot, setAddingLot] = useState(false);
+  const [lotForm, setLotForm] = useState({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
+  const [lotAddLoading, setLotAddLoading] = useState(false);
   // When editing reduces shares, we don't know if it's a sale or a data-entry
   // correction — ask, since only a real sale should be archived into the
   // since-inception performance ledger.
@@ -1043,7 +1051,9 @@ export default function PortfolioScreen() {
 
   // Manual add form
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ ticker: "", shares: "", avgPrice: "" });
+  // Asks for money invested + price per share, not share count directly —
+  // shares = amount / price, computed live, fractional or whole either way.
+  const [form, setForm] = useState({ ticker: "", amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
   const [addingLoading, setAddingLoading] = useState(false);
 
   // Portfolio Analyzer
@@ -1377,23 +1387,46 @@ export default function PortfolioScreen() {
   // ── Manual add ─────────────────────────────────────────────────────────
   const handleAdd = async () => {
     const ticker = form.ticker.trim().toUpperCase();
-    const shares = parseFloat(form.shares);
+    const amount = parseFloat(form.amount);
     const enteredPrice = parseFloat(form.avgPrice);
-    if (!ticker || !shares || !enteredPrice) { Alert.alert(t("portfolio.form.incompleteFields")); return; }
+    if (!ticker || !amount || !enteredPrice) { Alert.alert(t("portfolio.form.incompleteFields")); return; }
     if (!isPremiumAccess && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
+    const shares = parseFloat((amount / enteredPrice).toFixed(6));
     // avgPrice always stored in USD
     const avgPrice = portfolioCurrency === "USD" ? enteredPrice : parseFloat((enteredPrice / fxRate).toFixed(6));
     setAddingLoading(true);
     try {
       const res = await marketApi.getPrices([ticker]);
-      addPosition({ ticker, shares, avgPrice, name: res.data[ticker]?.name });
+      addPosition({ ticker, shares, avgPrice, name: res.data[ticker]?.name, purchaseDate: form.purchaseDate });
     } catch {
-      addPosition({ ticker, shares, avgPrice });
+      addPosition({ ticker, shares, avgPrice, purchaseDate: form.purchaseDate });
     }
     posthog.capture("portfolio_position_added", { ticker, shares, method: "manual", position_count: positions.length + 1 });
-    setForm({ ticker: "", shares: "", avgPrice: "" });
+    setForm({ ticker: "", amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
     setShowForm(false);
     setAddingLoading(false);
+  };
+
+  // Adds another purchase lot for a ticker already shown in the "Historial
+  // de compras" panel — same as handleAdd, but stays inside that panel.
+  const handleAddLot = async (ticker: string) => {
+    const amount = parseFloat(lotForm.amount);
+    const enteredPrice = parseFloat(lotForm.avgPrice);
+    if (!amount || !enteredPrice) { Alert.alert(t("portfolio.form.incompleteFields")); return; }
+    if (!isPremiumAccess && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
+    const shares = parseFloat((amount / enteredPrice).toFixed(6));
+    const avgPrice = portfolioCurrency === "USD" ? enteredPrice : parseFloat((enteredPrice / fxRate).toFixed(6));
+    setLotAddLoading(true);
+    try {
+      const res = await marketApi.getPrices([ticker]);
+      addPosition({ ticker, shares, avgPrice, name: res.data[ticker]?.name, purchaseDate: lotForm.purchaseDate });
+    } catch {
+      addPosition({ ticker, shares, avgPrice, purchaseDate: lotForm.purchaseDate });
+    }
+    posthog.capture("portfolio_position_added", { ticker, shares, method: "manual_lot", position_count: positions.length + 1 });
+    setLotForm({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
+    setAddingLot(false);
+    setLotAddLoading(false);
   };
 
 
@@ -1554,13 +1587,34 @@ export default function PortfolioScreen() {
     return { invested, current, diff, pct };
   }, [positions, prices, fxRate]);
 
+  // One entry per ticker, combining every purchase lot — this is only for
+  // display; `positions` still holds each purchase as its own permanent row
+  // (see the lots history modal below).
+  interface AggPosition { ticker: string; name?: string; totalShares: number; avgPrice: number; lots: Position[] }
+  const aggregatedPositions = useMemo<AggPosition[]>(() => {
+    const map = new Map<string, AggPosition>();
+    for (const p of positions) {
+      const existing = map.get(p.ticker);
+      if (existing) {
+        const newShares = existing.totalShares + p.shares;
+        const newCost = existing.avgPrice * existing.totalShares + p.avgPrice * p.shares;
+        existing.totalShares = newShares;
+        existing.avgPrice = newShares > 0 ? newCost / newShares : 0;
+        existing.lots.push(p);
+      } else {
+        map.set(p.ticker, { ticker: p.ticker, name: p.name, totalShares: p.shares, avgPrice: p.avgPrice, lots: [p] });
+      }
+    }
+    return Array.from(map.values());
+  }, [positions]);
+
   const sortedPositions = useMemo(() => {
-    if (!sortField) return positions;
-    return [...positions].sort((a, b) => {
+    if (!sortField) return aggregatedPositions;
+    return [...aggregatedPositions].sort((a, b) => {
       let va = 0, vb = 0;
       if (sortField === "invested") {
-        va = a.shares * a.avgPrice * fxRate;
-        vb = b.shares * b.avgPrice * fxRate;
+        va = a.totalShares * a.avgPrice * fxRate;
+        vb = b.totalShares * b.avgPrice * fxRate;
       } else if (sortField === "price") {
         va = (prices[a.ticker]?.price ?? 0) * fxRate;
         vb = (prices[b.ticker]?.price ?? 0) * fxRate;
@@ -1574,7 +1628,7 @@ export default function PortfolioScreen() {
       }
       return sortDir === "desc" ? vb - va : va - vb;
     });
-  }, [positions, prices, fxRate, sortField, sortDir]);
+  }, [aggregatedPositions, prices, fxRate, sortField, sortDir]);
 
 
   return (
@@ -2006,9 +2060,9 @@ export default function PortfolioScreen() {
             <View style={s.formRow}>
               <TextInput
                 style={[s.formInput, { color: "#fff", backgroundColor: "#0a0d12", borderColor: "#1f2330", flex: 1 }]}
-                value={form.shares}
-                onChangeText={(v) => setForm({ ...form, shares: v })}
-                placeholder={t("portfolio.form.sharesPlaceholder")} placeholderTextColor={"#374151"}
+                value={form.amount}
+                onChangeText={(v) => setForm({ ...form, amount: v })}
+                placeholder={t("portfolio.form.amountPlaceholder") || "¿Cuánto invertiste?"} placeholderTextColor={"#374151"}
                 keyboardType="decimal-pad"
               />
               <TextInput
@@ -2020,6 +2074,22 @@ export default function PortfolioScreen() {
                 keyboardType="decimal-pad"
               />
             </View>
+            {parseFloat(form.amount) > 0 && parseFloat(form.avgPrice) > 0 && (() => {
+              const calcShares = parseFloat(form.amount) / parseFloat(form.avgPrice);
+              const isWhole = Math.abs(calcShares - Math.round(calcShares)) < 0.0005;
+              return (
+                <Text style={{ fontSize: 11, color: "#00d47e", marginBottom: 10 }}>
+                  ≈ {calcShares.toLocaleString("en-US", { maximumFractionDigits: 6 })} acciones ({isWhole ? "completas" : "fraccionadas"})
+                </Text>
+              );
+            })()}
+            <TextInput
+              style={[s.formInput, { color: "#fff", backgroundColor: "#0a0d12", borderColor: "#1f2330", marginBottom: 10 }]}
+              value={form.purchaseDate}
+              onChangeText={(v) => setForm({ ...form, purchaseDate: v })}
+              placeholder="Fecha de compra (YYYY-MM-DD)" placeholderTextColor={"#374151"}
+              keyboardType="default"
+            />
             <View style={s.formRow}>
               <TouchableOpacity style={[s.cancelBtn, { borderColor: "#1f2330" }]} onPress={() => setShowForm(false)}>
                 <Text style={[s.cancelBtnText, { color: "#6b7280" }]}>{t("common.cancel")}</Text>
@@ -2508,13 +2578,13 @@ export default function PortfolioScreen() {
                   const cpUSD = pd?.price;
                   const cp = cpUSD ? cpUSD * fxRate : null;
                   const hasCost = pos.avgPrice > 0;
-                  const currentVal = cp ? pos.shares * cp : null;
-                  const investedVal = hasCost ? pos.shares * pos.avgPrice * fxRate : null;
+                  const currentVal = cp ? pos.totalShares * cp : null;
+                  const investedVal = hasCost ? pos.totalShares * pos.avgPrice * fxRate : null;
                   const diff = currentVal !== null && investedVal !== null ? currentVal - investedVal : null;
                   const pct = diff !== null && investedVal! > 0 ? (diff / investedVal!) * 100 : null;
                   const isUp = diff !== null ? diff >= 0 : null;
                   const gainColor = isUp === true ? "#00d47e" : isUp === false ? "#ff5c5c" : "#5b6270";
-                  const sharesLabel = `${pos.shares % 1 === 0 ? pos.shares : pos.shares.toFixed(3)} ${t("portfolio.preview.sharesAbbrev")}`;
+                  const sharesLabel = `${pos.totalShares % 1 === 0 ? pos.totalShares : pos.totalShares.toFixed(3)} ${t("portfolio.preview.sharesAbbrev")}`;
 
                   const fmtCompact = (v: number) => {
                     const abs = Math.abs(v);
@@ -2524,7 +2594,7 @@ export default function PortfolioScreen() {
                   };
 
                   return (
-                    <View key={pos.id}>
+                    <View key={pos.ticker}>
                       <TouchableOpacity
                         activeOpacity={0.6}
                         onPress={() => router.push(`/stock/${pos.ticker}` as any)}
@@ -2561,7 +2631,7 @@ export default function PortfolioScreen() {
 
                         {/* Row menu */}
                         <TouchableOpacity
-                          onPress={(e) => { e.stopPropagation(); setRowMenu(rowMenu === pos.id ? null : pos.id); }}
+                          onPress={(e) => { e.stopPropagation(); setRowMenu(rowMenu === pos.ticker ? null : pos.ticker); }}
                           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                           activeOpacity={0.6}
                           style={{ width: 30, alignItems: "center", justifyContent: "center", marginLeft: 4 }}>
@@ -2569,25 +2639,16 @@ export default function PortfolioScreen() {
                         </TouchableOpacity>
                       </TouchableOpacity>
 
-                      {rowMenu === pos.id && (
+                      {rowMenu === pos.ticker && (
                         <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingBottom: 12, marginTop: -4 }}>
                           <TouchableOpacity
-                            onPress={() => {
-                              setRowMenu(null);
-                              setEditSaleChoice(null); setEditSalePrice("");
-                              setEditingPos({ id: pos.id, ticker: pos.ticker, originalShares: pos.shares, shares: String(pos.shares), avgPrice: portfolioCurrency === "USD" ? String(pos.avgPrice) : String(parseFloat((pos.avgPrice * fxRate).toFixed(4))), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] });
-                            }}
+                            onPress={() => { setRowMenu(null); setLotsTicker(pos.ticker); }}
                             activeOpacity={0.75}
                             style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 12, backgroundColor: "#161a22", borderWidth: 1, borderColor: "#20242f" }}>
                             <Ionicons name="pencil-outline" size={13} color="#c5cad4" />
-                            <Text style={{ fontSize: 12.5, fontWeight: "700", color: "#c5cad4" }}>{t("common.edit") || "Editar"}</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => { setRowMenu(null); posthog.capture("portfolio_position_removed", { ticker: pos.ticker }); setSellPrice(""); setSellConfirm({ id: pos.id, ticker: pos.ticker, shares: pos.shares }); }}
-                            activeOpacity={0.75}
-                            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 12, backgroundColor: "rgba(255,92,92,0.08)", borderWidth: 1, borderColor: "rgba(255,92,92,0.25)" }}>
-                            <Ionicons name="trash-outline" size={13} color="#ff5c5c" />
-                            <Text style={{ fontSize: 12.5, fontWeight: "700", color: "#ff5c5c" }}>{t("common.delete") || "Eliminar"}</Text>
+                            <Text style={{ fontSize: 12.5, fontWeight: "700", color: "#c5cad4" }}>
+                              {pos.lots.length > 1 ? `${pos.lots.length} ${t("common.purchases") || "compras"}` : (t("common.edit") || "Editar")}
+                            </Text>
                           </TouchableOpacity>
                         </View>
                       )}
@@ -3284,6 +3345,125 @@ export default function PortfolioScreen() {
           setBrokerModalOpen(false);
         }}
       />
+
+      {/* Purchase history — the holdings list shows one combined row per
+          ticker; this lists every purchase lot behind it individually. */}
+      <Modal
+        visible={!!lotsTicker}
+        transparent animationType="fade"
+        onRequestClose={() => { setLotsTicker(null); setAddingLot(false); setLotForm({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] }); }}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "center", alignItems: "center", padding: 20 }}>
+          <View style={{ backgroundColor: "#0d0f14", borderRadius: 20, width: "100%", maxWidth: 360, overflow: "hidden", borderWidth: 1, borderColor: "#181b24" }}>
+            <View style={{ height: 4, backgroundColor: "#00d47e" }} />
+            <View style={{ padding: 20 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Tus compras de {lotsTicker}</Text>
+                <TouchableOpacity onPress={() => { setLotsTicker(null); setAddingLot(false); setLotForm({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] }); }}>
+                  <Ionicons name="close" size={20} color={"#5b6270"} />
+                </TouchableOpacity>
+              </View>
+              <Text style={{ fontSize: 11, color: "#5b6270", marginBottom: 14 }}>
+                Cada compra queda guardada por separado con su propia fecha.
+              </Text>
+
+              <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
+                {[...positions]
+                  .filter((p) => p.ticker === lotsTicker)
+                  .sort((a, b) => (a.purchaseDate ?? "").localeCompare(b.purchaseDate ?? ""))
+                  .map((lot) => {
+                    const displayPrice = portfolioCurrency === "USD" ? lot.avgPrice : lot.avgPrice * fxRate;
+                    return (
+                      <View key={lot.id} style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 12, borderWidth: 1, borderColor: "#181b24", backgroundColor: "#161a22", paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 12.5, fontWeight: "700", color: "#fff" }}>
+                            {lot.purchaseDate ? new Date(lot.purchaseDate + "T12:00:00").toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" }) : "Sin fecha"}
+                          </Text>
+                          <Text style={{ fontSize: 11, color: "#5b6270", marginTop: 1 }}>
+                            {lot.shares.toLocaleString("en-US")} acciones · {currencySymbol}{displayPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} c/u
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setEditSaleChoice(null); setEditSalePrice("");
+                            setEditingPos({ id: lot.id, ticker: lot.ticker, originalShares: lot.shares, shares: String(lot.shares), avgPrice: portfolioCurrency === "USD" ? String(lot.avgPrice) : String(parseFloat((lot.avgPrice * fxRate).toFixed(4))), purchaseDate: lot.purchaseDate ?? new Date().toISOString().split("T")[0] });
+                            setLotsTicker(null);
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
+                          style={{ padding: 6, borderRadius: 8, borderWidth: 1, borderColor: "#20242f" }}>
+                          <Ionicons name="pencil-outline" size={14} color="#c5cad4" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => {
+                            posthog.capture("portfolio_position_removed", { ticker: lot.ticker });
+                            setSellPrice(""); setSellConfirm({ id: lot.id, ticker: lot.ticker, shares: lot.shares });
+                            setLotsTicker(null);
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+                          style={{ padding: 6, borderRadius: 8, borderWidth: 1, borderColor: "rgba(255,92,92,0.25)" }}>
+                          <Ionicons name="trash-outline" size={14} color="#ff5c5c" />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+              </ScrollView>
+
+              {addingLot ? (
+                <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "#181b24", backgroundColor: "#161a22", padding: 12, marginTop: 10, gap: 8 }}>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <TextInput
+                      style={{ flex: 1, backgroundColor: "#0d0f14", borderWidth: 1, borderColor: "#20242f", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: "#fff" }}
+                      keyboardType="decimal-pad" autoFocus
+                      value={lotForm.amount} onChangeText={(v) => setLotForm({ ...lotForm, amount: v })}
+                      placeholder="¿Cuánto invertiste?" placeholderTextColor={"#3b3f4a"}
+                    />
+                    <TextInput
+                      style={{ flex: 1, backgroundColor: "#0d0f14", borderWidth: 1, borderColor: "#20242f", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: "#fff" }}
+                      keyboardType="decimal-pad"
+                      value={lotForm.avgPrice} onChangeText={(v) => setLotForm({ ...lotForm, avgPrice: v })}
+                      placeholder={`Precio (${portfolioCurrency})`} placeholderTextColor={"#3b3f4a"}
+                    />
+                  </View>
+                  {parseFloat(lotForm.amount) > 0 && parseFloat(lotForm.avgPrice) > 0 && (() => {
+                    const calcShares = parseFloat(lotForm.amount) / parseFloat(lotForm.avgPrice);
+                    const isWhole = Math.abs(calcShares - Math.round(calcShares)) < 0.0005;
+                    return (
+                      <Text style={{ fontSize: 11, color: "#00d47e" }}>
+                        ≈ {calcShares.toLocaleString("en-US", { maximumFractionDigits: 6 })} acciones ({isWhole ? "completas" : "fraccionadas"})
+                      </Text>
+                    );
+                  })()}
+                  <TextInput
+                    style={{ backgroundColor: "#0d0f14", borderWidth: 1, borderColor: "#20242f", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: "#fff" }}
+                    value={lotForm.purchaseDate} onChangeText={(v) => setLotForm({ ...lotForm, purchaseDate: v })}
+                    placeholder="Fecha (YYYY-MM-DD)" placeholderTextColor={"#3b3f4a"}
+                  />
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <TouchableOpacity
+                      onPress={() => { setAddingLot(false); setLotForm({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] }); }}
+                      style={{ flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: "#20242f", alignItems: "center" }}>
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: "#5b6270" }}>{t("common.cancel")}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => lotsTicker && handleAddLot(lotsTicker)}
+                      disabled={lotAddLoading}
+                      style={{ flex: 2, paddingVertical: 9, borderRadius: 10, backgroundColor: "#00d47e", alignItems: "center", justifyContent: "center", opacity: lotAddLoading ? 0.6 : 1 }}>
+                      {lotAddLoading ? <ActivityIndicator color="#04150e" size="small" /> : <Text style={{ fontSize: 12, fontWeight: "800", color: "#04150e" }}>Guardar compra</Text>}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => setAddingLot(true)}
+                  style={{ marginTop: 10, paddingVertical: 12, borderRadius: 12, backgroundColor: "#00d47e", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                  <Ionicons name="add" size={16} color="#04150e" />
+                  <Text style={{ fontSize: 13, fontWeight: "800", color: "#04150e" }}>Agregar otra compra</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Edit position modal */}
       <Modal visible={!!editingPos} transparent animationType="fade" onRequestClose={() => { setEditingPos(null); setEditSaleChoice(null); setEditSalePrice(""); }}>
