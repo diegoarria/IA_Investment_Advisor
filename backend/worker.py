@@ -1615,26 +1615,17 @@ async def job_portfolio_alerts():
                 # Every notification opens with this exact sentence — matches the
                 # requested format: "{Name} hoy está subiendo/cayendo un {pct}%."
                 move_sentence = f"{company} hoy {direction_verb} un {pct:+.2f}%."
-                has_catalyst = why != NO_CATALYST
                 push_category = f"price_mover_{ticker}"
 
-                if is_prem:
-                    # Decide whether this specific push should go out at all —
-                    # allows exactly one "we found out why" follow-up later in
-                    # the day if the first alert went out with no catalyst and
-                    # a real one has since turned up, instead of leaving the
-                    # user stuck with "no news" all day even after the actual
-                    # reason breaks.
-                    should_send, is_correction = should_send_price_alert(uid, ticker, has_catalyst)
-                    if not should_send:
-                        continue
-                    if is_correction:
-                        # Distinct category so notification_engine's own generic
-                        # per-category-per-day dedup doesn't block this second
-                        # send — the first alert already consumed the plain
-                        # "price_mover_{ticker}" slot for today.
-                        push_category = f"price_mover_{ticker}_correction"
+                # Hard cap of one push per ticker per user per day — applies to
+                # free AND premium alike (this used to only gate premium users,
+                # so free users got re-pinged on every 5-min cycle a ticker
+                # stayed a mover, and premium users could still get a second
+                # "here's why" correction later the same day).
+                if not should_send_price_alert(uid, ticker):
+                    continue
 
+                if is_prem:
                     if why == NO_CATALYST:
                         no_news = "No hay noticias respecto a esto, posiblemente solo es volatilidad del mercado."
                         if is_portfolio:
@@ -1659,21 +1650,17 @@ async def job_portfolio_alerts():
                         else:
                             impact = " "
                         cta   = "¿Cambia tu tesis? Abre Nuvos."
-                        head  = f"Ya sabemos por qué: " if is_correction else f"{move_sentence} "
+                        head  = f"{move_sentence} "
                         max_b = 230 - len(head) - len(impact) - len(cta)
                         body  = head + _truncate_at_word(why, max_b) + impact + cta
                     else:
-                        # Move sentence (or update opener) + WHY + watchlist suffix + action prompt
+                        # Move sentence + WHY + watchlist suffix + action prompt
                         suffix = " La tienes en watchlist. ¿Vale la pena analizarla ahora?"
-                        head   = f"Ya sabemos por qué: " if is_correction else f"{move_sentence} "
+                        head   = f"{move_sentence} "
                         max_b  = 230 - len(head) - len(suffix)
                         body   = head + _truncate_at_word(why, max_b) + suffix
-
-                    if is_correction:
-                        title = f"{ticker} — Actualización ({pct:+.2f}%)"
                 else:
-                    # Free tier — plain price alert, no WHY, no correction logic
-                    # (their message never varies based on catalyst discovery)
+                    # Free tier — plain price alert, no WHY
                     body = f"{move_sentence} Activa Premium para ver el análisis completo."
 
                 await send_push(

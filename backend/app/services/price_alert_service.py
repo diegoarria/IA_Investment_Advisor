@@ -14,40 +14,22 @@ logger = logging.getLogger(__name__)
 NO_CATALYST = "__NO_CATALYST__"
 
 
-def should_send_price_alert(user_id: str, ticker: str, has_catalyst: bool) -> tuple[bool, bool]:
+def should_send_price_alert(user_id: str, ticker: str) -> bool:
     """
-    Decide whether THIS specific price-mover push should go out, allowing up
-    to two sends per ticker per user per day:
-      1. The first alert today for this ticker, whatever its content.
-      2. Exactly ONE follow-up "we found out why" correction — only when the
-         first alert went out with no catalyst and a real one has since been
-         found (the same 5-min job re-checks Perplexity every cycle a ticker
-         stays a mover, so a catalyst that breaks 10-20 min after the initial
-         alert is now something the user actually gets told about, instead of
-         being stuck with "no news" for the rest of the day).
-
-    A ticker that already got a real-catalyst alert never sends again that
-    day (nothing new to say), and a second no-catalyst ping is also
-    suppressed (still nothing new to say). State is tracked separately from
-    notification_engine's generic per-category dedup — this is price-alert-
-    specific "have we already told this user why, and how well."
-
-    Returns (should_send, is_correction).
+    Hard cap of ONE price-mover push per ticker per user per day, regardless
+    of subsequent catalyst discoveries — previously allowed a second
+    "we found out why" correction later in the day, but that meant a single
+    stock could still notify twice, which is exactly what users don't want
+    from a price alert. State is tracked separately from notification_engine's
+    generic per-category dedup — this is price-alert-specific "have we
+    already told this user about this ticker today."
     """
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     state_key = f"pricealert_state:{user_id}:{ticker}:{today}"
-    state = cache_get(state_key)  # None | "no_catalyst" | "catalyst"
-
-    if state is None:
-        cache_set(state_key, "catalyst" if has_catalyst else "no_catalyst", ttl=26 * 3600)
-        return True, False
-
-    if state == "no_catalyst" and has_catalyst:
-        cache_set(state_key, "catalyst", ttl=26 * 3600)
-        logger.info("Sending price-alert CORRECTION for user %s / %s — catalyst found after an earlier no-catalyst alert today", user_id, ticker)
-        return True, True
-
-    return False, False
+    if cache_get(state_key):
+        return False
+    cache_set(state_key, "sent", ttl=26 * 3600)
+    return True
 
 
 def fetch_ticker_news(ticker: str) -> list[dict]:
