@@ -116,7 +116,9 @@ async def transcribe_audio_bytes(
     filename: str = "audio.webm",
     content_type: str = "audio/webm",
 ) -> str:
-    """Whisper transcription (Spanish). Raises on failure — caller decides how to surface it."""
+    """Whisper transcription. No `language` param — Whisper auto-detects, since the
+    app is used in both Spanish and English and forcing "es" garbles English speech
+    into nonsense text. Raises on failure — caller decides how to surface it."""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("Servicio de voz no configurado (OPENAI_API_KEY)")
@@ -125,7 +127,6 @@ async def transcribe_audio_bytes(
     transcript = await client.audio.transcriptions.create(
         model="whisper-1",
         file=(filename, audio_bytes, content_type),
-        language="es",
     )
     return transcript.text
 

@@ -1105,6 +1105,27 @@ def _strip_investment_scorecard_format(base: str) -> str:
     return base[:idx] + _VOICE_ANALYSIS_REPLACEMENT
 
 
+def _language_directive(profile: UserProfile | None) -> str:
+    """Bilingual, high-priority language instruction. Placed at the very start of the
+    system prompt (not buried at the end) because a single instruction line at the
+    bottom of a multi-thousand-word Spanish prompt gets outweighed by the prompt's
+    own language and the model defaults to Spanish anyway — this needs to lead."""
+    default_lang = "English" if (profile and getattr(profile, "preferred_language", None) == "en") else "español"
+    return (
+        "# LANGUAGE / IDIOMA (read this first — highest priority instruction)\n\n"
+        "ALWAYS reply in the SAME language the user just wrote or spoke in — English in, "
+        "English out; Spanish in, Spanish out — no matter what language the rest of these "
+        "instructions are written in, and no matter the app's configured language. This "
+        "applies to every message, including voice calls. Only if the message is genuinely "
+        f"ambiguous (just a ticker, an emoji, one word) fall back to: {default_lang}.\n\n"
+        "SIEMPRE responde en el MISMO idioma en que el usuario acaba de escribir o hablar — "
+        "inglés si escribió en inglés, español si escribió en español — sin importar el idioma "
+        "en que están redactadas estas instrucciones ni el idioma configurado en la app. Aplica "
+        "en cada mensaje, incluida la llamada de voz. Solo si el mensaje es genuinamente ambiguo "
+        f"(solo un ticker, un emoji, una palabra suelta) usa por defecto: {default_lang}.\n"
+    )
+
+
 def build_system_prompt(
     profile: UserProfile | None = None,
     mentor: str | None = None,
@@ -1116,10 +1137,11 @@ def build_system_prompt(
     today = _dt.now().strftime("%A %d de %B de %Y")
     base = SYSTEM_PROMPT_BASE.replace("{TODAY_DATE}", today)
     mentor_section = build_mentor_context(mentor)
+    core = _language_directive(profile) + "\n\n" + base
     if profile:
-        core = base + mentor_section + "\n\n" + build_profile_context(profile)
+        core += mentor_section + "\n\n" + build_profile_context(profile)
     else:
-        core = base + mentor_section + "\n\n## NOTA: Usuario aún no ha completado su perfil. Invítalo a hacerlo para personalizar el análisis."
+        core += mentor_section + "\n\n## NOTA: Usuario aún no ha completado su perfil. Invítalo a hacerlo para personalizar el análisis."
 
     if deep_context:
         core += deep_context
@@ -1129,9 +1151,6 @@ def build_system_prompt(
 
     if notification_context:
         core += f"\n\n## 📩 CONTEXTO: EL USUARIO LLEGÓ DESDE UNA NOTIFICACIÓN\n\n{notification_context}\n\nEl usuario acaba de ver esta notificación y abrió el chat. Empieza reconociendo este contexto de forma natural y ofrece análisis relevante."
-
-    if profile and getattr(profile, "preferred_language", None) == "en":
-        core += "\n\n## 🌐 IDIOMA\n\nResponde siempre en inglés. El usuario configuró el idioma de la app en inglés."
 
     return core + ACTION_TAG_INSTRUCTIONS + SECURITY_GUARDRAILS
 
@@ -1149,14 +1168,13 @@ def _build_static_system_prompt(
     if is_voice:
         base = _strip_investment_scorecard_format(base)
     mentor_section = build_mentor_context(mentor)
+    core = _language_directive(profile) + "\n\n" + base
     if profile:
-        core = base + mentor_section + "\n\n" + build_profile_context(profile)
+        core += mentor_section + "\n\n" + build_profile_context(profile)
     else:
-        core = base + mentor_section + "\n\n## NOTA: Usuario aún no ha completado su perfil. Invítalo a hacerlo para personalizar el análisis."
+        core += mentor_section + "\n\n## NOTA: Usuario aún no ha completado su perfil. Invítalo a hacerlo para personalizar el análisis."
     if deep_context:
         core += deep_context
-    if profile and getattr(profile, "preferred_language", None) == "en":
-        core += "\n\n## 🌐 IDIOMA\n\nResponde siempre en inglés. El usuario configuró el idioma de la app en inglés."
     return core + ACTION_TAG_INSTRUCTIONS + SECURITY_GUARDRAILS
 
 
