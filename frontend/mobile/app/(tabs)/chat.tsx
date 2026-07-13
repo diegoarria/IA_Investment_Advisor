@@ -1425,7 +1425,7 @@ function makeStyles(c: Colors) {
     },
     timeUser: { fontSize: 10, color: c.textDim, fontFamily: "Inter_400Regular" },
     timeAI: { fontSize: 10, color: c.textDim, fontFamily: "Inter_400Regular", textAlign: "right" as const, marginTop: 6 },
-    userText: { color: c.text, fontSize: 14.5, lineHeight: 23, flexWrap: "wrap" as const, fontFamily: "Inter_400Regular" },
+    userText: { color: c.text, fontSize: 16, lineHeight: 25, flexWrap: "wrap" as const, fontFamily: "Inter_400Regular" },
 
     input: {
       flex: 1,
@@ -1571,7 +1571,7 @@ function makeStyles(c: Colors) {
 function makeMarkdownStyles(c: Colors) {
   return {
     body: {
-      color: c.textSub, fontSize: 14, lineHeight: 24, flexShrink: 1,
+      color: c.textSub, fontSize: 16, lineHeight: 26, flexShrink: 1,
       fontFamily: "Inter_400Regular",
       ...(Platform.OS === "web" ? { wordBreak: "break-word", overflowWrap: "break-word" } : {}),
     },
@@ -1601,7 +1601,7 @@ function makeMarkdownStyles(c: Colors) {
     em: { color: c.accentLight, fontStyle: "italic" as const, fontFamily: "Inter_400Regular" },
     bullet_list: { marginVertical: 6, flexShrink: 1 },
     ordered_list: { marginVertical: 6, flexShrink: 1 },
-    list_item: { color: c.textSub, fontSize: 14, lineHeight: 24, flexShrink: 1, marginVertical: 2, fontFamily: "Inter_400Regular" },
+    list_item: { color: c.textSub, fontSize: 16, lineHeight: 26, flexShrink: 1, marginVertical: 2, fontFamily: "Inter_400Regular" },
     code_inline: {
       backgroundColor: c.accentLight + "1a", color: c.accentLight,
       borderRadius: 5, paddingHorizontal: 6, fontSize: 12.5, fontWeight: "500" as const,
@@ -1628,7 +1628,7 @@ function makeMarkdownStyles(c: Colors) {
     td: {
       color: c.textSub,
       paddingHorizontal: 14, paddingVertical: 10,
-      fontSize: 13, lineHeight: 20,
+      fontSize: 14.5, lineHeight: 22,
       borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border,
       minWidth: 120,
       borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: c.border,
