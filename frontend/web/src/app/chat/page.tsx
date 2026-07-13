@@ -21,6 +21,7 @@ import TutorialModal from "@/components/TutorialModal";
 import GuidedSteps from "@/components/GuidedSteps";
 import PremiumBadge from "@/components/PremiumBadge";
 import VoiceCallModal from "@/components/VoiceCallModal";
+import { unlockAudioPlayback, getUnlockedAudioElement } from "@/lib/audioUnlock";
 import { useTutorialStore } from "@/lib/store";
 import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
@@ -225,7 +226,6 @@ export default function ChatPage() {
   const [showCallModal, setShowCallModal] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const voiceInputRef = useRef(false);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -274,24 +274,10 @@ export default function ChatPage() {
     });
   };
 
-  // 1-sample silent WAV — playing it (then leaving the element paused) inside
-  // the SAME user gesture that starts recording "unlocks" this <audio>
-  // element for iOS Safari, which otherwise blocks any programmatic .play()
-  // that isn't directly inside a user-gesture call stack. We reuse this exact
-  // element later for the voice reply instead of creating a `new Audio()`,
-  // which is what makes that later autoplay actually work on iOS Safari.
-  const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
-  const unlockAudioElement = () => {
-    if (!audioRef.current) audioRef.current = new Audio();
-    const el = audioRef.current;
-    el.src = SILENT_WAV;
-    el.play().catch(() => {});
-  };
-
   const startRecording = async () => {
     // Must run synchronously, before any `await`, to stay inside the click's
-    // user-gesture call stack — see unlockAudioElement's comment.
-    unlockAudioElement();
+    // user-gesture call stack — see unlockAudioPlayback's comment.
+    unlockAudioPlayback();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { sampleRate: 48000, channelCount: 1, echoCancellation: true, noiseSuppression: true },
@@ -397,12 +383,11 @@ export default function ChatPage() {
   };
 
   const playVoiceResponseUrl = async (url: string, key: string) => {
-    // Reuse the SAME <audio> element `unlockAudioElement` played on the mic
+    // Reuse the SAME <audio> element `unlockAudioPlayback` played on the mic
     // tap — a fresh `new Audio()` here would NOT be autoplay-unlocked on iOS
     // Safari, defeating the whole point. The manual play button (which calls
     // this too, from a real tap) works either way.
-    if (!audioRef.current) audioRef.current = new Audio();
-    const audio = audioRef.current;
+    const audio = getUnlockedAudioElement();
     audio.pause();
     setVoiceAudio({ content: key, url, loading: false, playing: true });
     audio.src = url;
@@ -1452,6 +1437,11 @@ export default function ChatPage() {
                         setPaywallOpen(true);
                         return;
                       }
+                      // Synchronous, inside this click's gesture — the call's
+                      // greeting/sentence audio all plays later, after several
+                      // awaited network calls, which iOS Safari would
+                      // otherwise silently block. See audioUnlock.ts.
+                      unlockAudioPlayback();
                       setShowCallModal(true);
                     }}
                     disabled={isStreaming}

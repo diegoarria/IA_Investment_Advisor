@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { PhoneOff, Mic, MicOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { getUnlockedAudioElement } from "@/lib/audioUnlock";
 
 interface Props {
   onClose: () => void;
@@ -244,8 +245,15 @@ export default function VoiceCallModal({ onClose }: Props) {
       return;
     }
     const url = URL.createObjectURL(next);
-    const audio = new Audio(url);
+    // Reuse the SAME <audio> element the "start call" button unlocked — a
+    // fresh `new Audio()` here is exactly what used to make calls silent on
+    // iOS Safari: every sentence arrives via a WebSocket message, several
+    // `await`s removed from the original click, so it's never autoplay-
+    // unlocked on its own. See lib/audioUnlock.ts.
+    const audio = getUnlockedAudioElement();
     currentAudioRef.current = audio;
+    audio.pause();
+    audio.src = url;
     assistantSpeakingRef.current = true;
     setStatus("assistant_speaking");
     audio.onended = () => {
