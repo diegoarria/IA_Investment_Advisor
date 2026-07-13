@@ -99,9 +99,15 @@ app.include_router(research.router,          prefix="/api")
 
 @app.get("/")
 async def root():
+    import os
     return {
         "name": "Nuvo",
         "version": "1.0.0",
+        # Railway sets these automatically on every deploy — lets us confirm
+        # exactly which commit is actually live, instead of guessing whether
+        # a push actually deployed.
+        "git_commit": os.getenv("RAILWAY_GIT_COMMIT_SHA", "unknown")[:12],
+        "deployed_at": os.getenv("RAILWAY_DEPLOYMENT_ID", "unknown"),
         "status": "running",
         "docs": "/docs"
     }
