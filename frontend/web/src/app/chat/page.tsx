@@ -931,6 +931,8 @@ export default function ChatPage() {
             )}
 
             {/* ─── Message list ──────────────────────────────────────────── */}
+            {messages.length > 0 && (
+            <div className="max-w-3xl mx-auto w-full space-y-5">
             {messages.map((msg, i) => (
               <div key={i} className="animate-fade-in">
                 <div className={`flex ${msg.role === "user" ? "justify-end items-start gap-2.5 group/msg" : "justify-start gap-2.5"}`}>
@@ -1144,6 +1146,8 @@ export default function ChatPage() {
                 )}
               </div>
             ))}
+            </div>
+            )}
             <div ref={bottomRef} />
           </div>
 
