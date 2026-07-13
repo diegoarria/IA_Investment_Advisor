@@ -32,11 +32,10 @@ export function useUserLevel(): UserLevel {
   return getUserLevel(profile);
 }
 
-export const LEVEL_LABEL: Record<UserLevel, string> = {
-  basico:     "Básico",
-  intermedio: "Intermedio",
-  avanzado:   "Avanzado",
-};
+/** i18n-aware label for a user level — call with the `t` from useTranslation(). */
+export function getLevelLabel(t: (key: string) => string, level: UserLevel): string {
+  return t(`common.userLevel.${level}`);
+}
 
 export const LEVEL_COLOR: Record<UserLevel, string> = {
   basico:     "#6b7280",

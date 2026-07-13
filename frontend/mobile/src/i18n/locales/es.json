@@ -1,5 +1,10 @@
 {
   "common": {
+    "userLevel": {
+      "basico": "Básico",
+      "intermedio": "Intermedio",
+      "avanzado": "Avanzado"
+    },
     "cancel": "Cancelar",
     "save": "Guardar",
     "saving": "Guardando...",

@@ -13,7 +13,7 @@ import { useSubscriptionStore, hasPremiumAccess } from "../lib/subscriptionStore
 import { useChatStore } from "../lib/chatStore";
 import { useTheme } from "../lib/ThemeContext";
 import MarketTicker from "./MarketTicker";
-import { getUserLevel, useUserLevel, isAtLeast, LEVEL_LABEL, LEVEL_COLOR } from "../lib/userLevel";
+import { getUserLevel, useUserLevel, isAtLeast, getLevelLabel, LEVEL_COLOR } from "../lib/userLevel";
 
 const SIDEBAR_WIDTH = Math.min(Dimensions.get("window").width * 0.78, 300);
 const WEB_EXPANDED = 260;
@@ -65,7 +65,7 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
           </Text>
           <View style={styles.profileBadgesRow}>
             <View style={[styles.levelBadge, { borderColor: levelColor + "55", backgroundColor: levelColor + "18" }]}>
-              <Text style={[styles.levelBadgeText, { color: levelColor }]}>{LEVEL_LABEL[level]}</Text>
+              <Text style={[styles.levelBadgeText, { color: levelColor }]}>{getLevelLabel(t, level)}</Text>
             </View>
             <View style={[styles.subBadge, { borderColor: colors.border }]}>
               <Text style={[styles.subBadgeText, { color: isPremium ? "#00d47e" : colors.textDim }]}>
@@ -215,7 +215,7 @@ function NavItems({
         </Text>
         {locked && (
           <Text style={[styles.lockLevelText, { color: colors.textDim }]}>
-            {LEVEL_LABEL[item.minLevel]}
+            {getLevelLabel(t, item.minLevel)}
           </Text>
         )}
         {isActive && !locked && <View style={styles.activeDot} />}

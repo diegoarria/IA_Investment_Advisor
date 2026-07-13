@@ -19,7 +19,7 @@ import { chatApi, marketApi, decisionsApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG, getAge } from "../../src/lib/profileStore";
-import { getUserLevel, LEVEL_LABEL, LEVEL_COLOR } from "../../src/lib/userLevel";
+import { getUserLevel, getLevelLabel, LEVEL_COLOR } from "../../src/lib/userLevel";
 import { useChatStore, Message, BehavioralDiagnosis } from "../../src/lib/chatStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useSubscriptionStore, msgsRemaining, resetMinutes, FREE_MSG_LIMIT, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -871,7 +871,7 @@ Instrucciones críticas:
                     {(() => {
                       const lvl = getUserLevel(profile);
                       const lvlColor = LEVEL_COLOR[lvl];
-                      const lvlLabel = LEVEL_LABEL[lvl];
+                      const lvlLabel = getLevelLabel(t, lvl);
                       return (
                         <View style={[styles.contextChip, { borderColor: lvlColor + "40", backgroundColor: lvlColor + "10" }]}>
                           <Text style={[styles.contextChipText, { color: lvlColor }]}>📊 {lvlLabel}</Text>
