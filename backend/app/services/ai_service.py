@@ -3,7 +3,10 @@ import anthropic
 import json
 import logging
 import traceback
+from datetime import datetime, timezone
 from app.core.config import settings
+from app.core.finnhub import fh_quote, fh_candles
+from app.services.perplexity_service import search_web
 from app.models.user import UserProfile, ChatMessage
 
 _log = logging.getLogger(__name__)
@@ -1180,6 +1183,98 @@ def _build_dynamic_system_addendum(
     return "\n\n".join(parts) if parts else None
 
 
+MENTOR_TOOLS = [
+    {
+        "name": "get_stock_quote",
+        "description": (
+            "Get the current real-time price and today's change for a stock ticker. "
+            "Use this whenever the user asks about a ticker's price/performance that "
+            "ISN'T already in the portfolio/watchlist context you were given — e.g. a "
+            "ticker they don't own yet, or one they're just curious about."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string", "description": "Stock ticker symbol, e.g. AAPL"},
+            },
+            "required": ["ticker"],
+        },
+    },
+    {
+        "name": "get_price_history",
+        "description": (
+            "Get how a ticker's price has changed over the last N years (weekly closes), "
+            "to answer questions like 'how has NVDA done over the last 3 years' or "
+            "'what would $1000 in X a year ago be worth today'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string"},
+                "years_back": {"type": "integer", "minimum": 1, "maximum": 10},
+            },
+            "required": ["ticker", "years_back"],
+        },
+    },
+    {
+        "name": "search_web",
+        "description": (
+            "Search the live web for recent news or information you don't already have — "
+            "breaking news, very recent events, or anything outside your training data "
+            "and the context already provided. Don't use this for things you already know."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"],
+        },
+    },
+]
+
+_MAX_TOOL_ROUNDS = 4
+
+
+async def _exec_mentor_tool(name: str, tool_input: dict) -> str:
+    """Execute one Mentor tool call. Never raises — errors become text the model can react to."""
+    try:
+        if name == "get_stock_quote":
+            ticker = (tool_input.get("ticker") or "").upper().strip()
+            q = await asyncio.to_thread(fh_quote, ticker)
+            if not q or not q.get("price"):
+                return f"No se encontró precio para {ticker}."
+            return (
+                f"{ticker}: ${q['price']:.2f}, cambio hoy {q.get('change_pct', 0):+.2f}% "
+                f"(apertura ${q.get('open')}, máximo ${q.get('high')}, mínimo ${q.get('low')})"
+            )
+
+        if name == "get_price_history":
+            ticker = (tool_input.get("ticker") or "").upper().strip()
+            years = max(1, min(10, int(tool_input.get("years_back", 1) or 1)))
+            to_ts = int(datetime.now(timezone.utc).timestamp())
+            from_ts = to_ts - years * 365 * 86400
+            candles = await asyncio.to_thread(fh_candles, ticker, "W", from_ts, to_ts)
+            if not candles:
+                return f"No hay datos históricos disponibles para {ticker}."
+            first, last = candles[0], candles[-1]
+            if not first.get("c") or not last.get("c"):
+                return f"No hay datos históricos completos para {ticker}."
+            change_pct = (last["c"] - first["c"]) / first["c"] * 100
+            d_from = datetime.fromtimestamp(first["t"], tz=timezone.utc).date()
+            d_to   = datetime.fromtimestamp(last["t"], tz=timezone.utc).date()
+            return (
+                f"{ticker} — {d_from} (${first['c']:.2f}) → {d_to} (${last['c']:.2f}): "
+                f"{change_pct:+.1f}% en {years} año{'s' if years != 1 else ''}"
+            )
+
+        if name == "search_web":
+            result = await asyncio.to_thread(search_web, tool_input.get("query", ""), False)
+            return result or "Sin resultados relevantes."
+
+        return f"Herramienta desconocida: {name}"
+    except Exception as exc:
+        return f"Error ejecutando {name}: {exc}"
+
+
 async def chat_stream(
     message: str,
     conversation_history: list[ChatMessage],
@@ -1250,14 +1345,35 @@ async def chat_stream(
     model      = settings.claude_model
     max_tokens = 8192 if is_premium else 5000
 
-    async with client.messages.stream(
-        model=model,
-        max_tokens=max_tokens,
-        system=system_blocks,
-        messages=messages,
-    ) as stream:
-        async for text in stream.text_stream:
-            yield text
+    for _round in range(_MAX_TOOL_ROUNDS):
+        async with client.messages.stream(
+            model=model,
+            max_tokens=max_tokens,
+            system=system_blocks,
+            messages=messages,
+            tools=MENTOR_TOOLS,
+        ) as stream:
+            async for text in stream.text_stream:
+                yield text
+            final = await stream.get_final_message()
+
+        if final.stop_reason != "tool_use":
+            return
+
+        # Model asked to call one or more tools — execute them, feed the results
+        # back, and let another streaming round produce the final answer.
+        messages.append({"role": "assistant", "content": final.content})
+        tool_blocks = [b for b in final.content if b.type == "tool_use"]
+        results = await asyncio.gather(
+            *(_exec_mentor_tool(b.name, b.input) for b in tool_blocks)
+        )
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "tool_result", "tool_use_id": b.id, "content": r}
+                for b, r in zip(tool_blocks, results)
+            ],
+        })
 
 
 async def analyze_assets(symbols: list[str], market_data: dict, profile: UserProfile | None = None) -> str:

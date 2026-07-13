@@ -11,11 +11,13 @@ Scalability notes:
     simultaneously, the last write wins — acceptable for eventual-consistency sync.
   - updated_at is returned on all reads so clients can detect stale local state.
 """
+import asyncio
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
 from app.core.cache import cache_get, cache_set, cache_delete
+from app.services import fmg_service
 
 MAX_PORTFOLIOS = 3
 
@@ -127,8 +129,10 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
         db.table("user_portfolio").select("positions, updated_at")
         .eq("user_id", user_id).eq("portfolio_id", portfolio_id)
     )
+    prev_position_count = 0
     if existing.data:
         current_updated_at = existing.data[0]["updated_at"]
+        prev_position_count = len(_parse_portfolio(existing.data[0]["positions"]).get("positions", []))
         if base_updated_at and current_updated_at and base_updated_at != current_updated_at:
             # Someone else's write landed after this client last read the
             # server state — surface a real conflict instead of overwriting
@@ -163,6 +167,14 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
     cache_delete(f"sync:portfolio:{user_id}:{portfolio_id}")
     cache_delete(f"sync:portfolios:{user_id}")
     cache_delete(f"sync:all:{user_id}")
+    if prev_position_count == 0 and len(positions) > 0:
+        # First-ever position for this user (across any portfolio) — one-time
+        # milestone for the onboarding-to-first-investment funnel.
+        asyncio.create_task(fmg_service.log_event(
+            user_id, "milestone", "Primera inversión registrada",
+            metadata={"portfolio_id": portfolio_id, "ticker": positions[0].get("ticker")},
+            milestone_key="first_investment",
+        ))
     # Echo back the exact timestamp the write was committed with, so clients can
     # show a server-confirmed "saved at" time instead of just trusting their own
     # local clock/state.
