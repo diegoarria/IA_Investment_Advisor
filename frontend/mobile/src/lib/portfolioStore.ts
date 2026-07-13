@@ -58,6 +58,10 @@ interface PortfolioStore {
   // Active portfolio mutations
   setCurrency: (currency: string) => void;
   addPosition: (p: Omit<Position, "id">) => void;
+  // Collapses every purchase lot for `ticker` into a single one with the given
+  // total shares and blended average price — used by the "ajustar promedio"
+  // flow so adding money never fragments a position into separate-priced lots.
+  mergeTickerPosition: (ticker: string, totalShares: number, avgPrice: number) => Promise<void>;
   // closePrice is required — every removal must be recorded in the ledger so
   // "since inception" performance stays accurate after the position is gone.
   removePosition: (id: string, closePrice: number) => Promise<void>;
@@ -197,6 +201,21 @@ export const usePortfolioStore = create<PortfolioStore>()(
           // Frozen forever once set — only the very first position (ever) sets it.
           const inceptionDate = active.inceptionDate ?? (p.purchaseDate || todayStr());
           updateActive([...active.positions, { ...p, id: `${p.ticker}-${Date.now()}` }], { inceptionDate });
+        },
+
+        mergeTickerPosition: (ticker, totalShares, avgPrice) => {
+          const active = getActive();
+          const existing = active.positions.find(p => p.ticker === ticker);
+          const others = active.positions.filter(p => p.ticker !== ticker);
+          const merged: Position = {
+            id: existing?.id ?? `${ticker}-${Date.now()}`,
+            ticker,
+            name: existing?.name,
+            shares: totalShares,
+            avgPrice,
+            purchaseDate: todayStr(),
+          };
+          return updateActive([...others, merged]);
         },
 
         removePosition: (id, closePrice) => {
