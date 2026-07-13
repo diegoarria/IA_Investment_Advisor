@@ -15,11 +15,6 @@ import type { StockData } from "@/lib/types/stock";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
-function authHeaders(): HeadersInit {
-  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 // Raw shape returned by /api/market/quote-details
 interface QuoteDetailsRaw {
   price?: number | null;
@@ -56,7 +51,7 @@ export async function getQuoteDetails(
   try {
     const res = await fetch(
       `${BASE}/api/market/quote-details?symbols=${symbols.join(",")}`,
-      { headers: authHeaders() },
+      { credentials: "include" },
     );
     if (!res.ok) return {};
     const data = (await res.json()) as Record<string, QuoteDetailsRaw>;

@@ -8,20 +8,18 @@ const BASE_URL =
     ? "https://iainvestmentadvisor-production.up.railway.app"
     : "http://localhost:8000");
 
-const api = axios.create({ baseURL: BASE_URL });
+// `withCredentials: true` is what makes the browser send/receive the httpOnly
+// `access_token`/`refresh_token` cookies the backend now sets on login/register/
+// refresh — the token is never read into JS here, so an XSS bug on this site
+// can no longer exfiltrate it from localStorage the way it used to.
+const api = axios.create({ baseURL: BASE_URL, withCredentials: true });
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("access_token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
-// Auto-refresh on 401 (mirrors mobile SecureStore flow but with localStorage)
+// Auto-refresh on 401 — the request itself carries no token; the cookie does.
 let isRefreshing = false;
-let failedQueue: Array<{ resolve: (t: string) => void; reject: (e: unknown) => void }> = [];
+let failedQueue: Array<{ resolve: () => void; reject: (e: unknown) => void }> = [];
 
-const flushQueue = (error: unknown, token: string | null = null) => {
-  failedQueue.forEach((p) => (error ? p.reject(error) : p.resolve(token!)));
+const flushQueue = (error: unknown) => {
+  failedQueue.forEach((p) => (error ? p.reject(error) : p.resolve()));
   failedQueue = [];
 };
 
@@ -34,54 +32,46 @@ api.interceptors.response.use(
     if (status !== 401 || original._retry) return Promise.reject(error);
 
     if (isRefreshing) {
-      return new Promise((resolve, reject) => {
+      return new Promise<void>((resolve, reject) => {
         failedQueue.push({ resolve, reject });
-      }).then((token) => {
-        original.headers.Authorization = `Bearer ${token}`;
-        return api(original);
-      });
+      }).then(() => api(original));
     }
 
     original._retry = true;
     isRefreshing = true;
 
     try {
-      const refreshToken = localStorage.getItem("refresh_token");
-      if (!refreshToken) {
-        isRefreshing = false;
-        flushQueue(error);
-        return Promise.reject(error);
-      }
-      const res = await axios.post(`${BASE_URL}/api/auth/refresh`, { refresh_token: refreshToken });
-      const { access_token, refresh_token: newRefresh } = res.data;
-      localStorage.setItem("access_token", access_token);
-      localStorage.setItem("refresh_token", newRefresh);
-      api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
-      original.headers.Authorization = `Bearer ${access_token}`;
-      flushQueue(null, access_token);
+      // No body needed — the backend reads the refresh_token cookie itself.
+      // The response's Set-Cookie header refreshes both cookies automatically;
+      // there's nothing for JS to store.
+      await axios.post(`${BASE_URL}/api/auth/refresh`, {}, { withCredentials: true });
+      flushQueue(null);
       return api(original);
     } catch (refreshErr) {
-      // Only clear tokens when the server explicitly rejects them (expired/invalid).
-      // For network errors or server outages, preserve tokens so the user stays logged
-      // in and can retry when connectivity is restored.
+      // Only force logout when the server explicitly rejects the refresh
+      // (expired/invalid). For network errors or server outages, leave the
+      // cookie alone so the user stays logged in and can retry once
+      // connectivity is restored.
       const refreshStatus = (refreshErr as { response?: { status?: number } })?.response?.status;
       if (refreshStatus === 401 || refreshStatus === 403) {
-        // Before clearing tokens, try Supabase native session — handles multi-tab
-        // race condition where another tab already refreshed and stored new tokens.
+        // Before giving up, try Supabase's own client-side session — handles
+        // the multi-tab race where another tab already refreshed via the
+        // Supabase SDK directly. The token only ever lives in JS memory for
+        // this one call, passed straight through to re-mint our cookie —
+        // never persisted to storage.
         try {
           const { data: { session } } = await getSupabaseClient().auth.getSession();
           if (session?.access_token) {
-            localStorage.setItem("access_token", session.access_token);
-            if (session.refresh_token) localStorage.setItem("refresh_token", session.refresh_token);
-            api.defaults.headers.common["Authorization"] = `Bearer ${session.access_token}`;
-            original.headers.Authorization = `Bearer ${session.access_token}`;
-            flushQueue(null, session.access_token);
+            await axios.post(`${BASE_URL}/api/auth/set-session`, {
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+            }, { withCredentials: true });
+            flushQueue(null);
             return api(original);
           }
         } catch {}
-        // Supabase also has no session — truly expired, clear tokens and force logout
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
+        // Supabase also has no session — truly expired, clear the cookie and force logout.
+        try { await axios.post(`${BASE_URL}/api/auth/logout`, {}, { withCredentials: true }); } catch {}
         import("./store").then(({ useAuthStore }) => {
           useAuthStore.getState().setSessionExpired(true);
           useAuthStore.getState().clearAuth();
@@ -108,6 +98,8 @@ export const auth = {
     api.post("/api/auth/forgot-password-sms", { email, phone }),
   resetPassword: (email: string, code: string, new_password: string, phone?: string) =>
     api.post("/api/auth/reset-password", { email, code, new_password, ...(phone ? { phone } : {}) }),
+  setSession: (access_token: string, refresh_token?: string) =>
+    api.post("/api/auth/set-session", { access_token, refresh_token }),
 };
 
 export const profile = {
@@ -269,7 +261,8 @@ export const support = {
   chat:         (message: string, history: {role:string;content:string}[]) =>
     fetch(`${BASE_URL}/api/support/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("access_token") ?? ""}` },
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, history }),
     }),
   createTicket: (subject: string, message: string) => api.post("/api/support/ticket", { subject, message }),

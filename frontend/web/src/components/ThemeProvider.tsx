@@ -8,10 +8,6 @@ import "@/i18n";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import { getSupabaseClient } from "@/lib/supabase";
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://iainvestmentadvisor-production.up.railway.app";
-
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const { theme, loadThemeFromServer } = useThemeStore();
@@ -32,77 +28,39 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     import("@/i18n").then(({ default: i18n }) => i18n.changeLanguage(language));
   }, [language]);
 
-  // On every app load: restore session from stored tokens so the user
-  // is never logged out as long as their refresh_token is valid.
+  // On every app load: the httpOnly auth cookie (if any) is sent automatically,
+  // so just ask the API whether it recognizes a session. If we already believe
+  // we're authenticated (persisted isAuthenticated flag), skip the extra
+  // round-trip — any actual data call that finds the cookie stale is already
+  // handled by api.ts's 401/refresh interceptor.
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const accessToken  = localStorage.getItem("access_token");
-    const refreshToken = localStorage.getItem("refresh_token");
-    if (!accessToken && !refreshToken) { setAuthRestoring(false); return; }
-
-    // If already authenticated AND tokens look fresh, skip restore
-    if (isAuthenticated && accessToken) { setAuthRestoring(false); return; }
+    if (isAuthenticated) { setAuthRestoring(false); return; }
 
     async function restoreSession() {
       try {
-        // Ask Supabase to restore the session — it auto-refreshes if expired
-        const supabase = getSupabaseClient();
-        const { data, error } = await supabase.auth.setSession({
-          access_token:  accessToken  ?? "",
-          refresh_token: refreshToken ?? "",
-        });
-
-        if (data.session) {
-          const s = data.session;
-          localStorage.setItem("access_token",  s.access_token);
-          if (s.refresh_token) localStorage.setItem("refresh_token", s.refresh_token);
-          setAuth(s.access_token, s.user.id);
-          return;
-        }
-        if (error) throw error;
+        const { profile: profileApi } = await import("@/lib/api");
+        const res = await profileApi.get();
+        setAuth("", res.data.user_id);
       } catch {
-        // Supabase couldn't restore — try our backend refresh endpoint as fallback
-        if (!refreshToken) { await clearStored(); return; }
-        try {
-          const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({ refresh_token: refreshToken }),
-          });
-          if (!res.ok) { await clearStored(); return; }
-          const json = await res.json();
-          localStorage.setItem("access_token",  json.access_token);
-          if (json.refresh_token) localStorage.setItem("refresh_token", json.refresh_token);
-          // Get user_id from the new token via Supabase
-          const supabase = getSupabaseClient();
-          const { data: userData } = await supabase.auth.getUser(json.access_token);
-          if (userData.user) setAuth(json.access_token, userData.user.id);
-        } catch { await clearStored(); }
+        await useAuthStore.getState().clearAuth();
       }
-    }
-
-    // Both the raw tokens AND the persisted "auth-store" isAuthenticated flag
-    // must be cleared together — clearing only the tokens (as this used to do)
-    // left a stale isAuthenticated:true in localStorage that / would read and
-    // bounce straight back to /home, which /home would then bounce right back
-    // to / for having no tokens: an infinite redirect loop that looked to the
-    // user like the screen endlessly reloading itself.
-    async function clearStored() {
-      await useAuthStore.getState().clearAuth();
-      setAuthRestoring(false);
     }
 
     restoreSession().finally(() => setAuthRestoring(false));
   }, []);
 
-  // Keep tokens fresh: whenever Supabase silently refreshes the JWT, update localStorage
+  // Whenever Supabase silently refreshes the JWT (OAuth sessions it manages
+  // directly), re-mint our own httpOnly cookie to match — never persisted to
+  // localStorage, just handed straight to the backend for this one call.
   useEffect(() => {
     const supabase = getSupabaseClient();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "TOKEN_REFRESHED" && session) {
-        localStorage.setItem("access_token", session.access_token);
-        if (session.refresh_token) localStorage.setItem("refresh_token", session.refresh_token);
+        import("@/lib/api").then(({ auth: authApi }) => {
+          authApi.setSession(session.access_token, session.refresh_token).catch(() => {});
+        });
         setAuth(session.access_token, session.user.id);
       }
     });

@@ -70,7 +70,6 @@ export default function VoiceCallModal({ onClose }: Props) {
     let cancelled = false;
 
     async function start() {
-      const token = localStorage.getItem("access_token") || "";
       // Explicit constraints (not just `audio: true`): echoCancellation is what
       // keeps the Mentor's own voice from bleeding into the mic and triggering
       // false barge-ins — browsers often default it off or inconsistently on.
@@ -114,7 +113,7 @@ export default function VoiceCallModal({ onClose }: Props) {
       };
       recorderRef.current = recorder;
 
-      connectWebSocket(token);
+      connectWebSocket();
     }
 
     // Extracted so it can be called again on reconnect without re-requesting
@@ -122,12 +121,14 @@ export default function VoiceCallModal({ onClose }: Props) {
     // itself needs to be replaced. Uses closedRef (a ref, always current)
     // instead of the `cancelled` closure variable, which would otherwise be
     // captured stale from whichever call triggered this connect attempt.
-    function connectWebSocket(token: string) {
+    function connectWebSocket() {
       // resume=1 on anything past the first attempt — tells the server this
       // is a reconnect mid-call, not a fresh call, so it skips the greeting
       // (the user is already mid-conversation, replaying it would be jarring).
-      const resumeParam = reconnectAttemptsRef.current > 0 ? "&resume=1" : "";
-      const ws = new WebSocket(`${wsBaseUrl()}/api/voice/call/ws?token=${encodeURIComponent(token)}${resumeParam}`);
+      // No ?token= — the browser sends the httpOnly access_token cookie
+      // automatically during the WS handshake; the backend reads it there.
+      const resumeParam = reconnectAttemptsRef.current > 0 ? "?resume=1" : "";
+      const ws = new WebSocket(`${wsBaseUrl()}/api/voice/call/ws${resumeParam}`);
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 
@@ -174,7 +175,7 @@ export default function VoiceCallModal({ onClose }: Props) {
           setStatus("connecting");
           const delay = 600 * reconnectAttemptsRef.current;
           reconnectTimerRef.current = setTimeout(() => {
-            if (!closedRef.current) connectWebSocket(token);
+            if (!closedRef.current) connectWebSocket();
           }, delay);
         } else {
           setStatus("error");

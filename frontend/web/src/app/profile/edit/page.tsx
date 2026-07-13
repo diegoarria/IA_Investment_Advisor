@@ -126,8 +126,8 @@ export default function EditProfilePage() {
     q5: (qa.q5 ?? "") as QuizAnswer | "",
   });
 
-  useEffect(() => { if (!authRestoring && !isAuthenticated && !localStorage.getItem("access_token") && !localStorage.getItem("refresh_token")) router.push("/"); }, [isAuthenticated, authRestoring]);
-  if (!authRestoring && !isAuthenticated && (typeof window === "undefined" || (!localStorage.getItem("access_token") && !localStorage.getItem("refresh_token")))) return null;
+  useEffect(() => { if (!authRestoring && !isAuthenticated) router.push("/"); }, [isAuthenticated, authRestoring]);
+  if (!authRestoring && !isAuthenticated) return null;
 
   const quizAnswers = { q1: form.q1, q2: form.q2, q3: form.q3, q4: form.q4, q5: form.q5 };
   const calculated  = calculateRisk(quizAnswers);

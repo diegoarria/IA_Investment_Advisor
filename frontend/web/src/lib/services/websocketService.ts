@@ -38,12 +38,9 @@ class FinnhubWebSocket {
   private async fetchToken(): Promise<string | null> {
     if (this.token) return this.token;
     try {
-      const accessToken = typeof window !== "undefined"
-        ? localStorage.getItem("access_token")
-        : null;
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || ""}/api/market/ws-token`,
-        { headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} },
+        { credentials: "include" },
       );
       if (!res.ok) return null;
       const data = await res.json() as { token?: string };

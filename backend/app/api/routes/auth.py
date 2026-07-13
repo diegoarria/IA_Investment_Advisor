@@ -2,7 +2,8 @@ import asyncio
 import logging
 import secrets
 
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, Response
+from app.core.config import settings
 from app.core.database import get_supabase, run_query
 from app.models.user import AuthRequest, TokenResponse
 from app.api.deps import get_current_user_id
@@ -17,6 +18,31 @@ from app.core.security import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Web reads auth from these httpOnly cookies instead of localStorage (never
+# JS-readable, so an XSS bug can't exfiltrate the token). Mobile is untouched —
+# it keeps sending `Authorization: Bearer <token>` from SecureStore, and the
+# response body below still carries both tokens for it. `secure`/`samesite`
+# differ locally (plain http://localhost) vs production (cross-site https
+# between the web app's domain and this API's domain needs SameSite=None).
+_IS_PROD = settings.environment == "production"
+_COOKIE_KW = {
+    "httponly": True,
+    "secure": _IS_PROD,
+    "samesite": "none" if _IS_PROD else "lax",
+    "path": "/",
+}
+
+
+def _set_auth_cookies(response: Response, access_token: str, refresh_token: str | None) -> None:
+    response.set_cookie("access_token", access_token, max_age=60 * 60, **_COOKIE_KW)
+    if refresh_token:
+        response.set_cookie("refresh_token", refresh_token, max_age=60 * 60 * 24 * 30, **_COOKIE_KW)
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
 
 # Holds strong references to fire-and-forget tasks so the GC can't collect them
 # before they finish. Tasks remove themselves when done.
@@ -143,7 +169,7 @@ async def _send_welcome_email(email: str, attempt: int = 1) -> None:
 
 @router.post("/register", response_model=TokenResponse)
 @limiter.limit("5/hour")
-async def register(request: Request, body: AuthRequest):
+async def register(request: Request, response: Response, body: AuthRequest):
     try:
         db = get_supabase()
         result = db.auth.sign_up({
@@ -157,6 +183,7 @@ async def register(request: Request, body: AuthRequest):
 
         _fire(_send_welcome_email(body.email))
 
+        _set_auth_cookies(response, result.session.access_token, result.session.refresh_token)
         return TokenResponse(
             access_token=result.session.access_token,
             refresh_token=result.session.refresh_token,
@@ -174,7 +201,7 @@ async def register(request: Request, body: AuthRequest):
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("15/minute")
-async def login(request: Request, body: AuthRequest):
+async def login(request: Request, response: Response, body: AuthRequest):
     email = body.email.strip().lower()
     ip = client_ip(request)
     # Reject before ever touching Supabase if this email or IP is already
@@ -192,6 +219,7 @@ async def login(request: Request, body: AuthRequest):
             record_login_failure(email, ip)
             raise HTTPException(status_code=401, detail="Credenciales inválidas")
         record_login_success(email, ip)
+        _set_auth_cookies(response, result.session.access_token, result.session.refresh_token)
         return TokenResponse(
             access_token=result.session.access_token,
             refresh_token=result.session.refresh_token,
@@ -206,15 +234,19 @@ async def login(request: Request, body: AuthRequest):
 
 @router.post("/refresh")
 @limiter.limit("30/minute")
-async def refresh_token(request: Request, body: dict):
+async def refresh_token(request: Request, response: Response, body: dict):
     try:
-        token = body.get("refresh_token", "")
+        # Mobile sends refresh_token in the JSON body (from SecureStore). Web
+        # can't do that anymore post-cookie-migration — it never has JS access
+        # to the refresh token — so it relies on the httpOnly cookie instead.
+        token = body.get("refresh_token") or request.cookies.get("refresh_token") or ""
         if not token:
             raise HTTPException(status_code=401, detail="refresh_token requerido")
         db = get_supabase()
         result = db.auth.refresh_session(token)
         if result.session is None:
             raise HTTPException(status_code=401, detail="Sesión inválida o expirada")
+        _set_auth_cookies(response, result.session.access_token, result.session.refresh_token)
         return {
             "access_token": result.session.access_token,
             "refresh_token": result.session.refresh_token,
@@ -223,6 +255,25 @@ async def refresh_token(request: Request, body: dict):
         raise
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Refresh error: {str(e)}")
+
+
+@router.post("/set-session")
+@limiter.limit("30/minute")
+async def set_session(request: Request, response: Response, body: dict):
+    """Web-only edge case: another tab refreshed via the Supabase JS SDK
+    directly (not through our /refresh), so our httpOnly cookie is stale but
+    the Supabase client-side session is still valid. The frontend reads that
+    session (access_token is transiently in JS memory for this one call, never
+    persisted) and hands it here just to re-mint our cookie — validated first
+    so a client can't set an arbitrary user's cookie."""
+    access_token = body.get("access_token", "")
+    refresh_token = body.get("refresh_token")
+    if not access_token:
+        raise HTTPException(status_code=400, detail="access_token requerido")
+    from app.api.deps import _resolve_user_token
+    await _resolve_user_token(access_token)  # raises 401 if invalid — don't trust blindly
+    _set_auth_cookies(response, access_token, refresh_token)
+    return {"ok": True}
 
 
 @router.post("/forgot-password")
@@ -336,12 +387,13 @@ async def reset_password(request: Request, body: dict):
 
 
 @router.post("/logout")
-async def logout():
+async def logout(response: Response):
     try:
         db = get_supabase()
         db.auth.sign_out()
     except Exception:
         pass
+    _clear_auth_cookies(response)
     return {"message": "Logged out"}
 
 

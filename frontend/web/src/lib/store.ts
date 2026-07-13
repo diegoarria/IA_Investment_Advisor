@@ -233,7 +233,6 @@ export const useAuthStore = create<AuthState>()(
       authRestoring: true,
       sessionExpired: false,
       setAuth: (token, userId) => {
-        localStorage.setItem("access_token", token);
         set({ token, userId, isAuthenticated: true, authRestoring: false, sessionExpired: false });
       },
       clearAuth: async () => {
@@ -250,8 +249,10 @@ export const useAuthStore = create<AuthState>()(
             new Promise((resolve) => setTimeout(resolve, 5000)),
           ]);
         } catch {}
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
+        try {
+          const { auth } = await import("./api");
+          await auth.logout();
+        } catch {}
         // "guest mode" positions/watchlist data is stored under a shared,
         // un-namespaced "guest" bucket (see userStorage below) — clear the
         // flag so a real account logged into next doesn't inherit it.
@@ -272,7 +273,10 @@ export const useAuthStore = create<AuthState>()(
       setAuthRestoring: (v) => set({ authRestoring: v }),
       setSessionExpired: (v) => set({ sessionExpired: v }),
     }),
-    { name: "auth-store" }
+    {
+      name: "auth-store",
+      partialize: (s) => ({ userId: s.userId, isAuthenticated: s.isAuthenticated }),
+    }
   )
 );
 

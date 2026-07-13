@@ -6,6 +6,7 @@ import { market as marketApi } from "@/lib/api";
 import { X, ChevronRight } from "lucide-react";
 import type { IndexNewsItem } from "@/lib/types";
 import { isNYSEOpen } from "@/lib/marketHours";
+import { useAuthStore } from "@/lib/store";
 
 interface Idx {
   name: string;
@@ -192,11 +193,12 @@ export default function MarketTickerBar() {
   const [data, setData] = useState<Idx[]>([]);
   const [selected, setSelected] = useState<Idx | null>(null);
   const [open, setOpen] = useState(false);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   useEffect(() => {
     const load = async () => {
       if (typeof window === "undefined") return;
-      if (!localStorage.getItem("access_token")) return;
+      if (!isAuthenticated) return;
       try {
         const res = await marketApi.getIndices();
         setData(res.data ?? []);

@@ -27,16 +27,16 @@ const fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDig
 
 export default function AdminUserLookupPage() {
   const router = useRouter();
-  const { userId, token } = useAuthStore();
+  const { userId, isAuthenticated } = useAuthStore();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
 
   useEffect(() => {
-    if (!userId || !token) return;
+    if (!userId || !isAuthenticated) return;
     if (userId !== ADMIN_UID) router.push("/");
-  }, [userId, token, router]);
+  }, [userId, isAuthenticated, router]);
 
   const handleSearch = async () => {
     if (!email.trim()) return;

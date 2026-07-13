@@ -154,7 +154,7 @@ export default function OnboardingPage() {
     q1: "", q4: "", has_broker: "", broker_name: "", has_investments: "", investing_knowledge: "",
   });
 
-  useEffect(() => { if (!authRestoring && !isAuthenticated && !localStorage.getItem("access_token") && !localStorage.getItem("refresh_token")) router.push("/"); }, [isAuthenticated, authRestoring]);
+  useEffect(() => { if (!authRestoring && !isAuthenticated) router.push("/"); }, [isAuthenticated, authRestoring]);
 
   // Guard: if this account already has a profile, never show onboarding again.
   // (This used to also short-circuit on a global "nuvos_ob" localStorage flag,
@@ -164,7 +164,7 @@ export default function OnboardingPage() {
   useEffect(() => {
     profileApi.get().then(() => { window.location.href = "/home"; }).catch(() => {});
   }, []);
-  if (!authRestoring && !isAuthenticated && (typeof window === "undefined" || (!localStorage.getItem("access_token") && !localStorage.getItem("refresh_token")))) return null;
+  if (!authRestoring && !isAuthenticated) return null;
 
   // ── Derived values ───────────────────────────────────────────────────────────
   const firstName  = form.name.trim().split(" ")[0];

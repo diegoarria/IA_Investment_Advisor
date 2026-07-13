@@ -275,9 +275,8 @@ export default function VideoCard({
     setDownloading(true);
     try {
       // Proxy through backend so download works regardless of CDN CORS policy
-      const token = localStorage.getItem("access_token");
       const res = await fetch(`/api/feed/clips/${clip.id}/download`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
       });
       if (!res.ok) throw new Error("download failed");
       const blob = await res.blob();

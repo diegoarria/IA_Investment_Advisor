@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { useAuthStore } from "@/lib/store";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -48,7 +47,6 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
   const { t } = useTranslation();
   const PUSH_TOGGLES = getPushToggles(t);
   const EMAIL_TOGGLES = getEmailToggles(t);
-  const { token } = useAuthStore();
   const [prefs, setPrefs] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
@@ -58,13 +56,13 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
     (async () => {
       try {
         const res = await fetch(`${API}/api/notification-settings`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
         });
         setPrefs(await res.json());
       } catch {}
       setLoading(false);
     })();
-  }, [token]);
+  }, []);
 
   const toggle = (key: string) =>
     setPrefs((p) => (p ? { ...p, [key]: !p[key] } : p));
@@ -75,7 +73,8 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
     try {
       await fetch(`${API}/api/notification-settings`, {
         method: "PUT",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(prefs),
       });
       setSaved(true);

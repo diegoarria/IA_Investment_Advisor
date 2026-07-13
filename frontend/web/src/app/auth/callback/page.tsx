@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useAuthStore, useProfileStore } from "@/lib/store";
-import { profile as profileApi } from "@/lib/api";
+import { profile as profileApi, auth as authApi } from "@/lib/api";
 
 export default function AuthCallback() {
   const router = useRouter();
@@ -18,8 +18,7 @@ export default function AuthCallback() {
     async function saveAndRedirect(session: { access_token: string; refresh_token?: string; user: { id: string } }) {
       if (done) return;
       done = true;
-      localStorage.setItem("access_token", session.access_token);
-      if (session.refresh_token) localStorage.setItem("refresh_token", session.refresh_token);
+      try { await authApi.setSession(session.access_token, session.refresh_token); } catch {}
       setAuth(session.access_token, session.user.id);
       try {
         const p = await profileApi.get();

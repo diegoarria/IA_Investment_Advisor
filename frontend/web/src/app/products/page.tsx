@@ -68,19 +68,20 @@ export default function ProductsPage() {
   const ONE_TIME_PRODUCTS = getOneTimeProducts(t);
   const COMING_SOON = getComingSoon(t);
   const { tier: subTier } = useSubscriptionStore();
-  const { token } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const isPremium = subTier === "premium";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
 
   async function handleCheckout(offer: string, variant: string) {
-    if (!token) { router.push("/login"); return; }
+    if (!isAuthenticated) { router.push("/login"); return; }
     setCheckoutLoading(offer + variant);
     try {
       const res = await fetch(`${API}/api/upsells/checkout`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ offer, variant, trigger_source: "products_page" }),
       });
       const data = await res.json();

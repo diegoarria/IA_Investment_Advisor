@@ -22,7 +22,7 @@ interface Analytics {
 
 export default function NotificationAnalyticsPage() {
   const router = useRouter();
-  const { userId, token } = useAuthStore();
+  const { userId, isAuthenticated } = useAuthStore();
   const [data, setData] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [analyticsError, setAnalyticsError] = useState(false);
@@ -34,12 +34,12 @@ export default function NotificationAnalyticsPage() {
   const [reportResult, setReportResult] = useState<"sent" | "error" | null>(null);
 
   useEffect(() => {
-    if (!userId || !token) return;           // wait for auth to restore
+    if (!userId || !isAuthenticated) return;   // wait for auth to restore
     if (userId !== ADMIN_UID) { router.push("/"); return; }
     (async () => {
       try {
         const res = await fetch(`${API}/api/notification-settings/analytics`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
         });
         if (!res.ok) throw new Error("forbidden");
         setAnalyticsError(false);
@@ -49,7 +49,7 @@ export default function NotificationAnalyticsPage() {
       }
       setLoading(false);
     })();
-  }, [userId, token, router]);
+  }, [userId, isAuthenticated, router]);
 
   async function sendMonthlyReport(email: string, month: string) {
     setReportSending(true);
@@ -57,7 +57,8 @@ export default function NotificationAnalyticsPage() {
     try {
       const res = await fetch(`${API}/api/admin/send-monthly-report`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, month }),
       });
       // endpoint returns immediately with status:"queued" — treat as sent
@@ -74,7 +75,7 @@ export default function NotificationAnalyticsPage() {
     try {
       const res = await fetch(`${API}/api/admin/test-market-close-push`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
       });
       setCloseResult(res.ok ? "sent" : "error");
     } catch {
@@ -89,7 +90,7 @@ export default function NotificationAnalyticsPage() {
     try {
       const res = await fetch(`${API}/api/push/test-alert`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
       });
       if (!res.ok) { setTestResult("error"); return; }
       const json = await res.json();

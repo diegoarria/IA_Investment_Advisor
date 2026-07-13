@@ -1,6 +1,6 @@
 const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-export async function registerWebPush(token: string): Promise<boolean> {
+export async function registerWebPush(): Promise<boolean> {
   if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
     return false;
   }
@@ -36,7 +36,8 @@ export async function registerWebPush(token: string): Promise<boolean> {
     const subJson = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
     await fetch(`${API}/api/push/subscribe`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ endpoint: subJson.endpoint, keys: subJson.keys }),
     });
 

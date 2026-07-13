@@ -35,7 +35,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 
-from app.api.deps import _resolve_user, get_current_user_id
+from app.api.deps import _resolve_user_token, get_current_user_id
 from app.core.database import get_supabase, run_query
 from app.models.user import ChatMessage, UserProfile
 from app.services import ai_service, fmg_service, investor_progress_service
@@ -205,7 +205,13 @@ async def delete_call(call_id: str, user_id: str = Depends(get_current_user_id))
 @router.websocket("/call/ws")
 async def voice_call_ws(websocket: WebSocket, token: str = "", resume: str = ""):
     try:
-        user = await _resolve_user(f"Bearer {token}")
+        # Web (post-cookie-migration) never puts the token in the URL — the
+        # browser sends the httpOnly `access_token` cookie automatically on the
+        # WS handshake. Mobile has no cookie jar semantics here, so it keeps
+        # passing the token as a query param exactly as before. Cookie wins if
+        # both are present (mirrors the header-vs-cookie precedence in deps.py).
+        cookie_token = websocket.cookies.get("access_token")
+        user = await _resolve_user_token(cookie_token or token)
     except Exception:
         await websocket.close(code=4401)
         return

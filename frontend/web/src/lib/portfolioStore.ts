@@ -133,12 +133,11 @@ export const usePortfolioStore = create<PortfolioStore>()(
           const BASE_URL =
             process.env.NEXT_PUBLIC_API_URL ||
             "https://iainvestmentadvisor-production.up.railway.app";
-          const token = typeof localStorage !== "undefined" ? localStorage.getItem("access_token") : null;
           return fetch(`${BASE_URL}/api/sync/portfolio`, {
             method: "POST",
+            credentials: "include",
             headers: {
               "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
             body: JSON.stringify({
               positions,

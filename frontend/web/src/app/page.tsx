@@ -92,25 +92,20 @@ export default function Home() {
       }
     } catch {}
 
-    const hadTokens = !!localStorage.getItem("access_token") || !!localStorage.getItem("refresh_token");
-    if (!hadTokens) { setChecking(false); return; }
-
-    const fallback = setTimeout(() => router.push("/home"), 4000);
+    // No token in localStorage anymore — the httpOnly auth cookie (if any) is
+    // sent automatically, so just ask the API whether it recognizes a session.
+    const fallback = setTimeout(() => setChecking(false), 4000);
     profileApi.get()
       .then((res) => {
         clearTimeout(fallback);
-        const storedToken = localStorage.getItem("access_token") ?? "";
-        setAuth(storedToken, res.data.user_id);
+        setAuth("", res.data.user_id);
         setProfile(res.data);
         setExistingUserName(res.data.name || res.data.email || t("landing.yourAccount"));
-        setChecking(false);
+        router.push("/home");
       })
       .catch(() => {
         clearTimeout(fallback);
-        // Regardless of why the profile call failed, redirect to home.
-        // Don't punish a network hiccup or transient refresh failure
-        // by showing the login form to someone who has tokens.
-        router.push("/home");
+        setChecking(false);
       });
   }, []);
 
@@ -191,7 +186,6 @@ export default function Home() {
       const fn = mode === "login" ? auth.login : auth.register;
       const res = await fn(email, password);
       setAuth(res.data.access_token, res.data.user_id);
-      if (res.data.refresh_token) localStorage.setItem("refresh_token", res.data.refresh_token);
       if (mode === "register") {
         const refCode = sessionStorage.getItem("nuvos_ref");
         if (refCode) { referralApi.applyCode(refCode).catch(() => {}); sessionStorage.removeItem("nuvos_ref"); }
