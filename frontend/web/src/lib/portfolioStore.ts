@@ -74,7 +74,7 @@ interface PortfolioStore {
   // Collapses every purchase lot for `ticker` into a single one with the given
   // total shares and blended average price — used by the "ajustar promedio"
   // flow so adding money never fragments a position into separate-priced lots.
-  mergeTickerPosition: (ticker: string, totalShares: number, avgPrice: number) => Promise<void>;
+  mergeTickerPosition: (ticker: string, totalShares: number, avgPrice: number, purchaseDate?: string) => Promise<void>;
   setPositions: (positions: Omit<Position, "id">[]) => void;
   clearPortfolio: () => void;
   retrySync: () => void;
@@ -278,7 +278,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
           return updateActive(active.positions.map(p => p.id === id ? { ...p, ...updates } : p));
         },
 
-        mergeTickerPosition: (ticker, totalShares, avgPrice) => {
+        mergeTickerPosition: (ticker, totalShares, avgPrice, purchaseDate) => {
           const active = getActive();
           const existing = active.positions.find(p => p.ticker === ticker);
           const others = active.positions.filter(p => p.ticker !== ticker);
@@ -288,7 +288,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
             name: existing?.name,
             shares: totalShares,
             avgPrice,
-            purchaseDate: todayStr(),
+            purchaseDate: purchaseDate ?? todayStr(),
           };
           return updateActive([...others, merged]);
         },

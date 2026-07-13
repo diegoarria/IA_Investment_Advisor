@@ -1012,10 +1012,15 @@ export default function PortfolioScreen() {
   const [lotForm, setLotForm] = useState({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
   const [lotAddLoading, setLotAddLoading] = useState(false);
   // "Ajustar promedio" — alternative to "Agregar otra compra": instead of a new
-  // separate-priced lot, this collapses ALL of a ticker's lots into one, blending
-  // in a $-amount added at the ticker's current live price.
+  // separate-priced lot, this collapses ALL of a ticker's lots into one. Two
+  // steps: (1) how much money + purchase date → shares are computed at the
+  // ticker's current live price; (2) the TOTAL average price for the combined
+  // position — entered freely, never locked to a computed/market value.
   const [adjustingAvg, setAdjustingAvg] = useState(false);
+  const [adjustStep, setAdjustStep] = useState<1 | 2>(1);
   const [adjustAmount, setAdjustAmount] = useState("");
+  const [adjustDate, setAdjustDate] = useState(new Date().toISOString().split("T")[0]);
+  const [adjustAvgPrice, setAdjustAvgPrice] = useState("");
   const [adjustLoading, setAdjustLoading] = useState(false);
   // When editing reduces shares, we don't know if it's a sale or a data-entry
   // correction — ask, since only a real sale should be archived into the
@@ -1435,9 +1440,9 @@ export default function PortfolioScreen() {
     setLotAddLoading(false);
   };
 
-  // Preview + confirm for "Ajustar promedio": blends a $-amount (at the ticker's
-  // current live price) into the existing lots, then collapses everything into
-  // one combined position with the resulting weighted-average price.
+  // Step 1 preview: how many shares the entered $ amount buys at the ticker's
+  // current live price, and the auto-blended average (offered as a starting
+  // point for step 2, never as a locked value).
   const computeAdjustPreview = (ticker: string) => {
     const lots = positions.filter(p => p.ticker === ticker);
     const existingShares = lots.reduce((s, l) => s + l.shares, 0);
@@ -1447,23 +1452,41 @@ export default function PortfolioScreen() {
     const amountUSD = (amount > 0) ? (portfolioCurrency === "USD" ? amount : amount / fxRate) : 0;
     const addedShares = currentPriceUSD > 0 ? amountUSD / currentPriceUSD : 0;
     const newTotalShares = existingShares + addedShares;
-    const newAvgPriceUSD = newTotalShares > 0 ? (existingCostUSD + addedShares * currentPriceUSD) / newTotalShares : 0;
-    return { existingShares, currentPriceUSD, addedShares, newTotalShares, newAvgPriceUSD };
+    const suggestedAvgPriceUSD = newTotalShares > 0 ? (existingCostUSD + addedShares * currentPriceUSD) / newTotalShares : 0;
+    return { existingShares, currentPriceUSD, addedShares, newTotalShares, suggestedAvgPriceUSD };
+  };
+
+  const handleAdjustNext = (ticker: string) => {
+    const { addedShares, suggestedAvgPriceUSD } = computeAdjustPreview(ticker);
+    if (addedShares <= 0) { Alert.alert(t("portfolio.form.incompleteFields")); return; }
+    const suggested = portfolioCurrency === "USD" ? suggestedAvgPriceUSD : suggestedAvgPriceUSD * fxRate;
+    setAdjustAvgPrice(suggested > 0 ? suggested.toFixed(4) : "");
+    setAdjustStep(2);
   };
 
   const handleAdjustAverage = async (ticker: string) => {
-    const { addedShares, newTotalShares, newAvgPriceUSD } = computeAdjustPreview(ticker);
-    if (addedShares <= 0 || newTotalShares <= 0) { Alert.alert(t("portfolio.form.incompleteFields")); return; }
+    const { existingShares, addedShares } = computeAdjustPreview(ticker);
+    const newTotalShares = existingShares + addedShares;
+    const enteredAvg = parseFloat(adjustAvgPrice);
+    if (!(enteredAvg > 0) || newTotalShares <= 0) { Alert.alert(t("portfolio.form.incompleteFields")); return; }
+    const newAvgPriceUSD = portfolioCurrency === "USD" ? enteredAvg : enteredAvg / fxRate;
     setAdjustLoading(true);
     try {
-      await mergeTickerPosition(ticker, parseFloat(newTotalShares.toFixed(6)), parseFloat(newAvgPriceUSD.toFixed(6)));
+      await mergeTickerPosition(ticker, parseFloat(newTotalShares.toFixed(6)), parseFloat(newAvgPriceUSD.toFixed(6)), adjustDate);
       posthog.capture("portfolio_position_avg_adjusted", { ticker, new_shares: newTotalShares });
     } finally {
       setAdjustLoading(false);
-      setAdjustingAvg(false);
-      setAdjustAmount("");
+      resetAdjustState();
       setLotsTicker(null);
     }
+  };
+
+  const resetAdjustState = () => {
+    setAdjustingAvg(false);
+    setAdjustStep(1);
+    setAdjustAmount("");
+    setAdjustDate(new Date().toISOString().split("T")[0]);
+    setAdjustAvgPrice("");
   };
 
   // ── Simulator 1: portfolio AI analysis ────────────────────────────────
@@ -3387,7 +3410,7 @@ export default function PortfolioScreen() {
       <Modal
         visible={!!lotsTicker}
         transparent animationType="fade"
-        onRequestClose={() => { setLotsTicker(null); setAddingLot(false); setLotForm({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] }); setAdjustingAvg(false); setAdjustAmount(""); }}
+        onRequestClose={() => { setLotsTicker(null); setAddingLot(false); setLotForm({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] }); resetAdjustState(); }}
       >
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "center", alignItems: "center", padding: 20 }}>
           <View style={{ backgroundColor: "#0d0f14", borderRadius: 20, width: "100%", maxWidth: 360, overflow: "hidden", borderWidth: 1, borderColor: "#181b24" }}>
@@ -3395,7 +3418,7 @@ export default function PortfolioScreen() {
             <View style={{ padding: 20 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                 <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Tus compras de {lotsTicker}</Text>
-                <TouchableOpacity onPress={() => { setLotsTicker(null); setAddingLot(false); setLotForm({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] }); setAdjustingAvg(false); setAdjustAmount(""); }}>
+                <TouchableOpacity onPress={() => { setLotsTicker(null); setAddingLot(false); setLotForm({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] }); resetAdjustState(); }}>
                   <Ionicons name="close" size={20} color={"#5b6270"} />
                 </TouchableOpacity>
               </View>
@@ -3488,42 +3511,80 @@ export default function PortfolioScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
-              ) : adjustingAvg ? (() => {
+              ) : adjustingAvg && adjustStep === 1 ? (() => {
                 const preview = lotsTicker ? computeAdjustPreview(lotsTicker) : null;
                 const hasAmount = parseFloat(adjustAmount) > 0;
                 return (
                   <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "#181b24", backgroundColor: "#161a22", padding: 12, marginTop: 10, gap: 8 }}>
+                    <Text style={{ fontSize: 10, fontWeight: "800", color: "#00d47e", textTransform: "uppercase", letterSpacing: 0.3 }}>Paso 1 de 2 — Monto invertido</Text>
                     <TextInput
                       style={{ backgroundColor: "#0d0f14", borderWidth: 1, borderColor: "#20242f", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: "#fff" }}
                       keyboardType="decimal-pad" autoFocus
                       value={adjustAmount} onChangeText={setAdjustAmount}
-                      placeholder={`¿Cuánto dinero agregas? (${portfolioCurrency})`} placeholderTextColor={"#3b3f4a"}
+                      placeholder={`¿Cuánto dinero invertiste? (${portfolioCurrency})`} placeholderTextColor={"#3b3f4a"}
                     />
-                    {preview && (
-                      <Text style={{ fontSize: 10.5, color: "#5b6270" }}>
-                        Se compra al precio actual{preview.currentPriceUSD > 0 ? ` (${currencySymbol}${(preview.currentPriceUSD * fxRate).toLocaleString("en-US", { maximumFractionDigits: 2 })})` : ""} y se fusiona con lo que ya tienes.
+                    <TextInput
+                      style={{ backgroundColor: "#0d0f14", borderWidth: 1, borderColor: "#20242f", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: "#fff" }}
+                      value={adjustDate} onChangeText={setAdjustDate}
+                      placeholder="Fecha (YYYY-MM-DD)" placeholderTextColor={"#3b3f4a"}
+                    />
+                    {preview && hasAmount && preview.addedShares > 0 && (
+                      <Text style={{ fontSize: 11, color: "#00d47e" }}>
+                        ≈ {preview.addedShares.toLocaleString("en-US", { maximumFractionDigits: 6 })} acciones o fracciones
+                        {preview.currentPriceUSD > 0 ? ` al precio actual (${currencySymbol}${(preview.currentPriceUSD * fxRate).toLocaleString("en-US", { maximumFractionDigits: 2 })})` : ""}
                       </Text>
                     )}
-                    {preview && hasAmount && preview.newTotalShares > 0 && (
-                      <View style={{ backgroundColor: "#0d0f14", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 3 }}>
-                        <Text style={{ fontSize: 11, color: "#00d47e" }}>
-                          + {preview.addedShares.toLocaleString("en-US", { maximumFractionDigits: 6 })} acciones a este precio
-                        </Text>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <TouchableOpacity
+                        onPress={resetAdjustState}
+                        style={{ flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: "#20242f", alignItems: "center" }}>
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: "#5b6270" }}>{t("common.cancel")}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => lotsTicker && handleAdjustNext(lotsTicker)}
+                        disabled={!hasAmount}
+                        style={{ flex: 2, paddingVertical: 9, borderRadius: 10, backgroundColor: "#00d47e", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, opacity: !hasAmount ? 0.6 : 1 }}>
+                        <Text style={{ fontSize: 12, fontWeight: "800", color: "#04150e" }}>Siguiente</Text>
+                        <Ionicons name="arrow-forward" size={13} color="#04150e" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })() : adjustingAvg && adjustStep === 2 ? (() => {
+                if (!lotsTicker) return null;
+                const { existingShares, addedShares } = computeAdjustPreview(lotsTicker);
+                const newTotalShares = existingShares + addedShares;
+                const enteredAvg = parseFloat(adjustAvgPrice);
+                const hasAvg = enteredAvg > 0;
+                return (
+                  <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "#181b24", backgroundColor: "#161a22", padding: 12, marginTop: 10, gap: 8 }}>
+                    <Text style={{ fontSize: 10, fontWeight: "800", color: "#00d47e", textTransform: "uppercase", letterSpacing: 0.3 }}>Paso 2 de 2 — Precio promedio total</Text>
+                    <TextInput
+                      style={{ backgroundColor: "#0d0f14", borderWidth: 1, borderColor: "#20242f", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: "#fff" }}
+                      keyboardType="decimal-pad" autoFocus
+                      value={adjustAvgPrice} onChangeText={setAdjustAvgPrice}
+                      placeholder={`Precio promedio total (${portfolioCurrency})`} placeholderTextColor={"#3b3f4a"}
+                    />
+                    <Text style={{ fontSize: 10.5, color: "#5b6270" }}>
+                      Libre — no tiene que coincidir con el precio de mercado. Se aplica a toda la posición combinada y ajusta tu ganancia/pérdida.
+                    </Text>
+                    {hasAvg && newTotalShares > 0 && (
+                      <View style={{ backgroundColor: "#0d0f14", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>
                         <Text style={{ fontSize: 11, color: "#fff" }}>
-                          Nuevo total: {preview.newTotalShares.toLocaleString("en-US", { maximumFractionDigits: 6 })} acciones @ promedio {currencySymbol}{(preview.newAvgPriceUSD * fxRate).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          Nuevo total: {newTotalShares.toLocaleString("en-US", { maximumFractionDigits: 6 })} acciones @ promedio {currencySymbol}{enteredAvg.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Text>
                       </View>
                     )}
                     <View style={{ flexDirection: "row", gap: 8 }}>
                       <TouchableOpacity
-                        onPress={() => { setAdjustingAvg(false); setAdjustAmount(""); }}
+                        onPress={() => setAdjustStep(1)}
                         style={{ flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: "#20242f", alignItems: "center" }}>
-                        <Text style={{ fontSize: 12, fontWeight: "700", color: "#5b6270" }}>{t("common.cancel")}</Text>
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: "#5b6270" }}>Atrás</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => lotsTicker && handleAdjustAverage(lotsTicker)}
-                        disabled={adjustLoading || !hasAmount}
-                        style={{ flex: 2, paddingVertical: 9, borderRadius: 10, backgroundColor: "#00d47e", alignItems: "center", justifyContent: "center", opacity: (adjustLoading || !hasAmount) ? 0.6 : 1 }}>
+                        disabled={adjustLoading || !hasAvg}
+                        style={{ flex: 2, paddingVertical: 9, borderRadius: 10, backgroundColor: "#00d47e", alignItems: "center", justifyContent: "center", opacity: (adjustLoading || !hasAvg) ? 0.6 : 1 }}>
                         {adjustLoading ? <ActivityIndicator color="#04150e" size="small" /> : <Text style={{ fontSize: 12, fontWeight: "800", color: "#04150e" }}>Confirmar ajuste</Text>}
                       </TouchableOpacity>
                     </View>
