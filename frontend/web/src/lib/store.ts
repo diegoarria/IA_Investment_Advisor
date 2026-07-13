@@ -191,12 +191,18 @@ function syncSession(sessions: ChatSession[], currentId: string | null, messages
   );
 }
 
+// A chat "session" stays the active conversation across app opens/tab visits —
+// only actually starts a new one once this much time has passed since the last
+// message, matching the daily message-quota window used elsewhere in the app.
+const CHAT_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
 interface ChatState {
   sessions: ChatSession[];
   currentId: string | null;
   messages: ChatMessage[];
   isStreaming: boolean;
   createSession: () => string;
+  resumeOrCreateSession: () => string;
   loadSession: (id: string) => void;
   deleteSession: (id: string) => void;
   addMessage: (msg: ChatMessage) => void;
@@ -330,6 +336,16 @@ export const useChatStore = create<ChatState>()(
           messages: [],
         }));
         return id;
+      },
+
+      resumeOrCreateSession: () => {
+        const { sessions, currentId } = get();
+        const latest = sessions[0];
+        if (latest && latest.messages.length > 0 && Date.now() - latest.updatedAt < CHAT_SESSION_TTL_MS) {
+          if (currentId !== latest.id) set({ currentId: latest.id, messages: latest.messages });
+          return latest.id;
+        }
+        return get().createSession();
       },
 
       loadSession: (id) => {

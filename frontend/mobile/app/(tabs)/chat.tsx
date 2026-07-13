@@ -130,7 +130,7 @@ export default function ChatScreen() {
   const mentor = getMentorInfo(profile?.mentor);
   const mentorPhoto = mentor ? MENTOR_PHOTOS[mentor.id] : null;
 
-  const { currentId, currentMessages, setMessages, createSession, currentDiagnosis, setDiagnosis, restoreFromServer, sessions, syncSessionMessages } = useChatStore();
+  const { currentId, currentMessages, setMessages, createSession, resumeOrCreateSession, currentDiagnosis, setDiagnosis, restoreFromServer, sessions, syncSessionMessages } = useChatStore();
   const messages = currentMessages();
   const diagnosis = currentDiagnosis();
   const positions = usePortfolioStore((s) => s.positions);
@@ -188,20 +188,21 @@ export default function ChatScreen() {
   const localFingerprintsRef = useRef<Set<string>>(new Set());
   const fp = (role: string, content: string) => `${role}:${content.slice(0, 60)}`;
 
-  // On first load: restore history from server then always open a fresh empty session.
-  // Also open a fresh session whenever the app returns from background (treat as a new visit).
+  // On first load: restore history from server then resume the last session —
+  // only start a fresh one once it's expired (CHAT_SESSION_TTL_MS since the last
+  // message). Same resume-or-expire check when the app returns from background.
   useEffect(() => {
     const appStateRef = { current: AppState.currentState };
     const appStateSub = AppState.addEventListener("change", (nextState) => {
       if (appStateRef.current.match(/inactive|background/) && nextState === "active") {
-        createSession();
+        resumeOrCreateSession();
       }
       appStateRef.current = nextState;
     });
 
     const init = async () => {
       await restoreFromServer();
-      createSession();
+      resumeOrCreateSession();
       try {
         const res = await chatApi.getHistory();
         const msgs: { created_at?: string }[] = res.data?.messages ?? [];

@@ -42,6 +42,7 @@ interface ChatStore {
   currentDiagnosis: () => BehavioralDiagnosis | null;
 
   createSession: () => string;
+  resumeOrCreateSession: () => string;
   loadSession: (id: string) => void;
   setMessages: (msgs: Message[]) => void;
   setDiagnosis: (d: BehavioralDiagnosis, currentMaturity: number) => void;
@@ -50,6 +51,8 @@ interface ChatStore {
   restoreFromServer: () => Promise<void>;
   syncSessionMessages: (sessionId: string, msgs: Message[]) => void;
 }
+
+const CHAT_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
 function makeId() {
   return `chat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -90,6 +93,19 @@ export const useChatStore = create<ChatStore>()(
           currentId: id,
         }));
         return id;
+      },
+
+      // A chat "session" stays the active conversation across app opens/foreground
+      // returns — only actually starts a new one once CHAT_SESSION_TTL_MS has
+      // passed since the last message, matching web's behavior.
+      resumeOrCreateSession: () => {
+        const { sessions, currentId } = get();
+        const latest = sessions[0];
+        if (latest && latest.messages.length > 0 && Date.now() - latest.updatedAt < CHAT_SESSION_TTL_MS) {
+          if (currentId !== latest.id) set({ currentId: latest.id });
+          return latest.id;
+        }
+        return get().createSession();
       },
 
       loadSession: (id) => set({ currentId: id }),

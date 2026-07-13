@@ -156,7 +156,7 @@ export default function ChatPage() {
   const { hasSeenTutorial, openTutorial } = useTutorialStore();
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile, updateMaturity, updateBehavioralRisk } = useProfileStore();
-  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, currentId, createSession, clearMessages, syncSessionMessages, loadFromServer } = useChatStore();
+  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, currentId, resumeOrCreateSession, clearMessages, syncSessionMessages, loadFromServer } = useChatStore();
   const { notifications, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
   const { language } = useLanguageStore();
@@ -444,26 +444,27 @@ export default function ChatPage() {
   useEffect(() => {
     if (!hasSeenTutorial) setTimeout(() => openTutorial(), 800);
 
-    // Always start with a fresh empty chat on every visit/navigation to this page.
-    // Load history from server first so the sidebar shows past sessions, then open
-    // a new blank session for the current conversation.
+    // Resume the last chat on every visit/navigation to this page — only start a
+    // fresh one once CHAT_SESSION_TTL_MS has passed since the last message.
+    // Load history from server first so the sidebar (and the resume check) has
+    // the real most-recent session, not just what's cached locally.
     loadFromServer().finally(() => {
       chatApi.getHistory()
         .then((res) => {
           const msgs: { created_at?: string }[] = res.data?.messages ?? [];
           syncCursorRef.current = msgs[msgs.length - 1]?.created_at ?? new Date().toISOString();
-          createSession();
+          resumeOrCreateSession();
         })
         .catch(() => {
           syncCursorRef.current = new Date().toISOString();
-          createSession();
+          resumeOrCreateSession();
         });
     });
 
-    // Also open a fresh session whenever the user returns to this tab after
+    // Same resume-or-expire check whenever the user returns to this tab after
     // having it hidden (matches mobile's AppState inactive→active behavior).
     const onVisibility = () => {
-      if (document.visibilityState === "visible") createSession();
+      if (document.visibilityState === "visible") resumeOrCreateSession();
     };
     document.addEventListener("visibilitychange", onVisibility);
 
