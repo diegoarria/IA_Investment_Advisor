@@ -346,7 +346,9 @@ export default function ChatPage() {
     audioChunksRef.current = [];
   };
 
-  const generateVoiceResponse = async (text: string) => {
+  // If the user sent this message by voice, the reply always plays back as
+  // audio too — no manual tap required (matches mobile's behavior).
+  const generateVoiceResponse = async (text: string, autoPlay = false) => {
     const key = text.slice(0, 80);
     setVoiceAudio({ content: key, url: null, loading: true, playing: false });
     try {
@@ -356,21 +358,25 @@ export default function ChatPage() {
       const blob = new Blob([bytes], { type: "audio/mpeg" });
       const url = URL.createObjectURL(blob);
       setVoiceAudio({ content: key, url, loading: false, playing: false });
+      if (autoPlay) playVoiceResponseUrl(url, key);
     } catch {
       setVoiceAudio(null);
     }
   };
 
-  const playVoiceResponse = async () => {
-    if (!voiceAudio?.url) return;
+  const playVoiceResponseUrl = async (url: string, key: string) => {
     if (audioRef.current) { audioRef.current.pause(); }
-    setVoiceAudio((prev) => prev ? { ...prev, playing: true } : null);
-    const url = voiceAudio.url;
+    setVoiceAudio({ content: key, url, loading: false, playing: true });
     const audio = new Audio(url);
     audioRef.current = audio;
     audio.onended = () => { setVoiceAudio((prev) => prev ? { ...prev, playing: false } : null); audioRef.current = null; };
     audio.onerror = () => { setVoiceAudio((prev) => prev ? { ...prev, playing: false } : null); audioRef.current = null; };
-    await audio.play();
+    try { await audio.play(); } catch {}
+  };
+
+  const playVoiceResponse = async () => {
+    if (!voiceAudio?.url) return;
+    await playVoiceResponseUrl(voiceAudio.url, voiceAudio.content);
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -628,7 +634,7 @@ export default function ChatPage() {
           syncCursorRef.current = new Date().toISOString();
           if (voiceInputRef.current) {
             voiceInputRef.current = false;
-            generateVoiceResponse(fullResponse);
+            generateVoiceResponse(fullResponse, true);
           }
         },
         (a) => {
