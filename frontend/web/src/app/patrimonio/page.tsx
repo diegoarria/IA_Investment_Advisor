@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -87,8 +87,27 @@ function SummaryCard({
 function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean }) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { positions, portfolioCurrency } = usePortfolioStore();
+  const { positions: rawPositions, portfolioCurrency } = usePortfolioStore();
   const fxRate = useFxRate(portfolioCurrency);
+
+  // One row per ticker, combining every purchase lot — `rawPositions` keeps each
+  // purchase as its own row internally (for the lots panel on /portfolio), but this
+  // summary list should never show the same company twice.
+  const positions = useMemo(() => {
+    const map = new Map<string, { id: string; ticker: string; name?: string; shares: number; avgPrice: number }>();
+    for (const p of rawPositions) {
+      const existing = map.get(p.ticker);
+      if (existing) {
+        const newShares = existing.shares + p.shares;
+        const newCost = existing.avgPrice * existing.shares + p.avgPrice * p.shares;
+        existing.shares = newShares;
+        existing.avgPrice = newShares > 0 ? newCost / newShares : 0;
+      } else {
+        map.set(p.ticker, { id: p.ticker, ticker: p.ticker, name: p.name, shares: p.shares, avgPrice: p.avgPrice });
+      }
+    }
+    return Array.from(map.values());
+  }, [rawPositions]);
 
   const totalValueUSD = positions.reduce((sum, pos) => {
     const p = prices[pos.ticker]?.price ?? pos.avgPrice;
