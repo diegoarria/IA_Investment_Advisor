@@ -19,7 +19,7 @@ import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
   Loader2, Copy, Check, Gift, Users, Share2, Brain, Trash2, Phone,
 } from "lucide-react";
-import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, LEVEL_EMOJI } from "@/lib/userLevel";
+import { getUserLevel, LEVEL_COLOR, getLevelLabel, LEVEL_EMOJI } from "@/lib/userLevel";
 
 const _fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
@@ -740,7 +740,7 @@ export default function ProfilePage() {
                           <div className="flex items-center gap-2 mb-3">
                             <span className="text-2xl">{LEVEL_EMOJI[currentLevel]}</span>
                             <div>
-                              <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{LEVEL_LABEL[currentLevel]}</p>
+                              <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{getLevelLabel(t, currentLevel)}</p>
                               <p className="text-xs" style={{ color: "var(--muted)" }}>
                                 {currentLevel === "basico" ? t("profile.levelDescBasic") : currentLevel === "intermedio" ? t("profile.levelDescIntermediate") : t("profile.levelDescAdvanced")}
                               </p>

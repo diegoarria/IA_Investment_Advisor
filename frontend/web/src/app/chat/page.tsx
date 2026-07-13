@@ -27,7 +27,7 @@ import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
   ChevronRight, Sun, Moon, Square, Pencil, ImagePlus, Plus, Mic, Play, Copy, Phone,
 } from "lucide-react";
-import { getUserLevel, LEVEL_LABEL, LEVEL_COLOR } from "@/lib/userLevel";
+import { getUserLevel, getLevelLabel, LEVEL_COLOR } from "@/lib/userLevel";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 
@@ -741,7 +741,7 @@ export default function ChatPage() {
             return (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg border hidden sm:inline"
                     style={{ background: "var(--raised)", color: LEVEL_COLOR[level], borderColor: "var(--border)" }}>
-                {LEVEL_LABEL[level]}
+                {getLevelLabel(t, level)}
               </span>
             );
           })()}
@@ -911,7 +911,7 @@ export default function ChatPage() {
                         return (
                           <span className="text-[10px] font-bold px-2.5 py-1 rounded-full border"
                                 style={{ borderColor: "var(--border)", color: LEVEL_COLOR[level], background: "var(--card)" }}>
-                            📊 {LEVEL_LABEL[level]}
+                            📊 {getLevelLabel(t, level)}
                           </span>
                         );
                       })()}

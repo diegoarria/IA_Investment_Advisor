@@ -48,13 +48,14 @@ export function behavioralRiskColor(score: number): string {
   return "#ff2d3b";
 }
 
-export function behavioralRiskLabel(score: number): string {
-  if (score < 20) return "Muy conservador";
-  if (score < 35) return "Conservador";
-  if (score < 55) return "Moderado";
-  if (score < 68) return "Crecimiento";
-  if (score < 82) return "Agresivo";
-  return "Especulativo";
+/** i18n-aware label for a behavioral risk score — call with the `t` from useTranslation(). */
+export function behavioralRiskLabel(score: number, t: (key: string) => string): string {
+  if (score < 20) return t("common.riskScale.veryConservative");
+  if (score < 35) return t("common.riskScale.conservative");
+  if (score < 55) return t("common.riskScale.moderate");
+  if (score < 68) return t("common.riskScale.growth");
+  if (score < 82) return t("common.riskScale.aggressive");
+  return t("common.riskScale.speculative");
 }
 
 // ─── Maturity helpers ───────────────────────────────────────────────────────

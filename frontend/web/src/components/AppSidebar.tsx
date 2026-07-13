@@ -23,7 +23,7 @@ import {
   useProfileStore, useNotificationStore, useSubscriptionStore,
   useChatStore, useAuthStore, behavioralRiskColor, behavioralRiskLabel,
 } from "@/lib/store";
-import { getUserLevel, isAtLeast, LEVEL_LABEL, LEVEL_COLOR, type UserLevel } from "@/lib/userLevel";
+import { getUserLevel, isAtLeast, getLevelLabel, LEVEL_COLOR, type UserLevel } from "@/lib/userLevel";
 
 function getAge(birthDate: string | null | undefined): number | null {
   if (!birthDate) return null;
@@ -298,7 +298,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
             aggressive_speculative: 85, speculative: 95,
           }[profile.risk_tolerance ?? ""] ?? 50;
           const riskColor = behavioralRiskColor(riskScore);
-          const riskLabel = behavioralRiskLabel(riskScore);
+          const riskLabel = behavioralRiskLabel(riskScore, t);
           return (
             <div className="px-2 pb-1.5 shrink-0">
               <div className="rounded-xl p-2 card-accent">
@@ -317,7 +317,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
                     <div className="flex items-center gap-1 flex-wrap">
                       <span className="text-[8px] font-semibold px-1.5 py-px rounded"
                             style={{ background: "var(--raised)", color: LEVEL_COLOR[userLevel], border: `1px solid var(--border)` }}>
-                        {LEVEL_LABEL[userLevel]}
+                        {getLevelLabel(t, userLevel)}
                       </span>
                       {isPremium ? (
                         <span className="text-[8px] font-semibold px-1.5 py-px rounded"
@@ -420,7 +420,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
                     <span className="ml-auto flex items-center gap-0.5 text-[8px] font-bold"
                           style={{ color: "var(--dim)" }}>
                       <Lock className="w-2.5 h-2.5" />
-                      {LEVEL_LABEL[minLevel]}
+                      {getLevelLabel(t, minLevel)}
                     </span>
                   )}
                 </button>
@@ -448,7 +448,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
                     <span className="ml-auto flex items-center gap-0.5 text-[8px] font-bold"
                           style={{ color: "var(--dim)" }}>
                       <Lock className="w-2.5 h-2.5" />
-                      {LEVEL_LABEL[minLevel]}
+                      {getLevelLabel(t, minLevel)}
                     </span>
                   ) : badge ? (
                     <span className="ml-auto badge-green" style={{ fontSize: "10px" }}>{unreadCount}</span>

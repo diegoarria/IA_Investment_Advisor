@@ -11,7 +11,7 @@ import remarkGfm from "remark-gfm";
 import { chat as chatApi, learn as learnApi, earningsApi } from "@/lib/api";
 import { useAuthStore, useLearnStore, useSubscriptionStore, useProfileStore, getNextMilestone, getUnclaimedMilestones, STREAK_MILESTONES, type StreakMilestone } from "@/lib/store";
 import { usePortfolioStore } from "@/lib/portfolioStore";
-import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, type UserLevel } from "@/lib/userLevel";
+import { getUserLevel, LEVEL_COLOR, getLevelLabel, type UserLevel } from "@/lib/userLevel";
 import { QUIZ_DATA } from "@/lib/quizData";
 import QuizModal from "@/components/QuizModal";
 import { useTranslation } from "react-i18next";
@@ -421,7 +421,7 @@ export default function LearnPage() {
              style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
-              {t("learn.levelLabel")} · <span style={{ color: LEVEL_COLOR[userLevel] }}>{LEVEL_LABEL[userLevel]}</span>
+              {t("learn.levelLabel")} · <span style={{ color: LEVEL_COLOR[userLevel] }}>{getLevelLabel(t, userLevel)}</span>
             </p>
             <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>{t("learn.title")}</h1>
           </div>
@@ -669,7 +669,7 @@ export default function LearnPage() {
                       </span>
                       <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                             style={{ background: `${tc}15`, color: tc }}>
-                        {LEVEL_LABEL[topicLevel]}
+                        {getLevelLabel(t, topicLevel)}
                       </span>
                     </div>
                   </button>
