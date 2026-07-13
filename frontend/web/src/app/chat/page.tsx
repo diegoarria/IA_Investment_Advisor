@@ -999,15 +999,9 @@ export default function ChatPage() {
                       </div>
                     </>
                   ) : (
-                    <div className="flex-1 min-w-0">
-                      {/* ── AI message card ── */}
-                      <div className="rounded-2xl border px-4 py-3.5 overflow-hidden"
-                           style={{
-                             background: "var(--card)",
-                             borderColor: "var(--border)",
-                             borderLeftWidth: 3,
-                             borderLeftColor: mentor ? mentor.color + "70" : "rgba(0,185,109,0.5)",
-                           }}>
+                    <div className="flex-1 min-w-0 px-1 py-1">
+                      {/* ── AI message — plain text, no card, ChatGPT-style ── */}
+                      <div className="overflow-hidden">
                         {voiceAudio && msg.content && msg.content.slice(0, 80) === voiceAudio.content && !(isStreaming && i === messages.length - 1) ? (
                           <div className="flex items-center gap-3 py-1">
                             <div className="flex items-end gap-0.5 shrink-0" style={{ height: 32 }}>

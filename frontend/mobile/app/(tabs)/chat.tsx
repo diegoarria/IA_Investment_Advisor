@@ -651,10 +651,7 @@ Instrucciones críticas:
     return (
       <View style={styles.aiRow}>
         <Text style={[styles.senderName, { color: mentor?.color ?? colors.accentLight }]}>{mentor?.name ?? t("chat.nuvosAi")}</Text>
-        <View style={[styles.aiBubble, {
-          borderLeftWidth: 3,
-          borderLeftColor: mentor ? mentor.color + "70" : "rgba(0,185,109,0.5)",
-        }]}>
+        <View style={styles.aiBubble}>
           <Markdown style={markdownStyles} rules={markdownRules}>{item.content || ""}</Markdown>
           {streaming && isLastAssistant && item.content === "" && (
             <TypingIndicator color={colors.accentLight} />
@@ -1378,6 +1375,7 @@ function makeStyles(c: Colors) {
     // AI message row
     aiRow: {
       marginBottom: 10,
+      paddingHorizontal: 4,
     },
 
     // Sender name
@@ -1418,21 +1416,8 @@ function makeStyles(c: Colors) {
       shadowOffset: { width: 0, height: 1 },
       elevation: 1,
     },
-    // AI bubble (full-width card, mentor-accent left border added inline)
-    aiBubble: {
-      backgroundColor: c.card,
-      borderRadius: 20,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      borderWidth: 1,
-      borderColor: c.border,
-      shadowColor: "#000",
-      shadowOpacity: 0.3,
-      shadowRadius: 3,
-      shadowOffset: { width: 0, height: 1 },
-      elevation: 1,
-      overflow: "hidden" as const,
-    },
+    // AI message — plain text, no card, ChatGPT-style
+    aiBubble: {},
     timeRowUser: {
       flexDirection: "row" as const, justifyContent: "flex-end" as const,
       alignItems: "center" as const, gap: 3, marginTop: 5,
