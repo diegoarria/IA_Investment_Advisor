@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 
 
@@ -95,9 +95,22 @@ class ChatMessage(BaseModel):
     content: str
 
 
+# Base64 inflates size ~4/3, so this caps the actual decoded image at roughly
+# 9MB — generous for a screenshot or photo, but bounded so a client can't send
+# an arbitrarily huge payload (cost/DoS vector — nothing enforced this before).
+_MAX_IMAGE_B64_CHARS = 12_000_000
+
+
 class ChatImage(BaseModel):
     data: str
     type: str = "image/jpeg"
+
+    @field_validator("data")
+    @classmethod
+    def _limit_image_size(cls, v: str) -> str:
+        if len(v) > _MAX_IMAGE_B64_CHARS:
+            raise ValueError(f"Image too large (max ~9MB, got base64 length {len(v)})")
+        return v
 
 class ChatRequest(BaseModel):
     message: str
@@ -108,6 +121,13 @@ class ChatRequest(BaseModel):
     image_type: Optional[str] = None
     # Multi-image support (1-8 images)
     images: list[ChatImage] = []
+
+    @field_validator("image_data")
+    @classmethod
+    def _limit_legacy_image_size(cls, v: Optional[str]) -> Optional[str]:
+        if v and len(v) > _MAX_IMAGE_B64_CHARS:
+            raise ValueError(f"Image too large (max ~9MB, got base64 length {len(v)})")
+        return v
     # Notification deep-link context (optional)
     notification_context: Optional[str] = None
 
