@@ -280,15 +280,19 @@ export const usePortfolioStore = create<PortfolioStore>()(
 
         mergeTickerPosition: (ticker, totalShares, avgPrice, purchaseDate) => {
           const active = getActive();
-          const existing = active.positions.find(p => p.ticker === ticker);
+          const existingLots = active.positions.filter(p => p.ticker === ticker);
           const others = active.positions.filter(p => p.ticker !== ticker);
+          // No date is asked for this correction — keep the earliest purchase
+          // date already on record instead of resetting it to today.
+          const earliestDate = existingLots.reduce<string | null>((min, p) =>
+            p.purchaseDate && (!min || p.purchaseDate < min) ? p.purchaseDate : min, null);
           const merged: Position = {
-            id: existing?.id ?? `${ticker}-${Date.now()}`,
+            id: existingLots[0]?.id ?? `${ticker}-${Date.now()}`,
             ticker,
-            name: existing?.name,
+            name: existingLots[0]?.name,
             shares: totalShares,
             avgPrice,
-            purchaseDate: purchaseDate ?? todayStr(),
+            purchaseDate: purchaseDate ?? earliestDate ?? todayStr(),
           };
           return updateActive([...others, merged]);
         },
