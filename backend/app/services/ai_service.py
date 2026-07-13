@@ -2,6 +2,7 @@ import asyncio
 import anthropic
 import json
 import logging
+import re
 import traceback
 from datetime import datetime, timezone
 from app.core.config import settings
@@ -471,30 +472,27 @@ Ejemplo válido: <!-- BSCORE: {"s":32,"p":"conservative","sig":["pánico_venta",
 
 ## NIVEL 0 — RESPUESTA OBLIGATORIA A "¿QUÉ ME RECOMIENDAS COMPRAR?"
 
-Cuando alguien pregunte directamente qué comprar, qué invertir, qué acción elegir, o cualquier variación de "recomiéndame algo", activa SIEMPRE este protocolo exacto. No improvises, no evadas, no des rodeos. **"Exacto" se refiere al COMPORTAMIENTO y la ESTRUCTURA de la respuesta (nunca recomendar a ciegas, preguntar por el ticker o analizar el que ya dieron) — no al idioma. Los ejemplos de abajo están en español solo como referencia de tono; si el usuario escribió en inglés, tu respuesta completa (incluida esta sección) va en inglés, siguiendo la misma estructura y calidez, no una traducción literal del ejemplo.**
+Cuando alguien pregunte directamente qué comprar, qué invertir, qué acción elegir, o cualquier variación de "recomiéndame algo", activa SIEMPRE este protocolo exacto. No improvises, no evadas, no des rodeos. "Exacto" se refiere al COMPORTAMIENTO y la ESTRUCTURA descritos abajo — no hay ninguna frase fija que copiar en ningún idioma. Escribe tu propia respuesta, con tus propias palabras, SIEMPRE en el idioma del último mensaje del usuario (inglés si escribió en inglés).
 
-**Detecta estas frases y todas sus variantes:**
-- "¿Qué me recomiendas comprar?"
-- "¿Qué acción me recomiendas?"
-- "¿En qué debería invertir?"
-- "¿Qué comprarías tú?"
-- "Dame una recomendación"
-- "¿Qué acción está buena?"
-- "¿Qué me conviene comprar ahora?"
+**Detecta estas frases y todas sus variantes (en cualquier idioma):**
+- "¿Qué me recomiendas comprar?" / "What do you recommend I buy?"
+- "¿Qué acción me recomiendas?" / "What stock do you recommend?"
+- "¿En qué debería invertir?" / "What should I invest in?"
+- "¿Qué comprarías tú?" / "What would you buy?"
+- "Dame una recomendación" / "Give me a recommendation"
+- "¿Qué acción está buena?" / "help me out on what to invest in" y cualquier variación abierta/casual de pedir ideas de inversión sin nombrar una empresa
 
-**Respuesta — tono de amigo experto, cálido y directo:**
+**Contenido obligatorio de tu respuesta — descrito, no un texto para copiar:**
+1. Deja claro, en tu propio estilo cálido de amigo, que no vas a decir "compra esto" — no porque no quieras ayudar, sino porque una recomendación ciega no le sirve; en cambio vas a mostrarle los fundamentos/números/riesgos reales para que él llegue a su propia conclusión.
+2. Cierra preguntando sobre qué empresa o activo específico quiere que empieces el análisis (pídele el ticker).
+Dos o tres oraciones, tono natural — nunca una lista ni una plantilla. Escribe la respuesta entera desde cero, en el idioma correcto; no traduzcas ni recicles frases de otras partes de este prompt.
 
-Responde algo como: *"Mira, lo que yo puedo hacer es desglosarte los fundamentos, el contexto, las métricas — todo lo que necesitas para que TÚ llegues a tu propia conclusión. No te voy a decir 'compra esto' porque honestamente nadie puede hacer esa promesa con certeza, y prefiero darte herramientas reales.*
+**Caso especial — ya menciona una empresa específica** ("quiero invertir en Tesla, ¿me lo recomiendas?", "should I buy Tesla?", etc.): aquí NO le preguntes qué ticker quiere — ya te lo dio. Contenido obligatorio (de nuevo, escribe tu propia versión, no copies texto fijo):
+1. Aclara en 1 oración que eres su mentor y no das recomendaciones de compra/venta.
+2. Ofrece de inmediato el análisis profundo de ESA empresa específica (negocio, moat, salud financiera, riesgos, valor intrínseco) — no un análisis genérico.
+3. Termina con una única pregunta de confirmación tipo "¿Empezamos?" — nada más después de esa pregunta.
 
-*¿Sobre qué empresa o activo quieres que empecemos a analizar? Dime el ticker y te doy todo el análisis."*
-
-Adapta el mensaje a tu estilo natural — no tiene que ser textual, solo tiene que transmitir esa misma calidez y disposición a ayudar. Ofrece siempre continuar con lo que el usuario quiera explorar.
-
-**Caso especial — ya menciona una empresa específica ("quiero invertir en Tesla, ¿me lo recomiendas?", "¿me recomiendas Tesla?", "¿debería comprar Tesla?", "¿le entro a Tesla?"):** aquí NO le preguntes qué ticker quiere — ya te lo dio. Aclara primero tu rol, y de inmediato ofrece el análisis profundo de ESA empresa, no uno genérico. Ejemplo de tono (adapta, no repitas textual):
-
-*"Primero que nada — soy tu mentor de inversiones, no puedo hacerte una recomendación de compra o venta. Lo que sí puedo hacer por ti es un análisis profundo de Tesla: el negocio, su moat, la salud financiera, los riesgos y una estimación de valor intrínseco — para que veas con datos reales si es para ti o no. ¿Quieres que empecemos?"*
-
-**PROHIBIDO hacer NINGUNA pregunta de calificación** en este caso especial — ni horizonte, ni tolerancia al riesgo, ni monto a invertir, ni si ya tiene portafolio, ni si es su primera inversión, ni nada similar, ni siquiera mencionada de forma casual u opcional ("si quieres, dime también..."), **aunque no tengas el perfil del usuario cargado, aunque las reglas de otras secciones de este prompt normalmente pidan esos datos primero — esta sección tiene prioridad sobre esas cuando el usuario ya nombró una empresa específica y pidió una recomendación.** Tu respuesta completa a este caso debe tener SOLO dos partes y nada más: (1) la aclaración de rol + oferta de análisis profundo de esa empresa específica, en 2-3 oraciones, tal como el ejemplo de arriba, y (2) una única pregunta de confirmación tipo "¿Empezamos?" o "¿Quieres que lo hagamos?". **Termina la respuesta ahí mismo, en esa pregunta — ninguna línea, bullet o pregunta adicional después.** Si el usuario confirma (o si ya lo pidió de forma directa tipo "analízame Tesla"), pasa directo al análisis completo usando el bloque de "FORMATO OBLIGATORIO" correspondiente, usando el perfil si está disponible y sin pedir nada más si no lo está.
+**PROHIBIDO hacer NINGUNA pregunta de calificación** en este caso especial — ni horizonte, ni tolerancia al riesgo, ni monto a invertir, ni si ya tiene portafolio, ni si es su primera inversión, ni nada similar, ni siquiera mencionada de forma casual u opcional ("si quieres, dime también..."), **aunque no tengas el perfil del usuario cargado, aunque las reglas de otras secciones de este prompt normalmente pidan esos datos primero — esta sección tiene prioridad sobre esas cuando el usuario ya nombró una empresa específica y pidió una recomendación.** Si el usuario confirma (o si ya lo pidió de forma directa tipo "analízame Tesla"), pasa directo al análisis completo usando el bloque de "FORMATO OBLIGATORIO" correspondiente, usando el perfil si está disponible y sin pedir nada más si no lo está.
 
 ---
 
@@ -1125,6 +1123,48 @@ def _strip_investment_scorecard_format(base: str) -> str:
     return base[:idx] + _VOICE_ANALYSIS_REPLACEMENT
 
 
+_EN_MARKERS = {
+    "the","is","are","am","was","were","what","how","why","when","where","which","who","help",
+    "me","out","on","in","to","of","invest","investing","investment","stock","stocks","portfolio",
+    "best","should","would","could","recommend","recommendation","buy","sell","my","your","you",
+    "and","for","with","this","that","please","can","want","need","tell","give","show","think",
+    "about","do","does","did","have","has","had","will","not","don't","doesn't","it's","i'm",
+    "good","bad","money","market","price","risk","today","now","understand","explain",
+}
+_ES_MARKERS = {
+    "qué","que","como","cómo","dónde","donde","cuál","cual","el","la","los","las","es","está",
+    "esta","invertir","acciones","accion","acción","mejor","debería","deberia","recomiendas",
+    "recomendar","comprar","vender","mi","tu","ayuda","ayúdame","ayudame","para","con","este",
+    "esta","por","favor","quiero","necesito","dame","muestrame","muéstrame","dime","entiendo",
+    "explica","explícame","hoy","ahora","dinero","mercado","precio","riesgo","bueno","malo",
+    "puedes","podrías","podrias","tengo","tienes","cuanto","cuánto","porque","porqué",
+}
+
+
+def _detect_message_language(text: str) -> str | None:
+    """Cheap, deterministic EN/ES detector for the chat's only two supported
+    languages — used to hand the model a stated FACT ("this message is in
+    English") instead of relying on it to infer language correctly while
+    weighing a system prompt and conversation history that are almost always
+    in Spanish. Prompt-only instructions kept losing that tug-of-war under
+    heavy Spanish context (long history + Spanish-labeled portfolio data)
+    even after several rounds of strengthening them — this sidesteps the
+    inference entirely. Returns None when genuinely ambiguous (too short,
+    tied score) so callers can fall back to the account's preferred_language."""
+    if not text:
+        return None
+    if any(c in text for c in "¿¡"):
+        return "es"
+    words = re.findall(r"[a-zA-ZáéíóúñüÁÉÍÓÚÑÜ']+", text.lower())
+    if not words:
+        return None
+    en_score = sum(1 for w in words if w in _EN_MARKERS)
+    es_score = sum(1 for w in words if w.strip("'") in _ES_MARKERS or any(c in w for c in "áéíóúñü"))
+    if en_score == es_score:
+        return None
+    return "en" if en_score > es_score else "es"
+
+
 def _language_directive(profile: UserProfile | None) -> str:
     """Bilingual, high-priority language instruction. Placed at the very start of the
     system prompt (not buried at the end) because a single instruction line at the
@@ -1356,6 +1396,28 @@ async def chat_stream(
     system_blocks: list[dict] = [{"type": "text", "text": static_prompt, "cache_control": {"type": "ephemeral"}}]
     if dynamic_addend:
         system_blocks.append({"type": "text", "text": dynamic_addend})
+
+    # Repeated at the very END of the system prompt (recency), not just the
+    # start (primacy) — `memory_context` above ("ÚLTIMAS CONVERSACIONES") is
+    # almost always in Spanish since most history is, and sitting right before
+    # the user's actual new message it was outweighing the directive at the
+    # top for messages like a language-switch mid-conversation. Stated as a
+    # DETECTED FACT rather than an inference the model has to make while
+    # weighing a mostly-Spanish system prompt/history — prompt-only wording
+    # kept losing that tug-of-war for some trigger phrases even after several
+    # rounds of strengthening it.
+    detected_lang = _detect_message_language(message)
+    if detected_lang == "en":
+        lang_fact = "The user's message below is written in ENGLISH. Your entire reply must be in English — not Spanish."
+    elif detected_lang == "es":
+        lang_fact = "El mensaje del usuario de abajo está escrito en ESPAÑOL. Tu respuesta completa debe ser en español."
+    else:
+        lang_fact = (
+            "Reply to the message below in the SAME language it's written in, regardless of what "
+            "language everything above is in. Responde al mensaje de abajo en el MISMO idioma en que "
+            "está escrito, sin importar el idioma de todo lo anterior."
+        )
+    system_blocks.append({"type": "text", "text": f"REMINDER — LANGUAGE: {lang_fact}"})
 
     # Cap history to the last 20 exchanges (40 turns) to prevent token costs from
     # growing quadratically as conversations get long.
