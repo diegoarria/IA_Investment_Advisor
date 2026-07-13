@@ -644,7 +644,9 @@ export default function WatchlistPage() {
           {/* ── Sticky Header ── */}
           <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b shrink-0"
                style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
-            <div>
+            {/* pl-9 clears AppSidebar's floating mobile menu button (fixed
+                top-1.5 left-1.5, ~34px wide) on mobile widths. */}
+            <div className="pl-9 lg:pl-0">
               <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("watchlist.header.myList")}</p>
               <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>{t("watchlist.header.title")}</h1>
             </div>

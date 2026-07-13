@@ -168,7 +168,9 @@ export default function PaperPage() {
         {/* Sticky Header */}
         <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b shrink-0"
              style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
-          <div>
+          {/* pl-9 clears AppSidebar's floating mobile menu button (fixed
+              top-1.5 left-1.5, ~34px wide) on mobile widths. */}
+          <div className="pl-9 lg:pl-0">
             <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
               <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: "#22c55e", boxShadow: "0 0 6px #22c55e" }} />
               Paper Trading

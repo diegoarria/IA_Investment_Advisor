@@ -1678,7 +1678,10 @@ export default function PortfolioPage() {
         <div className="sticky top-0 z-10 px-4 sm:px-6 py-3 sm:py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b shrink-0"
              style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
           <div className="flex flex-col gap-2 flex-1 min-w-0">
-            <div>
+            {/* pl-9 clears AppSidebar's floating mobile menu button (fixed
+                top-1.5 left-1.5, ~34px wide) — without it this text renders
+                directly underneath that button on mobile widths. */}
+            <div className="pl-9 lg:pl-0">
               <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("portfolio.header.eyebrow")}</p>
               <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>
                 {portfolios.find(p => p.id === activePortfolioId)?.name ?? t("portfolio.header.title")}

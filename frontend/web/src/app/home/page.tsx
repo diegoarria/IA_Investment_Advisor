@@ -180,15 +180,21 @@ export default function HomePage() {
     ],
   };
 
-  const [hasBroker,       setHasBroker]       = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("nuvos_has_broker") === "1";
-  });
+  // Must match the server's render exactly on first paint (always `false` — the
+  // server has no access to localStorage) or React throws a hydration mismatch;
+  // the localStorage cache is read in an effect below instead, which only runs
+  // client-side after hydration completes.
+  const [hasBroker,       setHasBroker]       = useState<boolean>(false);
   const [showBrokerModal, setShowBrokerModal] = useState(false);
   const [brokerView,      setBrokerView]      = useState<"list" | "detail" | "upsell">("list");
   const [selectedBroker,  setSelectedBroker]  = useState<(typeof BROKER_CATALOG.MX)[0] | null>(null);
   const [brokerCountry,   setBrokerCountry]   = useState<{ label: string; brokers: typeof BROKER_CATALOG.MX }>({ label: t("home.brokerCountryLabels.international"), brokers: BROKER_CATALOG.DEFAULT });
   const [upsellCountdown, setUpsellCountdown] = useState<number | null>(null);
+
+  // Client-only cache read — see the comment on hasBroker's useState above.
+  useEffect(() => {
+    if (localStorage.getItem("nuvos_has_broker") === "1") setHasBroker(true);
+  }, []);
 
   const openBrokerModal = () => {
     setBrokerView("list");
@@ -808,7 +814,9 @@ export default function HomePage() {
           {/* ── Sticky Header ──────────────────────────────────────────────── */}
           <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b"
                style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
-            <div>
+            {/* pl-9 clears AppSidebar's floating mobile menu button (fixed
+                top-1.5 left-1.5, ~34px wide) on mobile widths. */}
+            <div className="pl-9 lg:pl-0">
               <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
                 {t("home.todaySummary")}
               </p>

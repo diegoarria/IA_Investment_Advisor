@@ -141,10 +141,15 @@ export default function NuvosGuide() {
 
   return (
     <>
-      {/* Floating button */}
+      {/* Floating button — icon-only circular FAB on mobile (small footprint,
+          much less likely to sit on top of a page's own bottom content since
+          this is `fixed` and doesn't know what's scrolled underneath it);
+          the full labeled pill only appears from `sm` up, where screens are
+          wide enough that a corner pill rarely collides with anything. */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 rounded-2xl shadow-2xl font-bold text-sm transition-all hover:scale-105 active:scale-95"
+        aria-label={t("nuvosGuide.floatingButton")}
+        className="fixed bottom-6 right-6 z-40 flex items-center justify-center sm:justify-start gap-0 sm:gap-2 w-12 h-12 sm:w-auto sm:h-auto p-0 sm:px-4 sm:py-3 rounded-full sm:rounded-2xl shadow-2xl font-bold text-sm transition-all hover:scale-105 active:scale-95"
         style={{
           background: "linear-gradient(135deg, #22c55e, #16a34a)",
           color: "#000",
@@ -152,7 +157,7 @@ export default function NuvosGuide() {
         }}
       >
         <span className="text-base">🗺️</span>
-        <span>{t("nuvosGuide.floatingButton")}</span>
+        <span className="hidden sm:inline">{t("nuvosGuide.floatingButton")}</span>
       </button>
 
       {/* Overlay */}
