@@ -20,8 +20,9 @@ const BARGE_IN_SUSTAIN_MS = 200;
 const SILENCE_MS = 900;
 const METERING_INTERVAL_MS = 100;
 
-function wsUrl(token: string): string {
-  return `${BASE_URL.replace(/^http/, "ws")}/api/voice/call/ws?token=${encodeURIComponent(token)}`;
+function wsUrl(token: string, resume: boolean): string {
+  const resumeParam = resume ? "&resume=1" : "";
+  return `${BASE_URL.replace(/^http/, "ws")}/api/voice/call/ws?token=${encodeURIComponent(token)}${resumeParam}`;
 }
 
 function formatDuration(secs: number): string {
@@ -55,6 +56,14 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const tokenRef = useRef("");
+  const MAX_RECONNECT_ATTEMPTS = 4;
+  const HEARTBEAT_MS = 20000;
 
   useEffect(() => {
     if (!visible) return;
@@ -94,33 +103,65 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
       }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
 
-      const token = (await SecureStore.getItemAsync("access_token")) || "";
-      const ws = new WebSocket(wsUrl(token));
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        if (closedRef.current) return;
-        setStatus("listening");
-        beginNewSegment();
-        durationTimerRef.current = setInterval(() => setCallSeconds((s) => s + 1), 1000);
-      };
-      ws.onmessage = (ev) => handleServerMessage(ev.data as string);
-      ws.onerror = () => {
-        if (!closedRef.current) {
-          setStatus("error");
-          setErrorMsg(t("voiceCallModal.errors.connectFailed"));
-        }
-      };
-      ws.onclose = () => {
-        if (!closedRef.current) {
-          setStatus("error");
-          setErrorMsg(t("voiceCallModal.errors.unexpectedClose"));
-        }
-      };
+      tokenRef.current = (await SecureStore.getItemAsync("access_token")) || "";
+      connectWebSocket();
     } catch (e) {
       setStatus("error");
       setErrorMsg(t("voiceCallModal.errors.startFailed"));
     }
+  }
+
+  // Extracted so it can be called again on reconnect without re-requesting mic
+  // permission or dropping any recording already in progress.
+  function connectWebSocket() {
+    const ws = new WebSocket(wsUrl(tokenRef.current, reconnectAttemptsRef.current > 0));
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      if (closedRef.current) return;
+      reconnectAttemptsRef.current = 0;
+      setIsReconnecting(false);
+      setStatus("listening");
+      if (!recordingRef.current) beginNewSegment();
+      if (!durationTimerRef.current) {
+        durationTimerRef.current = setInterval(() => setCallSeconds((s) => s + 1), 1000);
+      }
+      if (!heartbeatTimerRef.current) {
+        // Keeps the connection alive through quiet listening stretches so a
+        // load-balancer idle timeout doesn't silently kill a healthy call.
+        heartbeatTimerRef.current = setInterval(() => {
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ type: "ping" }));
+          }
+        }, HEARTBEAT_MS);
+      }
+    };
+    ws.onmessage = (ev) => handleServerMessage(ev.data as string);
+    ws.onerror = () => {
+      // onclose fires right after onerror for WebSocket failures — let onclose
+      // own the retry/error decision so it isn't made twice.
+    };
+    ws.onclose = (ev: any) => {
+      if (closedRef.current) return;
+      const code = ev?.code;
+      if (code === 4401 || code === 4403) {
+        setStatus("error");
+        setErrorMsg(code === 4403 ? t("voiceCallModal.errors.premiumRequired") : t("voiceCallModal.errors.connectFailed"));
+        return;
+      }
+      if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttemptsRef.current += 1;
+        setIsReconnecting(true);
+        setStatus("connecting");
+        const delay = 600 * reconnectAttemptsRef.current;
+        reconnectTimerRef.current = setTimeout(() => {
+          if (!closedRef.current) connectWebSocket();
+        }, delay);
+      } else {
+        setStatus("error");
+        setErrorMsg(t("voiceCallModal.errors.unexpectedClose"));
+      }
+    };
   }
 
   async function beginNewSegment() {
@@ -303,8 +344,15 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
 
   function cleanup() {
     closedRef.current = true;
-    if (meteringTimerRef.current) clearInterval(meteringTimerRef.current);
-    if (durationTimerRef.current) clearInterval(durationTimerRef.current);
+    // Null out every ref after clearing — clearInterval/clearTimeout doesn't
+    // do that itself, and this component stays mounted with `visible` toggling
+    // across separate calls, so a stale non-null ref here would make the next
+    // call's `if (!ref.current)` guards wrongly skip starting fresh timers.
+    if (meteringTimerRef.current) { clearInterval(meteringTimerRef.current); meteringTimerRef.current = null; }
+    if (durationTimerRef.current) { clearInterval(durationTimerRef.current); durationTimerRef.current = null; }
+    if (heartbeatTimerRef.current) { clearInterval(heartbeatTimerRef.current); heartbeatTimerRef.current = null; }
+    if (reconnectTimerRef.current) { clearTimeout(reconnectTimerRef.current); reconnectTimerRef.current = null; }
+    reconnectAttemptsRef.current = 0;
     const recording = recordingRef.current;
     recordingRef.current = null;
     if (recording) {
@@ -335,7 +383,7 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
   const ringColor = status === "assistant_speaking" ? "#00b96d" : status === "user_speaking" ? "#3b82f6" : "#3a3a3a";
   const subLabel =
     status === "error" ? errorMsg
-    : status === "connecting" ? t("voiceCallModal.connecting")
+    : status === "connecting" ? (isReconnecting ? t("voiceCallModal.reconnecting") : t("voiceCallModal.connecting"))
     : formatDuration(callSeconds);
 
   return (

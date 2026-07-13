@@ -274,7 +274,24 @@ export default function ChatPage() {
     });
   };
 
+  // 1-sample silent WAV — playing it (then leaving the element paused) inside
+  // the SAME user gesture that starts recording "unlocks" this <audio>
+  // element for iOS Safari, which otherwise blocks any programmatic .play()
+  // that isn't directly inside a user-gesture call stack. We reuse this exact
+  // element later for the voice reply instead of creating a `new Audio()`,
+  // which is what makes that later autoplay actually work on iOS Safari.
+  const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+  const unlockAudioElement = () => {
+    if (!audioRef.current) audioRef.current = new Audio();
+    const el = audioRef.current;
+    el.src = SILENT_WAV;
+    el.play().catch(() => {});
+  };
+
   const startRecording = async () => {
+    // Must run synchronously, before any `await`, to stay inside the click's
+    // user-gesture call stack — see unlockAudioElement's comment.
+    unlockAudioElement();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { sampleRate: 48000, channelCount: 1, echoCancellation: true, noiseSuppression: true },
@@ -287,9 +304,15 @@ export default function ChatPage() {
       source.connect(analyser);
       analyserRef.current = analyser;
 
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg";
+      // audio/mp4 is last because it's what Safari (desktop + iOS) actually
+      // supports — neither webm nor ogg work there. Without this fallback,
+      // `new MediaRecorder` throws on Safari and lands in the catch below,
+      // which used to show "microphone permission" for what's really an
+      // unsupported-codec error.
+      const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"].find(
+        (t) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t)
+      );
+      if (!mimeType) throw new Error("no_supported_audio_mimetype");
       const recorder = new MediaRecorder(stream, { mimeType });
       audioChunksRef.current = [];
       recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
@@ -300,8 +323,17 @@ export default function ChatPage() {
       setShowVoiceModal(true);
       setRecordingSecs(0);
       timerRef.current = setInterval(() => setRecordingSecs((s) => s + 1), 1000);
-    } catch {
-      alert(t("chat.micPermissionError"));
+    } catch (err) {
+      // Distinguish "browser/OS denied permission" from "this browser can't
+      // record audio at all" — they need different user-facing guidance and
+      // conflating them (as before) sends Safari users to check a permission
+      // that was never the problem.
+      const name = (err as any)?.name;
+      if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+        alert(t("chat.micPermissionError"));
+      } else {
+        alert(t("chat.micUnsupportedError"));
+      }
     }
   };
 
@@ -365,13 +397,25 @@ export default function ChatPage() {
   };
 
   const playVoiceResponseUrl = async (url: string, key: string) => {
-    if (audioRef.current) { audioRef.current.pause(); }
+    // Reuse the SAME <audio> element `unlockAudioElement` played on the mic
+    // tap — a fresh `new Audio()` here would NOT be autoplay-unlocked on iOS
+    // Safari, defeating the whole point. The manual play button (which calls
+    // this too, from a real tap) works either way.
+    if (!audioRef.current) audioRef.current = new Audio();
+    const audio = audioRef.current;
+    audio.pause();
     setVoiceAudio({ content: key, url, loading: false, playing: true });
-    const audio = new Audio(url);
-    audioRef.current = audio;
-    audio.onended = () => { setVoiceAudio((prev) => prev ? { ...prev, playing: false } : null); audioRef.current = null; };
-    audio.onerror = () => { setVoiceAudio((prev) => prev ? { ...prev, playing: false } : null); audioRef.current = null; };
-    try { await audio.play(); } catch {}
+    audio.src = url;
+    audio.onended = () => setVoiceAudio((prev) => prev ? { ...prev, playing: false } : null);
+    audio.onerror = () => setVoiceAudio((prev) => prev ? { ...prev, playing: false } : null);
+    try {
+      await audio.play();
+    } catch {
+      // Autoplay blocked (or some other playback failure) — leave `playing:
+      // false` so the message's manual play button is what the user sees and
+      // can tap; the experience degrades to "one tap" instead of dying.
+      setVoiceAudio((prev) => prev ? { ...prev, playing: false } : null);
+    }
   };
 
   const playVoiceResponse = async () => {

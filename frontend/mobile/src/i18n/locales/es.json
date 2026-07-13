@@ -1930,6 +1930,7 @@
     "noVoiceDetected": "No se detectó voz en el audio",
     "transcribeErrorTitle": "Error al transcribir",
     "unknownError": "Error desconocido",
+    "micPermissionError": "Necesito permiso de micrófono para grabar. Actívalo en Ajustes.",
     "tour": {
       "title": "Habla con Nuvos",
       "description": "Escribe cualquier pregunta sobre inversiones. Nuvos recuerda tu portafolio y perfil para darte respuestas personalizadas."
@@ -2950,9 +2951,11 @@
       "unexpectedClose": "La llamada se cerró inesperadamente.",
       "micAccessFailed": "No se pudo acceder al micrófono.",
       "startFailed": "No se pudo iniciar la llamada.",
+      "premiumRequired": "La llamada de voz es una función Premium.",
       "generic": "Ocurrió un error."
     },
     "connecting": "Llamando...",
+    "reconnecting": "Reconectando...",
     "mentorName": "Mentor IA"
   },
   "stockFinancials": {

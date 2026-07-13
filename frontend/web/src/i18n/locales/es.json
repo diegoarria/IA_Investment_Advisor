@@ -1567,6 +1567,7 @@
     "recordingAudio": "Grabando audio...",
     "cancel": "Cancelar",
     "micPermissionError": "No se pudo acceder al micrófono. Asegúrate de dar permiso en el navegador.",
+    "micUnsupportedError": "Este navegador no puede grabar audio. Prueba con el chat de texto o desde otro navegador.",
     "connectError": "No se pudo conectar con el asistente. Verifica tu conexión e intenta de nuevo.",
     "decisionModalTitle": "📝 Registrar decisión",
     "decisionModalDesc": "Guarda esta decisión en tu diario para revisarla más adelante.",
@@ -2591,6 +2592,7 @@
   "voiceCallModal": {
     "aiMentor": "Mentor IA",
     "calling": "Llamando...",
+    "reconnecting": "Reconectando...",
     "mute": "Silenciar",
     "unmute": "Activar micrófono",
     "hangUp": "Colgar",
@@ -2599,6 +2601,7 @@
       "callClosed": "La llamada se cerró inesperadamente.",
       "callClosedWithCode": "La llamada se cerró inesperadamente (código {{code}}).",
       "micAccessFailed": "No se pudo acceder al micrófono. Da permiso en el navegador.",
+      "premiumRequired": "La llamada de voz es una función Premium.",
       "generic": "Ocurrió un error."
     }
   },

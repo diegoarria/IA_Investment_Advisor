@@ -1567,6 +1567,7 @@
     "recordingAudio": "Recording audio...",
     "cancel": "Cancel",
     "micPermissionError": "Couldn't access the microphone. Make sure to allow permission in your browser.",
+    "micUnsupportedError": "This browser can't record audio. Try text chat, or a different browser.",
     "connectError": "Couldn't connect to the assistant. Check your connection and try again.",
     "decisionModalTitle": "📝 Log decision",
     "decisionModalDesc": "Save this decision in your journal to review it later.",
@@ -2591,6 +2592,7 @@
   "voiceCallModal": {
     "aiMentor": "AI Mentor",
     "calling": "Calling...",
+    "reconnecting": "Reconnecting...",
     "mute": "Mute",
     "unmute": "Unmute microphone",
     "hangUp": "Hang up",
@@ -2599,6 +2601,7 @@
       "callClosed": "The call closed unexpectedly.",
       "callClosedWithCode": "The call closed unexpectedly (code {{code}}).",
       "micAccessFailed": "Could not access the microphone. Grant permission in your browser.",
+      "premiumRequired": "Voice call is a Premium feature.",
       "generic": "An error occurred."
     }
   },

@@ -203,7 +203,7 @@ async def delete_call(call_id: str, user_id: str = Depends(get_current_user_id))
 
 
 @router.websocket("/call/ws")
-async def voice_call_ws(websocket: WebSocket, token: str = ""):
+async def voice_call_ws(websocket: WebSocket, token: str = "", resume: str = ""):
     try:
         user = await _resolve_user(f"Bearer {token}")
     except Exception:
@@ -359,7 +359,11 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
 
     try:
         await _send_json({"type": "ready"})
-        await _send_greeting()
+        # `resume=1` means the client reconnected mid-call (heartbeat-detected
+        # drop) rather than starting a fresh one — replaying the greeting here
+        # would be jarring since the user is already mid-conversation.
+        if resume != "1":
+            await _send_greeting()
         while True:
             message = await websocket.receive()
             if message["type"] == "websocket.disconnect":
@@ -410,6 +414,13 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
                 audio_buffer.clear()
                 if current_task and not current_task.done():
                     current_task.cancel()
+
+            elif msg_type == "ping":
+                # Client-side heartbeat — keeps the connection alive through idle
+                # listening periods so a load-balancer idle timeout doesn't kill
+                # an otherwise-healthy call. The reply lets the client confirm
+                # the round trip actually worked, not just that the socket is open.
+                await _send_json({"type": "pong"})
 
     except WebSocketDisconnect:
         pass

@@ -1930,6 +1930,7 @@
     "noVoiceDetected": "No voice detected in the audio",
     "transcribeErrorTitle": "Transcription error",
     "unknownError": "Unknown error",
+    "micPermissionError": "I need microphone permission to record. Enable it in Settings.",
     "tour": {
       "title": "Talk to Nuvos",
       "description": "Type any question about investing. Nuvos remembers your portfolio and profile to give you personalized answers."
@@ -2950,9 +2951,11 @@
       "unexpectedClose": "The call closed unexpectedly.",
       "micAccessFailed": "Couldn't access the microphone.",
       "startFailed": "Couldn't start the call.",
+      "premiumRequired": "Voice call is a Premium feature.",
       "generic": "An error occurred."
     },
     "connecting": "Calling...",
+    "reconnecting": "Reconnecting...",
     "mentorName": "AI Mentor"
   },
   "stockFinancials": {

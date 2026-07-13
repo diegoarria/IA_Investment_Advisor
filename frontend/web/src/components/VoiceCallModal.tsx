@@ -35,6 +35,7 @@ export default function VoiceCallModal({ onClose }: Props) {
   const { t } = useTranslation();
   const [status, setStatus] = useState<CallStatus>("connecting");
   const [errorMsg, setErrorMsg] = useState<string>("");
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [muted, setMuted] = useState(false);
   const [callSeconds, setCallSeconds] = useState(0);
   const mutedRef = useRef(false);
@@ -58,6 +59,11 @@ export default function VoiceCallModal({ onClose }: Props) {
   const awaitingMoreRef = useRef(true); // true until "assistant_done" AND queue drained
 
   const closedRef = useRef(false);
+  const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const MAX_RECONNECT_ATTEMPTS = 4;
+  const HEARTBEAT_MS = 20000;
 
   useEffect(() => {
     let cancelled = false;
@@ -107,16 +113,42 @@ export default function VoiceCallModal({ onClose }: Props) {
       };
       recorderRef.current = recorder;
 
-      const ws = new WebSocket(`${wsBaseUrl()}/api/voice/call/ws?token=${encodeURIComponent(token)}`);
+      connectWebSocket(token);
+    }
+
+    // Extracted so it can be called again on reconnect without re-requesting
+    // mic permission or rebuilding the recorder/analyser — only the socket
+    // itself needs to be replaced. Uses closedRef (a ref, always current)
+    // instead of the `cancelled` closure variable, which would otherwise be
+    // captured stale from whichever call triggered this connect attempt.
+    function connectWebSocket(token: string) {
+      // resume=1 on anything past the first attempt — tells the server this
+      // is a reconnect mid-call, not a fresh call, so it skips the greeting
+      // (the user is already mid-conversation, replaying it would be jarring).
+      const resumeParam = reconnectAttemptsRef.current > 0 ? "&resume=1" : "";
+      const ws = new WebSocket(`${wsBaseUrl()}/api/voice/call/ws?token=${encodeURIComponent(token)}${resumeParam}`);
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 
       ws.onopen = () => {
         console.debug("[voice-call] websocket open");
-        if (cancelled) return;
+        if (closedRef.current) return;
+        reconnectAttemptsRef.current = 0;
+        setIsReconnecting(false);
         setStatus("listening");
-        startVadLoop();
-        durationTimerRef.current = setInterval(() => setCallSeconds((s) => s + 1), 1000);
+        if (!vadTimerRef.current) startVadLoop();
+        if (!durationTimerRef.current) {
+          durationTimerRef.current = setInterval(() => setCallSeconds((s) => s + 1), 1000);
+        }
+        if (!heartbeatTimerRef.current) {
+          // Keeps the connection alive through quiet listening stretches so a
+          // load-balancer idle timeout doesn't silently kill a healthy call.
+          heartbeatTimerRef.current = setInterval(() => {
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({ type: "ping" }));
+            }
+          }, HEARTBEAT_MS);
+        }
       };
       ws.onmessage = (ev) => {
         console.debug("[voice-call] message:", typeof ev.data === "string" ? ev.data.slice(0, 200) : "<binary>");
@@ -124,14 +156,26 @@ export default function VoiceCallModal({ onClose }: Props) {
       };
       ws.onerror = (ev) => {
         console.error("[voice-call] websocket error", ev);
-        if (!cancelled) {
-          setStatus("error");
-          setErrorMsg(t("voiceCallModal.errors.connectionFailed"));
-        }
       };
       ws.onclose = (ev) => {
         console.debug("[voice-call] websocket closed", ev.code, ev.reason);
-        if (!cancelled && !closedRef.current) {
+        if (closedRef.current) return;
+        // 4401/4403 are the server explicitly rejecting this connection (auth,
+        // not-premium) — retrying won't help, surface the real error instead.
+        if (ev.code === 4401 || ev.code === 4403) {
+          setStatus("error");
+          setErrorMsg(ev.code === 4403 ? t("voiceCallModal.errors.premiumRequired") : t("voiceCallModal.errors.connectionFailed"));
+          return;
+        }
+        if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+          reconnectAttemptsRef.current += 1;
+          setIsReconnecting(true);
+          setStatus("connecting");
+          const delay = 600 * reconnectAttemptsRef.current;
+          reconnectTimerRef.current = setTimeout(() => {
+            if (!closedRef.current) connectWebSocket(token);
+          }, delay);
+        } else {
           setStatus("error");
           setErrorMsg(ev.code ? t("voiceCallModal.errors.callClosedWithCode", { code: ev.code }) : t("voiceCallModal.errors.callClosed"));
         }
@@ -338,8 +382,11 @@ export default function VoiceCallModal({ onClose }: Props) {
 
   function cleanup() {
     closedRef.current = true;
-    if (vadTimerRef.current) clearInterval(vadTimerRef.current);
-    if (durationTimerRef.current) clearInterval(durationTimerRef.current);
+    if (vadTimerRef.current) { clearInterval(vadTimerRef.current); vadTimerRef.current = null; }
+    if (durationTimerRef.current) { clearInterval(durationTimerRef.current); durationTimerRef.current = null; }
+    if (heartbeatTimerRef.current) { clearInterval(heartbeatTimerRef.current); heartbeatTimerRef.current = null; }
+    if (reconnectTimerRef.current) { clearTimeout(reconnectTimerRef.current); reconnectTimerRef.current = null; }
+    reconnectAttemptsRef.current = 0;
     if (recorderRef.current && recorderRef.current.state === "recording") {
       try {
         recorderRef.current.stop();
@@ -368,7 +415,7 @@ export default function VoiceCallModal({ onClose }: Props) {
   const ringColor = status === "assistant_speaking" ? "#00b96d" : status === "user_speaking" ? "#3b82f6" : "#3a3a3a";
   const subLabel =
     status === "error" ? errorMsg
-    : status === "connecting" ? t("voiceCallModal.calling")
+    : status === "connecting" ? (isReconnecting ? t("voiceCallModal.reconnecting") : t("voiceCallModal.calling"))
     : formatDuration(callSeconds);
 
   return (
