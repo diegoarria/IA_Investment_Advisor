@@ -1651,6 +1651,41 @@ async def job_daily_email():
         logger.error("job_daily_email failed: %s", e)
 
 
+async def get_price_alert_why_with_diagnostics(ticker: str, pct: float, price: float) -> dict:
+    """The exact WHY-resolution logic job_portfolio_alerts uses per mover —
+    factored out so an admin test endpoint can produce the identical
+    "Portfolio alerts WHY diagnostic" log line on demand, for a ticker/pct
+    chosen right now, instead of needing to wait for a real market mover to
+    exercise this same code path. Returns the raw per-stage data too (not
+    just the final string) so a caller building a diagnostic JSON response
+    doesn't have to re-run the same Perplexity/Finnhub/Claude calls again."""
+    from app.services.price_alert_service import NO_CATALYST, search_price_catalyst, generate_price_alert_why
+
+    news = await asyncio.to_thread(_fetch_ticker_news, ticker)
+    web_context = await search_price_catalyst(ticker, pct)
+    if not web_context and not news:
+        why = NO_CATALYST
+        logger.info(
+            "Portfolio alerts WHY diagnostic — %s (%+.2f%%): finnhub_news=0, "
+            "perplexity_context_len=0 -> NO_CATALYST (no data from either source at all)",
+            ticker, pct,
+        )
+    else:
+        why = await generate_price_alert_why(ticker, pct, price, news, extra_context=web_context)
+        # Full preview even when data WAS found — if this still shows a real
+        # catalyst in the raw text but `why` comes back NO_CATALYST anyway,
+        # that proves it's Claude's judgment call being too strict, not a
+        # missing-data problem, and the fix is in generate_price_alert_why's
+        # prompt rather than anything upstream.
+        logger.info(
+            "Portfolio alerts WHY diagnostic — %s (%+.2f%%): finnhub_news=%d, "
+            "perplexity_context_len=%d, perplexity_preview=%r, finnhub_headlines=%r -> result=%r",
+            ticker, pct, len(news), len(web_context), web_context[:500],
+            [n.get("headline", n) if isinstance(n, dict) else n for n in news][:5], why,
+        )
+    return {"why": why, "finnhub_news": news, "perplexity_context": web_context}
+
+
 async def job_portfolio_alerts():
     """Every 30 min weekday market hours — push price movers (≥2%) for portfolio + watchlist.
     All users (no premium gate). Batch-fetches all tickers once, fans out per user.
@@ -1820,41 +1855,12 @@ async def job_portfolio_alerts():
         # 5. Pre-generate WHY explanations — 1 Claude call per mover, reused across users.
         # Tickers with no specific catalyst are stored as NO_CATALYST and skipped for premium users;
         # free users still get a plain price-move notification without the WHY.
-        # Inlined (rather than calling _generate_price_alert_why/get_price_move_why)
-        # specifically so each stage can be logged per-ticker — this is the exact
-        # same logic, just with visibility into what Perplexity/Finnhub actually
-        # returned for THIS real run, matching the admin diagnostic endpoint's
-        # level of detail so a NO_CATALYST result is traceable in Railway logs
-        # instead of a black box.
-        from app.services.price_alert_service import (
-            NO_CATALYST, should_send_price_alert, search_price_catalyst, generate_price_alert_why,
-        )
+        from app.services.price_alert_service import NO_CATALYST, should_send_price_alert
         ticker_why:   dict[str, str] = {}
         ticker_title: dict[str, str] = {}
         for ticker, pct in movers.items():
             price = prices[ticker]["curr"]
-            news  = await asyncio.to_thread(_fetch_ticker_news, ticker)
-            web_context = await search_price_catalyst(ticker, pct)
-            if not web_context and not news:
-                why = NO_CATALYST
-                logger.info(
-                    "Portfolio alerts WHY diagnostic — %s (%+.2f%%): finnhub_news=0, "
-                    "perplexity_context_len=0 -> NO_CATALYST (no data from either source at all)",
-                    ticker, pct,
-                )
-            else:
-                why = await generate_price_alert_why(ticker, pct, price, news, extra_context=web_context)
-                # Full preview even when data WAS found — if this still shows a real
-                # catalyst in the raw text but `why` comes back NO_CATALYST anyway,
-                # that proves it's Claude's judgment call being too strict, not a
-                # missing-data problem, and the fix is in generate_price_alert_why's
-                # prompt rather than anything upstream.
-                logger.info(
-                    "Portfolio alerts WHY diagnostic — %s (%+.2f%%): finnhub_news=%d, "
-                    "perplexity_context_len=%d, perplexity_preview=%r, finnhub_headlines=%r -> result=%r",
-                    ticker, pct, len(news), len(web_context), web_context[:500],
-                    [n.get("headline", n) if isinstance(n, dict) else n for n in news][:5], why,
-                )
+            why = (await get_price_alert_why_with_diagnostics(ticker, pct, price))["why"]
             ticker_why[ticker]   = why
             # Title is just the company name — "NVIDIA", "Apple", etc. — the
             # notification body itself now carries the emoji/%/reason.

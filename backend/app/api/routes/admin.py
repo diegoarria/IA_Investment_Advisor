@@ -57,39 +57,27 @@ async def test_price_alert_why(ticker: str, pct: float = 5.0, user: dict = Depen
     """Diagnoses, stage by stage, why the price-mover push keeps saying
     NO_CATALYST instead of a real reason: is Perplexity even configured? Did
     it return anything? Did Finnhub's news return anything? Did we even
-    reach the Claude call? Runs the REAL pipeline functions live — no
-    guessing, no reading logs after the fact."""
+    reach the Claude call? Calls the EXACT SAME shared function
+    job_portfolio_alerts uses per mover (worker.get_price_alert_why_with_diagnostics),
+    so this also emits the identical "Portfolio alerts WHY diagnostic" log
+    line in the worker service's logs — letting an admin manually reproduce
+    that log output on demand instead of waiting for a real market mover."""
     await _require_admin(user)
     import os
     import worker
     from app.services.notification_engine import send_push
-    from app.services.price_alert_service import (
-        search_price_catalyst, fetch_ticker_news, generate_price_alert_why, NO_CATALYST,
-    )
+    from app.services.price_alert_service import NO_CATALYST
 
     ticker = ticker.upper().strip()
     perplexity_configured = bool(getattr(settings, "perplexity_api_key", "") or os.getenv("PERPLEXITY_API_KEY", ""))
 
+    result = await worker.get_price_alert_why_with_diagnostics(ticker, pct, 100.0)
+    final_result = result["why"]
+    web_context = result["perplexity_context"]
+    news_items = result["finnhub_news"]
+    claude_called = bool(web_context or news_items)
     perplexity_error = None
-    try:
-        web_context = await search_price_catalyst(ticker, pct)
-    except Exception as e:
-        web_context = ""
-        perplexity_error = str(e)
-
     finnhub_error = None
-    try:
-        news_items = await asyncio.to_thread(fetch_ticker_news, ticker)
-    except Exception as e:
-        news_items = []
-        finnhub_error = str(e)
-
-    if not web_context and not news_items:
-        claude_called = False
-        final_result = NO_CATALYST
-    else:
-        claude_called = True
-        final_result = await generate_price_alert_why(ticker, pct, 100.0, news_items, extra_context=web_context)
 
     # Send the exact real notification (same emoji/company/%% format as
     # job_portfolio_alerts) to the calling admin's own account only — never
