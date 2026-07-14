@@ -474,6 +474,9 @@ export const voiceCallsApi = {
 
 export const adminApi = {
   getUserSnapshot: (email: string) => api.get("/api/admin/user-snapshot", { params: { email } }),
+  testMarketOpen: () => api.post("/api/admin/test-market-open"),
+  testPriceAlertWhy: (ticker: string, pct: number) =>
+    api.post("/api/admin/test-price-alert-why", null, { params: { ticker, pct } }),
 };
 
 export default api;

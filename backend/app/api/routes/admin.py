@@ -52,6 +52,58 @@ def _agg_positions(rows: list[dict]) -> list:
     return positions
 
 
+@router.post("/test-price-alert-why")
+async def test_price_alert_why(ticker: str, pct: float = 5.0, user: dict = Depends(get_current_user)):
+    """Diagnoses, stage by stage, why the price-mover push keeps saying
+    NO_CATALYST instead of a real reason: is Perplexity even configured? Did
+    it return anything? Did Finnhub's news return anything? Did we even
+    reach the Claude call? Runs the REAL pipeline functions live — no
+    guessing, no reading logs after the fact."""
+    await _require_admin(user)
+    import os
+    from app.services.price_alert_service import (
+        search_price_catalyst, fetch_ticker_news, generate_price_alert_why, NO_CATALYST,
+    )
+
+    ticker = ticker.upper().strip()
+    perplexity_configured = bool(getattr(settings, "perplexity_api_key", "") or os.getenv("PERPLEXITY_API_KEY", ""))
+
+    perplexity_error = None
+    try:
+        web_context = await search_price_catalyst(ticker, pct)
+    except Exception as e:
+        web_context = ""
+        perplexity_error = str(e)
+
+    finnhub_error = None
+    try:
+        news_items = await asyncio.to_thread(fetch_ticker_news, ticker)
+    except Exception as e:
+        news_items = []
+        finnhub_error = str(e)
+
+    if not web_context and not news_items:
+        claude_called = False
+        final_result = NO_CATALYST
+    else:
+        claude_called = True
+        final_result = await generate_price_alert_why(ticker, pct, 100.0, news_items, extra_context=web_context)
+
+    return {
+        "ticker": ticker,
+        "perplexity_api_key_configured": perplexity_configured,
+        "perplexity_web_context_length": len(web_context),
+        "perplexity_web_context_preview": web_context[:400],
+        "perplexity_error": perplexity_error,
+        "finnhub_news_count": len(news_items),
+        "finnhub_news_preview": news_items[:3],
+        "finnhub_error": finnhub_error,
+        "claude_was_called": claude_called,
+        "final_result": final_result,
+        "is_no_catalyst": final_result == NO_CATALYST,
+    }
+
+
 @router.post("/test-market-open")
 async def test_market_open(user: dict = Depends(get_current_user)):
     """Fires the REAL market-open data fetch (live Finnhub ^GSPC/^IXIC quotes,
