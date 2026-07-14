@@ -79,88 +79,98 @@ def _del_reset_code(key: str) -> None:
     cache_delete(key)
 
 
-async def _send_welcome_email(email: str, attempt: int = 1) -> None:
+_WELCOME_COPY = {
+    "es": {
+        "subject": "Ya eres parte de Nuvos AI 🎉",
+        "header_tagline": "Tu cuenta ya está lista",
+        "heading": "Ya eres parte de Nuvos AI",
+        "intro": "Tu cuenta está lista. Ya puedes hablar con tu mentor financiero personal, "
+                 "entender tu portafolio y tomar mejores decisiones con tu dinero — en español, sin jerga.",
+        "features": [
+            ("💬", "Pregúntale al mentor", "Cualquier duda sobre inversiones, sin importar qué tan básica sea. Sin juicios."),
+            ("📊", "Analiza tu portafolio", "Descubre qué tan arriesgado está tu dinero y qué pasaría en una crisis como 2008."),
+            ("🎯", "Practica sin arriesgar", "Usa el paper trading para aprender a invertir con dinero virtual antes de usar el real."),
+        ],
+        "trial_html": 'Tienes <strong style="color:#00d47e">90 días de Premium gratis</strong> incluidos en tu cuenta nueva. Úsalos para explorar todo sin límites.',
+        "cta": "Empezar ahora →",
+        "footer": "Nuvos AI · Tu mentor financiero personal · nuvosai.com",
+        "html_lang": "es",
+    },
+    "en": {
+        "subject": "You're in — welcome to Nuvos AI 🎉",
+        "header_tagline": "Your account is ready",
+        "heading": "You're part of Nuvos AI now",
+        "intro": "Your account is ready. You can now talk to your personal financial mentor, "
+                 "understand your portfolio, and make better decisions with your money — no jargon, ever.",
+        "features": [
+            ("💬", "Ask your mentor anything", "Any question about investing, no matter how basic. No judgment."),
+            ("📊", "Analyze your portfolio", "See how risky your money really is and what a crash like 2008 would do to it."),
+            ("🎯", "Practice risk-free", "Use paper trading to learn before you invest a single real dollar."),
+        ],
+        "trial_html": 'You have <strong style="color:#00d47e">90 days of Premium free</strong> included in your new account. Use them to explore everything with no limits.',
+        "cta": "Get started →",
+        "footer": "Nuvos AI · Your personal financial mentor · nuvosai.com",
+        "html_lang": "en",
+    },
+}
+
+
+async def _send_welcome_email(email: str, language: str | None = None, attempt: int = 1) -> None:
     """
-    Send the welcome email. Retries up to 3 times with exponential backoff.
-    Logs success and every failure — never swallows errors silently.
+    Send the welcome email in the user's UI language at signup. Retries up to
+    3 times with exponential backoff. Logs success and every failure — never
+    swallows errors silently.
     """
-    from app.services.email_service import send_email, NUVOS_LOGO_SRC
-    subject = "Ya eres parte de Nuvos AI 🎉"
+    from app.services.email_service import send_email, _nuvos_email_header, _feature_rows
+    copy = _WELCOME_COPY.get(language or "es", _WELCOME_COPY["es"])
+    header = _nuvos_email_header(copy["header_tagline"])
+    features_html = _feature_rows(copy["features"])
     html = f"""<!DOCTYPE html>
-<html lang="es">
+<html lang="{copy['html_lang']}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#0f1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
-  <div style="max-width:520px;margin:0 auto;padding:40px 16px">
-
-    <div style="text-align:center;margin-bottom:32px">
-      <img src="{NUVOS_LOGO_SRC}" alt="Nuvos AI" width="120" style="display:inline-block">
-    </div>
-
-    <div style="background:#1a1d27;border-radius:20px;padding:36px 32px;border:1px solid #2a2d3a">
-
-      <h1 style="margin:0 0 8px;color:#ffffff;font-size:24px;font-weight:900;letter-spacing:-0.5px">
-        Ya eres parte de Nuvos AI 🎉
-      </h1>
-      <p style="margin:0 0 28px;color:#9ca3af;font-size:15px;line-height:1.6">
-        Tu cuenta está lista. Ya puedes hablar con tu mentor financiero personal,
-        entender tu portafolio y tomar mejores decisiones con tu dinero — en español, sin jerga.
+<body style="margin:0;padding:0;background:#0a0c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:32px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+    {header}
+    <div style="background:#1a1d27;padding:36px 32px">
+      <div style="text-align:center;margin-bottom:22px">
+        <div style="font-size:44px;line-height:1;margin-bottom:12px">🎉</div>
+        <h1 style="margin:0;color:#f4f5f7;font-size:25px;font-weight:900;letter-spacing:-0.4px">
+          {copy['heading']}
+        </h1>
+      </div>
+      <p style="margin:0 0 26px;color:#9aa0ac;font-size:14.5px;line-height:1.7;text-align:center">
+        {copy['intro']}
       </p>
 
-      <div style="margin-bottom:28px">
+      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:16px;padding:20px 20px 6px;margin-bottom:22px">
+        {features_html}
+      </div>
 
-        <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:18px">
-          <div style="width:36px;height:36px;border-radius:10px;background:rgba(0,168,94,0.12);border:1px solid rgba(0,168,94,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;line-height:36px;text-align:center">💬</div>
-          <div>
-            <p style="margin:0 0 2px;color:#fff;font-size:14px;font-weight:700">Pregúntale al mentor</p>
-            <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.5">Cualquier duda sobre inversiones, sin importar qué tan básica sea. Sin juicios.</p>
-          </div>
-        </div>
-
-        <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:18px">
-          <div style="width:36px;height:36px;border-radius:10px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;line-height:36px;text-align:center">📊</div>
-          <div>
-            <p style="margin:0 0 2px;color:#fff;font-size:14px;font-weight:700">Analiza tu portafolio</p>
-            <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.5">Descubre qué tan arriesgado está tu dinero y qué pasaría en una crisis como 2008.</p>
-          </div>
-        </div>
-
-        <div style="display:flex;align-items:flex-start;gap:14px">
-          <div style="width:36px;height:36px;border-radius:10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;line-height:36px;text-align:center">🎯</div>
-          <div>
-            <p style="margin:0 0 2px;color:#fff;font-size:14px;font-weight:700">Practica sin arriesgar</p>
-            <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.5">Usa el paper trading para aprender a invertir con dinero virtual antes de usar el real.</p>
-          </div>
-        </div>
-
+      <div style="background:rgba(0,212,126,0.08);border:1px solid rgba(0,212,126,0.25);border-radius:14px;padding:16px 18px;margin-bottom:26px;text-align:center">
+        <p style="margin:0;color:#e5e7eb;font-size:13.5px;line-height:1.6">
+          {copy['trial_html']}
+        </p>
       </div>
 
       <a href="https://nuvosai.com/home"
-         style="display:block;text-align:center;background:linear-gradient(90deg,#00a85e,#00d47e);color:#000;font-size:15px;font-weight:800;text-decoration:none;padding:14px 24px;border-radius:12px;margin-bottom:24px">
-        Empezar ahora →
+         style="display:block;text-align:center;background:linear-gradient(135deg,#00a85e,#00d47e);color:#04140b;font-size:15.5px;font-weight:900;text-decoration:none;padding:15px 24px;border-radius:14px;box-shadow:0 8px 24px rgba(0,168,94,0.25)">
+        {copy['cta']}
       </a>
 
-      <div style="border-top:1px solid #2a2d3a;margin-bottom:20px"></div>
-
-      <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6;text-align:center">
-        Tienes <strong style="color:#00d47e">90 días de Premium gratis</strong> incluidos en tu cuenta nueva.
-        Úsalos para explorar todo sin límites.
-      </p>
-
+      <div style="border-top:1px solid #2a2d3a;margin-top:26px;padding-top:18px;text-align:center">
+        <p style="margin:0;color:#5b6270;font-size:11px;line-height:1.6">{copy['footer']}</p>
+      </div>
     </div>
-
-    <p style="text-align:center;color:#4b5563;font-size:12px;margin-top:24px;line-height:1.6">
-      Nuvos AI · Tu mentor financiero personal<br>
-      <a href="https://nuvosai.com" style="color:#4b5563;text-decoration:none">nuvosai.com</a>
-    </p>
-
   </div>
+</div>
 </body>
 </html>"""
 
     try:
-        ok = await send_email(email, subject, html)
+        ok = await send_email(email, copy["subject"], html)
         if ok:
-            logger.info("Welcome email sent → %s", email)
+            logger.info("Welcome email sent → %s (lang=%s)", email, language or "es")
             return
         # send_email returned False (API error / missing key)
         raise RuntimeError("send_email returned False")
@@ -172,7 +182,7 @@ async def _send_welcome_email(email: str, attempt: int = 1) -> None:
                 attempt, email, exc, delay,
             )
             await asyncio.sleep(delay)
-            await _send_welcome_email(email, attempt + 1)
+            await _send_welcome_email(email, language, attempt + 1)
         else:
             logger.error(
                 "Welcome email FAILED after 3 attempts for %s: %s", email, exc
@@ -193,7 +203,7 @@ async def register(request: Request, response: Response, body: AuthRequest):
         if result.session is None:
             raise HTTPException(status_code=400, detail="Cuenta creada. Revisa tu correo para confirmar.")
 
-        _fire(_send_welcome_email(body.email))
+        _fire(_send_welcome_email(body.email, body.language))
 
         _set_auth_cookies(response, result.session.access_token, result.session.refresh_token)
         return TokenResponse(

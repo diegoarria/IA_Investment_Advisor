@@ -22,6 +22,7 @@ class UserProfileCreate(BaseModel):
     has_broker: Optional[bool] = None
     broker_name: Optional[str] = None
     has_investments: Optional[bool] = None
+    language: Optional[str] = None  # UI language at signup ("es"/"en") — welcome email + preferred_language
 
 
 class UserProfileUpdate(BaseModel):
@@ -135,6 +136,7 @@ class ChatRequest(BaseModel):
 class AuthRequest(BaseModel):
     email: EmailStr
     password: str
+    language: Optional[str] = None  # UI language at signup ("es"/"en") — which welcome email copy to send
 
 
 class TokenResponse(BaseModel):

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { profile as profileApi } from "@/lib/api";
-import { useProfileStore, useAuthStore, useChatStore } from "@/lib/store";
+import { useProfileStore, useAuthStore, useChatStore, useLanguageStore } from "@/lib/store";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -140,6 +140,7 @@ export default function OnboardingPage() {
   const router  = useRouter();
   const { setProfile }  = useProfileStore();
   const { isAuthenticated, authRestoring, clearAuth } = useAuthStore();
+  const { language } = useLanguageStore();
 
   const [step, setStep]     = useState(0);
   const [loading, setLoading] = useState(false);
@@ -981,6 +982,7 @@ export default function OnboardingPage() {
         has_investments:        form.has_investments === "yes",
         terms_accepted_at:      new Date().toISOString(),
         terms_version:          "2026-06",
+        language,
       };
       const res = await profileApi.create(payload);
       setProfile(res.data);

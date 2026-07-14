@@ -183,8 +183,9 @@ export default function Home() {
       // Same reasoning as handleGoogleSignIn — clear any leftover Supabase
       // session from a previous account before establishing this one.
       await getSupabaseClient().auth.signOut().catch(() => {});
-      const fn = mode === "login" ? auth.login : auth.register;
-      const res = await fn(email, password);
+      const res = mode === "login"
+        ? await auth.login(email, password)
+        : await auth.register(email, password, language);
       setAuth(res.data.access_token, res.data.user_id);
       if (mode === "register") {
         const refCode = sessionStorage.getItem("nuvos_ref");

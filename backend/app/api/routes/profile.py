@@ -79,6 +79,11 @@ async def create_profile(
 ):
     db = get_supabase()
     db_data = {k: v for k, v in data.model_dump().items() if k in _DB_PROFILE_FIELDS and v is not None}
+    if data.language:
+        # "language" isn't in _DB_PROFILE_FIELDS because the payload's field
+        # name doesn't match the DB column (preferred_language) — set it
+        # directly instead of adding it to that whitelist.
+        db_data["preferred_language"] = data.language
 
     existing = await run_query(db.table("user_profiles").select("id").eq("user_id", user_id))
     now = datetime.now(timezone.utc).isoformat()
@@ -96,8 +101,13 @@ async def create_profile(
             email_addr = getattr(getattr(auth_res, "user", None), "email", None)
             if email_addr:
                 name_val = db_data.get("name", "Inversor")
-                html = build_welcome_html(name_val)
-                asyncio.create_task(send_email(email_addr, "🚀 ¡Bienvenido a Nuvos AI! Con Nuvos, construye tu futuro.", html))
+                html = build_welcome_html(name_val, data.language)
+                subject = (
+                    "🚀 Welcome to Nuvos AI! With Nuvos, invest without fear."
+                    if data.language == "en"
+                    else "🚀 ¡Bienvenido a Nuvos AI! Con Nuvos, invierte sin miedo."
+                )
+                asyncio.create_task(send_email(email_addr, subject, html))
         except Exception:
             pass
         # Create default notification preferences for new users

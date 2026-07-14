@@ -67,6 +67,37 @@ def _nuvos_email_header(tagline: str = "Tu asistente de inversiones") -> str:
   </div>"""
 
 
+# Rotating icon-chip accents for feature rows — same three used across both
+# welcome emails so they read as one visual system, not two different ones.
+_FEATURE_ACCENTS = [
+    ("rgba(0,168,94,0.14)",   "rgba(0,168,94,0.3)"),    # green
+    ("rgba(99,102,241,0.14)", "rgba(99,102,241,0.3)"),  # indigo
+    ("rgba(245,158,11,0.14)", "rgba(245,158,11,0.3)"),  # amber
+]
+
+
+def _feature_rows(features: list[tuple[str, str, str]]) -> str:
+    """Renders (icon, title, description) rows with table-based layout —
+    NOT flexbox, which Outlook's Word rendering engine silently breaks —
+    so this looks the same in Gmail, Apple Mail, and Outlook alike."""
+    rows = []
+    for i, (icon, title, desc) in enumerate(features):
+        bg, border = _FEATURE_ACCENTS[i % len(_FEATURE_ACCENTS)]
+        rows.append(f"""
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:14px">
+        <tr>
+          <td width="44" valign="top" style="padding-right:14px">
+            <div style="width:40px;height:40px;border-radius:12px;background:{bg};border:1px solid {border};text-align:center;line-height:40px;font-size:18px">{icon}</div>
+          </td>
+          <td valign="top" style="padding-top:2px">
+            <p style="margin:0 0 3px;color:#f4f5f7;font-size:14px;font-weight:700">{title}</p>
+            <p style="margin:0;color:#9aa0ac;font-size:12.5px;line-height:1.6">{desc}</p>
+          </td>
+        </tr>
+      </table>""")
+    return "".join(rows)
+
+
 async def send_email(to: str, subject: str, html: str) -> bool:
     api_key = getattr(settings, "resend_api_key", "")
     if not api_key:
@@ -131,7 +162,7 @@ def build_weekly_summary_html(name: str, summary: str, risk: str) -> str:
       </div>
 
       <div style="border-top:1px solid #2a2d3a;padding-top:18px;text-align:center">
-        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, invierte sin miedo.</p>
         <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>
@@ -724,7 +755,7 @@ def build_enhanced_weekly_html(
       </div>
 
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
-        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, invierte sin miedo.</p>
         <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>
@@ -827,7 +858,7 @@ def build_earnings_results_html(
       </div>
 
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
-        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, invierte sin miedo.</p>
         <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>
@@ -870,7 +901,7 @@ def build_birthday_html(name: str) -> str:
       <p style="color:#6b7280;font-size:14px;margin:0 0 0;line-height:1.7">¡A disfrutar! 🥂<br><strong style="color:#d1d5db">El equipo de Nuvos AI</strong></p>
 
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;margin-top:24px">
-        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, invierte sin miedo.</p>
         <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>
@@ -933,7 +964,7 @@ def build_reengagement_html(name: str, movers: list[dict]) -> str:
       </div>
 
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
-        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, invierte sin miedo.</p>
         <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>
@@ -984,7 +1015,7 @@ def build_educational_email_html(name: str, concept: str, explanation: str, exam
       </div>
 
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
-        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, invierte sin miedo.</p>
         <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>
@@ -998,48 +1029,71 @@ def build_educational_email_html(name: str, concept: str, explanation: str, exam
 # Welcome Email (sent after onboarding completion)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def build_welcome_html(name: str) -> str:
-    first   = name.split()[0] if name else "Inversor"
-    header  = _nuvos_email_header("Bienvenido a Nuvos AI 🎉")
+_ONBOARDING_WELCOME_COPY = {
+    "es": {
+        "header_tagline": "Bienvenido a Nuvos AI 🎉",
+        "slogan": "Con Nuvos, invierte sin miedo",
+        "intro": "Tu perfil ya está listo. Ahora tienes un mentor de inversiones con IA "
+                 "personalizado para tu ritmo y tus metas.",
+        "features": [
+            ("🤖", "Mentor IA personalizado", "Pregúntale cualquier cosa sobre inversiones. Conoce tu perfil y tu portafolio."),
+            ("📊", "Portafolio en tiempo real", "Registra tus posiciones y ve su rendimiento con precios actualizados."),
+            ("📈", "Alertas inteligentes", "Notificaciones cuando tus acciones se muevan o haya eventos importantes."),
+            ("📚", "Academia Nuvos", "Aprende un concepto nuevo cada día y construye tu racha de aprendizaje."),
+        ],
+        "cta": "Empezar ahora →",
+        "footer": "Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.",
+        "html_lang": "es",
+    },
+    "en": {
+        "header_tagline": "Welcome to Nuvos AI 🎉",
+        "slogan": "With Nuvos, invest without fear",
+        "intro": "Your profile is ready. You now have an AI investing mentor "
+                 "personalized to your pace and your goals.",
+        "features": [
+            ("🤖", "Personalized AI mentor", "Ask anything about investing. It knows your profile and your portfolio."),
+            ("📊", "Real-time portfolio", "Track your positions and see how they perform with live prices."),
+            ("📈", "Smart alerts", "Get notified when your stocks move or something important happens."),
+            ("📚", "Nuvos Academy", "Learn a new concept every day and build your learning streak."),
+        ],
+        "cta": "Get started →",
+        "footer": "Nuvos AI — Educational only. Not professional financial advice.",
+        "html_lang": "en",
+    },
+}
+
+
+def build_welcome_html(name: str, language: str | None = None) -> str:
+    first = name.split()[0] if name else "Inversor"
+    copy  = _ONBOARDING_WELCOME_COPY.get(language or "es", _ONBOARDING_WELCOME_COPY["es"])
+    header  = _nuvos_email_header(copy["header_tagline"])
     cta_url = "https://nuvosai.com/home"
-    features = [
-        ("🤖", "Mentor IA personalizado", "Pregúntale cualquier cosa sobre inversiones. Conoce tu perfil y tu portafolio."),
-        ("📊", "Portafolio en tiempo real", "Registra tus posiciones y ve su rendimiento con precios actualizados."),
-        ("📈", "Alertas inteligentes", "Notificaciones cuando tus acciones se muevan o haya eventos importantes."),
-        ("📚", "Academia Nuvos", "Aprende un concepto nuevo cada día y construye tu racha de aprendizaje."),
-    ]
-    features_html = "".join(f"""
-      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:16px;display:flex;align-items:flex-start;gap:14px;margin-bottom:10px">
-        <div style="font-size:24px;line-height:1;flex-shrink:0">{icon}</div>
-        <div>
-          <p style="color:#fff;font-size:14px;font-weight:700;margin:0 0 3px">{title}</p>
-          <p style="color:#9ca3af;font-size:12px;margin:0;line-height:1.55">{desc}</p>
-        </div>
-      </div>""" for icon, title, desc in features)
+    features_html = _feature_rows(copy["features"])
+    greeting = f"Welcome, {first}!" if copy["html_lang"] == "en" else f"¡Bienvenido, {first}!"
     return f"""<!DOCTYPE html>
-<html>
+<html lang="{copy['html_lang']}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#0a0c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
 <div style="max-width:600px;margin:0 auto;padding:32px 16px">
   <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
     {header}
-    <div style="background:#1a1d27;padding:32px;text-align:center">
-      <div style="font-size:56px;margin-bottom:16px">🚀</div>
-      <h1 style="color:#fff;font-size:28px;font-weight:900;margin:0 0 8px">¡Bienvenido, {first}!</h1>
-      <p style="color:#00a85e;font-size:14px;font-weight:700;margin:0 0 20px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
-      <p style="color:#9ca3af;font-size:15px;margin:0 0 28px;line-height:1.7">
-        Tu cuenta está lista. Ahora tienes acceso a tu mentor de inversiones con IA —
-        personalizado para tu perfil, tu ritmo y tus metas.
+    <div style="background:#1a1d27;padding:36px 32px">
+      <div style="text-align:center;margin-bottom:26px">
+        <div style="font-size:48px;line-height:1;margin-bottom:14px">🚀</div>
+        <h1 style="color:#f4f5f7;font-size:26px;font-weight:900;margin:0 0 8px;letter-spacing:-0.4px">{greeting}</h1>
+        <p style="color:#00d47e;font-size:13px;font-weight:700;margin:0;letter-spacing:0.04em;text-transform:uppercase">{copy['slogan']}</p>
+      </div>
+      <p style="color:#9aa0ac;font-size:14.5px;margin:0 0 26px;line-height:1.7;text-align:center">
+        {copy['intro']}
       </p>
-      <div style="text-align:left;margin-bottom:28px">
+      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:16px;padding:20px 20px 6px;margin-bottom:26px">
         {features_html}
       </div>
-      <a href="{cta_url}" style="display:inline-block;background:linear-gradient(135deg,#00a85e,#00d47e);color:#000;font-weight:900;font-size:16px;padding:16px 40px;border-radius:14px;text-decoration:none;margin-bottom:28px">
-        Empezar ahora →
+      <a href="{cta_url}" style="display:block;text-align:center;background:linear-gradient(135deg,#00a85e,#00d47e);color:#04140b;font-weight:900;font-size:15.5px;padding:15px 24px;border-radius:14px;text-decoration:none;box-shadow:0 8px 24px rgba(0,168,94,0.25)">
+        {copy['cta']}
       </a>
-      <div style="border-top:1px solid #2a2d3a;padding-top:18px">
-        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
-        <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
+      <div style="border-top:1px solid #2a2d3a;margin-top:26px;padding-top:18px;text-align:center">
+        <p style="color:#5b6270;font-size:11px;margin:0;line-height:1.6">{copy['footer']}</p>
       </div>
     </div>
   </div>
