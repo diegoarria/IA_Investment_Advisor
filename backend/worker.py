@@ -2380,9 +2380,10 @@ REGLAS:
 - Máximo {max_items} historias — si genuinamente no hay {max_items} historias que califiquen, devuelve menos, incluso cero. NUNCA rellenes con algo débil solo para completar el número.
 - Si no hay NADA que califique, responde exactamente: {{"items": []}}
 - Cada item debe tener una notificación push MUY corta (máximo 90-120 caracteres), directa, sin relleno — el usuario la lee en la pantalla de bloqueo.
+- Genera el texto de la notificación en DOS idiomas: español (push_body_es) e inglés (push_body_en) — misma información, mismo tono directo, cada uno natural en su idioma (no una traducción literal palabra por palabra).
 
 Responde ÚNICAMENTE con JSON válido, sin texto adicional, en este formato exacto:
-{{"items": [{{"category": "geopolitics|macro|corporate", "headline": "título corto interno para dedup", "push_body": "texto de la notificación, máx 90-120 caracteres"}}]}}"""
+{{"items": [{{"category": "geopolitics|macro|corporate", "headline": "título corto interno para dedup", "push_body_es": "texto en español, máx 90-120 caracteres", "push_body_en": "text in English, máx 90-120 characters"}}]}}"""
 
     try:
         client = anthropic.AsyncAnthropic()
@@ -2483,22 +2484,30 @@ async def job_major_news_alert():
         if not all_uids:
             logger.info("job_major_news_alert: no opted-in users with a push channel")
             return
+        lang_res = await run_query(
+            db.table("user_profiles").select("user_id,preferred_language").in_("user_id", all_uids)
+        )
+        lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (lang_res.data or [])}
 
         sent_count = 0
         for item in items:
             headline = item.get("headline", "").strip()
-            push_body = item.get("push_body", "").strip()
+            push_body_es = item.get("push_body_es", "").strip()
+            push_body_en = item.get("push_body_en", "").strip()
             category = item.get("category", "corporate")
-            if not headline or not push_body:
+            if not headline or not push_body_es:
                 continue
             h = hashlib.md5(headline.encode()).hexdigest()
             if h in {r["headline_hash"] for r in already_sent}:
                 continue  # model re-suggested something already sent today, skip it
 
             try:
+                # push_body column stores the Spanish version — the English
+                # version only ever needs to exist at send time (this row
+                # isn't re-read for content elsewhere, just for headline dedup).
                 await run_query(db.table("major_news_events").insert({
                     "event_date": today, "headline_hash": h, "headline": headline,
-                    "category": category, "push_body": push_body,
+                    "category": category, "push_body": push_body_es,
                 }))
             except Exception as e:
                 # Unique index on (event_date, headline_hash) — another concurrent
@@ -2507,12 +2516,16 @@ async def job_major_news_alert():
                 continue
 
             emoji = _MAJOR_NEWS_CATEGORY_EMOJI.get(category, "📰")
-            title = f"{emoji} Evento importante"
+            title_es = f"{emoji} Evento importante"
+            title_en = f"{emoji} Important event"
             for i, uid in enumerate(all_uids):
                 if i % 100 == 0 and i > 0:
                     await asyncio.sleep(12)
                 await asyncio.sleep(random.uniform(0, 0.05))
-                await send_push(uid, "major_news_alert", title, push_body, {"screen": "home"}, db)
+                is_en = lang_map.get(uid, "es") == "en"
+                title = title_en if is_en else title_es
+                body  = push_body_en if (is_en and push_body_en) else push_body_es
+                await send_push(uid, "major_news_alert", title, body, {"screen": "home"}, db)
             sent_count += 1
             logger.info("job_major_news_alert: sent '%s' (%s) to %d users", headline, category, len(all_uids))
 
