@@ -1900,7 +1900,7 @@ async def job_portfolio_alerts():
                 # so free users got re-pinged on every 5-min cycle a ticker
                 # stayed a mover, and premium users could still get a second
                 # "here's why" correction later the same day).
-                if not should_send_price_alert(uid, ticker):
+                if not await should_send_price_alert(uid, ticker, db):
                     continue
 
                 if is_prem:

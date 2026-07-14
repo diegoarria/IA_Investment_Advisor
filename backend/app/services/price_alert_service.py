@@ -14,22 +14,42 @@ logger = logging.getLogger(__name__)
 NO_CATALYST = "__NO_CATALYST__"
 
 
-def should_send_price_alert(user_id: str, ticker: str) -> bool:
+async def should_send_price_alert(user_id: str, ticker: str, db) -> bool:
     """
-    Hard cap of ONE price-mover push per ticker per user per day, regardless
-    of subsequent catalyst discoveries — previously allowed a second
-    "we found out why" correction later in the day, but that meant a single
-    stock could still notify twice, which is exactly what users don't want
-    from a price alert. State is tracked separately from notification_engine's
-    generic per-category dedup — this is price-alert-specific "have we
-    already told this user about this ticker today."
+    Hard cap of ONE price-mover push per ticker per user per day.
+
+    Checked against notification_log (persistent DB table), NOT the Redis/
+    in-memory cache — this used to be cache-only, which meant every worker
+    restart or redeploy silently reset the "already notified today" state,
+    letting the same ticker re-notify the same day. notification_log already
+    gets a row written on every real send (see notification_engine.send_push
+    / _log_notification), so this survives any number of restarts for free.
     """
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    state_key = f"pricealert_state:{user_id}:{ticker}:{today}"
-    if cache_get(state_key):
+    from app.core.database import run_query
+    import zoneinfo
+
+    today_et_start = (
+        datetime.now(zoneinfo.ZoneInfo("America/New_York"))
+        .replace(hour=0, minute=0, second=0, microsecond=0)
+        .astimezone(timezone.utc)
+        .isoformat()
+    )
+    category = f"price_mover_{ticker}"
+    try:
+        res = await run_query(
+            db.table("notification_log")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("category", category)
+            .gte("sent_at", today_et_start)
+            .limit(1)
+        )
+        return not res.data
+    except Exception as e:
+        # If the check itself fails, err toward NOT sending — a missed alert
+        # is far less bad than spamming the same mover repeatedly that day.
+        logger.warning("should_send_price_alert(%s, %s) DB check failed: %s — skipping to be safe", user_id, ticker, e)
         return False
-    cache_set(state_key, "sent", ttl=26 * 3600)
-    return True
 
 
 def fetch_ticker_news(ticker: str) -> list[dict]:
