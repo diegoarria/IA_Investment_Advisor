@@ -1835,14 +1835,26 @@ async def job_portfolio_alerts():
             price = prices[ticker]["curr"]
             news  = await asyncio.to_thread(_fetch_ticker_news, ticker)
             web_context = await search_price_catalyst(ticker, pct)
-            logger.info(
-                "Portfolio alerts WHY diagnostic — %s (%+.2f%%): finnhub_news=%d, perplexity_context_len=%d",
-                ticker, pct, len(news), len(web_context),
-            )
             if not web_context and not news:
                 why = NO_CATALYST
+                logger.info(
+                    "Portfolio alerts WHY diagnostic — %s (%+.2f%%): finnhub_news=0, "
+                    "perplexity_context_len=0 -> NO_CATALYST (no data from either source at all)",
+                    ticker, pct,
+                )
             else:
                 why = await generate_price_alert_why(ticker, pct, price, news, extra_context=web_context)
+                # Full preview even when data WAS found — if this still shows a real
+                # catalyst in the raw text but `why` comes back NO_CATALYST anyway,
+                # that proves it's Claude's judgment call being too strict, not a
+                # missing-data problem, and the fix is in generate_price_alert_why's
+                # prompt rather than anything upstream.
+                logger.info(
+                    "Portfolio alerts WHY diagnostic — %s (%+.2f%%): finnhub_news=%d, "
+                    "perplexity_context_len=%d, perplexity_preview=%r, finnhub_headlines=%r -> result=%r",
+                    ticker, pct, len(news), len(web_context), web_context[:500],
+                    [n.get("headline", n) if isinstance(n, dict) else n for n in news][:5], why,
+                )
             ticker_why[ticker]   = why
             # Title is just the company name — "NVIDIA", "Apple", etc. — the
             # notification body itself now carries the emoji/%/reason.
