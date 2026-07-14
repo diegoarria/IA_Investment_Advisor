@@ -56,7 +56,7 @@ export default function AdminUserLookupPage() {
   if (userId && userId !== ADMIN_UID) return null;
 
   return (
-    <div className="min-h-screen p-6" style={{ background: "var(--bg)" }}>
+    <div className="h-screen overflow-y-auto p-6" style={{ background: "var(--bg)" }}>
       <div className="max-w-2xl mx-auto space-y-5">
         <div>
           <h1 className="text-xl font-bold" style={{ color: "var(--text)" }}>Ver perfil de usuario</h1>
