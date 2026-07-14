@@ -61,6 +61,8 @@ async def test_price_alert_why(ticker: str, pct: float = 5.0, user: dict = Depen
     guessing, no reading logs after the fact."""
     await _require_admin(user)
     import os
+    import worker
+    from app.services.notification_engine import send_push
     from app.services.price_alert_service import (
         search_price_catalyst, fetch_ticker_news, generate_price_alert_why, NO_CATALYST,
     )
@@ -89,6 +91,23 @@ async def test_price_alert_why(ticker: str, pct: float = 5.0, user: dict = Depen
         claude_called = True
         final_result = await generate_price_alert_why(ticker, pct, 100.0, news_items, extra_context=web_context)
 
+    # Send the exact real notification (same emoji/company/%% format as
+    # job_portfolio_alerts) to the calling admin's own account only — never
+    # to other users. Distinct category so this never consumes or interferes
+    # with that ticker's real "price_mover_{ticker}" dedup slot for the day.
+    company = worker._company_name(ticker)
+    emoji = worker._move_emoji(ticker, pct)
+    prefix = f"{emoji} {company} {pct:+.1f}%"
+    if final_result == NO_CATALYST:
+        push_body = f"{prefix} — sin catalizador claro, posible volatilidad de mercado."
+    else:
+        push_body = f"{prefix} {final_result}."
+    push_title = f"{company} (TEST)"
+    await send_push(
+        user["id"], f"price_mover_test:{ticker}", push_title, push_body,
+        {"ticker": ticker, "change_pct": pct, "screen": "watchlist"}, get_supabase(),
+    )
+
     return {
         "ticker": ticker,
         "perplexity_api_key_configured": perplexity_configured,
@@ -101,6 +120,8 @@ async def test_price_alert_why(ticker: str, pct: float = 5.0, user: dict = Depen
         "claude_was_called": claude_called,
         "final_result": final_result,
         "is_no_catalyst": final_result == NO_CATALYST,
+        "push_title": push_title,
+        "push_body": push_body,
     }
 
 
