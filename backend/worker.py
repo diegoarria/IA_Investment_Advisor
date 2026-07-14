@@ -528,7 +528,7 @@ async def send_monthly_reports():
         <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#00d47e;color:#000;font-weight:900;font-size:14px;padding:13px 28px;border-radius:12px;text-decoration:none">Activar Premium →</a>
       </div>
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
-        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 4px">Con Nuvos, construye tu futuro.</p>
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 4px">Con Nuvos, invierte sin miedo.</p>
         <p style="color:#374151;font-size:11px;margin:0">Nuvos AI · Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>
@@ -1369,7 +1369,7 @@ async def job_daily_email():
 
       <!-- Footer -->
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
-        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 4px">Con Nuvos, construye tu futuro.</p>
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 4px">Con Nuvos, invierte sin miedo.</p>
         <p style="color:#374151;font-size:11px;margin:0">Nuvos AI · Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>
@@ -1847,7 +1847,7 @@ async def job_weekly_screener_push():
         <a href="https://nuvosai.com/chat" style="display:inline-block;background:#00d47e;color:#000;font-weight:900;font-size:14px;padding:13px 28px;border-radius:12px;text-decoration:none">Hablar con mi mentor →</a>
       </div>
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
-        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 4px">Con Nuvos, construye tu futuro.</p>
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 4px">Con Nuvos, invierte sin miedo.</p>
         <p style="color:#374151;font-size:11px;margin:0">Nuvos AI · Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>
