@@ -281,21 +281,20 @@ def _company_name(ticker: str) -> str:
     return _COMPANY_NAMES.get(ticker, ticker)
 
 
-def _truncate_at_word(text: str, max_len: int) -> str:
-    """Truncate at the last word boundary before max_len, with an ellipsis —
-    a hard character-index cut here previously produced garbled notification
-    text like "...más allá de Diego, ganaste..." (the reason text getting cut
-    mid-word and running straight into the next sentence with no visual
-    break)."""
-    if len(text) <= max_len:
-        return text
-    if max_len <= 1:
-        return text[:max_len]
-    cut = text[:max_len - 1]
-    last_space = cut.rfind(" ")
-    if last_space > 0:
-        cut = cut[:last_space]
-    return cut.rstrip(".,;: ") + "…"
+# A few recognizable brand emojis for the compact price-mover push (matches
+# the requested "🍎 Apple", "📦 Amazon" style) — everything else falls back to
+# a plain up/down chart emoji rather than guessing a brand icon that isn't
+# actually associated with the company.
+_TICKER_EMOJIS: dict[str, str] = {
+    "AAPL": "🍎", "AMZN": "📦", "NFLX": "🎬", "MCD": "🍔", "SBUX": "☕",
+    "DIS": "🏰", "KO": "🥤", "NKE": "👟",
+}
+
+
+def _move_emoji(ticker: str, pct: float) -> str:
+    if ticker in _TICKER_EMOJIS:
+        return _TICKER_EMOJIS[ticker]
+    return "📈" if pct >= 0 else "📉"
 
 
 # ── Risk-tiered ticker universes ───────────────────────────────────────────────
@@ -1829,7 +1828,9 @@ async def job_portfolio_alerts():
             news  = await asyncio.to_thread(_fetch_ticker_news, ticker)
             why   = await _generate_price_alert_why(ticker, pct, price, news)
             ticker_why[ticker]   = why
-            ticker_title[ticker] = f"{ticker} Alerta de Precio ({pct:+.2f}%)"
+            # Title is just the company name — "NVIDIA", "Apple", etc. — the
+            # notification body itself now carries the emoji/%/reason.
+            ticker_title[ticker] = _company_name(ticker)
             if why == NO_CATALYST:
                 logger.info("Portfolio alerts: no catalyst for %s — premium users will not receive this", ticker)
             await asyncio.sleep(0.05)
@@ -1843,7 +1844,6 @@ async def job_portfolio_alerts():
         )
         user_meta: dict[str, dict] = {
             r["user_id"]: {
-                "first":      (r.get("name") or "Inversor").split()[0],
                 "is_premium": _is_premium_user(r.get("subscription_tier", "free"), r.get("trial_started_at")),
             }
             for r in (prof_res.data or [])
@@ -1852,8 +1852,7 @@ async def job_portfolio_alerts():
         # 7. Fan out — portfolio vs watchlist distinction + premium vs free
         sent = 0
         for uid, sets in user_tickers.items():
-            meta      = user_meta.get(uid, {"first": "Inversor", "is_premium": False})
-            first     = meta["first"]
+            meta      = user_meta.get(uid, {"is_premium": False})
             is_prem   = meta["is_premium"]
             port_map  = sets["port"]
             # Portfolio tickers ranked first (user owns them — higher priority)
@@ -1872,10 +1871,12 @@ async def job_portfolio_alerts():
 
                 why = ticker_why[ticker]
                 company = _company_name(ticker)
-                direction_verb = "está cayendo" if pct < 0 else "está subiendo"
-                # Every notification opens with this exact sentence — matches the
-                # requested format: "{Name} hoy está subiendo/cayendo un {pct}%."
-                move_sentence = f"{company} hoy {direction_verb} un {pct:+.2f}%."
+                emoji = _move_emoji(ticker, pct)
+                # Compact format: "{emoji} {Empresa} {+/-X.X}% {por qué, ~70 chars}"
+                # targets ~90-120 characters total so it's readable at a glance in
+                # a notification tray, instead of the old ~230-char paragraph with
+                # a $ impact line and a CTA sentence tacked on.
+                prefix = f"{emoji} {company} {pct:+.1f}%"
                 push_category = f"price_mover_{ticker}"
 
                 # Hard cap of one push per ticker per user per day — applies to
@@ -1888,41 +1889,12 @@ async def job_portfolio_alerts():
 
                 if is_prem:
                     if why == NO_CATALYST:
-                        no_news = "No hay noticias respecto a esto, posiblemente solo es volatilidad del mercado."
-                        if is_portfolio:
-                            shares         = port_map[ticker].get("shares", 0.0)
-                            position_value = shares * price if shares else 0.0
-                            dollar_delta   = position_value * pct / 100 if position_value else None
-                            if position_value and dollar_delta is not None:
-                                gl   = "perdiste" if pct < 0 else "ganaste"
-                                body = f"{move_sentence} {no_news} {first}, {gl} ~${abs(dollar_delta):,.0f}."
-                            else:
-                                body = f"{move_sentence} {no_news}"
-                        else:
-                            body = f"{move_sentence} {no_news}"
-                    elif is_portfolio:
-                        # Move sentence (or update opener) + WHY + financial impact + CTA
-                        shares         = port_map[ticker].get("shares", 0.0)
-                        position_value = shares * price if shares else 0.0
-                        dollar_delta   = position_value * pct / 100 if position_value else None
-                        if position_value and dollar_delta is not None:
-                            gl     = "perdiste" if pct < 0 else "ganaste"
-                            impact = f" {first}, {gl} ~${abs(dollar_delta):,.0f} hoy. "
-                        else:
-                            impact = " "
-                        cta   = "¿Cambia tu tesis? Abre Nuvos."
-                        head  = f"{move_sentence} "
-                        max_b = 230 - len(head) - len(impact) - len(cta)
-                        body  = head + _truncate_at_word(why, max_b) + impact + cta
+                        body = f"{prefix} — sin catalizador claro, posible volatilidad de mercado."
                     else:
-                        # Move sentence + WHY + watchlist suffix + action prompt
-                        suffix = " La tienes en watchlist. ¿Vale la pena analizarla ahora?"
-                        head   = f"{move_sentence} "
-                        max_b  = 230 - len(head) - len(suffix)
-                        body   = head + _truncate_at_word(why, max_b) + suffix
+                        body = f"{prefix} {why}."
                 else:
                     # Free tier — plain price alert, no WHY
-                    body = f"{move_sentence} Activa Premium para ver el análisis completo."
+                    body = f"{prefix}. Activa Premium para ver por qué."
 
                 await send_push(
                     uid,

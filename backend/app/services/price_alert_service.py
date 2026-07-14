@@ -173,11 +173,12 @@ DATOS DEL MOVIMIENTO:
 {web_section}{news_section}
 
 TU TAREA:
-La notificación push YA incluye una primera oración con el nombre de la empresa, el
-movimiento y el porcentaje (ej. "NVIDIA hoy está subiendo un +4.58%."). Tu trabajo es
-escribir SOLO la razón que sigue a esa oración — no repitas el nombre de la empresa, el
-verbo de movimiento (subió/bajó/está subiendo/está cayendo) ni el porcentaje, eso ya
-está cubierto.
+La notificación push YA incluye "{{emoji}} {{Empresa}} {{+/-X.X}}% " al inicio (ej.
+"📈 NVIDIA +4.58% "). Tu trabajo es escribir SOLO la continuación que sigue a ese
+porcentaje, como una frase que fluye naturalmente después — no repitas el nombre de la
+empresa ni el porcentaje, eso ya está cubierto. La notificación completa (emoji+empresa+
+%+tu texto) debe caber en ~90-120 caracteres, así que tu parte tiene que ser muy breve:
+máximo ~70 caracteres.
 
 REGLAS:
 1. Escribe una razón si las noticias mencionan CUALQUIERA de estas fuentes/tipos de catalizador
@@ -207,28 +208,37 @@ REGLAS:
    un contexto real aunque sea parcial o indirecto que decir que no hay noticias cuando sí las
    hay.
 
+   IMPORTANTE — no confundas una DESCRIPCIÓN del movimiento con una EXPLICACIÓN de por qué
+   ocurrió: "aumento de volumen de operaciones", "alta volatilidad", "mayor actividad de
+   trading" NO son catalizadores — son solo otra forma de describir el mismo movimiento de
+   precio que ya se está explicando, no dicen POR QUÉ pasó. Si eso es lo único que hay en las
+   noticias (sin ningún hecho concreto de la lista de arriba detrás), responde NO_CATALYST.
+
 3. Si hay catalizador (aunque sea parcial):
-   - Empieza con algo como "La razón principal es que..." / "Esto pasó después de que..." /
-     "Esto se debe a..." — una transición natural, como si un amigo te estuviera explicando
-   - Menciona el catalizador específico en 1 oración directa
-   - Tono: como un amigo explicándote qué pasó, sin jerga financiera
-   - Máximo 170 caracteres
-   - Sin emojis, sin mencionar "Nuvos AI", sin repetir el ticker/porcentaje
+   - Empieza con un conector corto y minúscula: "tras...", "por...", "gracias a...",
+     "luego de...", "después de..." — fluye directo después del "%", no es una oración
+     nueva con mayúscula ni sujeto propio
+   - Menciona el catalizador específico, lo más comprimido posible — sustantivos, no
+     oraciones completas si se puede evitar
+   - Tono: directo y claro, sin jerga financiera, sin relleno
+   - LÍMITE DURO: ~70 caracteres. Prioriza cortar adjetivos/detalles secundarios antes que
+     quedarte sin decir el catalizador central
+   - Sin emojis, sin mencionar "Nuvos AI", sin repetir el ticker/porcentaje, sin punto final
    - Solo el texto, nada más
 
-EJEMPLOS BUENOS (recuerda: esto es SOLO la razón, la oración del movimiento va aparte):
-"La razón principal es que reportó ingresos de $124B en Q2, superando las estimaciones de Wall Street."
-"Esto pasó después de que Jensen Huang anunciara la arquitectura Blackwell Ultra para centros de datos IA."
-"Esto se debe a que la FTC presentó una demanda antimonopolio por sus prácticas en AWS."
-"La razón principal es que el gobierno chino está negociando permitir la venta de sus chips H200 en China."
-"Esto se debe a que un competidor clave (TSMC) reportó guidance débil para todo el sector de semiconductores."
-"Esto pasó después de que Goldman Sachs subiera su precio objetivo citando mejores márgenes esperados."
-"La razón principal es la renuncia sorpresiva de su CFO, lo que generó incertidumbre entre los inversores."
+EJEMPLOS BUENOS (recuerda: esto es SOLO lo que sigue después de "{{emoji}} {{Empresa}} {{%}} "):
+"tras superar expectativas de ingresos impulsada por demanda de chips de IA"
+"tras el anuncio de Blackwell Ultra para centros de datos de IA"
+"por la demanda antimonopolio de la FTC sobre sus prácticas en AWS"
+"por la negociación de EE.UU. para permitir venta de chips H200 en China"
+"tras guidance débil de TSMC para todo el sector de semiconductores"
+"después de que Goldman Sachs subiera su precio objetivo"
+"tras la renuncia sorpresiva de su CFO"
 
 EJEMPLO MALO → responde NO_CATALYST en este caso (no hay ningún hecho concreto detrás):
-"Esto se debe al sentimiento positivo del mercado y expectativas generales de los inversores."
+"por el sentimiento positivo del mercado y expectativas generales de los inversores"
 
-Responde solo con el texto de la razón o con NO_CATALYST."""
+Responde solo con el texto de la razón (sin punto final) o con NO_CATALYST."""
 
     try:
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
@@ -250,8 +260,12 @@ Responde solo con el texto de la razón o con NO_CATALYST."""
             )
             return NO_CATALYST
 
-        if len(result) > 230:
-            result = result[:227] + "..."
+        # Hard safety net in case the model ignores the ~70-char guidance above —
+        # tightened from the old 230-char cap now that the full notification
+        # (emoji+empresa+%+esto) targets ~90-120 characters total.
+        if len(result) > 85:
+            truncated = result[:82].rsplit(" ", 1)[0]
+            result = truncated + "..."
         return result
 
     except asyncio.TimeoutError:
