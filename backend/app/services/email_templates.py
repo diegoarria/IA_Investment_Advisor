@@ -307,6 +307,60 @@ def personalized_daily_email(name: str, market_data: dict, news: list, portfolio
 
 # ─── Daily email v2 ──────────────────────────────────────────────────────────
 
+_DAILY_EMAIL_COPY = {
+    "es": {
+        "period_label_week": "de la semana", "period_label_day": "del día",
+        "period_adverb_week": "esta semana", "period_adverb_day": "hoy",
+        "next_period_week": "La próxima semana es otra oportunidad",
+        "next_period_day": "Mañana es otra oportunidad",
+        "na": "N/D", "dash": "—",
+        "beat_market": "🏆 SUPERASTE AL MERCADO",
+        "your_portfolio": "Tu Portafolio",
+        "performance": "📊 Rendimiento {period_label}",
+        "ai_summary": "🤖 Resumen IA {period_label}",
+        "no_data": "Sin datos",
+        "portfolio_moves": "📈 Movimientos de tu portafolio {period_adverb}",
+        "top_gainers": "▲ Top subidas",
+        "top_losers": "▼ Top caídas",
+        "market_wrap": "🌐 Market Wrap — Qué pasó {period_adverb}",
+        "earnings_header": "📣 Ganancias del día — Tu portafolio & watchlist",
+        "revenue": "Ingresos",
+        "estimate": "est.",
+        "beat": "✅ Superó", "miss": "❌ No alcanzó",
+        "pre_market": "Antes de apertura", "after_hours": "Después del cierre",
+        "header_tagline": "Resumen Diario del Mercado",
+        "greeting": "Hola {first_name}, así cerró el mercado",
+        "subheading": "Cierre del mercado · Actualización automática",
+        "cta": "Ver mi portafolio en Nuvos AI →",
+    },
+    "en": {
+        "period_label_week": "this week", "period_label_day": "today",
+        "period_adverb_week": "this week", "period_adverb_day": "today",
+        "next_period_week": "Next week is another opportunity",
+        "next_period_day": "Tomorrow is another day",
+        "na": "N/A", "dash": "—",
+        "beat_market": "🏆 YOU BEAT THE MARKET",
+        "your_portfolio": "Your Portfolio",
+        "performance": "📊 Performance {period_label}",
+        "ai_summary": "🤖 AI Summary {period_label}",
+        "no_data": "No data",
+        "portfolio_moves": "📈 Your portfolio's moves {period_adverb}",
+        "top_gainers": "▲ Top gainers",
+        "top_losers": "▼ Top losers",
+        "market_wrap": "🌐 Market Wrap — What happened {period_adverb}",
+        "earnings_header": "📣 Today's Earnings — Your portfolio & watchlist",
+        "revenue": "Revenue",
+        "estimate": "est.",
+        "beat": "✅ Beat", "miss": "❌ Miss",
+        "pre_market": "Pre-market", "after_hours": "After-hours",
+        "header_tagline": "Daily Market Summary",
+        "greeting": "Hi {first_name}, here's how the market closed",
+        "subheading": "Market close · Automatic update",
+        "cta": "View my portfolio on Nuvos AI →",
+    },
+}
+
+
 def daily_email_v2(
     first_name: str,
     port_pct: float | None,
@@ -320,16 +374,32 @@ def daily_email_v2(
     ai_summary: str,
     market_wrap: str = "",
     earnings_items: list = [],
+    period: str = "día",
+    language: str = "es",
 ) -> str:
-    """Daily email — 4-section structure:
+    """Shared template for both the real daily market-close email/push AND the
+    Friday weekly summary (worker.py's job_daily_email passes period="semana"
+    with genuinely week-over-week pct/px values — everything else here is
+    generic enough to serve either cadence unchanged) — 4-section structure:
     1. Tu portafolio vs S&P 500 vs Nasdaq
     2. Top 3 subidas / Top 3 caídas del portafolio
-    3. Market Wrap (AI narrative of the day)
-    4. Earnings del día (portfolio + watchlist, if any)
+    3. Market Wrap (AI narrative)
+    4. Earnings (portfolio + watchlist, if any)
+
+    `language` picks the ES/EN copy dict (_DAILY_EMAIL_COPY) — callers should
+    pass the user's own preferred_language so this always lands in whichever
+    language they've configured, not just Spanish.
     """
+    is_weekly = period == "semana"
+    t = _DAILY_EMAIL_COPY.get(language, _DAILY_EMAIL_COPY["es"])
+    period_label  = t["period_label_week"] if is_weekly else t["period_label_day"]
+    period_adverb = t["period_adverb_week"] if is_weekly else t["period_adverb_day"]
+    next_period   = t["next_period_week"] if is_weekly else t["next_period_day"]
+    na            = t["na"]
+
     def _pct_badge(pct, big=False):
         if pct is None:
-            return '<span style="color:#6b7280">N/D</span>'
+            return f'<span style="color:#6b7280">{na}</span>'
         up     = pct >= 0
         color  = "#22c55e" if up else "#ef4444"
         bg     = "rgba(34,197,94,0.12)" if up else "rgba(239,68,68,0.12)"
@@ -354,20 +424,20 @@ def daily_email_v2(
     beat_badge = (
         '<div style="display:inline-block;background:rgba(0,212,126,0.1);border:1px solid rgba(0,212,126,0.3);'
         'border-radius:20px;padding:4px 14px;margin-top:10px">'
-        '<span style="color:#00d47e;font-size:11px;font-weight:800;letter-spacing:1px">🏆 SUPERASTE AL MERCADO</span></div>'
+        f'<span style="color:#00d47e;font-size:11px;font-weight:800;letter-spacing:1px">{t["beat_market"]}</span></div>'
     ) if beating else ""
 
     port_usd_line = ""
     if port_usd is not None:
         sign  = "+" if port_usd >= 0 else ""
         color = "#22c55e" if port_usd >= 0 else "#ef4444"
-        port_usd_line = f'<div style="color:{color};font-size:13px;font-weight:700;margin-top:4px">{sign}${abs(port_usd):,.2f} hoy</div>'
+        port_usd_line = f'<div style="color:{color};font-size:13px;font-weight:700;margin-top:4px">{sign}${abs(port_usd):,.2f} {period_adverb}</div>'
 
     def _col(label, pct, px_val=None):
         up    = pct is not None and pct >= 0
         color = "#22c55e" if up else "#ef4444"
         sign  = "+" if up else ""
-        pct_s = f"{sign}{pct:.2f}%" if pct is not None else "N/D"
+        pct_s = f"{sign}{pct:.2f}%" if pct is not None else na
         px_s  = _px_str(px_val)
         return (
             f'<td style="padding:20px 12px;text-align:center;border-right:1px solid #1e2235;vertical-align:top">'
@@ -384,12 +454,12 @@ def daily_email_v2(
     table1 = f"""
   <div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
     <div style="padding:12px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
-      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">📊 Rendimiento del día</p>
+      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">{t["performance"].format(period_label=period_label)}</p>
     </div>
     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
       <tr>
         <td style="padding:20px 12px;text-align:center;border-right:1px solid #1e2235;vertical-align:top">
-          <div style="color:#9ca3af;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Tu Portafolio</div>
+          <div style="color:#9ca3af;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">{t["your_portfolio"]}</div>
           <div style="font-size:26px;font-weight:900;color:{port_pct_color};letter-spacing:-0.5px">{port_pct_str}</div>
           {port_usd_line}
         </td>
@@ -399,7 +469,7 @@ def daily_email_v2(
     </table>
     <div style="padding:12px 16px;border-top:1px solid #1e2235;text-align:center">
       {beat_badge}
-      {"" if beating else ('<span style="color:#6b7280;font-size:12px">Mañana es otra oportunidad</span>' if port_pct is not None else "")}
+      {"" if beating else (f'<span style="color:#6b7280;font-size:12px">{next_period}</span>' if port_pct is not None else "")}
     </div>
   </div>"""
 
@@ -412,14 +482,14 @@ def daily_email_v2(
         )
         ai_section = f"""
   <div style="background:#161b27;border-left:3px solid #00d47e;border-radius:0 16px 16px 0;padding:20px 20px 10px;margin-bottom:20px">
-    <p style="color:#00d47e;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">🤖 Resumen IA del día</p>
+    <p style="color:#00d47e;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">{t["ai_summary"].format(period_label=period_label)}</p>
     {paras}
   </div>"""
 
     # ── Section 2: Top 3 up / Top 3 down ─────────────────────────────────────
     def _mover_rows(items):
         if not items:
-            return '<tr><td colspan="3" style="padding:14px;text-align:center;color:#4b5563;font-size:12px">Sin datos</td></tr>'
+            return f'<tr><td colspan="3" style="padding:14px;text-align:center;color:#4b5563;font-size:12px">{t["no_data"]}</td></tr>'
         rows = ""
         for item in items:
             pct   = item.get("pct") or item.get("day_pct") or 0
@@ -441,13 +511,13 @@ def daily_email_v2(
         movers_section = f"""
   <div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
     <div style="padding:12px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
-      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">📈 Movimientos de tu portafolio hoy</p>
+      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">{t["portfolio_moves"].format(period_adverb=period_adverb)}</p>
     </div>
     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
       <tr>
         <td style="width:50%;vertical-align:top;border-right:1px solid #1e2235">
           <div style="padding:10px 14px;background:#0d1117;border-bottom:1px solid #1e2235">
-            <span style="color:#22c55e;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px">▲ Top subidas</span>
+            <span style="color:#22c55e;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px">{t["top_gainers"]}</span>
           </div>
           <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
             {_mover_rows(top_gainers)}
@@ -455,7 +525,7 @@ def daily_email_v2(
         </td>
         <td style="width:50%;vertical-align:top">
           <div style="padding:10px 14px;background:#0d1117;border-bottom:1px solid #1e2235">
-            <span style="color:#ef4444;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px">▼ Top caídas</span>
+            <span style="color:#ef4444;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px">{t["top_losers"]}</span>
           </div>
           <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
             {_mover_rows(top_losers)}
@@ -475,7 +545,7 @@ def daily_email_v2(
         wrap_section = f"""
   <div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
     <div style="padding:12px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
-      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">🌐 Market Wrap — Qué pasó hoy</p>
+      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">{t["market_wrap"].format(period_adverb=period_adverb)}</p>
     </div>
     <div style="padding:18px 20px">
       {paras}
@@ -487,8 +557,8 @@ def daily_email_v2(
     if earnings_items:
         cards = ""
         for e in earnings_items:
-            t         = e.get("ticker", "")
-            name      = e.get("company_name", t)
+            ticker_sym = e.get("ticker", "")
+            name      = e.get("company_name", ticker_sym)
             eps_a     = e.get("eps_actual")
             eps_e     = e.get("eps_estimate")
             rev_a     = e.get("rev_actual_b")
@@ -497,10 +567,10 @@ def daily_email_v2(
             beat_rev  = e.get("beat_rev", False)
             analysis  = e.get("ai_analysis", "")
             hour      = e.get("hour", "")
-            timing    = "Pre-market" if hour == "BMO" else ("After-hours" if hour == "AMC" else "")
+            timing    = t["pre_market"] if hour == "BMO" else (t["after_hours"] if hour == "AMC" else "")
 
             eps_color  = "#22c55e" if beat_eps else "#ef4444"
-            eps_badge  = "✅ Beat" if beat_eps else "❌ Miss"
+            eps_badge  = t["beat"] if beat_eps else t["miss"]
             eps_beat_pct = round((eps_a - eps_e) / abs(eps_e) * 100, 1) if eps_a is not None and eps_e and eps_e != 0 else None
 
             rev_row = ""
@@ -510,7 +580,7 @@ def daily_email_v2(
                 rev_sign  = "+" if rev_diff >= 0 else ""
                 rev_row = f"""
                 <tr style="border-top:1px solid #1e2235">
-                  <td style="padding:8px 14px;color:#9ca3af;font-size:12px">Ingresos</td>
+                  <td style="padding:8px 14px;color:#9ca3af;font-size:12px">{t["revenue"]}</td>
                   <td style="padding:8px 14px;text-align:right;color:#d1d5db;font-size:12px">${rev_a:.2f}B <span style="color:#4b5563">vs ${rev_e:.2f}B</span></td>
                   <td style="padding:8px 14px;text-align:right;color:{rev_color};font-size:12px;font-weight:700">{rev_sign}{rev_diff:.1f}%</td>
                 </tr>"""
@@ -522,7 +592,7 @@ def daily_email_v2(
             <div style="border-bottom:1px solid #1e2235;padding:16px 20px">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
                 <div>
-                  <span style="font-size:16px;font-weight:900;color:#fff">{t}</span>
+                  <span style="font-size:16px;font-weight:900;color:#fff">{ticker_sym}</span>
                   <span style="font-size:12px;color:#6b7280;margin-left:8px">{name}</span>
                 </div>
                 <div>
@@ -534,7 +604,7 @@ def daily_email_v2(
                 <tr>
                   <td style="padding:8px 14px;color:#9ca3af;font-size:12px">EPS</td>
                   <td style="padding:8px 14px;text-align:right;font-size:14px;font-weight:800;color:{eps_color}">${eps_a:.2f}</td>
-                  <td style="padding:8px 14px;text-align:right;color:#4b5563;font-size:12px">est. ${eps_e:.2f}</td>
+                  <td style="padding:8px 14px;text-align:right;color:#4b5563;font-size:12px">{t["estimate"]} ${eps_e:.2f}</td>
                 </tr>
                 {rev_row}
               </table>
@@ -544,17 +614,17 @@ def daily_email_v2(
         earnings_section = f"""
   <div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
     <div style="padding:12px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
-      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">📣 Ganancias del día — Tu portafolio & watchlist</p>
+      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">{t["earnings_header"]}</p>
     </div>
     {cards}
   </div>"""
 
     body = f"""
-  {_nuvos_header("Resumen Diario del Mercado")}
+  {_nuvos_header(t["header_tagline"])}
   <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0 0 4px;text-align:center;letter-spacing:-0.5px">
-    Hola {first_name}, así cerró el mercado
+    {t["greeting"].format(first_name=first_name)}
   </h1>
-  <p style="color:#6b7280;font-size:13px;margin:0 0 24px;text-align:center">Cierre del mercado · Actualización automática</p>
+  <p style="color:#6b7280;font-size:13px;margin:0 0 24px;text-align:center">{t["subheading"]}</p>
 
   {table1}
   {movers_section}
@@ -563,7 +633,7 @@ def daily_email_v2(
 
   <div style="text-align:center;margin-bottom:8px">
     <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#00d47e;color:#0d1117;font-weight:900;font-size:14px;padding:13px 32px;border-radius:14px;text-decoration:none">
-      Ver mi portafolio en Nuvos AI →
+      {t["cta"]}
     </a>
   </div>"""
     return _email_wrapper(body)

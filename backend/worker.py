@@ -582,6 +582,7 @@ def _finnhub_quote(symbol: str) -> dict | None:
     import requests as _req
     key = os.getenv("FINNHUB_API_KEY", "")
     if not key:
+        logger.warning("_finnhub_quote(%s): FINNHUB_API_KEY not set", symbol)
         return None
     try:
         r = _req.get(
@@ -596,8 +597,9 @@ def _finnhub_quote(symbol: str) -> dict | None:
         if curr > 0 and prev > 0:
             return {"curr": curr, "prev": prev,
                     "pct": round((curr - prev) / prev * 100, 2)}
-    except Exception:
-        pass
+        logger.warning("_finnhub_quote(%s): no usable price in response: %s", symbol, d)
+    except Exception as e:
+        logger.warning("_finnhub_quote(%s) failed: %s", symbol, e)
     return None
 
 
@@ -680,6 +682,7 @@ def _finnhub_closes(ticker: str, days: int = 35) -> list[float]:
     import requests as _req, time as _time
     key = os.getenv("FINNHUB_API_KEY", "")
     if not key:
+        logger.warning("_finnhub_closes(%s): FINNHUB_API_KEY not set", ticker)
         return []
     try:
         to_ts   = int(_time.time())
@@ -693,9 +696,94 @@ def _finnhub_closes(ticker: str, days: int = 35) -> list[float]:
         d = r.json()
         if d.get("s") == "ok" and d.get("c"):
             return [float(c) for c in d["c"]]
-    except Exception:
-        pass
+        logger.warning("_finnhub_closes(%s): candle status not ok: %s", ticker, d.get("s"))
+    except Exception as e:
+        logger.warning("_finnhub_closes(%s) failed: %s", ticker, e)
     return []
+
+
+def _finnhub_closes_with_dates(ticker: str, days: int) -> list[tuple]:
+    """Same as _finnhub_closes but keeps each close's actual trading date
+    (from Finnhub's own `t` timestamps) alongside it — (date, close) pairs,
+    oldest→newest. Needed so the weekly comparison below can match specific
+    calendar dates instead of counting a fixed number of array slots back,
+    which drifts whenever a holiday shifts the trading calendar."""
+    import requests as _req, time as _time
+    from datetime import date as _date, timezone as _tz
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        logger.warning("_finnhub_closes_with_dates(%s): FINNHUB_API_KEY not set", ticker)
+        return []
+    try:
+        to_ts   = int(_time.time())
+        from_ts = to_ts - days * 86400
+        r = _req.get(
+            "https://finnhub.io/api/v1/stock/candle",
+            params={"symbol": ticker, "resolution": "D",
+                    "from": from_ts, "to": to_ts, "token": key},
+            timeout=8,
+        )
+        d = r.json()
+        if d.get("s") == "ok" and d.get("c") and d.get("t"):
+            return [
+                (_date.fromtimestamp(t, tz=_tz.utc), float(c))
+                for t, c in zip(d["t"], d["c"])
+            ]
+        logger.warning("_finnhub_closes_with_dates(%s): candle status not ok: %s", ticker, d.get("s"))
+    except Exception as e:
+        logger.warning("_finnhub_closes_with_dates(%s) failed: %s", ticker, e)
+    return []
+
+
+def _finnhub_weekly_pct(ticker: str, as_of=None) -> dict | None:
+    """Real Mon-Fri week-over-week change: the last trading day BEFORE this
+    week's Monday (i.e. last Friday, or Thursday if that Friday was itself a
+    holiday, etc.) vs the most recent trading day at or before `as_of`
+    (defaults to today). NOT the single-day change _finnhub_quote gives.
+
+    This adjusts for holidays automatically, for any week of the year,
+    because it matches against the ACTUAL calendar dates Finnhub returns
+    (which simply omit closed days) instead of assuming a fixed number of
+    trading days always separates one Friday from the next.
+
+    Returns {curr, start, pct} or None if there isn't enough history yet.
+    """
+    from datetime import date as _date, timedelta as _td
+
+    today = as_of or _date.today()
+    monday_this_week = today - _td(days=today.weekday())  # Mon=0 ... Sun=6
+
+    # 21 calendar days back comfortably covers two full weeks even around a
+    # holiday cluster (e.g. Thanksgiving week + the week before it).
+    closes = _finnhub_closes_with_dates(ticker, days=21)
+    if not closes:
+        return None
+
+    # "curr" = most recent trading day at or before `today`.
+    on_or_before_today = [(d, c) for d, c in closes if d <= today]
+    if not on_or_before_today:
+        logger.warning("_finnhub_weekly_pct(%s): no trading day at or before %s", ticker, today)
+        return None
+    curr_date, curr = on_or_before_today[-1]
+
+    # "start" = last trading day strictly before this week's Monday (i.e.
+    # the previous week's final close — last Friday in a normal week).
+    before_this_week = [(d, c) for d, c in closes if d < monday_this_week]
+    if not before_this_week:
+        logger.warning(
+            "_finnhub_weekly_pct(%s): no trading day before %s (week start) in the fetched window",
+            ticker, monday_this_week,
+        )
+        return None
+    start_date, start = before_this_week[-1]
+
+    if curr <= 0 or start <= 0:
+        return None
+    return {
+        "curr": curr, "start": start,
+        "pct": round((curr - start) / start * 100, 2),
+        "curr_date": curr_date, "start_date": start_date,
+    }
 
 
 async def job_market_open():
@@ -988,12 +1076,22 @@ async def job_market_close():
         logger.error("job_market_close failed: %s", e)
 
 
-async def _generate_market_wrap(sp_pct: float | None, nq_pct: float | None, top_movers: list[dict]) -> str:
-    """Generate a 2-3 paragraph market wrap narrative, shared across all users."""
+async def _generate_market_wrap(
+    sp_pct: float | None, nq_pct: float | None, top_movers: list[dict],
+    period: str = "día", language: str = "es",
+) -> str:
+    """Generate a 2-3 paragraph market wrap narrative. `period` is "día" for
+    the real daily context or "semana" for the Friday weekly email (and
+    sp_pct/nq_pct are expected to already match: single-day vs Mon-Fri,
+    respectively). `language` picks Spanish or English — this is generated
+    once per language among the batch of users being emailed (not per user),
+    since the narrative content is identical for everyone in that language."""
     try:
         import anthropic
         from app.services.price_alert_service import fetch_ticker_news
 
+        is_weekly = period == "semana"
+        is_en     = language == "en"
         market_str = ""
         if sp_pct is not None:
             market_str += f"S&P 500: {sp_pct:+.2f}%"
@@ -1010,16 +1108,38 @@ async def _generate_market_wrap(sp_pct: float | None, nq_pct: float | None, top_
                     news_lines.append(f"- [{m['ticker']} {m.get('pct', m.get('day_pct', 0)):+.1f}%] {h}")
             except Exception:
                 pass
-        news_str = "\n".join(news_lines) if news_lines else "Sin noticias disponibles."
+        news_str = "\n".join(news_lines) if news_lines else ("No news available." if is_en else "Sin noticias disponibles.")
 
         moves_str = "\n".join(
             f"- {x['ticker']}: {x.get('pct', x.get('day_pct', 0)):+.2f}%"
             for x in top_movers[:8]
         )
 
-        prompt = f"""Eres un analista financiero escribiendo el Market Wrap del día para inversores latinoamericanos.
+        if is_en:
+            time_frame = "this week (Monday through Friday)" if is_weekly else "today"
+            look_ahead = "next week" if is_weekly else "tomorrow"
+            prompt = f"""You are a financial analyst writing the {time_frame} market wrap for Latin American investors.
 
-Datos del mercado hoy:
+Market data {time_frame}:
+{market_str}
+
+Relevant news and movements:
+{news_str}
+
+Key movers:
+{moves_str}
+
+Write a {time_frame} narrative summary in 2 short paragraphs (3-4 sentences each):
+- Paragraph 1: What happened in the market {time_frame} and why (macro, Fed, earnings, sector, etc.)
+- Paragraph 2: What to watch {look_ahead} or what this means for investors
+
+English, analytical but accessible tone. No bullet points, no markdown, no asterisks, no title or heading — just the 2 paragraphs directly."""
+        else:
+            time_frame  = "esta semana (lunes a viernes)" if is_weekly else "hoy"
+            look_ahead  = "la próxima semana" if is_weekly else "mañana"
+            prompt = f"""Eres un analista financiero escribiendo el resumen de mercado de {time_frame} para inversores latinoamericanos.
+
+Datos del mercado {time_frame}:
 {market_str}
 
 Noticias y movimientos relevantes:
@@ -1028,11 +1148,11 @@ Noticias y movimientos relevantes:
 Principales movimientos:
 {moves_str}
 
-Escribe un resumen narrativo del día en 2 párrafos cortos (3-4 oraciones cada uno):
-- Párrafo 1: Qué pasó hoy en el mercado y por qué (macro, Fed, resultados, sector, etc.)
-- Párrafo 2: Qué vigilar mañana o qué significa esto para los inversores
+Escribe un resumen narrativo de {time_frame} en 2 párrafos cortos (3-4 oraciones cada uno):
+- Párrafo 1: Qué pasó en el mercado {time_frame} y por qué (macro, Fed, resultados, sector, etc.)
+- Párrafo 2: Qué vigilar en {look_ahead} o qué significa esto para los inversores
 
-Español, tono analítico pero accesible. Sin viñetas, sin markdown, sin asteriscos. Solo párrafos."""
+Español, tono analítico pero accesible. Sin viñetas, sin markdown, sin asteriscos, sin título ni encabezado — solo los 2 párrafos directamente."""
 
         client = anthropic.AsyncAnthropic()
         resp = await asyncio.wait_for(
@@ -1065,21 +1185,30 @@ async def _generate_earnings_ai_for_email(
     beat: bool,
     rev_actual_b: float | None,
     rev_estimate_b: float | None,
+    language: str = "es",
 ) -> str:
     """1-2 sentence earnings analysis for the daily email earnings section."""
     try:
         import anthropic
-        eps_str = f"EPS ${eps_actual:.2f} vs ${eps_estimate:.2f} estimado" if eps_actual is not None and eps_estimate is not None else ""
-        rev_str = f"Ingresos ${rev_actual_b:.2f}B vs ${rev_estimate_b:.2f}B" if rev_actual_b and rev_estimate_b else ""
-        result  = "superó" if beat else "no alcanzó"
-        beat_pct = round((eps_actual - eps_estimate) / abs(eps_estimate) * 100, 1) if eps_actual is not None and eps_estimate else None
-        beat_str = f" (+{beat_pct:.1f}% vs consenso)" if beat and beat_pct else (f" ({beat_pct:.1f}% vs consenso)" if beat_pct else "")
-
-        prompt = (
-            f"{ticker} {result} las expectativas: {eps_str}. {rev_str}. "
-            f"En 1-2 oraciones en español, explica qué impulsó estos resultados y qué implican para la acción. "
-            f"Sin markdown, sin asteriscos, lenguaje de analista accesible."
-        )
+        is_en = language == "en"
+        if is_en:
+            eps_str = f"EPS ${eps_actual:.2f} vs ${eps_estimate:.2f} estimated" if eps_actual is not None and eps_estimate is not None else ""
+            rev_str = f"Revenue ${rev_actual_b:.2f}B vs ${rev_estimate_b:.2f}B" if rev_actual_b and rev_estimate_b else ""
+            result  = "beat" if beat else "missed"
+            prompt = (
+                f"{ticker} {result} expectations: {eps_str}. {rev_str}. "
+                f"In 1-2 sentences in English, explain what drove these results and what they imply for the stock. "
+                f"No markdown, no asterisks, accessible analyst language."
+            )
+        else:
+            eps_str = f"EPS ${eps_actual:.2f} vs ${eps_estimate:.2f} estimado" if eps_actual is not None and eps_estimate is not None else ""
+            rev_str = f"Ingresos ${rev_actual_b:.2f}B vs ${rev_estimate_b:.2f}B" if rev_actual_b and rev_estimate_b else ""
+            result  = "superó" if beat else "no alcanzó"
+            prompt = (
+                f"{ticker} {result} las expectativas: {eps_str}. {rev_str}. "
+                f"En 1-2 oraciones en español, explica qué impulsó estos resultados y qué implican para la acción. "
+                f"Sin markdown, sin asteriscos, lenguaje de analista accesible."
+            )
         client = anthropic.AsyncAnthropic()
         resp = await asyncio.wait_for(
             client.messages.create(
@@ -1103,6 +1232,40 @@ async def _generate_daily_ai_summary(tickers_with_moves: list[dict], sp_pct: flo
     return await _generate_market_wrap(sp_pct, nq_pct, tickers_with_moves)
 
 
+# Copy for the free-tier weekly summary email built inline in job_daily_email
+# (the premium path instead uses daily_email_v2 / _DAILY_EMAIL_COPY in
+# email_templates.py). {first}/{week_label}/{sp_str}/{nq_str} are filled in
+# with .format() at send time.
+_FREE_WEEKLY_COPY = {
+    "es": {
+        "header_tagline": "Nuvos AI · Resumen Semanal",
+        "greeting": "Hola {first}, ¿cómo estuvo la semana? 👋",
+        "subheading": "El mercado cerró. Aquí está lo que pasó en la {week_label}.",
+        "this_week": "esta semana",
+        "analysis_header": "ANÁLISIS DE LA SEMANA",
+        "upsell_title": "🔒 ¿Cuánto rindió tu portafolio esta semana?",
+        "upsell_body": "Con Premium ves el rendimiento exacto de tus inversiones vs S&P 500, recibes alertas de movimientos y hablas con tu mentor IA sin límites.",
+        "upsell_cta": "Activar Premium →",
+        "slogan": "Con Nuvos, invierte sin miedo.",
+        "disclaimer": "Nuvos AI · Solo educativo. No constituye asesoramiento financiero profesional.",
+        "subject": "📊 El mercado esta semana: S&P 500 {sp_str}, Nasdaq {nq_str} — Nuvos AI",
+    },
+    "en": {
+        "header_tagline": "Nuvos AI · Weekly Summary",
+        "greeting": "Hi {first}, how was your week? 👋",
+        "subheading": "The market closed. Here's what happened during the {week_label}.",
+        "this_week": "this week",
+        "analysis_header": "THIS WEEK'S ANALYSIS",
+        "upsell_title": "🔒 How did your portfolio perform this week?",
+        "upsell_body": "With Premium you see your investments' exact performance vs the S&P 500, get alerted on big moves, and chat with your AI mentor with no limits.",
+        "upsell_cta": "Activate Premium →",
+        "slogan": "With Nuvos, invest without fear.",
+        "disclaimer": "Nuvos AI · Educational only. Not professional financial advice.",
+        "subject": "📊 The market this week: S&P 500 {sp_str}, Nasdaq {nq_str} — Nuvos AI",
+    },
+}
+
+
 async def job_daily_email():
     """6:00 PM ET weekdays — personalized daily email for ALL users.
 
@@ -1119,13 +1282,16 @@ async def job_daily_email():
     db = get_supabase()
     try:
         # ── 1. Index prices via Finnhub (SPY/QQQ proxies — Railway-safe) ──────
-        # ^GSPC/^IXIC are IP-blocked on Railway via yfinance; use SPY/QQQ instead
-        spy_q = await asyncio.to_thread(_finnhub_quote, "SPY")
-        qqq_q = await asyncio.to_thread(_finnhub_quote, "QQQ")
-        sp_pct = spy_q["pct"] if spy_q else None
-        nq_pct = qqq_q["pct"] if qqq_q else None
-        sp_px  = spy_q["curr"] if spy_q else None
-        nq_px  = qqq_q["curr"] if qqq_q else None
+        # ^GSPC/^IXIC are IP-blocked on Railway via yfinance; use SPY/QQQ instead.
+        # This is the actual Mon-Fri weekly move (last Friday's close → today's
+        # close) — NOT _finnhub_quote's single-day change, which is what this
+        # email used to show mislabeled as "esta semana."
+        spy_w = await asyncio.to_thread(_finnhub_weekly_pct, "SPY")
+        qqq_w = await asyncio.to_thread(_finnhub_weekly_pct, "QQQ")
+        sp_pct = spy_w["pct"] if spy_w else None
+        nq_pct = qqq_w["pct"] if qqq_w else None
+        sp_px  = spy_w["curr"] if spy_w else None
+        nq_px  = qqq_w["curr"] if qqq_w else None
 
         # ── 2. All users, excluding explicit opt-outs ─────────────────────────
         prefs_res = await run_query(
@@ -1134,7 +1300,7 @@ async def job_daily_email():
         disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("email_daily_summary") is False}
 
         profiles_res = await run_query(
-            db.table("user_profiles").select("user_id,name,subscription_tier")
+            db.table("user_profiles").select("user_id,name,subscription_tier,preferred_language")
         )
         all_profile_data = [r for r in (profiles_res.data or []) if r["user_id"] not in disabled]
         opted_ids = [r["user_id"] for r in all_profile_data]
@@ -1143,6 +1309,7 @@ async def job_daily_email():
 
         name_map = {r["user_id"]: r.get("name") or "Inversor" for r in all_profile_data}
         tier_map = {r["user_id"]: (r.get("subscription_tier") or "free") for r in all_profile_data}
+        lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in all_profile_data}
 
         # ── 4. Portfolios — premium users only ────────────────────────────────
         premium_uids = {uid for uid in opted_ids if tier_map.get(uid) == "premium"}
@@ -1159,13 +1326,15 @@ async def job_daily_email():
                     all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
         # ── 5. Fetch stock prices via Finnhub (Railway-safe, no IP block) ─────
-        # Fetch each ticker concurrently; _finnhub_quote returns {curr, prev, pct}
+        # Weekly closes (last Friday → today), not _finnhub_quote's single-day
+        # change — this whole email is framed as "esta semana," so the
+        # portfolio comparison below needs to actually span the week too.
         async def _fq(t: str):
-            q = await asyncio.to_thread(_finnhub_quote, t)
+            q = await asyncio.to_thread(_finnhub_weekly_pct, t)
             return t, q
 
         price_results = await asyncio.gather(*[_fq(t) for t in all_tickers]) if all_tickers else []
-        day_prices = {t: {"curr": q["curr"], "prev": q["prev"]} for t, q in price_results if q}
+        week_prices = {t: {"curr": q["curr"], "prev": q["start"]} for t, q in price_results if q}
 
         # ── 6. Collect all unique tickers + watchlist for market wrap context ─
         watch_res   = await run_query(db.table("watchlist").select("user_id,ticker"))
@@ -1177,46 +1346,73 @@ async def job_daily_email():
 
         # ── 7. Compute global top movers (all portfolio tickers combined) ─────
         global_movers: list[dict] = []
-        for ticker, px in day_prices.items():
+        for ticker, px in week_prices.items():
             if px.get("prev") and px["prev"] > 0:
                 pct = round((px["curr"] - px["prev"]) / px["prev"] * 100, 2)
                 global_movers.append({"ticker": ticker, "pct": pct})
         global_movers.sort(key=lambda x: abs(x["pct"]), reverse=True)
 
-        # ── 8. Market Wrap — generated ONCE for all users ─────────────────────
-        market_wrap = await _generate_market_wrap(sp_pct, nq_pct, global_movers)
+        # ── 8. Market Wrap — generated ONCE PER LANGUAGE actually needed among
+        # today's recipients (not per user — the narrative is identical for
+        # everyone sharing a language, so this stays cheap regardless of how
+        # many users are on each).
+        needed_langs = {lang_map.get(uid, "es") for uid in opted_ids} or {"es"}
+        market_wrap_by_lang: dict[str, str] = {}
+        for lang in needed_langs:
+            market_wrap_by_lang[lang] = await _generate_market_wrap(
+                sp_pct, nq_pct, global_movers, period="semana", language=lang
+            )
 
         # ── 9. Today's earnings from Finnhub — fetched ONCE ──────────────────
         # At 6 PM both BMO (pre-market) and AMC (after-hours early) have likely reported
         all_today_earnings = await asyncio.to_thread(_finnhub_earnings_today, None)
 
-        # Generate AI analysis per unique ticker that reported today (concurrent)
+        # Generate AI analysis per unique ticker that reported today, once per
+        # needed language (concurrent within each language batch)
         earning_tickers = list(all_today_earnings.keys())
+        earnings_ai_map_by_lang: dict[str, dict[str, str]] = {}
         if earning_tickers:
-            analyses = await asyncio.gather(
-                *[
-                    _generate_earnings_ai_for_email(
-                        ticker=t,
-                        eps_actual=all_today_earnings[t].get("eps_actual"),
-                        eps_estimate=all_today_earnings[t].get("eps_estimate"),
-                        beat=all_today_earnings[t].get("beat_eps", False),
-                        rev_actual_b=all_today_earnings[t].get("rev_actual_b"),
-                        rev_estimate_b=all_today_earnings[t].get("rev_estimate_b"),
-                    )
-                    for t in earning_tickers
-                ],
-                return_exceptions=True,
-            )
-            earnings_ai_map: dict[str, str] = {
-                t: (a if isinstance(a, str) else "")
-                for t, a in zip(earning_tickers, analyses)
-            }
+            for lang in needed_langs:
+                analyses = await asyncio.gather(
+                    *[
+                        _generate_earnings_ai_for_email(
+                            ticker=t,
+                            eps_actual=all_today_earnings[t].get("eps_actual"),
+                            eps_estimate=all_today_earnings[t].get("eps_estimate"),
+                            beat=all_today_earnings[t].get("beat_eps", False),
+                            rev_actual_b=all_today_earnings[t].get("rev_actual_b"),
+                            rev_estimate_b=all_today_earnings[t].get("rev_estimate_b"),
+                            language=lang,
+                        )
+                        for t in earning_tickers
+                    ],
+                    return_exceptions=True,
+                )
+                earnings_ai_map_by_lang[lang] = {
+                    t: (a if isinstance(a, str) else "")
+                    for t, a in zip(earning_tickers, analyses)
+                }
         else:
-            earnings_ai_map = {}
+            earnings_ai_map_by_lang = {lang: {} for lang in needed_langs}
 
         # ── 10. Build and send per-user email ─────────────────────────────────
         from datetime import datetime as _dt
-        week_label = _dt.now().strftime("semana del %d de %B")
+        # strftime's %B depends on the server's locale, which isn't guaranteed
+        # to be Spanish (or English) on Railway — that's what produced "10 de
+        # July" instead of "10 de julio". Spelled out explicitly instead.
+        _SPANISH_MONTHS = [
+            "enero", "febrero", "marzo", "abril", "mayo", "junio",
+            "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+        ]
+        _ENGLISH_MONTHS = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December",
+        ]
+        _now = _dt.now()
+        week_label_by_lang = {
+            "es": f"semana del {_now.day} de {_SPANISH_MONTHS[_now.month - 1]}",
+            "en": f"week of {_ENGLISH_MONTHS[_now.month - 1]} {_now.day}",
+        }
         sp_str = f"{sp_pct:+.1f}%" if sp_pct is not None else "—"
         nq_str = f"{nq_pct:+.1f}%" if nq_pct is not None else "—"
 
@@ -1230,6 +1426,8 @@ async def job_daily_email():
             is_premium = tier_map.get(uid) == "premium"
             positions  = portfolio_map.get(uid, [])
             watchlist  = watch_by_uid.get(uid, set())
+            lang       = lang_map.get(uid, "es")
+            is_en      = lang == "en"
 
             if is_premium and positions:
                 # ── Premium: personalized portfolio summary ────────────────────
@@ -1239,9 +1437,9 @@ async def job_daily_email():
                 for p in positions:
                     ticker = p.get("ticker")
                     shares = float(p.get("shares") or 0)
-                    if not ticker or not shares or ticker not in day_prices:
+                    if not ticker or not shares or ticker not in week_prices:
                         continue
-                    px    = day_prices[ticker]
+                    px    = week_prices[ticker]
                     cv    = px["curr"] * shares
                     pv    = px["prev"] * shares
                     pct   = (px["curr"] - px["prev"]) / px["prev"] * 100 if px["prev"] else 0.0
@@ -1277,7 +1475,7 @@ async def job_daily_email():
                         "rev_estimate_b": e.get("rev_estimate_b"),
                         "beat_rev":       e.get("beat_rev", False),
                         "hour":           e.get("hour", ""),
-                        "ai_analysis":    earnings_ai_map.get(t, ""),
+                        "ai_analysis":    earnings_ai_map_by_lang.get(lang, {}).get(t, ""),
                     })
 
                 html = daily_email_v2(
@@ -1291,15 +1489,24 @@ async def job_daily_email():
                     top_gainers=top_gainers,
                     top_losers=top_losers,
                     ai_summary="",
-                    market_wrap=market_wrap,
+                    market_wrap=market_wrap_by_lang.get(lang, ""),
                     earnings_items=earnings_items,
+                    period="semana",
+                    language=lang,
                 )
-                sign    = "+" if port_pct and port_pct >= 0 else ""
-                subject = (
-                    f"Tu portafolio esta semana: {sign}{port_pct:.2f}% — Nuvos AI"
-                    if port_pct is not None
-                    else "Tu resumen semanal del mercado — Nuvos AI"
-                )
+                sign = "+" if port_pct and port_pct >= 0 else ""
+                if is_en:
+                    subject = (
+                        f"Your portfolio this week: {sign}{port_pct:.2f}% — Nuvos AI"
+                        if port_pct is not None
+                        else "Your weekly market summary — Nuvos AI"
+                    )
+                else:
+                    subject = (
+                        f"Tu portafolio esta semana: {sign}{port_pct:.2f}% — Nuvos AI"
+                        if port_pct is not None
+                        else "Tu resumen semanal del mercado — Nuvos AI"
+                    )
             else:
                 # ── Free: general market summary for the week ──────────────────
                 # Convert plain-text paragraphs to HTML (AI sometimes ignores no-markdown instruction)
@@ -1312,13 +1519,15 @@ async def job_daily_email():
                         paras = [p.strip() for p in text.split("\n") if p.strip()]
                     return "".join(f'<p style="color:#d1d5db;font-size:14px;line-height:1.75;margin:0 0 14px">{p}</p>' for p in paras)
 
-                market_body = _plain_to_html(market_wrap) if market_wrap else ""
+                market_body = _plain_to_html(market_wrap_by_lang.get(lang, "")) if market_wrap_by_lang.get(lang) else ""
                 sp_color  = "#22c55e" if sp_pct is not None and sp_pct >= 0 else "#ef4444"
                 nq_color  = "#22c55e" if nq_pct is not None and nq_pct >= 0 else "#ef4444"
                 sp_border = "rgba(34,197,94,0.25)"  if sp_pct is not None and sp_pct >= 0 else "rgba(239,68,68,0.25)"
                 nq_border = "rgba(34,197,94,0.25)"  if nq_pct is not None and nq_pct >= 0 else "rgba(239,68,68,0.25)"
+                week_label = week_label_by_lang.get(lang, week_label_by_lang["es"])
+                fc = _FREE_WEEKLY_COPY.get(lang, _FREE_WEEKLY_COPY["es"])
                 html = f"""<!DOCTYPE html>
-<html lang="es">
+<html lang="{lang}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuvos AI</title></head>
 <body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
 <div style="max-width:580px;margin:0 auto;padding:28px 16px">
@@ -1327,13 +1536,13 @@ async def job_daily_email():
     <!-- Header -->
     <div style="background:linear-gradient(135deg,#0d1f14,#0f2a1a);padding:28px 32px;text-align:center;border-bottom:1px solid #1e3a28">
       <img src="https://www.nuvosai.com/logo.png" alt="Nuvos AI" width="48" height="48" style="display:block;margin:0 auto 10px;border-radius:12px"/>
-      <p style="margin:0;color:#00d47e;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase">Nuvos AI · Resumen Semanal</p>
+      <p style="margin:0;color:#00d47e;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase">{fc["header_tagline"]}</p>
     </div>
 
     <!-- Body -->
     <div style="background:#161b27;padding:28px 32px">
-      <h1 style="color:#fff;font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-0.3px">Hola {first}, ¿cómo estuvo la semana? 👋</h1>
-      <p style="color:#6b7280;font-size:13px;margin:0 0 24px">El mercado cerró. Aquí está lo que pasó en la {week_label}.</p>
+      <h1 style="color:#fff;font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-0.3px">{fc["greeting"].format(first=first)}</h1>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 24px">{fc["subheading"].format(week_label=week_label)}</p>
 
       <!-- Index cards -->
       <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:24px">
@@ -1342,41 +1551,41 @@ async def job_daily_email():
             <div style="background:#111318;border:1px solid {sp_border};border-radius:14px;padding:18px;text-align:center">
               <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 8px">S&amp;P 500</p>
               <p style="color:{sp_color};font-size:26px;font-weight:900;margin:0;letter-spacing:-0.5px">{sp_str}</p>
-              <p style="color:#4b5563;font-size:11px;margin:4px 0 0">esta semana</p>
+              <p style="color:#4b5563;font-size:11px;margin:4px 0 0">{fc["this_week"]}</p>
             </div>
           </td>
           <td style="width:49%;vertical-align:top;padding-left:6px">
             <div style="background:#111318;border:1px solid {nq_border};border-radius:14px;padding:18px;text-align:center">
               <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 8px">NASDAQ</p>
               <p style="color:{nq_color};font-size:26px;font-weight:900;margin:0;letter-spacing:-0.5px">{nq_str}</p>
-              <p style="color:#4b5563;font-size:11px;margin:4px 0 0">esta semana</p>
+              <p style="color:#4b5563;font-size:11px;margin:4px 0 0">{fc["this_week"]}</p>
             </div>
           </td>
         </tr>
       </table>
 
       <!-- Market wrap narrative -->
-      {'<div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:22px;margin-bottom:20px"><p style="color:#00d47e;font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 14px">ANÁLISIS DE LA SEMANA</p>' + market_body + '</div>' if market_body else ''}
+      {f'<div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:22px;margin-bottom:20px"><p style="color:#00d47e;font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 14px">{fc["analysis_header"]}</p>' + market_body + '</div>' if market_body else ''}
 
       <!-- Premium upsell -->
       <div style="background:linear-gradient(135deg,rgba(0,168,94,0.08),rgba(0,212,126,0.04));border:1px solid rgba(0,212,126,0.2);border-radius:14px;padding:20px;margin-bottom:20px">
-        <p style="color:#00d47e;font-size:13px;font-weight:800;margin:0 0 6px">🔒 ¿Cuánto rindió tu portafolio esta semana?</p>
-        <p style="color:#9ca3af;font-size:13px;line-height:1.6;margin:0 0 16px">Con Premium ves el rendimiento exacto de tus inversiones vs S&P 500, recibes alertas de movimientos y hablas con tu mentor IA sin límites.</p>
+        <p style="color:#00d47e;font-size:13px;font-weight:800;margin:0 0 6px">{fc["upsell_title"]}</p>
+        <p style="color:#9ca3af;font-size:13px;line-height:1.6;margin:0 0 16px">{fc["upsell_body"]}</p>
         <div style="text-align:center">
-          <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#00d47e;color:#000;font-weight:900;font-size:14px;padding:13px 28px;border-radius:12px;text-decoration:none">Activar Premium →</a>
+          <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#00d47e;color:#000;font-weight:900;font-size:14px;padding:13px 28px;border-radius:12px;text-decoration:none">{fc["upsell_cta"]}</a>
         </div>
       </div>
 
       <!-- Footer -->
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
-        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 4px">Con Nuvos, invierte sin miedo.</p>
-        <p style="color:#374151;font-size:11px;margin:0">Nuvos AI · Solo educativo. No constituye asesoramiento financiero profesional.</p>
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 4px">{fc["slogan"]}</p>
+        <p style="color:#374151;font-size:11px;margin:0">{fc["disclaimer"]}</p>
       </div>
     </div>
   </div>
 </div>
 </body></html>"""
-                subject = f"📊 El mercado esta semana: S&P 500 {sp_str}, Nasdaq {nq_str} — Nuvos AI"
+                subject = fc["subject"].format(sp_str=sp_str, nq_str=nq_str)
 
             await send_email_notification(uid, "weekly_summary", subject, html, db)
             sent += 1
