@@ -1820,13 +1820,29 @@ async def job_portfolio_alerts():
         # 5. Pre-generate WHY explanations — 1 Claude call per mover, reused across users.
         # Tickers with no specific catalyst are stored as NO_CATALYST and skipped for premium users;
         # free users still get a plain price-move notification without the WHY.
-        from app.services.price_alert_service import NO_CATALYST, should_send_price_alert
+        # Inlined (rather than calling _generate_price_alert_why/get_price_move_why)
+        # specifically so each stage can be logged per-ticker — this is the exact
+        # same logic, just with visibility into what Perplexity/Finnhub actually
+        # returned for THIS real run, matching the admin diagnostic endpoint's
+        # level of detail so a NO_CATALYST result is traceable in Railway logs
+        # instead of a black box.
+        from app.services.price_alert_service import (
+            NO_CATALYST, should_send_price_alert, search_price_catalyst, generate_price_alert_why,
+        )
         ticker_why:   dict[str, str] = {}
         ticker_title: dict[str, str] = {}
         for ticker, pct in movers.items():
             price = prices[ticker]["curr"]
             news  = await asyncio.to_thread(_fetch_ticker_news, ticker)
-            why   = await _generate_price_alert_why(ticker, pct, price, news)
+            web_context = await search_price_catalyst(ticker, pct)
+            logger.info(
+                "Portfolio alerts WHY diagnostic — %s (%+.2f%%): finnhub_news=%d, perplexity_context_len=%d",
+                ticker, pct, len(news), len(web_context),
+            )
+            if not web_context and not news:
+                why = NO_CATALYST
+            else:
+                why = await generate_price_alert_why(ticker, pct, price, news, extra_context=web_context)
             ticker_why[ticker]   = why
             # Title is just the company name — "NVIDIA", "Apple", etc. — the
             # notification body itself now carries the emoji/%/reason.
@@ -2302,11 +2318,6 @@ REGLAS:
 def _fetch_ticker_news(ticker: str) -> list[str]:
     from app.services.price_alert_service import fetch_ticker_news
     return fetch_ticker_news(ticker)
-
-
-async def _generate_price_alert_why(ticker: str, change_pct: float, price: float, news_headlines: list[str]) -> str:
-    from app.services.price_alert_service import get_price_move_why
-    return await get_price_move_why(ticker, change_pct, price, news_headlines)
 
 
 async def job_ipo_alerts():
