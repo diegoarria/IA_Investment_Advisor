@@ -490,11 +490,12 @@ async def send_monthly_reports():
     db = get_supabase()
     try:
         users_res = await run_query(
-            db.table("user_profiles").select("user_id,name,subscription_tier,trial_started_at")
+            db.table("user_profiles").select("user_id,name,subscription_tier,trial_started_at,preferred_language")
         )
         users = users_res.data
         auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
-        month_name = datetime.now(timezone.utc).strftime("%B %Y")
+        month_name_es = f"{_SPANISH_MONTHS[datetime.now(timezone.utc).month - 1]} {datetime.now(timezone.utc).year}"
+        month_name_en = f"{_ENGLISH_MONTHS[datetime.now(timezone.utc).month - 1]} {datetime.now(timezone.utc).year}"
         sent = errors = skipped = 0
         for u in users:
             email = auth_users.get(u["user_id"])
@@ -503,6 +504,8 @@ async def send_monthly_reports():
                 continue
             name = (u.get("name") or "Inversor").split()[0]
             is_premium = _is_premium_user(u.get("subscription_tier") or "free", u.get("trial_started_at"))
+            is_en = (u.get("preferred_language") or "es") == "en"
+            month_name = month_name_en if is_en else month_name_es
             try:
                 if is_premium:
                     ok = await generate_and_send_monthly_report(
@@ -510,6 +513,45 @@ async def send_monthly_reports():
                         email=email,
                         name=u.get("name") or "Inversor",
                     )
+                    if ok:
+                        sent += 1
+                    else:
+                        skipped += 1
+                elif is_en:
+                    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuvos AI</title></head>
+<body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
+<div style="max-width:580px;margin:0 auto;padding:28px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+    <div style="background:linear-gradient(135deg,#0d1f14,#0f2a1a);padding:28px 32px;text-align:center;border-bottom:1px solid #1e3a28">
+      <img src="https://www.nuvosai.com/logo.png" alt="Nuvos AI" width="48" height="48" style="display:block;margin:0 auto 10px;border-radius:12px"/>
+      <p style="margin:0;color:#00d47e;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase">Nuvos AI · Monthly Report</p>
+    </div>
+    <div style="background:#161b27;padding:28px 32px">
+      <h1 style="color:#fff;font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-0.3px">Hi {name}, here's how {month_name} went 📅</h1>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 24px">Another month wrapped up. Premium users already have their full analysis.</p>
+      <div style="background:#111318;border:1px solid rgba(0,212,126,0.2);border-radius:14px;padding:20px;margin-bottom:20px">
+        <p style="color:#00d47e;font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">📊 Premium report includes:</p>
+        <p style="color:#d1d5db;font-size:13px;line-height:1.75;margin:0">
+          ✅ Your portfolio vs S&amp;P 500 and NASDAQ — real performance this month<br>
+          ✅ AI analysis of your best and worst positions<br>
+          ✅ 4 personalized investment ideas for next month<br>
+          ✅ Unlimited AI Mentor to analyze any stock
+        </p>
+      </div>
+      <div style="text-align:center;margin-bottom:20px">
+        <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#00d47e;color:#000;font-weight:900;font-size:14px;padding:13px 28px;border-radius:12px;text-decoration:none">Activate Premium →</a>
+      </div>
+      <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 4px">With Nuvos, invest without fear.</p>
+        <p style="color:#374151;font-size:11px;margin:0">Nuvos AI · For educational purposes only. Not professional financial advice.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>"""
+                    ok = await send_email(email, f"📊 Your {month_name} summary — Nuvos AI", html)
                     if ok:
                         sent += 1
                     else:
@@ -2161,7 +2203,39 @@ async def job_weekly_screener_push():
                     f'</div>'
                     for idx, pk in enumerate(picks)
                 )
-                html = f"""<!DOCTYPE html>
+                if is_en:
+                    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuvos AI</title></head>
+<body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
+<div style="max-width:580px;margin:0 auto;padding:28px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+    <div style="background:linear-gradient(135deg,#0d1f14,#0f2a1a);padding:28px 32px;text-align:center;border-bottom:1px solid #1e3a28">
+      <img src="https://www.nuvosai.com/logo.png" alt="Nuvos AI" width="48" height="48" style="display:block;margin:0 auto 10px;border-radius:12px"/>
+      <p style="margin:0;color:#00d47e;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase">Nuvos AI · Weekly Screener</p>
+    </div>
+    <div style="background:#161b27;padding:28px 32px">
+      <h1 style="color:#fff;font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-0.3px">Your 4 ideas for this week 📊</h1>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 20px">Selected for your <strong style="color:#d1d5db">{risk_label}</strong> profile — {horizon} outlook</p>
+      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:8px 16px;margin-bottom:20px">
+        {pick_rows}
+      </div>
+      <div style="background:#111318;border:1px solid rgba(0,212,126,0.2);border-radius:14px;padding:18px;margin-bottom:20px">
+        <p style="color:#d1d5db;font-size:13px;line-height:1.7;margin:0">💬 <strong style="color:#00d47e">What do I do with these ideas?</strong> Talk to your AI Mentor to analyze them: do they fit your portfolio? what's the real risk? when's a good entry point?</p>
+      </div>
+      <div style="text-align:center;margin-bottom:20px">
+        <a href="https://nuvosai.com/chat" style="display:inline-block;background:#00d47e;color:#000;font-weight:900;font-size:14px;padding:13px 28px;border-radius:12px;text-decoration:none">Talk to my mentor →</a>
+      </div>
+      <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 4px">With Nuvos, invest without fear.</p>
+        <p style="color:#374151;font-size:11px;margin:0">Nuvos AI · For educational purposes only. Not professional financial advice.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>"""
+                else:
+                    html = f"""<!DOCTYPE html>
 <html lang="es">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuvos AI</title></head>
 <body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
@@ -2191,8 +2265,9 @@ async def job_weekly_screener_push():
   </div>
 </div>
 </body></html>"""
+                subject = "📊 Your 4 investment ideas for this week — Nuvos AI" if is_en else "📊 Tus 4 ideas de inversión para esta semana — Nuvos AI"
                 try:
-                    await send_email(email_addr, "📊 Tus 4 ideas de inversión para esta semana — Nuvos AI", html)
+                    await send_email(email_addr, subject, html)
                 except Exception as e:
                     logger.warning("Weekly screener email failed for %s: %s", uid, e)
 
@@ -3849,7 +3924,7 @@ async def send_birthday_emails():
     today = datetime.now(timezone.utc).date()
     try:
         users_res = await run_query(
-            db.table("user_profiles").select("user_id,name,birth_date")
+            db.table("user_profiles").select("user_id,name,birth_date,preferred_language")
         )
         auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
         sent = 0
@@ -3867,8 +3942,10 @@ async def send_birthday_emails():
             email = auth_users.get(u["user_id"])
             if not email:
                 continue
-            html = build_birthday_html(u.get("name") or "Inversor")
-            ok   = await send_email(email, "🎂 ¡Feliz cumpleaños! Tu regalo de Nuvos AI", html)
+            is_en = (u.get("preferred_language") or "es") == "en"
+            html = build_birthday_html(u.get("name") or "Inversor", language="en" if is_en else "es")
+            subject = "🎂 Happy Birthday! Your gift from Nuvos AI" if is_en else "🎂 ¡Feliz cumpleaños! Tu regalo de Nuvos AI"
+            ok   = await send_email(email, subject, html)
             if ok:
                 sent += 1
                 logger.info("Birthday email sent to %s", u["user_id"])
@@ -4917,8 +4994,70 @@ async def job_annual_scoreboard():
         f"your top stocks, completed lessons, and more. Check it out!"
     )
 
-    def _scoreboard_email_html(name: str, year: int) -> str:
+    def _scoreboard_email_html(name: str, year: int, language: str = "es") -> str:
         first = name.split()[0] if name else "Inversor"
+        is_en = language == "en"
+        if is_en:
+            return f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0d1117;padding:32px 0;">
+  <tr><td align="center">
+    <table width="560" cellpadding="0" cellspacing="0" style="background:#090f1f;border-radius:20px;border:1px solid rgba(0,212,126,0.2);overflow:hidden;max-width:560px;width:100%;">
+      <!-- Accent bar -->
+      <tr><td style="height:4px;background:linear-gradient(90deg,rgba(0,212,126,0.6),#00d47e);"></td></tr>
+      <tr><td style="padding:32px 36px 28px;">
+        <!-- Logo -->
+        <table cellpadding="0" cellspacing="0"><tr>
+          <td style="background:#00d47e;border-radius:10px;width:36px;height:36px;text-align:center;vertical-align:middle;">
+            <span style="color:#0d1117;font-size:18px;font-weight:900;line-height:36px;">N</span>
+          </td>
+          <td style="padding-left:10px;color:#fff;font-size:16px;font-weight:900;">Nuvos AI</td>
+        </tr></table>
+
+        <!-- Hero -->
+        <p style="margin:28px 0 6px;font-size:11px;font-weight:900;color:#00d47e;letter-spacing:1px;text-transform:uppercase;">Annual Recap</p>
+        <h1 style="margin:0 0 4px;font-size:36px;font-weight:900;color:#fff;line-height:1.1;letter-spacing:-1px;">Annual ScoreBoard<br>{year}</h1>
+        <p style="margin:12px 0 0;font-size:15px;color:#8fa3c0;line-height:1.6;">Hi {first}, your annual investor recap is now available on Nuvos AI.</p>
+
+        <!-- Card -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0 0;">
+          <tr><td style="background:rgba(0,212,126,0.06);border:1px solid rgba(0,212,126,0.18);border-radius:16px;padding:24px;">
+            <p style="margin:0 0 16px;font-size:22px;">🏆</p>
+            <p style="margin:0 0 10px;font-size:16px;font-weight:900;color:#fff;">What you'll find in your ScoreBoard</p>
+            <table cellpadding="0" cellspacing="0">
+              <tr><td style="padding:5px 0;color:#8fa3c0;font-size:14px;">🚀&nbsp; Top 3 best-performing stocks in your portfolio YTD</td></tr>
+              <tr><td style="padding:5px 0;color:#8fa3c0;font-size:14px;">🧠&nbsp; Total lessons, simulations, and debates completed</td></tr>
+              <tr><td style="padding:5px 0;color:#8fa3c0;font-size:14px;">🏆&nbsp; The sector you had the most exposure to this year</td></tr>
+              <tr><td style="padding:5px 0;color:#8fa3c0;font-size:14px;">📊&nbsp; Days active on the platform during {year}</td></tr>
+            </table>
+          </td></tr>
+        </table>
+
+        <!-- CTA -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0 0;">
+          <tr><td align="center">
+            <a href="https://nuvosai.app/profile" style="display:inline-block;background:#00d47e;color:#fff;font-size:15px;font-weight:900;text-decoration:none;padding:14px 40px;border-radius:14px;">See my Annual ScoreBoard →</a>
+          </td></tr>
+        </table>
+
+        <p style="margin:28px 0 0;font-size:13px;color:#374151;text-align:center;">
+          This is your {year} recap as an investor on Nuvos AI.<br>
+          Thank you for trusting us to help you grow as an informed investor.
+        </p>
+      </td></tr>
+
+      <!-- Footer -->
+      <tr><td style="border-top:1px solid rgba(255,255,255,0.06);padding:20px 36px;text-align:center;">
+        <p style="margin:0;font-size:12px;color:#374151;">Nuvos AI · Your educational investing mentor</p>
+        <p style="margin:6px 0 0;font-size:11px;color:#1f2937;">NOTE: This is not financial advice. It is investor education.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>"""
         return f"""<!DOCTYPE html>
 <html lang="es">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -5011,15 +5150,17 @@ async def job_annual_scoreboard():
             logger.info("RESEND_API_KEY not set — skipping Annual ScoreBoard emails")
             return
 
-        users_res  = await run_query(db.table("user_profiles").select("user_id,name"))
+        users_res  = await run_query(db.table("user_profiles").select("user_id,name,preferred_language"))
         auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
         email_sent = 0
         for u in (users_res.data or []):
             email = auth_users.get(u["user_id"])
             if not email:
                 continue
-            html = _scoreboard_email_html(u.get("name") or "Inversor", year)
-            ok   = await send_email(email, f"🏆 Tu Annual ScoreBoard {year} está listo — Nuvos AI", html)
+            is_en = (u.get("preferred_language") or "es") == "en"
+            html = _scoreboard_email_html(u.get("name") or "Inversor", year, language="en" if is_en else "es")
+            subject = f"🏆 Your {year} Annual ScoreBoard is ready — Nuvos AI" if is_en else f"🏆 Tu Annual ScoreBoard {year} está listo — Nuvos AI"
+            ok   = await send_email(email, subject, html)
             if ok:
                 email_sent += 1
             await asyncio.sleep(random.uniform(0.05, 0.15))

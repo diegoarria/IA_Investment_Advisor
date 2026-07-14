@@ -313,7 +313,27 @@ async def forgot_password(request: Request, body: dict):
             code = f"{secrets.randbelow(1000000):06d}"
             _set_reset_code(f"reset_code:email:{email}", {"code": code})
             from app.services.email_service import send_email
-            html = f"""<!DOCTYPE html>
+            from app.core.database import run_query
+            lang_res = await run_query(
+                db.table("user_profiles").select("preferred_language").eq("user_id", user.id).limit(1)
+            )
+            is_en = ((lang_res.data or [{}])[0].get("preferred_language") or "es") == "en"
+            if is_en:
+                html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#0f1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <div style="max-width:480px;margin:0 auto;padding:40px 20px">
+    <div style="background:#1a1d27;border-radius:20px;padding:32px;border:1px solid #2a2d3a">
+      <div style="color:#fff;font-size:20px;font-weight:800;margin-bottom:8px">Verification code</div>
+      <p style="color:#9ca3af;font-size:14px;margin:0 0 28px">Use this code to reset your Nuvos AI password. It expires in 15 minutes.</p>
+      <div style="background:#0f1117;border-radius:14px;padding:28px;text-align:center;border:1px solid #2a2d3a;letter-spacing:10px;font-size:36px;font-weight:900;color:#22c55e;margin-bottom:24px">{code}</div>
+      <p style="color:#6b7280;font-size:12px;margin:0;text-align:center">If you didn't request this, ignore this email.</p>
+    </div>
+  </div>
+</body></html>"""
+                subject = "Your verification code — Nuvos AI"
+            else:
+                html = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#0f1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
   <div style="max-width:480px;margin:0 auto;padding:40px 20px">
@@ -325,7 +345,8 @@ async def forgot_password(request: Request, body: dict):
     </div>
   </div>
 </body></html>"""
-            await send_email(email, "Tu código de verificación — Nuvos AI", html)
+                subject = "Tu código de verificación — Nuvos AI"
+            await send_email(email, subject, html)
     except Exception:
         pass
     return {"message": "Si el email existe recibirás un código en tu correo"}

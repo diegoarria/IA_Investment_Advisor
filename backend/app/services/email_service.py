@@ -257,7 +257,40 @@ Tono: cálido, profesional, directo. Como un mentor que se preocupa por el progr
 
 # ── Monthly Report ────────────────────────────────────────────────────────────
 
-def build_monthly_report_html(name: str, report: dict, month: str) -> str:
+_MONTHLY_REPORT_COPY = {
+    "es": {
+        "eyebrow": "Nuvos AI · Reporte Mensual", "title_prefix": "Reporte Mensual",
+        "greeting": "aquí está el análisis completo de tu portafolio",
+        "top_holding": "Mejor posición", "exec_summary": "Resumen Ejecutivo",
+        "top_positions": "Principales Posiciones", "col_ticker": "Ticker",
+        "col_company": "Empresa", "col_value": "Valor", "col_return": "Retorno",
+        "mentor_note": "Nota de tu Mentor", "actions": "Acciones para el Próximo Mes",
+        "risk": "Evaluación de Riesgo", "insight": "Insight del Mes",
+        "return_month": "Retorno del mes", "total_value": "Valor total",
+        "unrealized": "Ganancia no realizada",
+        "footer1": "Solo educativo. No constituye asesoramiento financiero profesional.",
+        "footer2": "Generado automáticamente a partir de los datos de tu portafolio en la app.",
+        "hello": "Hola",
+    },
+    "en": {
+        "eyebrow": "Nuvos AI · Monthly Report", "title_prefix": "Monthly Report",
+        "greeting": "here's the complete analysis of your portfolio",
+        "top_holding": "Top holding", "exec_summary": "Executive Summary",
+        "top_positions": "Top Positions", "col_ticker": "Ticker",
+        "col_company": "Company", "col_value": "Value", "col_return": "Return",
+        "mentor_note": "Note from your Mentor", "actions": "Actions for Next Month",
+        "risk": "Risk Assessment", "insight": "Insight of the Month",
+        "return_month": "Return this month", "total_value": "Total value",
+        "unrealized": "Unrealized gain",
+        "footer1": "For educational purposes only. Not professional financial advice.",
+        "footer2": "Automatically generated from your portfolio data in the app.",
+        "hello": "Hi",
+    },
+}
+
+
+def build_monthly_report_html(name: str, report: dict, month: str, language: str = "es") -> str:
+    t = _MONTHLY_REPORT_COPY.get(language, _MONTHLY_REPORT_COPY["es"])
     perf        = report.get("performance", {})
     metrics     = report.get("metrics", {})
     positions   = report.get("top_positions", [])[:5]
@@ -293,7 +326,7 @@ def build_monthly_report_html(name: str, report: dict, month: str) -> str:
     if best.get("ticker"):
         best_html = (
             '<div>'
-            '<p style="color:#6b7280;font-size:11px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px">Mejor posición</p>'
+            f'<p style="color:#6b7280;font-size:11px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px">{t["top_holding"]}</p>'
             f'<p style="color:#22c55e;font-size:18px;font-weight:800;margin:0">'
             f'{best.get("ticker","—")} +{best.get("gain_pct",0):.1f}%</p>'
             '</div>'
@@ -304,7 +337,7 @@ def build_monthly_report_html(name: str, report: dict, month: str) -> str:
     if exec_summary:
         exec_html = (
             '<div style="background:#1a1d27;border:1px solid #2a2d3a;border-radius:16px;padding:24px;margin-bottom:20px">'
-            '<p style="color:#00a85e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">Resumen Ejecutivo</p>'
+            f'<p style="color:#00a85e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">{t["exec_summary"]}</p>'
             f'<p style="color:#d1d5db;font-size:15px;line-height:1.7;margin:0">{exec_summary}</p>'
             '</div>'
         )
@@ -327,14 +360,14 @@ def build_monthly_report_html(name: str, report: dict, month: str) -> str:
         positions_html = (
             '<div style="background:#1a1d27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">'
             '<div style="padding:16px 20px;border-bottom:1px solid #2a2d3a">'
-            '<p style="color:#00a85e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">Principales Posiciones</p>'
+            f'<p style="color:#00a85e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">{t["top_positions"]}</p>'
             '</div>'
             '<table style="width:100%;border-collapse:collapse">'
             '<thead><tr style="background:#0f1117">'
-            '<th style="padding:8px 12px;color:#6b7280;font-size:11px;font-weight:600;text-align:left;text-transform:uppercase;letter-spacing:1px">Ticker</th>'
-            '<th style="padding:8px 12px;color:#6b7280;font-size:11px;font-weight:600;text-align:left;text-transform:uppercase;letter-spacing:1px">Empresa</th>'
-            '<th style="padding:8px 12px;color:#6b7280;font-size:11px;font-weight:600;text-align:right;text-transform:uppercase;letter-spacing:1px">Valor</th>'
-            '<th style="padding:8px 12px;color:#6b7280;font-size:11px;font-weight:600;text-align:right;text-transform:uppercase;letter-spacing:1px">Retorno</th>'
+            f'<th style="padding:8px 12px;color:#6b7280;font-size:11px;font-weight:600;text-align:left;text-transform:uppercase;letter-spacing:1px">{t["col_ticker"]}</th>'
+            f'<th style="padding:8px 12px;color:#6b7280;font-size:11px;font-weight:600;text-align:left;text-transform:uppercase;letter-spacing:1px">{t["col_company"]}</th>'
+            f'<th style="padding:8px 12px;color:#6b7280;font-size:11px;font-weight:600;text-align:right;text-transform:uppercase;letter-spacing:1px">{t["col_value"]}</th>'
+            f'<th style="padding:8px 12px;color:#6b7280;font-size:11px;font-weight:600;text-align:right;text-transform:uppercase;letter-spacing:1px">{t["col_return"]}</th>'
             f'</tr></thead><tbody>{pos_rows}</tbody></table></div>'
         )
 
@@ -344,7 +377,7 @@ def build_monthly_report_html(name: str, report: dict, month: str) -> str:
         mentor_html = (
             '<div style="background:linear-gradient(135deg,#0f1117,#1a1d27);border:1px solid #00a85e33;'
             'border-left:3px solid #00a85e;border-radius:0 16px 16px 0;padding:24px;margin-bottom:20px">'
-            '<p style="color:#00a85e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">Nota de tu Mentor</p>'
+            f'<p style="color:#00a85e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">{t["mentor_note"]}</p>'
             f'<p style="color:#d1d5db;font-size:15px;line-height:1.7;margin:0;font-style:italic">"{mentor_note}"</p>'
             '</div>'
         )
@@ -363,7 +396,7 @@ def build_monthly_report_html(name: str, report: dict, month: str) -> str:
     if action_html:
         actions_html = (
             '<div style="background:#1a1d27;border:1px solid #2a2d3a;border-radius:16px;padding:24px;margin-bottom:20px">'
-            '<p style="color:#00a85e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 16px">Acciones para el Próximo Mes</p>'
+            f'<p style="color:#00a85e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 16px">{t["actions"]}</p>'
             f'{action_html}'
             '</div>'
         )
@@ -374,7 +407,7 @@ def build_monthly_report_html(name: str, report: dict, month: str) -> str:
     if risk_assess:
         risk_html = (
             '<div style="flex:1;min-width:240px;background:#1a1d27;border:1px solid #f59e0b33;border-radius:16px;padding:20px">'
-            '<p style="color:#f59e0b;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 10px">Evaluación de Riesgo</p>'
+            f'<p style="color:#f59e0b;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 10px">{t["risk"]}</p>'
             f'<p style="color:#d1d5db;font-size:13px;line-height:1.6;margin:0">{risk_assess}</p>'
             '</div>'
         )
@@ -382,7 +415,7 @@ def build_monthly_report_html(name: str, report: dict, month: str) -> str:
     if learning:
         learning_html = (
             '<div style="flex:1;min-width:240px;background:#1a1d27;border:1px solid #8b5cf633;border-radius:16px;padding:20px">'
-            '<p style="color:#a78bfa;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 10px">Insight del Mes</p>'
+            f'<p style="color:#a78bfa;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 10px">{t["insight"]}</p>'
             f'<p style="color:#d1d5db;font-size:13px;line-height:1.6;margin:0">{learning}</p>'
             '</div>'
         )
@@ -399,7 +432,7 @@ def build_monthly_report_html(name: str, report: dict, month: str) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Reporte Mensual — {month}</title>
+  <title>{t["title_prefix"]} — {month}</title>
 </head>
 <body style="margin:0;padding:0;background:#0a0c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
 <div style="max-width:620px;margin:0 auto;padding:32px 16px">
@@ -407,24 +440,24 @@ def build_monthly_report_html(name: str, report: dict, month: str) -> str:
   <!-- Header -->
   <div style="text-align:center;margin-bottom:28px">
     <div style="display:inline-block;background:linear-gradient(135deg,#00a85e22,#3b82f622);border:1px solid #00a85e44;border-radius:16px;padding:12px 24px;margin-bottom:16px">
-      <span style="color:#00a85e;font-weight:800;font-size:13px;letter-spacing:2px;text-transform:uppercase">Nuvos AI · Reporte Mensual</span>
+      <span style="color:#00a85e;font-weight:800;font-size:13px;letter-spacing:2px;text-transform:uppercase">{t["eyebrow"]}</span>
     </div>
     <h1 style="color:#fff;font-size:28px;font-weight:900;margin:0 0 6px">{month}</h1>
-    <p style="color:#6b7280;font-size:15px;margin:0">Hola <strong style="color:#d1d5db">{name}</strong>, aquí está el análisis completo de tu portafolio</p>
+    <p style="color:#6b7280;font-size:15px;margin:0">{t["hello"]} <strong style="color:#d1d5db">{name}</strong>, {t["greeting"]}</p>
   </div>
 
   <!-- Performance hero -->
   <div style="background:linear-gradient(135deg,#1a1d27,#1e2235);border:1px solid #2a2d3a;border-radius:20px;padding:28px;margin-bottom:20px;text-align:center">
-    <p style="color:#9ca3af;font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px">Retorno del mes</p>
+    <p style="color:#9ca3af;font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px">{t["return_month"]}</p>
     <div style="font-size:48px;font-weight:900;color:{gain_color};margin:0 0 4px">{ret_sign}{ret_pct:.2f}%</div>
     {vs_sp500_html}
     <div style="display:flex;justify-content:center;gap:32px;flex-wrap:wrap">
       <div>
-        <p style="color:#6b7280;font-size:11px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px">Valor total</p>
+        <p style="color:#6b7280;font-size:11px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px">{t["total_value"]}</p>
         <p style="color:#fff;font-size:18px;font-weight:800;margin:0">{fmt_usd(total_val)}</p>
       </div>
       <div>
-        <p style="color:#6b7280;font-size:11px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px">Ganancia no realizada</p>
+        <p style="color:#6b7280;font-size:11px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px">{t["unrealized"]}</p>
         <p style="color:{gain_unreal_color};font-size:18px;font-weight:800;margin:0">{fmt_usd(unreal_gain)}</p>
       </div>
       {best_html}
@@ -440,10 +473,10 @@ def build_monthly_report_html(name: str, report: dict, month: str) -> str:
   <!-- Footer -->
   <div style="border-top:1px solid #2a2d3a;padding-top:24px;text-align:center">
     <p style="color:#6b7280;font-size:12px;margin:0 0 8px">
-      <strong style="color:#9ca3af">Nuvos AI</strong> — Solo educativo. No constituye asesoramiento financiero profesional.
+      <strong style="color:#9ca3af">Nuvos AI</strong> — {t["footer1"]}
     </p>
     <p style="color:#4b5563;font-size:11px;margin:0">
-      Generado automáticamente a partir de los datos de tu portafolio en la app.
+      {t["footer2"]}
     </p>
   </div>
 
@@ -495,7 +528,8 @@ async def generate_and_send_monthly_report(user_id: str, email: str, name: str) 
     try:
         performance = await asyncio.to_thread(_compute_performance, portfolio)
         profile     = _get_user_profile(user_id)
-        report      = await ai_service.generate_monthly_report(portfolio, performance, profile)
+        language    = (getattr(profile, "preferred_language", None) or "es") if profile else "es"
+        report      = await ai_service.generate_monthly_report(portfolio, performance, profile, language=language)
     except Exception:
         return False
 
@@ -515,14 +549,17 @@ async def generate_and_send_monthly_report(user_id: str, email: str, name: str) 
     }
     report["top_positions"] = performance["positions"]
 
-    month = datetime.now().strftime("%B %Y").capitalize()
-    html  = build_monthly_report_html(name, report, month)
+    # strftime's %B depends on server locale — spelled out explicitly instead,
+    # same fix applied to the worker's daily/weekly email month labels.
+    _ES_MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+    _EN_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+    _now = datetime.now()
+    is_en = language == "en"
+    month = f"{(_EN_MONTHS if is_en else _ES_MONTHS)[_now.month - 1]} {_now.year}"
+    html  = build_monthly_report_html(name, report, month, language=language)
     first = name.split()[0] if name else "Inversor"
-    return await send_email(
-        email,
-        f"📊 Tu reporte mensual de {month}, {first}",
-        html,
-    )
+    subject = f"📊 Your {month} report, {first}" if is_en else f"📊 Tu reporte mensual de {month}, {first}"
+    return await send_email(email, subject, html)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -872,10 +909,48 @@ def build_earnings_results_html(
 # Birthday Email
 # ─────────────────────────────────────────────────────────────────────────────
 
-def build_birthday_html(name: str) -> str:
-    first   = name.split()[0] if name else "Inversor"
-    header  = _nuvos_email_header("Un regalo especial para ti 🎁")
+def build_birthday_html(name: str, language: str = "es") -> str:
+    first = name.split()[0] if name else "Inversor"
+    is_en = language == "en"
     cta_url = "https://nuvosai.com/premium-success?source=birthday"
+
+    if is_en:
+        header = _nuvos_email_header("A special gift for you 🎁")
+        return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a0c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:32px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+
+    {header}
+
+    <div style="background:#1a1d27;padding:32px;text-align:center">
+      <div style="font-size:56px;margin-bottom:16px">🎂</div>
+      <h1 style="color:#fff;font-size:28px;font-weight:900;margin:0 0 10px">Happy birthday, {first}!</h1>
+      <p style="color:#9ca3af;font-size:15px;margin:0 0 28px;line-height:1.7">On behalf of the whole Nuvos AI team,<br>we wish you a day full of personal and financial success.</p>
+
+      <div style="background:linear-gradient(135deg,#0f2a1a,#111318);border:1px solid rgba(0,168,94,0.35);border-radius:16px;padding:28px;margin-bottom:24px">
+        <div style="font-size:32px;margin-bottom:12px">🎁</div>
+        <p style="color:#00a85e;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin:0 0 10px">YOUR BIRTHDAY GIFT</p>
+        <p style="color:#fff;font-size:22px;font-weight:900;margin:0 0 10px">7 days of Premium access</p>
+        <p style="color:#9ca3af;font-size:14px;margin:0 0 22px;line-height:1.7">No cost. No credit card.<br>Real-time portfolio, earnings analysis, personalized AI, and more.</p>
+        <a href="{cta_url}" style="display:inline-block;background:#00a85e;color:#000;font-weight:800;font-size:15px;padding:14px 32px;border-radius:12px;text-decoration:none">🎁 Activate my Premium gift</a>
+      </div>
+
+      <p style="color:#6b7280;font-size:14px;margin:0 0 0;line-height:1.7">Enjoy! 🥂<br><strong style="color:#d1d5db">The Nuvos AI team</strong></p>
+
+      <div style="border-top:1px solid #2a2d3a;padding-top:16px;margin-top:24px">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">With Nuvos, invest without fear.</p>
+        <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — For educational purposes only. Not professional financial advice.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>"""
+
+    header = _nuvos_email_header("Un regalo especial para ti 🎁")
     return f"""<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>

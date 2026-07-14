@@ -2277,6 +2277,7 @@ async def generate_monthly_report(
     portfolio: list[dict],
     performance: dict,
     profile: UserProfile | None = None,
+    language: str = "es",
 ) -> dict:
     system_prompt = build_system_prompt(profile)
     mentor = profile.mentor if profile else "mentor general"
@@ -2321,7 +2322,9 @@ JSON esperado:
   "mentor_note": "Nota del mentor: qué hizo bien, qué mejorar, oportunidades próximo mes (3-4 oraciones)",
   "action_items": ["Acción 1", "Acción 2", "Acción 3"],
   "learning_insight": "Insight conductual sobre el perfil real del inversor este mes"
-}}"""
+}}
+
+{"Write every text value in English. Keep the JSON field names exactly as shown above." if language == "en" else "Escribe todos los valores de texto en español."}"""
 
     response = await _claude(
         model=settings.claude_model,
