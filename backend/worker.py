@@ -2320,6 +2320,189 @@ def _fetch_ticker_news(ticker: str) -> list[str]:
     return fetch_ticker_news(ticker)
 
 
+_MAJOR_NEWS_DAILY_CAP = 3
+_MAJOR_NEWS_CATEGORY_EMOJI = {"geopolitics": "🌐", "macro": "📊", "corporate": "🏢"}
+
+
+async def _curate_major_news(raw_search_text: str, already_sent_headlines: list[str], max_items: int) -> list[dict]:
+    """Ask Claude to filter a broad news search down to ONLY genuinely major
+    geopolitical/macro/big-corporate stories — explicitly excluding analyst
+    opinions (price-target changes, upgrades/downgrades), which are noise for
+    this feature even though they're valid "why" catalysts elsewhere in the
+    app. Returns [] if nothing qualifies — never forces a filler story just
+    to fill the quota."""
+    import anthropic, json as _json
+
+    already_sent_str = (
+        "\n".join(f"- {h}" for h in already_sent_headlines)
+        if already_sent_headlines else "(ninguna todavía hoy)"
+    )
+
+    prompt = f"""Eres un editor financiero senior filtrando noticias para una alerta de "solo lo verdaderamente importante" — nada de ruido.
+
+RESULTADOS DE BÚSQUEDA WEB (fuente cruda, puede contener info irrelevante):
+{raw_search_text}
+
+NOTICIAS YA ENVIADAS HOY (no repitas ninguna de estas, aunque aparezcan en la búsqueda):
+{already_sent_str}
+
+TU TAREA: de toda esa información, extrae ÚNICAMENTE historias que caigan en estas 3 categorías:
+
+1. GEOPOLÍTICA que afecte la economía global: tensiones o conflictos entre países que muevan mercados (ej. EE.UU. vs Irán, China vs EE.UU., sanciones, guerras, bloqueos comerciales).
+2. INDICADORES MACROECONÓMICOS: decisiones de tasas de interés (Fed u otros bancos centrales), datos de desempleo, PIB, inflación (CPI/PCE), políticas monetarias, condiciones de crédito.
+3. RESULTADOS O NOTICIAS CORPORATIVAS DE GRAN IMPACTO GLOBAL: solo de empresas verdaderamente grandes (Nvidia, Apple, Google, Amazon, Microsoft, Meta, etc.) y solo si el hecho en sí mismo es noticia mayor (earnings que sorprenden fuertemente al mercado completo, un producto/decisión que mueve al sector entero) — NUNCA opiniones de analistas.
+
+EXCLUYE SIEMPRE, sin excepción (esto NO cuenta como noticia relevante aquí):
+- Cualquier cosa tipo "Banco X sube/baja el precio objetivo de la acción Y" — esto es ruido, no un evento real
+- Upgrades/downgrades de analistas
+- Especulación o rumores sin confirmar
+- Noticias de empresas medianas/pequeñas sin impacto en toda la economía o el mercado en general
+
+REGLAS:
+- Máximo {max_items} historias — si genuinamente no hay {max_items} historias que califiquen, devuelve menos, incluso cero. NUNCA rellenes con algo débil solo para completar el número.
+- Si no hay NADA que califique, responde exactamente: {{"items": []}}
+- Cada item debe tener una notificación push MUY corta (máximo 90-120 caracteres), directa, sin relleno — el usuario la lee en la pantalla de bloqueo.
+
+Responde ÚNICAMENTE con JSON válido, sin texto adicional, en este formato exacto:
+{{"items": [{{"category": "geopolitics|macro|corporate", "headline": "título corto interno para dedup", "push_body": "texto de la notificación, máx 90-120 caracteres"}}]}}"""
+
+    try:
+        client = anthropic.AsyncAnthropic()
+        resp = await asyncio.wait_for(
+            client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=500,
+                messages=[{"role": "user", "content": prompt}],
+            ),
+            timeout=20.0,
+        )
+        in_tok = getattr(resp.usage, "input_tokens", 0)
+        out_tok = getattr(resp.usage, "output_tokens", 0)
+        logger.info("LLM major_news_curate: in=%d out=%d cost=$%.5f", in_tok, out_tok,
+                    in_tok / 1e6 * 0.80 + out_tok / 1e6 * 4.0)
+        raw = resp.content[0].text.strip()
+        # Strip accidental markdown code fences
+        if raw.startswith("```"):
+            raw = raw.strip("`")
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+        parsed = _json.loads(raw)
+        items = parsed.get("items", [])
+        return items[:max_items]
+    except Exception as e:
+        logger.warning("Major news curation failed: %s — treating as no qualifying news", e)
+        return []
+
+
+async def job_major_news_alert():
+    """Every 2 hours, 7 days a week, 8am-9pm ET — sends up to 3 genuinely
+    major geopolitical/macro/big-corporate news alerts PER DAY (shared
+    across ALL users, not per-user, not premium-gated). This is a "warn
+    everyone about big events" feature, not personalized analysis — most
+    cycles should send nothing, since most news isn't actually major.
+
+    Runs on weekends too (deliberately, unlike market-hours jobs) since
+    geopolitical/macro news doesn't stop when markets are closed.
+
+    Daily cap of 3 is enforced via major_news_events (DB table), not an
+    in-memory/Redis cache — same lesson as the price-alert dedup fix: a
+    cache-based counter resets on every worker restart/redeploy.
+    """
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push, _today_et
+    from app.services.perplexity_service import search_web
+    import hashlib
+
+    db = get_supabase()
+    today = _today_et()
+
+    try:
+        sent_res = await run_query(
+            db.table("major_news_events").select("headline_hash,headline").eq("event_date", today)
+        )
+        already_sent = sent_res.data or []
+        slots_remaining = _MAJOR_NEWS_DAILY_CAP - len(already_sent)
+        if slots_remaining <= 0:
+            logger.info("job_major_news_alert: %d/%d alerts already sent today — skipping",
+                        len(already_sent), _MAJOR_NEWS_DAILY_CAP)
+            return
+
+        query = (
+            "¿Cuáles son las noticias más importantes de las últimas horas que podrían afectar "
+            "a los mercados financieros globales? Busca específicamente: 1) tensiones geopolíticas "
+            "entre países que afecten la economía (ej. EE.UU./Irán, China/EE.UU., sanciones, conflictos "
+            "comerciales), 2) datos o decisiones macroeconómicas (tasas de interés, Fed, desempleo, PIB, "
+            "inflación, política monetaria), 3) resultados o anuncios de gran impacto de empresas grandes "
+            "(Nvidia, Apple, Google, Amazon, Microsoft, Meta, etc.). Ignora cambios de precio objetivo de "
+            "analistas o notas de research — eso no es lo que busco. Da fecha y fuente si es posible."
+        )
+        raw = await asyncio.to_thread(search_web, query, False)
+        if not raw:
+            logger.info("job_major_news_alert: Perplexity returned nothing this cycle")
+            return
+
+        items = await _curate_major_news(raw, [r["headline"] for r in already_sent], slots_remaining)
+        if not items:
+            logger.info("job_major_news_alert: no genuinely major news found this cycle")
+            return
+
+        # Recipients: ALL users with push_news_general enabled (default on —
+        # same opt-out preference used by job_ipo_alerts), not premium-gated.
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,push_news_general")
+            .neq("push_news_general", False)
+        )
+        opted_in = {p["user_id"] for p in (prefs_res.data or [])}
+        token_res = await run_query(
+            db.table("user_profiles").select("user_id,push_token")
+            .neq("push_token", "").not_.is_("push_token", "null")
+        )
+        expo_uids = {r["user_id"] for r in (token_res.data or [])}
+        web_res   = await run_query(db.table("web_push_subscriptions").select("user_id"))
+        web_uids  = {r["user_id"] for r in (web_res.data or [])}
+        all_uids  = list((expo_uids | web_uids) & opted_in)
+        if not all_uids:
+            logger.info("job_major_news_alert: no opted-in users with a push channel")
+            return
+
+        sent_count = 0
+        for item in items:
+            headline = item.get("headline", "").strip()
+            push_body = item.get("push_body", "").strip()
+            category = item.get("category", "corporate")
+            if not headline or not push_body:
+                continue
+            h = hashlib.md5(headline.encode()).hexdigest()
+            if h in {r["headline_hash"] for r in already_sent}:
+                continue  # model re-suggested something already sent today, skip it
+
+            try:
+                await run_query(db.table("major_news_events").insert({
+                    "event_date": today, "headline_hash": h, "headline": headline,
+                    "category": category, "push_body": push_body,
+                }))
+            except Exception as e:
+                # Unique index on (event_date, headline_hash) — another concurrent
+                # tick already inserted this exact story; skip sending a duplicate.
+                logger.info("job_major_news_alert: %s already recorded today (%s) — skipping send", headline, e)
+                continue
+
+            emoji = _MAJOR_NEWS_CATEGORY_EMOJI.get(category, "📰")
+            title = f"{emoji} Evento importante"
+            for i, uid in enumerate(all_uids):
+                if i % 100 == 0 and i > 0:
+                    await asyncio.sleep(12)
+                await asyncio.sleep(random.uniform(0, 0.05))
+                await send_push(uid, "major_news_alert", title, push_body, {"screen": "home"}, db)
+            sent_count += 1
+            logger.info("job_major_news_alert: sent '%s' (%s) to %d users", headline, category, len(all_uids))
+
+        logger.info("job_major_news_alert: %d new alert(s) sent this cycle", sent_count)
+    except Exception as e:
+        logger.error("job_major_news_alert failed: %s", e)
+
+
 async def job_ipo_alerts():
     """7:45 AM ET daily — notify all opted-in users about IPOs priced today or expected tomorrow.
     Deduped per symbol per user so each IPO fires exactly one notification."""
@@ -4992,6 +5175,11 @@ async def main():
     # misfire_grace_time: if Railway restarts the worker near a job's fire time,
     # APScheduler will still run the job if it missed by less than this window.
     scheduler = AsyncIOScheduler(job_defaults={"misfire_grace_time": 600})
+
+    # ── 7 days/week: major geopolitical/macro/corporate news alerts (max 3/day) ──
+    # Deliberately includes weekends — unlike the market-hours jobs below,
+    # geopolitical/macro news doesn't pause when markets are closed.
+    scheduler.add_job(job_major_news_alert,     "cron", hour="8-20/2", minute=0, timezone="America/New_York")
 
     # ── Mon-Fri: core daily jobs ──────────────────────────────────────────────
     scheduler.add_job(job_ipo_alerts,            "cron",                        hour=7,       minute=45,    timezone="America/New_York")
