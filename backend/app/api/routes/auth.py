@@ -34,10 +34,22 @@ _COOKIE_KW = {
 }
 
 
+_REFRESH_COOKIE_MAX_AGE = 60 * 60 * 24 * 90  # 90 days
+
+
 def _set_auth_cookies(response: Response, access_token: str, refresh_token: str | None) -> None:
+    # This is a SLIDING window, not a fixed one: every successful call to
+    # /api/auth/refresh re-sets this cookie with a fresh 90-day clock (see the
+    # `refresh_token` route below, which calls this on every refresh). So a
+    # user who opens the app at least once every ~90 days never sees a login
+    # screen — only real inactivity beyond that, or an explicit logout /
+    # password change, actually ends the session. Not made infinite on
+    # purpose: an unlimited refresh_token is effectively a permanent
+    # credential, and if one were ever leaked it would grant indefinite
+    # account access with no natural expiry to cut it off.
     response.set_cookie("access_token", access_token, max_age=60 * 60, **_COOKIE_KW)
     if refresh_token:
-        response.set_cookie("refresh_token", refresh_token, max_age=60 * 60 * 24 * 30, **_COOKIE_KW)
+        response.set_cookie("refresh_token", refresh_token, max_age=_REFRESH_COOKIE_MAX_AGE, **_COOKIE_KW)
 
 
 def _clear_auth_cookies(response: Response) -> None:
