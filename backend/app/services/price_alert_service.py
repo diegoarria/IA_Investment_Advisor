@@ -298,3 +298,38 @@ Responde solo con el texto de la razón (sin punto final) o con NO_CATALYST."""
     except Exception as e:
         logger.warning("Claude price alert WHY call FAILED for %s: %s — treating as NO_CATALYST but this is a failure, not a real finding", ticker, e)
         return NO_CATALYST
+
+
+async def translate_why_to_english(why_es: str) -> str:
+    """Translates an already-generated Spanish WHY clause (from
+    generate_price_alert_why) to a natural-sounding English equivalent —
+    kept as a cheap, separate call rather than adding an English branch to
+    the main prompt above, since that prompt's NO_CATALYST judgment logic
+    was carefully tuned this session and duplicating it risks drifting the
+    two languages out of sync. Only ever called with a real (non-NO_CATALYST)
+    clause. Falls back to the Spanish text if the call fails — better than
+    silently dropping the WHY entirely."""
+    import anthropic
+    from app.core.config import settings
+
+    prompt = f"""Translate this short English push-notification clause fragment from Spanish to natural English. It follows a "{{emoji}} {{Ticker}} rose/fell {{X.XX}}%" prefix, so it must flow as a continuation (lowercase start, no period at the end, ~70 characters max).
+
+Spanish: "{why_es}"
+
+Reply with ONLY the English translation, nothing else."""
+
+    try:
+        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+        resp = await asyncio.wait_for(
+            client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=100,
+                messages=[{"role": "user", "content": prompt}],
+            ),
+            timeout=10.0,
+        )
+        result = resp.content[0].text.strip().strip('"').strip("'")
+        return result or why_es
+    except Exception as e:
+        logger.warning("WHY translation to English failed: %s — falling back to Spanish text", e)
+        return why_es

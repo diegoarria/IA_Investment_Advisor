@@ -281,6 +281,20 @@ def _company_name(ticker: str) -> str:
     return _COMPANY_NAMES.get(ticker, ticker)
 
 
+# strftime's %B depends on the server's locale, which isn't guaranteed to be
+# Spanish (or English) on Railway — that's what produced "10 de July" instead
+# of "10 de julio". Spelled out explicitly instead, shared across every job
+# that needs a localized month name.
+_SPANISH_MONTHS = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+]
+_ENGLISH_MONTHS = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+]
+
+
 # A few recognizable brand emojis for the compact price-mover push (matches
 # the requested "🍎 Apple", "📦 Amazon" style) — everything else falls back to
 # a plain up/down chart emoji rather than guessing a brand icon that isn't
@@ -820,11 +834,11 @@ async def _fetch_market_open_indices() -> dict:
     }
 
 
-def _market_open_lines(sp500_pct, sp500_points, nasdaq_pct, nasdaq_points) -> tuple[str, str]:
+def _market_open_lines(sp500_pct, sp500_points, nasdaq_pct, nasdaq_points, language: str = "es") -> tuple[str, str]:
     """Renders the two index lines shared by job_market_open and the
     admin test-trigger endpoint, so they can never drift apart."""
     def _pct_str(pct):
-        return f"{pct:+.2f}%" if pct is not None else "s/d"
+        return f"{pct:+.2f}%" if pct is not None else ("n/a" if language == "en" else "s/d")
 
     def _points_str(points):
         return f"{points:,.0f}" if points is not None else None
@@ -834,8 +848,9 @@ def _market_open_lines(sp500_pct, sp500_points, nasdaq_pct, nasdaq_points) -> tu
     sp_points_str = _points_str(sp500_points)
     nq_points_str = _points_str(nasdaq_points)
 
-    sp_line = f"S&P 500: {sp_points_str} ({sp_pct_str} hoy)" if sp_points_str else f"S&P 500 {sp_pct_str}"
-    nq_line = f"Nasdaq: {nq_points_str} ({nq_pct_str} hoy)" if nq_points_str else f"Nasdaq {nq_pct_str}"
+    today_word = "today" if language == "en" else "hoy"
+    sp_line = f"S&P 500: {sp_points_str} ({sp_pct_str} {today_word})" if sp_points_str else f"S&P 500 {sp_pct_str}"
+    nq_line = f"Nasdaq: {nq_points_str} ({nq_pct_str} {today_word})" if nq_points_str else f"Nasdaq {nq_pct_str}"
     return sp_line, nq_line
 
 
@@ -872,10 +887,11 @@ async def job_market_open():
 
         profiles_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,subscription_tier,trial_started_at").in_("user_id", uids)
+            .select("user_id,name,subscription_tier,trial_started_at,preferred_language").in_("user_id", uids)
         )
         name_map      = {r["user_id"]: (r.get("name") or "Inversor").split()[0] for r in (profiles_res.data or [])}
         premium_map   = {r["user_id"]: _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at")) for r in (profiles_res.data or [])}
+        lang_map      = {r["user_id"]: (r.get("preferred_language") or "es") for r in (profiles_res.data or [])}
 
         # Bulk-load portfolios for all users (needed for portfolio % in premium body)
         portfolio_map: dict[str, list] = {}
@@ -891,7 +907,8 @@ async def job_market_open():
 
         # "S&P 500: 7,538 (+0.58% hoy)" when we have real index points, or the
         # old "S&P 500 +0.58%" style if the ^GSPC/^IXIC fetch failed today.
-        sp_line, nq_line = _market_open_lines(sp500_pct, sp500_points, nasdaq_pct, nasdaq_points)
+        sp_line_es, nq_line_es = _market_open_lines(sp500_pct, sp500_points, nasdaq_pct, nasdaq_points, "es")
+        sp_line_en, nq_line_en = _market_open_lines(sp500_pct, sp500_points, nasdaq_pct, nasdaq_points, "en")
 
         sent = 0
         for i, uid in enumerate(uids):
@@ -901,16 +918,30 @@ async def job_market_open():
 
             first      = name_map.get(uid, "Inversor")
             is_premium = premium_map.get(uid, False)
-            title      = f"{first}, el mercado ha abierto 🔔"
+            is_en      = lang_map.get(uid, "es") == "en"
+            sp_line, nq_line = (sp_line_en, nq_line_en) if is_en else (sp_line_es, nq_line_es)
+            title = f"{first}, the market is open 🔔" if is_en else f"{first}, el mercado ha abierto 🔔"
 
             if is_premium:
                 user_pct = _calc_portfolio_pct(portfolio_map.get(uid, []), prices)
                 if user_pct is not None:
-                    body = f"{sp_line}\n{nq_line}\n\nTu portafolio: {user_pct:+.2f}% hoy. Entra a ver el detalle."
+                    body = (
+                        f"{sp_line}\n{nq_line}\n\nYour portfolio: {user_pct:+.2f}% today. Tap for details."
+                        if is_en else
+                        f"{sp_line}\n{nq_line}\n\nTu portafolio: {user_pct:+.2f}% hoy. Entra a ver el detalle."
+                    )
                 else:
-                    body = f"{sp_line}\n{nq_line}\n\nAgrega tu portafolio para ver tu rendimiento."
+                    body = (
+                        f"{sp_line}\n{nq_line}\n\nAdd your portfolio to see your performance."
+                        if is_en else
+                        f"{sp_line}\n{nq_line}\n\nAgrega tu portafolio para ver tu rendimiento."
+                    )
             else:
-                body = f"{sp_line}\n{nq_line}\n\nEntra a ver cómo se está comportando tu portafolio."
+                body = (
+                    f"{sp_line}\n{nq_line}\n\nTap to see how your portfolio is doing."
+                    if is_en else
+                    f"{sp_line}\n{nq_line}\n\nEntra a ver cómo se está comportando tu portafolio."
+                )
 
             await send_push(uid, "market_open", title, body, {"screen": "portfolio"}, db)
             sent += 1
@@ -947,14 +978,19 @@ async def job_holiday_midday():
             return
 
         profiles_res = await run_query(
-            db.table("user_profiles").select("user_id,name").in_("user_id", uids)
+            db.table("user_profiles").select("user_id,name,preferred_language").in_("user_id", uids)
         )
         name_map = {r["user_id"]: (r.get("name") or "Inversor").split()[0] for r in (profiles_res.data or [])}
+        lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (profiles_res.data or [])}
 
         for uid in uids:
             first = name_map.get(uid, "Inversor")
-            title = "Hoy la bolsa descansa 🏖️"
-            body = f"{first}, buen momento para analizar tus acciones sin la presión del mercado. ¿Cómo va tu portafolio?"
+            if lang_map.get(uid, "es") == "en":
+                title = "Markets are closed today 🏖️"
+                body = f"{first}, a good time to review your stocks without market pressure. How's your portfolio doing?"
+            else:
+                title = "Hoy la bolsa descansa 🏖️"
+                body = f"{first}, buen momento para analizar tus acciones sin la presión del mercado. ¿Cómo va tu portafolio?"
             await send_push(uid, "holiday_midday", title, body, {"screen": "portfolio"}, db)
             await asyncio.sleep(0.05)
 
@@ -1056,16 +1092,20 @@ async def job_market_close():
         web_uids  = {r["user_id"] for r in (web_res.data or [])}
         push_capable = (expo_uids | web_uids) - disabled
 
-        # ── 3. Profiles: name + email + tier in one query ────────────────────────────
+        # ── 3. Profiles: name + email + tier + language in one query ─────────────
+        # Covers portfolio users AND push-capable users without a portfolio (the
+        # "generic push" branch below) — both need language for their push text.
         profiles_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,email,subscription_tier,trial_started_at").in_("user_id", uids)
+            .select("user_id,name,email,subscription_tier,trial_started_at,preferred_language")
+            .in_("user_id", list(set(uids) | push_capable))
         )
         profile_map = {
             r["user_id"]: {
                 "first":      (r.get("name") or "Inversor").split()[0],
                 "email":      r.get("email") or "",
                 "is_premium": _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at")),
+                "language":   r.get("preferred_language") or "es",
             }
             for r in (profiles_res.data or [])
         }
@@ -1094,6 +1134,7 @@ async def job_market_close():
             p             = profile_map.get(uid, {})
             first         = p.get("first", "Inversor")
             is_premium    = p.get("is_premium", False)
+            is_en         = p.get("language", "es") == "en"
 
             if is_premium and has_portfolio:
                 # Premium: personalized push only (email goes out Fridays via job_daily_email)
@@ -1101,22 +1142,31 @@ async def job_market_close():
                     portfolio_map[uid], prices
                 )
                 if uid in push_capable:
-                    sp_cl  = f"{sp500_pct:+.1f}%"  if sp500_pct  is not None else "s/d"
-                    nq_cl  = f"{nasdaq_pct:+.1f}%"  if nasdaq_pct is not None else "s/d"
+                    no_data = "n/a" if is_en else "s/d"
+                    sp_cl  = f"{sp500_pct:+.1f}%"  if sp500_pct  is not None else no_data
+                    nq_cl  = f"{nasdaq_pct:+.1f}%"  if nasdaq_pct is not None else no_data
                     if user_pct is not None:
                         beating    = sp500_pct is not None and user_pct > sp500_pct
-                        push_title = "🏆 Superaste al mercado hoy" if beating else "📊 Cierre de mercado"
-                        push_body  = f"S&P 500 {sp_cl} · Nasdaq {nq_cl} · Tu portafolio {user_pct:+.1f}%"
+                        if is_en:
+                            push_title = "🏆 You beat the market today" if beating else "📊 Market close"
+                        else:
+                            push_title = "🏆 Superaste al mercado hoy" if beating else "📊 Cierre de mercado"
+                        your_word  = "Your portfolio" if is_en else "Tu portafolio"
+                        push_body  = f"S&P 500 {sp_cl} · Nasdaq {nq_cl} · {your_word} {user_pct:+.1f}%"
                     else:
-                        push_title = "📊 Cierre de mercado"
+                        push_title = "📊 Market close" if is_en else "📊 Cierre de mercado"
                         push_body  = f"S&P 500 {sp_cl} · Nasdaq {nq_cl}"
                     await send_push(uid, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
                     sent_push += 1
 
             elif uid in push_capable:
                 # Free: generic push only, no portfolio data, subtle upgrade nudge
-                body = f"El mercado cerró. {indices}. Con Premium puedes ver el rendimiento exacto de tu portafolio. 📊"
-                await send_push(uid, "market_close", "📊 El mercado ha cerrado", body, {"screen": "portfolio"}, db)
+                if is_en:
+                    body = f"The market closed. {indices}. With Premium you can see your portfolio's exact performance. 📊"
+                    await send_push(uid, "market_close", "📊 The market has closed", body, {"screen": "portfolio"}, db)
+                else:
+                    body = f"El mercado cerró. {indices}. Con Premium puedes ver el rendimiento exacto de tu portafolio. 📊"
+                    await send_push(uid, "market_close", "📊 El mercado ha cerrado", body, {"screen": "portfolio"}, db)
                 sent_push += 1
 
         logger.info(
@@ -1448,17 +1498,6 @@ async def job_daily_email():
 
         # ── 10. Build and send per-user email ─────────────────────────────────
         from datetime import datetime as _dt
-        # strftime's %B depends on the server's locale, which isn't guaranteed
-        # to be Spanish (or English) on Railway — that's what produced "10 de
-        # July" instead of "10 de julio". Spelled out explicitly instead.
-        _SPANISH_MONTHS = [
-            "enero", "febrero", "marzo", "abril", "mayo", "junio",
-            "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
-        ]
-        _ENGLISH_MONTHS = [
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December",
-        ]
         _now = _dt.now()
         week_label_by_lang = {
             "es": f"semana del {_now.day} de {_SPANISH_MONTHS[_now.month - 1]}",
@@ -1855,9 +1894,10 @@ async def job_portfolio_alerts():
         # 5. Pre-generate WHY explanations — 1 Claude call per mover, reused across users.
         # Tickers with no specific catalyst are stored as NO_CATALYST and skipped for premium users;
         # free users still get a plain price-move notification without the WHY.
-        from app.services.price_alert_service import NO_CATALYST, should_send_price_alert
-        ticker_why:   dict[str, str] = {}
-        ticker_title: dict[str, str] = {}
+        from app.services.price_alert_service import NO_CATALYST, should_send_price_alert, translate_why_to_english
+        ticker_why:    dict[str, str] = {}
+        ticker_why_en: dict[str, str] = {}
+        ticker_title:  dict[str, str] = {}
         for ticker, pct in movers.items():
             price = prices[ticker]["curr"]
             why = (await get_price_alert_why_with_diagnostics(ticker, pct, price))["why"]
@@ -1867,18 +1907,21 @@ async def job_portfolio_alerts():
             ticker_title[ticker] = _company_name(ticker)
             if why == NO_CATALYST:
                 logger.info("Portfolio alerts: no catalyst for %s — premium users will not receive this", ticker)
+            else:
+                ticker_why_en[ticker] = await translate_why_to_english(why)
             await asyncio.sleep(0.05)
 
-        # 6. Batch-fetch user profiles (name + tier + trial) once
+        # 6. Batch-fetch user profiles (name + tier + trial + language) once
         all_uids  = list(user_tickers.keys())
         prof_res  = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,subscription_tier,trial_started_at")
+            .select("user_id,name,subscription_tier,trial_started_at,preferred_language")
             .in_("user_id", all_uids)
         )
         user_meta: dict[str, dict] = {
             r["user_id"]: {
                 "is_premium": _is_premium_user(r.get("subscription_tier", "free"), r.get("trial_started_at")),
+                "language": r.get("preferred_language") or "es",
             }
             for r in (prof_res.data or [])
         }
@@ -1886,8 +1929,9 @@ async def job_portfolio_alerts():
         # 7. Fan out — portfolio vs watchlist distinction + premium vs free
         sent = 0
         for uid, sets in user_tickers.items():
-            meta      = user_meta.get(uid, {"is_premium": False})
+            meta      = user_meta.get(uid, {"is_premium": False, "language": "es"})
             is_prem   = meta["is_premium"]
+            is_en     = meta.get("language", "es") == "en"
             port_map  = sets["port"]
             # Portfolio tickers ranked first (user owns them — higher priority)
             port_movers  = sorted(set(port_map.keys()) & movers.keys(),
@@ -1903,9 +1947,9 @@ async def job_portfolio_alerts():
                 is_portfolio = ticker in port_map
                 screen       = "portfolio" if is_portfolio else "watchlist"
 
-                why = ticker_why[ticker]
+                why = ticker_why_en[ticker] if (is_en and ticker in ticker_why_en) else ticker_why[ticker]
                 emoji = _move_emoji(ticker, pct)
-                verb = "subió" if pct >= 0 else "bajó"
+                verb = ("rose" if is_en else "subió") if pct >= 0 else ("fell" if is_en else "bajó")
                 # Title carries the company name ("Micron Technology"); the body
                 # leads with the ticker instead — "MU subió +4.78%" — since the
                 # user reads tickers faster than full names once already looking
@@ -1923,12 +1967,20 @@ async def job_portfolio_alerts():
 
                 if is_prem:
                     if why == NO_CATALYST:
-                        body = f"{prefix} — sin catalizador claro, posible volatilidad de mercado."
+                        body = (
+                            f"{prefix} — no clear catalyst, possible market volatility."
+                            if is_en else
+                            f"{prefix} — sin catalizador claro, posible volatilidad de mercado."
+                        )
                     else:
                         body = f"{prefix} {why}."
                 else:
                     # Free tier — plain price alert, no WHY
-                    body = f"{prefix}. Activa Premium para ver por qué."
+                    body = (
+                        f"{prefix}. Activate Premium to see why."
+                        if is_en else
+                        f"{prefix}. Activa Premium para ver por qué."
+                    )
 
                 await send_push(
                     uid,
@@ -1968,7 +2020,7 @@ async def job_weekly_screener_push():
         # Premium-only
         profiles_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,risk_tolerance,quiz_answers,mentor,subscription_tier")
+            .select("user_id,name,risk_tolerance,quiz_answers,mentor,subscription_tier,preferred_language")
             .in_("user_id", list(pref_uids))
         )
         uids = [r["user_id"] for r in (profiles_res.data or []) if r.get("subscription_tier") == "premium"]
@@ -1991,7 +2043,14 @@ async def job_weekly_screener_push():
             "growth": "de crecimiento", "aggressive": "agresivo",
             "aggressive_speculative": "agresivo-especulativo", "speculative": "especulativo",
         }
+        RISK_LABELS_EN = {
+            "conservative": "conservative", "conservative_moderate": "conservative-moderate",
+            "moderate": "moderate", "moderate_growth": "moderate with a growth focus",
+            "growth": "growth-oriented", "aggressive": "aggressive",
+            "aggressive_speculative": "aggressive-speculative", "speculative": "speculative",
+        }
         HORIZON_MAP = {"A": "corto plazo", "B": "mediano plazo", "C": "largo plazo", "D": "muy largo plazo"}
+        HORIZON_MAP_EN = {"A": "short term", "B": "medium term", "C": "long term", "D": "very long term"}
 
         RISK_UNIVERSES = {
             "conservative":           "BRK-B, KO, PG, JNJ, O, NEE, WMT, PEP, V, MA, ABT, MCD, CVX, T, VZ",
@@ -2053,8 +2112,9 @@ async def job_weekly_screener_push():
             name    = (p.get("name") or "Inversor").split()[0]
             risk    = p.get("risk_tolerance") or "moderate"
             quiz    = (p.get("quiz_answers") or {})
-            horizon = HORIZON_MAP.get(str(quiz.get("q2", "")), "largo plazo")
-            risk_label = RISK_LABELS.get(risk, "moderado")
+            is_en   = (p.get("preferred_language") or "es") == "en"
+            horizon = (HORIZON_MAP_EN if is_en else HORIZON_MAP).get(str(quiz.get("q2", "")), "long term" if is_en else "largo plazo")
+            risk_label = (RISK_LABELS_EN if is_en else RISK_LABELS).get(risk, "moderate" if is_en else "moderado")
             owned   = portfolio_map.get(uid, set())
 
             all_picks = picks_by_risk.get(risk, [])
@@ -2065,16 +2125,26 @@ async def job_weekly_screener_push():
                 continue  # not enough picks after exclusions — skip silently
 
             lines = "\n".join(f"{idx+1}. {pk['ticker']} ({pk['name']})" for idx, pk in enumerate(picks))
-            body = (
-                f"¡Hola {name}! Basado en tu perfil {risk_label} y mentalidad de {horizon} "
-                f"quiero sugerirte algunas posiciones que deberías echarles un ojo:\n\n"
-                f"{lines}\n\n"
-                f"¡Habla con tu mentor para analizarlas! 💬"
-            )
+            if is_en:
+                body = (
+                    f"Hi {name}! Based on your {risk_label} profile and {horizon} mindset "
+                    f"here are some positions worth a look this week:\n\n"
+                    f"{lines}\n\n"
+                    f"Talk to your mentor to analyze them! 💬"
+                )
+                push_title = "📊 Your 4 ideas for this week"
+            else:
+                body = (
+                    f"¡Hola {name}! Basado en tu perfil {risk_label} y mentalidad de {horizon} "
+                    f"quiero sugerirte algunas posiciones que deberías echarles un ojo:\n\n"
+                    f"{lines}\n\n"
+                    f"¡Habla con tu mentor para analizarlas! 💬"
+                )
+                push_title = "📊 Tus 4 ideas para esta semana"
 
             await send_push(
                 uid, "weekly_screener",
-                "📊 Tus 4 ideas para esta semana",
+                push_title,
                 body,
                 {"screen": "chat", "picks": [pk["ticker"] for pk in picks]},
                 db,
@@ -2229,6 +2299,7 @@ async def _generate_earnings_push(
     shares: float,
     position_value: float,
     avg_cost: float | None,
+    language: str = "es",
 ) -> tuple[str, str]:
     """Call Claude to generate a deeply personalized earnings push with dollar scenarios.
     Falls back to a static template if Claude fails or times out."""
@@ -2270,10 +2341,28 @@ async def _generate_earnings_push(
     pnl_str = f"Actualmente {'ganando' if (pnl_pct or 0) >= 0 else 'perdiendo'} {abs(pnl_pct):.1f}% desde tu entrada." if pnl_pct is not None else ""
 
     has_position = shares > 0 and position_value > 0
+    is_en = language == "en"
 
     if has_position:
         shares_disp = f"{shares:.4f}".rstrip("0").rstrip(".") if shares < 1 else f"{shares:.2f}".rstrip("0").rstrip(".")
-        prompt = f"""Eres el asistente de Nuvos AI. Escribe el body de una notificación push en español para un inversor que tiene {shares_disp} acciones de {company} ({ticker}) valoradas en ${position_value:,.2f}.
+        if is_en:
+            prompt = f"""You are the Nuvos AI assistant. Write the body of a push notification in English for an investor holding {shares_disp} shares of {company} ({ticker}) worth ${position_value:,.2f}.
+
+DATA:
+- Current position: ${position_value:,.2f} | {pnl_str}
+- Reports {when} | EPS estimate: {eps_str}
+- {scenarios_str}
+
+REQUIRED FORMAT:
+"{company} ({ticker}) reports {when}. EPS: {eps_str}. {"If it beats: your position rises to $" + f"{beat_value:,.0f}" + f" (+{beat_avg}%)" if beat_value else ""}{"." if beat_value else ""} {"If it misses: drops to $" + f"{miss_value:,.0f}" + f" ({miss_avg}%)" if miss_value else ""}."
+
+RULES:
+- Mention the company and ticker
+- Include EPS estimate and dollar scenarios if available
+- Clear English, max 250 characters, no emojis, don't mention Nuvos AI
+- Text only"""
+        else:
+            prompt = f"""Eres el asistente de Nuvos AI. Escribe el body de una notificación push en español para un inversor que tiene {shares_disp} acciones de {company} ({ticker}) valoradas en ${position_value:,.2f}.
 
 DATOS:
 - Posición actual: ${position_value:,.2f} | {pnl_str}
@@ -2289,7 +2378,21 @@ REGLAS:
 - Español claro, máximo 250 caracteres, sin emojis, sin mencionar Nuvos AI
 - Solo el texto"""
     else:
-        prompt = f"""Eres el asistente de Nuvos AI. Escribe el body de una notificación push en español para un inversor que sigue {company} ({ticker}) en su watchlist.
+        if is_en:
+            prompt = f"""You are the Nuvos AI assistant. Write the body of a push notification in English for an investor following {company} ({ticker}) on their watchlist.
+
+DATA:
+- Reports {when} | EPS estimate: {eps_str}
+- Historical reaction: {f"average beat {beat_avg:+.1f}% across {n_total} reports" if beat_avg is not None else "limited data"}
+
+RULES:
+- Mention the company, ticker, and when it reports
+- Include EPS estimate
+- Briefly mention historical reaction if data is available
+- Clear English, max 200 characters, no emojis, don't mention Nuvos AI
+- Text only"""
+        else:
+            prompt = f"""Eres el asistente de Nuvos AI. Escribe el body de una notificación push en español para un inversor que sigue {company} ({ticker}) en su watchlist.
 
 DATOS:
 - Reporta {when} | EPS estimado: {eps_str}
@@ -2325,11 +2428,12 @@ REGLAS:
         eps_part  = f" EPS est. {eps_str}." if eps_estimate else ""
         beat_part = f" Beat: ${beat_value:,.0f} (+{beat_avg}%)." if beat_value else ""
         miss_part = f" Miss: ${miss_value:,.0f} ({miss_avg}%)." if miss_value else ""
-        body = f"{company} ({ticker}) reporta {when}.{eps_part}{beat_part}{miss_part}"
+        reports_word = "reports" if is_en else "reporta"
+        body = f"{company} ({ticker}) {reports_word} {when}.{eps_part}{beat_part}{miss_part}"
         if len(body) > 280:
             body = body[:277] + "..."
 
-    title = f"📊 {ticker} reporta {when}"
+    title = f"📊 {ticker} reports {when}" if is_en else f"📊 {ticker} reporta {when}"
     return title, body
 
 
@@ -2572,6 +2676,11 @@ async def job_ipo_alerts():
         if not all_uids:
             return
 
+        lang_res = await run_query(
+            db.table("user_profiles").select("user_id,preferred_language").in_("user_id", all_uids)
+        )
+        lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (lang_res.data or [])}
+
         sent_total = 0
         for ipo in ipos:
             symbol      = ipo["symbol"]
@@ -2582,16 +2691,23 @@ async def job_ipo_alerts():
             status      = ipo["status"]
 
             is_today    = ipo_date == today_str
-            when        = "hoy" if is_today else "mañana"
             emoji       = "🚀" if is_today else "📅"
 
-            title = f"{emoji} IPO {when}: {symbol}"
-
-            body_parts = [f"{name} debuta {when} en {exchange}."]
+            when_es = "hoy" if is_today else "mañana"
+            title_es = f"{emoji} IPO {when_es}: {symbol}"
+            body_parts_es = [f"{name} debuta {when_es} en {exchange}."]
             if price_range:
-                body_parts.append(f"Precio esperado: {price_range}.")
-            body_parts.append("Toca para ver el análisis.")
-            body = " ".join(body_parts)
+                body_parts_es.append(f"Precio esperado: {price_range}.")
+            body_parts_es.append("Toca para ver el análisis.")
+            body_es = " ".join(body_parts_es)
+
+            when_en = "today" if is_today else "tomorrow"
+            title_en = f"{emoji} IPO {when_en}: {symbol}"
+            body_parts_en = [f"{name} debuts {when_en} on {exchange}."]
+            if price_range:
+                body_parts_en.append(f"Expected price: {price_range}.")
+            body_parts_en.append("Tap to see the analysis.")
+            body_en = " ".join(body_parts_en)
 
             category = f"ipo_alert:{symbol.upper()}"
 
@@ -2599,9 +2715,13 @@ async def job_ipo_alerts():
                 if i % 100 == 0 and i > 0:
                     await asyncio.sleep(8)
                 await asyncio.sleep(random.uniform(0, 0.05))
+                is_en = lang_map.get(uid, "es") == "en"
+                title = title_en if is_en else title_es
+                body  = body_en if is_en else body_es
+                prefill = f"Analyze the {symbol} IPO — {name}" if is_en else f"Analiza la IPO de {symbol} — {name}"
                 await send_push(
                     uid, category, title, body,
-                    {"screen": "chat", "prefill": f"Analiza la IPO de {symbol} — {name}"},
+                    {"screen": "chat", "prefill": prefill},
                     db,
                 )
                 sent_total += 1
@@ -2641,9 +2761,10 @@ async def job_events_alerts():
 
         # Load tiers once
         tier_res = await run_query(
-            db.table("user_profiles").select("user_id,subscription_tier").in_("user_id", list(prefs_by_uid.keys()))
+            db.table("user_profiles").select("user_id,subscription_tier,preferred_language").in_("user_id", list(prefs_by_uid.keys()))
         )
         tier_map = {r["user_id"]: (r.get("subscription_tier") or "free") for r in (tier_res.data or [])}
+        lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (tier_res.data or [])}
 
         processed = notified = 0
         for i, (uid, prefs) in enumerate(prefs_by_uid.items()):
@@ -2675,6 +2796,7 @@ async def job_events_alerts():
                 continue
 
             is_premium = tier_map.get(uid) == "premium"
+            is_en      = lang_map.get(uid, "es") == "en"
 
             for ticker in all_tickers:
                 events = await asyncio.to_thread(_fetch_events_for_symbol, ticker)
@@ -2682,7 +2804,7 @@ async def job_events_alerts():
                     if evt.get("event_date") not in targets:
                         continue
                     is_today   = evt["event_date"] == str(today)
-                    when       = "hoy" if is_today else "mañana"
+                    when       = ("today" if is_en else "hoy") if is_today else ("tomorrow" if is_en else "mañana")
                     event_type = evt.get("event_type")
 
                     if event_type == "earnings":
@@ -2708,10 +2830,15 @@ async def job_events_alerts():
                                 shares           = shares if is_portfolio else 0,
                                 position_value   = position_value if is_portfolio else 0,
                                 avg_cost         = avg_cost if is_portfolio else None,
+                                language         = "en" if is_en else "es",
                             )
                         else:
-                            title = f"📅 Earnings: {ticker}"
-                            body  = f"{_company_name(ticker)} reporta resultados {when}. Activa Premium para ver el impacto en tu portafolio."
+                            if is_en:
+                                title = f"📅 Earnings: {ticker}"
+                                body  = f"{_company_name(ticker)} reports results {when}. Activate Premium to see the impact on your portfolio."
+                            else:
+                                title = f"📅 Earnings: {ticker}"
+                                body  = f"{_company_name(ticker)} reporta resultados {when}. Activa Premium para ver el impacto en tu portafolio."
 
                     elif event_type in ("ex_dividend", "dividend"):
                         is_portfolio = ticker in port_tickers
@@ -2721,7 +2848,7 @@ async def job_events_alerts():
                             amt = float(raw_amt) if raw_amt else None
 
                         if event_type == "ex_dividend":
-                            title    = f"✂️ Ex-Dividendo: {ticker}"
+                            title    = f"✂️ Ex-Dividend: {ticker}" if is_en else f"✂️ Ex-Dividendo: {ticker}"
                             category = "ex_dividend"
                             if is_premium and is_portfolio:
                                 pos         = positions_map.get(ticker, {})
@@ -2729,18 +2856,34 @@ async def job_events_alerts():
                                 if amt and shares_held:
                                     pago = shares_held * amt
                                     body = (
+                                        f"{ticker}'s ex-dividend date is {when}. "
+                                        f"You hold {shares_held:.4f} shares — "
+                                        f"estimated payout: ${pago:.2f} USD (${amt:.4f}/share)."
+                                        if is_en else
                                         f"Fecha ex-dividendo de {ticker} es {when}. "
                                         f"Tienes {shares_held:.4f} acciones — "
                                         f"tu pago estimado: ${pago:.2f} USD (${amt:.4f}/acción)."
                                     )
                                 elif amt:
-                                    body = f"Fecha ex-dividendo de {ticker} es {when}. ${amt:.4f}/acción."
+                                    body = (
+                                        f"{ticker}'s ex-dividend date is {when}. ${amt:.4f}/share."
+                                        if is_en else
+                                        f"Fecha ex-dividendo de {ticker} es {when}. ${amt:.4f}/acción."
+                                    )
                                 else:
-                                    body = f"Fecha ex-dividendo de {ticker} es {when}."
+                                    body = (
+                                        f"{ticker}'s ex-dividend date is {when}."
+                                        if is_en else
+                                        f"Fecha ex-dividendo de {ticker} es {when}."
+                                    )
                             else:
-                                body = f"Fecha ex-dividendo de {ticker} es {when}." + (f" ${amt:.4f}/acción." if amt else "")
+                                body = (
+                                    f"{ticker}'s ex-dividend date is {when}." + (f" ${amt:.4f}/share." if amt else "")
+                                    if is_en else
+                                    f"Fecha ex-dividendo de {ticker} es {when}." + (f" ${amt:.4f}/acción." if amt else "")
+                                )
                         else:
-                            title    = f"💰 Pago de Dividendo: {ticker}"
+                            title    = f"💰 Dividend Payment: {ticker}" if is_en else f"💰 Pago de Dividendo: {ticker}"
                             category = "dividend_payment"
                             if is_premium and is_portfolio:
                                 pos         = positions_map.get(ticker, {})
@@ -2748,16 +2891,32 @@ async def job_events_alerts():
                                 if amt and shares_held:
                                     pago = shares_held * amt
                                     body = (
+                                        f"{ticker} pays dividend {when}. "
+                                        f"With your {shares_held:.4f} shares you'll receive "
+                                        f"${pago:.2f} USD (${amt:.4f}/share)."
+                                        if is_en else
                                         f"{ticker} paga dividendo {when}. "
                                         f"Con tus {shares_held:.4f} acciones recibirás "
                                         f"${pago:.2f} USD (${amt:.4f}/acción)."
                                     )
                                 elif amt:
-                                    body = f"{ticker} paga dividendo {when}. ${amt:.4f}/acción."
+                                    body = (
+                                        f"{ticker} pays dividend {when}. ${amt:.4f}/share."
+                                        if is_en else
+                                        f"{ticker} paga dividendo {when}. ${amt:.4f}/acción."
+                                    )
                                 else:
-                                    body = f"{ticker} paga dividendo {when}."
+                                    body = (
+                                        f"{ticker} pays dividend {when}."
+                                        if is_en else
+                                        f"{ticker} paga dividendo {when}."
+                                    )
                             else:
-                                body = f"{ticker} paga dividendo {when}." + (f" ${amt:.4f}/acción." if amt else "")
+                                body = (
+                                    f"{ticker} pays dividend {when}." + (f" ${amt:.4f}/share." if amt else "")
+                                    if is_en else
+                                    f"{ticker} paga dividendo {when}." + (f" ${amt:.4f}/acción." if amt else "")
+                                )
                     else:
                         continue
 
@@ -2792,10 +2951,11 @@ async def job_monthly_report_push():
         nasdaq_pct = (indices.get("NASDAQ") or {}).get("change_pct")
 
         users_res = await run_query(
-            db.table("user_profiles").select("user_id,subscription_tier,name")
+            db.table("user_profiles").select("user_id,subscription_tier,name,preferred_language")
         )
         uids = [u["user_id"] for u in (users_res.data or [])]
         tier_map = {u["user_id"]: u.get("subscription_tier") for u in (users_res.data or [])}
+        lang_map = {u["user_id"]: (u.get("preferred_language") or "es") for u in (users_res.data or [])}
 
         premium_uids = [uid for uid in uids if tier_map.get(uid) == "premium"]
         all_tickers: set[str] = set()
@@ -2808,7 +2968,8 @@ async def job_monthly_report_push():
                 all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
         prices = await _finnhub_prices_batch(list(all_tickers)) if all_tickers else {}
-        month_name = now.strftime("%B")
+        month_name_es = _SPANISH_MONTHS[now.month - 1]
+        month_name_en = _ENGLISH_MONTHS[now.month - 1]
 
         sent = 0
         for i, uid in enumerate(uids):
@@ -2817,22 +2978,41 @@ async def job_monthly_report_push():
             await asyncio.sleep(random.uniform(0, 0.12))
 
             is_premium = tier_map.get(uid) == "premium"
+            is_en      = lang_map.get(uid, "es") == "en"
+            month_name = month_name_en if is_en else month_name_es
             if is_premium and uid in portfolio_map and prices:
                 user_pct = _calc_portfolio_pct(portfolio_map[uid], prices)
-                sp_str   = f"{sp500_pct:+.1f}%" if sp500_pct is not None else "—"
+                no_data  = "—"
+                sp_str   = f"{sp500_pct:+.1f}%" if sp500_pct is not None else no_data
                 if user_pct is not None and sp500_pct is not None:
                     if user_pct > sp500_pct:
-                        title = "🏆 Reporte mensual listo"
-                        body  = f"¡Excelente mes! Tu portafolio {user_pct:+.1f}% superó al S&P 500 ({sp_str}). Ver análisis completo."
+                        if is_en:
+                            title = "🏆 Monthly report ready"
+                            body  = f"Great month! Your portfolio {user_pct:+.1f}% beat the S&P 500 ({sp_str}). See the full analysis."
+                        else:
+                            title = "🏆 Reporte mensual listo"
+                            body  = f"¡Excelente mes! Tu portafolio {user_pct:+.1f}% superó al S&P 500 ({sp_str}). Ver análisis completo."
                     else:
-                        title = "📋 Reporte mensual de {month_name}"
-                        body  = f"Tu portafolio {user_pct:+.1f}% vs S&P 500 ({sp_str}). Entra a Nuvos AI para optimizar tu estrategia."
+                        if is_en:
+                            title = f"📋 {month_name} monthly report"
+                            body  = f"Your portfolio {user_pct:+.1f}% vs S&P 500 ({sp_str}). Open Nuvos AI to optimize your strategy."
+                        else:
+                            title = f"📋 Reporte mensual de {month_name}"
+                            body  = f"Tu portafolio {user_pct:+.1f}% vs S&P 500 ({sp_str}). Entra a Nuvos AI para optimizar tu estrategia."
                 else:
-                    title = f"📋 Reporte mensual de {month_name}"
-                    body  = f"Tu análisis de portafolio del mes está listo. Entra a Nuvos AI para revisarlo."
+                    if is_en:
+                        title = f"📋 {month_name} monthly report"
+                        body  = "Your monthly portfolio analysis is ready. Open Nuvos AI to review it."
+                    else:
+                        title = f"📋 Reporte mensual de {month_name}"
+                        body  = "Tu análisis de portafolio del mes está listo. Entra a Nuvos AI para revisarlo."
             else:
-                title = f"📋 Resumen de {month_name}"
-                body  = "Tu resumen mensual está disponible. Revisa cómo se comportaron los mercados."
+                if is_en:
+                    title = f"📋 {month_name} summary"
+                    body  = "Your monthly summary is available. Check out how the markets performed."
+                else:
+                    title = f"📋 Resumen de {month_name}"
+                    body  = "Tu resumen mensual está disponible. Revisa cómo se comportaron los mercados."
 
             await send_push(uid, "monthly_report", title, body, {"screen": "portfolio"}, db)
             sent += 1
@@ -2863,9 +3043,10 @@ async def job_reengagement_push():
 
         # Only send personalized portfolio movers to premium users
         tier_res = await run_query(
-            db.table("user_profiles").select("user_id").eq("subscription_tier", "premium").in_("user_id", inactive_uids)
+            db.table("user_profiles").select("user_id,preferred_language").eq("subscription_tier", "premium").in_("user_id", inactive_uids)
         )
         premium_set = {r["user_id"] for r in (tier_res.data or [])}
+        lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (tier_res.data or [])}
         inactive_uids = [uid for uid in inactive_uids if uid in premium_set]
         if not inactive_uids:
             return
@@ -2898,14 +3079,23 @@ async def job_reengagement_push():
                         movers.append((ticker, abs(pct), pct))
             movers.sort(key=lambda x: x[1], reverse=True)
             top = movers[:3]
+            is_en = lang_map.get(uid, "es") == "en"
             if top:
                 names = ", ".join(t[0] for t in top)
-                body  = f"3 de tus activos favoritos tuvieron movimientos interesantes: {names}. ¿Ya los revisaste?"
+                body = (
+                    f"3 of your favorite assets had interesting moves: {names}. Have you checked them yet?"
+                    if is_en else
+                    f"3 de tus activos favoritos tuvieron movimientos interesantes: {names}. ¿Ya los revisaste?"
+                )
             else:
-                body = "Te has perdido algunos movimientos en tus activos. Entra a revisar tu portafolio."
+                body = (
+                    "You've missed some moves in your assets. Come check your portfolio."
+                    if is_en else
+                    "Te has perdido algunos movimientos en tus activos. Entra a revisar tu portafolio."
+                )
             await send_push(
                 uid, "reengagement",
-                "📱 Tu portafolio te está esperando",
+                "📱 Your portfolio is waiting for you" if is_en else "📱 Tu portafolio te está esperando",
                 body,
                 {"screen": "portfolio"},
                 db,
@@ -2929,6 +3119,20 @@ _EDUCATION_TIPS = [
     ("💡 ¿Qué es el VIX?", "El 'índice del miedo' mide la volatilidad esperada del mercado. Aprende a usarlo como señal en Nuvos AI."),
 ]
 
+# English equivalents, same order/index so day_idx % len(...) picks the matching tip in both lists.
+_EDUCATION_TIPS_EN = [
+    ("💡 Market fun fact", "Did you know Mondays are historically the most volatile day? Watch it play out in your assets this week on Nuvos AI."),
+    ("💡 The power of compound interest", "Einstein called it the 8th wonder of the world. $100/month at 10% annual = $1M in 45 years. Explore how to apply it in the Nuvos Academy."),
+    ("💡 What's the P/E ratio?", "It's the most-used metric for valuing companies. Learn to read your stocks' P/E in the Nuvos Academy today."),
+    ("💡 Dollar Cost Averaging", "Investing fixed amounts regularly removes the anxiety of 'when to buy in.' Discover how DCA can lower your average cost."),
+    ("💡 Real vs. illusory diversification", "Do you own 8 tech stocks? That's not diversification. Learn what actually is on Nuvos AI."),
+    ("💡 Earnings season: a unique opportunity", "4 times a year there's extreme post-earnings volatility. Learn to anticipate it on Nuvos AI before it hits."),
+    ("💡 'Buy the rumor, sell the news'", "It's one of the market's most counterintuitive phenomena. Do you know when it happens with your stocks? Check the Academy."),
+    ("💡 What moves interest rates?", "The Fed has more power over your portfolio than you think. Learn the mechanism in the Nuvos Academy."),
+    ("💡 The rule of 72", "Divide 72 by your annual return rate to get the years it'll take your money to double. How long would yours take?"),
+    ("💡 What is the VIX?", "The 'fear index' measures expected market volatility. Learn to use it as a signal on Nuvos AI."),
+]
+
 
 async def job_education_push():
     """2:00 PM ET Mon/Wed/Fri — rotating educational/curiosity push."""
@@ -2937,18 +3141,27 @@ async def job_education_push():
     db = get_supabase()
     try:
         day_idx = datetime.now(timezone.utc).timetuple().tm_yday
-        tip = _EDUCATION_TIPS[day_idx % len(_EDUCATION_TIPS)]
-        title, body = tip
+        tip_idx = day_idx % len(_EDUCATION_TIPS)
+        title_es, body_es = _EDUCATION_TIPS[tip_idx]
+        title_en, body_en = _EDUCATION_TIPS_EN[tip_idx]
 
         prefs_res = await run_query(
             db.table("notification_preferences").select("user_id").eq("push_market_open", True)
         )
+        uids = [u["user_id"] for u in (prefs_res.data or [])]
+        lang_res = await run_query(
+            db.table("user_profiles").select("user_id,preferred_language").in_("user_id", uids)
+        )
+        lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (lang_res.data or [])}
+
         sent = 0
-        for i, u in enumerate(prefs_res.data or []):
+        for i, uid in enumerate(uids):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.12))
-            await send_push(u["user_id"], "education_push", title, body, {"screen": "academy"}, db)
+            is_en = lang_map.get(uid, "es") == "en"
+            title, body = (title_en, body_en) if is_en else (title_es, body_es)
+            await send_push(uid, "education_push", title, body, {"screen": "academy"}, db)
             sent += 1
         logger.info("Education push: %d sent (tip index %d)", sent, day_idx % len(_EDUCATION_TIPS))
     except Exception as e:
@@ -2973,7 +3186,7 @@ async def job_social_proof_push():
         trending_global = set(sorted(ticker_counts, key=lambda x: ticker_counts[x], reverse=True)[:20])
 
         users_res = await run_query(
-            db.table("user_profiles").select("user_id,risk_tolerance")
+            db.table("user_profiles").select("user_id,risk_tolerance,preferred_language")
         )
         sent = 0
         for i, u in enumerate(users_res.data or []):
@@ -2982,6 +3195,7 @@ async def job_social_proof_push():
             await asyncio.sleep(random.uniform(0, 0.12))
 
             risk      = u.get("risk_tolerance") or "moderate"
+            is_en     = (u.get("preferred_language") or "es") == "en"
             pool      = get_risk_filtered_suggestions(risk)
             # Prefer tickers that are also trending globally (social proof is stronger)
             trending_in_pool = [t for t in pool if t in trending_global]
@@ -2990,16 +3204,24 @@ async def job_social_proof_push():
 
             # Personalized body per risk profile
             r = risk.lower()
-            if "agres" in r or "aggres" in r:
-                body = f"Inversores agresivos como tú están vigilando {ticker} esta semana. Alta volatilidad = alta oportunidad. ¿Está en tu watchlist?"
-            elif "conserv" in r:
-                body = f"Inversores enfocados en dividendos están siguiendo {ticker}. Valor estable y flujo de caja consistente. ¿Lo tienes en tu radar?"
+            if is_en:
+                if "agres" in r or "aggres" in r:
+                    body = f"Aggressive investors like you are watching {ticker} this week. High volatility = high opportunity. Is it on your watchlist?"
+                elif "conserv" in r:
+                    body = f"Dividend-focused investors are following {ticker}. Stable value and consistent cash flow. Is it on your radar?"
+                else:
+                    body = f"Investors with a similar profile to yours are watching {ticker} this week. Is it on your watchlist yet?"
             else:
-                body = f"Inversores con perfil similar al tuyo están monitoreando {ticker} esta semana. ¿Ya lo tienes en tu watchlist?"
+                if "agres" in r or "aggres" in r:
+                    body = f"Inversores agresivos como tú están vigilando {ticker} esta semana. Alta volatilidad = alta oportunidad. ¿Está en tu watchlist?"
+                elif "conserv" in r:
+                    body = f"Inversores enfocados en dividendos están siguiendo {ticker}. Valor estable y flujo de caja consistente. ¿Lo tienes en tu radar?"
+                else:
+                    body = f"Inversores con perfil similar al tuyo están monitoreando {ticker} esta semana. ¿Ya lo tienes en tu watchlist?"
 
             await send_push(
                 u["user_id"], "social_proof",
-                f"👀 {ticker} está en tendencia",
+                f"👀 {ticker} is trending" if is_en else f"👀 {ticker} está en tendencia",
                 body,
                 {"ticker": ticker, "screen": "watchlist"},
                 db,
@@ -3024,18 +3246,28 @@ async def job_risk_mgmt_push():
             logger.info("Risk mgmt push skipped: VIX=%.1f (threshold 20)", vix or 0)
             return
 
-        title = "⚠️ Volatilidad elevada"
-        body  = f"El VIX está en {vix:.1f} — por encima del nivel de alerta. Revisa tus stop-loss y niveles de exposición en Nuvos AI."
+        title_es = "⚠️ Volatilidad elevada"
+        body_es  = f"El VIX está en {vix:.1f} — por encima del nivel de alerta. Revisa tus stop-loss y niveles de exposición en Nuvos AI."
+        title_en = "⚠️ Elevated volatility"
+        body_en  = f"The VIX is at {vix:.1f} — above the alert threshold. Review your stop-losses and exposure levels on Nuvos AI."
 
         prefs_res = await run_query(
             db.table("notification_preferences").select("user_id").eq("push_portfolio_alerts", True)
         )
+        uids = [u["user_id"] for u in (prefs_res.data or [])]
+        lang_res = await run_query(
+            db.table("user_profiles").select("user_id,preferred_language").in_("user_id", uids)
+        )
+        lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (lang_res.data or [])}
+
         sent = 0
-        for i, u in enumerate(prefs_res.data or []):
+        for i, uid in enumerate(uids):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.12))
-            await send_push(u["user_id"], "risk_management", title, body, {"screen": "portfolio"}, db)
+            is_en = lang_map.get(uid, "es") == "en"
+            title, body = (title_en, body_en) if is_en else (title_es, body_es)
+            await send_push(uid, "risk_management", title, body, {"screen": "portfolio"}, db)
             sent += 1
         logger.info("Risk mgmt push: VIX=%.1f, %d users notified", vix, sent)
     except Exception as e:
@@ -3070,20 +3302,30 @@ async def job_market_crash_alert():
 
         prof_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,subscription_tier,trial_started_at")
+            .select("user_id,subscription_tier,trial_started_at,preferred_language")
             .in_("user_id", uids)
         )
         prof_map = {r["user_id"]: r for r in (prof_res.data or [])}
 
-        premium_title = "🚨 ¡URGENTE!"
-        premium_body  = (
+        premium_title_es = "🚨 ¡URGENTE!"
+        premium_body_es  = (
             f"Tenemos que hablar de lo que está pasando en la bolsa de valores — "
             f"el S&P 500 cayó {abs(pct):.1f}% hoy. Abre Nuvos y hablemos."
         )
-        free_title = "📉 El mercado está cayendo fuerte"
-        free_body  = (
+        free_title_es = "📉 El mercado está cayendo fuerte"
+        free_body_es  = (
             f"El S&P 500 cayó {abs(pct):.1f}% hoy. Activa Premium para que tu Mentor IA "
             f"te explique qué está pasando y qué hacer al respecto."
+        )
+        premium_title_en = "🚨 URGENT!"
+        premium_body_en  = (
+            f"We need to talk about what's happening in the stock market — "
+            f"the S&P 500 dropped {abs(pct):.1f}% today. Open Nuvos and let's talk."
+        )
+        free_title_en = "📉 The market is dropping hard"
+        free_body_en  = (
+            f"The S&P 500 dropped {abs(pct):.1f}% today. Activate Premium so your AI Mentor "
+            f"can explain what's happening and what to do about it."
         )
 
         sent = 0
@@ -3092,7 +3334,11 @@ async def job_market_crash_alert():
                 await asyncio.sleep(12)
             prof = prof_map.get(uid, {})
             is_prem = _is_premium_user(prof.get("subscription_tier", "free"), prof.get("trial_started_at"))
-            title, body = (premium_title, premium_body) if is_prem else (free_title, free_body)
+            is_en   = (prof.get("preferred_language") or "es") == "en"
+            if is_en:
+                title, body = (premium_title_en, premium_body_en) if is_prem else (free_title_en, free_body_en)
+            else:
+                title, body = (premium_title_es, premium_body_es) if is_prem else (free_title_es, free_body_es)
             await send_push(
                 uid, "market_crash_alert", title, body,
                 {"screen": "chat", "sp500_pct": pct}, db,
@@ -3222,7 +3468,7 @@ async def job_concentration_risk_push():
         uids = [uid for uid, _ in candidates]
         prof_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,subscription_tier,trial_started_at,investing_style")
+            .select("user_id,name,subscription_tier,trial_started_at,investing_style,preferred_language")
             .in_("user_id", uids)
         )
         prof_map = {r["user_id"]: r for r in (prof_res.data or [])}
@@ -3235,21 +3481,26 @@ async def job_concentration_risk_push():
             weight_pct = row["sector_weights"][top_sector] * 100
             total_value = row["total_value"]
             is_prem = _is_premium_user(prof.get("subscription_tier", "free"), prof.get("trial_started_at"))
+            is_en   = (prof.get("preferred_language") or "es") == "en"
 
             body = None
             if is_prem:
                 body = await generate_concentration_insight(
                     first, top_sector, weight_pct, total_value, prof.get("investing_style"),
+                    language="en" if is_en else "es",
                 )
             if not body:
                 body = (
+                    f"{weight_pct:.0f}% of your portfolio is concentrated in {top_sector}. "
+                    f"Consider diversifying to reduce risk."
+                    if is_en else
                     f"El {weight_pct:.0f}% de tu portafolio está concentrado en {top_sector}. "
                     f"Considera diversificar para reducir el riesgo."
                 )
 
             await send_push(
                 uid, "concentration_risk",
-                "⚠️ Concentración de portafolio",
+                "⚠️ Portfolio concentration" if is_en else "⚠️ Concentración de portafolio",
                 body,
                 {"screen": "portfolio", "sector": top_sector, "weight_pct": round(weight_pct, 1)},
                 db,
@@ -3325,8 +3576,10 @@ def _earnings_push_content(
     positions: list,       # user's portfolio positions (may be empty list)
     is_watchlist: bool,
     is_premium: bool,
+    language: str = "es",
 ) -> tuple[str, str]:
     """Return (title, body) for an earnings push notification."""
+    is_en = language == "en"
     eps_a = res.get("eps_actual")
     eps_e = res.get("eps_estimate")
     beat  = res.get("beat_eps", False)
@@ -3358,12 +3611,16 @@ def _earnings_push_content(
             avg_px = float(pos_match.get("avgPrice") or pos_match.get("avg_price") or 0)
             if shares and avg_px:
                 cost_basis = shares * avg_px
-                parts.append(f"Tienes {shares:.4f} acc. (${cost_basis:,.2f} invertido)")
+                parts.append(
+                    f"You hold {shares:.4f} sh. (${cost_basis:,.2f} invested)"
+                    if is_en else
+                    f"Tienes {shares:.4f} acc. (${cost_basis:,.2f} invertido)"
+                )
 
     if is_watchlist and not any(p.get("ticker") == ticker for p in positions):
-        parts.append("En tu watchlist")
+        parts.append("On your watchlist" if is_en else "En tu watchlist")
 
-    body = " · ".join(parts) if parts else f"{ticker} acaba de reportar resultados"
+    body = " · ".join(parts) if parts else (f"{ticker} just reported earnings" if is_en else f"{ticker} acaba de reportar resultados")
     return title, body
 
 
@@ -3387,7 +3644,7 @@ async def _job_earnings_dispatch(hour_filter: str):
     logger.info("job_earnings [%s]: %d tickers reported: %s", hour_filter, len(reported_tickers), reported_tickers)
 
     # 2. Load all users
-    users_res = await run_query(db.table("user_profiles").select("user_id,name,subscription_tier"))
+    users_res = await run_query(db.table("user_profiles").select("user_id,name,subscription_tier,preferred_language"))
     users = users_res.data or []
     if not users:
         return
@@ -3421,11 +3678,12 @@ async def _job_earnings_dispatch(hour_filter: str):
         if not relevant:
             continue
 
+        language = (u.get("preferred_language") or "es")
         await asyncio.sleep(random.uniform(0, 0.05))
         for ticker in relevant:
             res  = results_map[ticker]
             is_wl = ticker in watchlist
-            title, body = _earnings_push_content(ticker, res, positions, is_wl, is_premium)
+            title, body = _earnings_push_content(ticker, res, positions, is_wl, is_premium, language=language)
             await send_push(
                 uid, f"earnings_{ticker.lower()}",
                 title, body,
@@ -3800,7 +4058,7 @@ async def job_opportunity_push():
 
     try:
         users_res = await run_query(
-            db.table("user_profiles").select("user_id,risk_tolerance,subscription_tier")
+            db.table("user_profiles").select("user_id,risk_tolerance,subscription_tier,preferred_language")
         )
         if not users_res.data:
             return
@@ -3832,10 +4090,16 @@ async def job_opportunity_push():
             ticker = sig["ticker"]
             rsi    = sig["rsi"]
             pct    = sig["change_pct"]
-            body   = f"{ticker} muestra señal técnica de posible rebote (RSI {rsi:.0f}, {pct:+.1f}% hoy). Coincide con tu perfil de riesgo. Analiza en Nuvos AI."
+            is_en  = (u.get("preferred_language") or "es") == "en"
+            if is_en:
+                body = f"{ticker} shows a technical signal of a possible bounce (RSI {rsi:.0f}, {pct:+.1f}% today). Matches your risk profile. Analyze it on Nuvos AI."
+                push_title = f"🔍 Technical signal: {ticker}"
+            else:
+                body = f"{ticker} muestra señal técnica de posible rebote (RSI {rsi:.0f}, {pct:+.1f}% hoy). Coincide con tu perfil de riesgo. Analiza en Nuvos AI."
+                push_title = f"🔍 Señal técnica: {ticker}"
             await send_push(
                 u["user_id"], "opportunity_detection",
-                f"🔍 Señal técnica: {ticker}",
+                push_title,
                 body,
                 {"ticker": ticker, "screen": "portfolio"},
                 db,
@@ -3853,6 +4117,13 @@ _VALUATION_TIER_MSG = {
     "neutral": ("📊", "{name} está en un precio justo actualmente ${price} USD."),
     "good":    ("💰", "{name} está en un buen rango para entrar actualmente (${price} USD)."),
     "strong":  ("💰", "{name} está barata actualmente, buena oportunidad para revisar fundamentos y considerar comprar ${price} USD."),
+}
+_VALUATION_TIER_MSG_EN = {
+    "avoid":   ("⚠️", "{name} is currently very expensive (${price} USD). Better to wait for a pullback before buying more."),
+    "wait":    ("⚠️", "{name} is currently expensive (${price} USD). Best to wait for a dip before buying."),
+    "neutral": ("📊", "{name} is currently at a fair price of ${price} USD."),
+    "good":    ("💰", "{name} is currently in a good range to enter (${price} USD)."),
+    "strong":  ("💰", "{name} is currently cheap — a good opportunity to review fundamentals and consider buying at ${price} USD."),
 }
 
 _COMPANY_SUFFIXES = (
@@ -3889,6 +4160,9 @@ async def job_valuation_push():
             .select("user_id,push_portfolio_alerts,push_watchlist_alerts")
         )
         explicit_prefs: dict[str, dict] = {p["user_id"]: p for p in (prefs_res.data or [])}
+
+        lang_res = await run_query(db.table("user_profiles").select("user_id,preferred_language"))
+        lang_map: dict[str, str] = {r["user_id"]: (r.get("preferred_language") or "es") for r in (lang_res.data or [])}
 
         token_res = await run_query(
             db.table("user_profiles").select("user_id,push_token").neq("push_token", "").not_.is_("push_token", "null")
@@ -3977,13 +4251,14 @@ async def job_valuation_push():
 
         sent = 0
         for uid, tickers in user_tickers.items():
+            is_en = lang_map.get(uid, "es") == "en"
             for ticker in sorted(tickers & ticker_info.keys()):
                 info = ticker_info[ticker]
                 signal = info["signal"]
                 if last_tier.get((uid, ticker)) == signal:
                     continue
 
-                emoji, template = _VALUATION_TIER_MSG[signal]
+                emoji, template = (_VALUATION_TIER_MSG_EN if is_en else _VALUATION_TIER_MSG)[signal]
                 body = template.format(name=info["name"], price=f"{info['price']:,.2f}")
 
                 await send_push(
@@ -4041,7 +4316,7 @@ async def job_thesis_drift_push():
     try:
         prof_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,subscription_tier,trial_started_at,investing_style")
+            .select("user_id,name,subscription_tier,trial_started_at,investing_style,preferred_language")
         )
         candidates = [
             r for r in (prof_res.data or [])
@@ -4113,6 +4388,7 @@ async def job_thesis_drift_push():
         for uid, tickers in user_tickers.items():
             style = prof_map[uid]["investing_style"]
             first = (prof_map[uid].get("name") or "Inversor").split()[0]
+            is_en = (prof_map[uid].get("preferred_language") or "es") == "en"
             for ticker in sorted(tickers & ticker_info.keys()):
                 info = ticker_info[ticker]
                 drift = _drift_reason(style, info["categories"], info["dividend_yield"])
@@ -4122,13 +4398,19 @@ async def job_thesis_drift_push():
                 if last_reason.get((uid, ticker)) == reason_key:
                     continue
 
-                body = await generate_thesis_drift_insight(first, ticker, info["name"], style, reason_text)
+                body = await generate_thesis_drift_insight(
+                    first, ticker, info["name"], style, reason_text, language="en" if is_en else "es",
+                )
                 if not body:
-                    body = f"{info['name']} ({ticker}) {reason_text}. Vale la pena revisar tu tesis."
+                    body = (
+                        f"{info['name']} ({ticker}) {reason_text}. Worth reviewing your thesis."
+                        if is_en else
+                        f"{info['name']} ({ticker}) {reason_text}. Vale la pena revisar tu tesis."
+                    )
 
                 await send_push(
                     uid, f"thesis_drift_{ticker}",
-                    f"🔍 {ticker}: ¿aún encaja?",
+                    f"🔍 {ticker}: still a fit?" if is_en else f"🔍 {ticker}: ¿aún encaja?",
                     body,
                     {"ticker": ticker, "screen": "portfolio"},
                     db,
@@ -4223,7 +4505,7 @@ async def job_sunday_portfolio_review():
             return
         prof_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,subscription_tier,trial_started_at,investing_style")
+            .select("user_id,name,subscription_tier,trial_started_at,investing_style,preferred_language")
             .in_("user_id", uids)
         )
         prof_map = {r["user_id"]: r for r in (prof_res.data or [])}
@@ -4238,32 +4520,51 @@ async def job_sunday_portfolio_review():
             prof  = prof_map.get(uid, {})
             first = (prof.get("name") or "Inversor").split()[0]
             is_prem = _is_premium_user(prof.get("subscription_tier", "free"), prof.get("trial_started_at"))
+            is_en   = (prof.get("preferred_language") or "es") == "en"
 
             change_str = ""
             if prev and prev.get("total_value"):
                 delta = total - prev["total_value"]
                 pct   = delta / prev["total_value"] * 100 if prev["total_value"] else 0
                 sign  = "+" if delta >= 0 else ""
-                change_str = f" ({sign}${delta:,.0f}, {sign}{pct:.1f}% vs. hace 7 días)"
+                change_str = (
+                    f" ({sign}${delta:,.0f}, {sign}{pct:.1f}% vs. 7 days ago)"
+                    if is_en else
+                    f" ({sign}${delta:,.0f}, {sign}{pct:.1f}% vs. hace 7 días)"
+                )
 
             body = None
             if is_prem:
                 style = prof.get("investing_style")
-                style_note = f" Estilo declarado: {style}." if style and style != "not_set" else ""
-                prompt = (
-                    f"Eres el Portfolio Manager IA de Nuvos. Escribe UNA notificación push (máximo 200 caracteres) "
-                    f"de revisión semanal para {first}: su portafolio vale ${total:,.0f} USD{change_str}, "
-                    f"su sector principal es {latest.get('top_sector') or 'diversificado'}.{style_note} "
-                    f"Tono de cierre de semana, sin alarmismo, invita a revisar el detalle. "
-                    f"Sin emojis al inicio, sin mencionar \"Nuvos AI\", solo el texto de la notificación."
-                )
+                if is_en:
+                    style_note = f" Declared style: {style}." if style and style != "not_set" else ""
+                    prompt = (
+                        f"You are Nuvos' AI Portfolio Manager. Write ONE push notification (max 200 characters) "
+                        f"as a weekly review for {first}: their portfolio is worth ${total:,.0f} USD{change_str}, "
+                        f"their main sector is {latest.get('top_sector') or 'diversified'}.{style_note} "
+                        f"End-of-week tone, no alarmism, invite them to check the details. "
+                        f"No emojis at the start, don't mention \"Nuvos AI\", text only. Write in English."
+                    )
+                else:
+                    style_note = f" Estilo declarado: {style}." if style and style != "not_set" else ""
+                    prompt = (
+                        f"Eres el Portfolio Manager IA de Nuvos. Escribe UNA notificación push (máximo 200 caracteres) "
+                        f"de revisión semanal para {first}: su portafolio vale ${total:,.0f} USD{change_str}, "
+                        f"su sector principal es {latest.get('top_sector') or 'diversificado'}.{style_note} "
+                        f"Tono de cierre de semana, sin alarmismo, invita a revisar el detalle. "
+                        f"Sin emojis al inicio, sin mencionar \"Nuvos AI\", solo el texto de la notificación."
+                    )
                 body = await _haiku_insight(prompt, max_tokens=120)
             if not body:
-                body = f"Tu portafolio cerró la semana en ${total:,.0f} USD{change_str}. Revisa el detalle en Nuvos."
+                body = (
+                    f"Your portfolio closed the week at ${total:,.0f} USD{change_str}. Check the details on Nuvos."
+                    if is_en else
+                    f"Tu portafolio cerró la semana en ${total:,.0f} USD{change_str}. Revisa el detalle en Nuvos."
+                )
 
             await send_push(
                 uid, "sunday_portfolio_review",
-                "📅 Tu semana en Nuvos",
+                "📅 Your week on Nuvos" if is_en else "📅 Tu semana en Nuvos",
                 body,
                 {"screen": "portfolio"},
                 db,
@@ -4379,6 +4680,11 @@ async def job_quarterly_earnings_digest():
         if not uids:
             return
 
+        lang_res = await run_query(
+            db.table("user_profiles").select("user_id,preferred_language").in_("user_id", uids)
+        )
+        lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (lang_res.data or [])}
+
         window_end = (datetime.now(timezone.utc) + timedelta(days=45)).date()
         today = datetime.now(timezone.utc).date()
 
@@ -4409,12 +4715,19 @@ async def job_quarterly_earnings_digest():
 
             if not reporting:
                 continue
+            is_en = lang_map.get(uid, "es") == "en"
             names = ", ".join(reporting[:5])
-            extra = f" y {len(reporting) - 5} más" if len(reporting) > 5 else ""
-            body = f"Esta temporada de earnings reportan: {names}{extra}. Prepárate revisando expectativas en Nuvos."
+            if is_en:
+                extra = f" and {len(reporting) - 5} more" if len(reporting) > 5 else ""
+                body = f"Reporting this earnings season: {names}{extra}. Get ready by reviewing expectations on Nuvos."
+                push_title = "📈 Earnings season"
+            else:
+                extra = f" y {len(reporting) - 5} más" if len(reporting) > 5 else ""
+                body = f"Esta temporada de earnings reportan: {names}{extra}. Prepárate revisando expectativas en Nuvos."
+                push_title = "📈 Temporada de resultados"
             await send_push(
                 uid, "quarterly_earnings_digest",
-                "📈 Temporada de resultados",
+                push_title,
                 body,
                 {"screen": "portfolio"},
                 db,
@@ -4593,10 +4906,15 @@ async def job_annual_scoreboard():
     db = get_supabase()
     year = datetime.now(timezone.utc).year
 
-    PUSH_TITLE = f"🏆 Tu Annual ScoreBoard {year} está listo"
-    PUSH_BODY  = (
+    PUSH_TITLE_ES = f"🏆 Tu Annual ScoreBoard {year} está listo"
+    PUSH_BODY_ES  = (
         f"Revisa tu resumen anual como inversor en Nuvos AI — "
         f"tus top acciones, lecciones completadas y más. ¡Entra a verlo!"
+    )
+    PUSH_TITLE_EN = f"🏆 Your {year} Annual ScoreBoard is ready"
+    PUSH_BODY_EN  = (
+        f"Check out your annual investor recap on Nuvos AI — "
+        f"your top stocks, completed lessons, and more. Check it out!"
     )
 
     def _scoreboard_email_html(name: str, year: int) -> str:
@@ -4668,14 +4986,20 @@ async def job_annual_scoreboard():
             db.table("notification_preferences").select("user_id").eq("push_milestones", True)
         )
         uids = [u["user_id"] for u in (prefs_res.data or [])]
+        lang_res = await run_query(
+            db.table("user_profiles").select("user_id,preferred_language").in_("user_id", uids)
+        )
+        lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (lang_res.data or [])}
         push_sent = 0
         for i, uid in enumerate(uids):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.12))
+            is_en = lang_map.get(uid, "es") == "en"
+            title, body = (PUSH_TITLE_EN, PUSH_BODY_EN) if is_en else (PUSH_TITLE_ES, PUSH_BODY_ES)
             await send_push(
                 uid, "annual_scoreboard",
-                PUSH_TITLE, PUSH_BODY,
+                title, body,
                 {"screen": "profile", "section": "scoreboard"},
                 db,
             )
@@ -4929,10 +5253,11 @@ async def job_proactive_vs_market():
 
         prof_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,subscription_tier,mentor")
+            .select("user_id,name,subscription_tier,mentor,preferred_language")
             .in_("user_id", user_ids)
         )
         premium_ids = {p["user_id"] for p in (prof_res.data or []) if p.get("subscription_tier") == "premium"}
+        lang_map = {p["user_id"]: (p.get("preferred_language") or "es") for p in (prof_res.data or [])}
 
         sent = 0
         for uid in premium_ids:
@@ -4974,15 +5299,24 @@ async def job_proactive_vs_market():
 
             sign = "+" if day_gain_val >= 0 else ""
             sp_sign = "+" if sp_pct >= 0 else ""
-            if diff > 0:
-                msg = f"Tu portafolio subió {sign}{port_pct:.1f}% hoy vs S&P {sp_sign}{sp_pct:.1f}%. ¿Quieres que analice qué lo impulsó?"
+            is_en = lang_map.get(uid, "es") == "en"
+            if is_en:
+                if diff > 0:
+                    msg = f"Your portfolio rose {sign}{port_pct:.1f}% today vs S&P {sp_sign}{sp_pct:.1f}%. Want me to analyze what drove it?"
+                else:
+                    msg = f"Your portfolio fell {port_pct:.1f}% vs S&P {sp_sign}{sp_pct:.1f}%. Want me to explain the difference?"
+                push_title = "📊 Your portfolio vs the market today"
             else:
-                msg = f"Tu portafolio bajó {port_pct:.1f}% vs S&P {sp_sign}{sp_pct:.1f}%. ¿Quieres que te explique la diferencia?"
+                if diff > 0:
+                    msg = f"Tu portafolio subió {sign}{port_pct:.1f}% hoy vs S&P {sp_sign}{sp_pct:.1f}%. ¿Quieres que analice qué lo impulsó?"
+                else:
+                    msg = f"Tu portafolio bajó {port_pct:.1f}% vs S&P {sp_sign}{sp_pct:.1f}%. ¿Quieres que te explique la diferencia?"
+                push_title = "📊 Tu portafolio vs el mercado hoy"
 
             encoded_msg = msg.replace("&", "%26").replace("?", "%3F")
             ok = await _send_mobile_push(
                 uid, "proactive_vs_market",
-                "📊 Tu portafolio vs el mercado hoy",
+                push_title,
                 msg,
                 {"screen": "chat", "msg": encoded_msg},
                 db,
@@ -5014,10 +5348,11 @@ async def job_proactive_earnings_preview():
 
         prof_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,subscription_tier")
+            .select("user_id,subscription_tier,preferred_language")
             .in_("user_id", user_ids)
         )
         premium_ids = {p["user_id"] for p in (prof_res.data or []) if p.get("subscription_tier") == "premium"}
+        lang_map = {p["user_id"]: (p.get("preferred_language") or "es") for p in (prof_res.data or [])}
 
         sent = 0
         for uid in premium_ids:
@@ -5029,6 +5364,7 @@ async def job_proactive_earnings_preview():
             if not tickers:
                 continue
 
+            is_en = lang_map.get(uid, "es") == "en"
             hits: list[dict] = []
             for ticker in tickers[:20]:
                 events = await asyncio.to_thread(_fetch_events_for_symbol, ticker)
@@ -5046,14 +5382,22 @@ async def job_proactive_earnings_preview():
                 continue
 
             for hit in hits[:3]:
-                when = "hoy" if hit["date"] == str(today) else "mañana"
-                shares_str = f" · Tienes {hit['shares']:.0f} acciones" if hit["shares"] else ""
-                eps_str = f" · EPS est. ${hit['eps_est']}" if hit.get("eps_est") else ""
-                msg = f"{hit['ticker']} reporta earnings {when}{shares_str}{eps_str}. ¿Quieres que te explique qué vigilar?"
+                if is_en:
+                    when = "today" if hit["date"] == str(today) else "tomorrow"
+                    shares_str = f" · You hold {hit['shares']:.0f} shares" if hit["shares"] else ""
+                    eps_str = f" · EPS est. ${hit['eps_est']}" if hit.get("eps_est") else ""
+                    msg = f"{hit['ticker']} reports earnings {when}{shares_str}{eps_str}. Want me to explain what to watch for?"
+                    push_title = f"📅 {hit['ticker']} reports {when}"
+                else:
+                    when = "hoy" if hit["date"] == str(today) else "mañana"
+                    shares_str = f" · Tienes {hit['shares']:.0f} acciones" if hit["shares"] else ""
+                    eps_str = f" · EPS est. ${hit['eps_est']}" if hit.get("eps_est") else ""
+                    msg = f"{hit['ticker']} reporta earnings {when}{shares_str}{eps_str}. ¿Quieres que te explique qué vigilar?"
+                    push_title = f"📅 {hit['ticker']} reporta {when}"
                 encoded = msg.replace("&", "%26").replace("?", "%3F")
                 ok = await _send_mobile_push(
                     uid, "earnings_preview",
-                    f"📅 {hit['ticker']} reporta {when}",
+                    push_title,
                     msg,
                     {"screen": "chat", "msg": encoded},
                     db,
@@ -5080,6 +5424,14 @@ async def job_proactive_rebalancing():
         "XOM":"Energía","CVX":"Energía","COP":"Energía",
         "WMT":"Consumo","COST":"Consumo","PG":"Consumo","KO":"Consumo",
     }
+    SECTOR_MAP_EN: dict[str, str] = {
+        "AAPL":"Tech","MSFT":"Tech","GOOGL":"Tech","META":"Tech","NVDA":"Tech",
+        "AMZN":"Tech","TSLA":"Tech","AMD":"Tech","INTC":"Tech","ORCL":"Tech",
+        "JPM":"Finance","BAC":"Finance","GS":"Finance","V":"Finance","MA":"Finance",
+        "UNH":"Healthcare","JNJ":"Healthcare","PFE":"Healthcare","ABBV":"Healthcare","MRK":"Healthcare",
+        "XOM":"Energy","CVX":"Energy","COP":"Energy",
+        "WMT":"Consumer","COST":"Consumer","PG":"Consumer","KO":"Consumer",
+    }
 
     try:
         users_res = await run_query(
@@ -5091,10 +5443,11 @@ async def job_proactive_rebalancing():
 
         prof_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,subscription_tier")
+            .select("user_id,subscription_tier,preferred_language")
             .in_("user_id", user_ids)
         )
         premium_ids = {p["user_id"] for p in (prof_res.data or []) if p.get("subscription_tier") == "premium"}
+        lang_map = {p["user_id"]: (p.get("preferred_language") or "es") for p in (prof_res.data or [])}
 
         sent = 0
         for uid in premium_ids:
@@ -5105,19 +5458,21 @@ async def job_proactive_rebalancing():
             if len(positions) < 3:
                 continue
 
+            is_en = lang_map.get(uid, "es") == "en"
             tickers = [p["ticker"] for p in positions if p.get("ticker")]
             try:
                 prices = await asyncio.to_thread(_batch_prices, tickers[:20])
             except Exception:
                 continue
 
+            sector_map = SECTOR_MAP_EN if is_en else SECTOR_MAP
             sector_vals: dict[str, float] = {}
             total = 0.0
             for p in positions:
                 t = p.get("ticker", "")
                 q = prices.get(t) or {}
                 val = (q.get("price") or 0) * (p.get("shares") or 0)
-                sector = SECTOR_MAP.get(t, "Otro")
+                sector = sector_map.get(t, "Other" if is_en else "Otro")
                 sector_vals[sector] = sector_vals.get(sector, 0) + val
                 total += val
 
@@ -5130,15 +5485,24 @@ async def job_proactive_rebalancing():
             if top_pct < 45:
                 continue
 
-            msg = (
-                f"Tu portafolio tiene {top_pct:.0f}% concentrado en {top_sector}. "
-                f"Históricamente, superar el 40% en un sector aumenta la volatilidad. "
-                f"¿Quieres que revisemos opciones de diversificación?"
-            )
+            if is_en:
+                msg = (
+                    f"Your portfolio has {top_pct:.0f}% concentrated in {top_sector}. "
+                    f"Historically, exceeding 40% in one sector increases volatility. "
+                    f"Want to review diversification options?"
+                )
+                push_title = f"⚖️ {top_pct:.0f}% in {top_sector} — should we diversify?"
+            else:
+                msg = (
+                    f"Tu portafolio tiene {top_pct:.0f}% concentrado en {top_sector}. "
+                    f"Históricamente, superar el 40% en un sector aumenta la volatilidad. "
+                    f"¿Quieres que revisemos opciones de diversificación?"
+                )
+                push_title = f"⚖️ {top_pct:.0f}% en {top_sector} — ¿diversificamos?"
             encoded = msg.replace("&", "%26").replace("?", "%3F")
             ok = await _send_mobile_push(
                 uid, "rebalancing_alert",
-                f"⚖️ {top_pct:.0f}% en {top_sector} — ¿diversificamos?",
+                push_title,
                 msg,
                 {"screen": "chat", "msg": encoded},
                 db,

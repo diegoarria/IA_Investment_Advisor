@@ -433,9 +433,18 @@ async def _run_claimed_job(db, job: dict) -> None:
 
         try:
             from app.services.web_push_service import send_web_push_to_user
+            lang_res = await run_query(
+                db.table("user_profiles").select("preferred_language").eq("user_id", user_id).limit(1)
+            )
+            is_en = ((lang_res.data or [{}])[0].get("preferred_language") or "es") == "en"
+            if is_en:
+                push_title = "Your Deep Research is ready"
+                push_body = report.get("title") or "Your research report is now available."
+            else:
+                push_title = "Tu Deep Research está listo"
+                push_body = report.get("title") or "Tu reporte de investigación ya está disponible."
             await send_web_push_to_user(
-                user_id, "Tu Deep Research está listo",
-                report.get("title") or "Tu reporte de investigación ya está disponible.",
+                user_id, push_title, push_body,
                 {"type": "deep_research", "report_id": report_id},
             )
         except Exception:

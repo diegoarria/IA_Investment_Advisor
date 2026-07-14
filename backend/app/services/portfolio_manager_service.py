@@ -35,17 +35,24 @@ async def _haiku_insight(prompt: str, max_tokens: int = 120) -> str | None:
         return None
 
 
+_LANG_INSTRUCTION = {
+    "es": "Escribe en español.",
+    "en": "Write in English.",
+}
+
+
 async def generate_concentration_insight(
     first_name: str,
     top_sector: str,
     weight_pct: float,
     total_value: float,
     investing_style: str | None,
+    language: str = "es",
 ) -> str | None:
     """Premium-only: personalized concentration-risk message referencing the
     user's actual portfolio weight and declared investing style."""
     style_note = f" El usuario se declara inversionista de estilo {investing_style}." if investing_style and investing_style != "not_set" else ""
-    prompt = f"""Eres el Portfolio Manager IA de Nuvos, un asistente que vigila el portafolio del usuario en segundo plano.
+    prompt = f"""Eres el Portfolio Manager IA de Nuvos, un asistente que vigila el portafolio del usuario en segundo plano. {_LANG_INSTRUCTION.get(language, _LANG_INSTRUCTION["es"])}
 
 DATOS:
 - {first_name} tiene el {weight_pct:.0f}% de su portafolio (${total_value:,.0f} USD) concentrado en el sector {top_sector}.{style_note}
@@ -64,12 +71,13 @@ async def generate_diversification_insight(
     missing_sectors: int,
     current_sectors: list[str],
     investing_style: str | None,
+    language: str = "es",
 ) -> str | None:
     """Premium-only: personalized nudge naming the sectors the user already
     holds and how close they are to a well-diversified portfolio."""
     style_note = f" Su estilo declarado es {investing_style}." if investing_style and investing_style != "not_set" else ""
     held = ", ".join(current_sectors) if current_sectors else "muy pocos sectores"
-    prompt = f"""Eres el Portfolio Manager IA de Nuvos.
+    prompt = f"""Eres el Portfolio Manager IA de Nuvos. {_LANG_INSTRUCTION.get(language, _LANG_INSTRUCTION["es"])}
 
 DATOS:
 - {first_name} ya tiene exposición a: {held}.
@@ -87,10 +95,11 @@ async def generate_thesis_drift_insight(
     company_name: str,
     investing_style: str,
     drift_reason: str,
+    language: str = "es",
 ) -> str | None:
     """Premium-only: personalized message when a holding no longer matches
     the user's declared investing philosophy."""
-    prompt = f"""Eres el Portfolio Manager IA de Nuvos.
+    prompt = f"""Eres el Portfolio Manager IA de Nuvos. {_LANG_INSTRUCTION.get(language, _LANG_INSTRUCTION["es"])}
 
 DATOS:
 - {first_name} tiene {company_name} ({ticker}) en su portafolio.
