@@ -14,6 +14,29 @@ from datetime import datetime, timezone
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
+_AVATAR_MAX_SIDE = 512  # px — avatars are only ever shown small (comment threads, sidebar)
+
+
+def _resize_avatar(image_bytes: bytes) -> bytes:
+    """Downscale + recompress an avatar before it ever reaches Supabase
+    Storage. Uploads were previously stored at whatever resolution the
+    client sent — often multi-MB straight off a phone camera — and
+    Storage re-serves that same file to every viewer of every comment or
+    profile this user appears on, with no CDN cache shared across
+    different users' browsers. That repeated full-resolution egress was
+    the single biggest driver behind blowing past the Supabase Free
+    Plan's Cached Egress quota with only a couple dozen users."""
+    from PIL import Image
+    import io
+
+    img = Image.open(io.BytesIO(image_bytes))
+    img = img.convert("RGB")  # normalize PNG-with-alpha/CMYK/etc. to plain JPEG-safe RGB
+    if max(img.size) > _AVATAR_MAX_SIDE:
+        img.thumbnail((_AVATAR_MAX_SIDE, _AVATAR_MAX_SIDE), Image.LANCZOS)
+    out = io.BytesIO()
+    img.save(out, format="JPEG", quality=85, optimize=True)
+    return out.getvalue()
+
 
 async def _get_profile_or_404(user_id: str) -> dict:
     db = get_supabase()
@@ -272,6 +295,11 @@ async def upload_avatar(
         image_bytes = base64.b64decode(data.image_base64)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid base64 image data")
+
+    try:
+        image_bytes = await asyncio.to_thread(_resize_avatar, image_bytes)
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo procesar la imagen")
 
     db = get_supabase()
     path = f"{user_id}.jpg"

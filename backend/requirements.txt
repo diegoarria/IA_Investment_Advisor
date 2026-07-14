@@ -26,3 +26,4 @@ openai>=1.0.0,<2.0.0
 fpdf2>=2.7.9
 pywebpush==2.0.0
 py_vapid==1.9.0
+Pillow==12.3.0

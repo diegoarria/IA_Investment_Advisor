@@ -87,19 +87,33 @@ class UserProfile(BaseModel):
     updated_at: Optional[str] = None
 
 
+# Base64 inflates size ~4/3, so this caps the actual decoded image at ~5MB —
+# matches Anthropic's own hard limit for images sent to Claude (larger ones
+# fail the API call outright instead of getting a clean upfront rejection),
+# and Claude downsamples anything past ~1568px on the long edge internally
+# anyway, so accepting more never improves what the model actually sees.
+_MAX_IMAGE_B64_CHARS = 6_700_000
+
+
 class AvatarUpload(BaseModel):
     image_base64: str
+
+    @field_validator("image_base64")
+    @classmethod
+    def _limit_avatar_upload_size(cls, v: str) -> str:
+        # Same limit as ChatImage below — this had NO limit at all before,
+        # and unlike chat images (seen once), an avatar gets re-served by
+        # Supabase Storage to every viewer of every comment/profile this user
+        # appears on, so an uncompressed multi-MB phone photo here is a much
+        # bigger repeated-egress cost than the same size limit is for chat.
+        if len(v) > _MAX_IMAGE_B64_CHARS:
+            raise ValueError(f"Image too large (max ~5MB, got base64 length {len(v)})")
+        return v
 
 
 class ChatMessage(BaseModel):
     role: str
     content: str
-
-
-# Base64 inflates size ~4/3, so this caps the actual decoded image at roughly
-# 9MB — generous for a screenshot or photo, but bounded so a client can't send
-# an arbitrarily huge payload (cost/DoS vector — nothing enforced this before).
-_MAX_IMAGE_B64_CHARS = 12_000_000
 
 
 class ChatImage(BaseModel):
@@ -110,7 +124,7 @@ class ChatImage(BaseModel):
     @classmethod
     def _limit_image_size(cls, v: str) -> str:
         if len(v) > _MAX_IMAGE_B64_CHARS:
-            raise ValueError(f"Image too large (max ~9MB, got base64 length {len(v)})")
+            raise ValueError(f"Image too large (max ~5MB, got base64 length {len(v)})")
         return v
 
 class ChatRequest(BaseModel):
@@ -127,7 +141,7 @@ class ChatRequest(BaseModel):
     @classmethod
     def _limit_legacy_image_size(cls, v: Optional[str]) -> Optional[str]:
         if v and len(v) > _MAX_IMAGE_B64_CHARS:
-            raise ValueError(f"Image too large (max ~9MB, got base64 length {len(v)})")
+            raise ValueError(f"Image too large (max ~5MB, got base64 length {len(v)})")
         return v
     # Notification deep-link context (optional)
     notification_context: Optional[str] = None
