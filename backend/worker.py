@@ -786,10 +786,62 @@ def _finnhub_weekly_pct(ticker: str, as_of=None) -> dict | None:
     }
 
 
+async def _fetch_market_open_indices() -> dict:
+    """Real S&P 500 / Nasdaq data for the market-open push — points + %.
+    Tries ^GSPC/^IXIC directly via Finnhub first (that IP block only ever
+    applied to yfinance, not Finnhub — ^VIX already works the same way
+    elsewhere in this file). Falls back to SPY/QQQ (%-only, no points) if
+    the index quote fails — never fabricates a point value from the ETF
+    proxy price, since SPY/QQQ trade at a totally different scale than the
+    real indices.
+    Returns {sp500_pct, sp500_points, nasdaq_pct, nasdaq_points, used_fallback}.
+    """
+    spx_q = await asyncio.to_thread(_finnhub_quote, "^GSPC")
+    ixic_q = await asyncio.to_thread(_finnhub_quote, "^IXIC")
+    sp500_pct   = spx_q["pct"] if spx_q else None
+    nasdaq_pct  = ixic_q["pct"] if ixic_q else None
+    sp500_points  = spx_q["curr"] if spx_q else None
+    nasdaq_points = ixic_q["curr"] if ixic_q else None
+    used_fallback = False
+
+    if not spx_q or not ixic_q:
+        used_fallback = True
+        logger.warning("_fetch_market_open_indices: ^GSPC/^IXIC quote failed, falling back to SPY/QQQ %% only")
+        spy_q = await asyncio.to_thread(_finnhub_quote, "SPY")
+        qqq_q = await asyncio.to_thread(_finnhub_quote, "QQQ")
+        if sp500_pct is None:
+            sp500_pct = spy_q["pct"] if spy_q else None
+        if nasdaq_pct is None:
+            nasdaq_pct = qqq_q["pct"] if qqq_q else None
+
+    return {
+        "sp500_pct": sp500_pct, "sp500_points": sp500_points,
+        "nasdaq_pct": nasdaq_pct, "nasdaq_points": nasdaq_points,
+        "used_fallback": used_fallback,
+    }
+
+
+def _market_open_lines(sp500_pct, sp500_points, nasdaq_pct, nasdaq_points) -> tuple[str, str]:
+    """Renders the two index lines shared by job_market_open and the
+    admin test-trigger endpoint, so they can never drift apart."""
+    def _pct_str(pct):
+        return f"{pct:+.2f}%" if pct is not None else "s/d"
+
+    def _points_str(points):
+        return f"{points:,.0f}" if points is not None else None
+
+    sp_pct_str = _pct_str(sp500_pct)
+    nq_pct_str = _pct_str(nasdaq_pct)
+    sp_points_str = _points_str(sp500_points)
+    nq_points_str = _points_str(nasdaq_points)
+
+    sp_line = f"S&P 500: {sp_points_str} ({sp_pct_str} hoy)" if sp_points_str else f"S&P 500 {sp_pct_str}"
+    nq_line = f"Nasdaq: {nq_points_str} ({nq_pct_str} hoy)" if nq_points_str else f"Nasdaq {nq_pct_str}"
+    return sp_line, nq_line
+
+
 async def job_market_open():
-    """9:30 AM ET weekdays — personalized open alert for ALL users.
-    Uses SPY/QQQ as S&P 500/Nasdaq proxies (^GSPC/^IXIC blocked on Railway).
-    Uses _batch_fetch_prices (Nasdaq API) for all prices — works at open."""
+    """9:30 AM ET weekdays — personalized open alert for ALL users."""
     if not _is_market_open_today():
         logger.info("job_market_open: market closed today — skipping")
         return
@@ -798,11 +850,9 @@ async def job_market_open():
     from app.services.notification_engine import send_push
     db = get_supabase()
     try:
-        # SPY ≈ S&P 500, QQQ ≈ Nasdaq 100 — via Finnhub (Railway-safe)
-        spy_q = await asyncio.to_thread(_finnhub_quote, "SPY")
-        qqq_q = await asyncio.to_thread(_finnhub_quote, "QQQ")
-        sp500_pct  = spy_q["pct"] if spy_q else None
-        nasdaq_pct = qqq_q["pct"] if qqq_q else None
+        idx = await _fetch_market_open_indices()
+        sp500_pct, sp500_points = idx["sp500_pct"], idx["sp500_points"]
+        nasdaq_pct, nasdaq_points = idx["nasdaq_pct"], idx["nasdaq_points"]
 
         # Opt-out model: send to all push-capable users unless push_market_open = False
         prefs_res = await run_query(
@@ -840,8 +890,9 @@ async def job_market_open():
 
         prices = await _finnhub_prices_batch(list(all_tickers)) if all_tickers else {}
 
-        sp_str = f"{sp500_pct:+.1f}%" if sp500_pct is not None else "s/d"
-        nq_str = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "s/d"
+        # "S&P 500: 7,538 (+0.58% hoy)" when we have real index points, or the
+        # old "S&P 500 +0.58%" style if the ^GSPC/^IXIC fetch failed today.
+        sp_line, nq_line = _market_open_lines(sp500_pct, sp500_points, nasdaq_pct, nasdaq_points)
 
         sent = 0
         for i, uid in enumerate(uids):
@@ -851,20 +902,21 @@ async def job_market_open():
 
             first      = name_map.get(uid, "Inversor")
             is_premium = premium_map.get(uid, False)
+            title      = f"{first}, el mercado ha abierto 🔔"
 
             if is_premium:
                 user_pct = _calc_portfolio_pct(portfolio_map.get(uid, []), prices)
                 if user_pct is not None:
-                    port_str = f"{user_pct:+.1f}%"
-                    body = f"S&P 500 {sp_str} · Nasdaq {nq_str} · Tu portafolio {port_str}"
+                    body = f"{sp_line}\n{nq_line}\n\nTu portafolio: {user_pct:+.2f}% hoy. Entra a ver el detalle."
                 else:
-                    body = f"S&P 500 {sp_str} · Nasdaq {nq_str} · Agrega tu portafolio para ver tu rendimiento."
+                    body = f"{sp_line}\n{nq_line}\n\nAgrega tu portafolio para ver tu rendimiento."
             else:
-                body = f"Buenos días {first}! S&P 500 {sp_str} · Nasdaq {nq_str}. Activa Premium para ver el rendimiento de tu portafolio."
+                body = f"{sp_line}\n{nq_line}\n\nEntra a ver cómo se está comportando tu portafolio."
 
-            await send_push(uid, "market_open", "🔔 Mercado Abierto", body, {"screen": "portfolio"}, db)
+            await send_push(uid, "market_open", title, body, {"screen": "portfolio"}, db)
             sent += 1
-        logger.info("Market open push: %d sent | SPY %s | QQQ %s", sent, sp500_pct, nasdaq_pct)
+        logger.info("Market open push: %d sent | S&P %s (%s pts) | Nasdaq %s (%s pts)",
+                    sent, sp500_pct, sp500_points, nasdaq_pct, nasdaq_points)
     except Exception as e:
         logger.error("job_market_open failed: %s", e)
 

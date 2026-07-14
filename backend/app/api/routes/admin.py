@@ -52,6 +52,62 @@ def _agg_positions(rows: list[dict]) -> list:
     return positions
 
 
+@router.post("/test-market-open")
+async def test_market_open(user: dict = Depends(get_current_user)):
+    """Fires the REAL market-open data fetch (live Finnhub ^GSPC/^IXIC quotes,
+    real portfolio calc) and sends ONE test push to the calling admin's own
+    account only — never touches other users. Built to answer a concrete
+    question: does this actually pull real index points at request time, or
+    silently fall back? The response includes the raw fetched values even if
+    push delivery itself has no channel configured, so this is useful purely
+    as a diagnostic even without a registered device."""
+    await _require_admin(user)
+    import worker
+    from app.services.notification_engine import send_push
+
+    admin_id = user["id"]
+    db = get_supabase()
+
+    idx = await worker._fetch_market_open_indices()
+    sp_line, nq_line = worker._market_open_lines(
+        idx["sp500_pct"], idx["sp500_points"], idx["nasdaq_pct"], idx["nasdaq_points"]
+    )
+
+    port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", admin_id))
+    positions = _agg_positions(port_res.data or [])
+    portfolio_pct = None
+    if positions:
+        tickers = {p["ticker"] for p in positions if p.get("ticker")}
+        prices = await worker._finnhub_prices_batch(list(tickers))
+        portfolio_pct = worker._calc_portfolio_pct(positions, prices)
+
+    if portfolio_pct is not None:
+        body = f"{sp_line}\n{nq_line}\n\nTu portafolio: {portfolio_pct:+.2f}% hoy. Entra a ver el detalle."
+    elif positions:
+        body = f"{sp_line}\n{nq_line}\n\nNo se pudo calcular tu portafolio (precios no disponibles)."
+    else:
+        body = f"{sp_line}\n{nq_line}\n\nEntra a ver cómo se está comportando tu portafolio."
+
+    profile_res = await run_query(db.table("user_profiles").select("name").eq("user_id", admin_id).limit(1))
+    first = ((profile_res.data or [{}])[0].get("name") or "Inversor").split()[0]
+    title = f"{first}, el mercado ha abierto 🔔 (TEST)"
+
+    # Distinct category so this test never consumes today's real "market_open"
+    # dedup slot — the actual 9:30am job for this same admin still fires normally.
+    await send_push(admin_id, "market_open_test", title, body, {"screen": "portfolio"}, db)
+
+    return {
+        "used_fallback": idx["used_fallback"],
+        "sp500_points": idx["sp500_points"],
+        "sp500_pct": idx["sp500_pct"],
+        "nasdaq_points": idx["nasdaq_points"],
+        "nasdaq_pct": idx["nasdaq_pct"],
+        "portfolio_pct": portfolio_pct,
+        "title": title,
+        "body": body,
+    }
+
+
 @router.get("/user-snapshot")
 async def get_user_snapshot(email: str, user: dict = Depends(get_current_user)):
     await _require_admin(user)
