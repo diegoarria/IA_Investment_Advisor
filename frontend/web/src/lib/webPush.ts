@@ -1,4 +1,6 @@
-const API = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { apiBase } from "./apiBase";
+
+const API = apiBase();
 
 export async function registerWebPush(): Promise<boolean> {
   if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {

@@ -1,12 +1,8 @@
 import axios from "axios";
 import { getSupabaseClient } from "./supabase";
+import { apiBase } from "./apiBase";
 
-
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  (process.env.NODE_ENV === "production"
-    ? "https://iainvestmentadvisor-production.up.railway.app"
-    : "http://localhost:8000");
+const BASE_URL = apiBase();
 
 // `withCredentials: true` is what makes the browser send/receive the httpOnly
 // `access_token`/`refresh_token` cookies the backend now sets on login/register/
@@ -473,6 +469,7 @@ export const voiceCallsApi = {
   list: () => api.get("/api/voice/calls"),
   get: (id: string) => api.get(`/api/voice/calls/${id}`),
   delete: (id: string) => api.delete(`/api/voice/calls/${id}`),
+  getTicket: () => api.post("/api/voice/call/ticket"),
 };
 
 export const adminApi = {

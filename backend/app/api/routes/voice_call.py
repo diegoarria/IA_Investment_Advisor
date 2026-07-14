@@ -31,11 +31,13 @@ import base64
 import json
 import logging
 import re
+import secrets
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 
 from app.api.deps import _resolve_user_token, get_current_user_id
+from app.core.cache import cache_get, cache_set, cache_delete
 from app.core.database import get_supabase, run_query
 from app.models.user import ChatMessage, UserProfile
 from app.services import ai_service, fmg_service, investor_progress_service
@@ -202,16 +204,41 @@ async def delete_call(call_id: str, user_id: str = Depends(get_current_user_id))
     return {"deleted": True}
 
 
+_VOICE_TICKET_TTL = 30  # seconds — just long enough to open the WS right after fetching it
+
+
+@router.post("/call/ticket")
+async def create_voice_call_ticket(user_id: str = Depends(get_current_user_id)):
+    """Web's WS connects directly to this API's own domain, not through the
+    frontend's proxy — so the (now first-party, nuvosai.com-scoped) auth
+    cookie never reaches it, cookies don't cross unrelated domains no matter
+    what proxies exist elsewhere. Rather than reintroduce the long-lived
+    access_token into JS to pass as a query param, mint a random single-use
+    ticket instead: authenticated the normal way (cookie or header, via
+    get_current_user_id), valid for 30s, resolved once and discarded."""
+    ticket = secrets.token_urlsafe(24)
+    cache_set(f"voice_ticket:{ticket}", user_id, ttl=_VOICE_TICKET_TTL)
+    return {"ticket": ticket}
+
+
 @router.websocket("/call/ws")
-async def voice_call_ws(websocket: WebSocket, token: str = "", resume: str = ""):
+async def voice_call_ws(websocket: WebSocket, token: str = "", ticket: str = "", resume: str = ""):
     try:
-        # Web (post-cookie-migration) never puts the token in the URL — the
-        # browser sends the httpOnly `access_token` cookie automatically on the
-        # WS handshake. Mobile has no cookie jar semantics here, so it keeps
-        # passing the token as a query param exactly as before. Cookie wins if
-        # both are present (mirrors the header-vs-cookie precedence in deps.py).
-        cookie_token = websocket.cookies.get("access_token")
-        user = await _resolve_user_token(cookie_token or token)
+        if ticket:
+            # Single-use — resolved once and discarded immediately so a
+            # replayed/observed ticket can't be reused.
+            ticket_user_id = cache_get(f"voice_ticket:{ticket}")
+            cache_delete(f"voice_ticket:{ticket}")
+            if not ticket_user_id:
+                raise HTTPException(status_code=401, detail="Invalid or expired ticket")
+            user = {"id": ticket_user_id}
+        else:
+            # Cookie only works here when the WS target is same-site with the
+            # page (e.g. local dev, or mobile's Authorization header path via
+            # `token`) — falls back to the ?token= query param mobile has
+            # always used.
+            cookie_token = websocket.cookies.get("access_token")
+            user = await _resolve_user_token(cookie_token or token)
     except Exception:
         await websocket.close(code=4401)
         return

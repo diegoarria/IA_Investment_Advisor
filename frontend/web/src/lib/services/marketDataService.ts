@@ -12,8 +12,9 @@
 // for quote details. TTL cache: 120s for quote-details.
 
 import type { StockData } from "@/lib/types/stock";
+import { apiBase } from "@/lib/apiBase";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || "";
+const BASE = apiBase();
 
 // Raw shape returned by /api/market/quote-details
 interface QuoteDetailsRaw {

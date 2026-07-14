@@ -121,14 +121,26 @@ export default function VoiceCallModal({ onClose }: Props) {
     // itself needs to be replaced. Uses closedRef (a ref, always current)
     // instead of the `cancelled` closure variable, which would otherwise be
     // captured stale from whichever call triggered this connect attempt.
-    function connectWebSocket() {
+    async function connectWebSocket() {
+      // This WS connects directly to the API's own domain (not through the
+      // frontend's same-origin proxy), so our first-party auth cookie never
+      // reaches it — cookies don't cross unrelated domains. A fresh
+      // short-lived single-use ticket stands in for it instead (fetched
+      // every attempt, including reconnects, since it's single-use).
+      let ticketParam = "";
+      try {
+        const { voiceCallsApi } = await import("@/lib/api");
+        const { data } = await voiceCallsApi.getTicket();
+        if (data?.ticket) ticketParam = `ticket=${encodeURIComponent(data.ticket)}&`;
+      } catch {}
+      if (closedRef.current) return;
+
       // resume=1 on anything past the first attempt — tells the server this
       // is a reconnect mid-call, not a fresh call, so it skips the greeting
       // (the user is already mid-conversation, replaying it would be jarring).
-      // No ?token= — the browser sends the httpOnly access_token cookie
-      // automatically during the WS handshake; the backend reads it there.
-      const resumeParam = reconnectAttemptsRef.current > 0 ? "?resume=1" : "";
-      const ws = new WebSocket(`${wsBaseUrl()}/api/voice/call/ws${resumeParam}`);
+      const resumeParam = reconnectAttemptsRef.current > 0 ? "resume=1" : "";
+      const query = ticketParam || resumeParam ? `?${ticketParam}${resumeParam}` : "";
+      const ws = new WebSocket(`${wsBaseUrl()}/api/voice/call/ws${query}`);
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 

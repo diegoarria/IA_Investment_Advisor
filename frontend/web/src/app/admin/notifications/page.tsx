@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Bell, TrendingUp, BarChart2, Send } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
+import { apiBase } from "@/lib/apiBase";
 
 const ADMIN_UID = "86961402-9072-4670-9f73-b2aa91930b04";
-const API = process.env.NEXT_PUBLIC_API_URL ?? "";
+const API = apiBase();
 
 interface CategoryStat {
   category: string;

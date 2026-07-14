@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { apiBase } from "@/lib/apiBase";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "";
+const API = apiBase();
 
 function getPushToggles(t: TFunction) {
   return [

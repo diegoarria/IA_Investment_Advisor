@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { useAuthStore } from "./store";
+import { apiBase } from "./apiBase";
 
 export interface Position {
   id: string;
@@ -130,9 +131,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
       ): Promise<void> => {
         set({ syncStatus: "syncing", pendingSync: true, pendingSyncSetAt: Date.now() });
         const doFetch = (): Promise<void> => {
-          const BASE_URL =
-            process.env.NEXT_PUBLIC_API_URL ||
-            "https://iainvestmentadvisor-production.up.railway.app";
+          const BASE_URL = apiBase();
           return fetch(`${BASE_URL}/api/sync/portfolio`, {
             method: "POST",
             credentials: "include",

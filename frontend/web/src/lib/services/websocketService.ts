@@ -7,6 +7,7 @@
 //   ws.unsubscribe(["AAPL"]);
 
 import type { FinnhubMessage } from "@/lib/types/stock";
+import { apiBase } from "@/lib/apiBase";
 
 type PriceCallback = (symbol: string, price: number, timestamp: number) => void;
 
@@ -39,7 +40,7 @@ class FinnhubWebSocket {
     if (this.token) return this.token;
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || ""}/api/market/ws-token`,
+        `${apiBase()}/api/market/ws-token`,
         { credentials: "include" },
       );
       if (!res.ok) return null;

@@ -8,8 +8,9 @@ import PricingModal from "@/components/PricingModal";
 import { useSubscriptionStore, useAuthStore } from "@/lib/store";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { apiBase } from "@/lib/apiBase";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "";
+const API = apiBase();
 import {
   Brain, BarChart2, TrendingUp, Shield, Zap, BookOpen,
   GraduationCap, Bell, Calendar, RefreshCw, Target,
