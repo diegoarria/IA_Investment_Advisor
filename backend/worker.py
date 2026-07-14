@@ -273,7 +273,7 @@ _COMPANY_NAMES: dict[str, str] = {
     "SNOW": "Snowflake",       "DDOG": "Datadog",        "ZM": "Zoom",
     "CRWD": "CrowdStrike",     "PANW": "Palo Alto",      "OKTA": "Okta",
     "ARM": "Arm Holdings",     "AVGO": "Broadcom",       "QCOM": "Qualcomm",
-    "TXN": "Texas Instruments","MU": "Micron",           "AMAT": "Applied Materials",
+    "TXN": "Texas Instruments","MU": "Micron Technology","AMAT": "Applied Materials",
 }
 
 
@@ -1904,13 +1904,13 @@ async def job_portfolio_alerts():
                 screen       = "portfolio" if is_portfolio else "watchlist"
 
                 why = ticker_why[ticker]
-                company = _company_name(ticker)
                 emoji = _move_emoji(ticker, pct)
-                # Compact format: "{emoji} {Empresa} {+/-X.X}% {por qué, ~70 chars}"
-                # targets ~90-120 characters total so it's readable at a glance in
-                # a notification tray, instead of the old ~230-char paragraph with
-                # a $ impact line and a CTA sentence tacked on.
-                prefix = f"{emoji} {company} {pct:+.1f}%"
+                verb = "subió" if pct >= 0 else "bajó"
+                # Title carries the company name ("Micron Technology"); the body
+                # leads with the ticker instead — "MU subió +4.78%" — since the
+                # user reads tickers faster than full names once already looking
+                # at a specific stock's alert. Always 2 decimals for precision.
+                prefix = f"{emoji} {ticker} {verb} {pct:+.2f}%"
                 push_category = f"price_mover_{ticker}"
 
                 # Hard cap of one push per ticker per user per day — applies to

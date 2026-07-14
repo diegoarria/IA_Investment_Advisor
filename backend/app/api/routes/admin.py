@@ -79,13 +79,14 @@ async def test_price_alert_why(ticker: str, pct: float = 5.0, user: dict = Depen
     perplexity_error = None
     finnhub_error = None
 
-    # Send the exact real notification (same emoji/company/%% format as
+    # Send the exact real notification (same emoji/ticker/verb/%% format as
     # job_portfolio_alerts) to the calling admin's own account only — never
     # to other users. Distinct category so this never consumes or interferes
     # with that ticker's real "price_mover_{ticker}" dedup slot for the day.
     company = worker._company_name(ticker)
     emoji = worker._move_emoji(ticker, pct)
-    prefix = f"{emoji} {company} {pct:+.1f}%"
+    verb = "subió" if pct >= 0 else "bajó"
+    prefix = f"{emoji} {ticker} {verb} {pct:+.2f}%"
     if final_result == NO_CATALYST:
         push_body = f"{prefix} — sin catalizador claro, posible volatilidad de mercado."
     else:
