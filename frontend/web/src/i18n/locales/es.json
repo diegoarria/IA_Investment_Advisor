@@ -33,7 +33,7 @@
     "newChat": "Nuevo chat",
     "noSavedChats": "Sin chats guardados",
     "loading": "Cargando...",
-    "session1on1": "Sesión 1:1 con Diego",
+    "session1on1": "Sesión 1:1 con experto de nuestro equipo",
     "personalizedGuide": "Guía personalizada · 45 min",
     "logout": "Cerrar sesión",
     "openSidebar": "Abrir sidebar",
@@ -1855,7 +1855,7 @@
     "tagline": "Con Nuvos, construye tu futuro.",
     "session": {
       "paymentProcessed": "Pago de ${{amount}} procesado",
-      "videoCall": "Videollamada de 45 minutos con Diego",
+      "videoCall": "Videollamada de 45 minutos con experto de nuestro equipo",
       "recording": "Grabación entregada después de la sesión",
       "nextStep": "Siguiente paso",
       "nextStepDesc": "Elige el día y hora que mejor te quede. Recibirás una confirmación por email con el link de la videollamada.",
@@ -2263,11 +2263,11 @@
       ]
     },
     "session": {
-      "title": "Sesión 1:1 con Diego",
+      "title": "Sesión 1:1 con experto de nuestro equipo",
       "subtitle": "45 minutos con el fundador de Nuvos AI",
       "badge": "Agenda disponible",
       "features": [
-        "Videollamada de 45 min con Diego Arria, fundador de Nuvos AI",
+        "Videollamada de 45 min con experto de nuestro equipo",
         "Revisión de tu puntuación de madurez inversora",
         "Análisis de tu portafolio y estrategia de inversión",
         "3 próximos pasos concretos para tu situación específica",
@@ -2383,7 +2383,7 @@
     "cancelAnytime": "Cancela cuando quieras",
     "securePayment": "Pago seguro con Stripe",
     "freeTrial": "7 días gratis",
-    "oneOnOneCta": "¿Prefieres una guía 1:1 con Diego?",
+    "oneOnOneCta": "¿Prefieres una guía 1:1 con experto de nuestro equipo?",
     "periodMonthly": "/mes",
     "periodYearly": "/año"
   },

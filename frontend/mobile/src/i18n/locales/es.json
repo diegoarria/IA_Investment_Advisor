@@ -61,7 +61,7 @@
         "speculative": "Especulativo"
       },
       "navLocked": "Bloqueado",
-      "coachingTitle": "Sesión 1:1 con Diego",
+      "coachingTitle": "Sesión 1:1 con experto de nuestro equipo",
       "coachingSub": "Guía personalizada · 45 min",
       "logout": "Cerrar sesión"
     },
@@ -1816,7 +1816,7 @@
     "notFoundDesc": "Toca \"Preguntar\" para que la IA te explique cualquier concepto",
     "explainWithAI": "Explicar con IA →",
     "coachingTitle": "¿Prefieres aprender con alguien?",
-    "coachingDesc": "45 min contigo y Diego — te guía por la app y crea tu plan de inversión personalizado.",
+    "coachingDesc": "45 min con un experto de nuestro equipo — te guía por la app y crea tu plan de inversión personalizado.",
     "coaching45min": "45 min →",
     "preparingFlashcard": "Preparando flashcard... ~2 seg",
     "quizCta": "¿Entendido? — Haz el quiz →",
@@ -2408,7 +2408,7 @@
       "profileBadge": "Perfil {{label}} · {{pct}}% riesgo",
       "scheduleCta": "Agendar mi Sesión de Bienvenida",
       "welcomeHeadline": "Tu Sesión de\nBienvenida",
-      "welcomeSub": "Agendaremos una sesión 1:1 con Diego para ayudarte a empezar con el pie derecho."
+      "welcomeSub": "Agendaremos una sesión 1:1 con un experto de nuestro equipo para ayudarte a empezar con el pie derecho."
     },
     "startButton": "¡Comenzar!",
     "step0": {
@@ -2456,7 +2456,7 @@
       "starting": "Empezando",
       "sub": "Esto nos ayuda a saber cómo acompañarte mejor desde el primer día.",
       "title": "¿Ya tienes experiencia en el mercado?",
-      "welcomeSessionDesc": "Nuvos te va a acompañar paso a paso — y cuando quieras, puedes agendar una sesión 1:1 gratis con Diego desde tu inicio.",
+      "welcomeSessionDesc": "Nuvos te va a acompañar paso a paso — y cuando quieras, puedes agendar una sesión 1:1 gratis con un experto de nuestro equipo desde tu inicio.",
       "welcomeSessionIncluded": "✨ Perfecto punto de partida",
       "yesHave": "Sí tengo"
     },
@@ -2906,11 +2906,11 @@
         "ctaLabel": "Activar Plan Dúo"
       },
       "session": {
-        "title": "Sesión 1:1 con Diego",
+        "title": "Sesión 1:1 con experto de nuestro equipo",
         "subtitle": "45 minutos con el fundador de Nuvos AI",
         "badge": "Agenda disponible",
         "features": [
-          "Videollamada de 45 min con Diego Arria, fundador de Nuvos AI",
+          "Videollamada de 45 min con experto de nuestro equipo",
           "Revisión de tu puntuación de madurez inversora",
           "Análisis de tu portafolio y estrategia de inversión",
           "3 próximos pasos concretos para tu situación específica",
@@ -3226,7 +3226,7 @@
     "seeLess": "Ver menos",
     "seeAllResults": "Ver los {{count}} resultados incluidos",
     "startNow": "Comenzar ahora · {{price}}{{period}}",
-    "coachingCta": "¿Prefieres una guía 1:1 con Diego?"
+    "coachingCta": "¿Prefieres una guía 1:1 con experto de nuestro equipo?"
   },
   "quizModal": {
     "passed": "¡Quiz aprobado!",

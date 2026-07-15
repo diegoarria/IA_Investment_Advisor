@@ -510,7 +510,7 @@ function MobileSidebar() {
               <Ionicons name="calendar-outline" size={16} color="#00d47e" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.coachingTitle, { color: colors.text }]}>Sesión 1:1 con Diego</Text>
+              <Text style={[styles.coachingTitle, { color: colors.text }]}>Sesión 1:1 con experto de nuestro equipo</Text>
               <Text style={[styles.coachingSub, { color: colors.textMuted }]}>Guía personalizada · 45 min</Text>
             </View>
             <Ionicons name="chevron-forward" size={14} color={colors.textDim} />

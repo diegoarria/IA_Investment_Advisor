@@ -61,7 +61,7 @@
         "speculative": "Speculative"
       },
       "navLocked": "Locked",
-      "coachingTitle": "1:1 session with Diego",
+      "coachingTitle": "1:1 session with an expert from our team",
       "coachingSub": "Personalized guidance · 45 min",
       "logout": "Log out"
     },
@@ -1816,7 +1816,7 @@
     "notFoundDesc": "Tap \"Ask\" so the AI can explain any concept",
     "explainWithAI": "Explain with AI →",
     "coachingTitle": "Prefer learning with someone?",
-    "coachingDesc": "45 min with Diego — he guides you through the app and creates your personalized investment plan.",
+    "coachingDesc": "45 min with an expert from our team — they'll guide you through the app and create your personalized investment plan.",
     "coaching45min": "45 min →",
     "preparingFlashcard": "Preparing flashcard... ~2 sec",
     "quizCta": "Got it? — Take the quiz →",
@@ -2408,7 +2408,7 @@
       "profileBadge": "{{label}} profile · {{pct}}% risk",
       "scheduleCta": "Schedule my Welcome Session",
       "welcomeHeadline": "Your Welcome\nSession",
-      "welcomeSub": "We'll schedule a 1:1 session with Diego to help you start off on the right foot."
+      "welcomeSub": "We'll schedule a 1:1 session with an expert from our team to help you start off on the right foot."
     },
     "startButton": "Let's start!",
     "step0": {
@@ -2456,7 +2456,7 @@
       "starting": "Just starting",
       "sub": "This helps us know how to support you best from day one.",
       "title": "Do you already have market experience?",
-      "welcomeSessionDesc": "Nuvos will guide you step by step — and whenever you want, you can book a free 1:1 session with Diego from your home screen.",
+      "welcomeSessionDesc": "Nuvos will guide you step by step — and whenever you want, you can book a free 1:1 session with an expert from our team from your home screen.",
       "welcomeSessionIncluded": "✨ Perfect starting point",
       "yesHave": "I have one"
     },
@@ -2906,11 +2906,11 @@
         "ctaLabel": "Activate Duo Plan"
       },
       "session": {
-        "title": "1:1 Session with Diego",
+        "title": "1:1 Session with an Expert from Our Team",
         "subtitle": "45 minutes with the founder of Nuvos AI",
         "badge": "Booking available",
         "features": [
-          "45-min video call with Diego Arria, founder of Nuvos AI",
+          "45-min video call with an expert from our team",
           "Review of your investor maturity score",
           "Analysis of your portfolio and investment strategy",
           "3 concrete next steps for your specific situation",
@@ -3226,7 +3226,7 @@
     "seeLess": "See less",
     "seeAllResults": "See all {{count}} included results",
     "startNow": "Start now · {{price}}{{period}}",
-    "coachingCta": "Prefer a 1:1 guide with Diego?"
+    "coachingCta": "Prefer a 1:1 guide with an expert from our team?"
   },
   "quizModal": {
     "passed": "Quiz passed!",
