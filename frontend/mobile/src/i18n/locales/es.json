@@ -1393,7 +1393,7 @@
       "name": "Premium",
       "yourPlan": "TU PLAN ✓",
       "firstMonthLabel": "primer mes",
-      "thenPrice": "Luego $12.99/mes · Anual $125.99/año",
+      "thenPrice": "Luego $14.99/mes · Anual $144.99/año",
       "claimFree": "Reclamar primer mes gratis →",
       "active": "Activo ✓",
       "features": [
@@ -1415,7 +1415,7 @@
       "title": "Duo Plan",
       "new": "NUEVO",
       "priceUnit": "/ mes",
-      "annual": "Anual $199.99/año",
+      "annual": "Anual $224.99/año",
       "cta": "Contratar Duo Plan →",
       "features": [
         "Todo lo de Premium, para ambos",
@@ -2658,7 +2658,7 @@
     "perMonthShort": "/mes",
     "perYearShort": "/año",
     "billedMonthly": "Facturado mensualmente",
-    "billedYearlyDuo": "$16.67/mes · Ahorra $40.87 vs mensual",
+    "billedYearlyDuo": "$18.75/mes · Ahorra $62.89 vs mensual",
     "hireDuoPlan": "Contratar Duo Plan",
     "footerNote": "Prueba gratis 30 días. Cancela antes de que termine y no se te cobra nada."
   },
@@ -3136,7 +3136,7 @@
       "yearly": {
         "label": "Anual",
         "period": "/año",
-        "sub": "$10.50/mes · Ahorra $29.89",
+        "sub": "$12.08/mes · Ahorra $34.89",
         "badge": "MÁS POPULAR"
       },
       "monthly": {

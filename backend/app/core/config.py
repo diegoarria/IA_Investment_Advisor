@@ -37,8 +37,8 @@ class Settings(BaseSettings):
     stripe_price_session_free: str = ""           # $149
     stripe_price_session_premium: str = ""        # $99
     stripe_price_session_bundle: str = ""         # $247 (3 sessions, premium only)
-    stripe_price_family_monthly: str = ""         # $19.99/month
-    stripe_price_family_yearly: str = ""          # $199.99/year
+    stripe_price_family_monthly: str = ""         # $23.99/month
+    stripe_price_family_yearly: str = ""          # $224.99/year
     stripe_price_deep_research_free: str = ""     # $19.99
     stripe_price_deep_research_premium: str = ""  # $9.99
     resend_api_key: str = ""

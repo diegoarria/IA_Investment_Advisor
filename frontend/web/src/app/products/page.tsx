@@ -32,7 +32,7 @@ function getDuoPlan(t: TFunction) {
   return {
     icon: "🌍",
     title: t("products.duoPlanTitle"),
-    price: "$19.99",
+    price: "$23.99",
     priceNote: t("products.duoPlanPriceNote"),
   };
 }
@@ -144,7 +144,7 @@ export default function ProductsPage() {
                     )}
                   </div>
                   <div className="relative flex items-baseline gap-1 mb-1">
-                    <span className="text-xl line-through" style={{ color: "rgba(255,255,255,0.3)" }}>$12.99</span>
+                    <span className="text-xl line-through" style={{ color: "rgba(255,255,255,0.3)" }}>$14.99</span>
                     <span className="text-2xl font-black text-white">$0</span>
                     <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>{t("products.firstMonth")}</span>
                   </div>

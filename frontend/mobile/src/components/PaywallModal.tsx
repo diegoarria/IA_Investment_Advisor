@@ -16,7 +16,7 @@ const getPlans = (t: TFunction) => [
   {
     key: "yearly"  as const,
     label:  t("paywallModal.plans.yearly.label"),
-    price:  "$125.99",
+    price:  "$144.99",
     period: t("paywallModal.plans.yearly.period"),
     sub:    t("paywallModal.plans.yearly.sub"),
     badge:  t("paywallModal.plans.yearly.badge"),
@@ -24,7 +24,7 @@ const getPlans = (t: TFunction) => [
   {
     key: "monthly" as const,
     label:  t("paywallModal.plans.monthly.label"),
-    price:  "$12.99",
+    price:  "$14.99",
     period: t("paywallModal.plans.monthly.period"),
     sub:    t("paywallModal.plans.monthly.sub"),
     badge:  null,

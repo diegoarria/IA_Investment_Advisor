@@ -62,7 +62,7 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
   const isPremium = tier === "premium";
 
   const displayPrice = offer === "family_plan"
-    ? duoVariant === "monthly" ? `$${prices.monthly ?? 19.99}${t("upsellModal.perMonth")}` : `$${prices.yearly ?? 199.99}${t("upsellModal.perYear")}`
+    ? duoVariant === "monthly" ? `$${prices.monthly ?? 23.99}${t("upsellModal.perMonth")}` : `$${prices.yearly ?? 224.99}${t("upsellModal.perYear")}`
     : isPremium
     ? `$${variant === "bundle" ? (prices.bundle ?? 247) : (prices.premium ?? 0)}`
     : `$${prices.free ?? 0}`;
@@ -192,11 +192,11 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
                     {v === "monthly" ? t("upsellModal.monthly") : t("upsellModal.annual")}
                   </p>
                   <p className="text-sm font-black mt-0.5" style={{ color: duoVariant === v ? "#fff" : "var(--sub)" }}>
-                    {v === "monthly" ? `$${prices.monthly ?? 19.99}/mes` : `$${prices.yearly ?? 199.99}/año`}
+                    {v === "monthly" ? `$${prices.monthly ?? 23.99}/mes` : `$${prices.yearly ?? 224.99}/año`}
                   </p>
                   {v === "yearly" && (
                     <p className="text-[10px] mt-0.5" style={{ color: duoVariant === v ? "rgba(255,255,255,0.75)" : "var(--dim)" }}>
-                      {t("upsellModal.save", { amount: Math.round(((prices.monthly ?? 19.99) * 12) - (prices.yearly ?? 199.99)) })}
+                      {t("upsellModal.save", { amount: Math.round(((prices.monthly ?? 23.99) * 12) - (prices.yearly ?? 224.99)) })}
                     </p>
                   )}
                 </button>

@@ -11,8 +11,8 @@ function getPlans(t: TFunction) {
     {
       id: "monthly" as const,
       label: t("paywallModal.planMonthlyLabel"),
-      price: "$12.99",
-      priceNum: 12.99,
+      price: "$14.99",
+      priceNum: 14.99,
       period: t("paywallModal.periodMonthly"),
       badge: null as string | null,
       sub: t("paywallModal.planMonthlySub"),
@@ -20,8 +20,8 @@ function getPlans(t: TFunction) {
     {
       id: "yearly" as const,
       label: t("paywallModal.planYearlyLabel"),
-      price: "$125.99",
-      priceNum: 125.99,
+      price: "$144.99",
+      priceNum: 144.99,
       period: t("paywallModal.periodYearly"),
       badge: t("paywallModal.planYearlyBadge") as string | null,
       sub: t("paywallModal.planYearlySub"),

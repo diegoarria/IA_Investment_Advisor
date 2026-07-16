@@ -37,7 +37,7 @@ def _effective_tier(raw_tier: str, trial_started_at: str | None) -> str:
 PRICES = {
     "annual_report": {"free": 34.99, "premium": 19.99},
     "session":       {"free": 149.0, "premium": 99.0, "bundle": 247.0},
-    "family_plan":   {"monthly": 19.99, "yearly": 199.99},
+    "family_plan":   {"monthly": 23.99, "yearly": 224.99},
     "deep_research": {"free": 19.99, "premium": 9.99},
 }
 

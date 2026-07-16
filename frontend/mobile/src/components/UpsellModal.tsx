@@ -68,8 +68,8 @@ export default function UpsellModal({
   const displayPrice =
     offer === "family_plan"
       ? duoVariant === "monthly"
-        ? `$${prices.monthly ?? 19.99}${t("upsellModal.perMonth")}`
-        : `$${prices.yearly ?? 199.99}${t("upsellModal.perYear")}`
+        ? `$${prices.monthly ?? 23.99}${t("upsellModal.perMonth")}`
+        : `$${prices.yearly ?? 224.99}${t("upsellModal.perYear")}`
       : isPremium
       ? `$${variant === "bundle" ? (prices.bundle ?? 247) : (prices.premium ?? 0)}`
       : `$${prices.free ?? 0}`;
@@ -191,11 +191,11 @@ export default function UpsellModal({
                       {v === "monthly" ? t("upsellModal.duoVariant.monthly") : t("upsellModal.duoVariant.yearly")}
                     </Text>
                     <Text style={[s.pickerPrice, { color: duoVariant === v ? "#fff" : colors.textSub }]}>
-                      {v === "monthly" ? `$${prices.monthly ?? 19.99}${t("upsellModal.perMonth")}` : `$${prices.yearly ?? 199.99}${t("upsellModal.perYear")}`}
+                      {v === "monthly" ? `$${prices.monthly ?? 23.99}${t("upsellModal.perMonth")}` : `$${prices.yearly ?? 224.99}${t("upsellModal.perYear")}`}
                     </Text>
                     {v === "yearly" && (
                       <Text style={[s.pickerSave, { color: duoVariant === v ? "rgba(255,255,255,0.75)" : colors.textDim }]}>
-                        {t("upsellModal.duoVariant.save", { amount: Math.round(((prices.monthly ?? 19.99) * 12) - (prices.yearly ?? 199.99)) })}
+                        {t("upsellModal.duoVariant.save", { amount: Math.round(((prices.monthly ?? 23.99) * 12) - (prices.yearly ?? 224.99)) })}
                       </Text>
                     )}
                   </TouchableOpacity>

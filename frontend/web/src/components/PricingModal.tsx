@@ -42,9 +42,9 @@ export default function PricingModal({ visible, onClose }: Props) {
     }
   }
 
-  const monthlyPrice = plan === "monthly" ? "$12.99" : "$10.50";
+  const monthlyPrice = plan === "monthly" ? "$14.99" : "$12.08";
   const yearlyNote   = plan === "yearly" ? t("pricingModal.savings") : null;
-  const duoPrice     = plan === "monthly" ? "$19.99" : "$199.99";
+  const duoPrice     = plan === "monthly" ? "$23.99" : "$224.99";
   const duoPeriod    = plan === "monthly" ? t("pricingModal.perMonthShort") : t("pricingModal.perYearShort");
 
   return (

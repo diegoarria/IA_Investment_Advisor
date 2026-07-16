@@ -56,8 +56,8 @@ export default function PricingModal({ visible, onClose }: Props) {
     setDuoLoading(false);
   }
 
-  const regularPrice = plan === "monthly" ? "$12.99" : "$10.50";
-  const duoPrice  = plan === "monthly" ? "$19.99" : "$199.99";
+  const regularPrice = plan === "monthly" ? "$14.99" : "$12.08";
+  const duoPrice  = plan === "monthly" ? "$23.99" : "$224.99";
   const duoPeriod = plan === "monthly" ? t("pricingModal.perMonthShort") : t("pricingModal.perYearShort");
 
   return (
