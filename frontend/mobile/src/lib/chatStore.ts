@@ -138,14 +138,26 @@ export const useChatStore = create<ChatStore>()(
         }));
       },
 
-      deleteSession: (id) =>
+      deleteSession: (id) => {
         set((s) => {
           const remaining = s.sessions.filter((session) => session.id !== id);
           return {
             sessions: remaining,
             currentId: s.currentId === id ? (remaining[0]?.id ?? null) : s.currentId,
           };
-        }),
+        });
+        // Local-only removal used to be the whole implementation — the
+        // messages stayed in chat_history server-side, so the next history
+        // sync silently rebuilt and re-inserted the "deleted" session.
+        (async () => {
+          try {
+            const { chatApi } = await import("./api");
+            await chatApi.deleteHistory(id);
+          } catch (e) {
+            console.error("Failed to delete chat history on server:", e);
+          }
+        })();
+      },
 
       clearAll: () => set({ sessions: [], currentId: null, behavioralTimeline: [] }),
 

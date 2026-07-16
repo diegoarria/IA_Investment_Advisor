@@ -459,6 +459,26 @@ async def speak_text(
         raise HTTPException(status_code=500, detail=f"Error al generar voz: {str(e)}")
 
 
+@router.delete("/history/{session_id}")
+async def delete_history_session(
+    session_id: str,
+    user_id: str = Depends(get_current_user_id)
+):
+    """Deletes every chat_history row for one conversation (session_id),
+    scoped to the caller. Without this, the frontend's "delete" only removed
+    the session from local state — the messages stayed in the DB, so the
+    next history sync (on mount / periodic retries) silently rebuilt and
+    re-inserted the "deleted" conversation."""
+    db = get_supabase()
+    q = db.table("chat_history").delete().eq("user_id", user_id)
+    # Messages saved before session_id existed are grouped client-side under
+    # the synthetic id "legacy" (store.ts: `msg.session_id ?? "legacy"") —
+    # those rows have session_id IS NULL in the DB, not the string "legacy".
+    q = q.is_("session_id", "null") if session_id == "legacy" else q.eq("session_id", session_id)
+    await run_query(q)
+    return {"deleted": True}
+
+
 @router.get("/history")
 async def get_history(
     limit: int = 500,

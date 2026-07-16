@@ -109,6 +109,7 @@ export const profile = {
 
 export const chat = {
   getHistory: (since?: string) => api.get("/api/chat/history", since ? { params: { since } } : undefined),
+  deleteHistory: (sessionId: string) => api.delete(`/api/chat/history/${encodeURIComponent(sessionId)}`),
   saveMessage: (role: string, content: string, sessionId?: string | null) =>
     api.post("/api/chat/save-message", { role, content, session_id: sessionId }),
   transcribe: (blob: Blob) => {

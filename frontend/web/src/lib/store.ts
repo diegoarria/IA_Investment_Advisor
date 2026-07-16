@@ -366,6 +366,19 @@ export const useChatStore = create<ChatState>()(
           const newMessages = s.currentId === id ? (remaining[0]?.messages ?? []) : s.messages;
           return { sessions: remaining, currentId: newCurrentId, messages: newMessages };
         });
+        // Removing it from local state alone used to be the whole
+        // implementation — the messages stayed in chat_history server-side,
+        // so the next loadFromServer() (on mount, or the periodic retries in
+        // chat/page.tsx) silently rebuilt and re-inserted the "deleted"
+        // session. Deleting server-side too is what makes it stick.
+        (async () => {
+          try {
+            const { chat } = await import("./api");
+            await chat.deleteHistory(id);
+          } catch (e) {
+            console.error("Failed to delete chat history on server:", e);
+          }
+        })();
       },
 
       addMessage: (msg) => set((s) => {
