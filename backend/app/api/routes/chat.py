@@ -263,6 +263,22 @@ async def chat_stream(
 ):
     has_images = bool(body.images or body.image_data)
 
+    # Cost-optimization #8/#9: standalone educational questions ("¿qué es el
+    # P/E ratio?") with no images and no conversation thread yet don't depend
+    # on this specific user — serve from cache instead of calling Sonnet again
+    # for the Nth user asking the same textbook question. Anything with a
+    # ticker, portfolio reference, or live-data phrasing never matches (see
+    # generic_qa_cache.py's conservative patterns), so this never risks
+    # serving a stale/generic answer where personalization was expected.
+    from app.services.generic_qa_cache import classify_and_cache_key, get_cached_answer, store_answer
+    cache_key = classify_and_cache_key(body.message, has_images, len(body.conversation_history))
+    if cache_key:
+        cached = get_cached_answer(cache_key)
+        if cached:
+            async def _replay():
+                yield cached
+            return StreamingResponse(_replay(), media_type="text/plain")
+
     # Normalize: merge legacy single-image into the images list
     images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
     if not images and body.image_data:
@@ -315,6 +331,7 @@ async def chat_stream(
         # Yielding a clear terminal marker instead lets the frontend show
         # "the assistant had trouble responding, try again" rather than a
         # response that just stops mid-sentence with no explanation.
+        full_for_cache = []
         try:
             async for chunk in ai_service.chat_stream(
                 message=enriched,
@@ -329,10 +346,15 @@ async def chat_stream(
                 progress_context=progress_ctx,
                 is_premium=premium,
             ):
+                if cache_key:
+                    full_for_cache.append(chunk)
                 yield chunk
         except Exception as e:
             logger.error("chat_stream failed mid-response for user %s: %s", user_id, e)
             yield "\n\n[[NUVOS_STREAM_ERROR]] Tuvimos un problema generando la respuesta. Intenta de nuevo."
+            return
+        if cache_key and full_for_cache:
+            store_answer(cache_key, "".join(full_for_cache))
 
     return StreamingResponse(generate(), media_type="text/plain")
 

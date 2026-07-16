@@ -227,3 +227,50 @@ async def get_user_snapshot(email: str, user: dict = Depends(get_current_user)):
             "events": [] if isinstance(events_res, Exception) else (events_res.data or []),
         },
     }
+
+
+@router.get("/llm-usage")
+async def llm_usage_summary(
+    user_id: str | None = None,
+    days: int = 30,
+    user: dict = Depends(get_current_user),
+):
+    """Cost-optimization recommendation #19: cost per user, aggregated from
+    llm_usage_log (#18). Without user_id, returns the top spenders in the
+    window — this is what answers "does a Premium user's usage exceed what
+    their subscription covers" before it becomes a margin surprise at scale."""
+    await _require_admin(user)
+    from datetime import datetime, timedelta, timezone
+
+    db = get_supabase()
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    q = (
+        db.table("llm_usage_log")
+        .select("user_id,endpoint,model,input_tokens,output_tokens,cache_creation_input_tokens,cache_read_input_tokens,cost_usd")
+        .gte("created_at", since)
+    )
+    if user_id:
+        q = q.eq("user_id", user_id)
+    res = await run_query(q.limit(20000))
+    rows = res.data or []
+
+    by_user: dict[str, dict] = {}
+    for r in rows:
+        uid = r.get("user_id") or "unknown"
+        agg = by_user.setdefault(uid, {"user_id": uid, "cost_usd": 0.0, "calls": 0, "input_tokens": 0, "output_tokens": 0})
+        agg["cost_usd"] += float(r.get("cost_usd") or 0)
+        agg["calls"] += 1
+        agg["input_tokens"] += r.get("input_tokens") or 0
+        agg["output_tokens"] += r.get("output_tokens") or 0
+
+    ranked = sorted(by_user.values(), key=lambda a: a["cost_usd"], reverse=True)
+    for a in ranked:
+        a["cost_usd"] = round(a["cost_usd"], 4)
+
+    return {
+        "window_days": days,
+        "total_cost_usd": round(sum(a["cost_usd"] for a in ranked), 4),
+        "total_calls": len(rows),
+        "by_user": ranked if user_id else ranked[:100],
+    }

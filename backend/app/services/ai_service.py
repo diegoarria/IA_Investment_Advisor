@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from app.core.config import settings
 from app.core.finnhub import fh_quote, fh_candles
 from app.services.perplexity_service import search_web
+from app.services.llm_usage import log_llm_usage
 from app.models.user import UserProfile, ChatMessage
 
 _log = logging.getLogger(__name__)
@@ -1501,6 +1502,37 @@ async def _exec_mentor_tool(name: str, tool_input: dict) -> str:
         return f"Error ejecutando {name}: {exc}"
 
 
+async def _summarize_dropped_history(dropped: list[ChatMessage]) -> str | None:
+    """Cost-optimization rec #4: compress the portion of history that fell
+    outside _MAX_HISTORY into 2-4 sentences via a cheap Haiku call, instead of
+    losing it entirely. Never raises — a failed summary just means the older
+    context stays dropped, same as before this feature existed."""
+    if not dropped:
+        return None
+    transcript = "\n".join(f"{m.role}: {m.content[:400]}" for m in dropped[-60:])
+    prompt = (
+        "Resume esta parte antigua de una conversación entre un usuario y su mentor de "
+        "inversiones, en 2-4 oraciones. Conserva solo lo que importaría para dar continuidad "
+        "a la conversación (tesis de inversión mencionadas, decisiones tomadas, temas ya cubiertos) "
+        "— no un resumen genérico, solo lo específico y accionable.\n\n"
+        f"{transcript}\n\nResumen:"
+    )
+    try:
+        resp = await asyncio.wait_for(
+            client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=200,
+                messages=[{"role": "user", "content": prompt}],
+            ),
+            timeout=8.0,
+        )
+        await log_llm_usage(None, "chat_history_summary", "claude-haiku-4-5-20251001", resp.usage)
+        return resp.content[0].text.strip() or None
+    except Exception as e:
+        _log.warning("_summarize_dropped_history failed: %s", e)
+        return None
+
+
 async def chat_stream(
     message: str,
     conversation_history: list[ChatMessage],
@@ -1551,10 +1583,37 @@ async def chat_stream(
     system_blocks.append({"type": "text", "text": f"REMINDER — LANGUAGE: {lang_fact}"})
 
     # Cap history to the last 20 exchanges (40 turns) to prevent token costs from
-    # growing quadratically as conversations get long.
+    # growing quadratically as conversations get long. Messages beyond this cutoff
+    # used to be silently dropped with zero trace — cost-optimization rec #4:
+    # summarize the dropped portion with a cheap Haiku call instead of losing it
+    # outright, so a long conversation still keeps continuity without resending
+    # the full transcript every turn.
     _MAX_HISTORY = 25
-    trimmed_history = conversation_history[-_MAX_HISTORY:] if len(conversation_history) > _MAX_HISTORY else conversation_history
-    messages = [{"role": m.role, "content": m.content} for m in trimmed_history]
+    if len(conversation_history) > _MAX_HISTORY:
+        dropped = conversation_history[:-_MAX_HISTORY]
+        trimmed_history = conversation_history[-_MAX_HISTORY:]
+        older_summary = await _summarize_dropped_history(dropped)
+        if older_summary:
+            system_blocks.append({
+                "type": "text",
+                "text": f"## 📜 RESUMEN DE LA CONVERSACIÓN ANTERIOR (mensajes más viejos, ya no incluidos literalmente)\n\n{older_summary}",
+            })
+    else:
+        trimmed_history = conversation_history
+    # Cost-optimization rec #3: drop pure zero-signal acknowledgements
+    # ("ok", "gracias", "👍") from what actually gets sent — they add tokens
+    # but never carry information the model would need to reference later.
+    # Deliberately narrow (exact short matches only) so nothing that could
+    # plausibly be referenced back ("sí, esa" mid-thought) is ever dropped.
+    _ACK_ONLY = {
+        "ok", "okay", "vale", "gracias", "thanks", "thank you", "perfecto",
+        "genial", "entendido", "listo", "dale", "bien", "claro", "great", "cool",
+    }
+    filtered_history = [
+        m for m in trimmed_history
+        if not (m.role == "user" and re.sub(r"[^\w\s]", "", m.content).strip().lower() in _ACK_ONLY)
+    ]
+    messages = [{"role": m.role, "content": m.content} for m in filtered_history]
 
     # Build the list of image blocks from either multi-image array or legacy single image
     image_blocks: list[dict] = []
@@ -1592,6 +1651,7 @@ async def chat_stream(
 
     model      = settings.claude_model
     max_tokens = 8192 if is_premium else 5000
+    user_id    = getattr(profile, "user_id", None) if profile else None
 
     for _round in range(_MAX_TOOL_ROUNDS):
         async with client.messages.stream(
@@ -1604,6 +1664,9 @@ async def chat_stream(
             async for text in stream.text_stream:
                 yield text
             final = await stream.get_final_message()
+
+        # Fire-and-forget — never blocks the stream, never raises into it.
+        asyncio.create_task(log_llm_usage(user_id, "chat_stream", model, final.usage))
 
         if final.stop_reason != "tool_use":
             return
