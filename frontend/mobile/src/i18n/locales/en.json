@@ -650,19 +650,6 @@
       "subtitle": "Your annual recap as an investor",
       "cta": "View →"
     },
-    "fmg": {
-      "sectionTitle": "My Financial Memory",
-      "summaryPremium": "{{memories}} learnings · {{patterns}} patterns",
-      "summaryFree": "{{count}}/10 saved beliefs",
-      "subtitle": "What Nuvos remembers about you",
-      "empty": "No learnings yet. Talk to your mentor so it can start remembering.",
-      "learnings": "Learnings",
-      "patterns": "Behavior patterns",
-      "patternsLocked": "Discover how you think as an investor — Premium",
-      "timeline": "Timeline",
-      "timelineLocked": "Decision timeline",
-      "timelineLockedDesc": "Your permanent financial history — Premium"
-    },
     "duo": {
       "sectionLabel": "DUO PLAN",
       "secondaryAccount": "Secondary account",

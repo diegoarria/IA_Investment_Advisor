@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
 from app.services.ai_service import _claude
-from app.services import market_data_service, perplexity_service, fmg_service
+from app.services import market_data_service, perplexity_service
 from app.api.routes.sync import _parse_portfolio
 
 _log = logging.getLogger("uvicorn.error")
@@ -107,7 +107,6 @@ async def _collect_data(plan: dict, user_id: str) -> dict:
         news = await asyncio.to_thread(perplexity_service.search_web, query)
 
     portfolio_positions: list[dict] = []
-    fmg_context: str | None = None
     if plan.get("needs_portfolio_personalization"):
         db = get_supabase()
         res = await run_query(
@@ -116,13 +115,11 @@ async def _collect_data(plan: dict, user_id: str) -> dict:
         )
         if res.data:
             portfolio_positions = _parse_portfolio(res.data[0]["positions"]).get("positions", [])
-        fmg_context = await fmg_service.get_fmg_context(user_id)
 
     return {
         "companies": company_data,
         "news": news,
         "portfolio_positions": portfolio_positions,
-        "fmg_context": fmg_context,
     }
 
 
@@ -251,7 +248,6 @@ async def _personalize(plan: dict, data: dict, findings: list[dict]) -> dict | N
         "— tu único trabajo es redactar 2-4 oraciones naturales explicándolos, sin inventar cifras nuevas."
     )
     prompt = f"""Datos calculados: {json.dumps(computed, ensure_ascii=False)}
-Contexto de comportamiento del usuario: {data.get("fmg_context") or "sin datos previos"}
 
 Devuelve JSON puro:
 {{"portfolio_compatibility": "<2-4 oraciones citando los números reales, ej. 'esto sube tu exposición a tecnología de X% a Y%'>"}}

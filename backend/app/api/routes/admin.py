@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
-from app.services import fmg_service, investor_progress_service
+from app.services import investor_progress_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -180,11 +180,10 @@ async def get_user_snapshot(email: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="No existe un usuario con ese correo")
     target_id = target["id"]
 
-    profile_res, portfolio_res, watchlist_res, fmg_res = await asyncio.gather(
+    profile_res, portfolio_res, watchlist_res = await asyncio.gather(
         run_query(db.table("user_profiles").select("*").eq("user_id", target_id).limit(1)),
         run_query(db.table("user_portfolio").select("positions").eq("user_id", target_id)),
         run_query(db.table("watchlist").select("ticker,name,added_at").eq("user_id", target_id)),
-        fmg_service.get_fmg_context(target_id),
         return_exceptions=True,
     )
 
@@ -198,22 +197,6 @@ async def get_user_snapshot(email: str, user: dict = Depends(get_current_user)):
         logger.warning("Admin snapshot: progress summary failed for %s: %s", target_id, e)
         progress = {}
 
-    memories_res, patterns_res, events_res = await asyncio.gather(
-        run_query(
-            db.table("fmg_memories").select("type,content,times_reinforced")
-            .eq("user_id", target_id).eq("is_active", True).order("times_reinforced", desc=True).limit(30)
-        ),
-        run_query(
-            db.table("fmg_behavioral_patterns").select("pattern_key,description,confidence,times_observed,is_positive")
-            .eq("user_id", target_id).order("confidence", desc=True).limit(20)
-        ),
-        run_query(
-            db.table("fmg_events").select("event_type,title,description,occurred_at")
-            .eq("user_id", target_id).order("occurred_at", desc=True).limit(15)
-        ),
-        return_exceptions=True,
-    )
-
     return {
         "user_id": target_id,
         "email": target["email"],
@@ -221,11 +204,6 @@ async def get_user_snapshot(email: str, user: dict = Depends(get_current_user)):
         "positions": positions,
         "watchlist": watchlist,
         "progress": progress,
-        "fmg": {
-            "memories": [] if isinstance(memories_res, Exception) else (memories_res.data or []),
-            "patterns": [] if isinstance(patterns_res, Exception) else (patterns_res.data or []),
-            "events": [] if isinstance(events_res, Exception) else (events_res.data or []),
-        },
     }
 
 

@@ -1369,15 +1369,11 @@ def _build_static_system_prompt(
 def _build_dynamic_system_addendum(
     memory_context: str | None = None,
     notification_context: str | None = None,
-    fmg_context: str | None = None,
     progress_context: str | None = None,
     style_instructions: str | None = None,
 ) -> str | None:
     """Dynamic (per-request) addendum — NOT cached to avoid cache key churn."""
     parts: list[str] = []
-    # FMG goes first — it's the most important persistent context
-    if fmg_context:
-        parts.append(fmg_context)
     if progress_context:
         parts.append(progress_context)
     if memory_context:
@@ -1549,17 +1545,17 @@ async def chat_stream(
     memory_context: str | None = None,
     notification_context: str | None = None,
     deep_context: str | None = None,
-    fmg_context: str | None = None,
     progress_context: str | None = None,
     is_premium: bool = False,
     style_instructions: str | None = None,
     is_voice: bool = False,
+    model: str | None = None,
 ):
     # Static part cached by Anthropic (base + profile + mentor + guardrails).
     # Dynamic context (memory, notifications) goes in a separate uncached block so
     # it doesn't bust the cache every message and inflate input token costs.
     static_prompt  = _build_static_system_prompt(profile, mentor, deep_context, is_voice=is_voice)
-    dynamic_addend = _build_dynamic_system_addendum(memory_context, notification_context, fmg_context, progress_context, style_instructions)
+    dynamic_addend = _build_dynamic_system_addendum(memory_context, notification_context, progress_context, style_instructions)
 
     system_blocks: list[dict] = [{"type": "text", "text": static_prompt, "cache_control": {"type": "ephemeral"}}]
     if dynamic_addend:
@@ -1654,7 +1650,7 @@ async def chat_stream(
 
     messages.append({"role": "user", "content": user_content})
 
-    model      = settings.claude_model
+    model      = model or settings.claude_model
     max_tokens = 8192 if is_premium else 5000
     user_id    = getattr(profile, "user_id", None) if profile else None
 

@@ -650,19 +650,6 @@
       "subtitle": "Tu resumen anual como inversor",
       "cta": "Ver →"
     },
-    "fmg": {
-      "sectionTitle": "Mi Memoria Financiera",
-      "summaryPremium": "{{memories}} aprendizajes · {{patterns}} patrones",
-      "summaryFree": "{{count}}/10 creencias guardadas",
-      "subtitle": "Lo que Nuvos recuerda de ti",
-      "empty": "Aún no hay aprendizajes. Conversa con tu mentor para que empiece a recordar.",
-      "learnings": "Aprendizajes",
-      "patterns": "Patrones de comportamiento",
-      "patternsLocked": "Descubre cómo piensas como inversionista — Premium",
-      "timeline": "Timeline",
-      "timelineLocked": "Timeline de decisiones",
-      "timelineLockedDesc": "Tu historial financiero permanente — Premium"
-    },
     "duo": {
       "sectionLabel": "PLAN DÚO",
       "secondaryAccount": "Cuenta secundaria",

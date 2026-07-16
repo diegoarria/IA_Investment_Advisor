@@ -33,6 +33,11 @@ export default function AdminDiagnosticsPage() {
   const [whyResult, setWhyResult] = useState<any>(null);
   const [whyError, setWhyError] = useState<string | null>(null);
 
+  const [usageDays, setUsageDays] = useState("1");
+  const [usageLoading, setUsageLoading] = useState(false);
+  const [usageResult, setUsageResult] = useState<any>(null);
+  const [usageError, setUsageError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!userId || !isAuthenticated) return;
     if (userId !== ADMIN_UID) router.push("/");
@@ -64,6 +69,20 @@ export default function AdminDiagnosticsPage() {
       setWhyError(err?.response?.data?.detail ?? "Error al ejecutar la prueba.");
     } finally {
       setWhyLoading(false);
+    }
+  };
+
+  const runLlmUsage = async () => {
+    setUsageLoading(true);
+    setUsageError(null);
+    setUsageResult(null);
+    try {
+      const res = await adminApi.llmUsage(parseInt(usageDays) || 1);
+      setUsageResult(res.data);
+    } catch (err: any) {
+      setUsageError(err?.response?.data?.detail ?? "Error al obtener el uso.");
+    } finally {
+      setUsageLoading(false);
     }
   };
 
@@ -138,6 +157,39 @@ export default function AdminDiagnosticsPage() {
           </button>
           {whyError && <p className="text-sm" style={{ color: "#f87171" }}>{whyError}</p>}
           {whyResult && <JsonBlock data={whyResult} />}
+        </section>
+
+        {/* ── Consumo de tokens (LLM usage) ── */}
+        <section className="rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+          <div>
+            <p className="text-sm font-bold" style={{ color: "var(--text)" }}>💰 Consumo de tokens</p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+              Gasto real en USD por usuario, agregado desde llm_usage_log.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              step="1"
+              min="1"
+              value={usageDays}
+              onChange={(e) => setUsageDays(e.target.value)}
+              placeholder="Días"
+              className="w-28 px-3 py-2.5 rounded-xl text-sm outline-none"
+              style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }}
+            />
+          </div>
+          <button
+            onClick={runLlmUsage}
+            disabled={usageLoading}
+            className="px-4 py-2.5 rounded-xl text-sm font-bold text-white flex items-center gap-1.5"
+            style={{ background: "var(--accent)" }}
+          >
+            {usageLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+            Ver consumo
+          </button>
+          {usageError && <p className="text-sm" style={{ color: "#f87171" }}>{usageError}</p>}
+          {usageResult && <JsonBlock data={usageResult} />}
         </section>
       </div>
     </div>

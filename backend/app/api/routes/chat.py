@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
 from app.models.user import ChatRequest, UserProfile
-from app.services import ai_service, fmg_service, investor_progress_service
+from app.services import ai_service, investor_progress_service
 from app.services.market_data_service import (
     get_market_context_for_message,
     get_global_market_context,
@@ -328,18 +328,16 @@ async def chat_stream(
         return await investor_progress_service.build_progress_context_for_mentor(user_id)
 
     if has_images:
-        memory, deep_ctx, fmg_ctx, progress_ctx = await asyncio.gather(
+        memory, deep_ctx, progress_ctx = await asyncio.gather(
             _get_memory_context(user_id),
             _get_mentor_deep_context(user_id),
-            fmg_service.get_fmg_context(user_id),
             _progress_ctx(),
         )
         enriched = body.message
     else:
-        memory, deep_ctx, fmg_ctx, progress_ctx, enriched = await asyncio.gather(
+        memory, deep_ctx, progress_ctx, enriched = await asyncio.gather(
             _get_memory_context(user_id),
             _get_mentor_deep_context(user_id),
-            fmg_service.get_fmg_context(user_id),
             _progress_ctx(),
             _safe_enrich(),
         )
@@ -363,7 +361,6 @@ async def chat_stream(
                 memory_context=memory,
                 notification_context=body.notification_context,
                 deep_context=deep_ctx,
-                fmg_context=fmg_ctx,
                 progress_context=progress_ctx,
                 is_premium=premium,
             ):
@@ -400,6 +397,13 @@ async def chat_message(
         if cached:
             return {"reply": cached, "risk_assessment": None, "tickers": [], "actions": None}
 
+    # Model tier: free users always get Haiku. Premium users get Haiku only
+    # for basic/generic questions (same classifier as the cache above, so the
+    # answer is identical for every user and gets cached once) — anything
+    # else (portfolio-specific, "analyze X", live data) still gets Sonnet.
+    is_generic_question = cache_key is not None
+    chat_model = "claude-haiku-4-5-20251001" if (not premium or is_generic_question) else None
+
     enrich_timeout = 4.0 if premium else 2.5
     tickers  = await asyncio.to_thread(detect_tickers, body.message)
     enriched = await asyncio.to_thread(_enrich_message, body.message, enrich_timeout) if not has_images else body.message
@@ -411,10 +415,9 @@ async def chat_message(
             return None
         return await investor_progress_service.build_progress_context_for_mentor(user_id)
 
-    memory, deep_ctx, fmg_ctx, progress_ctx = await asyncio.gather(
+    memory, deep_ctx, progress_ctx = await asyncio.gather(
         _get_memory_context(user_id),
         _get_mentor_deep_context(user_id),
-        fmg_service.get_fmg_context(user_id),
         _progress_ctx(),
     )
     full = ""
@@ -427,23 +430,15 @@ async def chat_message(
         memory_context=memory,
         notification_context=body.notification_context,
         deep_context=deep_ctx,
-        fmg_context=fmg_ctx,
         progress_context=progress_ctx,
         is_premium=premium,
+        model=chat_model,
     ):
         full += chunk
     clean_reply, bscore = _extract_bscore(full)
     clean_reply, actions = _extract_action(clean_reply)
     if cache_key:
         store_answer(cache_key, clean_reply)
-
-    # Fire FMG extraction as background task — never blocks the response
-    user_name = getattr(profile, "name", None) if profile else None
-    asyncio.create_task(
-        fmg_service.extract_from_conversation(
-            user_id, body.message, clean_reply, user_name, is_premium=premium
-        )
-    )
 
     return {"reply": clean_reply, "risk_assessment": bscore, "tickers": tickers, "actions": actions}
 

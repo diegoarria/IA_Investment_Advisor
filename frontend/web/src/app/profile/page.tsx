@@ -11,13 +11,13 @@ import {
   useAuthStore, useProfileStore, useSubscriptionStore,
   useThemeStore, useLanguageStore, msgsRemaining, FREE_MSG_LIMIT, maturityLabel,
 } from "@/lib/store";
-import { auth as authApi, billing, feedApi, fmgApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi, voiceCallsApi } from "@/lib/api";
+import { auth as authApi, billing, feedApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi, voiceCallsApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
 import WrappedCard from "@/components/WrappedCard";
 import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
-  Loader2, Copy, Check, Gift, Users, Share2, Brain, Trash2, Phone,
+  Loader2, Copy, Check, Gift, Users, Share2, Trash2, Phone,
 } from "lucide-react";
 import { getUserLevel, LEVEL_COLOR, getLevelLabel, LEVEL_EMOJI } from "@/lib/userLevel";
 
@@ -184,13 +184,6 @@ export default function ProfilePage() {
     partner_summary?: Record<string, any>;
   } | null>(null);
 
-  const [fmgData, setFmgData] = useState<{
-    memories: { id: string; type: string; content: string; times_reinforced: number }[];
-    patterns: { id: string; pattern_key: string; description: string; confidence: number; times_observed: number; is_positive: boolean }[];
-    events: { id: string; event_type: string; title: string; description?: string; occurred_at: string }[];
-  } | null>(null);
-  const [fmgOpen, setFmgOpen] = useState(false);
-
   const [voiceCalls, setVoiceCalls] = useState<{ id: string; mentor: string | null; started_at: string; duration_seconds: number }[]>([]);
   const [voiceCallsOpen, setVoiceCallsOpen] = useState(false);
   const [expandedCallId, setExpandedCallId] = useState<string | null>(null);
@@ -216,7 +209,6 @@ export default function ProfilePage() {
     subStore.fetchStatus().catch(() => {});
     referralApi.getCode().then((r) => setReferralCode(r.data.code ?? null)).catch(() => {});
     referralApi.getStats().then((r) => setReferralStats(r.data)).catch(() => {});
-    fmgApi.getSummary().then((r) => setFmgData(r.data)).catch(() => {});
     voiceCallsApi.list().then((r) => setVoiceCalls(r.data?.calls || [])).catch(() => {});
     if (profile?.avatar_url) setAvatarUrl(profile.avatar_url);
     // Bidirectional maturity sync on every profile view
@@ -1270,139 +1262,6 @@ export default function ProfilePage() {
                   </div>
                   <p className="text-xs font-black shrink-0" style={{ color: "#00d47e" }}>{t("profile.view")}</p>
                 </button>
-
-                {/* Financial Memory Graph */}
-                <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "var(--border)" }}>
-                  <button
-                    onClick={() => setFmgOpen((v) => !v)}
-                    className="w-full flex items-center gap-3 p-4 text-left transition-opacity hover:opacity-80"
-                    style={{ background: "var(--surface)" }}
-                  >
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#7c3aed18" }}>
-                      <Brain className="w-5 h-5" style={{ color: "#7c3aed" }} />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-black" style={{ color: "var(--text)" }}>{t("profile.financialMemory")}</p>
-                      <p className="text-xs" style={{ color: "var(--muted)" }}>
-                        {fmgData
-                          ? isPremium
-                            ? t("profile.learningsAndPatterns", { memories: fmgData.memories.length, patterns: fmgData.patterns.length })
-                            : t("profile.beliefsStored", { count: fmgData.memories.length })
-                          : t("profile.whatNuvosRemembers")}
-                      </p>
-                    </div>
-                    <ChevronDown className="w-4 h-4 shrink-0 transition-transform" style={{ color: "var(--muted)", transform: fmgOpen ? "rotate(180deg)" : "rotate(0deg)" }} />
-                  </button>
-
-                  {fmgOpen && (
-                    <div className="border-t p-4 space-y-4" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
-                      {!fmgData ? (
-                        <p className="text-xs text-center py-4" style={{ color: "var(--muted)" }}>{t("profile.loadingEllipsis")}</p>
-                      ) : fmgData.memories.length === 0 ? (
-                        <p className="text-xs text-center py-4" style={{ color: "var(--muted)" }}>{t("profile.noLearningsYet")}</p>
-                      ) : (
-                        <>
-                          {/* Memories */}
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#7c3aed" }}>{t("profile.learnings")}</p>
-                              {!isPremium && (
-                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#7c3aed18", color: "#7c3aed" }}>
-                                  {fmgData.memories.length}/10
-                                </span>
-                              )}
-                            </div>
-                            <div className="space-y-2">
-                              {fmgData.memories.slice(0, isPremium ? 50 : 10).map((m) => (
-                                <div key={m.id} className="flex items-start gap-2 p-2 rounded-xl" style={{ background: "var(--surface)" }}>
-                                  <span className="text-xs mt-0.5 shrink-0 px-1.5 py-0.5 rounded-md font-semibold" style={{ background: "#7c3aed18", color: "#7c3aed" }}>{m.type}</span>
-                                  <p className="text-xs flex-1 leading-relaxed" style={{ color: "var(--text)" }}>{m.content}</p>
-                                  {isPremium && (
-                                    <button
-                                      onClick={() => fmgApi.deleteMemory(m.id).then(() => setFmgData((d) => d ? { ...d, memories: d.memories.filter((x) => x.id !== m.id) } : d)).catch(() => {})}
-                                      className="shrink-0 hover:opacity-70 transition-opacity"
-                                    >
-                                      <Trash2 className="w-3 h-3" style={{ color: "var(--dim)" }} />
-                                    </button>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Patterns — premium only */}
-                          {isPremium ? (
-                            fmgData.patterns.length > 0 && (
-                              <div>
-                                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "#f59e0b" }}>{t("profile.behaviorPatterns")}</p>
-                                <div className="space-y-2">
-                                  {fmgData.patterns.map((p) => (
-                                    <div key={p.id} className="p-2 rounded-xl" style={{ background: "var(--surface)" }}>
-                                      <div className="flex items-center justify-between mb-1">
-                                        <p className="text-xs font-semibold" style={{ color: p.is_positive ? "#22c55e" : "#f59e0b" }}>{p.description}</p>
-                                        <span className="text-xs font-bold" style={{ color: "var(--muted)" }}>{Math.round(p.confidence * 100)}%</span>
-                                      </div>
-                                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                                        <div className="h-full rounded-full transition-all" style={{ width: `${p.confidence * 100}%`, background: p.is_positive ? "#22c55e" : "#f59e0b" }} />
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )
-                          ) : (
-                            <button
-                              onClick={() => setPaywallOpen(true)}
-                              className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-opacity hover:opacity-80"
-                              style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.25)" }}
-                            >
-                              <Star className="w-4 h-4 shrink-0" style={{ color: "#f59e0b" }} />
-                              <div className="flex-1">
-                                <p className="text-xs font-bold" style={{ color: "#f59e0b" }}>{t("profile.behaviorPatterns")}</p>
-                                <p className="text-xs" style={{ color: "var(--muted)" }}>{t("profile.discoverHowYouThink")}</p>
-                              </div>
-                              <ChevronDown className="w-3 h-3 -rotate-90 shrink-0" style={{ color: "#f59e0b" }} />
-                            </button>
-                          )}
-
-                          {/* Timeline — premium only */}
-                          {isPremium ? (
-                            fmgData.events.length > 0 && (
-                              <div>
-                                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "#3b82f6" }}>{t("profile.timeline")}</p>
-                                <div className="space-y-2">
-                                  {fmgData.events.slice(0, 5).map((e) => (
-                                    <div key={e.id} className="flex items-start gap-2">
-                                      <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: "#3b82f6" }} />
-                                      <div>
-                                        <p className="text-xs font-semibold" style={{ color: "var(--text)" }}>{e.title}</p>
-                                        {e.description && <p className="text-xs" style={{ color: "var(--muted)" }}>{e.description}</p>}
-                                        <p className="text-xs" style={{ color: "var(--dim)" }}>{new Date(e.occurred_at).toLocaleDateString("es")}</p>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )
-                          ) : (
-                            <button
-                              onClick={() => setPaywallOpen(true)}
-                              className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-opacity hover:opacity-80"
-                              style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.25)" }}
-                            >
-                              <Star className="w-4 h-4 shrink-0" style={{ color: "#3b82f6" }} />
-                              <div className="flex-1">
-                                <p className="text-xs font-bold" style={{ color: "#3b82f6" }}>{t("profile.decisionTimeline")}</p>
-                                <p className="text-xs" style={{ color: "var(--muted)" }}>{t("profile.permanentHistory")}</p>
-                              </div>
-                              <ChevronDown className="w-3 h-3 -rotate-90 shrink-0" style={{ color: "#3b82f6" }} />
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
 
                 {/* Legal */}
                 <div className="flex justify-center gap-5 py-1">

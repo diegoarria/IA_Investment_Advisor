@@ -1936,21 +1936,44 @@ async def job_portfolio_alerts():
         # 5. Pre-generate WHY explanations — 1 Claude call per mover, reused across users.
         # Tickers with no specific catalyst are stored as NO_CATALYST and skipped for premium users;
         # free users still get a plain price-move notification without the WHY.
+        #
+        # This job runs every 5 min for ~6.5 market hours (~78 runs/day). A ticker that
+        # stays a mover for hours used to pay for a fresh Perplexity search + 2 Haiku
+        # calls (WHY + EN translation) on EVERY one of those runs, even though the
+        # answer barely changes and the push itself only ever fires once per user per
+        # day (should_send_price_alert below). Caching per ticker per ET trading day
+        # cuts that to exactly 1 generation per ticker per day, no matter how long it
+        # stays elevated or how many users hold it.
+        from app.core.cache import cache_get, cache_set
+        from app.services.notification_engine import _today_et
         from app.services.price_alert_service import NO_CATALYST, should_send_price_alert, translate_why_to_english
         ticker_why:    dict[str, str] = {}
         ticker_why_en: dict[str, str] = {}
         ticker_title:  dict[str, str] = {}
+        today_et = _today_et()
         for ticker, pct in movers.items():
+            ticker_title[ticker] = _company_name(ticker)
+
+            cache_key = f"price_why:{ticker}:{today_et}"
+            cached = cache_get(cache_key)
+            if cached:
+                ticker_why[ticker] = cached["why"]
+                if cached.get("why_en"):
+                    ticker_why_en[ticker] = cached["why_en"]
+                continue
+
             price = prices[ticker]["curr"]
             why = (await get_price_alert_why_with_diagnostics(ticker, pct, price))["why"]
-            ticker_why[ticker]   = why
-            # Title is just the company name — "NVIDIA", "Apple", etc. — the
-            # notification body itself now carries the emoji/%/reason.
-            ticker_title[ticker] = _company_name(ticker)
+            ticker_why[ticker] = why
+            why_en = None
             if why == NO_CATALYST:
                 logger.info("Portfolio alerts: no catalyst for %s — premium users will not receive this", ticker)
             else:
-                ticker_why_en[ticker] = await translate_why_to_english(why)
+                why_en = await translate_why_to_english(why)
+                ticker_why_en[ticker] = why_en
+            # TTL well past market close but short of the next trading day, so a
+            # stale answer never survives to bias tomorrow's re-generation.
+            cache_set(cache_key, {"why": why, "why_en": why_en}, ttl=12 * 3600)
             await asyncio.sleep(0.05)
 
         # 6. Batch-fetch user profiles (name + tier + trial + language) once

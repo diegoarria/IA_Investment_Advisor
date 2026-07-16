@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Loader2, Search, User, Wallet, Star, Brain, TrendingUp } from "lucide-react";
+import { Loader2, Search, User, Wallet, Star, TrendingUp } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 import { adminApi } from "@/lib/api";
 
@@ -16,11 +16,6 @@ interface Snapshot {
   positions: { ticker: string; shares?: number; avgPrice?: number }[];
   watchlist: { ticker: string; name?: string }[];
   progress: Record<string, any>;
-  fmg: {
-    memories: { type: string; content: string; times_reinforced: number }[];
-    patterns: { pattern_key: string; description: string; confidence: number; is_positive: boolean }[];
-    events: { event_type: string; title: string; description?: string; occurred_at: string }[];
-  };
 }
 
 const fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
@@ -152,42 +147,6 @@ export default function AdminUserLookupPage() {
               </p>
             </section>
 
-            {/* Memoria financiera */}
-            {(snapshot.fmg.memories.length > 0 || snapshot.fmg.patterns.length > 0 || snapshot.fmg.events.length > 0) && (
-              <section className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                <p className="text-xs font-bold mb-3 flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
-                  <Brain className="w-3.5 h-3.5" /> MEMORIA FINANCIERA
-                </p>
-                {snapshot.fmg.memories.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-[10px] font-bold uppercase mb-1" style={{ color: "var(--dim)" }}>Creencias / preferencias</p>
-                    {snapshot.fmg.memories.map((m, i) => (
-                      <p key={i} className="text-xs" style={{ color: "var(--sub)" }}>• [{m.type}] {m.content}</p>
-                    ))}
-                  </div>
-                )}
-                {snapshot.fmg.patterns.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-[10px] font-bold uppercase mb-1" style={{ color: "var(--dim)" }}>Patrones de comportamiento</p>
-                    {snapshot.fmg.patterns.map((p, i) => (
-                      <p key={i} className="text-xs" style={{ color: "var(--sub)" }}>
-                        {p.is_positive ? "✅" : "⚠️"} {p.description} ({Math.round(p.confidence * 100)}%)
-                      </p>
-                    ))}
-                  </div>
-                )}
-                {snapshot.fmg.events.length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-bold uppercase mb-1" style={{ color: "var(--dim)" }}>Eventos recientes</p>
-                    {snapshot.fmg.events.map((e, i) => (
-                      <p key={i} className="text-xs" style={{ color: "var(--sub)" }}>
-                        [{e.occurred_at.slice(0, 10)}] {e.title}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </section>
-            )}
           </div>
         )}
       </div>

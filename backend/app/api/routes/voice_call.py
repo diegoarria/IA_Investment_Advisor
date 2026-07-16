@@ -40,7 +40,7 @@ from app.api.deps import _resolve_user_token, get_current_user_id
 from app.core.cache import cache_get, cache_set, cache_delete
 from app.core.database import get_supabase, run_query
 from app.models.user import ChatMessage, UserProfile
-from app.services import ai_service, fmg_service, investor_progress_service
+from app.services import ai_service, investor_progress_service
 from app.services.voice_service import transcribe_audio_bytes, synthesize_speech_bytes
 
 logger = logging.getLogger(__name__)
@@ -125,15 +125,13 @@ async def _load_call_context(user_id: str, profile: UserProfile | None, is_premi
             return None
         return await investor_progress_service.build_progress_context_for_mentor(user_id)
 
-    deep_ctx, fmg_ctx, progress_ctx = await asyncio.gather(
+    deep_ctx, progress_ctx = await asyncio.gather(
         _get_mentor_deep_context(user_id),
-        fmg_service.get_fmg_context(user_id),
         _progress_ctx(),
         return_exceptions=True,
     )
     return {
         "deep_context": None if isinstance(deep_ctx, Exception) else deep_ctx,
-        "fmg_context": None if isinstance(fmg_ctx, Exception) else fmg_ctx,
         "progress_context": None if isinstance(progress_ctx, Exception) else progress_ctx,
     }
 
@@ -267,10 +265,10 @@ async def voice_call_ws(websocket: WebSocket, token: str = "", ticket: str = "",
         # hiccup, a transient import issue) crashed the whole ASGI handler
         # without a clean close frame, which is exactly what a client sees
         # as "code 1006 (abnormal closure)". Degrade gracefully instead: the
-        # call still works, just without deep/FMG/progress context for this
+        # call still works, just without deep/progress context for this
         # session.
         logger.warning("Voice call context load failed for %s: %s", user_id, e)
-        ctx = {"deep_context": None, "fmg_context": None, "progress_context": None}
+        ctx = {"deep_context": None, "progress_context": None}
     mentor_id = profile.mentor if profile else None
 
     call_started_at = datetime.now(timezone.utc)
@@ -298,7 +296,6 @@ async def voice_call_ws(websocket: WebSocket, token: str = "", ticket: str = "",
                 mentor=mentor_id,
                 memory_context=None,
                 deep_context=ctx["deep_context"],
-                fmg_context=ctx["fmg_context"],
                 progress_context=ctx["progress_context"],
                 is_premium=is_premium,
                 style_instructions=_VOICE_STYLE_INSTRUCTIONS,
@@ -343,11 +340,6 @@ async def voice_call_ws(websocket: WebSocket, token: str = "", ticket: str = "",
             history.append(ChatMessage(role="user", content=user_text))
             history.append(ChatMessage(role="assistant", content=clean_reply))
             del history[:-_MAX_HISTORY_TURNS * 2]
-
-            user_name = getattr(profile, "name", None) if profile else None
-            asyncio.create_task(
-                fmg_service.extract_from_conversation(user_id, user_text, clean_reply, user_name, is_premium=is_premium)
-            )
 
         except asyncio.CancelledError:
             await _send_json({"type": "cancelled"})

@@ -445,16 +445,6 @@ export const brokerageApi = {
   syncAll: () => api.post("/api/brokerage/sync"),
 };
 
-export const fmgApi = {
-  getSummary: () => api.get("/api/fmg/summary"),
-  getMemories: () => api.get("/api/fmg/memories"),
-  getPatterns: () => api.get("/api/fmg/patterns"),
-  getTimeline: () => api.get("/api/fmg/timeline"),
-  addMemory: (type: string, content: string) =>
-    api.post("/api/fmg/memories", { type, content }),
-  deleteMemory: (id: string) => api.delete(`/api/fmg/memories/${id}`),
-};
-
 export const progressApi = {
   getSummary: () => api.get("/api/progress/summary"),
   getMilestones: () => api.get("/api/progress/milestones"),
@@ -478,6 +468,8 @@ export const adminApi = {
   testMarketOpen: () => api.post("/api/admin/test-market-open"),
   testPriceAlertWhy: (ticker: string, pct: number) =>
     api.post("/api/admin/test-price-alert-why", null, { params: { ticker, pct } }),
+  llmUsage: (days: number = 1) =>
+    api.get("/api/admin/llm-usage", { params: { days } }),
 };
 
 export default api;
