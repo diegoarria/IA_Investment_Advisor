@@ -2,9 +2,9 @@ import asyncio
 import logging
 import secrets
 
-from fastapi import APIRouter, HTTPException, Depends, Request, Response
+from fastapi import APIRouter, HTTPException, Depends, Request, Response, Header, Cookie
 from app.core.config import settings
-from app.core.database import get_supabase, run_query
+from app.core.database import get_supabase, run_query, run_auth
 from app.models.user import AuthRequest, TokenResponse
 from app.api.deps import get_current_user_id
 from app.core.cache import cache_get, cache_set, cache_delete
@@ -430,12 +430,24 @@ async def reset_password(request: Request, body: dict):
 
 
 @router.post("/logout")
-async def logout(response: Response):
-    try:
-        db = get_supabase()
-        db.auth.sign_out()
-    except Exception:
-        pass
+async def logout(
+    response: Response,
+    authorization: str = Header(default=""),
+    access_token: str | None = Cookie(default=None),
+):
+    # Explicitly pass the CALLER's own token to admin.sign_out — the
+    # stateful db.auth.sign_out() reads whatever session gotrue last cached
+    # on this shared client (potentially a different, unrelated user's), see
+    # the note on get_supabase() in database.py. Using the admin API with an
+    # explicit token never depends on that shared state.
+    from app.api.deps import _extract_token
+    token = _extract_token(authorization, access_token)
+    if token:
+        try:
+            db = get_supabase()
+            await run_auth(db.auth.admin.sign_out, token, "global")
+        except Exception:
+            pass
     _clear_auth_cookies(response)
     return {"message": "Logged out"}
 

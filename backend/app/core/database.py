@@ -1,12 +1,26 @@
 import asyncio
 import logging
 import httpx
-from supabase import create_client, Client
+from supabase import create_client, Client, ClientOptions
 from app.core.config import settings
 
 log = logging.getLogger(__name__)
 
 _client: Client | None = None
+
+# auto_refresh_token/persist_session default to True, which assumes ONE
+# client per logged-in user — gotrue then caches whatever session was most
+# recently saved in a single shared in-memory slot and arms a background
+# timer that silently re-refreshes THAT cached session. Since this client is
+# a process-wide singleton shared across every concurrent request from every
+# user, that produced real cross-user session corruption: one user's
+# login/refresh would overwrite the shared slot, and the background timer
+# (or another user's /logout call, see logout() in auth.py) would then act
+# on the wrong user's session — surfacing as random, rapid, unexplained
+# logouts. This backend never relies on the client's own session state
+# anyway (tokens are always passed explicitly per request via cookies/
+# headers), so both flags are safe — and correct — to disable here.
+_AUTH_OPTIONS = ClientOptions(auto_refresh_token=False, persist_session=False)
 
 # Errors that mean "the connection died mid-flight", not "the query is bad" —
 # safe to retry, since the underlying httpx pool opens a fresh connection on
@@ -18,7 +32,7 @@ _TRANSIENT_ERRORS = (httpx.RemoteProtocolError, httpx.ConnectError, httpx.ReadEr
 def get_supabase() -> Client:
     global _client
     if _client is None:
-        _client = create_client(settings.supabase_url, settings.supabase_service_key)
+        _client = create_client(settings.supabase_url, settings.supabase_service_key, options=_AUTH_OPTIONS)
     return _client
 
 
