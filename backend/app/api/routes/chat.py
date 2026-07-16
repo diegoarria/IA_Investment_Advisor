@@ -327,16 +327,23 @@ async def chat_stream(
             return None
         return await investor_progress_service.build_progress_context_for_mentor(user_id)
 
+    async def _memory_ctx():
+        # See the same-named helper in chat_message() below for why this is
+        # skipped once the client already sent conversation_history.
+        if body.conversation_history:
+            return None
+        return await _get_memory_context(user_id)
+
     if has_images:
         memory, deep_ctx, progress_ctx = await asyncio.gather(
-            _get_memory_context(user_id),
+            _memory_ctx(),
             _get_mentor_deep_context(user_id),
             _progress_ctx(),
         )
         enriched = body.message
     else:
         memory, deep_ctx, progress_ctx, enriched = await asyncio.gather(
-            _get_memory_context(user_id),
+            _memory_ctx(),
             _get_mentor_deep_context(user_id),
             _progress_ctx(),
             _safe_enrich(),
@@ -415,8 +422,19 @@ async def chat_message(
             return None
         return await investor_progress_service.build_progress_context_for_mentor(user_id)
 
+    async def _memory_ctx():
+        # The frontend already sends the last ~18-20 turns of the CURRENT
+        # session as conversation_history (native multi-turn messages) — when
+        # that's non-empty, chat_history's last-10 flattened into a text block
+        # here would just repeat the same turns a second time in the prompt.
+        # Only worth the DB read + extra tokens for a brand-new session (no
+        # client-side history yet), where it gives cross-session continuity.
+        if body.conversation_history:
+            return None
+        return await _get_memory_context(user_id)
+
     memory, deep_ctx, progress_ctx = await asyncio.gather(
-        _get_memory_context(user_id),
+        _memory_ctx(),
         _get_mentor_deep_context(user_id),
         _progress_ctx(),
     )

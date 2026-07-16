@@ -1440,6 +1440,10 @@ MENTOR_TOOLS = [
             "properties": {"query": {"type": "string"}},
             "required": ["query"],
         },
+        # Tool definitions are identical on every single chat call — caching
+        # them (breakpoint on the last tool) means every call after the first
+        # pays ~10% cache-read price for this block instead of full price.
+        "cache_control": {"type": "ephemeral"},
     },
 ]
 

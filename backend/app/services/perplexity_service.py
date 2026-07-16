@@ -10,18 +10,26 @@ _SEARCH_CACHE_TTL = 300  # 5 minutes
 
 
 def _needs_web_search(message: str) -> bool:
-    """Return True when the message is likely asking for current/recent information."""
+    """Return True when the message is likely asking for current/recent information.
+
+    Deliberately narrow: standalone words like "hoy"/"reciente"/"anunció" used
+    to be in here, but they fire on ordinary conversational Spanish that has
+    nothing to do with live info ("hoy me siento inseguro de mi portafolio")
+    — each false positive is a real Perplexity call plus extra tokens injected
+    into the Claude call for no reason. Every phrase below is specific enough
+    that it's actually asking for something live.
+    """
     msg = message.lower()
     kws = [
-        # temporal
-        "hoy", "ayer", "esta semana", "este mes", "ahora mismo", "en este momento",
-        "reciente", "últimas noticias", "último reporte", "últimos resultados",
+        # temporal — specific asks, not standalone "hoy"/"reciente"
+        "esta semana", "este mes",
+        "últimas noticias", "último reporte", "últimos resultados",
         "qué pasó", "qué está pasando", "qué ha pasado",
         # financial events
         "earnings", "reporte trimestral", "resultados trimestrales", "resultados del trimestre",
         "ipo próxima", "próxima ipo", "sale a bolsa",
         "adquisición", "fusión", "split de acciones", "buyback",
-        "anunció", "reportó", "declaró", "presentó resultados",
+        "presentó resultados",
         # price movement explanations
         "por qué subió", "por qué bajó", "por qué cayó", "por qué rebotó",
         "qué pasó con", "qué le pasó a",
