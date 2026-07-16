@@ -26,8 +26,14 @@ export default function PricingModal({ visible, onClose }: Props) {
     setLoading(true);
     try {
       const res = await billing.createCheckout(plan);
-      if (res.data?.url) window.location.href = res.data.url;
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+      } else {
+        window.alert(t("pricingModal.paymentError"));
+        setLoading(false);
+      }
     } catch {
+      window.alert(t("pricingModal.paymentError"));
       setLoading(false);
     }
   }
@@ -36,8 +42,14 @@ export default function PricingModal({ visible, onClose }: Props) {
     setDuoLoading(true);
     try {
       const res = await upsells.checkout("family_plan", plan, "pricing_modal");
-      if (res.data?.url) window.location.href = res.data.url;
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+      } else {
+        window.alert(t("pricingModal.paymentError"));
+        setDuoLoading(false);
+      }
     } catch {
+      window.alert(t("pricingModal.paymentError"));
       setDuoLoading(false);
     }
   }

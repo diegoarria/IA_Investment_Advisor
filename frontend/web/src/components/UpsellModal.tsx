@@ -75,8 +75,14 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
         variant: offer === "family_plan" ? duoVariant : variant === "bundle" ? "bundle" : tier,
         trigger_source: triggerSource,
       });
-      window.location.href = res.data.url;
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+      } else {
+        window.alert(t("pricingModal.paymentError"));
+        setLoading(false);
+      }
     } catch {
+      window.alert(t("pricingModal.paymentError"));
       setLoading(false);
     }
   };

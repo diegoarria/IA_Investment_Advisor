@@ -2002,6 +2002,8 @@
     "sendFeedback": "Enviar feedback"
   },
   "pricingModal": {
+    "errorTitle": "Error",
+    "paymentError": "No se pudo abrir el pago. Intenta de nuevo.",
     "freeFeatures": [
       "Hasta 15 mensajes/día con el mentor IA",
       "Portafolio con hasta 10 acciones",

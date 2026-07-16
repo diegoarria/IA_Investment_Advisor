@@ -2002,6 +2002,8 @@
     "sendFeedback": "Send feedback"
   },
   "pricingModal": {
+    "errorTitle": "Error",
+    "paymentError": "Could not open payment. Please try again.",
     "freeFeatures": [
       "Up to 15 messages/day with the AI mentor",
       "Portfolio with up to 10 stocks",

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import {
-  View, Text, ScrollView, TouchableOpacity, Linking,
+  View, Text, ScrollView, TouchableOpacity, Linking, Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -106,8 +106,14 @@ export default function ProductsScreen() {
     try {
       const res = await upsellsApi.checkout(offer, variant, "products_page");
       const url = res?.data?.url;
-      if (url) await Linking.openURL(url);
-    } catch {}
+      if (url) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
+      }
+    } catch {
+      Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
+    }
     setCheckoutLoading(null);
   }
 

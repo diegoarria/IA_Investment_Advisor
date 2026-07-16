@@ -2610,6 +2610,8 @@
     "analysisError": "Could not get the analysis."
   },
   "pricingModal": {
+    "errorTitle": "Error",
+    "paymentError": "Could not open payment. Please try again.",
     "freeFeatures": [
       "Up to 20 messages/day with the AI mentor",
       "Portfolio of up to 10 stocks",

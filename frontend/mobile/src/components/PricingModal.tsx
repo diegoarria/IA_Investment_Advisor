@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import {
-  View, Text, TouchableOpacity, Modal, ScrollView, Linking,
+  View, Text, TouchableOpacity, Modal, ScrollView, Linking, Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -41,8 +41,14 @@ export default function PricingModal({ visible, onClose }: Props) {
     try {
       const res = await billingApi.createCheckout(plan);
       const url = res?.data?.url;
-      if (url) await Linking.openURL(url);
-    } catch {}
+      if (url) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
+      }
+    } catch {
+      Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
+    }
     setLoading(false);
   }
 
@@ -51,8 +57,14 @@ export default function PricingModal({ visible, onClose }: Props) {
     try {
       const res = await upsellsApi.checkout("family_plan", plan, "pricing_modal");
       const url = res?.data?.url;
-      if (url) await Linking.openURL(url);
-    } catch {}
+      if (url) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
+      }
+    } catch {
+      Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
+    }
     setDuoLoading(false);
   }
 

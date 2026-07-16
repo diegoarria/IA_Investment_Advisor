@@ -2610,6 +2610,8 @@
     "analysisError": "No se pudo obtener el análisis."
   },
   "pricingModal": {
+    "errorTitle": "Error",
+    "paymentError": "No se pudo abrir el pago. Intenta de nuevo.",
     "freeFeatures": [
       "Hasta 20 mensajes/día con el mentor IA",
       "Portafolio de hasta 10 acciones",

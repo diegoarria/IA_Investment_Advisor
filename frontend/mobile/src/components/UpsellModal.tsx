@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, Modal,
-  ActivityIndicator, Linking, StyleSheet, Pressable,
+  ActivityIndicator, Linking, StyleSheet, Pressable, Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -82,8 +82,14 @@ export default function UpsellModal({
         variant: offer === "family_plan" ? duoVariant : variant === "bundle" ? "bundle" : userTier,
         trigger_source: triggerSource,
       });
-      if (res.data?.url) Linking.openURL(res.data.url);
-    } catch {}
+      if (res.data?.url) {
+        Linking.openURL(res.data.url);
+      } else {
+        Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
+      }
+    } catch {
+      Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
+    }
     setLoading(false);
   };
 
