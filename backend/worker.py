@@ -3355,6 +3355,8 @@ def _finnhub_earnings_today(hour_filter: str | None = None) -> dict[str, dict]:
             "beat_eps":  beat_eps,
             "beat_rev":  beat_rev,
             "hour":      hour,
+            "quarter":   ev.get("quarter"),
+            "year":      ev.get("year"),
         }
     return out
 
@@ -3362,54 +3364,55 @@ def _finnhub_earnings_today(hour_filter: str | None = None) -> dict[str, dict]:
 def _earnings_push_content(
     ticker: str,
     res: dict,
-    positions: list,       # user's portfolio positions (may be empty list)
-    is_watchlist: bool,
-    is_premium: bool,
     language: str = "es",
 ) -> tuple[str, str]:
-    """Return (title, body) for an earnings push notification."""
+    """Return (title, body) for an earnings push notification.
+
+    Title: "Reporte Q{quarter} {year} {Company}". Body: one line for EPS and
+    one for Revenue, each "actual vs estimado {✅/❌}" — ✅ when actual beat
+    (or matched) the estimate, ❌ on a miss. A line is omitted entirely if
+    Finnhub didn't report that figure for this company. Deliberately just
+    these lines — no position/watchlist context added.
+    """
     is_en = language == "en"
     eps_a = res.get("eps_actual")
     eps_e = res.get("eps_estimate")
-    beat  = res.get("beat_eps", False)
+    beat_eps = res.get("beat_eps", False)
+    rev_a = res.get("rev_actual_b")
+    rev_e = res.get("rev_estimate_b")
+    beat_rev = res.get("beat_rev", False)
     hour  = res.get("hour", "")
+    quarter = res.get("quarter")
+    year    = res.get("year")
 
-    result_emoji = "✅" if beat else "❌"
-    result_word  = "Beat" if beat else "Miss"
-    eps_str = f"EPS ${eps_a:.2f}" if eps_a is not None else ""
-    est_str = f"vs ${eps_e:.2f} est." if eps_e is not None else ""
+    company = _company_name(ticker)
+    if quarter and year:
+        title = f"Q{quarter} {year} Report {company}" if is_en else f"Reporte Q{quarter} {year} {company}"
+    else:
+        timing_tag = " · Pre-market" if hour == "BMO" else (" · After-hours" if hour == "AMC" else "")
+        title = f"{ticker} Earnings{timing_tag}" if is_en else f"Resultados {ticker}{timing_tag}"
 
-    timing_tag = ""
-    if hour == "BMO":
-        timing_tag = " · Pre-market"
-    elif hour == "AMC":
-        timing_tag = " · After-hours"
+    lines = []
+    if eps_a is not None:
+        eps_emoji = "✅" if beat_eps else "❌"
+        if eps_e is not None:
+            lines.append(
+                f"EPS: ${eps_a:.2f} vs ${eps_e:.2f} est. {eps_emoji}" if is_en else
+                f"EPS: ${eps_a:.2f} vs ${eps_e:.2f} estimado {eps_emoji}"
+            )
+        else:
+            lines.append(f"EPS: ${eps_a:.2f}")
+    if rev_a is not None:
+        rev_emoji = "✅" if beat_rev else "❌"
+        if rev_e is not None:
+            lines.append(
+                f"Revenue: ${rev_a:.1f}B vs ${rev_e:.1f}B est. {rev_emoji}" if is_en else
+                f"Ingresos: ${rev_a:.1f}B vs ${rev_e:.1f}B estimado {rev_emoji}"
+            )
+        else:
+            lines.append(f"Revenue: ${rev_a:.1f}B" if is_en else f"Ingresos: ${rev_a:.1f}B")
 
-    title = f"{ticker} {result_emoji} {result_word}{timing_tag}"
-
-    # Base body
-    parts = []
-    if eps_str:
-        parts.append(f"{eps_str} {est_str}".strip())
-
-    # Premium personalization: show position context if user holds the stock
-    if is_premium and positions:
-        pos_match = next((p for p in positions if p.get("ticker") == ticker), None)
-        if pos_match:
-            shares = float(pos_match.get("shares") or 0)
-            avg_px = float(pos_match.get("avgPrice") or pos_match.get("avg_price") or 0)
-            if shares and avg_px:
-                cost_basis = shares * avg_px
-                parts.append(
-                    f"You hold {shares:.4f} sh. (${cost_basis:,.2f} invested)"
-                    if is_en else
-                    f"Tienes {shares:.4f} acc. (${cost_basis:,.2f} invertido)"
-                )
-
-    if is_watchlist and not any(p.get("ticker") == ticker for p in positions):
-        parts.append("On your watchlist" if is_en else "En tu watchlist")
-
-    body = " · ".join(parts) if parts else (f"{ticker} just reported earnings" if is_en else f"{ticker} acaba de reportar resultados")
+    body = "\n".join(lines) if lines else (f"{ticker} just reported earnings" if is_en else f"{ticker} acaba de reportar resultados")
     return title, body
 
 
@@ -3433,7 +3436,7 @@ async def _job_earnings_dispatch(hour_filter: str):
     logger.info("job_earnings [%s]: %d tickers reported: %s", hour_filter, len(reported_tickers), reported_tickers)
 
     # 2. Load all users
-    users_res = await run_query(db.table("user_profiles").select("user_id,name,subscription_tier,preferred_language"))
+    users_res = await run_query(db.table("user_profiles").select("user_id,name,preferred_language"))
     users = users_res.data or []
     if not users:
         return
@@ -3460,7 +3463,6 @@ async def _job_earnings_dispatch(hour_filter: str):
         uid       = u["user_id"]
         positions = port_by_uid.get(uid, [])
         watchlist = watch_by_uid.get(uid, set())
-        is_premium = (u.get("subscription_tier") or "free") == "premium"
 
         port_tickers  = {p["ticker"] for p in positions if p.get("ticker")}
         relevant      = (port_tickers | watchlist) & reported_tickers
@@ -3471,8 +3473,7 @@ async def _job_earnings_dispatch(hour_filter: str):
         await asyncio.sleep(random.uniform(0, 0.05))
         for ticker in relevant:
             res  = results_map[ticker]
-            is_wl = ticker in watchlist
-            title, body = _earnings_push_content(ticker, res, positions, is_wl, is_premium, language=language)
+            title, body = _earnings_push_content(ticker, res, language=language)
             await send_push(
                 uid, f"earnings_{ticker.lower()}",
                 title, body,
