@@ -190,10 +190,10 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
     result = await run_query(
         db.table("user_profiles").select(
             "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id, broker_offer_seen_at, duo_plan_purchased_at, duo_secondary_email, streak_bonus_premium_until, claimed_streak_milestones"
-        ).eq("user_id", user_id).single()
+        ).eq("user_id", user_id).maybe_single()
     )
 
-    if not result.data:
+    if not result or not result.data:
         return {"tier": "free", "msg_count": 0, "msg_window_start": None}
 
     data            = result.data
@@ -336,9 +336,9 @@ async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
 
     # 1. Verify duo plan was purchased
     check = await run_query(
-        db.table("user_profiles").select("duo_plan_purchased_at").eq("user_id", user_id).single()
+        db.table("user_profiles").select("duo_plan_purchased_at").eq("user_id", user_id).maybe_single()
     )
-    if not (check.data and check.data.get("duo_plan_purchased_at")):
+    if not (check and check.data and check.data.get("duo_plan_purchased_at")):
         raise HTTPException(status_code=403, detail="No tienes un plan Dúo activo")
 
     # 2. Validate secondary email exists in Nuvos
