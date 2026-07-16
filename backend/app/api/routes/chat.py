@@ -29,6 +29,39 @@ FREE_MSG_LIMIT    = 15
 PREMIUM_MSG_LIMIT = 200
 MSG_WINDOW_HOURS  = 24
 
+# Hard $ cap per user per day, independent of the message-count limiter above —
+# a user well under 15/200 messages can still blow past a cost budget if their
+# messages trigger long tool-calling loops or large structured responses.
+# Enforced from llm_usage_log (added for cost-optimization rec #18), the only
+# source of truth for actual $ spent, not just message count.
+DAILY_COST_CAP_USD = 0.20
+
+
+async def _check_daily_cost_cap(user_id: str) -> None:
+    from datetime import datetime, timezone
+    db = get_supabase()
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    try:
+        res = await run_query(
+            db.table("llm_usage_log").select("cost_usd").eq("user_id", user_id).gte("created_at", today_start)
+        )
+        spent = sum(float(r.get("cost_usd") or 0) for r in (res.data or []))
+    except Exception as e:
+        # If llm_usage_log isn't queryable (e.g. migration not run yet), fail
+        # OPEN — never block the mentor over a monitoring-table outage. This
+        # cap is a safety net on top of the message-count limiter, not the
+        # only line of defense.
+        logger.warning("_check_daily_cost_cap: usage lookup failed, allowing through: %s", e)
+        return
+    if spent >= DAILY_COST_CAP_USD:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "cost_cap",
+                "message": f"Alcanzaste el límite de gasto diario del mentor (${DAILY_COST_CAP_USD:.2f}). Vuelve mañana.",
+            },
+        )
+
 
 def _is_premium(profile) -> bool:
     """True for premium/pro subscribers and users within their 90-day trial."""
@@ -263,21 +296,10 @@ async def chat_stream(
 ):
     has_images = bool(body.images or body.image_data)
 
-    # Cost-optimization #8/#9: standalone educational questions ("¿qué es el
-    # P/E ratio?") with no images and no conversation thread yet don't depend
-    # on this specific user — serve from cache instead of calling Sonnet again
-    # for the Nth user asking the same textbook question. Anything with a
-    # ticker, portfolio reference, or live-data phrasing never matches (see
-    # generic_qa_cache.py's conservative patterns), so this never risks
-    # serving a stale/generic answer where personalization was expected.
-    from app.services.generic_qa_cache import classify_and_cache_key, get_cached_answer, store_answer
-    cache_key = classify_and_cache_key(body.message, has_images, len(body.conversation_history))
-    if cache_key:
-        cached = get_cached_answer(cache_key)
-        if cached:
-            async def _replay():
-                yield cached
-            return StreamingResponse(_replay(), media_type="text/plain")
+    # NOTE: this route has no active caller — web and mobile both use
+    # /message (see chat_message below), which is where the generic-question
+    # cache (#8/#9) and the daily cost cap actually live. Kept minimal here
+    # rather than duplicating that logic into a route nothing calls.
 
     # Normalize: merge legacy single-image into the images list
     images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
@@ -331,7 +353,6 @@ async def chat_stream(
         # Yielding a clear terminal marker instead lets the frontend show
         # "the assistant had trouble responding, try again" rather than a
         # response that just stops mid-sentence with no explanation.
-        full_for_cache = []
         try:
             async for chunk in ai_service.chat_stream(
                 message=enriched,
@@ -346,15 +367,10 @@ async def chat_stream(
                 progress_context=progress_ctx,
                 is_premium=premium,
             ):
-                if cache_key:
-                    full_for_cache.append(chunk)
                 yield chunk
         except Exception as e:
             logger.error("chat_stream failed mid-response for user %s: %s", user_id, e)
             yield "\n\n[[NUVOS_STREAM_ERROR]] Tuvimos un problema generando la respuesta. Intenta de nuevo."
-            return
-        if cache_key and full_for_cache:
-            store_answer(cache_key, "".join(full_for_cache))
 
     return StreamingResponse(generate(), media_type="text/plain")
 
@@ -369,10 +385,23 @@ async def chat_message(
     profile = await _get_user_profile(user_id)
     if profile:
         await _check_and_increment_msg_limit(user_id, profile)
+    await _check_daily_cost_cap(user_id)
     premium = _is_premium(profile)
+    has_images = bool(body.images or body.image_data)
+
+    # Cost-optimization #8/#9: standalone educational questions with no
+    # personal/live-market dependency don't need a fresh Sonnet call — serve
+    # from cache. This is the endpoint web/mobile actually call (chat/stream
+    # is unused by any client), so this is where the short-circuit belongs.
+    from app.services.generic_qa_cache import classify_and_cache_key, get_cached_answer, store_answer
+    cache_key = classify_and_cache_key(body.message, has_images, len(body.conversation_history))
+    if cache_key:
+        cached = get_cached_answer(cache_key)
+        if cached:
+            return {"reply": cached, "risk_assessment": None, "tickers": [], "actions": None}
+
     enrich_timeout = 4.0 if premium else 2.5
     tickers  = await asyncio.to_thread(detect_tickers, body.message)
-    has_images = bool(body.images or body.image_data)
     enriched = await asyncio.to_thread(_enrich_message, body.message, enrich_timeout) if not has_images else body.message
     images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
     if not images and body.image_data:
@@ -405,6 +434,8 @@ async def chat_message(
         full += chunk
     clean_reply, bscore = _extract_bscore(full)
     clean_reply, actions = _extract_action(clean_reply)
+    if cache_key:
+        store_answer(cache_key, clean_reply)
 
     # Fire FMG extraction as background task — never blocks the response
     user_name = getattr(profile, "name", None) if profile else None

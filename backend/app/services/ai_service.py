@@ -1582,13 +1582,13 @@ async def chat_stream(
         )
     system_blocks.append({"type": "text", "text": f"REMINDER — LANGUAGE: {lang_fact}"})
 
-    # Cap history to the last 20 exchanges (40 turns) to prevent token costs from
-    # growing quadratically as conversations get long. Messages beyond this cutoff
+    # Cap history to the last N messages to prevent token costs from growing
+    # quadratically as conversations get long. Messages beyond this cutoff
     # used to be silently dropped with zero trace — cost-optimization rec #4:
     # summarize the dropped portion with a cheap Haiku call instead of losing it
     # outright, so a long conversation still keeps continuity without resending
     # the full transcript every turn.
-    _MAX_HISTORY = 25
+    _MAX_HISTORY = 15
     if len(conversation_history) > _MAX_HISTORY:
         dropped = conversation_history[:-_MAX_HISTORY]
         trimmed_history = conversation_history[-_MAX_HISTORY:]
