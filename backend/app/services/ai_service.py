@@ -1648,145 +1648,6 @@ async def chat_stream(
         })
 
 
-async def analyze_assets(symbols: list[str], market_data: dict, profile: UserProfile | None = None) -> str:
-    system_prompt = build_system_prompt(profile)
-
-    market_context = "## DATOS DE MERCADO ACTUALES:\n"
-    for symbol, data in market_data.items():
-        if data:
-            market_context += f"\n**{symbol}**:\n"
-            for k, v in data.items():
-                market_context += f"  - {k}: {v}\n"
-
-    prompt = f"""{market_context}
-
-Analiza los siguientes activos de forma educativa: {', '.join(symbols)}
-
-Para cada uno:
-1. Explica el modelo de negocio (cómo gana dinero)
-2. Situación actual del negocio (no del precio)
-3. Principales riesgos y oportunidades
-4. Comparación entre ellos si son múltiples
-
-Luego, si el perfil del usuario está disponible, presenta escenarios:
-- Cómo encaja cada uno en un perfil como el suyo
-- Qué preguntas debería hacerse antes de considerar cualquier activo
-
-Recuerda: analiza el negocio, no el precio de la acción."""
-
-    response = await _claude(
-        model=settings.claude_model,
-        max_tokens=8192,
-        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response.content[0].text
-
-
-async def generate_portfolio_scenario(
-    scenario: str,
-    capital: float | None,
-    profile: UserProfile | None,
-    focus_sectors: list[str] | None = None,
-    positions: list[dict] | None = None,
-) -> str:
-    system_prompt = build_system_prompt(profile)
-    capital_str = f"${capital:,.0f}" if capital else "capital no especificado"
-    sectors_str = f"con enfoque en: {', '.join(focus_sectors)}" if focus_sectors else ""
-
-    if positions:
-        pos_lines = []
-        total_invested = 0.0
-        total_current = 0.0
-        for p in positions:
-            cp = p.get("current_price") or p["avg_price"]
-            invested = p["shares"] * p["avg_price"]
-            current  = p["shares"] * cp
-            total_invested += invested
-            total_current  += current
-            pct_chg = ((cp - p["avg_price"]) / p["avg_price"] * 100) if p["avg_price"] else 0
-            target_str = ""
-            if p.get("analyst_target"):
-                upside = ((p["analyst_target"] - cp) / cp * 100) if cp else 0
-                target_str = (
-                    f" | Consenso analistas: ${p['analyst_target']:.2f} "
-                    f"({'↑' if upside >= 0 else '↓'}{abs(upside):.1f}% desde precio actual)"
-                )
-                if p.get("recommendation"):
-                    target_str += f" [{p['recommendation']}]"
-            pos_lines.append(
-                f"- {p['ticker']} ({p.get('name', p['ticker'])}): "
-                f"{p['shares']} acc × ${p['avg_price']:.2f} compra | "
-                f"Precio actual: ${cp:.2f} ({'+' if pct_chg >= 0 else ''}{pct_chg:.1f}%)"
-                f"{target_str}"
-            )
-        total_pct = ((total_current - total_invested) / total_invested * 100) if total_invested else 0
-        portfolio_block = f"""## PORTAFOLIO REAL DEL USUARIO
-Capital invertido: ${total_invested:,.2f}
-Valor actual: ${total_current:,.2f} ({'+' if total_pct >= 0 else ''}{total_pct:.1f}% total)
-
-Posiciones:
-{chr(10).join(pos_lines)}
-
-Escenario de análisis solicitado: {scenario}"""
-
-        prompt = f"""{portfolio_block}
-
-Con base en las posiciones REALES del usuario arriba, genera un análisis de su portafolio actual y forecast para el escenario {scenario}:
-
-1. **Estado actual del portafolio**: Posiciones ganadoras y perdedoras, concentración de riesgo, diversificación real vs ideal para el perfil {scenario}
-2. **Forecast basado en consenso de analistas**: Para cada posición con target disponible, evalúa si el precio actual justifica mantener, reducir o considerar alternativas. Usa los targets de analistas como referencia, no como verdad absoluta.
-3. **Simulación de escenario {scenario}**: Si el mercado va al alza (bull), lateral, o baja (bear), ¿cómo reaccionaría este portafolio específico?
-4. **Ajustes sugeridos para el escenario {scenario}**: ¿Qué falta, qué sobra, qué está bien para este perfil?
-5. **Riesgos de concentración detectados**: ¿Hay demasiada exposición a un sector, empresa o factor?
-
-IMPORTANTE: Esto es análisis educativo, no recomendación de inversión. Basa el forecast en los datos de analistas disponibles, no en predicciones propias."""
-    else:
-        user_risk = profile.risk_tolerance if profile else "moderate"
-        risk_label = {"conservative": "conservador", "moderate": "moderado", "aggressive": "agresivo"}.get(user_risk, user_risk)
-        scenario_label = {"conservative": "conservador", "moderate": "moderado", "aggressive": "agresivo"}.get(scenario, scenario)
-
-        mismatch_note = ""
-        if user_risk != scenario:
-            mismatch_note = f"""
-⚠️ DIFERENCIA IMPORTANTE: El perfil real del usuario es "{risk_label}" pero está simulando el escenario "{scenario_label}".
-Menciona esto brevemente y explica cómo balancear ambos perfiles."""
-
-        prompt = f"""El usuario tiene un perfil de riesgo REAL: {risk_label.upper()}
-Escenario solicitado para esta simulación: {scenario_label.upper()}
-Capital de referencia: {capital_str} {sectors_str}
-{mismatch_note}
-
-Responde SOLO en este formato JSON exacto, sin texto adicional:
-
-{{
-  "summary": "1-2 frases explicando la estrategia {scenario_label} para perfil {risk_label}",
-  "mismatch": "{mismatch_note if user_risk != scenario else ''}",
-  "allocations": [
-    {{"ticker": "VTI", "name": "Vanguard Total Stock Market ETF", "pct": 40, "color": "#22c55e", "reason": "razón breve"}},
-    {{"ticker": "BND", "name": "Vanguard Total Bond Market ETF", "pct": 30, "color": "#3b82f6", "reason": "razón breve"}}
-  ],
-  "risks": ["Riesgo 1", "Riesgo 2", "Riesgo 3"],
-  "history": {{"2008": "-X%", "2020": "+X%", "2022": "-X%"}}
-}}
-
-ETFs típicos por perfil — úsalos de referencia:
-• Conservador (más bonos): SGOV 25%, BND 25%, VTIP 15%, SCHD 20%, VTI 15%
-• Moderado (equilibrado): VTI 35%, VEA 15%, BND 20%, QQQ 15%, VNQ 10%, GLD 5%
-• Agresivo (más acciones): QQQ 30%, VTI 25%, VGT 20%, VWO 15%, SOXX 10%
-
-Los porcentajes DEBEN sumar exactamente 100. Incluye entre 5 y 7 activos. Asigna un color hex distinto a cada categoría (verde para acciones, azul para bonos, amarillo para commodities, morado para REITs).
-
-IMPORTANTE: Solo devuelve JSON válido. Sin markdown, sin texto fuera del JSON."""
-
-    response = await _claude(
-        model=settings.claude_model,
-        max_tokens=700,
-        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response.content[0].text
-
 
 async def screen_stocks(stocks: list[dict], query: str, profile: UserProfile | None = None) -> str:
     system_prompt = build_system_prompt(profile)
@@ -2478,8 +2339,12 @@ Eres el analista financiero de Nuvos AI. {lang_instruction_2}, en 2-3 oraciones 
 
 No uses el formato de 4 secciones con emojis — esta es una respuesta corta y honesta, no un análisis completo."""
 
+    # Haiku, not Sonnet — this is mechanical summarization (extract the facts
+    # already in the article text), not open-ended reasoning, and it's now
+    # cached per (article, language) at the route level so it only runs once
+    # per article regardless of how many users open it.
     response = await _claude(
-        model=settings.claude_model,
+        model="claude-haiku-4-5-20251001",
         max_tokens=520,
         messages=[{"role": "user", "content": prompt}],
     )

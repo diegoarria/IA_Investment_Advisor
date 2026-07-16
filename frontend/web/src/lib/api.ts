@@ -167,12 +167,6 @@ export const market = {
   getIndices: () => api.get("/api/market/indices"),
   getAsset: (symbol: string) => api.get(`/api/market/asset/${symbol}`),
   getPrices: (symbols: string[]) => api.post("/api/market/prices", { symbols }),
-  analyze: (symbols: string[]) => api.post("/api/market/analyze", { symbols }),
-  getPortfolio: (
-    scenario: string,
-    capital?: number,
-    positions?: { ticker: string; shares: number; avg_price: number; name?: string }[]
-  ) => api.post("/api/market/portfolio", { scenario, capital, positions }),
   analyzePortfolio: (positions: { ticker: string; shares: number; avg_price: number; name?: string; current_price?: number }[]) =>
     api.post("/api/simulate/analyze-portfolio", { positions }),
   analyzeScreenshot: (imageData: string, imageType: string, currency = "USD") =>

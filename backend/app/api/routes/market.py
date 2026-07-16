@@ -19,7 +19,6 @@ from app.api.deps import get_current_user_id
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
 from app.models.user import UserProfile
-from app.models.market import AssetAnalysisRequest, PortfolioScenarioRequest
 from app.services import market_service, ai_service
 from app.core.cache import cache_get, cache_set, cache_incr, cache_delete, acquire_lock, release_lock
 from app.core.limiter import limiter
@@ -359,50 +358,6 @@ async def get_asset(symbol: str, user_id: str = Depends(get_current_user_id)):
     return market_service.get_asset_data(_yf_symbol(symbol.upper()))
 
 
-@router.post("/analyze")
-async def analyze_assets(
-    request: AssetAnalysisRequest,
-    user_id: str = Depends(get_current_user_id)
-):
-    symbols = [s.upper() for s in request.symbols]
-    market_data = market_service.get_multiple_assets(symbols)
-    profile = _get_user_profile(user_id)
-    analysis = await ai_service.analyze_assets(symbols, market_data, profile)
-    return {
-        "symbols": symbols,
-        "market_data": market_data,
-        "ai_analysis": analysis
-    }
-
-
-def _fetch_position_data(positions: list) -> list[dict]:
-    """Fetch current price and analyst targets for each position."""
-    enriched = []
-    for pos in positions:
-        ticker = pos.ticker.upper()
-        entry = {
-            "ticker": ticker,
-            "name": pos.name or ticker,
-            "shares": pos.shares,
-            "avg_price": pos.avg_price,
-            "current_price": None,
-            "analyst_target": None,
-            "analyst_low": None,
-            "analyst_high": None,
-            "recommendation": None,
-        }
-        try:
-            from app.core.finnhub import fh_quote as _fh_quote
-            q = _fh_quote(ticker)
-            if q and q.get("price"):
-                entry["current_price"] = round(float(q["price"]), 2)
-            # analyst targets not available via Finnhub free plan — keep as None
-        except Exception:
-            pass
-        enriched.append(entry)
-    return enriched
-
-
 # ── Yahoo Finance v8 direct chart (same data as Google Finance) ───────────────
 
 _YF_HEADERS = {
@@ -618,31 +573,6 @@ async def historical_backtest(
     if not positions:
         return {"years": []}
     return await run_historical_backtest(positions)
-
-
-@router.post("/portfolio")
-async def simulate_portfolio(
-    request: PortfolioScenarioRequest,
-    user_id: str = Depends(get_current_user_id)
-):
-    import asyncio
-    profile = _get_user_profile(user_id)
-
-    enriched_positions = None
-    if request.positions:
-        enriched_positions = await asyncio.to_thread(_fetch_position_data, request.positions)
-
-    scenario_analysis = await ai_service.generate_portfolio_scenario(
-        scenario=request.scenario,
-        capital=request.capital,
-        profile=profile,
-        focus_sectors=request.focus_sectors,
-        positions=enriched_positions,
-    )
-    return {
-        "scenario": request.scenario,
-        "analysis": scenario_analysis
-    }
 
 
 @router.post("/portfolio/from-screenshot")
@@ -1021,14 +951,36 @@ def _extract_article_text(html: str) -> str:
     return _re.sub(r"\s+", " ", text).strip()[:6000]
 
 
+_NEWS_SUMMARY_TTL = 6 * 3600  # article content/summary don't change once written
+
+
 @router.post("/summarize-news")
 async def summarize_news(body: dict, user_id: str = Depends(get_current_user_id)):
-    """AI summary of a news article — premium-only, enforced on the frontend."""
+    """AI summary of a news article — premium-only, enforced on the frontend.
+    The summary depends only on the article + language, never on who's asking,
+    so it's cached and shared across every user who opens the same article —
+    same pattern as stock-score/income-analysis below."""
+    import hashlib
     import httpx
     title = (body.get("title") or "").strip()
     url   = (body.get("url") or "").strip()
     if not title:
         return {"summary": "No se pudo resumir: falta el titular."}
+
+    language = "es"
+    try:
+        db = get_supabase()
+        prof_res = await run_query(db.table("user_profiles").select("preferred_language").eq("user_id", user_id))
+        if prof_res.data:
+            language = prof_res.data[0].get("preferred_language") or "es"
+    except Exception:
+        pass
+
+    article_key = url or title
+    cache_key = f"news_summary:{language}:{hashlib.sha256(article_key.encode()).hexdigest()}"
+    cached = cache_get(cache_key)
+    if cached:
+        return {"summary": cached}
 
     # Attempt to extract readable article text — this is the actual content the AI
     # summarizes. If the source blocks scraping (paywall/bot-detection), we tell the
@@ -1068,16 +1020,8 @@ async def summarize_news(body: dict, user_id: str = Depends(get_current_user_id)
                 if attempt == 0:
                     await asyncio.sleep(1)
 
-    language = "es"
-    try:
-        db = get_supabase()
-        prof_res = await run_query(db.table("user_profiles").select("preferred_language").eq("user_id", user_id))
-        if prof_res.data:
-            language = prof_res.data[0].get("preferred_language") or "es"
-    except Exception:
-        pass
-
     summary = await ai_service.summarize_news_article(title, content, language=language)
+    cache_set(cache_key, summary, ttl=_NEWS_SUMMARY_TTL)
     return {"summary": summary}
 
 
