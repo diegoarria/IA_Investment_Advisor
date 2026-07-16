@@ -22,7 +22,6 @@ from app.services.market_data_service import (
     detect_tickers,
 )
 from app.core.finnhub import fh_quote
-from app.services.perplexity_service import search_web, _needs_web_search
 from app.core.limiter import limiter
 
 FREE_MSG_LIMIT    = 15
@@ -255,14 +254,14 @@ async def _get_mentor_deep_context(user_id: str) -> str | None:
 
 
 def _enrich_message(message: str, timeout: float = 3.0) -> str:
-    """Prepend global market context + per-company context + optional Perplexity web search."""
+    """Prepend global market context + per-company context.
+    Perplexity is deliberately not used here — it's reserved for
+    notifications (price-alert WHY, major news) and Deep Research only."""
     f_global  = _ENRICH_POOL.submit(get_global_market_context)
     f_company = _ENRICH_POOL.submit(get_market_context_for_message, message)
-    f_web     = _ENRICH_POOL.submit(search_web, message) if _needs_web_search(message) else None
 
     global_ctx  = ""
     company_ctx = ""
-    web_ctx     = ""
     try:
         global_ctx = f_global.result(timeout=timeout)
     except Exception:
@@ -271,19 +270,12 @@ def _enrich_message(message: str, timeout: float = 3.0) -> str:
         company_ctx = f_company.result(timeout=timeout)
     except Exception:
         pass
-    if f_web is not None:
-        try:
-            web_ctx = f_web.result(timeout=timeout + 3.0)  # web search gets extra time
-        except Exception:
-            pass
 
     parts = [message]
     if global_ctx:
         parts.append("\n\n" + global_ctx)
     if company_ctx:
         parts.append(company_ctx)
-    if web_ctx:
-        parts.append("\n\n" + web_ctx)
     return "\n".join(parts) if len(parts) > 1 else message
 
 
