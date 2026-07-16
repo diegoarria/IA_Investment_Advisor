@@ -15,6 +15,9 @@ _PRICING_PER_1M = {
     "claude-sonnet-4-6":            {"input": 3.00,  "output": 15.00, "cache_write": 3.75, "cache_read": 0.30},
     "claude-haiku-4-5-20251001":    {"input": 1.00,  "output": 5.00,  "cache_write": 1.25,  "cache_read": 0.10},
     "claude-haiku-4-5":             {"input": 1.00,  "output": 5.00,  "cache_write": 1.25,  "cache_read": 0.10},
+    # gpt-5-mini was retired by OpenAI — gpt-5.4-mini is the current mini-tier
+    # model. Confirmed against developers.openai.com/api/docs/pricing.
+    "gpt-5.4-mini":                 {"input": 0.75,  "output": 4.50,  "cache_write": 0.75,  "cache_read": 0.075},
 }
 _DEFAULT_PRICING = {"input": 3.00, "output": 15.00, "cache_write": 3.75, "cache_read": 0.30}
 

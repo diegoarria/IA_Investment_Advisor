@@ -20,9 +20,23 @@ _claude_sem = asyncio.Semaphore(40)
 
 _COST_PER_MTOK: dict[str, tuple[float, float]] = {
     "claude-sonnet-4-6":          (3.00,  15.00),
-    "claude-haiku-4-5-20251001":  (0.80,   4.00),
+    "claude-haiku-4-5-20251001":  (1.00,   5.00),
     "claude-opus-4-8":            (15.00, 60.00),
     "claude-opus-4-5":            (15.00, 60.00),
+}
+
+# ── Dual routing: OpenAI (GPT-5 mini) for standalone, non-personalized
+# educational Q&A — see generate_generic_answer() below. Optional: falls back
+# to the existing Claude/Haiku path if unconfigured.
+try:
+    from openai import AsyncOpenAI
+    openai_client = AsyncOpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
+except ImportError:
+    openai_client = None
+
+# Confirmed against OpenAI's pricing page (developers.openai.com/api/docs/pricing).
+_OPENAI_COST_PER_MTOK: dict[str, tuple[float, float]] = {
+    "gpt-5.4-mini": (0.75, 4.50),
 }
 
 async def _claude(**kwargs):
@@ -1719,6 +1733,85 @@ NO alarmes innecesariamente. Contextualiza con perspectiva histórica."""
         messages=[{"role": "user", "content": prompt}]
     )
     return response.content[0].text
+
+
+async def generate_simple_completion(
+    prompt: str,
+    max_tokens: int = 600,
+    model: str = "claude-haiku-4-5-20251001",
+) -> str:
+    """Lightweight, non-conversational Claude call for one-off text/JSON generation
+    (batch email copy, classification, etc.) whose prompt is fully self-contained.
+
+    Deliberately skips the mentor system prompt, tool schemas, and Sonnet default
+    that chat_stream() carries — those exist for the interactive chat pipeline and
+    add ~13K tokens of overhead per call that this kind of task doesn't need.
+    """
+    response = await _claude(
+        model=model,
+        max_tokens=max_tokens,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text
+
+
+_GENERIC_QA_SYSTEM_PROMPT = (
+    "Eres Nuvos, mentor y educador de inversiones. Responde en el mismo idioma "
+    "de la pregunta, de forma clara, breve y didáctica, sin jerga innecesaria. "
+    "Ve directo a la explicación, sin repetir la pregunta ni agregar relleno."
+)
+
+
+async def generate_generic_answer(
+    prompt: str,
+    max_tokens: int = 500,
+    conversation_history: list[ChatMessage] | None = None,
+) -> str | None:
+    """GPT-5.4-mini path for questions that don't need real market data, a
+    specific ticker/portfolio, tool calls, or images (see chat.py's
+    _needs_claude_analysis — that's the gate deciding whether this function is
+    even called). Supports ordinary multi-turn follow-ups via
+    conversation_history, same as the Claude path, so this can genuinely serve
+    as the default for casual/educational conversations, not just one-shot Q&A.
+
+    Returns None — never raises — if OpenAI isn't configured or the call fails
+    for any reason, so the caller can fall back to the existing Claude/Haiku
+    path with zero user-visible impact.
+    """
+    if openai_client is None:
+        return None
+    try:
+        history_messages = [
+            {"role": m.role, "content": m.content} for m in (conversation_history or [])[-15:]
+        ]
+        resp = await openai_client.chat.completions.create(
+            model=settings.openai_generic_model,
+            max_completion_tokens=max_tokens,
+            messages=[
+                {"role": "system", "content": _GENERIC_QA_SYSTEM_PROMPT},
+                *history_messages,
+                {"role": "user", "content": prompt},
+            ],
+        )
+        text = (resp.choices[0].message.content or "").strip()
+        if not text:
+            return None
+
+        usage = resp.usage
+        in_tok  = getattr(usage, "prompt_tokens", 0) if usage else 0
+        out_tok = getattr(usage, "completion_tokens", 0) if usage else 0
+        in_cost, out_cost = _OPENAI_COST_PER_MTOK.get(settings.openai_generic_model, (0.75, 4.50))
+        cost = in_tok / 1e6 * in_cost + out_tok / 1e6 * out_cost
+        _log.info("LLM call: model=%s fn=generate_generic_answer in=%d out=%d cost=$%.5f",
+                   settings.openai_generic_model, in_tok, out_tok, cost)
+        asyncio.create_task(log_llm_usage(
+            None, "chat_generic_openai", settings.openai_generic_model,
+            {"input_tokens": in_tok, "output_tokens": out_tok},
+        ))
+        return text
+    except Exception as e:
+        _log.warning("OpenAI generic-answer call failed, falling back to Claude: %s", e)
+        return None
 
 
 # ──────────────────────────────────────────────────────────────

@@ -221,11 +221,7 @@ Escribe un resumen semanal de máximo 180 palabras que incluya:"""
 Tono: cálido, profesional, directo. Como un mentor que se preocupa por el progreso del usuario."""
 
     try:
-        summary = ""
-        async for chunk in ai_service.chat_stream(
-            message=prompt, conversation_history=[], profile=None, mentor=None,
-        ):
-            summary += chunk
+        summary = await ai_service.generate_simple_completion(prompt, max_tokens=500)
 
         if portfolio_data:
             html = build_enhanced_weekly_html(

@@ -1310,6 +1310,8 @@ Español, tono analítico pero accesible. Sin viñetas, sin markdown, sin asteri
         out_tok = getattr(resp.usage, "output_tokens", 0)
         logger.info("LLM market_wrap: in=%d out=%d cost=$%.5f", in_tok, out_tok,
                     in_tok / 1e6 * 0.80 + out_tok / 1e6 * 4.0)
+        from app.services.llm_usage import log_llm_usage
+        asyncio.create_task(log_llm_usage(None, "job_daily_email_market_wrap", "claude-haiku-4-5-20251001", resp.usage))
         raw = (resp.content[0].text or "").strip()
         # Strip any accidental markdown (model sometimes ignores the no-markdown instruction)
         import re as _re
@@ -1365,6 +1367,8 @@ async def _generate_earnings_ai_for_email(
         out_tok = getattr(resp.usage, "output_tokens", 0)
         logger.info("LLM earnings_email(%s): in=%d out=%d cost=$%.5f", ticker, in_tok, out_tok,
                     in_tok / 1e6 * 0.80 + out_tok / 1e6 * 4.0)
+        from app.services.llm_usage import log_llm_usage
+        asyncio.create_task(log_llm_usage(None, "job_daily_email_earnings", "claude-haiku-4-5-20251001", resp.usage))
         return (resp.content[0].text or "").strip()
     except Exception:
         return ""
@@ -2158,6 +2162,8 @@ async def job_weekly_screener_push():
                 out_tok = getattr(resp.usage, "output_tokens", 0)
                 logger.info("LLM screener(risk=%s): in=%d out=%d cost=$%.5f", risk, in_tok, out_tok,
                             in_tok / 1e6 * 0.80 + out_tok / 1e6 * 4.0)
+                from app.services.llm_usage import log_llm_usage
+                asyncio.create_task(log_llm_usage(None, "job_weekly_screener_push", "claude-haiku-4-5-20251001", resp.usage))
                 raw = resp.content[0].text.strip() if resp.content else "[]"
                 import json as _json
                 parsed = _json.loads(raw)
@@ -2517,6 +2523,8 @@ REGLAS:
         out_tok = getattr(resp.usage, "output_tokens", 0)
         logger.info("LLM earnings_push: in=%d out=%d cost=$%.5f", in_tok, out_tok,
                     in_tok / 1e6 * 0.80 + out_tok / 1e6 * 4.0)
+        from app.services.llm_usage import log_llm_usage
+        asyncio.create_task(log_llm_usage(None, "job_events_alerts_earnings_push", "claude-haiku-4-5-20251001", resp.usage))
         body = resp.content[0].text.strip().strip('"').strip("'")
         if len(body) > 280:
             body = body[:277] + "..."
@@ -2601,6 +2609,8 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional, en este formato exac
         out_tok = getattr(resp.usage, "output_tokens", 0)
         logger.info("LLM major_news_curate: in=%d out=%d cost=$%.5f", in_tok, out_tok,
                     in_tok / 1e6 * 0.80 + out_tok / 1e6 * 4.0)
+        from app.services.llm_usage import log_llm_usage
+        asyncio.create_task(log_llm_usage(None, "job_major_news_alert", "claude-haiku-4-5-20251001", resp.usage))
         raw = resp.content[0].text.strip()
         # Strip accidental markdown code fences
         if raw.startswith("```"):

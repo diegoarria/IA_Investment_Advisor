@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     frontend_url: str = "*"
     environment: str = "production"  # set to "development" locally to enable /docs
     claude_model: str = "claude-sonnet-4-6"
+    # OpenAI — routes standalone, non-personalized educational Q&A (see
+    # app.services.generic_qa_cache) away from Claude. Optional: if unset,
+    # that traffic just falls back to the existing Haiku path.
+    openai_api_key: str = ""
+    openai_generic_model: str = "gpt-5.4-mini"  # gpt-5-mini was retired; this is the current mini-tier model
     # Stripe
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""

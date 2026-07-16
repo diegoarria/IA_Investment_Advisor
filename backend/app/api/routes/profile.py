@@ -253,11 +253,7 @@ Responde SOLO con este JSON:
   "maturity_signal": "beginner|intermediate|advanced"
 }}"""
 
-        response = ""
-        async for chunk in ai_service.chat_stream(
-            message=prompt, conversation_history=[], profile=None, mentor=None,
-        ):
-            response += chunk
+        response = await ai_service.generate_simple_completion(prompt, max_tokens=500)
 
         match = re.search(r'\{.*\}', response, re.DOTALL)
         if match:

@@ -270,6 +270,8 @@ Responde solo con el texto de la razón (sin punto final) o con NO_CATALYST."""
             ),
             timeout=15.0,
         )
+        from app.services.llm_usage import log_llm_usage
+        asyncio.create_task(log_llm_usage(None, "price_alert_why", "claude-haiku-4-5-20251001", resp.usage))
         result = resp.content[0].text.strip().strip('"').strip("'")
 
         if result.startswith("NO_CATALYST"):
@@ -328,6 +330,8 @@ Reply with ONLY the English translation, nothing else."""
             ),
             timeout=10.0,
         )
+        from app.services.llm_usage import log_llm_usage
+        asyncio.create_task(log_llm_usage(None, "price_alert_why_en", "claude-haiku-4-5-20251001", resp.usage))
         result = resp.content[0].text.strip().strip('"').strip("'")
         return result or why_es
     except Exception as e:

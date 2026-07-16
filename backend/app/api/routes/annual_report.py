@@ -57,7 +57,8 @@ async def _generate_narrative(
     risk_tolerance: str,
     streak_count: int,
 ) -> dict:
-    """Call Claude claude-opus-4-5 with extended thinking to generate narrative sections."""
+    """Call Claude to generate narrative sections (3 short JSON text fields — no
+    extended reasoning needed, so this deliberately skips thinking and Opus)."""
 
     history_summary = ", ".join(
         f"{m.get('month', i + 1)}: {m.get('score', 0)}"
@@ -87,9 +88,8 @@ async def _generate_narrative(
     client = anthropic.AsyncAnthropic()
     response = await asyncio.wait_for(
         client.messages.create(
-            model="claude-opus-4-5",
-            max_tokens=8000,
-            thinking={"type": "enabled", "budget_tokens": 5000},
+            model="claude-sonnet-4-6",
+            max_tokens=2000,
             messages=[{"role": "user", "content": prompt}],
         ),
         timeout=45,

@@ -25,12 +25,14 @@ from app.core.finnhub import fh_quote
 from app.core.limiter import limiter
 
 FREE_MSG_LIMIT    = 15
-PREMIUM_MSG_LIMIT = 200
+PREMIUM_MSG_LIMIT = 80
 MSG_WINDOW_HOURS  = 24
 
-# Hard $ cap per user per day, independent of the message-count limiter above —
-# a user well under 15/200 messages can still blow past a cost budget if their
-# messages trigger long tool-calling loops or large structured responses.
+# Hard $ cap per day, FREE USERS ONLY — independent of the message-count
+# limiter above (a free user well under 15 messages can still blow past a
+# cost budget if their messages trigger long tool-calling loops). Premium
+# users are gated by PREMIUM_MSG_LIMIT alone, not by $ spent — they're paying
+# customers and the message-count cap is the intended lever for them.
 # Enforced from llm_usage_log (added for cost-optimization rec #18), the only
 # source of truth for actual $ spent, not just message count.
 DAILY_COST_CAP_USD = 0.20
@@ -78,6 +80,26 @@ def _is_premium(profile) -> bool:
         except Exception:
             pass
     return False
+
+
+_LIVE_DATA_RE = re.compile(r"\bmi (portafolio|cuenta|posici[oó]n|inversi[oó]n)\b|\b(hoy|ahora|today|now)\b", re.IGNORECASE)
+
+
+def _needs_claude_analysis(message: str, has_images: bool) -> bool:
+    """True when a question needs real market data, a specific ticker/company,
+    the user's own portfolio, tool calls, or images — anything GPT-5.4-mini
+    can't answer without hallucinating (it gets no tools, no live enrichment).
+
+    Everything else (general financial chat, education, metric explanations,
+    "am I diversified" style questions) is considered "basic" and routed to
+    the cheaper mini model first, for both free and premium users — this is
+    the gate for that routing decision in chat_message() below.
+    """
+    if has_images:
+        return True
+    if detect_tickers(message):
+        return True
+    return bool(_LIVE_DATA_RE.search(message))
 
 
 async def _check_and_increment_msg_limit(user_id: str, profile: UserProfile) -> None:
@@ -381,14 +403,17 @@ async def chat_message(
     profile = await _get_user_profile(user_id)
     if profile:
         await _check_and_increment_msg_limit(user_id, profile)
-    await _check_daily_cost_cap(user_id)
     premium = _is_premium(profile)
+    if not premium:
+        await _check_daily_cost_cap(user_id)
     has_images = bool(body.images or body.image_data)
 
-    # Cost-optimization #8/#9: standalone educational questions with no
-    # personal/live-market dependency don't need a fresh Sonnet call — serve
-    # from cache. This is the endpoint web/mobile actually call (chat/stream
-    # is unused by any client), so this is where the short-circuit belongs.
+    # Cost-optimization #8/#9: an exact repeat of a standalone textbook-style
+    # question ("qué es un ETF") can be served from cache regardless of
+    # provider — this is the narrow, conservative classifier (see
+    # generic_qa_cache.py), kept separate from the broader GPT-mini routing
+    # gate below because caching needs to be safe to share across ALL users
+    # verbatim, which is a stricter bar than "doesn't need live data".
     from app.services.generic_qa_cache import classify_and_cache_key, get_cached_answer, store_answer
     cache_key = classify_and_cache_key(body.message, has_images, len(body.conversation_history))
     if cache_key:
@@ -396,10 +421,27 @@ async def chat_message(
         if cached:
             return {"reply": cached, "risk_assessment": None, "tickers": [], "actions": None}
 
-    # Model tier: free users always get Haiku. Premium users get Haiku only
-    # for basic/generic questions (same classifier as the cache above, so the
-    # answer is identical for every user and gets cached once) — anything
-    # else (portfolio-specific, "analyze X", live data) still gets Sonnet.
+    # Dual routing (default model for BOTH free and premium): anything that
+    # doesn't need a specific ticker/company, the user's own portfolio, live
+    # market data, or images goes to GPT-5.4-mini first — general financial
+    # chat, education, metric explanations, "am I diversified" questions, etc.
+    # Falls back to the Claude tier below untouched if OpenAI isn't
+    # configured, the call fails, or the question needs real analysis
+    # ("analízame esta acción" → _needs_claude_analysis is True).
+    if not _needs_claude_analysis(body.message, has_images):
+        generic_answer = await ai_service.generate_generic_answer(
+            body.message, conversation_history=body.conversation_history,
+        )
+        if generic_answer:
+            if cache_key:
+                store_answer(cache_key, generic_answer)
+            return {"reply": generic_answer, "risk_assessment": None, "tickers": [], "actions": None}
+
+    # Claude tier — reached when the question needs real analysis, or as a
+    # safety-net fallback when GPT-mini was skipped/unavailable/failed above.
+    # Free users always get Haiku. Premium users get Haiku only for the
+    # narrow cacheable-generic case; anything else (including "basic"
+    # questions that just happened to fail the mini call) gets Sonnet.
     is_generic_question = cache_key is not None
     chat_model = "claude-haiku-4-5-20251001" if (not premium or is_generic_question) else None
 
