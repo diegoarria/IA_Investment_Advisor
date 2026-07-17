@@ -300,7 +300,7 @@ async def add_to_watchlist(body: dict, user_id: str = Depends(get_current_user_i
         try:
             from datetime import datetime as _dt, timezone as _tz
             started = _dt.fromisoformat(trial.replace("Z", "+00:00"))
-            is_premium = (_dt.now(_tz.utc) - started).days < 90
+            is_premium = (_dt.now(_tz.utc) - started).days < 30
         except Exception:
             pass
 

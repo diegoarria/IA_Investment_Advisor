@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 
 PRIORITY = ["session", "annual_report", "family_plan"]
 
-_PROMO_DAYS = 90
+_PROMO_DAYS = 30
 
 
 def _effective_tier(raw_tier: str, trial_started_at: str | None) -> str:
-    """Return 'premium' if user is paid premium OR within 90-day promo trial."""
+    """Return 'premium' if user is paid premium OR within 30-day promo trial."""
     if raw_tier == "premium":
         return "premium"
     if not trial_started_at:

@@ -157,9 +157,8 @@ export default function ProductsScreen() {
                 )}
               </View>
               <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, marginBottom: 2 }}>
-                <Text style={{ fontSize: 16, textDecorationLine: "line-through", color: "rgba(255,255,255,0.3)" }}>$14.99</Text>
-                <Text style={{ fontSize: 24, fontWeight: "900", color: "#fff" }}>$0</Text>
-                <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{t("products.premium.firstMonthLabel")}</Text>
+                <Text style={{ fontSize: 24, fontWeight: "900", color: "#fff" }}>$14.99</Text>
+                <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{t("products.premium.priceUnit")}</Text>
               </View>
               <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>{t("products.premium.thenPrice")}</Text>
 

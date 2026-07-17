@@ -44,7 +44,7 @@ export default function PremiumBadge() {
             ✦ {trialDaysLeft}d
           </span>
           <div style={{ width: 36, height: 3, borderRadius: 99, overflow: "hidden", background: "rgba(0,212,126,0.2)", flexShrink: 0 }}>
-            <div style={{ height: "100%", borderRadius: 99, width: `${Math.round((trialDaysLeft / 90) * 100)}%`, background: "var(--grad-green)" }} />
+            <div style={{ height: "100%", borderRadius: 99, width: `${Math.round((trialDaysLeft / 30) * 100)}%`, background: "var(--grad-green)" }} />
           </div>
         </button>
         <PaywallModal visible={open} onClose={() => setOpen(false)} />

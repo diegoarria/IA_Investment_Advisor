@@ -128,19 +128,14 @@ export default function PricingModal({ visible, onClose }: Props) {
 
             <div className="flex items-center justify-between mb-1 relative">
               <p className="text-lg font-black" style={{ color: "#fff" }}>{t("pricingModal.premium")}</p>
-              <span className="text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(0,212,126,0.15)", border: "1px solid rgba(0,212,126,0.3)", color: "#00d47e" }}>
-                {t("pricingModal.limitedTime")}
-              </span>
             </div>
 
             <div className="flex items-baseline gap-2 mb-1 relative">
-              <span className="text-xl line-through" style={{ color: "rgba(255,255,255,0.3)" }}>{monthlyPrice}</span>
-              <span className="text-3xl font-black text-white">$0</span>
-              <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>{t("pricingModal.firstMonth")}</span>
+              <span className="text-3xl font-black text-white">{monthlyPrice}</span>
+              <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+                {plan === "monthly" ? t("pricingModal.perMonthShort") : t("pricingModal.perYearShort")}
+              </span>
             </div>
-            <p className="text-[10px] mb-0.5 relative" style={{ color: "rgba(255,255,255,0.5)" }}>
-              {t("pricingModal.thenPrice", { price: monthlyPrice, billing: plan === "yearly" ? t("pricingModal.billedAnnually") : "" })}
-            </p>
             {yearlyNote && (
               <p className="text-[10px] mb-3 relative" style={{ color: "#00d47e" }}>{yearlyNote}</p>
             )}
@@ -152,7 +147,7 @@ export default function PricingModal({ visible, onClose }: Props) {
               className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
               style={{ background: loading ? "rgba(0,212,126,0.5)" : "#00d47e", color: "#000" }}
             >
-              {loading ? t("pricingModal.redirecting") : t("pricingModal.claimFreeOffer")}
+              {loading ? t("pricingModal.redirecting") : t("pricingModal.subscribeCta")}
             </button>
 
             <div className="relative space-y-2.5 flex-1">

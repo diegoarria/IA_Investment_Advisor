@@ -65,7 +65,7 @@ async def _check_daily_cost_cap(user_id: str) -> None:
 
 
 def _is_premium(profile) -> bool:
-    """True for premium/pro subscribers and users within their 90-day trial."""
+    """True for premium/pro subscribers and users within their 30-day trial."""
     if profile is None:
         return False
     from datetime import datetime as _dt, timezone as _tz
@@ -76,7 +76,7 @@ def _is_premium(profile) -> bool:
     if trial:
         try:
             started = _dt.fromisoformat(trial.replace("Z", "+00:00"))
-            return (_dt.now(_tz.utc) - started).days < 90
+            return (_dt.now(_tz.utc) - started).days < 30
         except Exception:
             pass
     return False

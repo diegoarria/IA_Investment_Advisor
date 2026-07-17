@@ -166,14 +166,14 @@ def _calc_portfolio_close_data(
 
 def _is_premium_user(tier: str, trial_started: str | None) -> bool:
     """Consistent premium check used by all notification jobs.
-    Covers: explicit premium/pro tier, and active 90-day trial."""
+    Covers: explicit premium/pro tier, and active 30-day trial."""
     if tier in ("premium", "pro"):
         return True
     if trial_started:
         try:
             from datetime import datetime as _dt, timezone as _tz
             started = _dt.fromisoformat(trial_started.replace("Z", "+00:00"))
-            return (_dt.now(_tz.utc) - started).days < 90
+            return (_dt.now(_tz.utc) - started).days < 30
         except Exception:
             pass
     return False

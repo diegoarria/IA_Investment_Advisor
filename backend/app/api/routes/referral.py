@@ -8,26 +8,53 @@ POST /referral/apply  — called after signup to credit a referrer
 
 import random
 import string
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
 
 router = APIRouter(prefix="/referral", tags=["referral"])
 
-_REWARD_TIERS = [
-    (1,  "1 semana Premium gratis"),
-    (3,  "1 mes Premium gratis"),
-    (5,  "3 meses Premium gratis"),
-    (10, "1 año Premium gratis"),
-]
+# Flat reward, both sides: referrer and the friend they referred each get
+# REFERRAL_BONUS_DAYS of bonus premium per successful referral (not tiered —
+# every referral pays out the same reward, stacking with any active streak
+# or prior referral bonus already on the account).
+REFERRAL_BONUS_DAYS = 14
+_REWARD_MESSAGE = "Tú y tu amigo obtienen 14 días de premium gratis"
 
 
-def _pending_reward(count: int) -> str:
-    reward = ""
-    for threshold, label in _REWARD_TIERS:
-        if count >= threshold:
-            reward = label
-    return reward or f"¡Invita {_REWARD_TIERS[0][0] - count} amigo(s) más para ganar tu primera recompensa!"
+def _pending_reward(_count: int) -> str:
+    return _REWARD_MESSAGE
+
+
+async def _grant_referral_bonus(user_id: str, db) -> None:
+    """Extend the user's bonus-premium window by REFERRAL_BONUS_DAYS, stacking
+    on top of any streak/referral bonus that's still active. No-op for
+    already-paid premium users — they don't need it."""
+    row = await run_query(
+        db.table("user_profiles")
+        .select("subscription_tier, streak_bonus_premium_until")
+        .eq("user_id", user_id)
+        .maybe_single()
+    )
+    data = (row.data if row else None) or {}
+    if data.get("subscription_tier") == "premium":
+        return
+
+    base = datetime.now(timezone.utc)
+    current_bonus = data.get("streak_bonus_premium_until")
+    if current_bonus:
+        try:
+            existing = datetime.fromisoformat(current_bonus.replace("Z", "+00:00"))
+            if existing > base:
+                base = existing
+        except Exception:
+            pass
+
+    new_until = (base + timedelta(days=REFERRAL_BONUS_DAYS)).isoformat()
+    await run_query(
+        db.table("user_profiles").update({"streak_bonus_premium_until": new_until}).eq("user_id", user_id)
+    )
 
 
 def _generate_code() -> str:
@@ -38,9 +65,9 @@ def _generate_code() -> str:
 async def _ensure_code(user_id: str) -> str:
     db = get_supabase()
     row = await run_query(
-        db.table("user_profiles").select("referral_code").eq("user_id", user_id).single()
+        db.table("user_profiles").select("referral_code").eq("user_id", user_id).maybe_single()
     )
-    code = (row.data or {}).get("referral_code")
+    code = ((row.data if row else None) or {}).get("referral_code")
     if not code:
         for _ in range(5):
             candidate = _generate_code()
@@ -65,9 +92,9 @@ async def get_code(user_id: str = Depends(get_current_user_id)):
 async def get_stats(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
     row = await run_query(
-        db.table("user_profiles").select("referral_code, referred_count").eq("user_id", user_id).single()
+        db.table("user_profiles").select("referral_code, referred_count").eq("user_id", user_id).maybe_single()
     )
-    data = row.data or {}
+    data = (row.data if row else None) or {}
     code = data.get("referral_code") or await _ensure_code(user_id)
     count = int(data.get("referred_count") or 0)
     return {
@@ -102,9 +129,9 @@ async def apply_referral(body: dict, user_id: str = Depends(get_current_user_id)
 
     # Check new user hasn't already been referred
     my_row = await run_query(
-        db.table("user_profiles").select("referred_by").eq("user_id", user_id).single()
+        db.table("user_profiles").select("referred_by").eq("user_id", user_id).maybe_single()
     )
-    if (my_row.data or {}).get("referred_by"):
+    if ((my_row.data if my_row else None) or {}).get("referred_by"):
         raise HTTPException(status_code=409, detail="Ya tienes un referido aplicado")
 
     # Credit referrer and mark new user
@@ -116,4 +143,9 @@ async def apply_referral(body: dict, user_id: str = Depends(get_current_user_id)
         db.table("user_profiles").update({"referred_by": referrer_id}).eq("user_id", user_id)
     )
 
-    return {"ok": True, "referred_count": new_count}
+    # Flat reward: both the referrer and the new friend get REFERRAL_BONUS_DAYS
+    # of bonus premium, right away — not gated on any milestone.
+    await _grant_referral_bonus(referrer_id, db)
+    await _grant_referral_bonus(user_id, db)
+
+    return {"ok": True, "referred_count": new_count, "bonus_days": REFERRAL_BONUS_DAYS}

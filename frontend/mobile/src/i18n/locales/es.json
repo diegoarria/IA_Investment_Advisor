@@ -618,12 +618,12 @@
     "referral": {
       "sectionTitle": "Invita amigos",
       "title": "Invita amigos, gana recompensas",
-      "subtitle": "1 mes Premium gratis por cada amigo que se una",
+      "subtitle": "Tú y tu amigo obtienen 14 días de premium gratis",
       "referredFriends": "Amigos referidos",
-      "pendingReward": "Recompensa pendiente",
+      "pendingReward": "Recompensa",
       "loading": "Cargando...",
       "share": "Compartir invitación",
-      "note": "Tu amigo obtiene 7 días Premium gratis al registrarse. Tú recibes 1 mes Premium cuando activa su plan.",
+      "note": "Los 14 días se activan automáticamente en cuanto tu amigo se registra con tu código.",
       "shareMessage": "Estoy usando Nuvos AI — el mejor mentor de inversiones con IA. Únete gratis 👉 {{url}}"
     },
     "likedVideos": {
@@ -1392,9 +1392,9 @@
     "premium": {
       "name": "Premium",
       "yourPlan": "TU PLAN ✓",
-      "firstMonthLabel": "primer mes",
-      "thenPrice": "Luego $14.99/mes · Anual $144.99/año",
-      "claimFree": "Reclamar primer mes gratis →",
+      "priceUnit": "/mes",
+      "thenPrice": "$14.99/mes · Anual $144.99/año",
+      "claimFree": "Hazte Premium →",
       "active": "Activo ✓",
       "features": [
         "Chatea sin límites con tu mentor de IA, a cualquier hora",
@@ -1491,8 +1491,8 @@
         "a": "El plan Free incluye 20 mensajes cada 24 horas. Con Premium tienes mensajes ilimitados y acceso a todas las funciones avanzadas."
       },
       {
-        "q": "¿Cómo funciona el Premium gratis de 90 días?",
-        "a": "Todos los usuarios nuevos reciben 90 días de Premium gratis automáticamente, sin necesidad de tarjeta de crédito. Puedes explorar todas las funciones sin restricciones durante ese período."
+        "q": "¿Cómo funciona el Premium gratis de 30 días?",
+        "a": "Todos los usuarios nuevos reciben 30 días de Premium gratis automáticamente, sin necesidad de tarjeta de crédito. Puedes explorar todas las funciones sin restricciones durante ese período."
       },
       {
         "q": "¿Cómo importo mi portafolio?",
@@ -2648,12 +2648,9 @@
     "perMonth": "USD / mes",
     "currentPlan": "Tu plan actual",
     "premium": "Premium",
-    "limitedTime": "TIEMPO LIMITADO",
-    "firstMonth": "primer mes",
-    "thenPrice": "Luego {{price}}/mes{{suffix}}",
-    "billedAnnualSuffix": " · facturado anual",
+    "savings": "· Ahorra $34.89 vs mensual",
     "opening": "Abriendo...",
-    "claimFreeOffer": "Reclamar oferta gratis",
+    "subscribeCta": "Suscribirme →",
     "duoPlan": "Duo Plan",
     "new": "NUEVO",
     "usdPeriod": "USD {{period}}",

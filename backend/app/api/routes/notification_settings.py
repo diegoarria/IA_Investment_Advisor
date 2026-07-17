@@ -506,7 +506,7 @@ async def trigger_price_alerts(
             try:
                 from datetime import datetime, timezone
                 started = datetime.fromisoformat(trial_started.replace("Z", "+00:00"))
-                return (datetime.now(timezone.utc) - started).days < 90
+                return (datetime.now(timezone.utc) - started).days < 30
             except Exception:
                 pass
         return False

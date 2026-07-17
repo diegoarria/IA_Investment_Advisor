@@ -94,7 +94,7 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
             try:
                 from datetime import datetime as _dt, timezone as _tz
                 _started = _dt.fromisoformat(_trial.replace("Z", "+00:00"))
-                _is_prem = (_dt.now(_tz.utc) - _started).days < 90
+                _is_prem = (_dt.now(_tz.utc) - _started).days < 30
             except Exception:
                 pass
         if not _is_prem:
@@ -257,7 +257,7 @@ async def create_portfolio(body: dict, user_id: str = Depends(get_current_user_i
         try:
             from datetime import datetime as _dt, timezone as _tz
             started = _dt.fromisoformat(trial.replace("Z", "+00:00"))
-            is_premium = (_dt.now(_tz.utc) - started).days < 90
+            is_premium = (_dt.now(_tz.utc) - started).days < 30
         except Exception:
             pass
     if not is_premium:
@@ -344,7 +344,7 @@ async def sync_paper(body: dict, user_id: str = Depends(get_current_user_id)):
             try:
                 from datetime import datetime as _dt, timezone as _tz
                 _started = _dt.fromisoformat(_trial.replace("Z", "+00:00"))
-                _is_prem = (_dt.now(_tz.utc) - _started).days < 90
+                _is_prem = (_dt.now(_tz.utc) - _started).days < 30
             except Exception:
                 pass
         if not _is_prem:

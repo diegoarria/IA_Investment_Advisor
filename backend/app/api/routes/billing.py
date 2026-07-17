@@ -181,7 +181,7 @@ async def broker_call_checkout(
     return {"url": session.url}
 
 
-_PROMO_DAYS = 90
+_PROMO_DAYS = 30
 
 
 @router.get("/status")
@@ -201,7 +201,7 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
     trial_started   = data.get("trial_started_at")
     has_stripe      = bool(data.get("stripe_customer_id"))
 
-    # Auto-start 90-day promo for any non-premium user who hasn't started a trial yet
+    # Auto-start 30-day promo for any non-premium user who hasn't started a trial yet
     if tier != "premium" and not trial_started:
         trial_started = datetime.now(timezone.utc).isoformat()
         await run_query(
@@ -210,7 +210,7 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
             .eq("user_id", user_id)
         )
 
-    # Compute effective tier: premium if paid OR within 90-day promo window OR streak bonus active
+    # Compute effective tier: premium if paid OR within 30-day promo window OR streak bonus active
     effective_tier = tier
     is_trial       = False
     days_left      = 0

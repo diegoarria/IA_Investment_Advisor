@@ -618,12 +618,12 @@
     "referral": {
       "sectionTitle": "Invite friends",
       "title": "Invite friends, earn rewards",
-      "subtitle": "1 month of Premium free for every friend who joins",
+      "subtitle": "You and your friend both get 14 days of premium free",
       "referredFriends": "Referred friends",
-      "pendingReward": "Pending reward",
+      "pendingReward": "Reward",
       "loading": "Loading...",
       "share": "Share invite",
-      "note": "Your friend gets 7 days of Premium free when they sign up. You get 1 month of Premium when they activate their plan.",
+      "note": "The 14 days activate automatically as soon as your friend signs up with your code.",
       "shareMessage": "I'm using Nuvos AI — the best AI investment mentor. Join for free 👉 {{url}}"
     },
     "likedVideos": {
@@ -1392,9 +1392,9 @@
     "premium": {
       "name": "Premium",
       "yourPlan": "YOUR PLAN ✓",
-      "firstMonthLabel": "first month",
-      "thenPrice": "Then $14.99/mo · Annual $144.99/yr",
-      "claimFree": "Claim your free first month →",
+      "priceUnit": "/mo",
+      "thenPrice": "$14.99/mo · Annual $144.99/yr",
+      "claimFree": "Get Premium →",
       "active": "Active ✓",
       "features": [
         "Chat without limits with your AI mentor, anytime",
@@ -1491,8 +1491,8 @@
         "a": "The Free plan includes 20 messages every 24 hours. With Premium you get unlimited messages and access to all advanced features."
       },
       {
-        "q": "How does the 90-day free Premium work?",
-        "a": "All new users automatically get 90 days of free Premium, no credit card required. You can explore every feature with no restrictions during that period."
+        "q": "How does the 30-day free Premium work?",
+        "a": "All new users automatically get 30 days of free Premium, no credit card required. You can explore every feature with no restrictions during that period."
       },
       {
         "q": "How do I import my portfolio?",
@@ -2648,12 +2648,9 @@
     "perMonth": "USD / month",
     "currentPlan": "Your current plan",
     "premium": "Premium",
-    "limitedTime": "LIMITED TIME",
-    "firstMonth": "first month",
-    "thenPrice": "Then {{price}}/month{{suffix}}",
-    "billedAnnualSuffix": " · billed annually",
+    "savings": "· Save $34.89 vs monthly",
     "opening": "Opening...",
-    "claimFreeOffer": "Claim free offer",
+    "subscribeCta": "Subscribe →",
     "duoPlan": "Duo Plan",
     "new": "NEW",
     "usdPeriod": "USD {{period}}",

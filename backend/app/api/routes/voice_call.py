@@ -92,7 +92,7 @@ async def _load_profile(user_id: str) -> UserProfile | None:
 
 
 def _is_premium(profile: UserProfile | None) -> bool:
-    """True for premium/pro subscribers and users within their 90-day trial —
+    """True for premium/pro subscribers and users within their 30-day trial —
     must match chat.py's _is_premium exactly. A user in an active trial is
     treated as premium everywhere else in the app (including the client-side
     check that decides whether to show the paywall before opening the call),
@@ -109,7 +109,7 @@ def _is_premium(profile: UserProfile | None) -> bool:
     if trial:
         try:
             started = datetime.fromisoformat(trial.replace("Z", "+00:00"))
-            return (datetime.now(timezone.utc) - started).days < 90
+            return (datetime.now(timezone.utc) - started).days < 30
         except Exception:
             pass
     return False

@@ -138,23 +138,16 @@ export default function PricingModal({ visible, onClose }: Props) {
 
               {/* Premium card */}
               <View style={{ borderRadius: 20, borderWidth: 1.5, padding: 16, borderColor: "rgba(0,212,126,0.4)", backgroundColor: "#0a1a10", overflow: "hidden" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-                  <Text style={{ fontSize: 16, fontWeight: "900", color: "#fff" }}>{t("pricingModal.premium")}</Text>
-                  <View style={{ backgroundColor: "rgba(0,212,126,0.15)", borderWidth: 1, borderColor: "rgba(0,212,126,0.3)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
-                    <Text style={{ fontSize: 9, fontWeight: "900", color: "#00d47e" }}>{t("pricingModal.limitedTime")}</Text>
-                  </View>
-                </View>
+                <Text style={{ fontSize: 16, fontWeight: "900", color: "#fff", marginBottom: 2 }}>{t("pricingModal.premium")}</Text>
 
                 <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, marginBottom: 2 }}>
-                  <Text style={{ fontSize: 16, textDecorationLine: "line-through", color: "rgba(255,255,255,0.3)" }}>{regularPrice}</Text>
-                  <Text style={{ fontSize: 28, fontWeight: "900", color: "#fff" }}>$0</Text>
-                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{t("pricingModal.firstMonth")}</Text>
+                  <Text style={{ fontSize: 28, fontWeight: "900", color: "#fff" }}>{regularPrice}</Text>
+                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
+                    {plan === "monthly" ? t("pricingModal.perMonthShort") : t("pricingModal.perYearShort")}
+                  </Text>
                 </View>
                 <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>
-                  {t("pricingModal.thenPrice", {
-                    price: regularPrice,
-                    suffix: plan === "yearly" ? t("pricingModal.billedAnnualSuffix") : "",
-                  })}
+                  {plan === "yearly" ? t("pricingModal.savings") : t("pricingModal.billedMonthly")}
                 </Text>
 
                 <TouchableOpacity
@@ -164,7 +157,7 @@ export default function PricingModal({ visible, onClose }: Props) {
                   activeOpacity={0.85}
                 >
                   <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>
-                    {loading ? t("pricingModal.opening") : t("pricingModal.claimFreeOffer")}
+                    {loading ? t("pricingModal.opening") : t("pricingModal.subscribeCta")}
                   </Text>
                 </TouchableOpacity>
 
