@@ -84,6 +84,18 @@ def _is_premium(profile) -> bool:
 
 _LIVE_DATA_RE = re.compile(r"\bmi (portafolio|cuenta|posici[oó]n|inversi[oó]n)\b|\b(hoy|ahora|today|now)\b", re.IGNORECASE)
 
+# Same trigger family as ai_service.py's "FORMATO OBLIGATORIO" scorecard block
+# (kept in sync manually — both describe the same user intent). Gates the
+# real computed fundamental-analysis fetch (fundamental_analysis_service),
+# which is Premium-only (see _enrich_message) since it costs real data-fetch
+# + compute time on top of the regular chat enrichment.
+_DEEP_ANALYSIS_RE = re.compile(
+    r"es buena (compra|inversi[oó]n)|vale la pena|me conviene|\b(compro|entro a)\b|"
+    r"analiza(me)?.*a fondo|veredicto sobre|an[aá]lisis fundamental|"
+    r"good buy|worth investing|deep dive|full analysis",
+    re.IGNORECASE,
+)
+
 
 def _needs_claude_analysis(message: str, has_images: bool) -> bool:
     """True when a question needs real market data, a specific ticker/company,
@@ -275,15 +287,45 @@ async def _get_mentor_deep_context(user_id: str) -> str | None:
         return None
 
 
-def _enrich_message(message: str, timeout: float = 3.0) -> str:
-    """Prepend global market context + per-company context.
-    Perplexity is deliberately not used here — it's reserved for
-    notifications (price-alert WHY, major news) and Deep Research only."""
+_FUNDAMENTALS_TIMEOUT = 12.0  # generous — only reached for Premium + explicit deep-analysis intent
+_MAX_FUNDAMENTALS_TICKERS = 2  # cap so a message naming several companies doesn't fan out N expensive fetches
+
+
+def _fundamentals_context_block(tickers: list[str]) -> str:
+    from app.services.fundamental_analysis_service import (
+        get_fundamental_analysis,
+        format_fundamental_analysis_for_prompt,
+    )
+    blocks = []
+    for t in tickers[:_MAX_FUNDAMENTALS_TICKERS]:
+        try:
+            data = get_fundamental_analysis(t)
+            if data:
+                blocks.append(format_fundamental_analysis_for_prompt(data))
+        except Exception as e:
+            logger.warning("_fundamentals_context_block(%s) failed: %s", t, e)
+    return "\n\n".join(blocks)
+
+
+def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -> str:
+    """Prepend global market context + per-company context, and — Premium
+    users asking for a full company verdict only — a real computed
+    fundamental analysis (10-year trends, ROIC, deterministic DCF; see
+    fundamental_analysis_service). Perplexity is deliberately not used here
+    — it's reserved for notifications (price-alert WHY, major news) and Deep
+    Research only."""
     f_global  = _ENRICH_POOL.submit(get_global_market_context)
     f_company = _ENRICH_POOL.submit(get_market_context_for_message, message)
 
+    f_fundamentals = None
+    if premium and _DEEP_ANALYSIS_RE.search(message):
+        deep_tickers = detect_tickers(message)
+        if deep_tickers:
+            f_fundamentals = _ENRICH_POOL.submit(_fundamentals_context_block, deep_tickers)
+
     global_ctx  = ""
     company_ctx = ""
+    fundamentals_ctx = ""
     try:
         global_ctx = f_global.result(timeout=timeout)
     except Exception:
@@ -292,8 +334,15 @@ def _enrich_message(message: str, timeout: float = 3.0) -> str:
         company_ctx = f_company.result(timeout=timeout)
     except Exception:
         pass
+    if f_fundamentals:
+        try:
+            fundamentals_ctx = f_fundamentals.result(timeout=_FUNDAMENTALS_TIMEOUT)
+        except Exception:
+            pass
 
     parts = [message]
+    if fundamentals_ctx:
+        parts.append("\n\n" + fundamentals_ctx)
     if global_ctx:
         parts.append("\n\n" + global_ctx)
     if company_ctx:
@@ -328,7 +377,7 @@ async def chat_stream(
     async def _safe_enrich():
         try:
             return await asyncio.wait_for(
-                asyncio.to_thread(_enrich_message, body.message, enrich_timeout),
+                asyncio.to_thread(_enrich_message, body.message, enrich_timeout, premium),
                 timeout=enrich_timeout + 1.0,
             )
         except Exception:
@@ -447,7 +496,7 @@ async def chat_message(
 
     enrich_timeout = 4.0 if premium else 2.5
     tickers  = await asyncio.to_thread(detect_tickers, body.message)
-    enriched = await asyncio.to_thread(_enrich_message, body.message, enrich_timeout) if not has_images else body.message
+    enriched = await asyncio.to_thread(_enrich_message, body.message, enrich_timeout, premium) if not has_images else body.message
     images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
     if not images and body.image_data:
         images = [{"data": body.image_data, "type": body.image_type or "image/jpeg"}]
