@@ -15,7 +15,7 @@ export default function TermsPage() {
           <p className="text-[#22c55e] text-sm font-semibold tracking-widest uppercase mb-3">Legal</p>
           <h1 className="text-4xl font-black tracking-tight mb-2">Términos de Uso</h1>
           <p className="text-white/40 text-sm">Aviso de Carácter Educativo y Aceptación de Términos de Uso</p>
-          <p className="text-white/30 text-xs mt-1">Última actualización: 20 de junio de 2026</p>
+          <p className="text-white/30 text-xs mt-1">Última actualización: 16 de julio de 2026</p>
         </div>
 
         {/* Intro banner */}
@@ -31,13 +31,16 @@ export default function TermsPage() {
           <section>
             <h2 className="text-white text-xl font-bold mb-3">1. Naturaleza del servicio</h2>
             <p className="text-sm">
-              Nuvos AI es una herramienta tecnológica de carácter educativo e informativo orientada
-              a la educación financiera y al análisis de mercados. Nuvos AI <strong className="text-white">no es</strong>{" "}
+              Nuvos AI es una <strong className="text-white">plataforma educativa de inversión</strong> —
+              una herramienta tecnológica de carácter educativo e informativo orientada a la educación
+              financiera y al análisis de mercados. Nuvos AI <strong className="text-white">no es</strong>{" "}
               una institución bancaria, casa de bolsa, asesor en inversiones, ni ninguna otra entidad
               regulada por la Comisión Nacional Bancaria y de Valores (CNBV), la Comisión Nacional
               para la Protección y Defensa de los Usuarios de Servicios Financieros (CONDUSEF), la
               U.S. Securities and Exchange Commission (SEC) ni cualquier otro regulador financiero en
-              México, Estados Unidos o cualquier otro país.
+              México, Estados Unidos o cualquier otro país. Nuvos AI no ejecuta órdenes de compra o
+              venta ni maneja fondos de los usuarios; si conectas una cuenta de un broker externo
+              (mediante Plaid), lo haces únicamente para fines de seguimiento y análisis educativo.
             </p>
           </section>
 
@@ -50,12 +53,13 @@ export default function TermsPage() {
             </div>
             <p className="text-sm">
               Ningún contenido generado dentro de la aplicación —incluyendo, sin limitación, perfiles de
-              riesgo, análisis de portafolios, comparativos con inversionistas reconocidos,
-              alertas, calendarios de resultados financieros o recomendaciones de tipo de activo— constituye
-              una recomendación personalizada de inversión, una oferta, ni una invitación para comprar,
-              vender o mantener algún instrumento financiero. Todo el contenido es de naturaleza general y
-              educativa, generado o asistido por modelos de inteligencia artificial, y no toma en cuenta la
-              situación financiera particular, objetivos o necesidades específicas del usuario en el sentido
+              riesgo, análisis de portafolios, ideas de inversión, comparativos con inversionistas
+              reconocidos, alertas, calendarios de resultados financieros, reportes anuales o de Deep
+              Research, o recomendaciones de tipo de activo— constituye una recomendación personalizada
+              de inversión, una oferta, ni una invitación para comprar, vender o mantener algún
+              instrumento financiero. Todo el contenido es de naturaleza general y educativa, generado o
+              asistido por modelos de inteligencia artificial, y no toma en cuenta la situación
+              financiera particular, objetivos o necesidades específicas del usuario en el sentido
               regulatorio del término "asesoría personalizada".
             </p>
           </section>
@@ -122,16 +126,46 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-white text-xl font-bold mb-3">8. Plan gratuito y Premium</h2>
+            <h2 className="text-white text-xl font-bold mb-3">8. Planes, precios y productos de pago único</h2>
             <div className="space-y-4 text-sm">
               <div>
                 <h3 className="text-white/90 font-semibold mb-2">Plan Gratuito</h3>
-                <p>Incluye acceso limitado a las funcionalidades de la app: 15 mensajes cada 24 horas y funciones básicas de portafolio.</p>
+                <p>Incluye hasta 15 mensajes cada 24 horas con el mentor IA, portafolio de hasta 10 acciones,
+                watchlist de hasta 25 acciones, academia completa con quizzes y notificaciones generales.</p>
               </div>
               <div>
                 <h3 className="text-white/90 font-semibold mb-2">Plan Premium</h3>
-                <p>Suscripción de pago que desbloquea mensajes ilimitados, 5 mentores de inversión,
-                stress test de portafolio, noticias ilimitadas, análisis avanzado de portafolio y más.</p>
+                <p>$14.99 USD/mes o $144.99 USD/año. Desbloquea mensajes con el mentor IA sin el límite del
+                plan gratuito, portafolio y watchlist ilimitados, análisis avanzado de portafolio, stress
+                test, ideas de inversión semanales, alertas de earnings y precio, análisis mensual y memoria
+                financiera completa.</p>
+              </div>
+              <div>
+                <h3 className="text-white/90 font-semibold mb-2">Plan Dúo</h3>
+                <p>$23.99 USD/mes o $224.99 USD/año. Incluye todo lo de Premium para dos cuentas independientes
+                (perfil y portafolio propios cada una) — ideal para compartir con pareja o familiar.</p>
+              </div>
+              <div>
+                <h3 className="text-white/90 font-semibold mb-2">Prueba gratuita</h3>
+                <p>Todo usuario nuevo recibe 30 días de acceso Premium gratuito desde la creación de su cuenta.
+                Al finalizar, la cuenta pasa automáticamente al Plan Gratuito salvo que actives una suscripción de pago.</p>
+              </div>
+              <div>
+                <h3 className="text-white/90 font-semibold mb-2">Productos de pago único</h3>
+                <p>Nuvos AI ofrece productos opcionales de pago único: Reporte Anual de Inversiones, Sesión 1:1
+                de Guía Personalizada (y su pack de 3 sesiones de seguimiento, solo Premium), y Nuvos Deep
+                Research. Sus precios varían según tu plan y se muestran antes de cada compra dentro de la app.</p>
+              </div>
+              <div>
+                <h3 className="text-white/90 font-semibold mb-2">Llamada de apertura de broker</h3>
+                <p>La sesión 1:1 para abrir tu cuenta en un broker es gratuita durante las primeras 24 horas
+                desde que se te ofrece en el checklist de configuración. Pasado ese período, tiene un costo
+                único de $20 USD.</p>
+              </div>
+              <div>
+                <h3 className="text-white/90 font-semibold mb-2">Invita a un amigo</h3>
+                <p>Al referir a un amigo que se registre y complete el onboarding, tanto tú como tu amigo
+                reciben 14 días de Premium gratis.</p>
               </div>
               <div>
                 <h3 className="text-white/90 font-semibold mb-2">Facturación</h3>
@@ -220,7 +254,7 @@ export default function TermsPage() {
             <h2 className="text-white text-xl font-bold mb-3">16. Contacto</h2>
             <p className="text-sm">
               Para preguntas sobre estos términos, contáctanos en:{" "}
-              <span className="text-[#22c55e]">legal@nuvosai.app</span>
+              <span className="text-[#22c55e]">legal@nuvosai.com</span>
             </p>
           </section>
 
