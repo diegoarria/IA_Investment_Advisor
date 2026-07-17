@@ -1894,14 +1894,14 @@ async def job_portfolio_alerts():
             logger.warning("Portfolio alerts: price fetch returned empty")
             return
 
-        # 4. Filter tickers that moved ≥4.0% vs yesterday's close
+        # 4. Filter tickers that moved ≥3.70% vs yesterday's close
         movers: dict[str, float] = {}
         for ticker, px in prices.items():
             pct = round((px["curr"] - px["prev"]) / px["prev"] * 100, 2)
-            if abs(pct) >= 4.0:
+            if abs(pct) >= 3.70:
                 movers[ticker] = pct
 
-        logger.info("Portfolio alerts: %d movers ≥4.0%%: %s",
+        logger.info("Portfolio alerts: %d movers ≥3.70%%: %s",
                     len(movers), {t: f"{p:+.1f}%" for t, p in movers.items()})
         if not movers:
             return
