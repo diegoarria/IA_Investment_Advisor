@@ -648,12 +648,14 @@ export const useLanguageStore = create<LanguageState>()(
       },
       loadLanguageFromServer: async () => {
         try {
-          // Never override a user-selected English preference — only apply
-          // the server value if still on the default "es".
-          if (get().language === "en") return;
+          // Server is authoritative for cross-device sync — always apply it,
+          // regardless of what's currently cached locally. The previous
+          // "only apply if still on default es" guard meant a tab that had
+          // ever been on "en" would never pick up a later change to "es"
+          // made elsewhere (e.g. on mobile), silently diverging forever.
           const res = await syncApi.getAll();
           const serverLanguage: "es" | "en" | undefined = res.data?.language;
-          if (serverLanguage === "es" || serverLanguage === "en") {
+          if ((serverLanguage === "es" || serverLanguage === "en") && serverLanguage !== get().language) {
             get().setLanguage(serverLanguage);
           }
         } catch {}

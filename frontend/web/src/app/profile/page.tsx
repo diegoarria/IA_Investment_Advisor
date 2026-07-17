@@ -361,7 +361,7 @@ export default function ProfilePage() {
                     className="h-9 px-2.5 flex items-center justify-center rounded-xl border text-[11px] font-bold transition-colors hover:border-[var(--accent)]"
                     style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
                     aria-label={t("profile.languageToggle")}>
-              {language === "es" ? "ES" : "EN"}
+              {language === "es" ? "ES 🇪🇸" : "EN 🇺🇸"}
             </button>
             <button onClick={toggleTheme}
                     className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"

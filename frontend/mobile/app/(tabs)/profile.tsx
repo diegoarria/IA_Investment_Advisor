@@ -22,8 +22,8 @@ import { useLanguage, Language } from "../../src/lib/LanguageContext";
 import { useTranslation } from "react-i18next";
 
 const LANGUAGE_OPTIONS: { key: Language; label: string; icon: string; color: string }[] = [
-  { key: "es", label: "Español", icon: "chatbubbles-outline", color: "#00d47e" },
-  { key: "en", label: "English", icon: "chatbubbles-outline", color: "#3b82f6" },
+  { key: "es", label: "Español 🇪🇸", icon: "chatbubbles-outline", color: "#00d47e" },
+  { key: "en", label: "English 🇺🇸", icon: "chatbubbles-outline", color: "#3b82f6" },
 ];
 
 const _fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
