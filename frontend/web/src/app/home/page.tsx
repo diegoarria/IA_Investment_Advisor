@@ -134,98 +134,40 @@ export default function HomePage() {
   const [savingGoal,    setSavingGoal]    = useState(false);
   const [goalError,     setGoalError]     = useState("");
 
-  // ── Broker card ───────────────────────────────────────────────────────────
-  const [brokerCheckoutLoading, setBrokerCheckoutLoading] = useState(false);
+  // ── Broker call (checklist item only) ───────────────────────────────────
+  const BROKER_CALENDLY_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai";
   const handleBrokerCheckout = async () => {
-    setBrokerCheckoutLoading(true);
     try {
-      const offer = upsellCountdown === 0 ? "89" : "49";
-      const res: any = await billing.brokerCallCheckout(offer);
+      const res: any = await billing.brokerCallCheckout();
       const url = res?.data?.url ?? res?.url;
       if (url) window.location.href = url;
-    } catch { /* silently fail */ } finally {
-      setBrokerCheckoutLoading(false);
+    } catch { /* silently fail */ }
+  };
+
+  // Shared entry point for the "book the broker call" checklist item: free
+  // during the 24h window (straight to Calendly, no Stripe involved), $20
+  // checkout after. Treat "not loaded yet" as still-free — a slow network
+  // read should never accidentally charge someone who was actually still
+  // inside the window.
+  const handleBookBrokerCall = async () => {
+    const stillFree = freeWindowMsLeft === null || freeWindowMsLeft > 0;
+    if (stillFree) {
+      window.open(BROKER_CALENDLY_URL, "_blank");
+      return;
     }
+    await handleBrokerCheckout();
   };
 
-  const brokerKey = (nameKey: string) => `home.brokers.${nameKey}`;
-  const brokerEntry = (name: string, nameKey: string, emoji: string, rating: number) => ({
-    name, emoji, rating,
-    tag: t(`${brokerKey(nameKey)}.tag`),
-    tagColor: "",
-    desc: t(`${brokerKey(nameKey)}.desc`),
-    pros: [t(`${brokerKey(nameKey)}.pro1`), t(`${brokerKey(nameKey)}.pro2`), t(`${brokerKey(nameKey)}.pro3`)],
-  });
-  const BROKER_CATALOG: Record<string, { name: string; emoji: string; rating: number; tag: string; tagColor: string; desc: string; pros: string[] }[]> = {
-    MX: [
-      { ...brokerEntry("GBM+", "gbmPlus", "🥇", 4.8), tagColor: "#00d47e" },
-      { ...brokerEntry("Interactive Brokers MX", "ibMx", "🌐", 4.5), tagColor: "#3b82f6" },
-      { ...brokerEntry("Actinver", "actinver", "🏛️", 4.0), tagColor: "#8b5cf6" },
-    ],
-    AR: [
-      { ...brokerEntry("Invertir Online (IOL)", "iol", "🥇", 4.7), tagColor: "#00d47e" },
-      { ...brokerEntry("Balanz", "balanz", "🥈", 4.4), tagColor: "#f59e0b" },
-    ],
-    US: [
-      { ...brokerEntry("Interactive Brokers", "ibUs", "🥇", 4.9), tagColor: "#00d47e" },
-      { ...brokerEntry("Robinhood", "robinhood", "🥈", 4.3), tagColor: "#3b82f6" },
-      { ...brokerEntry("Charles Schwab", "schwab", "🏦", 4.6), tagColor: "#8b5cf6" },
-    ],
-    CO: [
-      { ...brokerEntry("Acciones & Valores", "accionesValores", "🥇", 4.5), tagColor: "#00d47e" },
-      { ...brokerEntry("Interactive Brokers", "ibCo", "🌐", 4.8), tagColor: "#3b82f6" },
-    ],
-    DEFAULT: [
-      { ...brokerEntry("Interactive Brokers", "ibDefault", "🥇", 4.9), tagColor: "#00d47e" },
-    ],
-  };
-
-  // Must match the server's render exactly on first paint (always `false` — the
-  // server has no access to localStorage) or React throws a hydration mismatch;
-  // the localStorage cache is read in an effect below instead, which only runs
-  // client-side after hydration completes.
-  const [hasBroker,       setHasBroker]       = useState<boolean>(false);
-  const [showBrokerModal, setShowBrokerModal] = useState(false);
-  const [brokerView,      setBrokerView]      = useState<"list" | "detail" | "upsell">("list");
-  const [selectedBroker,  setSelectedBroker]  = useState<(typeof BROKER_CATALOG.MX)[0] | null>(null);
-  const [brokerCountry,   setBrokerCountry]   = useState<{ label: string; brokers: typeof BROKER_CATALOG.MX }>({ label: t("home.brokerCountryLabels.international"), brokers: BROKER_CATALOG.DEFAULT });
-  const [upsellCountdown, setUpsellCountdown] = useState<number | null>(null);
-
-  // Client-only cache read — see the comment on hasBroker's useState above.
-  useEffect(() => {
-    if (localStorage.getItem("nuvos_has_broker") === "1") setHasBroker(true);
-  }, []);
-
-  const openBrokerModal = () => {
-    setBrokerView("list");
-    setSelectedBroker(null);
-    setShowBrokerModal(true);
-    fetch("https://ipapi.co/json/")
-      .then(r => r.json())
-      .then(d => {
-        const code = d.country_code as string;
-        const labels: Record<string,string> = {
-          MX: t("home.brokerCountryLabels.MX"), AR: t("home.brokerCountryLabels.AR"),
-          US: t("home.brokerCountryLabels.US"), CO: t("home.brokerCountryLabels.CO"),
-        };
-        setBrokerCountry({ label: labels[code] ?? t("home.brokerCountryLabels.international"), brokers: BROKER_CATALOG[code] ?? BROKER_CATALOG.DEFAULT });
-      })
-      .catch(() => {});
-  };
-
-  const dismissBrokerCard = () => {
-    localStorage.setItem("nuvos_has_broker", "1");
-    setHasBroker(true);
-    setShowBrokerModal(false);
-  };
+  // Free-call window: 24h from broker_offer_seen_at (server-anchored so it's
+  // consistent across devices). Starts ticking on mount.
+  const [freeWindowMsLeft, setFreeWindowMsLeft] = useState<number | null>(null);
 
   useEffect(() => {
-    if (brokerView !== "upsell") return;
     let intervalId: ReturnType<typeof setInterval>;
     const DURATION = 24 * 60 * 60 * 1000;
     const startTick = (seenAtIso: string) => {
       const seenMs = new Date(seenAtIso).getTime();
-      const tick = () => { const r = DURATION - (Date.now() - seenMs); setUpsellCountdown(r > 0 ? r : 0); };
+      const tick = () => { const r = DURATION - (Date.now() - seenMs); setFreeWindowMsLeft(r > 0 ? r : 0); };
       tick();
       intervalId = setInterval(tick, 1000);
     };
@@ -239,7 +181,7 @@ export default function HomePage() {
         startTick(seenAt);
       });
     return () => clearInterval(intervalId);
-  }, [brokerView]);
+  }, []);
 
   const fmtCountdown = (ms: number) => {
     const h = Math.floor(ms / 3_600_000);
@@ -339,10 +281,6 @@ export default function HomePage() {
         useProfileStore.setState({ maturityScore: serverScore, maturityHistory: serverHistory });
       } else if (localScore > serverScore) {
         syncApi.pushMaturity(localScore, localHistory).catch(() => {});
-      }
-      if (res.data?.has_broker) {
-        setHasBroker(true);
-        localStorage.setItem("nuvos_has_broker", "1");
       }
     }).catch(() => {});
   }, [loadData]);
@@ -511,7 +449,10 @@ export default function HomePage() {
     {
       emoji: "📞",
       title: t("home.onboarding.bookCall.title"),
-      description: t("home.onboarding.bookCall.desc"),
+      description:
+        freeWindowMsLeft === null || freeWindowMsLeft > 0
+          ? t("home.onboarding.bookCall.descFree", { time: freeWindowMsLeft !== null ? fmtCountdown(freeWindowMsLeft) : "24:00:00" })
+          : t("home.onboarding.bookCall.descExpired"),
       completed: !!profile?.has_broker,
       secondaryAction: { label: t("home.onboarding.bookCall.alreadyHaveBroker"), onClick: markBrokerConfigured },
     },
@@ -536,7 +477,7 @@ export default function HomePage() {
   const handleOnboardingStep = (index: number) => {
     if (index === 1) { openGoalModal(); return; }
     if (index === 5) {
-      window.open("https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai", "_blank", "noopener,noreferrer");
+      handleBookBrokerCall();
       return;
     }
     const hrefs = ["/portfolio?tour=1", null, "/chat?tour=3", "/academy?tour=4", "/watchlist?tour=5"];
@@ -556,179 +497,6 @@ export default function HomePage() {
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
       <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} />
-
-      {/* ── Broker Modal ── */}
-      {showBrokerModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-             style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
-             onClick={() => { setShowBrokerModal(false); setBrokerView("list"); }}>
-          <div className="w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl"
-               style={{ background: "var(--card)", border: "1px solid var(--border)", maxHeight: "85vh", overflowY: "auto" }}
-               onClick={e => e.stopPropagation()}>
-
-            {/* ── List view ── */}
-            {brokerView === "list" && (
-              <div className="p-6">
-                <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#f59e0b" }}>
-                  {t("home.brokerModal.brokersIn", { country: brokerCountry.label })}
-                </p>
-                <h2 className="text-xl font-black mb-5" style={{ color: "var(--text)" }}>{t("home.brokerModal.chooseTitle")}</h2>
-                <div className="flex flex-col gap-3 mb-4">
-                  {brokerCountry.brokers.map(b => (
-                    <button key={b.name} onClick={() => { setSelectedBroker(b); setBrokerView("detail"); }}
-                            className="flex items-start gap-3 p-4 rounded-xl border text-left transition-all hover:border-[var(--accent)]"
-                            style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
-                      <div className="w-11 h-11 rounded-xl shrink-0 flex items-center justify-center text-xl"
-                           style={{ background: b.tagColor + "15", border: `1px solid ${b.tagColor}30` }}>
-                        {b.emoji}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-sm font-black" style={{ color: "var(--text)" }}>{b.name}</span>
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                style={{ background: b.tagColor + "18", color: b.tagColor }}>{b.tag}</span>
-                        </div>
-                        <p className="text-[11px] mb-1.5" style={{ color: "var(--muted)" }}>{b.desc}</p>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs" style={{ color: "#f59e0b" }}>{"★".repeat(Math.round(b.rating))}</span>
-                          <span className="text-xs font-bold" style={{ color: "var(--text)" }}>{b.rating}</span>
-                          <span className="text-xs" style={{ color: "var(--muted)" }}>/5</span>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 mt-1 shrink-0" style={{ color: "var(--muted)" }} />
-                    </button>
-                  ))}
-                </div>
-                <button onClick={dismissBrokerCard}
-                        className="w-full py-2.5 text-sm text-center transition-colors hover:opacity-70"
-                        style={{ color: "var(--muted)" }}>
-                  {t("home.brokerModal.alreadyHaveBroker")}
-                </button>
-              </div>
-            )}
-
-            {/* ── Detail view ── */}
-            {brokerView === "detail" && selectedBroker && (
-              <div className="p-6">
-                <button onClick={() => setBrokerView("list")}
-                        className="flex items-center gap-1.5 text-xs mb-5 hover:opacity-70 transition-opacity"
-                        style={{ color: "var(--muted)" }}>
-                  {t("home.brokerModal.backAll")}
-                </button>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0"
-                       style={{ background: selectedBroker.tagColor + "15", border: `1px solid ${selectedBroker.tagColor}30` }}>
-                    {selectedBroker.emoji}
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-black" style={{ color: "var(--text)" }}>{selectedBroker.name}</h2>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <span className="text-sm" style={{ color: "#f59e0b" }}>{"★".repeat(Math.round(selectedBroker.rating))}</span>
-                      <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{selectedBroker.rating}/5</span>
-                    </div>
-                  </div>
-                </div>
-                <span className="inline-block text-[10px] font-bold px-2 py-1 rounded-lg mb-3"
-                      style={{ background: selectedBroker.tagColor + "15", color: selectedBroker.tagColor }}>
-                  {selectedBroker.tag}
-                </span>
-                <p className="text-sm mb-4 leading-relaxed" style={{ color: "var(--muted)" }}>{selectedBroker.desc}</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "var(--sub)" }}>{t("home.brokerModal.whyRecommend")}</p>
-                <div className="flex flex-col gap-2.5 mb-6">
-                  {selectedBroker.pros.map((p, i) => (
-                    <div key={i} className="flex items-center gap-2.5">
-                      <div className="w-5 h-5 rounded-md shrink-0 flex items-center justify-center text-xs"
-                           style={{ background: "rgba(0,212,126,0.12)", color: "#00d47e" }}>✓</div>
-                      <span className="text-sm" style={{ color: "var(--text)" }}>{p}</span>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ height: 1, background: "var(--border)", margin: "0 0 20px" }} />
-                <button onClick={() => setBrokerView("upsell")}
-                        className="w-full py-3.5 rounded-xl font-bold text-sm text-black mb-2.5 transition-opacity hover:opacity-90"
-                        style={{ background: "#00d47e" }}>
-                  {t("home.brokerModal.createWithHelp")}
-                </button>
-                <button onClick={() => { setShowBrokerModal(false); setBrokerView("list"); }}
-                        className="w-full py-3.5 rounded-xl font-bold text-sm border mb-3 transition-all hover:border-[var(--accent)]"
-                        style={{ borderColor: "var(--border)", color: "var(--text)" }}>
-                  {t("home.brokerModal.createAlone")}
-                </button>
-                <button onClick={dismissBrokerCard}
-                        className="w-full py-2 text-xs text-center hover:opacity-70 transition-opacity"
-                        style={{ color: "var(--muted)" }}>
-                  {t("home.brokerModal.alreadyHaveBroker")}
-                </button>
-              </div>
-            )}
-
-            {/* ── Upsell view ── */}
-            {brokerView === "upsell" && (
-              <div className="p-6">
-                <button onClick={() => setBrokerView("detail")}
-                        className="flex items-center gap-1.5 text-xs mb-4 hover:opacity-70 transition-opacity"
-                        style={{ color: "var(--muted)" }}>
-                  {t("home.brokerModal.back")}
-                </button>
-                {upsellCountdown !== null && upsellCountdown > 0 && (
-                  <div className="flex items-center justify-center gap-2.5 py-3.5 rounded-xl mb-4"
-                       style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                    <span className="text-lg">⏱</span>
-                    <span className="text-xl font-black" style={{ color: "#ef4444" }}>
-                      {t("home.brokerModal.offerExpiresIn", { time: fmtCountdown(upsellCountdown) })}
-                    </span>
-                  </div>
-                )}
-                {upsellCountdown === 0 && (
-                  <div className="flex items-center justify-center py-3 rounded-xl mb-4"
-                       style={{ background: "rgba(107,114,128,0.1)", border: "1px solid var(--border)" }}>
-                    <span className="text-base font-bold" style={{ color: "var(--muted)" }}>{t("home.brokerModal.offerExpired")}</span>
-                  </div>
-                )}
-                <div className="rounded-2xl p-5 mb-4"
-                     style={{ background: "rgba(0,212,126,0.04)", border: "1px solid rgba(0,212,126,0.2)" }}>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "#00d47e" }}>
-                    {t("home.brokerModal.sessionTitle")}
-                  </p>
-                  <h3 className="text-lg font-black mb-2 leading-snug" style={{ color: "var(--text)" }}>
-                    {t("home.brokerModal.weHelpOpen", { broker: selectedBroker?.name ?? t("home.brokerModal.yourBroker") })}
-                  </h3>
-                  <div className="flex flex-col gap-2.5 mb-5">
-                    {[t("home.brokerModal.step1"), t("home.brokerModal.step2"), t("home.brokerModal.step3"), t("home.brokerModal.step4")].map((item, i) => (
-                      <div key={i} className="flex items-center gap-2.5">
-                        <div className="w-5 h-5 rounded-md shrink-0 flex items-center justify-center text-xs"
-                             style={{ background: "rgba(0,212,126,0.12)", color: "#00d47e" }}>✓</div>
-                        <span className="text-sm" style={{ color: "var(--text)" }}>{item}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex items-baseline gap-3 mb-4">
-                    <span className="text-3xl font-black" style={{ color: "var(--text)" }}>$49 USD</span>
-                    <span className="text-xl font-bold line-through" style={{ color: "var(--dim)" }}>$89 USD</span>
-                    <span className="text-base font-black px-2.5 py-1 rounded-full"
-                          style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>{t("home.brokerModal.offBadge")}</span>
-                  </div>
-                  <button onClick={handleBrokerCheckout} disabled={brokerCheckoutLoading}
-                          className="flex items-center justify-center w-full py-3.5 rounded-xl font-bold text-sm text-black transition-opacity hover:opacity-90 disabled:opacity-60"
-                          style={{ background: "#00d47e" }}>
-                    {brokerCheckoutLoading ? t("home.brokerModal.redirecting") : upsellCountdown === 0 ? t("home.brokerModal.hireSession") : t("home.brokerModal.scheduleCall")}
-                  </button>
-                </div>
-                <button onClick={() => { setShowBrokerModal(false); setBrokerView("list"); }}
-                        className="w-full py-3 rounded-xl font-bold text-sm border mb-2 transition-all hover:border-[var(--accent)]"
-                        style={{ borderColor: "var(--border)", color: "var(--text)" }}>
-                  {t("home.brokerModal.preferAlone")}
-                </button>
-                <button onClick={dismissBrokerCard}
-                        className="w-full py-2 text-xs text-center hover:opacity-70 transition-opacity"
-                        style={{ color: "var(--muted)" }}>
-                  {t("home.brokerModal.alreadyHaveBroker")}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* ── Goal Modal ── */}
       {showGoalModal && (
@@ -925,7 +693,7 @@ export default function HomePage() {
                 last one was clipped by the page's overflow boundary with no
                 way to scroll to it. Wrap to 2 columns below lg (unchanged
                 desktop layout preserved at lg:+). */}
-            <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 ${hasBroker ? "lg:grid-cols-4" : "lg:grid-cols-5"}`}>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 lg:grid-cols-4">
               {/* Portfolio day */}
               <button onClick={() => router.push("/patrimonio")}
                       className="flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all hover:border-[var(--accent)]"
@@ -942,21 +710,6 @@ export default function HomePage() {
                   <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>{t("home.stats.portfolioToday")}</p>
                 </div>
               </button>
-
-              {/* Broker chip — hidden once user has a broker */}
-              {!hasBroker && (
-                <button onClick={openBrokerModal}
-                        className="flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all hover:opacity-90"
-                        style={{ background: "rgba(245,158,11,0.07)", borderColor: "rgba(245,158,11,0.35)" }}>
-                  <span className="text-lg shrink-0">🏦</span>
-                  <div className="text-left min-w-0">
-                    <p className="text-sm font-black leading-none truncate" style={{ color: "#f59e0b" }}>
-                      {t("home.brokerChip.openBroker")}
-                    </p>
-                    <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>{t("home.brokerChip.createAccount")}</p>
-                  </div>
-                </button>
-              )}
 
               {/* Racha */}
               <button onClick={() => router.push("/learn")}

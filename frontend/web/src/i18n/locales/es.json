@@ -152,120 +152,6 @@
       "financialFreedom": "Libertad financiera",
       "longTermWealth": "Patrimonio a largo plazo"
     },
-    "brokerCountryLabels": {
-      "MX": "México",
-      "AR": "Argentina",
-      "US": "Estados Unidos",
-      "CO": "Colombia",
-      "international": "Internacional"
-    },
-    "brokers": {
-      "gbmPlus": {
-        "tag": "Recomendado #1",
-        "desc": "El broker más popular de México. App excelente, comisiones bajas.",
-        "pro1": "App móvil de las mejores",
-        "pro2": "Sin comisión en acciones MX",
-        "pro3": "ETFs globales fáciles"
-      },
-      "ibMx": {
-        "tag": "Para avanzados",
-        "desc": "Acceso a 150+ mercados globales. Ideal si quieres diversificar.",
-        "pro1": "150+ bolsas del mundo",
-        "pro2": "Tasas institucionales",
-        "pro3": "Opciones y futuros"
-      },
-      "actinver": {
-        "tag": "Institucional",
-        "desc": "Respaldo bancario. Perfecto para fondos y perfiles conservadores.",
-        "pro1": "Respaldo bancario sólido",
-        "pro2": "Asesoría personal disponible",
-        "pro3": "Fondos de inversión"
-      },
-      "iol": {
-        "tag": "Recomendado #1",
-        "desc": "Líder en Argentina. Acceso a bonos, CEDEARs y acciones locales.",
-        "pro1": "Líder del mercado AR",
-        "pro2": "Acceso a CEDEARs (ADRs)",
-        "pro3": "Sin costo de mantenimiento"
-      },
-      "balanz": {
-        "tag": "Muy popular",
-        "desc": "Plataforma moderna con fondos, bonos y acciones.",
-        "pro1": "Fondos de money market",
-        "pro2": "Acciones locales e internac.",
-        "pro3": "App moderna e intuitiva"
-      },
-      "ibUs": {
-        "tag": "Recomendado #1",
-        "desc": "El broker más completo del mundo. 0 comisiones en acciones US.",
-        "pro1": "0 comisiones en acciones",
-        "pro2": "Acceso a 150+ mercados",
-        "pro3": "Intereses sobre efectivo"
-      },
-      "robinhood": {
-        "tag": "Más fácil",
-        "desc": "La app más simple para empezar. Ideal para principiantes.",
-        "pro1": "App más simple",
-        "pro2": "Acciones fraccionadas",
-        "pro3": "Sin mínimo de inversión"
-      },
-      "schwab": {
-        "tag": "Más confiable",
-        "desc": "Uno de los más confiables de EE.UU. Ideal para largo plazo.",
-        "pro1": "Sin comisiones",
-        "pro2": "Atención al cliente 24/7",
-        "pro3": "Amplia variedad de ETFs"
-      },
-      "accionesValores": {
-        "tag": "Recomendado #1",
-        "desc": "El broker referente en Colombia. Acceso a BVC y mercados internac.",
-        "pro1": "Acceso a la BVC",
-        "pro2": "Acciones internacionales",
-        "pro3": "Asesoría local experta"
-      },
-      "ibCo": {
-        "tag": "Para avanzados",
-        "desc": "El mejor acceso global. Ideal si quieres invertir fuera de Colombia.",
-        "pro1": "Mercados globales",
-        "pro2": "0 comisiones acciones US",
-        "pro3": "Muy bien regulado"
-      },
-      "ibDefault": {
-        "tag": "Mejor global",
-        "desc": "El broker con mejor acceso global. Disponible en +200 países.",
-        "pro1": "200+ países",
-        "pro2": "150+ bolsas del mundo",
-        "pro3": "Tasas institucionales"
-      }
-    },
-    "brokerModal": {
-      "brokersIn": "Brokers en {{country}}",
-      "chooseTitle": "¿Con cuál quieres empezar?",
-      "alreadyHaveBroker": "Ya tengo cuenta de broker",
-      "backAll": "← Todos los brokers",
-      "whyRecommend": "Por qué lo recomendamos",
-      "createWithHelp": "Crear cuenta con ayuda de Nuvos",
-      "createAlone": "Crear cuenta solo",
-      "back": "← Volver",
-      "offerExpiresIn": "Oferta expira en {{time}}",
-      "offerExpired": "La oferta especial ha expirado",
-      "sessionTitle": "Sesión 1:1 con Nuvos AI",
-      "weHelpOpen": "Te acompañamos a abrir tu cuenta en {{broker}}",
-      "yourBroker": "tu broker",
-      "step1": "Crear tu cuenta paso a paso",
-      "step2": "Navegar por la plataforma del broker",
-      "step3": "Buscar acciones, ETFs e instrumentos",
-      "step4": "Depositar dinero de forma segura",
-      "offBadge": "-45% OFF",
-      "redirecting": "Redirigiendo…",
-      "hireSession": "Contratar sesión — $89 USD →",
-      "scheduleCall": "Agendar mi llamada — $49 USD →",
-      "preferAlone": "Prefiero hacerlo solo"
-    },
-    "brokerChip": {
-      "openBroker": "Abre tu broker",
-      "createAccount": "Crea tu cuenta"
-    },
     "goalModal": {
       "title": "Tu meta financiera",
       "subtitle": "¿Cuál es tu objetivo de inversión?",
@@ -372,7 +258,8 @@
       },
       "bookCall": {
         "title": "Agenda una llamada y crea tu cuenta en un broker gratis",
-        "desc": "Una sesión 1-a-1 para abrir tu cuenta y empezar con confianza",
+        "descFree": "Gratis por {{time}} más — una sesión 1-a-1 para abrir tu cuenta con confianza",
+        "descExpired": "El período gratis venció — $20 USD por la sesión 1-a-1",
         "alreadyHaveBroker": "Ya tengo cuenta en broker"
       }
     }

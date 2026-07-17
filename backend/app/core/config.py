@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     stripe_price_family_yearly: str = ""          # $224.99/year
     stripe_price_deep_research_free: str = ""     # $19.99
     stripe_price_deep_research_premium: str = ""  # $9.99
+    stripe_price_broker_call: str = ""            # $20 flat — 1:1 broker onboarding call, after the 24h free window
     resend_api_key: str = ""
     perplexity_api_key: str = ""  # Perplexity sonar — real-time web search
     redis_url: str = ""  # e.g. redis://localhost:6379 — optional, falls back to in-memory

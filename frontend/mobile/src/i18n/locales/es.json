@@ -108,156 +108,8 @@
       "addPosition": "+ Agregar posición →"
     },
     "broker": {
-      "nextStep": "Siguiente paso",
-      "openBroker": "Abre tu broker",
-      "teaserDesc": "Invierte dinero real en acciones y ETFs. Te mostramos los mejores brokers para tu país con calificaciones y una guía paso a paso.",
-      "seeBrokers": "Ver brokers →",
-      "explore": "Explorar brokers",
-      "alreadyHaveShort": "Ya tengo",
-      "alreadyHave": "Ya tengo cuenta de broker",
-      "brokersIn": "Brokers en {{country}}",
-      "whichOne": "¿Con cuál quieres empezar?",
-      "allBrokers": "Todos los brokers",
-      "whyRecommend": "Por qué lo recomendamos",
-      "createWithHelp": "Crear cuenta con ayuda de Nuvos",
-      "createAlone": "Crear cuenta solo",
-      "back": "Volver",
-      "offerExpiresIn": "Oferta expira en {{time}}",
-      "offerExpired": "La oferta especial ha expirado",
-      "sessionTitle": "Sesión 1:1 con Nuvos AI",
-      "sessionHeadline": "Te acompañamos a abrir tu cuenta en {{broker}}",
-      "yourBroker": "tu broker",
-      "checklist": [
-        "Crear tu cuenta paso a paso",
-        "Navegar por la plataforma del broker",
-        "Buscar acciones, ETFs e instrumentos",
-        "Depositar dinero de forma segura"
-      ],
-      "offBadge": "-45% OFF",
-      "preferAlone": "Prefiero hacerlo solo",
-      "redirecting": "Redirigiendo…",
-      "ctaOffer": "Contratar sesión — $89 USD",
-      "ctaSchedule": "Agendar mi llamada — $49 USD",
       "noUrl": "Sin URL: {{details}}",
-      "checkoutError": "Error al procesar pago",
-      "countryDefault": "Internacional",
-      "countries": {
-        "MX": "México",
-        "AR": "Argentina",
-        "US": "Estados Unidos",
-        "CO": "Colombia"
-      },
-      "catalog": {
-        "MX": [
-          {
-            "tag": "Recomendado #1",
-            "desc": "El broker más popular de México. App excelente, comisiones bajas.",
-            "pros": [
-              "App móvil de las mejores",
-              "Sin comisión en acciones MX",
-              "ETFs globales fáciles"
-            ]
-          },
-          {
-            "tag": "Para avanzados",
-            "desc": "Acceso a 150+ mercados globales. Ideal si quieres diversificar.",
-            "pros": [
-              "150+ bolsas del mundo",
-              "Tasas institucionales",
-              "Opciones y futuros"
-            ]
-          },
-          {
-            "tag": "Institucional",
-            "desc": "Respaldo bancario. Perfecto para fondos y perfiles conservadores.",
-            "pros": [
-              "Respaldo bancario sólido",
-              "Asesoría personal disponible",
-              "Fondos de inversión"
-            ]
-          }
-        ],
-        "AR": [
-          {
-            "tag": "Recomendado #1",
-            "desc": "Líder en Argentina. Fácil de usar, con acceso a bonos y acciones locales.",
-            "pros": [
-              "Líder del mercado AR",
-              "Acceso a CEDEARs (ADRs)",
-              "Sin costo de mantenimiento"
-            ]
-          },
-          {
-            "tag": "Muy popular",
-            "desc": "Plataforma moderna con acceso a fondos, bonos y acciones.",
-            "pros": [
-              "Fondos de money market",
-              "Acciones locales e internac.",
-              "App moderna e intuitiva"
-            ]
-          }
-        ],
-        "US": [
-          {
-            "tag": "Recomendado #1",
-            "desc": "El broker más completo del mundo. 0 comisiones en acciones US.",
-            "pros": [
-              "0 comisiones en acciones",
-              "Acceso a 150+ mercados",
-              "Tasas de interés en efectivo"
-            ]
-          },
-          {
-            "tag": "Más fácil",
-            "desc": "La app más simple para empezar. Perfecto para principiantes.",
-            "pros": [
-              "App más simple del mercado",
-              "Acciones fraccionadas",
-              "Sin mínimo de inversión"
-            ]
-          },
-          {
-            "tag": "Más confiable",
-            "desc": "Uno de los más confiables de EE.UU. Ideal para largo plazo.",
-            "pros": [
-              "Sin comisiones",
-              "Atención al cliente 24/7",
-              "Amplia variedad de ETFs"
-            ]
-          }
-        ],
-        "CO": [
-          {
-            "tag": "Recomendado #1",
-            "desc": "El broker referente en Colombia. Acceso a BVC y mercados internac.",
-            "pros": [
-              "Acceso a la BVC",
-              "Acciones internacionales",
-              "Asesoría local experta"
-            ]
-          },
-          {
-            "tag": "Para avanzados",
-            "desc": "El mejor acceso global. Ideal si quieres invertir fuera de Colombia.",
-            "pros": [
-              "Mercados globales",
-              "0 comisiones acciones US",
-              "Muy bien regulado"
-            ]
-          }
-        ],
-        "DEFAULT": [
-          {
-            "tag": "Mejor global",
-            "desc": "El broker con mejor acceso global. Disponible en +200 países.",
-            "pros": [
-              "200+ países",
-              "150+ bolsas del mundo",
-              "Tasas institucionales"
-            ]
-          }
-        ]
-      }
+      "checkoutError": "Error al procesar pago"
     },
     "duo": {
       "confirmTitle": "¿Guardar estas 2 cuentas?",
@@ -359,7 +211,8 @@
       "step5Title": "Agrega una acción a tu watchlist",
       "step5Desc": "Monitorea empresas que te interesan",
       "step6Title": "Agenda una llamada y crea tu cuenta en un broker gratis",
-      "step6Desc": "Una sesión 1-a-1 para abrir tu cuenta y empezar con confianza",
+      "step6DescFree": "Gratis por {{time}} más — una sesión 1-a-1 para abrir tu cuenta con confianza",
+      "step6DescExpired": "El período gratis venció — $20 USD por la sesión 1-a-1",
       "step6AlreadyHave": "Ya tengo cuenta en broker"
     },
     "goalOptions": {

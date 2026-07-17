@@ -108,156 +108,8 @@
       "addPosition": "+ Add position →"
     },
     "broker": {
-      "nextStep": "Next step",
-      "openBroker": "Open your broker account",
-      "teaserDesc": "Invest real money in stocks and ETFs. We show you the best brokers for your country with ratings and a step-by-step guide.",
-      "seeBrokers": "See brokers →",
-      "explore": "Explore brokers",
-      "alreadyHaveShort": "I have one",
-      "alreadyHave": "I already have a broker account",
-      "brokersIn": "Brokers in {{country}}",
-      "whichOne": "Which one do you want to start with?",
-      "allBrokers": "All brokers",
-      "whyRecommend": "Why we recommend it",
-      "createWithHelp": "Create account with Nuvos' help",
-      "createAlone": "Create account on my own",
-      "back": "Back",
-      "offerExpiresIn": "Offer expires in {{time}}",
-      "offerExpired": "The special offer has expired",
-      "sessionTitle": "1:1 session with Nuvos AI",
-      "sessionHeadline": "We'll help you open your account at {{broker}}",
-      "yourBroker": "your broker",
-      "checklist": [
-        "Create your account step by step",
-        "Navigate the broker's platform",
-        "Search for stocks, ETFs and instruments",
-        "Deposit money securely"
-      ],
-      "offBadge": "-45% OFF",
-      "preferAlone": "I'd rather do it myself",
-      "redirecting": "Redirecting…",
-      "ctaOffer": "Book session — $89 USD",
-      "ctaSchedule": "Schedule my call — $49 USD",
       "noUrl": "No URL: {{details}}",
-      "checkoutError": "Error processing payment",
-      "countryDefault": "International",
-      "countries": {
-        "MX": "Mexico",
-        "AR": "Argentina",
-        "US": "United States",
-        "CO": "Colombia"
-      },
-      "catalog": {
-        "MX": [
-          {
-            "tag": "#1 Recommended",
-            "desc": "Mexico's most popular broker. Great app, low fees.",
-            "pros": [
-              "One of the best mobile apps",
-              "No commission on MX stocks",
-              "Easy access to global ETFs"
-            ]
-          },
-          {
-            "tag": "For advanced users",
-            "desc": "Access to 150+ global markets. Ideal if you want to diversify.",
-            "pros": [
-              "150+ exchanges worldwide",
-              "Institutional rates",
-              "Options and futures"
-            ]
-          },
-          {
-            "tag": "Institutional",
-            "desc": "Bank-backed. Perfect for funds and conservative profiles.",
-            "pros": [
-              "Solid bank backing",
-              "Personal advisory available",
-              "Investment funds"
-            ]
-          }
-        ],
-        "AR": [
-          {
-            "tag": "#1 Recommended",
-            "desc": "Leader in Argentina. Easy to use, with access to local bonds and stocks.",
-            "pros": [
-              "AR market leader",
-              "Access to CEDEARs (ADRs)",
-              "No maintenance fee"
-            ]
-          },
-          {
-            "tag": "Very popular",
-            "desc": "Modern platform with access to funds, bonds and stocks.",
-            "pros": [
-              "Money market funds",
-              "Local and international stocks",
-              "Modern, intuitive app"
-            ]
-          }
-        ],
-        "US": [
-          {
-            "tag": "#1 Recommended",
-            "desc": "The most complete broker in the world. 0 commissions on US stocks.",
-            "pros": [
-              "0 commissions on stocks",
-              "Access to 150+ markets",
-              "Interest on cash balances"
-            ]
-          },
-          {
-            "tag": "Easiest",
-            "desc": "The simplest app to get started. Perfect for beginners.",
-            "pros": [
-              "Simplest app on the market",
-              "Fractional shares",
-              "No minimum investment"
-            ]
-          },
-          {
-            "tag": "Most trusted",
-            "desc": "One of the most trusted in the US. Ideal for the long term.",
-            "pros": [
-              "No commissions",
-              "24/7 customer support",
-              "Wide variety of ETFs"
-            ]
-          }
-        ],
-        "CO": [
-          {
-            "tag": "#1 Recommended",
-            "desc": "The leading broker in Colombia. Access to the BVC and international markets.",
-            "pros": [
-              "Access to the BVC",
-              "International stocks",
-              "Expert local advisory"
-            ]
-          },
-          {
-            "tag": "For advanced users",
-            "desc": "The best global access. Ideal if you want to invest outside Colombia.",
-            "pros": [
-              "Global markets",
-              "0 commissions on US stocks",
-              "Well regulated"
-            ]
-          }
-        ],
-        "DEFAULT": [
-          {
-            "tag": "Best global",
-            "desc": "The broker with the best global access. Available in 200+ countries.",
-            "pros": [
-              "200+ countries",
-              "150+ exchanges worldwide",
-              "Institutional rates"
-            ]
-          }
-        ]
-      }
+      "checkoutError": "Error processing payment"
     },
     "duo": {
       "confirmTitle": "Save these 2 accounts?",
@@ -359,7 +211,8 @@
       "step5Title": "Add a stock to your watchlist",
       "step5Desc": "Track companies you're interested in",
       "step6Title": "Book a call and open a free broker account",
-      "step6Desc": "A 1-on-1 session to open your account and start with confidence",
+      "step6DescFree": "Free for {{time}} more — a 1-on-1 session to open your account with confidence",
+      "step6DescExpired": "The free window expired — $20 USD for the 1-on-1 session",
       "step6AlreadyHave": "I already have a broker account"
     },
     "goalOptions": {

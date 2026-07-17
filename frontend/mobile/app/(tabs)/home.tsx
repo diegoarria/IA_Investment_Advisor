@@ -383,49 +383,18 @@ export default function HomeScreen() {
   const [savingGoal,    setSavingGoal]    = useState(false);
   const [goalError,     setGoalError]     = useState("");
 
-  // ── Broker card ───────────────────────────────────────────────────────────
-  type BrokerEntry = { name: string; emoji: string; rating: number; tag: string; tagColor: string; desc: string; pros: string[] };
-  const brokerCat = (country: string, idx: number): { tag: string; desc: string; pros: string[] } =>
-    t(`home.broker.catalog.${country}.${idx}`, { returnObjects: true }) as { tag: string; desc: string; pros: string[] };
-  const BROKER_CATALOG: Record<string, BrokerEntry[]> = {
-    MX: [
-      { name: "GBM+",                   emoji: "🥇", rating: 4.8, tagColor: "#00d47e", ...brokerCat("MX", 0) },
-      { name: "Interactive Brokers MX", emoji: "🌐", rating: 4.5, tagColor: "#3b82f6", ...brokerCat("MX", 1) },
-      { name: "Actinver",               emoji: "🏛️", rating: 4.0, tagColor: "#8b5cf6", ...brokerCat("MX", 2) },
-    ],
-    AR: [
-      { name: "Invertir Online (IOL)",  emoji: "🥇", rating: 4.7, tagColor: "#00d47e", ...brokerCat("AR", 0) },
-      { name: "Balanz",                 emoji: "🥈", rating: 4.4, tagColor: "#f59e0b", ...brokerCat("AR", 1) },
-    ],
-    US: [
-      { name: "Interactive Brokers",    emoji: "🥇", rating: 4.9, tagColor: "#00d47e", ...brokerCat("US", 0) },
-      { name: "Robinhood",              emoji: "🥈", rating: 4.3, tagColor: "#3b82f6", ...brokerCat("US", 1) },
-      { name: "Charles Schwab",         emoji: "🏦", rating: 4.6, tagColor: "#8b5cf6", ...brokerCat("US", 2) },
-    ],
-    CO: [
-      { name: "Acciones & Valores",     emoji: "🥇", rating: 4.5, tagColor: "#00d47e", ...brokerCat("CO", 0) },
-      { name: "Interactive Brokers",    emoji: "🌐", rating: 4.8, tagColor: "#3b82f6", ...brokerCat("CO", 1) },
-    ],
-    DEFAULT: [
-      { name: "Interactive Brokers",    emoji: "🥇", rating: 4.9, tagColor: "#00d47e", ...brokerCat("DEFAULT", 0) },
-    ],
-  };
+  // ── Broker call (checklist item only — see onboardingSteps below) ─────────
+  // Free-call window: 24h from broker_offer_seen_at (server-anchored so it's
+  // consistent across devices). Starts ticking as soon as home is on screen
+  // (see the mount effect below).
+  const [freeWindowMsLeft, setFreeWindowMsLeft] = useState<number | null>(null);
+  const freeWindowTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const BROKER_FREE_WINDOW_MS = 24 * 60 * 60 * 1000;
+  const BROKER_CALENDLY_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai";
 
-  const [hasBroker,        setHasBroker]        = useState<boolean | null>(null);
-  const [showBrokerModal,  setShowBrokerModal]   = useState(false);
-  const [brokerView,       setBrokerView]        = useState<"list" | "detail" | "upsell">("list");
-  const [selectedBroker,   setSelectedBroker]    = useState<(typeof BROKER_CATALOG.MX)[0] | null>(null);
-  const [brokerCountry,    setBrokerCountry]     = useState<{ code: string; label: string; brokers: typeof BROKER_CATALOG.MX }>({ code: "DEFAULT", label: t("home.broker.countryDefault"), brokers: BROKER_CATALOG.DEFAULT });
-  const [upsellCountdown,  setUpsellCountdown]   = useState<number | null>(null);
-  const upsellTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const UPSELL_MS = 24 * 60 * 60 * 1000;
-
-  const [brokerCheckoutLoading, setBrokerCheckoutLoading] = useState(false);
   const handleBrokerCheckout = async () => {
-    setBrokerCheckoutLoading(true);
     try {
-      const offer = upsellCountdown === 0 ? "89" : "49";
-      const res: any = await billingApi.brokerCallCheckout(offer);
+      const res: any = await billingApi.brokerCallCheckout();
       const url = res?.data?.url ?? res?.url;
       if (url) {
         await Linking.openURL(url);
@@ -434,30 +403,21 @@ export default function HomeScreen() {
       }
     } catch (e: any) {
       Alert.alert(t("home.broker.checkoutError"), e?.message ?? JSON.stringify(e));
-    } finally {
-      setBrokerCheckoutLoading(false);
     }
   };
-  const brokerCallLabel = brokerCheckoutLoading ? t("home.broker.redirecting") : upsellCountdown === 0 ? t("home.broker.ctaOffer") : t("home.broker.ctaSchedule");
 
-  useEffect(() => {
-    // DEV: force-reset so broker card always shows during testing
-    AsyncStorage.removeItem("nuvos_has_broker").then(() => setHasBroker(false));
-  }, []);
-
-  const openBrokerModal = () => {
-    setBrokerView("list");
-    setSelectedBroker(null);
-    setShowBrokerModal(true);
-    fetch("https://ipapi.co/json/")
-      .then(r => r.json())
-      .then(d => {
-        const code = d.country_code as string;
-        const brokers = BROKER_CATALOG[code] ?? BROKER_CATALOG.DEFAULT;
-        const labels: Record<string,string> = t("home.broker.countries", { returnObjects: true }) as any;
-        setBrokerCountry({ code, label: labels[code] ?? t("home.broker.countryDefault"), brokers });
-      })
-      .catch(() => {});
+  // Shared entry point for the "book the broker call" checklist item: free
+  // during the 24h window (straight to Calendly, no Stripe involved), $20
+  // checkout after. Treat "not loaded yet" as still-free — a slow network
+  // read should never accidentally charge someone who was actually still
+  // inside the window.
+  const handleBookBrokerCall = async () => {
+    const stillFree = freeWindowMsLeft === null || freeWindowMsLeft > 0;
+    if (stillFree) {
+      Linking.openURL(BROKER_CALENDLY_URL);
+      return;
+    }
+    await handleBrokerCheckout();
   };
 
   const handleDuoSave = () => {
@@ -486,13 +446,7 @@ export default function HomeScreen() {
     );
   };
 
-  const dismissBrokerCard = async () => {
-    await AsyncStorage.setItem("nuvos_has_broker", "1");
-    setHasBroker(true);
-    setShowBrokerModal(false);
-  };
-
-  const startUpsellTimer = async () => {
+  const startFreeWindowTimer = async () => {
     let seenMs: number;
     try {
       const res: any = await billingApi.brokerOfferSeen();
@@ -505,18 +459,19 @@ export default function HomeScreen() {
       seenMs = Number(stored);
     }
     const tick = () => {
-      const rem = UPSELL_MS - (Date.now() - seenMs);
-      setUpsellCountdown(rem > 0 ? rem : 0);
+      const rem = BROKER_FREE_WINDOW_MS - (Date.now() - seenMs);
+      setFreeWindowMsLeft(rem > 0 ? rem : 0);
     };
     tick();
-    upsellTimerRef.current = setInterval(tick, 1000);
+    freeWindowTimerRef.current = setInterval(tick, 1000);
   };
 
+  // Starts as soon as the checklist is on screen — not gated behind opening
+  // the broker modal, since the free window applies to the checklist item too.
   useEffect(() => {
-    if (brokerView !== "upsell") { if (upsellTimerRef.current) clearInterval(upsellTimerRef.current); return; }
-    startUpsellTimer();
-    return () => { if (upsellTimerRef.current) clearInterval(upsellTimerRef.current); };
-  }, [brokerView]);
+    startFreeWindowTimer();
+    return () => { if (freeWindowTimerRef.current) clearInterval(freeWindowTimerRef.current); };
+  }, []);
 
 
   const fmtCountdown = (ms: number) => {
@@ -814,7 +769,10 @@ export default function HomeScreen() {
     {
       emoji: "📞",
       title: t("home.onboarding.step6Title"),
-      description: t("home.onboarding.step6Desc"),
+      description:
+        freeWindowMsLeft === null || freeWindowMsLeft > 0
+          ? t("home.onboarding.step6DescFree", { time: freeWindowMsLeft !== null ? fmtCountdown(freeWindowMsLeft) : "24:00:00" })
+          : t("home.onboarding.step6DescExpired"),
       completed: !!profile?.has_broker,
       secondaryAction: { label: t("home.onboarding.step6AlreadyHave"), onPress: markBrokerConfigured },
     },
@@ -863,7 +821,7 @@ export default function HomeScreen() {
   const handleOnboardingStep = (index: number) => {
     if (index === 1) { openGoalModal(); return; }
     if (index === 5) {
-      Linking.openURL("https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai");
+      handleBookBrokerCall();
       return;
     }
     const routes: (string | null)[] = [
@@ -879,208 +837,6 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={[ss.root, { backgroundColor: colors.bg }]} edges={["top"]}>
-
-      {/* ── Broker Modal ─────────────────────────────────────────────────────── */}
-      <Modal visible={showBrokerModal} transparent animationType="slide"
-             onRequestClose={() => { setShowBrokerModal(false); setBrokerView("list"); }}>
-        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}
-                   onPress={() => { setShowBrokerModal(false); setBrokerView("list"); }}>
-          <Pressable onPress={e => e.stopPropagation()}
-                     style={{ backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28,
-                              paddingHorizontal: 20, paddingTop: 12, paddingBottom: 36, maxHeight: "88%" }}>
-
-            {/* Handle */}
-            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: 16 }} />
-
-            {/* ── VIEW: Broker list ── */}
-            {brokerView === "list" && (
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={{ fontSize: 10, fontWeight: "700", color: "#f59e0b", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>
-                  {t("home.broker.brokersIn", { country: brokerCountry.label })}
-                </Text>
-                <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text, marginBottom: 16 }}>
-                  {t("home.broker.whichOne")}
-                </Text>
-
-                {brokerCountry.brokers.map((b) => (
-                  <TouchableOpacity key={b.name} activeOpacity={0.85}
-                    onPress={() => { setSelectedBroker(b); setBrokerView("detail"); }}
-                    style={{ flexDirection: "row", alignItems: "flex-start", padding: 14, borderRadius: 16, borderWidth: 1,
-                             borderColor: colors.border, backgroundColor: colors.bg ?? colors.card, marginBottom: 10, gap: 12 }}>
-                    {/* Emoji */}
-                    <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: b.tagColor + "15",
-                                   borderWidth: 1, borderColor: b.tagColor + "30", alignItems: "center", justifyContent: "center" }}>
-                      <Text style={{ fontSize: 22 }}>{b.emoji}</Text>
-                    </View>
-                    {/* Info */}
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                        <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text }}>{b.name}</Text>
-                        <View style={{ backgroundColor: b.tagColor + "18", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
-                          <Text style={{ fontSize: 9, fontWeight: "700", color: b.tagColor }}>{b.tag}</Text>
-                        </View>
-                      </View>
-                      <Text style={{ fontSize: 12, color: colors.textMuted, lineHeight: 17, marginBottom: 6 }}>{b.desc}</Text>
-                      {/* Stars */}
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                        <Text style={{ fontSize: 11, color: "#f59e0b" }}>{"★".repeat(Math.round(b.rating))}</Text>
-                        <Text style={{ fontSize: 11, fontWeight: "700", color: colors.text }}>{b.rating}</Text>
-                        <Text style={{ fontSize: 11, color: colors.textMuted }}>/5</Text>
-                      </View>
-                    </View>
-                    <Ionicons name="chevron-forward" size={16} color={colors.textMuted} style={{ marginTop: 4 }} />
-                  </TouchableOpacity>
-                ))}
-
-                {/* Already have broker */}
-                <TouchableOpacity onPress={dismissBrokerCard} activeOpacity={0.7}
-                  style={{ alignItems: "center", paddingVertical: 14, marginTop: 4 }}>
-                  <Text style={{ fontSize: 13, color: colors.textMuted, fontWeight: "600" }}>{t("home.broker.alreadyHave")}</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            )}
-
-            {/* ── VIEW: Broker detail ── */}
-            {brokerView === "detail" && selectedBroker && (
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Back */}
-                <TouchableOpacity onPress={() => setBrokerView("list")} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
-                  <Ionicons name="chevron-back" size={16} color={colors.textMuted} />
-                  <Text style={{ fontSize: 13, color: colors.textMuted }}>{t("home.broker.allBrokers")}</Text>
-                </TouchableOpacity>
-
-                {/* Header */}
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                  <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: selectedBroker.tagColor + "15",
-                                 borderWidth: 1, borderColor: selectedBroker.tagColor + "30", alignItems: "center", justifyContent: "center" }}>
-                    <Text style={{ fontSize: 28 }}>{selectedBroker.emoji}</Text>
-                  </View>
-                  <View>
-                    <Text style={{ fontSize: 20, fontWeight: "900", color: colors.text }}>{selectedBroker.name}</Text>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
-                      <Text style={{ fontSize: 13, color: "#f59e0b" }}>{"★".repeat(Math.round(selectedBroker.rating))}</Text>
-                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>{selectedBroker.rating}/5</Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Tag */}
-                <View style={{ backgroundColor: selectedBroker.tagColor + "15", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6,
-                               alignSelf: "flex-start", marginBottom: 12 }}>
-                  <Text style={{ fontSize: 11, fontWeight: "700", color: selectedBroker.tagColor }}>{selectedBroker.tag}</Text>
-                </View>
-
-                {/* Description */}
-                <Text style={{ fontSize: 14, color: colors.textMuted, lineHeight: 20, marginBottom: 16 }}>{selectedBroker.desc}</Text>
-
-                {/* Pros */}
-                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textSub, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>{t("home.broker.whyRecommend")}</Text>
-                {selectedBroker.pros.map((p, i) => (
-                  <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                    <View style={{ width: 24, height: 24, borderRadius: 8, backgroundColor: "#00d47e18",
-                                   alignItems: "center", justifyContent: "center" }}>
-                      <Text style={{ fontSize: 12, color: "#00d47e" }}>✓</Text>
-                    </View>
-                    <Text style={{ fontSize: 13, color: colors.text, flex: 1 }}>{p}</Text>
-                  </View>
-                ))}
-
-                {/* Divider */}
-                <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 20 }} />
-
-                {/* CTAs */}
-                <TouchableOpacity onPress={() => setBrokerView("upsell")} activeOpacity={0.85}
-                  style={{ paddingVertical: 15, borderRadius: 14, backgroundColor: "#00d47e", alignItems: "center", marginBottom: 10 }}>
-                  <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>{t("home.broker.createWithHelp")}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => { setShowBrokerModal(false); setBrokerView("list"); }} activeOpacity={0.8}
-                  style={{ paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, alignItems: "center", marginBottom: 12 }}>
-                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>{t("home.broker.createAlone")}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={dismissBrokerCard} activeOpacity={0.7}
-                  style={{ alignItems: "center", paddingVertical: 10 }}>
-                  <Text style={{ fontSize: 12, color: colors.textMuted }}>{t("home.broker.alreadyHave")}</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            )}
-
-            {/* ── VIEW: Upsell ── */}
-            {brokerView === "upsell" && (
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Back */}
-                <TouchableOpacity onPress={() => setBrokerView("detail")} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
-                  <Ionicons name="chevron-back" size={16} color={colors.textMuted} />
-                  <Text style={{ fontSize: 13, color: colors.textMuted }}>{t("home.broker.back")}</Text>
-                </TouchableOpacity>
-
-                {/* Countdown */}
-                {upsellCountdown !== null && upsellCountdown > 0 && (
-                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14,
-                                 borderRadius: 14, backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1,
-                                 borderColor: "rgba(239,68,68,0.25)", marginBottom: 16 }}>
-                    <Ionicons name="time-outline" size={20} color="#ef4444" />
-                    <Text style={{ fontSize: 20, fontWeight: "900", color: "#ef4444", letterSpacing: -0.5 }}>
-                      {t("home.broker.offerExpiresIn", { time: fmtCountdown(upsellCountdown) })}
-                    </Text>
-                  </View>
-                )}
-                {upsellCountdown === 0 && (
-                  <View style={{ paddingVertical: 12, borderRadius: 14, backgroundColor: "rgba(107,114,128,0.1)",
-                                 borderWidth: 1, borderColor: colors.border, marginBottom: 16, alignItems: "center" }}>
-                    <Text style={{ fontSize: 15, fontWeight: "700", color: colors.textMuted }}>{t("home.broker.offerExpired")}</Text>
-                  </View>
-                )}
-
-                {/* Offer card */}
-                <View style={{ borderRadius: 20, borderWidth: 1, borderColor: "rgba(0,212,126,0.25)",
-                               backgroundColor: "rgba(0,212,126,0.04)", padding: 18, marginBottom: 16 }}>
-                  <Text style={{ fontSize: 10, fontWeight: "700", color: "#00d47e", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 8 }}>
-                    {t("home.broker.sessionTitle")}
-                  </Text>
-                  <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text, lineHeight: 24, marginBottom: 10 }}>
-                    {t("home.broker.sessionHeadline", { broker: selectedBroker?.name ?? t("home.broker.yourBroker") })}
-                  </Text>
-
-                  {/* What's included */}
-                  {(t("home.broker.checklist", { returnObjects: true }) as string[]).map((item, i) => (
-                    <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                      <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: "#00d47e18",
-                                     alignItems: "center", justifyContent: "center" }}>
-                        <Text style={{ fontSize: 11, color: "#00d47e" }}>✓</Text>
-                      </View>
-                      <Text style={{ fontSize: 13, color: colors.text }}>{item}</Text>
-                    </View>
-                  ))}
-
-                  {/* Price */}
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14, marginBottom: 16, flexWrap: "wrap" }}>
-                    <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>$49 USD</Text>
-                    <Text style={{ fontSize: 18, fontWeight: "700", color: colors.textDim, textDecorationLine: "line-through" }}>$89 USD</Text>
-                    <View style={{ backgroundColor: "rgba(239,68,68,0.15)", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 }}>
-                      <Text style={{ fontSize: 16, fontWeight: "900", color: "#ef4444" }}>{t("home.broker.offBadge")}</Text>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity onPress={handleBrokerCheckout} disabled={brokerCheckoutLoading} activeOpacity={0.85}
-                    style={{ paddingVertical: 16, borderRadius: 14, backgroundColor: "#00d47e", alignItems: "center", opacity: brokerCheckoutLoading ? 0.6 : 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: "900", color: "#000" }}>{brokerCallLabel}</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity onPress={() => { setShowBrokerModal(false); setBrokerView("list"); }} activeOpacity={0.7}
-                  style={{ paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, alignItems: "center", marginBottom: 10 }}>
-                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>{t("home.broker.preferAlone")}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={dismissBrokerCard} activeOpacity={0.7}
-                  style={{ alignItems: "center", paddingVertical: 10 }}>
-                  <Text style={{ fontSize: 12, color: colors.textMuted }}>{t("home.broker.alreadyHave")}</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            )}
-
-          </Pressable>
-        </Pressable>
-      </Modal>
 
       {/* ── Goal Modal ───────────────────────────────────────────────────────── */}
       <Modal visible={showGoalModal} transparent animationType="fade" onRequestClose={() => setShowGoalModal(false)}>
@@ -1347,62 +1103,6 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* ── Broker card ──────────────────────────────────────────────────── */}
-        {hasBroker === false && (
-          <TouchableOpacity
-            activeOpacity={0.92}
-            onPress={openBrokerModal}
-            style={{ width: W - 48, borderRadius: 20, borderWidth: 1, padding: 20,
-                     backgroundColor: colors.card, borderColor: "rgba(245,158,11,0.35)",
-                     justifyContent: "space-between" }}
-          >
-            {/* Header */}
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <View>
-                <Text style={{ fontSize: 13, fontWeight: "500", color: colors.textMuted, marginBottom: 6 }}>
-                  {t("home.broker.nextStep")}
-                </Text>
-                <Text style={{ fontSize: 22, fontWeight: "800", color: colors.text, letterSpacing: -0.5 }}>
-                  {t("home.broker.openBroker")}
-                </Text>
-              </View>
-              <View style={{ backgroundColor: "rgba(245,158,11,0.12)", borderRadius: 12, padding: 10 }}>
-                <Text style={{ fontSize: 22 }}>🏦</Text>
-              </View>
-            </View>
-
-            {/* Description */}
-            <Text style={{ fontSize: 12, color: colors.textMuted, lineHeight: 18, marginTop: 10, marginBottom: 14 }}>
-              {t("home.broker.teaserDesc")}
-            </Text>
-
-            {/* Broker avatars preview */}
-            <View style={{ flexDirection: "row", gap: 6, marginBottom: 16 }}>
-              {["🥇", "🌐", "🏛️"].map((e, i) => (
-                <View key={i} style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: "rgba(245,158,11,0.10)",
-                                       borderWidth: 1, borderColor: "rgba(245,158,11,0.2)", alignItems: "center", justifyContent: "center" }}>
-                  <Text style={{ fontSize: 16 }}>{e}</Text>
-                </View>
-              ))}
-              <View style={{ justifyContent: "center", marginLeft: 4 }}>
-                <Text style={{ fontSize: 11, color: "#f59e0b", fontWeight: "700" }}>{t("home.broker.seeBrokers")}</Text>
-              </View>
-            </View>
-
-            {/* CTA row */}
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <View style={{ flex: 1, backgroundColor: "#f59e0b", borderRadius: 12,
-                             paddingVertical: 10, alignItems: "center" }}>
-                <Text style={{ fontSize: 12, fontWeight: "900", color: "#000" }}>{t("home.broker.explore")}</Text>
-              </View>
-              <TouchableOpacity onPress={(e) => { e.stopPropagation(); dismissBrokerCard(); }}
-                style={{ paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1,
-                         borderColor: colors.border, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontSize: 11, color: colors.textMuted }}>{t("home.broker.alreadyHaveShort")}</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        )}
 
         </ScrollView>
 

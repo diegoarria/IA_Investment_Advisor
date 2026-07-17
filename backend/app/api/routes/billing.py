@@ -145,23 +145,18 @@ async def stripe_webhook(request: Request):
 
 
 # ── Broker call checkout ──────────────────────────────────────────────────────
-# price_1TlvyGRo7dTEppnh1uqgftWt → $49 USD (oferta 24h, default)
-# price_1TlvypRo7dTEppnh6ojeqUU7 → $89 USD (precio normal, post-expiración)
-_BROKER_CALL_PRICE_49 = "price_1TlvyGRo7dTEppnh1uqgftWt"
-_BROKER_CALL_PRICE_89 = "price_1TlvypRo7dTEppnh6ojeqUU7"
+# Free for the first 24h after broker_offer_seen_at (frontend links straight to
+# Calendly during that window, no Stripe involved at all). Once the window
+# expires, booking the call goes through this $20 flat checkout instead.
 
 
 @router.post("/broker-call-checkout")
-async def broker_call_checkout(
-    body: dict,
-    user_id: str = Depends(get_current_user_id),
-):
-    """Create a Stripe Checkout Session for the 1:1 broker onboarding call.
-    Body: { "offer": "49" | "89" }  — frontend sends based on countdown state.
-    """
+async def broker_call_checkout(user_id: str = Depends(get_current_user_id)):
+    """Create a Stripe Checkout Session for the 1:1 broker onboarding call
+    ($20 flat, only reached once the 24h free window has expired)."""
     s = _stripe()
-    offer = str(body.get("offer", "49"))
-    price_id = _BROKER_CALL_PRICE_49 if offer == "49" else _BROKER_CALL_PRICE_89
+    if not settings.stripe_price_broker_call:
+        raise HTTPException(status_code=503, detail="Precio no configurado")
 
     base = settings.frontend_url if settings.frontend_url not in ("*", "", None) else "https://nuvosai.com"
     try:
@@ -169,9 +164,9 @@ async def broker_call_checkout(
             s.checkout.Session.create,
             mode="payment",
             payment_method_types=["card"],
-            line_items=[{"price": price_id, "quantity": 1}],
+            line_items=[{"price": settings.stripe_price_broker_call, "quantity": 1}],
             client_reference_id=user_id,
-            metadata={"offer": "broker_call", "price": offer},
+            metadata={"offer": "broker_call"},
             success_url="https://calendly.com/nuvosai/onboarding",
             cancel_url=f"{base}/home",
         )
