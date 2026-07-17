@@ -1887,6 +1887,25 @@ export default function PortfolioScreen() {
               </View>
             </TouchableOpacity>
 
+            {/* Investment Journal — every full análisis de Mentor IA se guarda
+                automáticamente aquí (solo Premium); on-demand review, sin push. */}
+            <TouchableOpacity
+              onPress={() => router.push("/journal")}
+              activeOpacity={0.85}
+              style={{ borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden", marginTop: 12 }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, backgroundColor: "#151821" }}>
+                <View style={{ width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#00a85e" }}>
+                  <Ionicons name="bookmark-outline" size={24} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: "900", color: "#fff" }}>Investment Journal</Text>
+                  <Text style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>Revisa tus tesis guardadas contra los datos de hoy</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+              </View>
+            </TouchableOpacity>
+
           </View>
         )}
 

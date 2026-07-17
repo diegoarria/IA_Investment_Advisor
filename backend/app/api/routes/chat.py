@@ -105,6 +105,18 @@ _DEEP_ANALYSIS_RE = re.compile(
     re.IGNORECASE,
 )
 
+# "Suggest me some stocks" intent — no named ticker yet (Claude proposes the
+# candidates), so this can't trigger a real-data fetch the way _DEEP_ANALYSIS_RE
+# does; it only needs to make sure the request reaches Claude (with the
+# Nuvos Investment Score framework in the prompt) instead of the no-tools
+# GPT-mini path, which would otherwise just free-associate company names.
+_STOCK_SUGGESTION_RE = re.compile(
+    r"sugi[eé]re(me)?|recomi[eé]nda(me)?|dame ideas|qu[eé] (empresas|acciones) (me recomiendas|deber[ií]a)|"
+    r"empresas? para invertir|acciones? para invertir|ideas de inversi[oó]n|ideas de acciones|"
+    r"suggest (me )?(some )?stocks|recommend (me )?stocks|stock ideas",
+    re.IGNORECASE,
+)
+
 
 def _needs_claude_analysis(message: str, has_images: bool) -> bool:
     """True when a question needs real market data, a specific ticker/company,
@@ -121,6 +133,8 @@ def _needs_claude_analysis(message: str, has_images: bool) -> bool:
     if detect_tickers(message):
         return True
     if _DEEP_ANALYSIS_RE.search(message):
+        return True
+    if _STOCK_SUGGESTION_RE.search(message):
         return True
     return bool(_LIVE_DATA_RE.search(message))
 
@@ -340,23 +354,25 @@ def _resolve_ticker_via_search(message: str) -> list[str]:
     return []
 
 
-def _fundamentals_context_block(tickers: list[str]) -> str:
+def _fundamentals_context_block(tickers: list[str]) -> tuple[str, list[tuple[str, dict]]]:
     from app.services.fundamental_analysis_service import (
         get_fundamental_analysis,
         format_fundamental_analysis_for_prompt,
     )
     blocks = []
+    snapshots: list[tuple[str, dict]] = []
     for t in tickers[:_MAX_FUNDAMENTALS_TICKERS]:
         try:
             data = get_fundamental_analysis(t)
             if data:
                 blocks.append(format_fundamental_analysis_for_prompt(data))
+                snapshots.append((t, data))
         except Exception as e:
             logger.warning("_fundamentals_context_block(%s) failed: %s", t, e)
-    return "\n\n".join(blocks)
+    return "\n\n".join(blocks), snapshots
 
 
-def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -> str:
+def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -> tuple[str, list[tuple[str, dict]]]:
     """Prepend global market context + per-company context, and — Premium
     users asking for a full company verdict only — a real computed
     fundamental analysis (10-year trends, ROIC, deterministic DCF; see
@@ -380,6 +396,7 @@ def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -
     global_ctx  = ""
     company_ctx = ""
     fundamentals_ctx = ""
+    fundamentals_snapshots: list[tuple[str, dict]] = []
     try:
         global_ctx = f_global.result(timeout=timeout)
     except Exception:
@@ -390,7 +407,7 @@ def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -
         pass
     if f_fundamentals:
         try:
-            fundamentals_ctx = f_fundamentals.result(timeout=_FUNDAMENTALS_TIMEOUT)
+            fundamentals_ctx, fundamentals_snapshots = f_fundamentals.result(timeout=_FUNDAMENTALS_TIMEOUT)
         except Exception:
             pass
 
@@ -401,7 +418,8 @@ def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -
         parts.append("\n\n" + global_ctx)
     if company_ctx:
         parts.append(company_ctx)
-    return "\n".join(parts) if len(parts) > 1 else message
+    enriched = "\n".join(parts) if len(parts) > 1 else message
+    return enriched, fundamentals_snapshots
 
 
 @router.post("/stream")
@@ -429,11 +447,15 @@ async def chat_stream(
     enrich_timeout = 4.0 if premium else 2.5
 
     async def _safe_enrich():
+        # This route has no active caller (see NOTE above) — journal snapshots
+        # are only saved from chat_message()'s /message route, so the second
+        # element of _enrich_message's return is discarded here.
         try:
-            return await asyncio.wait_for(
+            enriched_text, _snapshots = await asyncio.wait_for(
                 asyncio.to_thread(_enrich_message, body.message, enrich_timeout, premium),
                 timeout=enrich_timeout + 1.0,
             )
+            return enriched_text
         except Exception:
             return body.message
 
@@ -550,7 +572,11 @@ async def chat_message(
 
     enrich_timeout = 4.0 if premium else 2.5
     tickers  = await asyncio.to_thread(detect_tickers, body.message)
-    enriched = await asyncio.to_thread(_enrich_message, body.message, enrich_timeout, premium) if not has_images else body.message
+    fundamentals_snapshots: list[tuple[str, dict]] = []
+    if has_images:
+        enriched = body.message
+    else:
+        enriched, fundamentals_snapshots = await asyncio.to_thread(_enrich_message, body.message, enrich_timeout, premium)
     images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
     if not images and body.image_data:
         images = [{"data": body.image_data, "type": body.image_type or "image/jpeg"}]
@@ -594,6 +620,14 @@ async def chat_message(
     clean_reply, actions = _extract_action(clean_reply)
     if cache_key:
         store_answer(cache_key, clean_reply)
+
+    # Investment Journal — fire-and-forget, on-demand-only (no push/scheduler,
+    # see investment_journal_service). Only the first ticker is journaled:
+    # deep-analysis turns are effectively always single-company "Analízame X".
+    if premium and fundamentals_snapshots:
+        from app.services.investment_journal_service import save_thesis
+        journal_ticker, journal_data = fundamentals_snapshots[0]
+        asyncio.create_task(save_thesis(user_id, journal_ticker, journal_data, clean_reply))
 
     return {"reply": clean_reply, "risk_assessment": bscore, "tickers": tickers, "actions": actions}
 

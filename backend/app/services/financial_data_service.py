@@ -427,6 +427,56 @@ def get_revenue_segments(symbol: str, by: str = "product", limit: int = 1) -> li
         return []
 
 
+def get_beta(symbol: str) -> Optional[float]:
+    """Real equity beta for `symbol` (FMP company profile) — used for a real
+    CAPM-based cost of equity instead of a flat sector guess. None if
+    unavailable."""
+    if not FMP_KEY:
+        return None
+    try:
+        r = requests.get(
+            f"{FMP_BASE}/profile",
+            params={"apikey": FMP_KEY, "symbol": symbol},
+            headers=_REQ_HEADERS,
+            timeout=14,
+        )
+        data = r.json()
+        if isinstance(data, list) and data:
+            return _num(data[0].get("beta"))
+    except Exception as exc:
+        logger.debug("FMP profile/beta request failed for %s: %s", symbol, exc)
+    return None
+
+
+def get_risk_free_rate() -> Optional[float]:
+    """Current 10-year US Treasury yield (as a decimal, e.g. 0.0457), used
+    as the risk-free rate in CAPM. Cached 24h — it doesn't move fast enough
+    to justify a live call on every request. None if unavailable."""
+    if not FMP_KEY:
+        return None
+    ck = "fmp:treasury10y"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
+    try:
+        r = requests.get(
+            f"{FMP_BASE}/treasury-rates",
+            params={"apikey": FMP_KEY},
+            headers=_REQ_HEADERS,
+            timeout=14,
+        )
+        data = r.json()
+        if isinstance(data, list) and data:
+            rate = _num(data[0].get("year10"))
+            if rate is not None:
+                rate = rate / 100
+                cache_set(ck, rate, ttl=86_400)
+                return rate
+    except Exception as exc:
+        logger.debug("FMP treasury-rates request failed: %s", exc)
+    return None
+
+
 # ─── yfinance provider ────────────────────────────────────────────────────────
 
 class YFinanceProvider(FinancialProvider):
