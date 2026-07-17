@@ -167,7 +167,7 @@ async def broker_call_checkout(user_id: str = Depends(get_current_user_id)):
             line_items=[{"price": settings.stripe_price_broker_call, "quantity": 1}],
             client_reference_id=user_id,
             metadata={"offer": "broker_call"},
-            success_url="https://calendly.com/nuvosai/onboarding",
+            success_url="https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai",
             cancel_url=f"{base}/home",
         )
     except Exception as e:
