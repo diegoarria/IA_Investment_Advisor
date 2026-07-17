@@ -1998,6 +1998,7 @@
   },
   "cashFlowTab": {
     "metric": "Métrica",
+    "latest": "Actual",
     "noData": "Sin datos de Flujo de Caja",
     "titleBar": "Flujo de Caja · Anual · USD",
     "fcf": "Flujo Libre (FCF)",
@@ -2026,6 +2027,7 @@
   },
   "balanceSheetTab": {
     "metric": "Métrica",
+    "latest": "Actual",
     "noData": "Sin datos de Balance General",
     "titleBar": "Balance General · Anual · USD",
     "currentAssets": "Activos Corrientes",
@@ -2085,6 +2087,7 @@
   },
   "incomeStatementTab": {
     "metric": "Métrica",
+    "latest": "Actual",
     "noData": "Sin datos disponibles para el Estado de Resultados",
     "titleBar": "Estado de Resultados · Anual · USD",
     "vsPriorYear": "↑↓ = variación vs año anterior",
