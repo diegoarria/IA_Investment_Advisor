@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import {
   X, TrendingUp, TrendingDown, Globe, Users, Building2,
   BarChart3, Loader2, ChevronRight, Activity,
-  ArrowUpRight, ArrowDownRight, DollarSign,
+  ArrowUpRight, ArrowDownRight, DollarSign, Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -12,6 +12,9 @@ import { market as marketApi } from "@/lib/api";
 import IncomeStatementTab from "@/components/IncomeStatementTab";
 import BalanceSheetTab from "@/components/BalanceSheetTab";
 import CashFlowTab from "@/components/CashFlowTab";
+import PremiumToolLocked from "@/components/PremiumToolLocked";
+import PaywallModal from "@/components/PaywallModal";
+import { useSubscriptionStore } from "@/lib/store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -731,6 +734,10 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
     return () => document.documentElement.removeAttribute("data-stock-modal");
   }, []);
 
+  const { tier: subTier, isTrialPremium } = useSubscriptionStore();
+  const isPremium = subTier === "premium" || isTrialPremium;
+  const [paywallOpen, setPaywallOpen] = useState(false);
+
   const [tab, setTab] = useState<Tab>("chart");
   const [finPeriod, setFinPeriod] = useState<"annual" | "quarterly">("annual");
   const [finSection, setFinSection] = useState<"income" | "balance" | "cashflow">("income");
@@ -982,7 +989,24 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
           <div className="max-w-3xl mx-auto w-full">
 
           {/* ── VEREDICTO ── */}
-          {tab === "verdict" && (
+          {tab === "verdict" && !isPremium && (
+            <div className="px-5 py-4">
+              <PremiumToolLocked
+                title={t("stockDetailModal.verdictLocked.title")}
+                tagline={t("stockDetailModal.verdictLocked.tagline")}
+                description={t("stockDetailModal.verdictLocked.description")}
+                icon={Sparkles}
+                color="#22c55e"
+                benefits={[
+                  { icon: Activity, text: t("stockDetailModal.verdictLocked.benefit1") },
+                  { icon: TrendingUp, text: t("stockDetailModal.verdictLocked.benefit2") },
+                  { icon: DollarSign, text: t("stockDetailModal.verdictLocked.benefit3") },
+                ]}
+                onUnlock={() => setPaywallOpen(true)}
+              />
+            </div>
+          )}
+          {tab === "verdict" && isPremium && (
             <div className="px-5 py-4 space-y-4">
               {loadingScore ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3">
@@ -1806,6 +1830,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
           </div>{/* end max-w-3xl */}
         </div>
       </div>
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
     </div>
   );
 }

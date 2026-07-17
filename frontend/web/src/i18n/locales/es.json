@@ -2599,6 +2599,14 @@
     "user": "Usuario"
   },
   "stockDetailModal": {
+    "verdictLocked": {
+      "title": "Veredicto de la IA",
+      "tagline": "Exclusivo Premium",
+      "description": "Desbloquea el análisis completo: puntuación de calidad, perspectiva de corto y largo plazo, y rangos de entrada sugeridos para esta acción.",
+      "benefit1": "Puntuación de calidad del negocio",
+      "benefit2": "Perspectiva de corto y largo plazo",
+      "benefit3": "Rangos de entrada sugeridos"
+    },
     "noData": "Sin datos",
     "noAnalystData": "Sin datos de analistas",
     "today": "hoy",

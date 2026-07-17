@@ -2599,6 +2599,14 @@
     "user": "User"
   },
   "stockDetailModal": {
+    "verdictLocked": {
+      "title": "AI Verdict",
+      "tagline": "Premium exclusive",
+      "description": "Unlock the full analysis: business quality score, short and long-term outlook, and suggested entry ranges for this stock.",
+      "benefit1": "Business quality score",
+      "benefit2": "Short and long-term outlook",
+      "benefit3": "Suggested entry ranges"
+    },
     "noData": "No data",
     "noAnalystData": "No analyst data",
     "today": "today",

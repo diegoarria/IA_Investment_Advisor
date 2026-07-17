@@ -3080,6 +3080,14 @@
     "next": "Next →"
   },
   "stockDetailScreen": {
+    "verdictLocked": {
+      "title": "AI Verdict",
+      "tagline": "Premium exclusive",
+      "description": "Unlock the full analysis: business quality score, short and long-term outlook, and suggested entry ranges for this stock.",
+      "benefit1": "Business quality score",
+      "benefit2": "Short and long-term outlook",
+      "benefit3": "Suggested entry ranges"
+    },
     "about": "About {{name}}",
     "calculatingAiSummary": "Calculating AI summary…",
     "couldNotLoadData": "Couldn't load the data",

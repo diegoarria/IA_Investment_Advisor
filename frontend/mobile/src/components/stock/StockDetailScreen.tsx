@@ -23,6 +23,9 @@ import StockCompetitors from "./StockCompetitors";
 import StockFinancials from "./StockFinancials";
 import StockAnalysts from "./StockAnalysts";
 import StockAvatar from "../StockAvatar";
+import PremiumToolCard from "../PremiumToolCard";
+import PaywallModal from "../PaywallModal";
+import { useSubscriptionStore, hasPremiumAccess } from "../../lib/subscriptionStore";
 
 // ─── Palette ─────────────────────────────────────────────────────────────────
 const D = {
@@ -566,6 +569,9 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
   const { data, loading, error, refetch } = useStockDetail(ticker);
   const [activeTab, setActiveTab] = useState<TabId>("veredicto");
   const TAB_META = getTabs(t);
+  const subStore = useSubscriptionStore();
+  const isPremium = hasPremiumAccess(subStore);
+  const [paywallOpen, setPaywallOpen] = useState(false);
 
   useEffect(() => {
     if (ticker) posthog.capture("stock_detail_viewed", { ticker });
@@ -616,6 +622,25 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
     }
 
     if (activeTab === "veredicto") {
+      if (!isPremium) {
+        return (
+          <View style={{ marginHorizontal: 12, marginTop: 16 }}>
+            <PremiumToolCard
+              title={t("stockDetailScreen.verdictLocked.title")}
+              tagline={t("stockDetailScreen.verdictLocked.tagline")}
+              description={t("stockDetailScreen.verdictLocked.description")}
+              icon="sparkles"
+              color="#22c55e"
+              benefits={[
+                { icon: "trending-up", text: t("stockDetailScreen.verdictLocked.benefit1") },
+                { icon: "analytics",   text: t("stockDetailScreen.verdictLocked.benefit2") },
+                { icon: "cash",        text: t("stockDetailScreen.verdictLocked.benefit3") },
+              ]}
+              onUnlock={() => setPaywallOpen(true)}
+            />
+          </View>
+        );
+      }
       return <VerdictSection ticker={ticker} />;
     }
 
@@ -751,6 +776,7 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
       >
         {renderContent()}
       </ScrollView>
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
     </View>
   );
 }
