@@ -22,7 +22,7 @@ import {
 import { ThemeProvider, useTheme } from "../src/lib/ThemeContext";
 import { LanguageProvider } from "../src/lib/LanguageContext";
 import Sidebar from "../src/components/Sidebar";
-import { useSubscriptionStore, isTrialActive, hasPremiumAccess } from "../src/lib/subscriptionStore";
+import { useSubscriptionStore, hasPremiumAccess } from "../src/lib/subscriptionStore";
 import PaywallModal from "../src/components/PaywallModal";
 import * as Notifications from "expo-notifications";
 
@@ -37,7 +37,7 @@ function TrialExpiredModal() {
 
   useEffect(() => {
     const trialStarted = subStore.trialStartDate !== null;
-    const expired = trialStarted && !isTrialActive(subStore) && !hasPremiumAccess(subStore);
+    const expired = trialStarted && !hasPremiumAccess(subStore);
     if (expired) setVisible(true);
   }, [subStore.trialStartDate, subStore.tier]);
 

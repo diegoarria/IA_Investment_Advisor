@@ -149,7 +149,6 @@ function StockAvatar({ ticker, logoUrl }: { ticker: string; logoUrl: string | nu
   const sources = [
     ...(logoUrl ? [logoUrl] : []),
     `https://assets.parqet.com/logos/symbol/${clean}?format=svg`,
-    `https://financialmodelingprep.com/image-stock/${clean}.png`,
   ];
   const [failed, setFailed] = useState<Set<string>>(new Set());
   const activeSrc = sources.find((s) => !failed.has(s));

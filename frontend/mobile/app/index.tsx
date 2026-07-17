@@ -115,6 +115,12 @@ export default function AuthScreen() {
           profileApi.get(),
           syncApi.getAll(),
         ]);
+        // Refresh the server-computed premium/free tier (effective_tier —
+        // already accounts for the trial window, streak/referral bonuses,
+        // and real subscriptions) on every app boot, not just when Chat or
+        // Learn happen to mount — otherwise the badge shows stale/default
+        // state until the user visits one of those screens.
+        useSubscriptionStore.getState().fetchStatus().catch(() => {});
         if (profileRes.status === "fulfilled") {
           const p = profileRes.value.data as UserProfile & { avatar_url?: string };
           const existingAvatar = useAppStore.getState().profile?.avatarUri;
@@ -202,6 +208,11 @@ export default function AuthScreen() {
         profileApi.get(),
         syncApi.getAll(),
       ]);
+      // Same reasoning as the silent-auth boot path above: refresh the
+      // server's effective_tier right after login so the premium/free badge
+      // is never left showing a stale/default value from a previous session
+      // or a fresh install.
+      useSubscriptionStore.getState().fetchStatus().catch(() => {});
       if (profileRes.status === "fulfilled") {
         const p = profileRes.value.data as UserProfile & { avatar_url?: string };
         setProfile({

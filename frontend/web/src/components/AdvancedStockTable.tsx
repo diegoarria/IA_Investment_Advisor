@@ -61,7 +61,7 @@ function Avatar({ ticker, logoUrl }: { ticker: string; logoUrl?: string | null }
   const clean = ticker.replace(".", "-");
   const sources = [
     ...(logoUrl ? [logoUrl] : []),
-    `https://financialmodelingprep.com/image-stock/${clean}.png`,
+    `https://assets.parqet.com/logos/symbol/${clean}?format=svg`,
   ];
   const [failed, setFailed] = useState<Set<string>>(new Set());
   const active = sources.find((s) => !failed.has(s));

@@ -6,8 +6,6 @@ import { posthog } from "../config/posthog";
 
 export type SubscriptionTier = "free" | "premium";
 
-export const TRIAL_DAYS = 90;
-
 interface SubscriptionStore {
   tier: SubscriptionTier;
   msgCount: number;
@@ -98,20 +96,15 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
 );
 
 // ─── Trial helpers ────────────────────────────────────────────────────────────
+// `tier` is always the server's effective_tier (billing.py get_status) —
+// it's already "premium" during an active trial, an active streak/referral
+// bonus, or a real paid subscription. Don't reimplement the trial window
+// math client-side (a stale local TRIAL_DAYS constant drifted out of sync
+// with the backend's _PROMO_DAYS before and caused the premium/free badge
+// to disagree with the server).
 
-export function trialDaysLeft(trialStartDate: string | null): number {
-  if (!trialStartDate) return 0;
-  const elapsed = (Date.now() - new Date(trialStartDate).getTime()) / (1000 * 60 * 60 * 24);
-  return Math.max(0, Math.ceil(TRIAL_DAYS - elapsed));
-}
-
-export function isTrialActive(store: { tier: SubscriptionTier; trialStartDate: string | null }): boolean {
-  if (store.tier === "premium") return false;
-  return trialDaysLeft(store.trialStartDate) > 0;
-}
-
-export function hasPremiumAccess(store: { tier: SubscriptionTier; trialStartDate: string | null }): boolean {
-  return store.tier === "premium" || isTrialActive(store);
+export function hasPremiumAccess(store: { tier: SubscriptionTier }): boolean {
+  return store.tier === "premium";
 }
 
 // ─── Message helpers ──────────────────────────────────────────────────────────

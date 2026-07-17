@@ -13,7 +13,6 @@ export default function StockAvatar({ ticker, logoUrl, size = 40 }: Props) {
 
   const sources = [
     ...(logoUrl ? [logoUrl] : []),
-    `https://financialmodelingprep.com/image-stock/${clean}.png`,
     `https://assets.parqet.com/logos/symbol/${clean}?format=png`,
   ];
 

@@ -165,7 +165,7 @@ function Avatar({ ticker, glowColor }: { ticker: string; glowColor?: string }) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={`https://financialmodelingprep.com/image-stock/${clean}.png`}
+        src={`https://assets.parqet.com/logos/symbol/${clean}?format=svg`}
         alt={ticker}
         className="w-14 h-14 rounded-full object-contain p-1 shrink-0"
         style={{
@@ -196,7 +196,7 @@ function MiniAvatar({ ticker }: { ticker: string }) {
   if (!failed) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={`https://financialmodelingprep.com/image-stock/${clean}.png`} alt={ticker}
+      <img src={`https://assets.parqet.com/logos/symbol/${clean}?format=svg`} alt={ticker}
            className="w-8 h-8 rounded-full object-contain p-0.5 shrink-0"
            style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
            onError={() => setFailed(true)} />
