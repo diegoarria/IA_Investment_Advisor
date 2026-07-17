@@ -2,8 +2,9 @@
 -- 036_major_news_events.sql
 --
 -- Tracks the "big event" push alerts sent by worker.py's job_major_news_alert
--- (geopolitical tensions, macro indicators, major corporate news — never
--- analyst opinions/price-target changes). Capped at 3 per calendar day
+-- (geopolitical tensions, macro indicators, major corporate news, major
+-- statements/deals from big-company leaders — never analyst opinions or
+-- price-target changes). Capped at 3 per calendar day
 -- (ET), shared across ALL users (one event = one row here, then fanned out
 -- to everyone), so this table is what makes that daily cap durable across
 -- worker restarts/redeploys — an in-memory or Redis-only counter would reset
@@ -15,7 +16,7 @@ CREATE TABLE IF NOT EXISTS major_news_events (
   event_date    DATE NOT NULL,       -- ET calendar day this counts against (max 3/day)
   headline_hash TEXT NOT NULL,       -- md5 of the headline — dedup so the same story isn't re-sent same day
   headline      TEXT NOT NULL,
-  category      TEXT NOT NULL,       -- 'geopolitics' | 'macro' | 'corporate'
+  category      TEXT NOT NULL,       -- 'geopolitics' | 'macro' | 'corporate' | 'leadership'
   push_body     TEXT NOT NULL,
   sent_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

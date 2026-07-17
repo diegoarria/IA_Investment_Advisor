@@ -2518,16 +2518,16 @@ def _fetch_ticker_news(ticker: str) -> list[str]:
 
 
 _MAJOR_NEWS_DAILY_CAP = 3
-_MAJOR_NEWS_CATEGORY_EMOJI = {"geopolitics": "🌐", "macro": "📊", "corporate": "🏢"}
+_MAJOR_NEWS_CATEGORY_EMOJI = {"geopolitics": "🌐", "macro": "📊", "corporate": "🏢", "leadership": "🎤"}
 
 
 async def _curate_major_news(raw_search_text: str, already_sent_headlines: list[str], max_items: int) -> list[dict]:
     """Ask Claude to filter a broad news search down to ONLY genuinely major
-    geopolitical/macro/big-corporate stories — explicitly excluding analyst
-    opinions (price-target changes, upgrades/downgrades), which are noise for
-    this feature even though they're valid "why" catalysts elsewhere in the
-    app. Returns [] if nothing qualifies — never forces a filler story just
-    to fill the quota."""
+    geopolitical/macro/big-corporate/leadership stories — explicitly excluding
+    analyst opinions (price-target changes, upgrades/downgrades), which are
+    noise for this feature even though they're valid "why" catalysts
+    elsewhere in the app. Returns [] if nothing qualifies — never forces a
+    filler story just to fill the quota."""
     import anthropic, json as _json
 
     already_sent_str = (
@@ -2543,17 +2543,19 @@ RESULTADOS DE BÚSQUEDA WEB (fuente cruda, puede contener info irrelevante):
 NOTICIAS YA ENVIADAS HOY (no repitas ninguna de estas, aunque aparezcan en la búsqueda):
 {already_sent_str}
 
-TU TAREA: de toda esa información, extrae ÚNICAMENTE historias que caigan en estas 3 categorías:
+TU TAREA: de toda esa información, extrae ÚNICAMENTE historias que caigan en estas 4 categorías:
 
 1. GEOPOLÍTICA que afecte la economía global: tensiones o conflictos entre países que muevan mercados (ej. EE.UU. vs Irán, China vs EE.UU., sanciones, guerras, bloqueos comerciales).
 2. INDICADORES MACROECONÓMICOS: decisiones de tasas de interés (Fed u otros bancos centrales), datos de desempleo, PIB, inflación (CPI/PCE), políticas monetarias, condiciones de crédito.
 3. RESULTADOS O NOTICIAS CORPORATIVAS DE GRAN IMPACTO GLOBAL: solo de empresas verdaderamente grandes (Nvidia, Apple, Google, Amazon, Microsoft, Meta, etc.) y solo si el hecho en sí mismo es noticia mayor (earnings que sorprenden fuertemente al mercado completo, un producto/decisión que mueve al sector entero) — NUNCA opiniones de analistas.
+4. DECLARACIONES O ANUNCIOS DE LÍDERES CLAVE: solo cuando un CEO/fundador de una de las empresas más grandes del mundo (ej. Elon Musk, Jensen Huang, Jeff Bezos, Warren Buffett, Mark Zuckerberg, Tim Cook, Satya Nadella, Sam Altman, o cualquier CEO de una empresa del top global por capitalización de mercado) comunica algo con impacto real en el mercado — un anuncio de producto mayor, un acuerdo/alianza importante, una fusión o adquisición grande, un cambio de estrategia relevante, una renuncia/salida sorpresiva, o comentarios que muevan la acción de su empresa o el sector. NO cuenta cualquier tweet o declaración menor sin impacto real — solo cuando el hecho en sí es noticia mayor.
 
 EXCLUYE SIEMPRE, sin excepción (esto NO cuenta como noticia relevante aquí):
 - Cualquier cosa tipo "Banco X sube/baja el precio objetivo de la acción Y" — esto es ruido, no un evento real
 - Upgrades/downgrades de analistas
 - Especulación o rumores sin confirmar
 - Noticias de empresas medianas/pequeñas sin impacto en toda la economía o el mercado en general
+- Comentarios triviales o de bajo impacto de figuras públicas (chismes, declaraciones políticas sin relación con negocios/mercados, tweets sin consecuencia real)
 
 REGLAS:
 - Máximo {max_items} historias — si genuinamente no hay {max_items} historias que califiquen, devuelve menos, incluso cero. NUNCA rellenes con algo débil solo para completar el número.
@@ -2562,7 +2564,7 @@ REGLAS:
 - Genera el texto de la notificación en DOS idiomas: español (push_body_es) e inglés (push_body_en) — misma información, mismo tono directo, cada uno natural en su idioma (no una traducción literal palabra por palabra).
 
 Responde ÚNICAMENTE con JSON válido, sin texto adicional, en este formato exacto:
-{{"items": [{{"category": "geopolitics|macro|corporate", "headline": "título corto interno para dedup", "push_body_es": "texto en español, máx 90-120 caracteres", "push_body_en": "text in English, máx 90-120 characters"}}]}}"""
+{{"items": [{{"category": "geopolitics|macro|corporate|leadership", "headline": "título corto interno para dedup", "push_body_es": "texto en español, máx 90-120 caracteres", "push_body_en": "text in English, máx 90-120 characters"}}]}}"""
 
     try:
         client = anthropic.AsyncAnthropic()
@@ -2597,7 +2599,7 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional, en este formato exac
 
 async def job_major_news_alert():
     """Every 2 hours, 7 days a week, 8am-9pm ET — sends up to 3 genuinely
-    major geopolitical/macro/big-corporate news alerts PER DAY (shared
+    major geopolitical/macro/big-corporate/leadership news alerts PER DAY (shared
     across ALL users, not per-user, not premium-gated). This is a "warn
     everyone about big events" feature, not personalized analysis — most
     cycles should send nothing, since most news isn't actually major.
@@ -2634,8 +2636,12 @@ async def job_major_news_alert():
             "entre países que afecten la economía (ej. EE.UU./Irán, China/EE.UU., sanciones, conflictos "
             "comerciales), 2) datos o decisiones macroeconómicas (tasas de interés, Fed, desempleo, PIB, "
             "inflación, política monetaria), 3) resultados o anuncios de gran impacto de empresas grandes "
-            "(Nvidia, Apple, Google, Amazon, Microsoft, Meta, etc.). Ignora cambios de precio objetivo de "
-            "analistas o notas de research — eso no es lo que busco. Da fecha y fuente si es posible."
+            "(Nvidia, Apple, Google, Amazon, Microsoft, Meta, etc.), 4) declaraciones, anuncios o acuerdos "
+            "importantes de líderes de grandes empresas (ej. Elon Musk, Jensen Huang, Jeff Bezos, Warren "
+            "Buffett, Mark Zuckerberg, Tim Cook, Satya Nadella, Sam Altman, o CEOs de otras empresas top "
+            "por capitalización de mercado) que muevan el mercado — nuevos productos, fusiones y "
+            "adquisiciones, alianzas estratégicas, renuncias sorpresivas. Ignora cambios de precio objetivo "
+            "de analistas o notas de research — eso no es lo que busco. Da fecha y fuente si es posible."
         )
         raw = await asyncio.to_thread(search_web, query, False)
         if not raw:
