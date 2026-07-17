@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 # ─── Provider credentials ─────────────────────────────────────────────────────
 
 FMP_KEY = os.getenv("FMP_API_KEY", "")
-FMP_BASE = "https://financialmodelingprep.com/api/v3"
+FMP_BASE = "https://financialmodelingprep.com/stable"
 _REQ_HEADERS = {
     "User-Agent": "NuvosAI/1.0 research@nuvosai.app",
     "Accept": "application/json",
@@ -247,10 +247,17 @@ class FinancialProvider(ABC):
 class FMPProvider(FinancialProvider):
     """
     Financial Modeling Prep — https://financialmodelingprep.com
-    Requires FMP_API_KEY env var.  Delivers 10 years of annual data.
+    Requires FMP_API_KEY env var.
+
+    Current subscription plan caps `limit` at 5 (confirmed: limit=10 returns
+    a plain-text "Premium Query Parameter" error, not JSON, which silently
+    looked like "no data" and fell through to yfinance). Clamped here so a
+    caller asking for more years still gets the 5 real ones instead of zero
+    — upgrade the FMP plan and raise _MAX_LIMIT if more years are needed.
     """
 
     name = "fmp"
+    _MAX_LIMIT = 5
 
     def available(self) -> bool:
         return bool(FMP_KEY)
@@ -274,7 +281,7 @@ class FMPProvider(FinancialProvider):
 
     def get_income(self, symbol: str, annual: bool, limit: int) -> list[dict]:
         period = "annual" if annual else "quarter"
-        raw = self._get(f"income-statement/{symbol}", {"limit": limit, "period": period})
+        raw = self._get("income-statement", {"symbol": symbol, "limit": min(limit, self._MAX_LIMIT), "period": period})
         result = []
         for r in raw:
             cur = r.get("reportedCurrency", "USD")
@@ -294,7 +301,7 @@ class FMPProvider(FinancialProvider):
                 operating_income=n(r.get("operatingIncome")),
                 ebitda=n(r.get("ebitda")),
                 net_income=n(r.get("netIncome")),
-                diluted_eps=_num(r.get("epsdiluted")),
+                diluted_eps=_num(r.get("epsDiluted") or r.get("epsdiluted")),
                 basic_eps=_num(r.get("eps")),
                 gross_margin=pct_field(r.get("grossProfitRatio")),
                 operating_margin=pct_field(r.get("operatingIncomeRatio")),
@@ -311,7 +318,7 @@ class FMPProvider(FinancialProvider):
 
     def get_balance(self, symbol: str, annual: bool, limit: int) -> list[dict]:
         period = "annual" if annual else "quarter"
-        raw = self._get(f"balance-sheet-statement/{symbol}", {"limit": limit, "period": period})
+        raw = self._get("balance-sheet-statement", {"symbol": symbol, "limit": min(limit, self._MAX_LIMIT), "period": period})
         result = []
         for r in raw:
             cur = r.get("reportedCurrency", "USD")
@@ -355,7 +362,7 @@ class FMPProvider(FinancialProvider):
 
     def get_cashflow(self, symbol: str, annual: bool, limit: int) -> list[dict]:
         period = "annual" if annual else "quarter"
-        raw = self._get(f"cash-flow-statement/{symbol}", {"limit": limit, "period": period})
+        raw = self._get("cash-flow-statement", {"symbol": symbol, "limit": min(limit, self._MAX_LIMIT), "period": period})
         result = []
         for r in raw:
             cur = r.get("reportedCurrency", "USD")
@@ -369,17 +376,17 @@ class FMPProvider(FinancialProvider):
                     "Stock Based Compensation": n(r.get("stockBasedCompensation")),
                     "Change In Working Capital": n(r.get("changeInWorkingCapital")),
                     "Other Non Cash Items": n(r.get("otherNonCashItems")),
-                    "Operating Cash Flow": n(r.get("operatingCashFlow")),
+                    "Operating Cash Flow": n(r.get("operatingCashFlow") or r.get("netCashProvidedByOperatingActivities")),
                     "Capital Expenditure": n(r.get("capitalExpenditure")),
                     "Acquisitions Net": n(r.get("acquisitionsNet")),
                     "Purchases Of Investments": n(r.get("purchasesOfInvestments")),
                     "Sales Maturities Of Investments": n(r.get("salesMaturitiesOfInvestments")),
-                    "Investing Cash Flow": n(r.get("investingCashFlow")),
-                    "Issuance Of Common Stock": n(r.get("commonStockIssued")),
+                    "Investing Cash Flow": n(r.get("investingCashFlow") or r.get("netCashProvidedByInvestingActivities")),
+                    "Issuance Of Common Stock": n(r.get("commonStockIssuance") or r.get("commonStockIssued")),
                     "Repurchase Of Capital Stock": n(r.get("commonStockRepurchased")),
-                    "Repayment Of Debt": n(r.get("debtRepayment")),
-                    "Dividends Paid": n(r.get("dividendsPaid")),
-                    "Financing Cash Flow": n(r.get("financingCashFlow")),
+                    "Repayment Of Debt": n(r.get("debtRepayment") or r.get("netDebtIssuance")),
+                    "Dividends Paid": n(r.get("commonDividendsPaid") or r.get("netDividendsPaid") or r.get("dividendsPaid")),
+                    "Financing Cash Flow": n(r.get("financingCashFlow") or r.get("netCashProvidedByFinancingActivities")),
                     "Free Cash Flow": n(r.get("freeCashFlow")),
                     "Net Change In Cash": n(r.get("netChangeInCash")),
                     "Cash At Beginning Of Period": n(r.get("cashAtBeginningOfPeriod")),
@@ -728,8 +735,12 @@ class FiscalAIProvider(FinancialProvider):
 
 # Ordered by preference; extend this list to add new providers
 _REGISTRY: list[FinancialProvider] = [
-    FiscalAIProvider(),   # Best quality — 20+ years, same as stockanalysis.com
+    # FMP prioritized over Fiscal.ai for now — Fiscal.ai's free plan only
+    # covers ~45 major tickers (confirmed: even AAPL 403'd, "not available
+    # on the free plan"), which silently fell back to yfinance for anything
+    # else. Swap back to FiscalAIProvider-first once on a paid Fiscal.ai plan.
     FMPProvider(),        # 10 years — activates when FMP_API_KEY is set
+    FiscalAIProvider(),   # Best quality — 20+ years, same as stockanalysis.com — free plan is ticker-limited
     YFinanceProvider(),   # Always-available free fallback
 ]
 

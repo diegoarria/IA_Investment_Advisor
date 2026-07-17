@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     elevenlabs_api_key: str = ""   # for TTS
     elevenlabs_voice_id: str = "pNInz6obpgDQGcFmaJgB"  # Adam — multilingual, good Spanish
     fiscal_ai_api_key: str = ""    # fiscal.ai — same data as stockanalysis.com
+    fmp_api_key: str = ""          # Financial Modeling Prep — read directly via os.getenv in
+                                   # financial_data_service.py; declared here only so pydantic-settings
+                                   # (extra="forbid" by default) doesn't reject the env var at boot
     # Plaid (brokerage integrations: IBKR, Schwab, Robinhood)
     plaid_client_id: str = ""
     plaid_secret: str = ""
