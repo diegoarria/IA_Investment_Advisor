@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from app.services.financial_data_service import get_financials
+from app.services.financial_data_service import get_financials, get_revenue_segments
 from app.core.finnhub import fh_quote, fh_profile
 
 logger = logging.getLogger(__name__)
@@ -111,6 +111,28 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
     price = _num(quote.get("price"))
     shares_out_m = _num(profile.get("shareOutstanding"))  # Finnhub reports this in millions
     shares_out = shares_out_m * 1_000_000 if shares_out_m else None
+
+    # Real segment revenue straight from the company's own filings (FMP-only —
+    # no equivalent on Fiscal.ai/yfinance). Replaces the LLM's "approximate,
+    # from general knowledge" segment guess in the chat prompt with actual
+    # numbers. [] (not fabricated) if the plan/ticker doesn't have it.
+    try:
+        segments_raw = get_revenue_segments(ticker, by="product", limit=1)
+    except Exception as e:
+        logger.warning("get_fundamental_analysis(%s): segments failed: %s", ticker, e)
+        segments_raw = []
+    segments: list[dict] = []
+    if segments_raw:
+        seg_data = segments_raw[0].get("data") or {}
+        seg_total = sum(v for v in seg_data.values() if isinstance(v, (int, float)))
+        for name, rev in sorted(seg_data.items(), key=lambda kv: kv[1] if isinstance(kv[1], (int, float)) else 0, reverse=True):
+            if not isinstance(rev, (int, float)) or rev <= 0:
+                continue
+            segments.append({
+                "name": name,
+                "revenue": round(rev, 0),
+                "pct_of_total": round(rev / seg_total * 100, 1) if seg_total else None,
+            })
 
     # ── Per-year trends: revenue, FCF, net income, margins, ROIC/ROE/ROA ──
     revenue_trend, fcf_trend, net_income_trend = [], [], []
@@ -264,6 +286,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         "ticker": ticker,
         "company_name": profile.get("name", ticker),
         "sector": profile.get("finnhubIndustry"),
+        "segments": segments,
         "years": years,
         "current_price": price,
         "revenue_trend": revenue_trend,
@@ -317,6 +340,18 @@ def format_fundamental_analysis_for_prompt(data: dict) -> str:
         f"Precio actual: ${data['current_price']}" if data.get("current_price") else "Precio actual: N/D",
         f"Años con datos reales disponibles: {data['data_years_available']} (fuente: {data.get('data_source', 'N/D')})",
         "",
+    ]
+    segments = data.get("segments") or []
+    if segments:
+        lines.append("Segmentos de negocio (ingresos del último año fiscal reportado, reales — de los filings de la empresa vía FMP):")
+        for s in segments:
+            pct = f" ({s['pct_of_total']}% del total)" if s.get("pct_of_total") is not None else ""
+            lines.append(f"  - {s['name']}: {_fmt_money(s['revenue'])}{pct}")
+        lines.append("")
+    else:
+        lines.append("Segmentos de negocio: no disponibles para esta empresa — no los inventes, dilo explícitamente si el usuario pregunta por el desglose.")
+        lines.append("")
+    lines += [
         f"Ingresos por año ($): {_fmt_trend(years, [_fmt_money(v) if v is not None else None for v in data['revenue_trend']])}",
         f"Ingresos CAGR ({data['data_years_available']}a): {data['revenue_cagr_pct']}%" if data["revenue_cagr_pct"] is not None else "Ingresos CAGR: N/D",
         f"FCF por año ($): {_fmt_trend(years, [_fmt_money(v) if v is not None else None for v in data['fcf_trend']])}",

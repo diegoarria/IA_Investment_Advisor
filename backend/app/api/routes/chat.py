@@ -21,7 +21,7 @@ from app.services.market_data_service import (
     get_global_market_context,
     detect_tickers,
 )
-from app.core.finnhub import fh_quote
+from app.core.finnhub import fh_quote, fh_search
 from app.core.limiter import limiter
 
 FREE_MSG_LIMIT    = 15
@@ -89,10 +89,19 @@ _LIVE_DATA_RE = re.compile(r"\bmi (portafolio|cuenta|posici[oó]n|inversi[oó]n)
 # real computed fundamental-analysis fetch (fundamental_analysis_service),
 # which is Premium-only (see _enrich_message) since it costs real data-fetch
 # + compute time on top of the regular chat enrichment.
+#
+# Deliberately broad: "analiza X" / "analízame X" alone (no "a fondo" or any
+# other qualifier needed) must trigger this — a plain "Analiza Micron" was
+# previously missed (required "analiza.*a fondo" literally), which meant no
+# real FMP data was ever fetched for the single most common way users ask
+# for a company analysis, and Claude would hedge with "no tengo datos
+# actualizados" instead of just fetching them. That must never happen now
+# that FMP covers the full US market.
 _DEEP_ANALYSIS_RE = re.compile(
-    r"es buena (compra|inversi[oó]n)|vale la pena|me conviene|\b(compro|entro a)\b|"
-    r"analiza(me)?.*a fondo|veredicto sobre|an[aá]lisis fundamental|"
-    r"good buy|worth investing|deep dive|full analysis",
+    r"anal[ií]z\w*|an[aá]lisis (de|fundamental)|es buena (compra|inversi[oó]n)|"
+    r"vale la pena|me conviene|\b(compro|entro a)\b|veredicto sobre|"
+    r"qu[eé] opinas de|c[oó]mo ves|recomiendas (comprar|invertir)|"
+    r"\banalyz\w*|what do you think of|good buy|worth investing|deep dive|full analysis",
     re.IGNORECASE,
 )
 
@@ -110,6 +119,8 @@ def _needs_claude_analysis(message: str, has_images: bool) -> bool:
     if has_images:
         return True
     if detect_tickers(message):
+        return True
+    if _DEEP_ANALYSIS_RE.search(message):
         return True
     return bool(_LIVE_DATA_RE.search(message))
 
@@ -290,6 +301,44 @@ async def _get_mentor_deep_context(user_id: str) -> str | None:
 _FUNDAMENTALS_TIMEOUT = 12.0  # generous — only reached for Premium + explicit deep-analysis intent
 _MAX_FUNDAMENTALS_TICKERS = 2  # cap so a message naming several companies doesn't fan out N expensive fetches
 
+# Words/phrases stripped out to isolate the likely company name when the
+# curated COMPANY_TICKERS dict + bare-ticker regex in detect_tickers() find
+# nothing — e.g. "Analiza Micron" has no hardcoded entry for Micron/MU, so
+# this is what lets a live Finnhub symbol search resolve it instead of the
+# request silently going through with zero real data.
+_ANALYSIS_FILLER_RE = re.compile(
+    r"anal[ií]z\w*|an[aá]lisis (de|fundamental)|es buena (compra|inversi[oó]n)|"
+    r"vale la pena|me conviene|\b(compro|entro a)\b|veredicto sobre|dame tu|"
+    r"qu[eé] opinas de|c[oó]mo ves|recomiendas (comprar|invertir)|"
+    r"\banalyz\w*|what do you think of|good buy|worth investing|deep dive|full analysis|"
+    r"a fondo|por favor|acci[oó]n|empresa|compañ[ií]a|company|stock",
+    re.IGNORECASE,
+)
+
+
+def _resolve_ticker_via_search(message: str) -> list[str]:
+    """Live fallback for company names outside the curated COMPANY_TICKERS
+    dict (a ~70-name whitelist — Micron/MU, PG, etc. aren't in it). Strips
+    the trigger phrasing out of the message and searches whatever's left via
+    Finnhub's symbol search (cheap, cached 1h). Only called when the cheap
+    dict/regex lookup in detect_tickers() already came up empty and the
+    message clearly wants a company analysis — never on every message."""
+    candidate = _ANALYSIS_FILLER_RE.sub(" ", message).strip(" ?¿!¡.,:;")
+    candidate = re.sub(r"\s+", " ", candidate)
+    if not candidate or len(candidate) > 60:
+        return []
+    try:
+        results = fh_search(candidate)
+    except Exception as e:
+        logger.warning("_resolve_ticker_via_search(%r) failed: %s", candidate, e)
+        return []
+    # Finnhub's search ranks best-match first; only common-stock results are
+    # useful here (skip warrants/options/OTC noise it sometimes returns).
+    for r in results:
+        if r.get("symbol") and r.get("type", "").lower() in ("common stock", "equity", ""):
+            return [r["symbol"]]
+    return []
+
 
 def _fundamentals_context_block(tickers: list[str]) -> str:
     from app.services.fundamental_analysis_service import (
@@ -320,6 +369,11 @@ def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -
     f_fundamentals = None
     if premium and _DEEP_ANALYSIS_RE.search(message):
         deep_tickers = detect_tickers(message)
+        if not deep_tickers:
+            # Company not in the curated COMPANY_TICKERS dict (e.g. "Analiza
+            # Micron") — never skip the fetch just because it's not one of
+            # the ~70 hardcoded names; resolve it live instead.
+            deep_tickers = _resolve_ticker_via_search(message)
         if deep_tickers:
             f_fundamentals = _ENRICH_POOL.submit(_fundamentals_context_block, deep_tickers)
 

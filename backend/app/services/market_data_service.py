@@ -550,6 +550,13 @@ def get_global_market_context() -> str:
 
 # ── Ticker detection ──────────────────────────────────────────────────────
 
+_NON_TICKER_ACRONYMS = {
+    "SI", "NO", "IA", "CEO", "CFO", "CTO", "ETF", "ETFS", "PDF", "USD",
+    "ROI", "DCF", "OK", "PM", "AM", "FAQ", "API", "URL", "SMS", "USA",
+    "EEUU", "UK", "EPS", "P/E", "PE", "IPO", "SEC", "FCF", "YOY", "TTM",
+}
+
+
 def detect_tickers(message: str) -> list[str]:
     found: set[str] = set()
     msg_lower = message.lower()
@@ -558,9 +565,17 @@ def detect_tickers(message: str) -> list[str]:
         if name in msg_lower:
             found.add(ticker)
 
-    # Direct uppercase tickers in the original message (e.g. "NVDA", "AAPL")
+    # Direct uppercase tickers in the original message (e.g. "NVDA", "AAPL",
+    # or any OTHER valid 2-5 letter ticker not in our curated name dict —
+    # deliberately broadened from "must already be a known ticker in
+    # COMPANY_TICKERS" so bare symbols for companies outside that ~70-name
+    # whitelist (e.g. "MU" for Micron) are still detected. A short list of
+    # common non-ticker acronyms is excluded to cut the obvious false
+    # positives; anything else that isn't a real ticker will simply fail to
+    # return data downstream (harmless no-op), which is a far better
+    # failure mode than silently never trying at all.
     for word in re.findall(r'\b[A-Z]{2,5}\b', message):
-        if word in {t.upper() for t in COMPANY_TICKERS.values()}:
+        if word not in _NON_TICKER_ACRONYMS:
             found.add(word)
 
     return list(found)[:4]  # cap at 4 to avoid slow responses

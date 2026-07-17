@@ -396,6 +396,37 @@ class FMPProvider(FinancialProvider):
         return result[::-1]
 
 
+# ─── FMP-only extra: real revenue segmentation ───────────────────────────────
+# Not part of the FinancialProvider interface (no equivalent on Fiscal.ai/
+# yfinance) — used directly by fundamental_analysis_service to replace the
+# LLM's "approximate, from general knowledge" segment guess with real,
+# per-year segment revenue straight from the company's own filings.
+
+def get_revenue_segments(symbol: str, by: str = "product", limit: int = 1) -> list[dict]:
+    """Returns up to `limit` most recent annual periods of real segment
+    revenue for `symbol`. `by` is "product" or "geography". Returns [] if
+    FMP isn't configured, the plan doesn't cover this ticker/endpoint, or
+    the request fails — callers should treat that as "no segment data
+    available" and say so explicitly, never fall back to a guess."""
+    if not FMP_KEY:
+        return []
+    path = "revenue-product-segmentation" if by == "product" else "revenue-geographic-segmentation"
+    try:
+        r = requests.get(
+            f"{FMP_BASE}/{path}",
+            params={"apikey": FMP_KEY, "symbol": symbol, "period": "annual"},
+            headers=_REQ_HEADERS,
+            timeout=14,
+        )
+        data = r.json()
+        if not isinstance(data, list):
+            return []
+        return data[:limit]
+    except Exception as exc:
+        logger.debug("FMP segmentation request failed for %s/%s: %s", by, symbol, exc)
+        return []
+
+
 # ─── yfinance provider ────────────────────────────────────────────────────────
 
 class YFinanceProvider(FinancialProvider):
