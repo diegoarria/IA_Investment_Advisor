@@ -601,6 +601,64 @@
       "description": "Type the ticker or company name — e.g. AAPL or Tesla. Nuvos will alert you when there are important moves."
     }
   },
+  "subvaluadas": {
+    "title": "Undervalued Stocks (DCF)",
+    "disclaimer": {
+      "title": "THIS IS NOT INVESTMENT ADVICE",
+      "subtitle": "For a more detailed analysis, go to Mentor AI."
+    },
+    "search": {
+      "label": "Search any stock",
+      "placeholder": "Ticker or company name (e.g. AAPL, Nike)",
+      "button": "Search",
+      "error": "Couldn't calculate the intrinsic value for that search."
+    },
+    "stats": {
+      "price": "Price",
+      "intrinsicValue": "Intrinsic value",
+      "expectedValue": "Expected value",
+      "impliedGrowth": "Implied growth",
+      "businessQuality": "Business Quality"
+    },
+    "checklist": {
+      "label": "Investment checklist",
+      "hide": "Hide",
+      "viewDetail": "View detail",
+      "items": {
+        "business_understanding": "Understanding the business",
+        "moat": "Competitive advantage (Moat)",
+        "business_quality": "Business quality",
+        "management_capital_allocation": "Management & capital allocation",
+        "financial_strength": "Financial strength",
+        "growth_predictability": "Predictable future growth",
+        "valuation": "Intrinsic value & margin of safety"
+      }
+    },
+    "weakDimensionWarning": "Possible value trap: {{text}}",
+    "follow": {
+      "button": "Follow",
+      "following": "On your watchlist"
+    },
+    "analyze": {
+      "button": "Analyze with Mentor AI",
+      "prompt": "Analyze {{ticker}}"
+    },
+    "footer": {
+      "description": "All candidates with a real positive margin of safety, same DCF engine as Mentor AI.",
+      "updatedToday": "Updated today ({{date}}).",
+      "updatedDaysAgo_one": "Updated {{count}} day ago ({{date}}).",
+      "updatedDaysAgo_other": "Updated {{count}} days ago ({{date}}).",
+      "stale": " — may be outdated"
+    },
+    "premiumGate": {
+      "title": "Premium Exclusive",
+      "desc": "The undervalued-stocks screener uses the real DCF engine — available for Premium users only.",
+      "cta": "Unlock Premium",
+      "paywallReason": "Undervalued stocks screener"
+    },
+    "emptyState": "No weekly screener data yet — check back later.",
+    "sectorAll": "All"
+  },
   "patrimonio": {
     "common": {
       "totalValue": "Total Value"

@@ -5,6 +5,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { screenerWeeklyApi, watchlistServerApi } from "../../src/lib/api";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -12,14 +13,20 @@ import PaywallModal from "../../src/components/PaywallModal";
 import StockAvatar from "../../src/components/StockAvatar";
 
 interface ChecklistItem {
+  key?: string;
   name: string;
-  passed: boolean | null;
+  stars: number | null;
   reason: string;
 }
 
 interface Checklist {
   items: ChecklistItem[];
-  score: string;
+  avg_stars: number | null;
+}
+
+interface LiquidityGate {
+  paso: boolean;
+  detalle: string;
 }
 
 interface UndervaluedResult {
@@ -33,6 +40,7 @@ interface UndervaluedResult {
   weak_dimension_warning: string | null;
   blurb: string | null;
   checklist: Checklist | null;
+  liquidity_gate: LiquidityGate | null;
 }
 
 interface QuickAnalysisResult {
@@ -46,13 +54,24 @@ interface QuickAnalysisResult {
   implied_growth_pct: number | null;
   summary: string;
   checklist: Checklist | null;
+  liquidity_gate: LiquidityGate | null;
+  generated_at: number;
 }
 
-function relativeDate(unixSeconds: number): { text: string; stale: boolean } {
-  const days = Math.floor((Date.now() / 1000 - unixSeconds) / 86400);
-  if (days <= 0) return { text: "hoy", stale: false };
-  if (days === 1) return { text: "hace 1 día", stale: false };
-  return { text: `hace ${days} días`, stale: days > 10 };
+function GeneratedAtNote({ generatedAt, colors }: { generatedAt: number; colors: any }) {
+  const { t, i18n } = useTranslation();
+  if (!generatedAt) return null;
+  const days = Math.floor((Date.now() / 1000 - generatedAt) / 86400);
+  const stale = days > 10;
+  const date = new Date(generatedAt * 1000).toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", { day: "numeric", month: "long" });
+  const updatedText = days <= 0
+    ? t("subvaluadas.footer.updatedToday", { date })
+    : t("subvaluadas.footer.updatedDaysAgo", { count: days, date });
+  return (
+    <Text style={{ fontSize: 10, color: stale ? "#f59e0b" : colors.textMuted, fontWeight: stale ? "700" : "400" }}>
+      {updatedText}{stale ? t("subvaluadas.footer.stale") : ""}
+    </Text>
+  );
 }
 
 function StatChip({ label, value, colors }: { label: string; value: string; colors: any }) {
@@ -88,42 +107,66 @@ function InsightBox({ text, colors }: { text: string; colors: any }) {
   );
 }
 
+function LiquidityWarning({ gate }: { gate: LiquidityGate }) {
+  if (gate.paso) return null;
+  return (
+    <View style={[s.warningBadge, { backgroundColor: "rgba(239,68,68,0.1)", borderColor: "rgba(239,68,68,0.25)" }]}>
+      <Ionicons name="alert-circle-outline" size={13} color="#ef4444" />
+      <Text style={{ fontSize: 11, color: "#ef4444", flex: 1 }}>{gate.detalle}</Text>
+    </View>
+  );
+}
+
 function WarningBadge({ text }: { text: string }) {
+  const { t } = useTranslation();
   return (
     <View style={s.warningBadge}>
       <Ionicons name="warning-outline" size={13} color="#f59e0b" />
-      <Text style={{ fontSize: 11, color: "#f59e0b", flex: 1 }}>Posible trampa de valor: {text}</Text>
+      <Text style={{ fontSize: 11, color: "#f59e0b", flex: 1 }}>{t("subvaluadas.weakDimensionWarning", { text })}</Text>
+    </View>
+  );
+}
+
+function StarRow({ stars, colors }: { stars: number | null; colors: any }) {
+  if (stars === null) {
+    return <Text style={{ fontSize: 10, fontWeight: "800", color: colors.textMuted }}>?</Text>;
+  }
+  return (
+    <View style={{ flexDirection: "row", gap: 1 }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Ionicons key={i} name={i <= stars ? "star" : "star-outline"} size={11} color={i <= stars ? "#f59e0b" : colors.border} />
+      ))}
     </View>
   );
 }
 
 function ChecklistDisplay({ checklist, colors }: { checklist: Checklist; colors: any }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
-  const passedCount = checklist.items.filter((it) => it.passed === true).length;
-  const total = checklist.items.length;
-  const scoreColor = passedCount >= 6 ? "#22c55e" : passedCount >= 4 ? "#f59e0b" : "#ef4444";
+  const avgStars = checklist.avg_stars;
+  const scoreColor = avgStars === null ? colors.textMuted : avgStars >= 4 ? "#22c55e" : avgStars >= 2.5 ? "#f59e0b" : "#ef4444";
 
   return (
     <View style={[s.checklistBox, { borderColor: colors.border, backgroundColor: colors.bgRaised }]}>
       <TouchableOpacity onPress={() => setExpanded((e) => !e)} style={s.checklistHeader}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Text style={{ fontSize: 14, fontWeight: "900", color: scoreColor }}>{passedCount}/{total}</Text>
-          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textSub }}>Checklist de inversión</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Ionicons name="star" size={13} color={scoreColor} />
+          <Text style={{ fontSize: 14, fontWeight: "900", color: scoreColor }}>{avgStars !== null ? `${avgStars}/5` : "N/D"}</Text>
+          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textSub }}>{t("subvaluadas.checklist.label")}</Text>
         </View>
-        <Text style={{ fontSize: 10, color: colors.textMuted }}>{expanded ? "Ocultar" : "Ver detalle"}</Text>
+        <Text style={{ fontSize: 10, color: colors.textMuted }}>{expanded ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}</Text>
       </TouchableOpacity>
       {expanded && (
-        <View style={{ paddingHorizontal: 12, paddingBottom: 10, gap: 6 }}>
+        <View style={{ paddingHorizontal: 12, paddingBottom: 10, gap: 8 }}>
           {checklist.items.map((item, i) => (
-            <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 6 }}>
-              <Ionicons
-                name={item.passed === true ? "checkmark-circle" : item.passed === false ? "close-circle" : "help-circle-outline"}
-                size={14}
-                color={item.passed === true ? "#22c55e" : item.passed === false ? "#ef4444" : colors.textMuted}
-                style={{ marginTop: 1 }}
-              />
+            <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+              <View style={{ marginTop: 2 }}>
+                <StarRow stars={item.stars} colors={colors} />
+              </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>{item.name}</Text>
+                <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>
+                  {item.key ? t(`subvaluadas.checklist.items.${item.key}`, { defaultValue: item.name }) : item.name}
+                </Text>
                 <Text style={{ fontSize: 10, color: colors.textDim }}>{item.reason}</Text>
               </View>
             </View>
@@ -138,24 +181,28 @@ function ActionButtons({ ticker, companyName, watchlisted, onFollow, onAnalyze, 
   ticker: string; companyName: string | null; watchlisted: boolean;
   onFollow: () => void; onAnalyze: () => void; colors: any;
 }) {
+  const { t } = useTranslation();
   return (
     <View style={{ flexDirection: "row", gap: 8 }}>
       <TouchableOpacity onPress={onFollow} disabled={watchlisted}
                         style={[s.actionBtn, { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgRaised }]}>
         <Ionicons name={watchlisted ? "checkmark" : "star-outline"} size={13} color={watchlisted ? "#22c55e" : colors.textSub} />
         <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textSub }}>
-          {watchlisted ? "En watchlist" : "Seguir"}
+          {watchlisted ? t("subvaluadas.follow.following") : t("subvaluadas.follow.button")}
         </Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={onAnalyze} style={[s.actionBtn, { backgroundColor: colors.accent }]}>
         <Ionicons name="chatbubble-ellipses-outline" size={13} color="#000" />
-        <Text style={{ fontSize: 11, fontWeight: "900", color: "#000" }}>Analizar con Mentor IA</Text>
+        <Text style={{ fontSize: 11, fontWeight: "900", color: "#000" }}>
+          {t("subvaluadas.analyze.button")}
+        </Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 export default function SubvaluadasScreen() {
+  const { t, i18n } = useTranslation();
   const { colors } = useTheme();
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
@@ -183,19 +230,19 @@ export default function SubvaluadasScreen() {
   };
 
   const handleAnalyze = (ticker: string) => {
-    router.push(`/chat?msg=${encodeURIComponent(`Analiza ${ticker}`)}&autosend=1` as any);
+    router.push(`/chat?msg=${encodeURIComponent(t("subvaluadas.analyze.prompt", { ticker }))}&autosend=1` as any);
   };
 
   useEffect(() => {
     if (!isPremium) { setLoading(false); return; }
-    screenerWeeklyApi.getUndervalued(undefined, 60)
+    screenerWeeklyApi.getUndervalued(undefined, 60, i18n.language)
       .then((res: any) => {
         setResults(res.data?.results || []);
         setGeneratedAt(res.data?.generated_at || 0);
       })
       .catch(() => setResults([]))
       .finally(() => setLoading(false));
-  }, [isPremium]);
+  }, [isPremium, i18n.language]);
 
   const handleSearch = async () => {
     if (!query.trim() || !isPremium) return;
@@ -203,10 +250,10 @@ export default function SubvaluadasScreen() {
     setSearchError(null);
     setQuickResult(null);
     try {
-      const res = await screenerWeeklyApi.quickAnalysis(query.trim());
+      const res = await screenerWeeklyApi.quickAnalysis(query.trim(), i18n.language);
       setQuickResult(res.data);
     } catch (err: any) {
-      setSearchError(err?.response?.data?.detail || "No se pudo calcular el valor intrínseco para esa búsqueda.");
+      setSearchError(err?.response?.data?.detail || t("subvaluadas.search.error"));
     } finally {
       setSearching(false);
     }
@@ -225,7 +272,7 @@ export default function SubvaluadasScreen() {
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: colors.text }]}>Acciones Subvaluadas (DCF)</Text>
+        <Text style={[s.headerTitle, { color: colors.text }]}>{t("subvaluadas.title")}</Text>
         <View style={{ width: 30 }} />
       </View>
 
@@ -235,22 +282,22 @@ export default function SubvaluadasScreen() {
             <View style={[s.paywallIcon, { backgroundColor: "rgba(0,168,94,0.1)" }]}>
               <Ionicons name="lock-closed" size={26} color={colors.accentLight} />
             </View>
-            <Text style={[s.paywallTitle, { color: colors.text }]}>Exclusivo Premium</Text>
+            <Text style={[s.paywallTitle, { color: colors.text }]}>{t("subvaluadas.premiumGate.title")}</Text>
             <Text style={[s.paywallDesc, { color: colors.textMuted }]}>
-              El screener de acciones subvaluadas usa el motor real de DCF — disponible solo para usuarios Premium.
+              {t("subvaluadas.premiumGate.desc")}
             </Text>
             <TouchableOpacity onPress={() => setPaywallOpen(true)} style={s.paywallBtn}>
-              <Text style={s.paywallBtnText}>Desbloquear Premium</Text>
+              <Text style={s.paywallBtnText}>{t("subvaluadas.premiumGate.cta")}</Text>
             </TouchableOpacity>
           </View>
         ) : (
         <>
         <View style={[s.warningBox, { borderColor: "#ef4444", backgroundColor: "rgba(239,68,68,0.08)" }]}>
-          <Text style={s.warningTitle}>ESTO NO ES RECOMENDACIÓN DE INVERSIÓN</Text>
-          <Text style={[s.warningSubtitle, { color: colors.textSub }]}>Para un análisis más detallado, ve a Mentor IA.</Text>
+          <Text style={s.warningTitle}>{t("subvaluadas.disclaimer.title")}</Text>
+          <Text style={[s.warningSubtitle, { color: colors.textSub }]}>{t("subvaluadas.disclaimer.subtitle")}</Text>
         </View>
 
-        <Text style={[s.sectionLabel, { color: colors.text }]}>Buscar cualquier acción</Text>
+        <Text style={[s.sectionLabel, { color: colors.text }]}>{t("subvaluadas.search.label")}</Text>
         <View style={s.searchRow}>
           <View style={[s.searchInputWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
             <Ionicons name="search" size={16} color={colors.textMuted} />
@@ -258,14 +305,14 @@ export default function SubvaluadasScreen() {
               value={query}
               onChangeText={setQuery}
               onSubmitEditing={handleSearch}
-              placeholder="Ticker o nombre (ej. AAPL, Nike)"
+              placeholder={t("subvaluadas.search.placeholder")}
               placeholderTextColor={colors.placeholder}
               style={[s.searchInput, { color: colors.text }]}
             />
           </View>
           <TouchableOpacity onPress={handleSearch} disabled={searching || !query.trim()}
                             style={[s.searchBtn, { backgroundColor: colors.accent, opacity: (searching || !query.trim()) ? 0.5 : 1 }]}>
-            {searching ? <ActivityIndicator color="#000" size="small" /> : <Text style={s.searchBtnText}>Buscar</Text>}
+            {searching ? <ActivityIndicator color="#000" size="small" /> : <Text style={s.searchBtnText}>{t("subvaluadas.search.button")}</Text>}
           </TouchableOpacity>
         </View>
 
@@ -284,10 +331,14 @@ export default function SubvaluadasScreen() {
               <MosBadge pct={quickResult.margin_of_safety_pct} />
             </View>
 
+            <GeneratedAtNote generatedAt={quickResult.generated_at} colors={colors} />
+
+            {quickResult.liquidity_gate && <LiquidityWarning gate={quickResult.liquidity_gate} />}
+
             <View style={s.statsRow}>
-              <StatChip label="Precio" value={`$${quickResult.price}`} colors={colors} />
-              <StatChip label="Valor intrínseco" value={`$${quickResult.intrinsic_value_base}`} colors={colors} />
-              <StatChip label="Valor esperado" value={`$${quickResult.expected_value_per_share}`} colors={colors} />
+              <StatChip label={t("subvaluadas.stats.price")} value={`$${quickResult.price}`} colors={colors} />
+              <StatChip label={t("subvaluadas.stats.intrinsicValue")} value={`$${quickResult.intrinsic_value_base}`} colors={colors} />
+              <StatChip label={t("subvaluadas.stats.expectedValue")} value={`$${quickResult.expected_value_per_share}`} colors={colors} />
             </View>
 
             {quickResult.checklist && <ChecklistDisplay checklist={quickResult.checklist} colors={colors} />}
@@ -303,12 +354,17 @@ export default function SubvaluadasScreen() {
         )}
 
         <Text style={[s.subtitle, { color: colors.textMuted, marginTop: 16 }]}>
-          Todas las candidatas con margen de seguridad positivo real, mismo motor de DCF que Mentor IA.
+          {t("subvaluadas.footer.description")}
           {generatedAt > 0 && (() => {
-            const { text, stale } = relativeDate(generatedAt);
+            const days = Math.floor((Date.now() / 1000 - generatedAt) / 86400);
+            const stale = days > 10;
+            const date = new Date(generatedAt * 1000).toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", { day: "numeric", month: "long" });
+            const updatedText = days <= 0
+              ? t("subvaluadas.footer.updatedToday", { date })
+              : t("subvaluadas.footer.updatedDaysAgo", { count: days, date });
             return (
               <Text style={stale ? { color: "#f59e0b", fontWeight: "700" } : undefined}>
-                {" "}Actualizado {text} ({new Date(generatedAt * 1000).toLocaleDateString("es-MX", { day: "numeric", month: "long" })}){stale ? " — puede estar desactualizado" : "."}
+                {" "}{updatedText}{stale ? t("subvaluadas.footer.stale") : ""}
               </Text>
             );
           })()}
@@ -321,7 +377,7 @@ export default function SubvaluadasScreen() {
         ) : results.length === 0 ? (
           <View style={[s.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: "center" }}>
-              Todavía no hay datos del screener semanal — vuelve más tarde.
+              {t("subvaluadas.emptyState")}
             </Text>
           </View>
         ) : (
@@ -335,7 +391,9 @@ export default function SubvaluadasScreen() {
                                          borderColor: sectorFilter === sec ? colors.accent : colors.border,
                                          backgroundColor: sectorFilter === sec ? colors.accent + "20" : colors.card,
                                        }]}>
-                      <Text style={{ fontSize: 11, color: sectorFilter === sec ? colors.accentLight : colors.textSub, fontWeight: "700" }}>{sec}</Text>
+                      <Text style={{ fontSize: 11, color: sectorFilter === sec ? colors.accentLight : colors.textSub, fontWeight: "700" }}>
+                        {sec === "Todos" ? t("subvaluadas.sectorAll") : sec}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -355,10 +413,12 @@ export default function SubvaluadasScreen() {
                     <MosBadge pct={u.margin_of_safety_pct} />
                   </View>
 
+                  {u.liquidity_gate && <LiquidityWarning gate={u.liquidity_gate} />}
+
                   <View style={s.statsRow}>
-                    <StatChip label="Precio" value={`$${u.price}`} colors={colors} />
-                    <StatChip label="Valor intrínseco" value={`$${u.intrinsic_value_base}`} colors={colors} />
-                    <StatChip label="Business Quality" value={`${u.thesis_scores?.business_quality ?? "N/D"}/100`} colors={colors} />
+                    <StatChip label={t("subvaluadas.stats.price")} value={`$${u.price}`} colors={colors} />
+                    <StatChip label={t("subvaluadas.stats.intrinsicValue")} value={`$${u.intrinsic_value_base}`} colors={colors} />
+                    <StatChip label={t("subvaluadas.stats.businessQuality")} value={`${u.thesis_scores?.business_quality ?? "N/D"}/100`} colors={colors} />
                   </View>
 
                   {u.weak_dimension_warning && <WarningBadge text={u.weak_dimension_warning} />}
@@ -379,7 +439,7 @@ export default function SubvaluadasScreen() {
         </>
         )}
       </ScrollView>
-      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason="Screener de acciones subvaluadas" />
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={t("subvaluadas.premiumGate.paywallReason")} />
     </SafeAreaView>
   );
 }

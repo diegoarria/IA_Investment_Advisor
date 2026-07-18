@@ -601,6 +601,64 @@
       "description": "Escribe el ticker o nombre de la empresa — ej. AAPL o Tesla. Nuvos te avisará cuando haya movimientos importantes."
     }
   },
+  "subvaluadas": {
+    "title": "Acciones Subvaluadas (DCF)",
+    "disclaimer": {
+      "title": "ESTO NO ES RECOMENDACIÓN DE INVERSIÓN",
+      "subtitle": "Para un análisis más detallado, ve a Mentor IA."
+    },
+    "search": {
+      "label": "Buscar cualquier acción",
+      "placeholder": "Ticker o nombre (ej. AAPL, Nike)",
+      "button": "Buscar",
+      "error": "No se pudo calcular el valor intrínseco para esa búsqueda."
+    },
+    "stats": {
+      "price": "Precio",
+      "intrinsicValue": "Valor intrínseco",
+      "expectedValue": "Valor esperado",
+      "impliedGrowth": "Crecim. implícito",
+      "businessQuality": "Business Quality"
+    },
+    "checklist": {
+      "label": "Checklist de inversión",
+      "hide": "Ocultar",
+      "viewDetail": "Ver detalle",
+      "items": {
+        "business_understanding": "Entender el negocio",
+        "moat": "Ventaja competitiva (Moat)",
+        "business_quality": "Calidad del negocio",
+        "management_capital_allocation": "Management y asignación de capital",
+        "financial_strength": "Fortaleza financiera",
+        "growth_predictability": "Crecimiento futuro predecible",
+        "valuation": "Valor intrínseco y margen de seguridad"
+      }
+    },
+    "weakDimensionWarning": "Posible trampa de valor: {{text}}",
+    "follow": {
+      "button": "Seguir",
+      "following": "En tu watchlist"
+    },
+    "analyze": {
+      "button": "Analizar con Mentor IA",
+      "prompt": "Analiza {{ticker}}"
+    },
+    "footer": {
+      "description": "Todas las candidatas con margen de seguridad positivo real, mismo motor de DCF que Mentor IA.",
+      "updatedToday": "Actualizado hoy ({{date}}).",
+      "updatedDaysAgo_one": "Actualizado hace {{count}} día ({{date}}).",
+      "updatedDaysAgo_other": "Actualizado hace {{count}} días ({{date}}).",
+      "stale": " — puede estar desactualizado"
+    },
+    "premiumGate": {
+      "title": "Exclusivo Premium",
+      "desc": "El screener de acciones subvaluadas usa el motor real de DCF — disponible solo para usuarios Premium.",
+      "cta": "Desbloquear Premium",
+      "paywallReason": "Screener de acciones subvaluadas"
+    },
+    "emptyState": "Todavía no hay datos del screener semanal — vuelve más tarde.",
+    "sectorAll": "Todos"
+  },
   "patrimonio": {
     "common": {
       "totalValue": "Valor Total"

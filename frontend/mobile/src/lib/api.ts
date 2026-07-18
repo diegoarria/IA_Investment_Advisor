@@ -341,10 +341,10 @@ export const earningsApi = {
 export const screenerWeeklyApi = {
   getWeekly: (existingTickers: string[] = []) =>
     api.get("/api/market/screener/weekly", { params: { tickers: existingTickers.join(",") } }),
-  getUndervalued: (sector?: string, limit = 10) =>
-    api.get("/api/market/screener/undervalued", { params: { sector, limit } }),
-  quickAnalysis: (query: string) =>
-    api.get("/api/market/screener/quick-analysis", { params: { query } }),
+  getUndervalued: (sector?: string, limit = 10, lang?: string) =>
+    api.get("/api/market/screener/undervalued", { params: { sector, limit, lang } }),
+  quickAnalysis: (query: string, lang?: string) =>
+    api.get("/api/market/screener/quick-analysis", { params: { query, lang } }),
 };
 
 export const feedApi = {
