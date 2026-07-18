@@ -5,6 +5,7 @@ import logging
 import re
 import traceback
 from datetime import datetime, timezone
+from typing import Optional
 from app.core.config import settings
 from app.core.finnhub import fh_quote, fh_candles
 from app.services.llm_usage import log_llm_usage
@@ -2758,13 +2759,40 @@ Sé honesto, educativo y empático. No des consejos sobre acciones específicas.
         }
 
 
-async def generate_quick_valuation_summary(data: dict) -> str:
+def _parse_json_response(text: str) -> Optional[dict]:
+    """Shared helper: strips markdown code fences if the model wrapped the
+    JSON in them, then parses. Returns None (never raises) on failure so
+    callers can fall back gracefully."""
+    import json as _json
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("```")[1]
+        if text.startswith("json"):
+            text = text[4:]
+    try:
+        return _json.loads(text)
+    except Exception:
+        return None
+
+
+async def generate_quick_valuation_summary(data: dict) -> dict:
     """Quick-search valuation summary — a SHORT (80-130 word) narrative around
     the real numbers already computed by fundamental_analysis_service, for
     the ad-hoc ticker search on the Acciones Subvaluadas screen. Deliberately
     NOT the full 20-section Mentor IA report or Deep Research — just enough
     narrative to make the real numbers make sense at a glance. Haiku-tier:
-    this is a short, cheap call, not a full analysis."""
+    this is a short, cheap call, not a full analysis.
+
+    Also returns item 1 ("Entender el negocio") of the 7-point investment
+    checklist — the one item that's inherently qualitative (is the business
+    model simple enough for an ordinary investor to understand), so it's
+    Claude's judgment rather than a computed number. Items 2-7 are computed
+    separately and for real in fundamental_analysis_service._build_checklist_
+    items — the caller merges both into the final 7-item checklist.
+
+    Returns {"summary": str, "business_understanding_passed": bool|None,
+    "business_understanding_reason": str}. Falls back to passed=None (never
+    fakes a checklist result) if the model's JSON doesn't parse."""
     from app.services.fundamental_analysis_service import format_fundamental_analysis_for_prompt
 
     data_block = format_fundamental_analysis_for_prompt(data)
@@ -2773,19 +2801,57 @@ async def generate_quick_valuation_summary(data: dict) -> str:
 
 {data_block}
 
-Escribe un resumen breve (80-130 palabras, español) para una tarjeta compacta de búsqueda rápida — NO un análisis completo:
-1. 1 línea sobre qué hace la empresa (tu conocimiento general, dicho como tal si es relevante).
-2. El valor intrínseco (escenario base) y el margen de seguridad reales — usa EXACTAMENTE las cifras del bloque de arriba, nunca las inventes ni las redondees distinto.
-3. Una frase sobre qué crecimiento está pagando el mercado hoy (DCF inverso), si está disponible.
-4. Nunca digas "Comprar/No comprar/Mantener". Cierra recordando que esto no es un semáforo de compra y que un análisis completo está disponible pidiéndole a Mentor IA "analiza {data.get('ticker')}".
-
-Formato: texto plano en párrafos cortos, sin encabezados markdown (nada de #), sin bullets — como mucho usa **negrita** para 2-3 cifras clave. Esto se muestra en una tarjeta pequeña, no en una página larga."""
+Responde ÚNICAMENTE con un JSON válido (sin markdown fuera del JSON, sin texto antes o después) con esta estructura exacta:
+{{
+  "summary": "<resumen breve, 80-130 palabras, español, para una tarjeta compacta de búsqueda rápida — NO un análisis completo. Debe incluir: 1 línea sobre qué hace la empresa (tu conocimiento general, dicho como tal); el valor intrínseco (escenario base) y el margen de seguridad reales, usando EXACTAMENTE las cifras del bloque de arriba, nunca inventadas ni redondeadas distinto; una frase sobre qué crecimiento está pagando el mercado hoy (DCF inverso) si está disponible; nunca digas Comprar/No comprar/Mantener; cierra recordando que esto no es un semáforo de compra y que hay un análisis completo pidiéndole a Mentor IA 'analiza {data.get('ticker')}'. Texto plano en párrafos cortos, sin encabezados markdown (nada de #), sin bullets — como mucho **negrita** para 2-3 cifras clave.>",
+  "business_understanding_passed": true o false — ¿es el modelo de negocio de esta empresa fácil de entender para un inversionista común (círculo de competencia de Buffett)? Esto es tu juicio cualitativo, no un dato calculado,
+  "business_understanding_reason": "<1 frase corta explicando por qué sí o no es fácil de entender>"
+}}"""
 
     response = await _claude(
         model="claude-haiku-4-5-20251001",
-        max_tokens=350,
+        max_tokens=500,
         messages=[{"role": "user", "content": prompt}],
     )
-    return response.content[0].text.strip()
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and "summary" in parsed:
+        return parsed
+    return {"summary": text, "business_understanding_passed": None, "business_understanding_reason": ""}
+
+
+async def generate_candidate_blurb(entry: dict) -> dict:
+    """One-liner (~15-25 words) for a single undervalued-screener candidate —
+    called once per real candidate during the weekly refresh (see
+    undervalued_screener_service.refresh_undervalued_screener), never live
+    per-request. Deliberately lean prompt (no full data block) since this
+    runs ~60-90 times per refresh — keeps the weekly cost small.
+
+    Also returns checklist item 1 ("Entender el negocio") — see
+    generate_quick_valuation_summary's docstring for why this one item is
+    Claude's judgment rather than a computed number.
+
+    Returns {"blurb": str, "business_understanding_passed": bool|None,
+    "business_understanding_reason": str}."""
+    ts = entry.get("thesis_scores") or {}
+    prompt = f"""{entry.get('company_name') or entry['ticker']} ({entry['ticker']}, sector {entry.get('sector') or 'N/D'}): precio real ${entry.get('price')}, valor intrínseco real ${entry.get('intrinsic_value_base')}, margen de seguridad real +{entry.get('margin_of_safety_pct')}%. Business Quality {ts.get('business_quality', 'N/D')}/100, Financial Strength {ts.get('financial_strength', 'N/D')}/100.
+
+Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta estructura exacta:
+{{
+  "blurb": "<UNA sola frase (15-25 palabras, español) explicando por qué esta empresa podría estar subvaluada ahora mismo — tu conocimiento general de la industria/empresa para el motivo cualitativo (ciclo de la industria, sentimiento temporal, resultado reciente), pero nunca inventes cifras nuevas. Sin 'Comprar/No comprar'. Sin comillas ni prefijos.>",
+  "business_understanding_passed": true o false — ¿es el modelo de negocio fácil de entender para un inversionista común (círculo de competencia de Buffett)? Tu juicio cualitativo, no un dato calculado,
+  "business_understanding_reason": "<1 frase corta explicando por qué sí o no>"
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=200,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and "blurb" in parsed:
+        return parsed
+    return {"blurb": text, "business_understanding_passed": None, "business_understanding_reason": ""}
 
 

@@ -40,6 +40,29 @@ _BOOTSTRAP_LIMIT = 20          # small subset so a cold-cache request stays reas
 _MAX_PER_SECTOR = 5            # never more than 5 candidates from the same sector in the results shown
 
 
+_WEAK_DIMENSION_THRESHOLD = 40  # below this on any of these dimensions, flag it — a real value-trap signal, not just "cheap"
+_WEAK_DIMENSIONS = [
+    ("financial_strength", "Financial Strength"),
+    ("predictability", "Predictability"),
+]
+
+
+def _weak_dimension_warning(thesis_scores: Optional[dict]) -> Optional[str]:
+    """Real signal (from the same Investment Thesis Scorecard already
+    computed, not a new estimate) that a high margin of safety might be a
+    value trap rather than a genuine bargain — flags the weakest dimension
+    below the threshold so the UI can show a concrete reason, not just a
+    generic warning icon."""
+    if not thesis_scores:
+        return None
+    worst_label, worst_score = None, 100
+    for key, label in _WEAK_DIMENSIONS:
+        score = thesis_scores.get(key)
+        if score is not None and score < _WEAK_DIMENSION_THRESHOLD and score < worst_score:
+            worst_label, worst_score = label, score
+    return f"{worst_label} bajo ({worst_score}/100)" if worst_label else None
+
+
 def _scan(tickers: list[dict]) -> list[dict]:
     """Runs the real DCF engine over the given ticker entries, keeps only
     positive-margin-of-safety results, sorted descending. Per-ticker
@@ -55,6 +78,7 @@ def _scan(tickers: list[dict]) -> list[dict]:
             dcf = data.get("dcf") if data else None
             mos = dcf.get("margin_of_safety_pct") if dcf else None
             if dcf and mos is not None and mos > 0:
+                thesis_scores = data.get("thesis_scores")
                 results.append({
                     "ticker": entry["ticker"],
                     "company_name": data.get("company_name"),
@@ -62,7 +86,10 @@ def _scan(tickers: list[dict]) -> list[dict]:
                     "price": data.get("current_price"),
                     "intrinsic_value_base": dcf["scenarios"]["base"]["intrinsic_value_per_share"],
                     "margin_of_safety_pct": mos,
-                    "thesis_scores": data.get("thesis_scores"),
+                    "thesis_scores": thesis_scores,
+                    "weak_dimension_warning": _weak_dimension_warning(thesis_scores),
+                    "blurb": None,  # filled in during the full weekly refresh only (see refresh_undervalued_screener)
+                    "checklist_items_real": data.get("checklist_items_real") or [],
                 })
         except Exception as exc:
             logger.warning("undervalued_screener_service: %s failed: %s", entry["ticker"], exc)
@@ -70,14 +97,45 @@ def _scan(tickers: list[dict]) -> list[dict]:
     return results
 
 
+def _finalize_checklist(entry: dict, business_understanding: Optional[dict] = None) -> None:
+    """Merges checklist item 1 ("Entender el negocio" — Claude's judgment,
+    or None if not evaluated) with items 2-7 (real, computed — see
+    fundamental_analysis_service._build_checklist_items) into the final
+    7-item checklist + "X/7" score, mutating `entry` in place."""
+    items = list(entry.pop("checklist_items_real", []))
+    items.insert(0, business_understanding or {
+        "name": "Entender el negocio",
+        "passed": None,
+        "reason": "No evaluado en esta carga rápida.",
+    })
+    passed = sum(1 for it in items if it.get("passed") is True)
+    entry["checklist"] = {"items": items, "score": f"{passed}/{len(items)}"}
+
+
 async def refresh_undervalued_screener() -> None:
-    """Full weekly refresh — the entire curated universe, cached with the
-    normal week-long TTL. Stores every real positive-margin-of-safety
-    result (not capped here) — the per-sector cap (_MAX_PER_SECTOR) is
-    applied at read time in get_undervalued(), so it always has the full
-    real pool to choose the best 5 per sector from."""
+    """Full weekly refresh — the entire curated universe. Applies the
+    per-sector cap (_MAX_PER_SECTOR) here (not just at read time) so the
+    one-liner blurb generation below only runs for candidates that will
+    actually be shown, not every positive-margin-of-safety ticker in the
+    universe — keeps the weekly Claude cost bounded (≤5 per sector)."""
     from app.api.routes.screener import UNIVERSE
     results = _scan(UNIVERSE)
+    results = _cap_per_sector(results, _MAX_PER_SECTOR)
+
+    from app.services.ai_service import generate_candidate_blurb
+    for entry in results:
+        try:
+            blurb_result = await generate_candidate_blurb(entry)
+            entry["blurb"] = blurb_result.get("blurb")
+            _finalize_checklist(entry, {
+                "name": "Entender el negocio",
+                "passed": blurb_result.get("business_understanding_passed"),
+                "reason": blurb_result.get("business_understanding_reason", ""),
+            })
+        except Exception as exc:
+            logger.warning("undervalued_screener_service: blurb failed for %s: %s", entry["ticker"], exc)
+            _finalize_checklist(entry)
+
     cache_set(CACHE_KEY, results, CACHE_TTL)
     logger.info("undervalued_screener_service: refreshed, %d/%d tickers had positive margin of safety", len(results), len(UNIVERSE))
 
@@ -103,6 +161,9 @@ def bootstrap_fill_if_empty_sync() -> None:
     overwrites it with the complete, accurate scan."""
     from app.api.routes.screener import UNIVERSE
     results = _scan(UNIVERSE[:_BOOTSTRAP_LIMIT])
+    results = _cap_per_sector(results, _MAX_PER_SECTOR)
+    for entry in results:
+        _finalize_checklist(entry)
     if results:
         cache_set(CACHE_KEY, results, BOOTSTRAP_TTL)
         logger.info("undervalued_screener_service: bootstrap-filled %d results from a %d-ticker subset", len(results), _BOOTSTRAP_LIMIT)

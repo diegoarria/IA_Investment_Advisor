@@ -210,6 +210,71 @@ def _confidence_score(
     return round(fcf_stability_score * 0.4 + roic_stability_score * 0.4 + data_completeness_score * 0.2)
 
 
+def _build_checklist_items(dcf: dict, thesis_scores: dict) -> list[dict]:
+    """6 of the 7 items of the investment checklist (in order of importance,
+    skipping item 1 "Entender el negocio" — that one is inherently
+    qualitative/subjective and added separately by the caller via Claude's
+    judgment, disclosed as such). Every item here is a real pass/fail
+    computed from numbers already produced by this module — never an AI
+    guess. Thresholds reuse ones already established elsewhere in this file
+    (e.g. the 15% ROIC moat-adjustment tier) for consistency."""
+    items = []
+
+    gb = dcf.get("growth_buildup") or {}
+    avg_roic = gb.get("avg_roic_pct")
+    moat_pass = avg_roic is not None and avg_roic >= 15
+    items.append({
+        "name": "Ventaja competitiva (Moat)",
+        "passed": moat_pass,
+        "reason": (
+            f"ROIC promedio real de {avg_roic}% — {'evidencia real de ventaja competitiva duradera' if moat_pass else 'no muestra evidencia clara de un moat sostenido'}."
+            if avg_roic is not None else "No hay suficiente historial de ROIC real para evaluar esto."
+        ),
+    })
+
+    bq = thesis_scores.get("business_quality")
+    items.append({
+        "name": "Calidad del negocio",
+        "passed": bq is not None and bq >= 60,
+        "reason": f"Business Quality Score real: {bq}/100." if bq is not None else "No disponible.",
+    })
+
+    mgmt = thesis_scores.get("management_capital_allocation")
+    items.append({
+        "name": "Management y asignación de capital",
+        "passed": mgmt is not None and mgmt >= 60,
+        "reason": f"Management & Capital Allocation Score real: {mgmt}/100." if mgmt is not None else "No disponible.",
+    })
+
+    fs = thesis_scores.get("financial_strength")
+    items.append({
+        "name": "Fortaleza financiera",
+        "passed": fs is not None and fs >= 60,
+        "reason": f"Financial Strength Score real: {fs}/100." if fs is not None else "No disponible.",
+    })
+
+    go = thesis_scores.get("growth_outlook")
+    pred = thesis_scores.get("predictability")
+    growth_pass = go is not None and pred is not None and go >= 50 and pred >= 50
+    items.append({
+        "name": "Crecimiento futuro predecible",
+        "passed": growth_pass,
+        "reason": (
+            f"Growth Outlook real {go}/100, Predictability real {pred}/100."
+            if go is not None and pred is not None else "No disponible."
+        ),
+    })
+
+    mos = dcf.get("margin_of_safety_pct")
+    items.append({
+        "name": "Valor intrínseco y margen de seguridad",
+        "passed": mos is not None and mos > 0,
+        "reason": f"Margen de seguridad real: {'+' if mos >= 0 else ''}{mos}%." if mos is not None else "No se pudo calcular el DCF.",
+    })
+
+    return items
+
+
 def _project_path(base_value: float, growth_1: float, terminal_growth: float, years: int = _PROJECTION_YEARS) -> list[float]:
     """Projects `base_value` forward `years` periods, with growth fading
     linearly from `growth_1` (year 1) to `terminal_growth` by the final year —
@@ -990,6 +1055,8 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
             "50": [round(center - half_spread * 0.35, 2), round(center + half_spread * 0.35, 2)],
         }
 
+    checklist_items_real = _build_checklist_items(dcf, thesis_scores) if dcf and thesis_scores else []
+
     return {
         "ticker": ticker,
         "company_name": profile.get("name", ticker),
@@ -1019,6 +1086,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         "fair_value_score_100": fair_value_score,
         "investment_opportunity_score_100": investment_opportunity_score,
         "thesis_scores": thesis_scores,
+        "checklist_items_real": checklist_items_real,
         "pe_ratio": pe_ratio,
         "ev_ebitda": ev_ebitda,
         "peg_ratio": peg_ratio,

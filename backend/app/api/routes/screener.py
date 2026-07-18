@@ -395,8 +395,20 @@ async def quick_analysis(query: str, user_id: str = Depends(get_current_user_id)
     if not data or not data.get("dcf"):
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para calcular el valor intrínseco de {ticker}")
 
-    summary = await ai_service.generate_quick_valuation_summary(data)
+    ai_result = await ai_service.generate_quick_valuation_summary(data)
     dcf = data["dcf"]
+
+    # 7-point investment checklist — item 1 (Entender el negocio) is Claude's
+    # qualitative judgment from ai_result above; items 2-7 are real, computed
+    # by fundamental_analysis_service (see _build_checklist_items).
+    checklist_items = [{
+        "name": "Entender el negocio",
+        "passed": ai_result.get("business_understanding_passed"),
+        "reason": ai_result.get("business_understanding_reason", ""),
+    }] + list(data.get("checklist_items_real") or [])
+    passed_count = sum(1 for it in checklist_items if it.get("passed") is True)
+    checklist = {"items": checklist_items, "score": f"{passed_count}/{len(checklist_items)}"}
+
     return {
         "ticker": data["ticker"],
         "company_name": data.get("company_name"),
@@ -407,7 +419,8 @@ async def quick_analysis(query: str, user_id: str = Depends(get_current_user_id)
         "margin_of_safety_pct": dcf.get("margin_of_safety_pct"),
         "implied_growth_pct": dcf.get("implied_growth_pct"),
         "thesis_scores": data.get("thesis_scores"),
-        "summary": summary,
+        "summary": ai_result.get("summary", ""),
+        "checklist": checklist,
     }
 
 

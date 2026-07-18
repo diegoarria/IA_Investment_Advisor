@@ -689,6 +689,23 @@ export default function ChatPage() {
     }
   };
 
+  // Auto-send the prefilled ?msg= when it arrives with &autosend=1 (used by
+  // the "Analizar con Mentor IA" button on Acciones Subvaluadas) — every
+  // OTHER existing caller of ?msg= (guided tour, notification deep links)
+  // only prefills the input via the effect above, unchanged. Strips both
+  // params right after so a refresh never re-sends it.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const msg = params.get("msg");
+    const autosend = params.get("autosend") === "1";
+    if (msg && autosend) {
+      window.history.replaceState({}, "", window.location.pathname);
+      sendMessage(decodeURIComponent(msg));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };

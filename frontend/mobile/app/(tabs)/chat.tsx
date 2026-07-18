@@ -95,7 +95,7 @@ function getObjectiveGreeting(t: TFunction): Record<string, string> {
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 104;
-  const { tour, ctx, msg: msgParam } = useLocalSearchParams<{ tour?: string; ctx?: string; msg?: string }>();
+  const { tour, ctx, msg: msgParam, autosend } = useLocalSearchParams<{ tour?: string; ctx?: string; msg?: string; autosend?: string }>();
   const isTour = tour === "3"; // MobileHeader row (52) + MarketTicker (52)
   const { colors } = useTheme();
   const { t } = useTranslation();
@@ -613,6 +613,17 @@ Instrucciones críticas:
       setStreaming(false);
     }
   };
+
+  // Auto-send the prefilled ?msg= when it arrives with &autosend=1 (used by
+  // the "Analizar con Mentor IA" button on Acciones Subvaluadas) — every
+  // other existing caller of ?msg= (notification deep links) keeps only
+  // prefilling the input via the effect above, unchanged.
+  useEffect(() => {
+    if (msgParam && autosend === "1") {
+      sendMessage(decodeURIComponent(msgParam));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [msgParam, autosend]);
 
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const isUser = item.role === "user";
