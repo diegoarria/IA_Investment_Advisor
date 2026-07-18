@@ -4558,6 +4558,12 @@ async def main():
     # Without this row the worker can't find them and push never fires.
     asyncio.create_task(_backfill_notification_prefs())
 
+    # Populate the undervalued-stocks screener immediately if the cache is
+    # empty (fresh deploy, flushed Redis) — never wait until the next
+    # scheduled Sunday run to have real data for users to see.
+    from app.services.undervalued_screener_service import refresh_if_empty_on_startup
+    asyncio.create_task(refresh_if_empty_on_startup())
+
     scheduler.start()
     logger.info("Worker started — %d jobs scheduled", len(scheduler.get_jobs()))
     try:

@@ -341,8 +341,15 @@ async def undervalued(sector: str | None = None, limit: int = 10, user_id: str =
     profile = _get_user_profile(user_id)
     if not _is_premium(profile):
         raise HTTPException(status_code=403, detail="El screener de subvaluadas requiere Premium")
-    from app.services.undervalued_screener_service import get_undervalued
-    return get_undervalued(limit=limit, sector=sector)
+    from app.services.undervalued_screener_service import get_undervalued, bootstrap_fill_if_empty_sync
+    result = get_undervalued(limit=limit, sector=sector)
+    if not result["results"]:
+        # Cache is completely empty (worker hasn't run its startup/weekly
+        # refresh yet) — never return a blank screen. Slower this one time
+        # (small subset scan), fast for every request after.
+        await asyncio.to_thread(bootstrap_fill_if_empty_sync)
+        result = get_undervalued(limit=limit, sector=sector)
+    return result
 
 
 @router.get("/weekly")

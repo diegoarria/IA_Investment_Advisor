@@ -390,11 +390,19 @@ def _undervalued_screener_context_block() -> str:
     service — precomputed weekly, cache-only read here, never live
     computation inside a chat request). Empty string if the cache hasn't
     been populated yet (job hasn't run, or nothing currently qualifies)."""
-    from app.services.undervalued_screener_service import get_undervalued
+    from app.services.undervalued_screener_service import get_undervalued, bootstrap_fill_if_empty_sync
     from datetime import datetime, timezone
 
     data = get_undervalued(limit=8)
     results = data.get("results") or []
+    if not results:
+        # Cache is completely empty — never surface "no data" to the user
+        # if we can help it. This runs inside a worker thread (this function
+        # is dispatched via _ENRICH_POOL.submit), so the blocking scan is
+        # safe here; slower this one time, fast for every request after.
+        bootstrap_fill_if_empty_sync()
+        data = get_undervalued(limit=8)
+        results = data.get("results") or []
     if not results:
         return (
             "[SCREENER DE ACCIONES SUBVALUADAS — SIN DATOS] El cache del screener semanal está vacío "
