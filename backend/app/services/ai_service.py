@@ -2858,7 +2858,12 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown fuera del JSON, sin texto
 
     response = await _claude(
         model="claude-haiku-4-5-20251001",
-        max_tokens=1200,
+        # 1 summary (~130 words) + business_understanding_reason (~70) + 6
+        # checklist reasons (~70 each) is ~620 words of Spanish text, which
+        # runs meaningfully above 1 token/word — 1200 was cutting the JSON
+        # off mid-object (seen for real: the raw truncated JSON leaking into
+        # the "summary" field via the fallback below). 2600 leaves headroom.
+        max_tokens=2600,
         messages=[{"role": "user", "content": prompt}],
     )
     text = response.content[0].text.strip()
@@ -2866,7 +2871,14 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown fuera del JSON, sin texto
     if parsed and "summary" in parsed:
         parsed.setdefault("checklist_reasons", {})
         return parsed
-    return {"summary": text, "business_understanding_passed": None, "business_understanding_reason": "", "checklist_reasons": {}}
+    # Truncated/malformed JSON must never leak the raw text into the UI as
+    # a fake "summary" (real failure mode seen in production) — fall back
+    # to a short, honest placeholder instead.
+    _log.warning("generate_quick_valuation_summary: JSON parse failed, response likely truncated (%d chars)", len(text))
+    return {
+        "summary": "No se pudo generar el resumen en este momento. Los datos numéricos reales siguen disponibles arriba.",
+        "business_understanding_passed": None, "business_understanding_reason": "", "checklist_reasons": {},
+    }
 
 
 async def generate_candidate_blurb(entry: dict) -> dict:
@@ -2906,7 +2918,10 @@ Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta est
 
     response = await _claude(
         model="claude-haiku-4-5-20251001",
-        max_tokens=1000,
+        # Same rationale as generate_quick_valuation_summary above — 1
+        # blurb + business_understanding_reason + 6 checklist reasons is
+        # too much content for the old 1000-token budget.
+        max_tokens=2400,
         messages=[{"role": "user", "content": prompt}],
     )
     text = response.content[0].text.strip()
@@ -2914,6 +2929,7 @@ Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta est
     if parsed and "blurb" in parsed:
         parsed.setdefault("checklist_reasons", {})
         return parsed
-    return {"blurb": text, "business_understanding_passed": None, "business_understanding_reason": "", "checklist_reasons": {}}
+    _log.warning("generate_candidate_blurb(%s): JSON parse failed, response likely truncated (%d chars)", entry.get("ticker"), len(text))
+    return {"blurb": "", "business_understanding_passed": None, "business_understanding_reason": "", "checklist_reasons": {}}
 
 
