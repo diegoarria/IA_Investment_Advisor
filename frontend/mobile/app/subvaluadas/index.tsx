@@ -6,6 +6,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { screenerWeeklyApi } from "../../src/lib/api";
+import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
+import PaywallModal from "../../src/components/PaywallModal";
 
 interface UndervaluedResult {
   ticker: string;
@@ -31,6 +33,10 @@ interface QuickAnalysisResult {
 
 export default function SubvaluadasScreen() {
   const { colors } = useTheme();
+  const subStore = useSubscriptionStore();
+  const isPremium = hasPremiumAccess(subStore);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+
   const [results, setResults] = useState<UndervaluedResult[]>([]);
   const [generatedAt, setGeneratedAt] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -42,6 +48,7 @@ export default function SubvaluadasScreen() {
   const [quickResult, setQuickResult] = useState<QuickAnalysisResult | null>(null);
 
   useEffect(() => {
+    if (!isPremium) { setLoading(false); return; }
     screenerWeeklyApi.getUndervalued(undefined, 60)
       .then((res: any) => {
         setResults(res.data?.results || []);
@@ -49,10 +56,10 @@ export default function SubvaluadasScreen() {
       })
       .catch(() => setResults([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [isPremium]);
 
   const handleSearch = async () => {
-    if (!query.trim()) return;
+    if (!query.trim() || !isPremium) return;
     setSearching(true);
     setSearchError(null);
     setQuickResult(null);
@@ -84,6 +91,21 @@ export default function SubvaluadasScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
+        {!isPremium ? (
+          <View style={[styles.paywallCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.paywallIcon, { backgroundColor: "rgba(0,168,94,0.1)" }]}>
+              <Ionicons name="lock-closed" size={26} color={colors.accentLight} />
+            </View>
+            <Text style={[styles.paywallTitle, { color: colors.text }]}>Exclusivo Premium</Text>
+            <Text style={[styles.paywallDesc, { color: colors.textMuted }]}>
+              El screener de acciones subvaluadas usa el motor real de DCF — disponible solo para usuarios Premium.
+            </Text>
+            <TouchableOpacity onPress={() => setPaywallOpen(true)} style={styles.paywallBtn}>
+              <Text style={styles.paywallBtnText}>Desbloquear Premium</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+        <>
         <View style={[styles.warningBox, { borderColor: "#ef4444", backgroundColor: "rgba(239,68,68,0.08)" }]}>
           <Text style={styles.warningTitle}>ESTO NO ES RECOMENDACIÓN DE INVERSIÓN</Text>
           <Text style={[styles.warningSubtitle, { color: colors.textSub }]}>Para un análisis más detallado, ve a Mentor IA.</Text>
@@ -177,7 +199,10 @@ export default function SubvaluadasScreen() {
             </View>
           </>
         )}
+        </>
+        )}
       </ScrollView>
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason="Screener de acciones subvaluadas" />
     </SafeAreaView>
   );
 }
@@ -188,6 +213,12 @@ const styles = StyleSheet.create({
   backBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 15, fontWeight: "800" },
   scroll: { padding: 16, paddingBottom: 40 },
+  paywallCard: { borderWidth: 1, borderRadius: 20, padding: 28, alignItems: "center" },
+  paywallIcon: { width: 56, height: 56, borderRadius: 18, alignItems: "center", justifyContent: "center", marginBottom: 14 },
+  paywallTitle: { fontSize: 16, fontWeight: "900", marginBottom: 8 },
+  paywallDesc: { fontSize: 13, textAlign: "center", lineHeight: 18, marginBottom: 18 },
+  paywallBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, backgroundColor: "#00a85e" },
+  paywallBtnText: { fontSize: 13, fontWeight: "900", color: "#fff" },
   warningBox: { borderWidth: 2, borderRadius: 16, padding: 14, marginBottom: 16, alignItems: "center" },
   warningTitle: { fontSize: 16, fontWeight: "900", color: "#ef4444", textAlign: "center" },
   warningSubtitle: { fontSize: 11, marginTop: 4, textAlign: "center" },
