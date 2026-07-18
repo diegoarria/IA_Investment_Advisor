@@ -16,13 +16,13 @@ import { useSubscriptionStore } from "@/lib/store";
 interface ChecklistItem {
   key?: string;
   name: string;
-  passed: boolean | null;
+  stars: number | null;
   reason: string;
 }
 
 interface Checklist {
   items: ChecklistItem[];
-  score: string;
+  avg_stars: number | null;
 }
 
 interface UndervaluedResult {
@@ -84,33 +84,42 @@ function WarningBadge({ text }: { text: string }) {
   );
 }
 
+function StarRow({ stars }: { stars: number | null }) {
+  if (stars === null) {
+    return <span className="text-[10px] font-bold shrink-0" style={{ color: "var(--muted)" }}>?</span>;
+  }
+  return (
+    <div className="flex gap-0.5 shrink-0">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star key={i} className="w-3 h-3"
+              style={{ color: i <= stars ? "#f59e0b" : "var(--border)" }}
+              fill={i <= stars ? "#f59e0b" : "none"} />
+      ))}
+    </div>
+  );
+}
+
 function ChecklistDisplay({ checklist }: { checklist: Checklist }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
-  const passedCount = checklist.items.filter((it) => it.passed === true).length;
-  const total = checklist.items.length;
-  const scoreColor = passedCount >= 6 ? "#22c55e" : passedCount >= 4 ? "#f59e0b" : "#ef4444";
+  const avgStars = checklist.avg_stars;
+  const scoreColor = avgStars === null ? "var(--muted)" : avgStars >= 4 ? "#22c55e" : avgStars >= 2.5 ? "#f59e0b" : "#ef4444";
 
   return (
     <div className="rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
       <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center justify-between gap-2 px-3 py-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-black" style={{ color: scoreColor }}>{passedCount}/{total}</span>
+        <div className="flex items-center gap-1.5">
+          <Star className="w-3.5 h-3.5" style={{ color: scoreColor }} fill={scoreColor} />
+          <span className="text-sm font-black" style={{ color: scoreColor }}>{avgStars !== null ? `${avgStars}/5` : "N/D"}</span>
           <span className="text-xs font-semibold" style={{ color: "var(--sub)" }}>{t("subvaluadas.checklist.label")}</span>
         </div>
         <span className="text-[10px]" style={{ color: "var(--muted)" }}>{expanded ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}</span>
       </button>
       {expanded && (
-        <div className="px-3 pb-3 space-y-1.5">
+        <div className="px-3 pb-3 space-y-2">
           {checklist.items.map((item, i) => (
             <div key={i} className="flex items-start gap-2">
-              {item.passed === true ? (
-                <Check className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "#22c55e" }} />
-              ) : item.passed === false ? (
-                <X className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "#ef4444" }} />
-              ) : (
-                <span className="w-3.5 h-3.5 mt-0.5 shrink-0 flex items-center justify-center text-[10px] font-bold" style={{ color: "var(--muted)" }}>?</span>
-              )}
+              <div className="mt-0.5"><StarRow stars={item.stars} /></div>
               <div className="min-w-0">
                 <p className="text-xs font-bold" style={{ color: "var(--text)" }}>
                   {item.key ? t(`subvaluadas.checklist.items.${item.key}`, { defaultValue: item.name }) : item.name}
@@ -202,7 +211,7 @@ export default function SubvaluadasPage() {
     setSearchError(null);
     setQuickResult(null);
     try {
-      const res = await screenerApi.quickAnalysis(query.trim());
+      const res = await screenerApi.quickAnalysis(query.trim(), i18n.language);
       setQuickResult(res.data);
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
@@ -215,14 +224,14 @@ export default function SubvaluadasPage() {
   useEffect(() => {
     if (!isPremium) return;
     setLoading(true);
-    screenerApi.getUndervalued(undefined, 60)
+    screenerApi.getUndervalued(undefined, 60, i18n.language)
       .then((res) => {
         setResults(res.data?.results || []);
         setGeneratedAt(res.data?.generated_at || 0);
       })
       .catch(() => setResults([]))
       .finally(() => setLoading(false));
-  }, [isPremium]);
+  }, [isPremium, i18n.language]);
 
   const sectors = useMemo(() => {
     const unique = Array.from(new Set(results.map((r) => r.sector).filter(Boolean))) as string[];

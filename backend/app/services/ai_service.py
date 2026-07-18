@@ -2800,9 +2800,10 @@ _CHECKLIST_INSTRUCTIONS = """Reglas para razonar los 7 ítems del checklist de i
 - Ningún ítem debe depender de una sola métrica — usa TODAS las cifras reales dadas para ese ítem.
 - Evita conclusiones absolutas ("no tiene moat", "management malo") cuando la evidencia es mixta — explica matices, fortalezas Y debilidades cuando coexistan.
 - Nunca concluyas "sin moat" solo porque el ROIC histórico sea bajo — empresas jóvenes o en expansión (ej. escala, efecto red, marca) pueden tener ventaja competitiva aún no reflejada en el ROIC.
-- No penalices automáticamente a empresas jóvenes en "management y asignación de capital" — evalúa la trayectoria y disciplina reciente, no solo el historial largo.
+- No penalices automáticamente a empresas jóvenes en "management y asignación de capital" — evalúa la trayectoria y disciplina reciente, no solo el historial largo. Usa explícitamente el marco de "asignación de capital" de Buffett: cómo ha priorizado la administración entre dividendos crecientes, recompras oportunistas (no a cualquier precio), adquisiciones selectivas y reinversión en la marca/negocio — y si el apalancamiento ha aumentado o se ha mantenido disciplinado.
+- CADA ítem (moat, calidad, management, fortaleza financiera, crecimiento/predictibilidad) es INDEPENDIENTE de si el precio actual es barato o caro — una empresa puede tener moat/calidad/management excelentes y aun así no ofrecer margen de seguridad hoy. NUNCA hagas que la evaluación de negocio suene mediocre solo porque el ítem de valoración es débil; y viceversa, un margen de seguridad positivo no compensa una calidad de negocio real mente débil.
 - En "crecimiento futuro predecible" separa claramente Growth Outlook (tamaño de mercado, expansión) de Predictability (estabilidad de márgenes/FCF/ingresos) — si son distintos, explica por qué.
-- En "valor intrínseco y margen de seguridad" nunca presentes solo un porcentaje — explica qué crecimiento implícito está pagando el mercado y qué significa eso.
+- En "valor intrínseco y margen de seguridad" nunca presentes solo un porcentaje — explica qué crecimiento implícito está pagando el mercado y qué significa eso. Si mencionas sensibilidad a la tasa de descuento (del heatmap o la tabla de sensibilidad reales dados arriba), SIEMPRE enmárcalo explícitamente como un escenario hipotético, nunca como un hecho o predicción — ej. "en un escenario de +100 puntos base en la tasa de descuento, el valor intrínseco disminuiría aproximadamente Y%", usando las cifras reales de esa tabla, no una cifra inventada.
 - Lenguaje profesional, objetivo, basado en evidencia, máximo 70 palabras por ítem, entendible para un inversionista principiante pero riguroso para uno avanzado."""
 
 
@@ -2829,22 +2830,23 @@ async def generate_quick_valuation_summary(data: dict, lang: str = "es") -> dict
     this is a short, cheap call, not a full analysis.
 
     Also returns all 7 items of the investment checklist's EXPLANATION text
-    (item 1 "Entender el negocio" is entirely Claude's qualitative judgment;
-    items 2-7's "passed" boolean is always the real, deterministic threshold
-    from fundamental_analysis_service._build_checklist_items — only the
-    "reason" text is replaced here, reasoned over that function's real
-    multi-factor `evidence` per item, following the Buffett-checklist
-    writing rules). The caller (get_undervalued's route or the merge helper)
-    overlays these reasons onto the real "passed" flags — never the reverse.
+    (item 1 "Entender el negocio" is entirely Claude's qualitative judgment,
+    including its own 1-5 star rating; items 2-7's "stars" (1-5) rating is
+    always the real, deterministic value from fundamental_analysis_service.
+    _build_checklist_items — only the "reason" text is replaced here,
+    reasoned over that function's real multi-factor `evidence` per item,
+    following the Buffett-checklist writing rules). The caller
+    (get_undervalued's route or the merge helper) overlays these reasons
+    onto the real "stars" ratings — never the reverse.
 
     `lang` ("es" or "en") is the app's UI language, not a chat message to
     mirror — this is a screener card, not a chat reply — so it's passed in
     explicitly by the caller (from the user's profile/UI setting) rather
     than inferred from any message text.
 
-    Returns {"summary": str, "business_understanding_passed": bool|None,
+    Returns {"summary": str, "business_understanding_stars": int(1-5)|None,
     "business_understanding_reason": str, "checklist_reasons": dict}. Falls
-    back to passed=None / empty checklist_reasons (never fakes a checklist
+    back to stars=None / empty checklist_reasons (never fakes a checklist
     result) if the model's JSON doesn't parse."""
     from app.services.fundamental_analysis_service import format_fundamental_analysis_for_prompt
 
@@ -2862,8 +2864,8 @@ Evidencia real por dimensión del checklist de inversión (para los ítems 2-7):
 
 Responde ÚNICAMENTE con un JSON válido (sin markdown fuera del JSON, sin texto antes o después) con esta estructura exacta:
 {{
-  "summary": "<resumen breve, 80-130 palabras, español, para una tarjeta compacta de búsqueda rápida — NO un análisis completo. Debe incluir: 1 línea sobre qué hace la empresa (tu conocimiento general, dicho como tal); el valor intrínseco (escenario base) y el margen de seguridad reales, usando EXACTAMENTE las cifras del bloque de arriba, nunca inventadas ni redondeadas distinto; una frase sobre qué crecimiento está pagando el mercado hoy (DCF inverso) si está disponible; nunca digas Comprar/No comprar/Mantener; cierra recordando que esto no es un semáforo de compra y que hay un análisis completo pidiéndole a Mentor IA 'analiza {data.get('ticker')}'. Texto plano en párrafos cortos, sin encabezados markdown (nada de #), sin bullets — como mucho **negrita** para 2-3 cifras clave.>",
-  "business_understanding_passed": true o false — ¿es el modelo de negocio de esta empresa fácil de entender para un inversionista común (círculo de competencia de Buffett)? Esto es tu juicio cualitativo, no un dato calculado,
+  "summary": "<resumen breve, 80-130 palabras, español, para una tarjeta compacta de búsqueda rápida — NO un análisis completo. Escríbelo de forma NARRATIVA, conectando los datos con la tesis de inversión (no una lista de cifras sueltas) — ej. combina qué hace la empresa y por qué eso importa (marcas/posición/demanda), qué está descontando el mercado hoy según el DCF inverso, y qué tendría que pasar (crecimiento, rentabilidad) para que exista apreciación bajo el escenario base. Usa EXACTAMENTE el valor intrínseco (escenario base) y el margen de seguridad reales del bloque de arriba, nunca inventados ni redondeados distinto; nunca digas Comprar/No comprar/Mantener; cierra recordando que esto no es un semáforo de compra y que hay un análisis completo pidiéndole a Mentor IA 'analiza {data.get('ticker')}'. Texto plano en párrafos cortos, sin encabezados markdown (nada de #), sin bullets — como mucho **negrita** para 2-3 cifras clave.>",
+  "business_understanding_stars": <entero 1-5 — ¿qué tan fácil es entender el modelo de negocio para un inversionista común (círculo de competencia de Buffett)? 5 = trivial de explicar, 1 = muy complejo/opaco. Tu juicio cualitativo, no un dato calculado>,
   "business_understanding_reason": "<explicación de máx 70 palabras: cómo gana dinero, qué podría destruir el negocio, si está dentro de un círculo de competencia razonable>",
   "checklist_reasons": {{
     "moat": "<máx 70 palabras: qué tipo(s) de moat tiene (marca, escala, efecto red, switching costs, ventaja de costos, patentes, regulación, distribución, datos), por qué existe, qué tan difícil sería reemplazar a la empresa, qué riesgos lo erosionarían>",
@@ -2901,7 +2903,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown fuera del JSON, sin texto
     )
     return {
         "summary": fallback_summary,
-        "business_understanding_passed": None, "business_understanding_reason": "", "checklist_reasons": {},
+        "business_understanding_stars": None, "business_understanding_reason": "", "checklist_reasons": {},
     }
 
 
@@ -2915,7 +2917,7 @@ async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
     gets a real, multi-factor-grounded ~70-word reason (see
     _CHECKLIST_INSTRUCTIONS).
 
-    Returns {"blurb": str, "business_understanding_passed": bool|None,
+    Returns {"blurb": str, "business_understanding_stars": int(1-5)|None,
     "business_understanding_reason": str, "checklist_reasons": dict}."""
     ts = entry.get("thesis_scores") or {}
     evidence_block = _format_checklist_evidence_for_prompt(entry.get("checklist_items_real") or [], entry.get("sector"), None)
@@ -2929,7 +2931,7 @@ Evidencia real por dimensión del checklist (ítems 2-7):
 Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta estructura exacta:
 {{
   "blurb": "<UNA sola frase (15-25 palabras, español) explicando por qué esta empresa podría estar subvaluada ahora mismo — tu conocimiento general de la industria/empresa para el motivo cualitativo (ciclo de la industria, sentimiento temporal, resultado reciente), pero nunca inventes cifras nuevas. Sin 'Comprar/No comprar'. Sin comillas ni prefijos.>",
-  "business_understanding_passed": true o false — ¿es el modelo de negocio fácil de entender para un inversionista común (círculo de competencia de Buffett)? Tu juicio cualitativo, no un dato calculado,
+  "business_understanding_stars": <entero 1-5 — ¿qué tan fácil es entender el modelo de negocio para un inversionista común (círculo de competencia de Buffett)? 5 = trivial de explicar, 1 = muy complejo/opaco. Tu juicio cualitativo, no un dato calculado>,
   "business_understanding_reason": "<máx 70 palabras: cómo gana dinero, qué podría destruir el negocio, si está dentro de un círculo de competencia razonable>",
   "checklist_reasons": {{
     "moat": "<máx 70 palabras>",
@@ -2955,6 +2957,6 @@ Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta est
         parsed.setdefault("checklist_reasons", {})
         return parsed
     _log.warning("generate_candidate_blurb(%s): JSON parse failed, response likely truncated (%d chars)", entry.get("ticker"), len(text))
-    return {"blurb": "", "business_understanding_passed": None, "business_understanding_reason": "", "checklist_reasons": {}}
+    return {"blurb": "", "business_understanding_stars": None, "business_understanding_reason": "", "checklist_reasons": {}}
 
 

@@ -332,16 +332,27 @@ async def screen(request: dict, user_id: str = Depends(get_current_user_id)):
 
 
 @router.get("/undervalued")
-async def undervalued(sector: str | None = None, limit: int = 60, user_id: str = Depends(get_current_user_id)):
+async def undervalued(sector: str | None = None, limit: int = 60, lang: str | None = None, user_id: str = Depends(get_current_user_id)):
     """Real, DCF-backed undervalued candidates — cache-only read (see
     undervalued_screener_service), refreshed weekly by a background job.
     Distinct from screen()/weekly_picks() above, which layer an LLM
-    narrative over live Finnhub metrics, not the real DCF engine."""
+    narrative over live Finnhub metrics, not the real DCF engine.
+
+    `lang` is passed explicitly by the frontend (its live i18n.language) —
+    preferred over reading profile.preferred_language, since the checklist
+    item NAMES are translated client-side purely off i18n.language, and a
+    stale/unsynced profile field would otherwise generate AI text in a
+    different language than what the item names show (a real bug: profile
+    sync to the backend can lag or fail silently, and there's no way for
+    the user to notice a desync between "what I see" and "what the profile
+    says"). Falls back to the profile field only if the frontend didn't
+    send one (e.g. an older client build)."""
     from app.api.routes.chat import _is_premium
     profile = _get_user_profile(user_id)
     if not _is_premium(profile):
         raise HTTPException(status_code=403, detail="El screener de subvaluadas requiere Premium")
-    lang = getattr(profile, "preferred_language", None) or "es"
+    if lang not in ("es", "en"):
+        lang = getattr(profile, "preferred_language", None) or "es"
     from app.services.undervalued_screener_service import get_undervalued, bootstrap_fill_if_empty_sync
     result = get_undervalued(limit=limit, sector=sector, lang=lang)
     if not result["results"]:
@@ -372,13 +383,16 @@ def _resolve_quick_ticker(query: str) -> str | None:
 
 
 @router.get("/quick-analysis")
-async def quick_analysis(query: str, user_id: str = Depends(get_current_user_id)):
+async def quick_analysis(query: str, lang: str | None = None, user_id: str = Depends(get_current_user_id)):
     """Ad-hoc single-ticker valuation search — the real DCF engine (same one
     behind Mentor IA and the undervalued screener) plus a SHORT narrative
     summary (see ai_service.generate_quick_valuation_summary), for any
     ticker/company name, not just the curated screener universe. Live —
     unlike the screener, this is a single ticker so it's fast enough to
-    compute per-request, no caching needed."""
+    compute per-request, no caching needed.
+
+    `lang` is passed explicitly by the frontend (see /undervalued's
+    docstring for why this is preferred over profile.preferred_language)."""
     from app.api.routes.chat import _is_premium
     profile = _get_user_profile(user_id)
     if not _is_premium(profile):
@@ -396,12 +410,13 @@ async def quick_analysis(query: str, user_id: str = Depends(get_current_user_id)
     if not data or not data.get("dcf"):
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para calcular el valor intrínseco de {ticker}")
 
-    lang = getattr(profile, "preferred_language", None) or "es"
+    if lang not in ("es", "en"):
+        lang = getattr(profile, "preferred_language", None) or "es"
     ai_result = await ai_service.generate_quick_valuation_summary(data, lang=lang)
     dcf = data["dcf"]
 
     # 7-point investment checklist — item 1 (Entender el negocio) is Claude's
-    # qualitative judgment from ai_result above; items 2-7's "passed" flags
+    # qualitative judgment from ai_result above; items 2-7's "stars" ratings
     # are real, computed by fundamental_analysis_service, and their "reason"
     # text is Claude's nuanced explanation grounded in real multi-factor
     # evidence (see undervalued_screener_service._finalize_checklist, reused
@@ -410,7 +425,7 @@ async def quick_analysis(query: str, user_id: str = Depends(get_current_user_id)
     _finalize_checklist(data, {
         "key": "business_understanding",
         "name": "Entender el negocio" if lang != "en" else "Understanding the business",
-        "passed": ai_result.get("business_understanding_passed"),
+        "stars": ai_result.get("business_understanding_stars"),
         "reason": ai_result.get("business_understanding_reason", ""),
     }, ai_result.get("checklist_reasons"))
     checklist = data["checklist"]

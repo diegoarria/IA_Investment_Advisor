@@ -228,30 +228,67 @@ def _confidence_score(
     return round(fcf_stability_score * 0.4 + roic_stability_score * 0.4 + data_completeness_score * 0.2)
 
 
+def _stars_from_score(score: Optional[float]) -> Optional[int]:
+    """Maps a real 0-100 score onto a 1-5 star rating — deliberately
+    graduated instead of a single pass/fail threshold. Counting "X/7 passed"
+    made an excellent-but-expensive business (high moat/quality/management,
+    just not currently cheap) read as "mediocre" to users, which is the
+    opposite of what the underlying scores actually say — a real user
+    complaint about PepsiCo scoring 4/7 despite being a business Buffett
+    would call excellent. Stars per dimension avoid collapsing "great
+    business, rich price" into the same bucket as "weak business"."""
+    if score is None:
+        return None
+    if score >= 80: return 5
+    if score >= 60: return 4
+    if score >= 40: return 3
+    if score >= 20: return 2
+    return 1
+
+
+def _stars_from_roic(avg_roic: Optional[float]) -> Optional[int]:
+    """Moat stars — graduated on real ROIC (or ROE for financials, see
+    _is_financial_sector), not a single 15% pass/fail cutoff. Still a real,
+    measured number (never a fabricated composite of unmeasured factors
+    like brand/network-effect/switching-costs — see the AI's qualitative
+    moat-type reasoning for that nuance), just presented with more
+    resolution than a boolean."""
+    if avg_roic is None:
+        return None
+    if avg_roic >= 22: return 5
+    if avg_roic >= 16: return 4
+    if avg_roic >= 10: return 3
+    if avg_roic >= 5: return 2
+    return 1
+
+
 def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[dict] = None) -> list[dict]:
     """6 of the 7 items of the investment checklist (in order of importance,
     skipping item 1 "Entender el negocio" — that one is inherently
     qualitative/subjective and added separately by the caller via Claude's
-    judgment, disclosed as such). "passed" is always a real, deterministic
-    threshold computed from numbers already produced by this module — never
-    an AI guess. The templated "reason" strings here are only a FALLBACK,
-    used if the AI call (which reasons over `evidence`, the real multi-factor
-    data for each dimension) fails or is skipped — see
-    ai_service.generate_quick_valuation_summary/generate_candidate_blurb,
-    which overwrite "reason" with a nuanced, non-absolutist explanation
-    grounded in `evidence` without changing "passed"."""
+    judgment, disclosed as such). "stars" (1-5, or None if not enough data)
+    is always a real, deterministic rating computed from numbers already
+    produced by this module — never an AI guess — graduated rather than a
+    pass/fail boolean so a great-but-pricey business doesn't read as
+    mediocre (see _stars_from_score's docstring). The templated "reason"
+    strings here are only a FALLBACK, used if the AI call (which reasons
+    over `evidence`, the real multi-factor data for each dimension) fails
+    or is skipped — see ai_service.generate_quick_valuation_summary/
+    generate_candidate_blurb, which overwrite "reason" with a nuanced,
+    non-absolutist explanation grounded in `evidence` without changing
+    "stars"."""
     items = []
     evidence = evidence or {}
 
     gb = dcf.get("growth_buildup") or {}
     avg_roic = gb.get("avg_roic_pct")
-    moat_pass = avg_roic is not None and avg_roic >= 15
+    moat_stars = _stars_from_roic(avg_roic)
     items.append({
         "key": "moat",
         "name": "Ventaja competitiva (Moat)",
-        "passed": moat_pass,
+        "stars": moat_stars,
         "reason": (
-            f"ROIC promedio real de {avg_roic}% — {'evidencia real de ventaja competitiva duradera' if moat_pass else 'no muestra evidencia clara de un moat sostenido'}."
+            f"ROIC promedio real de {avg_roic}%."
             if avg_roic is not None else "No hay suficiente historial de ROIC real para evaluar esto."
         ),
         "evidence": evidence.get("moat"),
@@ -261,7 +298,7 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[di
     items.append({
         "key": "business_quality",
         "name": "Calidad del negocio",
-        "passed": bq is not None and bq >= 60,
+        "stars": _stars_from_score(bq),
         "reason": f"Business Quality Score real: {bq}/100." if bq is not None else "No disponible.",
         "evidence": evidence.get("business_quality"),
     })
@@ -270,7 +307,7 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[di
     items.append({
         "key": "management_capital_allocation",
         "name": "Management y asignación de capital",
-        "passed": mgmt is not None and mgmt >= 60,
+        "stars": _stars_from_score(mgmt),
         "reason": f"Management & Capital Allocation Score real: {mgmt}/100." if mgmt is not None else "No disponible.",
         "evidence": evidence.get("management_capital_allocation"),
     })
@@ -279,18 +316,18 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[di
     items.append({
         "key": "financial_strength",
         "name": "Fortaleza financiera",
-        "passed": fs is not None and fs >= 60,
+        "stars": _stars_from_score(fs),
         "reason": f"Financial Strength Score real: {fs}/100." if fs is not None else "No disponible.",
         "evidence": evidence.get("financial_strength"),
     })
 
     go = thesis_scores.get("growth_outlook")
     pred = thesis_scores.get("predictability")
-    growth_pass = go is not None and pred is not None and go >= 50 and pred >= 50
+    growth_pred_avg = (go + pred) / 2 if go is not None and pred is not None else None
     items.append({
         "key": "growth_predictability",
         "name": "Crecimiento futuro predecible",
-        "passed": growth_pass,
+        "stars": _stars_from_score(growth_pred_avg),
         "reason": (
             f"Growth Outlook real {go}/100, Predictability real {pred}/100."
             if go is not None and pred is not None else "No disponible."
@@ -299,10 +336,11 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[di
     })
 
     mos = dcf.get("margin_of_safety_pct")
+    valuation_score = thesis_scores.get("valuation")
     items.append({
         "key": "valuation",
         "name": "Valor intrínseco y margen de seguridad",
-        "passed": mos is not None and mos > 0,
+        "stars": _stars_from_score(valuation_score),
         "reason": f"Margen de seguridad real: {'+' if mos >= 0 else ''}{mos}%." if mos is not None else "No se pudo calcular el DCF.",
         "evidence": evidence.get("valuation"),
     })

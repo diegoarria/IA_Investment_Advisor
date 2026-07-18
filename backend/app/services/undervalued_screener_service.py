@@ -120,17 +120,23 @@ _SUPPORTED_LANGS = ("es", "en")
 def _finalize_checklist(entry: dict, business_understanding: Optional[dict] = None, checklist_reasons: Optional[dict] = None) -> None:
     """Merges checklist item 1 ("Entender el negocio"/"Understanding the
     business" — Claude's judgment, or None if not evaluated) with items 2-7
-    (real "passed" flags, computed by fundamental_analysis_service._build_
-    checklist_items) into the final 7-item checklist + "X/7" score, mutating
-    `entry` in place. If Claude returned `checklist_reasons` (see
-    ai_service._CHECKLIST_INSTRUCTIONS), those nuanced ~70-word explanations
-    OVERWRITE items 2-7's templated "reason" text — never their "passed"
-    flag, which stays the real, deterministic threshold. The internal-only
-    `evidence` field (raw numbers fed to Claude) is stripped before the
-    checklist reaches the frontend. Only called on a per-request COPY of a
-    cached entry (see get_undervalued) — never on the shared cached object,
-    since it destructively pops `checklist_items_real` and this needs to
-    run once per requested language, not once ever."""
+    (real "stars" ratings, 1-5, computed by fundamental_analysis_service.
+    _build_checklist_items) into the final 7-item checklist + average-stars
+    score, mutating `entry` in place. If Claude returned `checklist_reasons`
+    (see ai_service._CHECKLIST_INSTRUCTIONS), those nuanced ~70-word
+    explanations OVERWRITE items 2-7's templated "reason" text — never their
+    "stars" rating, which stays the real, deterministic value. The
+    internal-only `evidence` field (raw numbers fed to Claude) is stripped
+    before the checklist reaches the frontend. Only called on a per-request
+    COPY of a cached entry (see get_undervalued) — never on the shared
+    cached object, since it destructively pops `checklist_items_real` and
+    this needs to run once per requested language, not once ever.
+
+    Uses average stars (not "X/7 passed") deliberately — counting pass/fail
+    made an excellent-but-currently-expensive business (e.g. PepsiCo: real
+    moat, real quality, just not cheap right now) read as "mediocre" to
+    users, the opposite of what the underlying scores say. See
+    fundamental_analysis_service._stars_from_score's docstring."""
     items = list(entry.pop("checklist_items_real", []))
     checklist_reasons = checklist_reasons or {}
     for item, key in zip(items, _CHECKLIST_REASON_KEYS):
@@ -141,11 +147,12 @@ def _finalize_checklist(entry: dict, business_understanding: Optional[dict] = No
     items.insert(0, business_understanding or {
         "key": "business_understanding",
         "name": "Entender el negocio",
-        "passed": None,
+        "stars": None,
         "reason": "No evaluado en esta carga rápida.",
     })
-    passed = sum(1 for it in items if it.get("passed") is True)
-    entry["checklist"] = {"items": items, "score": f"{passed}/{len(items)}"}
+    rated = [it["stars"] for it in items if it.get("stars") is not None]
+    avg_stars = round(sum(rated) / len(rated), 1) if rated else None
+    entry["checklist"] = {"items": items, "avg_stars": avg_stars}
 
 
 async def refresh_undervalued_screener() -> None:
@@ -175,7 +182,7 @@ async def refresh_undervalued_screener() -> None:
                 entry["business_understanding_by_lang"][lang] = {
                     "key": "business_understanding",
                     "name": "Entender el negocio" if lang == "es" else "Understanding the business",
-                    "passed": blurb_result.get("business_understanding_passed"),
+                    "stars": blurb_result.get("business_understanding_stars"),
                     "reason": blurb_result.get("business_understanding_reason", ""),
                 }
                 entry["checklist_reasons_by_lang"][lang] = blurb_result.get("checklist_reasons") or {}
