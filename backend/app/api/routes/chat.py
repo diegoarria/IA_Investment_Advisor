@@ -117,6 +117,19 @@ _STOCK_SUGGESTION_RE = re.compile(
     re.IGNORECASE,
 )
 
+# "Show me undervalued stocks" intent — UNLIKE _STOCK_SUGGESTION_RE above,
+# this one DOES trigger a real-data fetch: it reads the precomputed,
+# DCF-backed undervalued_screener_service cache (real margin-of-safety
+# numbers, refreshed weekly — see worker.py's job_refresh_undervalued_
+# screener) and injects it so Claude narrates around REAL candidates,
+# never invents tickers. Premium-only, same gate as _DEEP_ANALYSIS_RE.
+_UNDERVALUED_SCREENER_RE = re.compile(
+    r"acciones? subvaluada|empresas? subvaluada|acciones? (est[aá]n )?baratas?|"
+    r"acciones? infravalorada|empresas? infravalorada|margen de seguridad|"
+    r"undervalued stocks?|cheap stocks?",
+    re.IGNORECASE,
+)
+
 
 def _needs_claude_analysis(message: str, has_images: bool) -> bool:
     """True when a question needs real market data, a specific ticker/company,
@@ -135,6 +148,8 @@ def _needs_claude_analysis(message: str, has_images: bool) -> bool:
     if _DEEP_ANALYSIS_RE.search(message):
         return True
     if _STOCK_SUGGESTION_RE.search(message):
+        return True
+    if _UNDERVALUED_SCREENER_RE.search(message):
         return True
     return bool(_LIVE_DATA_RE.search(message))
 
@@ -372,6 +387,41 @@ def _fundamentals_context_block(tickers: list[str]) -> tuple[str, list[tuple[str
     return "\n\n".join(blocks), snapshots
 
 
+def _undervalued_screener_context_block() -> str:
+    """Real, DCF-backed undervalued candidates (see undervalued_screener_
+    service — precomputed weekly, cache-only read here, never live
+    computation inside a chat request). Empty string if the cache hasn't
+    been populated yet (job hasn't run, or nothing currently qualifies)."""
+    from app.services.undervalued_screener_service import get_undervalued
+    from datetime import datetime, timezone
+
+    data = get_undervalued(limit=8)
+    results = data.get("results") or []
+    if not results:
+        return (
+            "[SCREENER DE ACCIONES SUBVALUADAS — SIN DATOS] El cache del screener semanal está vacío "
+            "(el job de actualización no ha corrido todavía, o ninguna empresa del universo calificó esta "
+            "semana) — dilo explícitamente, no inventes candidatos."
+        )
+    ts = data.get("generated_at") or 0
+    generated_str = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d") if ts else "fecha desconocida"
+    lines = [
+        f"[SCREENER DE ACCIONES SUBVALUADAS — DATOS REALES, calculados con el mismo motor de DCF que el resto "
+        f"de Nuvos, actualizado semanalmente. Snapshot de: {generated_str}. Estos son TODOS los candidatos reales "
+        f"disponibles ahora mismo — nunca menciones un ticker que no esté en esta lista, nunca inventes uno adicional]:",
+    ]
+    for r in results:
+        ts_scores = r.get("thesis_scores") or {}
+        lines.append(
+            f"  - {r['ticker']} ({r.get('company_name') or 'N/D'}, sector {r.get('sector') or 'N/D'}): "
+            f"precio ${r.get('price')}, valor intrínseco base ${r.get('intrinsic_value_base')}, "
+            f"margen de seguridad +{r.get('margin_of_safety_pct')}%, "
+            f"Business Quality {ts_scores.get('business_quality', 'N/D')}/100, "
+            f"Financial Strength {ts_scores.get('financial_strength', 'N/D')}/100"
+        )
+    return "\n".join(lines)
+
+
 def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -> tuple[str, list[tuple[str, dict]]]:
     """Prepend global market context + per-company context, and — Premium
     users asking for a full company verdict only — a real computed
@@ -393,10 +443,15 @@ def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -
         if deep_tickers:
             f_fundamentals = _ENRICH_POOL.submit(_fundamentals_context_block, deep_tickers)
 
+    f_screener = None
+    if premium and _UNDERVALUED_SCREENER_RE.search(message):
+        f_screener = _ENRICH_POOL.submit(_undervalued_screener_context_block)
+
     global_ctx  = ""
     company_ctx = ""
     fundamentals_ctx = ""
     fundamentals_snapshots: list[tuple[str, dict]] = []
+    screener_ctx = ""
     try:
         global_ctx = f_global.result(timeout=timeout)
     except Exception:
@@ -410,10 +465,17 @@ def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -
             fundamentals_ctx, fundamentals_snapshots = f_fundamentals.result(timeout=_FUNDAMENTALS_TIMEOUT)
         except Exception:
             pass
+    if f_screener:
+        try:
+            screener_ctx = f_screener.result(timeout=timeout)
+        except Exception:
+            pass
 
     parts = [message]
     if fundamentals_ctx:
         parts.append("\n\n" + fundamentals_ctx)
+    if screener_ctx:
+        parts.append("\n\n" + screener_ctx)
     if global_ctx:
         parts.append("\n\n" + global_ctx)
     if company_ctx:

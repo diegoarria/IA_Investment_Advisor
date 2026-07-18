@@ -20,6 +20,8 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
   const { t } = useTranslation();
   const [data, setData]       = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [undervalued, setUndervalued] = useState<any[]>([]);
+  const [undervaluedLoading, setUndervaluedLoading] = useState(false);
   const s = styles();
 
   useEffect(() => {
@@ -29,6 +31,15 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
       .then((res: any) => setData(res.data))
       .catch(() => {})
       .finally(() => setLoading(false));
+  }, [isPremium]);
+
+  useEffect(() => {
+    if (!isPremium) return;
+    setUndervaluedLoading(true);
+    screenerWeeklyApi.getUndervalued(undefined, 8)
+      .then((res: any) => setUndervalued(res.data?.results || []))
+      .catch(() => setUndervalued([]))
+      .finally(() => setUndervaluedLoading(false));
   }, [isPremium]);
 
   return (
@@ -97,6 +108,30 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
           </View>
         )}
       </View>
+
+      {/* ── Undervalued (real DCF-backed) ── */}
+      <View style={[s.content, { paddingTop: 4, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+        <Text style={[s.sectionTitle, { color: colors.text }]}>Acciones subvaluadas (DCF)</Text>
+        {undervaluedLoading ? (
+          <View style={s.loadingRow}>
+            <ActivityIndicator size="small" color={TOOL_COLOR} />
+          </View>
+        ) : undervalued.length === 0 ? (
+          <Text style={[s.emptyText, { color: colors.textMuted, marginTop: 8 }]}>Sin datos del screener semanal todavía.</Text>
+        ) : (
+          undervalued.map((u: any, i: number) => (
+            <View key={u.ticker} style={[s.pickRow, { borderTopColor: colors.border, borderTopWidth: i > 0 ? StyleSheet.hairlineWidth : 0 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.ticker, { color: colors.text }]}>{u.ticker} {u.company_name ? `· ${u.company_name}` : ""}</Text>
+                <Text style={[s.why, { color: colors.textSub }]} numberOfLines={1}>
+                  Precio ${u.price} · Valor intrínseco ${u.intrinsic_value_base}
+                </Text>
+              </View>
+              <Text style={{ fontSize: 13, fontWeight: "900", color: "#22c55e" }}>+{u.margin_of_safety_pct}%</Text>
+            </View>
+          ))
+        )}
+      </View>
     </View>
   );
 }
@@ -117,6 +152,7 @@ const styles = () => StyleSheet.create({
 
   // Content
   content:    { paddingHorizontal: 16, paddingBottom: 16 },
+  sectionTitle: { fontSize: 13, fontWeight: "800", marginTop: 12, marginBottom: 4 },
   loadingRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 18, justifyContent: "center" },
   loadingText:{ fontSize: 13 },
   emptyWrap:  { alignItems: "center", paddingVertical: 20, gap: 8 },

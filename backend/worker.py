@@ -2276,6 +2276,20 @@ async def job_weekly_screener_push():
         logger.error("job_weekly_screener_push failed: %s", e)
 
 
+async def job_refresh_undervalued_screener():
+    """3:00 AM ET Sunday — precomputes the real DCF-backed undervalued-stocks
+    screener (undervalued_screener_service) across the curated ticker
+    universe, ahead of Saturday's job_weekly_screener_push so both stay on a
+    predictable weekly cadence. No push/notification here — this only
+    refreshes the cache the /market/screener/undervalued endpoint and the
+    Mentor IA chat trigger read from on demand."""
+    from app.services.undervalued_screener_service import refresh_undervalued_screener
+    try:
+        await refresh_undervalued_screener()
+    except Exception as e:
+        logger.error("job_refresh_undervalued_screener failed: %s", e)
+
+
 def _fetch_historical_earnings_reactions(ticker: str) -> dict:
     """Compute avg stock reaction (%) the day after each of the last 4 earnings reports.
     Uses Finnhub /stock/earnings for EPS surprises and /stock/candle for price reactions.
@@ -4504,6 +4518,9 @@ async def main():
 
     # ── Saturday: weekly screener (premium only) ──────────────────────────────
     scheduler.add_job(job_weekly_screener_push, "cron", day_of_week="sat",     hour=11,      minute=0,     timezone="America/New_York")
+
+    # ── Sunday: undervalued-stocks screener cache refresh (real DCF engine) ───
+    scheduler.add_job(job_refresh_undervalued_screener, "cron", day_of_week="sun", hour=3,   minute=0,     timezone="America/New_York")
 
     # ── AI Portfolio Manager — proactive alerts (written earlier, now scheduled) ──
     scheduler.add_job(job_risk_mgmt_push,        "cron", day_of_week="fri",     hour=15, minute=0, timezone="America/New_York")

@@ -29,6 +29,16 @@ interface WeeklyData {
   generated_at?: string;
 }
 
+interface UndervaluedResult {
+  ticker: string;
+  company_name: string | null;
+  sector: string | null;
+  price: number | null;
+  intrinsic_value_base: number | null;
+  margin_of_safety_pct: number | null;
+  thesis_scores: Record<string, number> | null;
+}
+
 function getEtfByRisk(t: TFunction): Record<string, { ticker: string; name: string; desc: string; color: string }[]> {
   return {
     conservative: [
@@ -61,6 +71,9 @@ export default function ScreenerPage() {
   const [paywallOpen, setPaywall]   = useState(false);
   const [paywallReason, setPaywallReason] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [undervalued, setUndervalued] = useState<UndervaluedResult[]>([]);
+  const [undervaluedGeneratedAt, setUndervaluedGeneratedAt] = useState<number>(0);
+  const [undervaluedLoading, setUndervaluedLoading] = useState(false);
 
   const loadWeekly = useCallback(async () => {
     if (!isPremium) return;
@@ -75,6 +88,18 @@ export default function ScreenerPage() {
   }, [isPremium]);
 
   useEffect(() => { loadWeekly(); }, [loadWeekly]);
+
+  useEffect(() => {
+    if (!isPremium) return;
+    setUndervaluedLoading(true);
+    screenerApi.getUndervalued(undefined, 10)
+      .then((res) => {
+        setUndervalued(res.data?.results || []);
+        setUndervaluedGeneratedAt(res.data?.generated_at || 0);
+      })
+      .catch(() => setUndervalued([]))
+      .finally(() => setUndervaluedLoading(false));
+  }, [isPremium]);
 
   const handleUpgrade = (reason: string) => {
     setPaywallReason(reason);
@@ -275,6 +300,48 @@ export default function ScreenerPage() {
                 </div>
               )}
             </>
+          )}
+
+          {/* Undervalued screener — real DCF-backed candidates, refreshed weekly */}
+          {isPremium && (
+            <div className="pt-2">
+              <h2 className="text-sm font-bold mb-0.5" style={{ color: "var(--text)" }}>Acciones subvaluadas (DCF)</h2>
+              <p className="text-[11px] mb-3" style={{ color: "var(--muted)" }}>
+                Candidatas con margen de seguridad positivo real, del mismo motor de valor intrínseco de Mentor IA.
+                {undervaluedGeneratedAt > 0 && (
+                  <> Actualizado: {new Date(undervaluedGeneratedAt * 1000).toLocaleDateString("es-MX", { day: "numeric", month: "long" })}.</>
+                )}
+              </p>
+              {undervaluedLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent-l)" }} />
+                </div>
+              ) : undervalued.length === 0 ? (
+                <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>Todavía no hay datos del screener semanal — vuelve más tarde.</p>
+                </div>
+              ) : (
+                <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--border)" }}>
+                  {undervalued.map((u, i) => (
+                    <div key={u.ticker} className="px-4 py-3 flex items-center justify-between gap-3"
+                         style={{ background: "var(--card)", borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold truncate" style={{ color: "var(--text)" }}>
+                          {u.ticker} {u.company_name ? `· ${u.company_name}` : ""}
+                        </p>
+                        <p className="text-[11px]" style={{ color: "var(--dim)" }}>
+                          Precio ${u.price} · Valor intrínseco ${u.intrinsic_value_base} · Business Quality {u.thesis_scores?.business_quality ?? "N/D"}/100
+                        </p>
+                      </div>
+                      <span className="shrink-0 text-xs font-black px-2 py-1 rounded-lg"
+                            style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e" }}>
+                        +{u.margin_of_safety_pct}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </main>

@@ -347,6 +347,8 @@ export const earningsApi = {
 export const screenerWeeklyApi = {
   getWeekly: (existingTickers: string[] = []) =>
     api.get("/api/market/screener/weekly", { params: { tickers: existingTickers.join(",") } }),
+  getUndervalued: (sector?: string, limit = 10) =>
+    api.get("/api/market/screener/undervalued", { params: { sector, limit } }),
 };
 
 export const feedApi = {

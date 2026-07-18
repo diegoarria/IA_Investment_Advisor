@@ -1,5 +1,5 @@
 import asyncio
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.services import ai_service
 from app.api.routes.market import _get_user_profile
@@ -329,6 +329,20 @@ async def screen(request: dict, user_id: str = Depends(get_current_user_id)):
         ai_insight = await ai_service.screen_stocks(stocks, query, profile)
 
     return {"results": stocks[:15], "ai_insight": ai_insight}
+
+
+@router.get("/undervalued")
+async def undervalued(sector: str | None = None, limit: int = 10, user_id: str = Depends(get_current_user_id)):
+    """Real, DCF-backed undervalued candidates — cache-only read (see
+    undervalued_screener_service), refreshed weekly by a background job.
+    Distinct from screen()/weekly_picks() above, which layer an LLM
+    narrative over live Finnhub metrics, not the real DCF engine."""
+    from app.api.routes.chat import _is_premium
+    profile = _get_user_profile(user_id)
+    if not _is_premium(profile):
+        raise HTTPException(status_code=403, detail="El screener de subvaluadas requiere Premium")
+    from app.services.undervalued_screener_service import get_undervalued
+    return get_undervalued(limit=limit, sector=sector)
 
 
 @router.get("/weekly")
