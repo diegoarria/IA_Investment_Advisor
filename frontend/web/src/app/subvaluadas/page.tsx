@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Loader2, Lock, BookMarked, Search, X, Star, MessageCircle, AlertTriangle, Check, Sparkles } from "lucide-react";
@@ -50,13 +51,6 @@ interface QuickAnalysisResult {
   checklist: Checklist | null;
 }
 
-function relativeDate(unixSeconds: number): { text: string; stale: boolean } {
-  const days = Math.floor((Date.now() / 1000 - unixSeconds) / 86400);
-  if (days <= 0) return { text: "hoy", stale: false };
-  if (days === 1) return { text: "hace 1 día", stale: false };
-  return { text: `hace ${days} días`, stale: days > 10 };
-}
-
 function StatChip({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex-1 min-w-0 rounded-xl px-2.5 py-1.5" style={{ background: "var(--raised)" }}>
@@ -79,16 +73,18 @@ function InsightBox({ children }: { children: string }) {
 }
 
 function WarningBadge({ text }: { text: string }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5"
          style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.25)" }}>
       <AlertTriangle className="w-3.5 h-3.5 shrink-0" style={{ color: "#f59e0b" }} />
-      <p className="text-[11px] font-medium" style={{ color: "#f59e0b" }}>Posible trampa de valor: {text}</p>
+      <p className="text-[11px] font-medium" style={{ color: "#f59e0b" }}>{t("subvaluadas.weakDimensionWarning", { text })}</p>
     </div>
   );
 }
 
 function ChecklistDisplay({ checklist }: { checklist: Checklist }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const passedCount = checklist.items.filter((it) => it.passed === true).length;
   const total = checklist.items.length;
@@ -99,9 +95,9 @@ function ChecklistDisplay({ checklist }: { checklist: Checklist }) {
       <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center justify-between gap-2 px-3 py-2">
         <div className="flex items-center gap-2">
           <span className="text-sm font-black" style={{ color: scoreColor }}>{passedCount}/{total}</span>
-          <span className="text-xs font-semibold" style={{ color: "var(--sub)" }}>Checklist de inversión</span>
+          <span className="text-xs font-semibold" style={{ color: "var(--sub)" }}>{t("subvaluadas.checklist.label")}</span>
         </div>
-        <span className="text-[10px]" style={{ color: "var(--muted)" }}>{expanded ? "Ocultar" : "Ver detalle"}</span>
+        <span className="text-[10px]" style={{ color: "var(--muted)" }}>{expanded ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}</span>
       </button>
       {expanded && (
         <div className="px-3 pb-3 space-y-1.5">
@@ -139,29 +135,32 @@ function MosBadge({ pct }: { pct: number | null }) {
   );
 }
 
-function FollowButton({ ticker, watchlisted, onFollow }: { ticker: string; watchlisted: boolean; onFollow: () => void }) {
+function FollowButton({ watchlisted, onFollow }: { ticker: string; watchlisted: boolean; onFollow: () => void }) {
+  const { t } = useTranslation();
   return (
     <button onClick={onFollow} disabled={watchlisted}
             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-colors"
             style={{ borderColor: "var(--border)", color: "var(--sub)", background: "var(--raised)" }}>
       {watchlisted ? <Check className="w-3.5 h-3.5" style={{ color: "#22c55e" }} /> : <Star className="w-3.5 h-3.5" />}
-      {watchlisted ? "En tu watchlist" : "Seguir"}
+      {watchlisted ? t("subvaluadas.follow.following") : t("subvaluadas.follow.button")}
     </button>
   );
 }
 
 function AnalyzeButton({ onAnalyze }: { onAnalyze: () => void }) {
+  const { t } = useTranslation();
   return (
     <button onClick={onAnalyze}
             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-black"
             style={{ background: "var(--accent)" }}>
       <MessageCircle className="w-3.5 h-3.5" />
-      Analizar con Mentor IA
+      {t("subvaluadas.analyze.button")}
     </button>
   );
 }
 
 export default function SubvaluadasPage() {
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium" || sub.isTrialPremium;
@@ -191,7 +190,7 @@ export default function SubvaluadasPage() {
   };
 
   const handleAnalyze = (ticker: string) => {
-    router.push(`/chat?msg=${encodeURIComponent(`Analiza ${ticker}`)}&autosend=1`);
+    router.push(`/chat?msg=${encodeURIComponent(t("subvaluadas.analyze.prompt", { ticker }))}&autosend=1`);
   };
 
   const handleSearch = async () => {
@@ -204,7 +203,7 @@ export default function SubvaluadasPage() {
       setQuickResult(res.data);
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setSearchError(detail || "No se pudo calcular el valor intrínseco para esa búsqueda.");
+      setSearchError(detail || t("subvaluadas.search.error"));
     } finally {
       setSearching(false);
     }
@@ -239,23 +238,23 @@ export default function SubvaluadasPage() {
             <div className="flex items-center gap-2 mb-1">
               <BookMarked className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
               <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>
-                Acciones Subvaluadas (DCF)
+                {t("subvaluadas.title")}
               </h1>
             </div>
 
             <div className="rounded-2xl border-2 p-4 mb-5 text-center"
                  style={{ borderColor: "#ef4444", background: "rgba(239,68,68,0.08)" }}>
               <p className="text-lg font-black tracking-tight" style={{ color: "#ef4444" }}>
-                ESTO NO ES RECOMENDACIÓN DE INVERSIÓN
+                {t("subvaluadas.disclaimer.title")}
               </p>
               <p className="text-xs mt-1" style={{ color: "var(--sub)" }}>
-                Para un análisis más detallado, ve a Mentor IA.
+                {t("subvaluadas.disclaimer.subtitle")}
               </p>
             </div>
 
             {isPremium && (
               <div className="mb-6">
-                <h2 className="text-sm font-bold mb-2" style={{ color: "var(--text)" }}>Buscar cualquier acción</h2>
+                <h2 className="text-sm font-bold mb-2" style={{ color: "var(--text)" }}>{t("subvaluadas.search.label")}</h2>
                 <div className="flex gap-2">
                   <div className="flex-1 flex items-center gap-2 rounded-xl border px-3"
                        style={{ borderColor: "var(--border)", background: "var(--card)" }}>
@@ -264,7 +263,7 @@ export default function SubvaluadasPage() {
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                      placeholder="Ticker o nombre de empresa (ej. AAPL, Nike)"
+                      placeholder={t("subvaluadas.search.placeholder")}
                       className="flex-1 py-2.5 text-sm bg-transparent outline-none"
                       style={{ color: "var(--text)" }}
                     />
@@ -277,7 +276,7 @@ export default function SubvaluadasPage() {
                   <button onClick={handleSearch} disabled={searching || !query.trim()}
                           className="px-4 py-2.5 rounded-xl text-sm font-bold text-black disabled:opacity-40"
                           style={{ background: "var(--accent)" }}>
-                    {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : "Buscar"}
+                    {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : t("subvaluadas.search.button")}
                   </button>
                 </div>
 
@@ -297,11 +296,11 @@ export default function SubvaluadasPage() {
                     </div>
 
                     <div className="flex gap-2">
-                      <StatChip label="Precio" value={`$${quickResult.price}`} />
-                      <StatChip label="Valor intrínseco" value={`$${quickResult.intrinsic_value_base}`} />
-                      <StatChip label="Valor esperado" value={`$${quickResult.expected_value_per_share}`} />
+                      <StatChip label={t("subvaluadas.stats.price")} value={`$${quickResult.price}`} />
+                      <StatChip label={t("subvaluadas.stats.intrinsicValue")} value={`$${quickResult.intrinsic_value_base}`} />
+                      <StatChip label={t("subvaluadas.stats.expectedValue")} value={`$${quickResult.expected_value_per_share}`} />
                       {quickResult.implied_growth_pct !== null && (
-                        <StatChip label="Crecim. implícito" value={`${quickResult.implied_growth_pct}%`} />
+                        <StatChip label={t("subvaluadas.stats.impliedGrowth")} value={`${quickResult.implied_growth_pct}%`} />
                       )}
                     </div>
 
@@ -320,13 +319,17 @@ export default function SubvaluadasPage() {
             )}
 
             <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>
-              Todas las candidatas con margen de seguridad positivo real, calculadas con el mismo motor de valor
-              intrínseco de Mentor IA sobre el universo curado — actualizado semanalmente.
+              {t("subvaluadas.footer.description")}
               {generatedAt > 0 && (() => {
-                const { text, stale } = relativeDate(generatedAt);
+                const days = Math.floor((Date.now() / 1000 - generatedAt) / 86400);
+                const stale = days > 10;
+                const date = new Date(generatedAt * 1000).toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", { day: "numeric", month: "long" });
+                const updatedText = days <= 0
+                  ? t("subvaluadas.footer.updatedToday", { date })
+                  : t("subvaluadas.footer.updatedDaysAgo", { count: days, date });
                 return (
                   <span style={stale ? { color: "#f59e0b", fontWeight: 700 } : undefined}>
-                    {" "}Actualizado {text} ({new Date(generatedAt * 1000).toLocaleDateString("es-MX", { day: "numeric", month: "long" })}){stale ? " — puede estar desactualizado" : "."}
+                    {" "}{updatedText}{stale ? t("subvaluadas.footer.stale") : ""}
                   </span>
                 );
               })()}
@@ -337,14 +340,14 @@ export default function SubvaluadasPage() {
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(0,168,94,0.1)" }}>
                   <Lock className="w-7 h-7" style={{ color: "var(--accent-l)" }} />
                 </div>
-                <h2 className="font-bold text-base mb-2" style={{ color: "var(--text)" }}>Exclusivo Premium</h2>
+                <h2 className="font-bold text-base mb-2" style={{ color: "var(--text)" }}>{t("subvaluadas.premiumGate.title")}</h2>
                 <p className="text-sm mb-5 max-w-sm mx-auto" style={{ color: "var(--muted)" }}>
-                  El screener de acciones subvaluadas usa el motor real de DCF — disponible solo para usuarios Premium.
+                  {t("subvaluadas.premiumGate.desc")}
                 </p>
                 <button onClick={() => setPaywallOpen(true)}
                         className="px-6 py-2.5 rounded-xl text-sm font-bold text-white"
                         style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-                  Desbloquear Premium
+                  {t("subvaluadas.premiumGate.cta")}
                 </button>
               </div>
             ) : loading ? (
@@ -354,7 +357,7 @@ export default function SubvaluadasPage() {
             ) : results.length === 0 ? (
               <div className="rounded-2xl border p-8 text-center" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                 <p className="text-sm" style={{ color: "var(--muted)" }}>
-                  Todavía no hay datos del screener semanal — vuelve más tarde.
+                  {t("subvaluadas.emptyState")}
                 </p>
               </div>
             ) : (
@@ -369,7 +372,7 @@ export default function SubvaluadasPage() {
                                 background: sectorFilter === s ? "rgba(0,168,94,0.1)" : "var(--raised)",
                                 color: sectorFilter === s ? "var(--accent-l)" : "var(--sub)",
                               }}>
-                        {s}
+                        {s === "Todos" ? t("subvaluadas.sectorAll") : s}
                       </button>
                     ))}
                   </div>
@@ -390,9 +393,9 @@ export default function SubvaluadasPage() {
                       </div>
 
                       <div className="flex gap-2">
-                        <StatChip label="Precio" value={`$${u.price}`} />
-                        <StatChip label="Valor intrínseco" value={`$${u.intrinsic_value_base}`} />
-                        <StatChip label="Business Quality" value={`${u.thesis_scores?.business_quality ?? "N/D"}/100`} />
+                        <StatChip label={t("subvaluadas.stats.price")} value={`$${u.price}`} />
+                        <StatChip label={t("subvaluadas.stats.intrinsicValue")} value={`$${u.intrinsic_value_base}`} />
+                        <StatChip label={t("subvaluadas.stats.businessQuality")} value={`${u.thesis_scores?.business_quality ?? "N/D"}/100`} />
                       </div>
 
                       {u.weak_dimension_warning && <WarningBadge text={u.weak_dimension_warning} />}
@@ -412,7 +415,7 @@ export default function SubvaluadasPage() {
           </div>
         </div>
       </div>
-      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason="Screener de acciones subvaluadas" />
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={t("subvaluadas.premiumGate.paywallReason")} />
     </div>
   );
 }

@@ -542,6 +542,55 @@
       "label": "NOTA DE TU MENTOR"
     }
   },
+  "subvaluadas": {
+    "title": "Acciones Subvaluadas (DCF)",
+    "disclaimer": {
+      "title": "ESTO NO ES RECOMENDACIÓN DE INVERSIÓN",
+      "subtitle": "Para un análisis más detallado, ve a Mentor IA."
+    },
+    "search": {
+      "label": "Buscar cualquier acción",
+      "placeholder": "Ticker o nombre de empresa (ej. AAPL, Nike)",
+      "button": "Buscar",
+      "error": "No se pudo calcular el valor intrínseco para esa búsqueda."
+    },
+    "stats": {
+      "price": "Precio",
+      "intrinsicValue": "Valor intrínseco",
+      "expectedValue": "Valor esperado",
+      "impliedGrowth": "Crecim. implícito",
+      "businessQuality": "Business Quality"
+    },
+    "checklist": {
+      "label": "Checklist de inversión",
+      "hide": "Ocultar",
+      "viewDetail": "Ver detalle"
+    },
+    "weakDimensionWarning": "Posible trampa de valor: {{text}}",
+    "follow": {
+      "button": "Seguir",
+      "following": "En tu watchlist"
+    },
+    "analyze": {
+      "button": "Analizar con Mentor IA",
+      "prompt": "Analiza {{ticker}}"
+    },
+    "footer": {
+      "description": "Todas las candidatas con margen de seguridad positivo real, calculadas con el mismo motor de valor intrínseco de Mentor IA sobre el universo curado — actualizado semanalmente.",
+      "updatedToday": "Actualizado hoy ({{date}}).",
+      "updatedDaysAgo_one": "Actualizado hace {{count}} día ({{date}}).",
+      "updatedDaysAgo_other": "Actualizado hace {{count}} días ({{date}}).",
+      "stale": " — puede estar desactualizado"
+    },
+    "premiumGate": {
+      "title": "Exclusivo Premium",
+      "desc": "El screener de acciones subvaluadas usa el motor real de DCF — disponible solo para usuarios Premium.",
+      "cta": "Desbloquear Premium",
+      "paywallReason": "Screener de acciones subvaluadas"
+    },
+    "emptyState": "Todavía no hay datos del screener semanal — vuelve más tarde.",
+    "sectorAll": "Todos"
+  },
   "patrimonio": {
     "header": {
       "eyebrow": "Mi dinero",

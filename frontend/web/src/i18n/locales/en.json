@@ -542,6 +542,55 @@
       "label": "NOTE FROM YOUR MENTOR"
     }
   },
+  "subvaluadas": {
+    "title": "Undervalued Stocks (DCF)",
+    "disclaimer": {
+      "title": "THIS IS NOT INVESTMENT ADVICE",
+      "subtitle": "For a more detailed analysis, go to Mentor AI."
+    },
+    "search": {
+      "label": "Search any stock",
+      "placeholder": "Ticker or company name (e.g. AAPL, Nike)",
+      "button": "Search",
+      "error": "Couldn't calculate the intrinsic value for that search."
+    },
+    "stats": {
+      "price": "Price",
+      "intrinsicValue": "Intrinsic value",
+      "expectedValue": "Expected value",
+      "impliedGrowth": "Implied growth",
+      "businessQuality": "Business Quality"
+    },
+    "checklist": {
+      "label": "Investment checklist",
+      "hide": "Hide",
+      "viewDetail": "View detail"
+    },
+    "weakDimensionWarning": "Possible value trap: {{text}}",
+    "follow": {
+      "button": "Follow",
+      "following": "On your watchlist"
+    },
+    "analyze": {
+      "button": "Analyze with Mentor AI",
+      "prompt": "Analyze {{ticker}}"
+    },
+    "footer": {
+      "description": "All candidates with a real positive margin of safety, calculated with the same intrinsic-value engine as Mentor AI over the curated universe — updated weekly.",
+      "updatedToday": "Updated today ({{date}}).",
+      "updatedDaysAgo_one": "Updated {{count}} day ago ({{date}}).",
+      "updatedDaysAgo_other": "Updated {{count}} days ago ({{date}}).",
+      "stale": " — may be outdated"
+    },
+    "premiumGate": {
+      "title": "Premium Exclusive",
+      "desc": "The undervalued-stocks screener uses the real DCF engine — available for Premium users only.",
+      "cta": "Unlock Premium",
+      "paywallReason": "Undervalued stocks screener"
+    },
+    "emptyState": "No weekly screener data yet — check back later.",
+    "sectorAll": "All"
+  },
   "patrimonio": {
     "header": {
       "eyebrow": "My money",
