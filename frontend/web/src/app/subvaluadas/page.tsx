@@ -57,6 +57,23 @@ interface QuickAnalysisResult {
   summary: string;
   checklist: Checklist | null;
   liquidity_gate: LiquidityGate | null;
+  generated_at: number;
+}
+
+function GeneratedAtNote({ generatedAt }: { generatedAt: number }) {
+  const { t, i18n } = useTranslation();
+  if (!generatedAt) return null;
+  const days = Math.floor((Date.now() / 1000 - generatedAt) / 86400);
+  const stale = days > 10;
+  const date = new Date(generatedAt * 1000).toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", { day: "numeric", month: "long" });
+  const updatedText = days <= 0
+    ? t("subvaluadas.footer.updatedToday", { date })
+    : t("subvaluadas.footer.updatedDaysAgo", { count: days, date });
+  return (
+    <p className="text-[10px]" style={stale ? { color: "#f59e0b", fontWeight: 700 } : { color: "var(--muted)" }}>
+      {updatedText}{stale ? t("subvaluadas.footer.stale") : ""}
+    </p>
+  );
 }
 
 function LiquidityWarning({ gate }: { gate: LiquidityGate }) {
@@ -324,6 +341,8 @@ export default function SubvaluadasPage() {
                       </div>
                       <MosBadge pct={quickResult.margin_of_safety_pct} />
                     </div>
+
+                    <GeneratedAtNote generatedAt={quickResult.generated_at} />
 
                     {quickResult.liquidity_gate && <LiquidityWarning gate={quickResult.liquidity_gate} />}
 

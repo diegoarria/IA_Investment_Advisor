@@ -391,17 +391,30 @@ def _resolve_quick_ticker(query: str) -> str | None:
     return None
 
 
+_QUICK_ANALYSIS_CACHE_TTL = 24 * 3600  # 1 day — fundamentals don't change intraday; avoids re-billing Claude+FMP/Finnhub for repeat searches
+
+
 @router.get("/quick-analysis")
 async def quick_analysis(query: str, lang: str | None = None, user_id: str = Depends(get_current_user_id)):
     """Ad-hoc single-ticker valuation search — the real DCF engine (same one
     behind Mentor IA and the undervalued screener) plus a SHORT narrative
     summary (see ai_service.generate_quick_valuation_summary), for any
-    ticker/company name, not just the curated screener universe. Live —
-    unlike the screener, this is a single ticker so it's fast enough to
-    compute per-request, no caching needed.
+    ticker/company name, not just the curated screener universe.
+
+    Cached 24h per (ticker, lang) — this used to be fully live on every
+    request (both the Claude call AND the FMP/Finnhub fetches behind
+    get_fundamental_analysis re-ran every search), which meant a popular
+    ticker got re-billed on every single search with no cost tracking at
+    all. Fundamentals don't meaningfully change within a day, so caching
+    the whole response (numbers + AI text together, never just one or the
+    other) guarantees the narrative always matches the numbers shown next
+    to it, and the cached `generated_at` is disclosed to the user exactly
+    like the weekly undervalued-screener list already does.
 
     `lang` is passed explicitly by the frontend (see /undervalued's
     docstring for why this is preferred over profile.preferred_language)."""
+    import time
+
     from app.api.routes.chat import _is_premium
     profile = _get_user_profile(user_id)
     if not _is_premium(profile):
@@ -410,9 +423,17 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Escribe un ticker o nombre de empresa")
 
+    if lang not in ("es", "en"):
+        lang = getattr(profile, "preferred_language", None) or "es"
+
     ticker = await asyncio.to_thread(_resolve_quick_ticker, query)
     if not ticker:
         raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
+
+    cache_key = f"quick_analysis:{lang}:{ticker}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
 
     from app.services.fundamental_analysis_service import get_fundamental_analysis
     try:
@@ -425,9 +446,6 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
         raise HTTPException(status_code=503, detail=f"No pudimos obtener los datos financieros de {ticker} en este momento. Intenta de nuevo en unos segundos.")
     if not data or not data.get("dcf"):
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para calcular el valor intrínseco de {ticker}")
-
-    if lang not in ("es", "en"):
-        lang = getattr(profile, "preferred_language", None) or "es"
 
     # The AI narrative is a nice-to-have layer on top of the real DCF
     # numbers already in `data` — a Claude timeout/error must degrade to a
@@ -465,7 +483,7 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
         logger.error("quick_analysis(%s): _finalize_checklist failed: %s", ticker, exc, exc_info=True)
         checklist = None
 
-    return {
+    result = {
         "ticker": data["ticker"],
         "company_name": data.get("company_name"),
         "sector": data.get("sector"),
@@ -478,7 +496,12 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
         "summary": ai_result.get("summary", ""),
         "checklist": checklist,
         "liquidity_gate": data.get("liquidity_gate"),
+        "generated_at": int(time.time()),
     }
+    # Only successful, complete results are cached — never a 404/503, so a
+    # transient provider hiccup doesn't get "stuck" wrong for 24h.
+    cache_set(cache_key, result, _QUICK_ANALYSIS_CACHE_TTL)
+    return result
 
 
 @router.get("/weekly")
