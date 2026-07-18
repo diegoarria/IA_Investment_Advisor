@@ -37,6 +37,7 @@ CACHE_KEY = "undervalued_screener:v1"
 CACHE_TTL = 8 * 24 * 3600      # slightly over a week — one missed weekly run doesn't go stale/empty
 BOOTSTRAP_TTL = 24 * 3600      # short-lived — the next full weekly/startup refresh supersedes this
 _BOOTSTRAP_LIMIT = 20          # small subset so a cold-cache request stays reasonably fast
+_MAX_PER_SECTOR = 5            # never more than 5 candidates from the same sector in the results shown
 
 
 def _scan(tickers: list[dict]) -> list[dict]:
@@ -71,10 +72,13 @@ def _scan(tickers: list[dict]) -> list[dict]:
 
 async def refresh_undervalued_screener() -> None:
     """Full weekly refresh — the entire curated universe, cached with the
-    normal week-long TTL."""
+    normal week-long TTL. Stores every real positive-margin-of-safety
+    result (not capped here) — the per-sector cap (_MAX_PER_SECTOR) is
+    applied at read time in get_undervalued(), so it always has the full
+    real pool to choose the best 5 per sector from."""
     from app.api.routes.screener import UNIVERSE
     results = _scan(UNIVERSE)
-    cache_set(CACHE_KEY, results[:30], CACHE_TTL)
+    cache_set(CACHE_KEY, results, CACHE_TTL)
     logger.info("undervalued_screener_service: refreshed, %d/%d tickers had positive margin of safety", len(results), len(UNIVERSE))
 
 
@@ -104,14 +108,32 @@ def bootstrap_fill_if_empty_sync() -> None:
         logger.info("undervalued_screener_service: bootstrap-filled %d results from a %d-ticker subset", len(results), _BOOTSTRAP_LIMIT)
 
 
-def get_undervalued(limit: int = 10, sector: Optional[str] = None) -> dict:
+def _cap_per_sector(results: list[dict], max_per_sector: int) -> list[dict]:
+    """Keeps at most `max_per_sector` entries per sector — results are
+    already sorted by margin of safety descending, so this keeps each
+    sector's BEST candidates, not an arbitrary subset. A sector with fewer
+    than max_per_sector real candidates just contributes fewer — never
+    padded to reach the cap."""
+    counts: dict[str, int] = {}
+    capped = []
+    for r in results:
+        sector = r.get("sector") or "N/D"
+        counts[sector] = counts.get(sector, 0) + 1
+        if counts[sector] <= max_per_sector:
+            capped.append(r)
+    return capped
+
+
+def get_undervalued(limit: int = 60, sector: Optional[str] = None) -> dict:
     """Fast, cache-only read. `generated_at` (unix timestamp, 0 if the cache
     is empty) lets callers disclose honestly how stale the snapshot is.
     Callers should call bootstrap_fill_if_empty_sync() first if they need a
     guarantee of non-empty results (see screener.py's endpoint and chat.py's
-    context-block builder)."""
+    context-block builder). Caps at 5 candidates per sector (real ones only
+    — a sector with fewer than 5 qualifying stocks just shows fewer)."""
     results, ts = cache_get_with_ts(CACHE_KEY)
     results = results or []
     if sector:
         results = [r for r in results if (r.get("sector") or "").lower() == sector.lower()]
+    results = _cap_per_sector(results, _MAX_PER_SECTOR)
     return {"results": results[:limit], "generated_at": ts}

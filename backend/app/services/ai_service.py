@@ -2758,3 +2758,34 @@ Sé honesto, educativo y empático. No des consejos sobre acciones específicas.
         }
 
 
+async def generate_quick_valuation_summary(data: dict) -> str:
+    """Quick-search valuation summary — a SHORT (80-130 word) narrative around
+    the real numbers already computed by fundamental_analysis_service, for
+    the ad-hoc ticker search on the Acciones Subvaluadas screen. Deliberately
+    NOT the full 20-section Mentor IA report or Deep Research — just enough
+    narrative to make the real numbers make sense at a glance. Haiku-tier:
+    this is a short, cheap call, not a full analysis."""
+    from app.services.fundamental_analysis_service import format_fundamental_analysis_for_prompt
+
+    data_block = format_fundamental_analysis_for_prompt(data)
+
+    prompt = f"""Aquí tienes datos financieros y de valoración REALES y ya calculados de {data.get('company_name', data.get('ticker'))} ({data.get('ticker')}):
+
+{data_block}
+
+Escribe un resumen breve (80-130 palabras, español) para una tarjeta compacta de búsqueda rápida — NO un análisis completo:
+1. 1 línea sobre qué hace la empresa (tu conocimiento general, dicho como tal si es relevante).
+2. El valor intrínseco (escenario base) y el margen de seguridad reales — usa EXACTAMENTE las cifras del bloque de arriba, nunca las inventes ni las redondees distinto.
+3. Una frase sobre qué crecimiento está pagando el mercado hoy (DCF inverso), si está disponible.
+4. Nunca digas "Comprar/No comprar/Mantener". Cierra recordando que esto no es un semáforo de compra y que un análisis completo está disponible pidiéndole a Mentor IA "analiza {data.get('ticker')}".
+
+Formato: texto plano en párrafos cortos, sin encabezados markdown (nada de #), sin bullets — como mucho usa **negrita** para 2-3 cifras clave. Esto se muestra en una tarjeta pequeña, no en una página larga."""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=350,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text.strip()
+
+

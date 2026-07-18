@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Loader2, Lock, BookMarked } from "lucide-react";
+import { Loader2, Lock, BookMarked, Search, X } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
@@ -18,6 +18,19 @@ interface UndervaluedResult {
   thesis_scores: Record<string, number> | null;
 }
 
+interface QuickAnalysisResult {
+  ticker: string;
+  company_name: string | null;
+  sector: string | null;
+  price: number | null;
+  intrinsic_value_base: number | null;
+  expected_value_per_share: number | null;
+  margin_of_safety_pct: number | null;
+  implied_growth_pct: number | null;
+  thesis_scores: Record<string, number> | null;
+  summary: string;
+}
+
 export default function SubvaluadasPage() {
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium" || sub.isTrialPremium;
@@ -29,10 +42,31 @@ export default function SubvaluadasPage() {
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [sectorFilter, setSectorFilter] = useState<string>("Todos");
 
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [quickResult, setQuickResult] = useState<QuickAnalysisResult | null>(null);
+
+  const handleSearch = async () => {
+    if (!query.trim() || !isPremium) return;
+    setSearching(true);
+    setSearchError(null);
+    setQuickResult(null);
+    try {
+      const res = await screenerApi.quickAnalysis(query.trim());
+      setQuickResult(res.data);
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setSearchError(detail || "No se pudo calcular el valor intrínseco para esa búsqueda.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
   useEffect(() => {
     if (!isPremium) return;
     setLoading(true);
-    screenerApi.getUndervalued(undefined, 30)
+    screenerApi.getUndervalued(undefined, 60)
       .then((res) => {
         setResults(res.data?.results || []);
         setGeneratedAt(res.data?.generated_at || 0);
@@ -61,6 +95,74 @@ export default function SubvaluadasPage() {
                 Acciones Subvaluadas (DCF)
               </h1>
             </div>
+
+            <div className="rounded-2xl border-2 p-4 mb-5 text-center"
+                 style={{ borderColor: "#ef4444", background: "rgba(239,68,68,0.08)" }}>
+              <p className="text-lg font-black tracking-tight" style={{ color: "#ef4444" }}>
+                ESTO NO ES RECOMENDACIÓN DE INVERSIÓN
+              </p>
+              <p className="text-xs mt-1" style={{ color: "var(--sub)" }}>
+                Para un análisis más detallado, ve a Mentor IA.
+              </p>
+            </div>
+
+            {isPremium && (
+              <div className="mb-6">
+                <h2 className="text-sm font-bold mb-2" style={{ color: "var(--text)" }}>Buscar cualquier acción</h2>
+                <div className="flex gap-2">
+                  <div className="flex-1 flex items-center gap-2 rounded-xl border px-3"
+                       style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                    <Search className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
+                    <input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                      placeholder="Ticker o nombre de empresa (ej. AAPL, Nike)"
+                      className="flex-1 py-2.5 text-sm bg-transparent outline-none"
+                      style={{ color: "var(--text)" }}
+                    />
+                    {query && (
+                      <button onClick={() => { setQuery(""); setQuickResult(null); setSearchError(null); }}>
+                        <X className="w-4 h-4" style={{ color: "var(--muted)" }} />
+                      </button>
+                    )}
+                  </div>
+                  <button onClick={handleSearch} disabled={searching || !query.trim()}
+                          className="px-4 py-2.5 rounded-xl text-sm font-bold text-black disabled:opacity-40"
+                          style={{ background: "var(--accent)" }}>
+                    {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : "Buscar"}
+                  </button>
+                </div>
+
+                {searchError && <p className="text-xs mt-2" style={{ color: "#ef4444" }}>{searchError}</p>}
+
+                {quickResult && (
+                  <div className="mt-3 rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
+                        {quickResult.ticker} {quickResult.company_name ? `· ${quickResult.company_name}` : ""}
+                      </p>
+                      <span className="shrink-0 text-xs font-black px-2 py-1 rounded-lg"
+                            style={{
+                              background: (quickResult.margin_of_safety_pct ?? 0) >= 0 ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.1)",
+                              color: (quickResult.margin_of_safety_pct ?? 0) >= 0 ? "#22c55e" : "#ef4444",
+                            }}>
+                        {(quickResult.margin_of_safety_pct ?? 0) >= 0 ? "+" : ""}{quickResult.margin_of_safety_pct}%
+                      </span>
+                    </div>
+                    <p className="text-[11px] mb-3" style={{ color: "var(--dim)" }}>
+                      Precio ${quickResult.price} · Valor intrínseco ${quickResult.intrinsic_value_base} ·
+                      {" "}Valor esperado ${quickResult.expected_value_per_share}
+                      {quickResult.implied_growth_pct !== null && ` · Crecimiento implícito ${quickResult.implied_growth_pct}%`}
+                    </p>
+                    <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: "var(--sub)" }}>
+                      {quickResult.summary}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>
               Todas las candidatas con margen de seguridad positivo real, calculadas con el mismo motor de valor
               intrínseco de Mentor IA sobre el universo curado — actualizado semanalmente.

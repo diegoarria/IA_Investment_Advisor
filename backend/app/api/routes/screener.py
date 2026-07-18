@@ -4,7 +4,7 @@ from app.api.deps import get_current_user_id
 from app.services import ai_service
 from app.api.routes.market import _get_user_profile
 from app.core.cache import cache_get, cache_set
-from app.core.finnhub import fh_quote, fh_metrics
+from app.core.finnhub import fh_quote, fh_metrics, fh_search
 
 router = APIRouter(prefix="/market/screener", tags=["screener"])
 
@@ -332,7 +332,7 @@ async def screen(request: dict, user_id: str = Depends(get_current_user_id)):
 
 
 @router.get("/undervalued")
-async def undervalued(sector: str | None = None, limit: int = 10, user_id: str = Depends(get_current_user_id)):
+async def undervalued(sector: str | None = None, limit: int = 60, user_id: str = Depends(get_current_user_id)):
     """Real, DCF-backed undervalued candidates — cache-only read (see
     undervalued_screener_service), refreshed weekly by a background job.
     Distinct from screen()/weekly_picks() above, which layer an LLM
@@ -350,6 +350,65 @@ async def undervalued(sector: str | None = None, limit: int = 10, user_id: str =
         await asyncio.to_thread(bootstrap_fill_if_empty_sync)
         result = get_undervalued(limit=limit, sector=sector)
     return result
+
+
+def _resolve_quick_ticker(query: str) -> str | None:
+    """Resolves free-text (a ticker or a company name) to a real ticker
+    symbol for the quick-analysis search below. Tries the input as a
+    ticker directly first (cheapest — no extra API call); only falls back
+    to a live Finnhub symbol search for company-name input."""
+    candidate = query.strip().upper()
+    if candidate.isalpha() and 1 <= len(candidate) <= 5:
+        return candidate
+    try:
+        results = fh_search(query.strip())
+    except Exception:
+        return None
+    for r in results:
+        if r.get("symbol") and r.get("type", "").lower() in ("common stock", "equity", ""):
+            return r["symbol"]
+    return None
+
+
+@router.get("/quick-analysis")
+async def quick_analysis(query: str, user_id: str = Depends(get_current_user_id)):
+    """Ad-hoc single-ticker valuation search — the real DCF engine (same one
+    behind Mentor IA and the undervalued screener) plus a SHORT narrative
+    summary (see ai_service.generate_quick_valuation_summary), for any
+    ticker/company name, not just the curated screener universe. Live —
+    unlike the screener, this is a single ticker so it's fast enough to
+    compute per-request, no caching needed."""
+    from app.api.routes.chat import _is_premium
+    profile = _get_user_profile(user_id)
+    if not _is_premium(profile):
+        raise HTTPException(status_code=403, detail="La búsqueda de valor intrínseco requiere Premium")
+
+    if not query or not query.strip():
+        raise HTTPException(status_code=400, detail="Escribe un ticker o nombre de empresa")
+
+    ticker = await asyncio.to_thread(_resolve_quick_ticker, query)
+    if not ticker:
+        raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
+
+    from app.services.fundamental_analysis_service import get_fundamental_analysis
+    data = await asyncio.to_thread(get_fundamental_analysis, ticker)
+    if not data or not data.get("dcf"):
+        raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para calcular el valor intrínseco de {ticker}")
+
+    summary = await ai_service.generate_quick_valuation_summary(data)
+    dcf = data["dcf"]
+    return {
+        "ticker": data["ticker"],
+        "company_name": data.get("company_name"),
+        "sector": data.get("sector"),
+        "price": data.get("current_price"),
+        "intrinsic_value_base": dcf["scenarios"]["base"]["intrinsic_value_per_share"],
+        "expected_value_per_share": dcf.get("expected_value_per_share"),
+        "margin_of_safety_pct": dcf.get("margin_of_safety_pct"),
+        "implied_growth_pct": dcf.get("implied_growth_pct"),
+        "thesis_scores": data.get("thesis_scores"),
+        "summary": summary,
+    }
 
 
 @router.get("/weekly")

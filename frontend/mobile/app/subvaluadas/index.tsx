@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator,
+  View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -17,6 +17,18 @@ interface UndervaluedResult {
   thesis_scores: Record<string, number> | null;
 }
 
+interface QuickAnalysisResult {
+  ticker: string;
+  company_name: string | null;
+  sector: string | null;
+  price: number | null;
+  intrinsic_value_base: number | null;
+  expected_value_per_share: number | null;
+  margin_of_safety_pct: number | null;
+  implied_growth_pct: number | null;
+  summary: string;
+}
+
 export default function SubvaluadasScreen() {
   const { colors } = useTheme();
   const [results, setResults] = useState<UndervaluedResult[]>([]);
@@ -24,8 +36,13 @@ export default function SubvaluadasScreen() {
   const [loading, setLoading] = useState(true);
   const [sectorFilter, setSectorFilter] = useState("Todos");
 
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [quickResult, setQuickResult] = useState<QuickAnalysisResult | null>(null);
+
   useEffect(() => {
-    screenerWeeklyApi.getUndervalued(undefined, 30)
+    screenerWeeklyApi.getUndervalued(undefined, 60)
       .then((res: any) => {
         setResults(res.data?.results || []);
         setGeneratedAt(res.data?.generated_at || 0);
@@ -33,6 +50,21 @@ export default function SubvaluadasScreen() {
       .catch(() => setResults([]))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleSearch = async () => {
+    if (!query.trim()) return;
+    setSearching(true);
+    setSearchError(null);
+    setQuickResult(null);
+    try {
+      const res = await screenerWeeklyApi.quickAnalysis(query.trim());
+      setQuickResult(res.data);
+    } catch (err: any) {
+      setSearchError(err?.response?.data?.detail || "No se pudo calcular el valor intrínseco para esa búsqueda.");
+    } finally {
+      setSearching(false);
+    }
+  };
 
   const sectors = useMemo(() => {
     const unique = Array.from(new Set(results.map((r) => r.sector).filter(Boolean))) as string[];
@@ -52,7 +84,51 @@ export default function SubvaluadasScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+        <View style={[styles.warningBox, { borderColor: "#ef4444", backgroundColor: "rgba(239,68,68,0.08)" }]}>
+          <Text style={styles.warningTitle}>ESTO NO ES RECOMENDACIÓN DE INVERSIÓN</Text>
+          <Text style={[styles.warningSubtitle, { color: colors.textSub }]}>Para un análisis más detallado, ve a Mentor IA.</Text>
+        </View>
+
+        <Text style={[styles.sectionLabel, { color: colors.text }]}>Buscar cualquier acción</Text>
+        <View style={styles.searchRow}>
+          <View style={[styles.searchInputWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
+            <Ionicons name="search" size={16} color={colors.textMuted} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              onSubmitEditing={handleSearch}
+              placeholder="Ticker o nombre (ej. AAPL, Nike)"
+              placeholderTextColor={colors.placeholder}
+              style={[styles.searchInput, { color: colors.text }]}
+            />
+          </View>
+          <TouchableOpacity onPress={handleSearch} disabled={searching || !query.trim()}
+                            style={[styles.searchBtn, { backgroundColor: colors.accent, opacity: (searching || !query.trim()) ? 0.5 : 1 }]}>
+            {searching ? <ActivityIndicator color="#000" size="small" /> : <Text style={styles.searchBtnText}>Buscar</Text>}
+          </TouchableOpacity>
+        </View>
+
+        {searchError && <Text style={{ fontSize: 12, color: "#ef4444", marginBottom: 12 }}>{searchError}</Text>}
+
+        {quickResult && (
+          <View style={[styles.quickCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <Text style={[styles.ticker, { color: colors.text }]}>
+                {quickResult.ticker} {quickResult.company_name ? `· ${quickResult.company_name}` : ""}
+              </Text>
+              <Text style={{ fontSize: 13, fontWeight: "900", color: (quickResult.margin_of_safety_pct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
+                {(quickResult.margin_of_safety_pct ?? 0) >= 0 ? "+" : ""}{quickResult.margin_of_safety_pct}%
+              </Text>
+            </View>
+            <Text style={[styles.meta, { color: colors.textDim, marginBottom: 8 }]}>
+              Precio ${quickResult.price} · Valor intrínseco ${quickResult.intrinsic_value_base} · Valor esperado ${quickResult.expected_value_per_share}
+              {quickResult.implied_growth_pct !== null && ` · Crecimiento implícito ${quickResult.implied_growth_pct}%`}
+            </Text>
+            <Text style={{ fontSize: 13, lineHeight: 19, color: colors.textSub }}>{quickResult.summary}</Text>
+          </View>
+        )}
+
+        <Text style={[styles.subtitle, { color: colors.textMuted, marginTop: 16 }]}>
           Todas las candidatas con margen de seguridad positivo real, mismo motor de DCF que Mentor IA.
           {generatedAt > 0 && ` Actualizado: ${new Date(generatedAt * 1000).toLocaleDateString("es-MX", { day: "numeric", month: "long" })}.`}
         </Text>
@@ -112,6 +188,16 @@ const styles = StyleSheet.create({
   backBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 15, fontWeight: "800" },
   scroll: { padding: 16, paddingBottom: 40 },
+  warningBox: { borderWidth: 2, borderRadius: 16, padding: 14, marginBottom: 16, alignItems: "center" },
+  warningTitle: { fontSize: 16, fontWeight: "900", color: "#ef4444", textAlign: "center" },
+  warningSubtitle: { fontSize: 11, marginTop: 4, textAlign: "center" },
+  sectionLabel: { fontSize: 13, fontWeight: "800", marginBottom: 8 },
+  searchRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  searchInputWrap: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12 },
+  searchInput: { flex: 1, paddingVertical: 10, fontSize: 13 },
+  searchBtn: { paddingHorizontal: 16, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  searchBtnText: { fontSize: 13, fontWeight: "900", color: "#000" },
+  quickCard: { borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 16 },
   subtitle: { fontSize: 12, marginBottom: 16, lineHeight: 17 },
   center: { paddingVertical: 40, alignItems: "center" },
   emptyCard: { borderWidth: 1, borderRadius: 16, padding: 24 },
