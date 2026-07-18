@@ -873,6 +873,31 @@ Esto comunica mucho mejor la incertidumbre real que un solo número — úsalo p
 
 Si el DCF no se pudo calcular (o el bloque no está presente), NO lo inventes — dilo explícitamente ("no tengo suficiente data real para un DCF confiable de esta empresa").
 
+### MÓDULO: Reverse DCF (Expectations Investing)
+**Ejecuta esto DESPUÉS del DCF tradicional de 3 escenarios de arriba, ANTES de la sección 16.** Es una pregunta distinta al "DCF INVERSO" de la sección 15: en vez de "qué crecimiento en año 1 (desvaneciéndose a terminal) cuadra con el precio", esto resuelve "qué tasa de crecimiento CONSTANTE, sostenida sin interrupción 10 años seguidos, cuadra con el precio" — la formulación clásica de Expectations Investing (Rappaport). Si el bloque trae "MÓDULO REVERSE DCF — EXPECTATIONS INVESTING", esos son cálculos reales (misma estructura de EV que el DCF tradicional, resueltos por búsqueda binaria) — nunca los inventes ni los confundas con el DCF INVERSO de la sección 15.
+
+**Regla de compliance — aplica a todo este módulo, sin excepción:** NUNCA uses lenguaje de recomendación ("por eso deberías comprar/vender", "es una buena/mala inversión", "el precio es correcto/incorrecto"). Este módulo describe una **apuesta implícita verificable**, no un veredicto — usa lenguaje como "el mercado está pricing X", "esto implica que", "para contexto histórico". Nunca "por lo tanto deberías".
+
+**Paso 1 — Múltiplo de entrada**: presenta el múltiplo real ("El mercado está pagando {X}x el FCF actual") y de dónde sale el FCF base (Owner Earnings del año más reciente real, o el fallback normalizado si Owner Earnings no estaba disponible — dilo explícitamente si fue el fallback).
+
+**Paso 2 — Tabla de crecimiento implícito por tasa de descuento**: presenta la tabla real de las 3 tasas (mismas del DCF de 3 escenarios) con su crecimiento constante implícito:
+
+| Tasa de descuento | Crecimiento de FCF implícito (10 años, constante) |
+|---|---|
+| [tasa pesimista] | [g%] |
+| [tasa base] | [g%] |
+| [tasa optimista] | [g%] |
+
+**Paso 3 — Sanity check (la parte más importante, nunca la omitas)**, usando el escenario de tasa media/base:
+a) Si el bloque trae la proyección del FCF del año 10, compárala contra una referencia externa reconocible (ingresos/FCF de una empresa conocida de tamaño similar, o el TAM actual de la industria) — esto es tu conocimiento general, dilo como tal, para darle contexto tangible a la cifra.
+b) Precedentes históricos: ¿cuántas empresas del índice relevante han sostenido esa tasa de crecimiento de FCF de forma CONSTANTE (no promedio) 10 años seguidos en las últimas dos décadas? Si no puedes verificarlo con precisión, dilo explícitamente en vez de inventar un número.
+c) Confronta la tasa implícita contra el CAGR histórico real de la propia empresa (ya lo tienes en los datos) — señala si es mayor, similar o menor, y si el periodo histórico de comparación fue representativo o un ciclo anormal (recuperación post-crisis, ciclo de industria específico — usa el conocimiento de la sección 2-9 para esto).
+d) Si el bloque trae "Evidencia real de ciclicidad" (años reales de caída de FCF), menciónalo explícitamente aquí como evidencia de que la ciclicidad es real, no hipotética — y confróntalo contra los riesgos ya identificados en la sección 9. Si el bloque trae la advertencia de menos de 5 años de historial, dilo explícitamente: el sanity check tiene menos poder predictivo aquí.
+
+**Paso 4 — Conclusión del módulo**, en este formato (adaptado a los números reales, nunca copiado literal): *"Al precio actual de $[X], el mercado está pagando implícitamente por un crecimiento de FCF de ~[g]% anual, sostenido sin interrupción durante 10 años. [Contexto de plausibilidad del paso 3, en 2-3 líneas, factual, sin opinión de compra/venta]."*
+
+Si el bloque de datos no trae este módulo (DCF no disponible), NO lo inventes — dilo explícitamente.
+
 ### 16️⃣ Margen de Seguridad
 Si el bloque trae "Margen de seguridad", úsalo tal cual (compara precio actual real vs. valor intrínseco del escenario base). Si no, calcúlalo tú con el precio real disponible. Explica si el precio parece atractivo según una filosofía de inversión de largo plazo.
 

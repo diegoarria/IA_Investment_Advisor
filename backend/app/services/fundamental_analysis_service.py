@@ -273,6 +273,57 @@ def _implied_growth_rate(
     return round((lo + hi) / 2 * 100, 1)
 
 
+def _run_dcf_constant_growth(base_fcf: float, growth: float, discount_rate: float, terminal_growth: float, years: int = _PROJECTION_YEARS) -> dict:
+    """Same 2-stage structure as _run_dcf (explicit years + Gordon-growth
+    terminal value), but FCF grows at a CONSTANT rate every year instead of
+    fading linearly toward terminal growth. This is deliberate: Expectations
+    Investing (Rappaport) asks "what constant growth rate, held flat for the
+    whole explicit period, reconciles today's price" — a fading path would
+    answer a different, less standard question."""
+    v = base_fcf
+    path = []
+    for _ in range(years):
+        v *= (1 + growth)
+        path.append(v)
+    pv_sum = sum(cf / ((1 + discount_rate) ** yr) for yr, cf in enumerate(path, start=1))
+    final_cf = path[-1]
+    terminal_value = final_cf * (1 + terminal_growth) / (discount_rate - terminal_growth)
+    pv_terminal = terminal_value / ((1 + discount_rate) ** years)
+    return {
+        "fcf_path": path,
+        "pv_of_fcf_sum": pv_sum,
+        "terminal_value": terminal_value,
+        "pv_of_terminal_value": pv_terminal,
+        "enterprise_value": pv_sum + pv_terminal,
+    }
+
+
+def _implied_constant_growth_rate(
+    base_fcf: float, discount_rate: float, terminal_growth: float,
+    total_debt: float, cash: float, shares_out: float, target_price: float,
+) -> Optional[float]:
+    """Reverse DCF for Expectations Investing: same binary-search approach as
+    _implied_growth_rate, but solving for a CONSTANT annual growth rate
+    (not a year-1 rate that fades to terminal) — the standard formulation
+    for "what growth rate, sustained flat for 10 years, justifies this
+    price." Returns None if no rate in a sane range reconciles the price."""
+    def intrinsic_at(g: float) -> float:
+        result = _run_dcf_constant_growth(base_fcf, g, discount_rate, terminal_growth)
+        equity = result["enterprise_value"] - total_debt + cash
+        return equity / shares_out
+
+    lo, hi = -0.30, 1.50
+    if intrinsic_at(lo) > target_price or intrinsic_at(hi) < target_price:
+        return None
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        if intrinsic_at(mid) < target_price:
+            lo = mid
+        else:
+            hi = mid
+    return round((lo + hi) / 2 * 100, 1)
+
+
 def get_fundamental_analysis(ticker: str) -> Optional[dict]:
     """Returns a fully computed fundamental-analysis dict for `ticker`, or
     None if there isn't enough real financial data to compute one reliably
@@ -622,6 +673,60 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                 base_fcf, base_discount_rate, terminal_growth, total_debt, cash_latest, projected_shares, price,
             )
 
+            # ── Reverse DCF — Expectations Investing (Rappaport) ───────────
+            # A distinct question from the "DCF inverso" above: instead of
+            # the year-1-fading-to-terminal growth rate, this solves for a
+            # CONSTANT annual growth rate held flat for the full 10-year
+            # explicit period — the standard formulation of "what growth,
+            # sustained without interruption, does today's price require."
+            # Uses the latest year's real Owner Earnings (Buffett's actual
+            # cash-generation definition) as FCF_0, not the recency-weighted
+            # margin-normalized base used in the forward DCF — this module
+            # is anchored to "what did the business actually generate last
+            # year," not a smoothed multi-year average, since the exercise
+            # is explicitly about today's price vs. today's real number.
+            latest_oe = next((v for v in reversed(owner_earnings_trend) if v is not None), None)
+            if latest_oe is not None and latest_oe > 0:
+                fcf0_expectations = latest_oe
+                fcf0_source = "owner_earnings_latest_year"
+            else:
+                fcf0_expectations = base_fcf
+                fcf0_source = "dcf_base_fcf_fallback"
+
+            expectations_investing = None
+            if market_cap and fcf0_expectations > 0:
+                implied_multiple_pfcf = round(market_cap / fcf0_expectations, 1)
+                growth_by_rate = []
+                for name in ("pessimistic", "base", "optimistic"):
+                    dr = scenarios[name]["discount_rate_pct"] / 100
+                    g = _implied_constant_growth_rate(
+                        fcf0_expectations, dr, terminal_growth, total_debt, cash_latest, projected_shares, price,
+                    )
+                    growth_by_rate.append({
+                        "scenario": name,
+                        "discount_rate_pct": scenarios[name]["discount_rate_pct"],
+                        "implied_growth_pct": g,
+                    })
+                base_g = next((r["implied_growth_pct"] for r in growth_by_rate if r["scenario"] == "base"), None)
+                fcf_year10_base = round(fcf0_expectations * (1 + base_g / 100) ** 10, 0) if base_g is not None else None
+
+                # Real evidence of cyclicality: count actual YoY FCF declines
+                # in the historical trend — objective, not a narrative guess.
+                fcf_valid_pairs = [v for v in fcf_trend if v is not None]
+                fcf_decline_years = sum(
+                    1 for i in range(1, len(fcf_valid_pairs)) if fcf_valid_pairs[i] < fcf_valid_pairs[i - 1]
+                )
+
+                expectations_investing = {
+                    "fcf0": round(fcf0_expectations, 0),
+                    "fcf0_source": fcf0_source,
+                    "implied_multiple_pfcf": implied_multiple_pfcf,
+                    "growth_by_rate": growth_by_rate,
+                    "fcf_year10_base_scenario": fcf_year10_base,
+                    "historical_fcf_decline_years": fcf_decline_years,
+                    "years_available": n,
+                }
+
             # Confidence Score (0-100): a REAL measure of how volatile/
             # predictable this business's FCF and ROIC actually are — not
             # how good the business is (that's the Business Quality Score).
@@ -722,6 +827,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                 "margin_of_safety_pct": margin_of_safety,
                 "sensitivity": sensitivity,
                 "implied_growth_pct": implied_growth_pct,
+                "expectations_investing": expectations_investing,
                 "confidence_score": confidence_score,
                 "fcf_volatility_cv": round(fcf_cv, 2) if fcf_cv is not None else None,
                 "probability_weights": {"pessimistic": prob_weights[0], "base": prob_weights[1], "optimistic": prob_weights[2]},
@@ -1180,6 +1286,50 @@ def format_fundamental_analysis_for_prompt(data: dict) -> str:
                 "DCF INVERSO: no se pudo calcular un crecimiento implícito razonable para el precio actual "
                 "(el precio requeriría una tasa de crecimiento fuera de un rango realista) — dilo explícitamente si es relevante."
             )
+
+        ei = dcf.get("expectations_investing")
+        if ei:
+            src_label = (
+                "Owner Earnings del año más reciente real" if ei["fcf0_source"] == "owner_earnings_latest_year"
+                else "FCF base normalizado del DCF (fallback — Owner Earnings del último año no estaba disponible o era negativo)"
+            )
+            lines.append(
+                f"\nMÓDULO REVERSE DCF — EXPECTATIONS INVESTING (real, calculado — describe una apuesta implícita "
+                f"verificable, NUNCA un veredicto de compra/venta): FCF base usado = {_fmt_money(ei['fcf0'])} ({src_label}). "
+                f"El mercado está pagando {ei['implied_multiple_pfcf']}x ese FCF (Market Cap / FCF base)."
+            )
+            lines.append(
+                "Tasa de crecimiento CONSTANTE de FCF (10 años, sin desvanecimiento a terminal — a diferencia del DCF "
+                "INVERSO de arriba) que reconcilia el precio actual, para cada una de las 3 tasas de descuento ya usadas "
+                "en los escenarios de la sección 15 (real, misma estructura EV = Σ FCF/(1+r)^t + Terminal Value):"
+            )
+            for row in ei["growth_by_rate"]:
+                g_txt = f"{row['implied_growth_pct']}%" if row["implied_growth_pct"] is not None else "N/D (fuera de rango razonable)"
+                lines.append(f"  - Tasa de descuento {row['discount_rate_pct']}% ({row['scenario']}): crecimiento de FCF implícito {g_txt}")
+            if ei.get("fcf_year10_base_scenario") is not None:
+                lines.append(
+                    f"Sanity check (Paso 3, escenario de tasa media/base): a esa tasa de crecimiento, el FCF del año 10 "
+                    f"proyectado sería {_fmt_money(ei['fcf_year10_base_scenario'])} (partiendo de {_fmt_money(ei['fcf0'])} hoy). "
+                    f"Compara esta cifra contra una referencia externa reconocible (ingresos/FCF de una empresa conocida de "
+                    f"tamaño similar, o el tamaño actual del TAM de la industria) para darle contexto tangible — esto es tu "
+                    f"conocimiento general, dilo como tal."
+                )
+                lines.append(
+                    "Precedentes históricos de sostener esa tasa de crecimiento de FCF constante 10 años seguidos (no "
+                    "promedio): si no puedes verificarlo con precisión desde tu conocimiento, dilo explícitamente en vez "
+                    "de inventar una cifra o un número de empresas."
+                )
+            lines.append(
+                f"Evidencia real de ciclicidad: en los {ei['years_available']} años de historial disponibles, el FCF tuvo "
+                f"{ei['historical_fcf_decline_years']} año(s) de caída interanual real — {'consistente con una historia de crecimiento genuinamente irregular, no hipotética' if ei['historical_fcf_decline_years'] > 0 else 'sin caídas registradas en el periodo disponible'}. "
+                f"Confronta esto contra los riesgos ya identificados (sección 9: concentración, competencia, ciclicidad) al "
+                f"evaluar si sostener el crecimiento implícito sin interrupción es consistente con el historial real."
+            )
+            if ei["years_available"] < 5:
+                lines.append(
+                    "Advertencia: menos de 5 años de historial disponible — la comparación contra el CAGR histórico propio "
+                    "tiene menor poder predictivo aquí. Dilo explícitamente."
+                )
     else:
         lines.append("")
         lines.append("DCF: no se pudo calcular (falta FCF positivo, precio o acciones en circulación reales) — dilo explícitamente, no inventes un valor intrínseco.")
