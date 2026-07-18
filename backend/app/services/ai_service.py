@@ -2806,7 +2806,21 @@ _CHECKLIST_INSTRUCTIONS = """Reglas para razonar los 7 ítems del checklist de i
 - Lenguaje profesional, objetivo, basado en evidencia, máximo 70 palabras por ítem, entendible para un inversionista principiante pero riguroso para uno avanzado."""
 
 
-async def generate_quick_valuation_summary(data: dict) -> dict:
+def _output_language_directive(lang: str) -> str:
+    """Leading, high-priority language instruction — placed FIRST in the
+    prompt (not buried at the end), same lesson already learned in
+    _language_directive: a single instruction line after a long Spanish
+    prompt gets outweighed by the prompt's own language and the model
+    defaults to Spanish anyway. lang is the app's UI language ("en"/"es"),
+    NOT necessarily the user's chat message language — these are
+    screener/quick-search cards, not a chat reply, so there's no user
+    message to mirror."""
+    if lang == "en":
+        return "IMPORTANT: Write EVERY text field in your JSON response entirely in English, regardless of the language of the instructions below.\n\n"
+    return "IMPORTANTE: Escribe TODOS los campos de texto de tu respuesta JSON completamente en español.\n\n"
+
+
+async def generate_quick_valuation_summary(data: dict, lang: str = "es") -> dict:
     """Quick-search valuation summary — a SHORT (80-130 word) narrative around
     the real numbers already computed by fundamental_analysis_service, for
     the ad-hoc ticker search on the Acciones Subvaluadas screen. Deliberately
@@ -2823,6 +2837,11 @@ async def generate_quick_valuation_summary(data: dict) -> dict:
     writing rules). The caller (get_undervalued's route or the merge helper)
     overlays these reasons onto the real "passed" flags — never the reverse.
 
+    `lang` ("es" or "en") is the app's UI language, not a chat message to
+    mirror — this is a screener card, not a chat reply — so it's passed in
+    explicitly by the caller (from the user's profile/UI setting) rather
+    than inferred from any message text.
+
     Returns {"summary": str, "business_understanding_passed": bool|None,
     "business_understanding_reason": str, "checklist_reasons": dict}. Falls
     back to passed=None / empty checklist_reasons (never fakes a checklist
@@ -2832,7 +2851,7 @@ async def generate_quick_valuation_summary(data: dict) -> dict:
     data_block = format_fundamental_analysis_for_prompt(data)
     evidence_block = _format_checklist_evidence_for_prompt(data.get("checklist_items_real") or [], data.get("sector"), data.get("dcf"))
 
-    prompt = f"""Aquí tienes datos financieros y de valoración REALES y ya calculados de {data.get('company_name', data.get('ticker'))} ({data.get('ticker')}):
+    prompt = f"""{_output_language_directive(lang)}Aquí tienes datos financieros y de valoración REALES y ya calculados de {data.get('company_name', data.get('ticker'))} ({data.get('ticker')}):
 
 {data_block}
 
@@ -2875,26 +2894,32 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown fuera del JSON, sin texto
     # a fake "summary" (real failure mode seen in production) — fall back
     # to a short, honest placeholder instead.
     _log.warning("generate_quick_valuation_summary: JSON parse failed, response likely truncated (%d chars)", len(text))
+    fallback_summary = (
+        "Could not generate the summary right now. The real numeric data above is still accurate."
+        if lang == "en" else
+        "No se pudo generar el resumen en este momento. Los datos numéricos reales siguen disponibles arriba."
+    )
     return {
-        "summary": "No se pudo generar el resumen en este momento. Los datos numéricos reales siguen disponibles arriba.",
+        "summary": fallback_summary,
         "business_understanding_passed": None, "business_understanding_reason": "", "checklist_reasons": {},
     }
 
 
-async def generate_candidate_blurb(entry: dict) -> dict:
+async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
     """One-liner (~15-25 words) for a single undervalued-screener candidate —
-    called once per real candidate during the weekly refresh (see
-    undervalued_screener_service.refresh_undervalued_screener), never live
-    per-request. Deliberately lean prompt (compact evidence lines, no full
-    data block) since this runs ~60-90 times per refresh — keeps the weekly
-    cost small, but each of the 7 checklist items still gets a real,
-    multi-factor-grounded ~70-word reason (see _CHECKLIST_INSTRUCTIONS).
+    called once per real candidate PER LANGUAGE during the weekly refresh
+    (see undervalued_screener_service.refresh_undervalued_screener), never
+    live per-request. Deliberately lean prompt (compact evidence lines, no
+    full data block) since this runs ~60-90 times per refresh per language —
+    keeps the weekly cost small, but each of the 7 checklist items still
+    gets a real, multi-factor-grounded ~70-word reason (see
+    _CHECKLIST_INSTRUCTIONS).
 
     Returns {"blurb": str, "business_understanding_passed": bool|None,
     "business_understanding_reason": str, "checklist_reasons": dict}."""
     ts = entry.get("thesis_scores") or {}
     evidence_block = _format_checklist_evidence_for_prompt(entry.get("checklist_items_real") or [], entry.get("sector"), None)
-    prompt = f"""{entry.get('company_name') or entry['ticker']} ({entry['ticker']}, sector {entry.get('sector') or 'N/D'}): precio real ${entry.get('price')}, valor intrínseco real ${entry.get('intrinsic_value_base')}, margen de seguridad real +{entry.get('margin_of_safety_pct')}%. Business Quality {ts.get('business_quality', 'N/D')}/100, Financial Strength {ts.get('financial_strength', 'N/D')}/100.
+    prompt = f"""{_output_language_directive(lang)}{entry.get('company_name') or entry['ticker']} ({entry['ticker']}, sector {entry.get('sector') or 'N/D'}): precio real ${entry.get('price')}, valor intrínseco real ${entry.get('intrinsic_value_base')}, margen de seguridad real +{entry.get('margin_of_safety_pct')}%. Business Quality {ts.get('business_quality', 'N/D')}/100, Financial Strength {ts.get('financial_strength', 'N/D')}/100.
 
 Evidencia real por dimensión del checklist (ítems 2-7):
 {evidence_block}

@@ -564,7 +564,16 @@
     "checklist": {
       "label": "Investment checklist",
       "hide": "Hide",
-      "viewDetail": "View detail"
+      "viewDetail": "View detail",
+      "items": {
+        "business_understanding": "Understanding the business",
+        "moat": "Competitive advantage (Moat)",
+        "business_quality": "Business quality",
+        "management_capital_allocation": "Management & capital allocation",
+        "financial_strength": "Financial strength",
+        "growth_predictability": "Predictable future growth",
+        "valuation": "Intrinsic value & margin of safety"
+      }
     },
     "weakDimensionWarning": "Possible value trap: {{text}}",
     "follow": {

@@ -14,6 +14,7 @@ import { screenerApi, watchlist } from "@/lib/api";
 import { useSubscriptionStore } from "@/lib/store";
 
 interface ChecklistItem {
+  key?: string;
   name: string;
   passed: boolean | null;
   reason: string;
@@ -111,7 +112,9 @@ function ChecklistDisplay({ checklist }: { checklist: Checklist }) {
                 <span className="w-3.5 h-3.5 mt-0.5 shrink-0 flex items-center justify-center text-[10px] font-bold" style={{ color: "var(--muted)" }}>?</span>
               )}
               <div className="min-w-0">
-                <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{item.name}</p>
+                <p className="text-xs font-bold" style={{ color: "var(--text)" }}>
+                  {item.key ? t(`subvaluadas.checklist.items.${item.key}`, { defaultValue: item.name }) : item.name}
+                </p>
                 <p className="text-[11px]" style={{ color: "var(--dim)" }}>{item.reason}</p>
               </div>
             </div>

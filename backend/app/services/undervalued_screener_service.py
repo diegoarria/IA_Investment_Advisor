@@ -26,6 +26,7 @@ a flushed cache, or a missed weekly run should never show a blank screen):
 
 from __future__ import annotations
 
+import copy
 import logging
 from typing import Optional
 
@@ -47,12 +48,14 @@ _WEAK_DIMENSIONS = [
 ]
 
 
-def _weak_dimension_warning(thesis_scores: Optional[dict]) -> Optional[str]:
+def _weak_dimension(thesis_scores: Optional[dict]) -> Optional[dict]:
     """Real signal (from the same Investment Thesis Scorecard already
     computed, not a new estimate) that a high margin of safety might be a
     value trap rather than a genuine bargain — flags the weakest dimension
-    below the threshold so the UI can show a concrete reason, not just a
-    generic warning icon."""
+    below the threshold. Returns the raw {label, score} instead of a
+    formatted string so the caller can render it in the requested language
+    at read time (see _format_weak_dimension_warning) rather than baking a
+    single language in at scan time."""
     if not thesis_scores:
         return None
     worst_label, worst_score = None, 100
@@ -60,7 +63,14 @@ def _weak_dimension_warning(thesis_scores: Optional[dict]) -> Optional[str]:
         score = thesis_scores.get(key)
         if score is not None and score < _WEAK_DIMENSION_THRESHOLD and score < worst_score:
             worst_label, worst_score = label, score
-    return f"{worst_label} bajo ({worst_score}/100)" if worst_label else None
+    return {"label": worst_label, "score": worst_score} if worst_label else None
+
+
+def _format_weak_dimension_warning(weak_dimension: Optional[dict], lang: str) -> Optional[str]:
+    if not weak_dimension:
+        return None
+    suffix = "low" if lang == "en" else "bajo"
+    return f"{weak_dimension['label']} {suffix} ({weak_dimension['score']}/100)"
 
 
 def _scan(tickers: list[dict]) -> list[dict]:
@@ -87,8 +97,14 @@ def _scan(tickers: list[dict]) -> list[dict]:
                     "intrinsic_value_base": dcf["scenarios"]["base"]["intrinsic_value_per_share"],
                     "margin_of_safety_pct": mos,
                     "thesis_scores": thesis_scores,
-                    "weak_dimension_warning": _weak_dimension_warning(thesis_scores),
-                    "blurb": None,  # filled in during the full weekly refresh only (see refresh_undervalued_screener)
+                    "weak_dimension": _weak_dimension(thesis_scores),
+                    # AI text (blurb + checklist reasons), keyed by language —
+                    # filled in during the full weekly refresh only (see
+                    # refresh_undervalued_screener). get_undervalued() reads
+                    # the requested language at serve time.
+                    "blurb_by_lang": {},
+                    "business_understanding_by_lang": {},
+                    "checklist_reasons_by_lang": {},
                     "checklist_items_real": data.get("checklist_items_real") or [],
                 })
         except Exception as exc:
@@ -98,18 +114,23 @@ def _scan(tickers: list[dict]) -> list[dict]:
 
 
 _CHECKLIST_REASON_KEYS = ["moat", "business_quality", "management_capital_allocation", "financial_strength", "growth_predictability", "valuation"]
+_SUPPORTED_LANGS = ("es", "en")
 
 
 def _finalize_checklist(entry: dict, business_understanding: Optional[dict] = None, checklist_reasons: Optional[dict] = None) -> None:
-    """Merges checklist item 1 ("Entender el negocio" — Claude's judgment,
-    or None if not evaluated) with items 2-7 (real "passed" flags, computed
-    by fundamental_analysis_service._build_checklist_items) into the final
-    7-item checklist + "X/7" score, mutating `entry` in place. If Claude
-    returned `checklist_reasons` (see ai_service._CHECKLIST_INSTRUCTIONS),
-    those nuanced ~70-word explanations OVERWRITE items 2-7's templated
-    "reason" text — never their "passed" flag, which stays the real,
-    deterministic threshold. The internal-only `evidence` field (raw numbers
-    fed to Claude) is stripped before the checklist reaches the frontend."""
+    """Merges checklist item 1 ("Entender el negocio"/"Understanding the
+    business" — Claude's judgment, or None if not evaluated) with items 2-7
+    (real "passed" flags, computed by fundamental_analysis_service._build_
+    checklist_items) into the final 7-item checklist + "X/7" score, mutating
+    `entry` in place. If Claude returned `checklist_reasons` (see
+    ai_service._CHECKLIST_INSTRUCTIONS), those nuanced ~70-word explanations
+    OVERWRITE items 2-7's templated "reason" text — never their "passed"
+    flag, which stays the real, deterministic threshold. The internal-only
+    `evidence` field (raw numbers fed to Claude) is stripped before the
+    checklist reaches the frontend. Only called on a per-request COPY of a
+    cached entry (see get_undervalued) — never on the shared cached object,
+    since it destructively pops `checklist_items_real` and this needs to
+    run once per requested language, not once ever."""
     items = list(entry.pop("checklist_items_real", []))
     checklist_reasons = checklist_reasons or {}
     for item, key in zip(items, _CHECKLIST_REASON_KEYS):
@@ -118,6 +139,7 @@ def _finalize_checklist(entry: dict, business_understanding: Optional[dict] = No
             item["reason"] = reason_text
         item.pop("evidence", None)
     items.insert(0, business_understanding or {
+        "key": "business_understanding",
         "name": "Entender el negocio",
         "passed": None,
         "reason": "No evaluado en esta carga rápida.",
@@ -131,24 +153,34 @@ async def refresh_undervalued_screener() -> None:
     per-sector cap (_MAX_PER_SECTOR) here (not just at read time) so the
     one-liner blurb generation below only runs for candidates that will
     actually be shown, not every positive-margin-of-safety ticker in the
-    universe — keeps the weekly Claude cost bounded (≤5 per sector)."""
+    universe — keeps the weekly Claude cost bounded (≤5 per sector).
+
+    Generates the AI text (blurb, business-understanding judgment, checklist
+    reasons) ONCE PER SUPPORTED LANGUAGE per candidate — doubling the Claude
+    calls here (still a weekly batch job, not a live request) is how English
+    UI users get real, non-mixed-language checklist text instead of either
+    always seeing Spanish or paying for a live translation call per read.
+    Nothing is finalized into a single "checklist" here — that merge
+    happens per-request, per-language, in get_undervalued()."""
     from app.api.routes.screener import UNIVERSE
     results = _scan(UNIVERSE)
     results = _cap_per_sector(results, _MAX_PER_SECTOR)
 
     from app.services.ai_service import generate_candidate_blurb
     for entry in results:
-        try:
-            blurb_result = await generate_candidate_blurb(entry)
-            entry["blurb"] = blurb_result.get("blurb")
-            _finalize_checklist(entry, {
-                "name": "Entender el negocio",
-                "passed": blurb_result.get("business_understanding_passed"),
-                "reason": blurb_result.get("business_understanding_reason", ""),
-            }, blurb_result.get("checklist_reasons"))
-        except Exception as exc:
-            logger.warning("undervalued_screener_service: blurb failed for %s: %s", entry["ticker"], exc)
-            _finalize_checklist(entry)
+        for lang in _SUPPORTED_LANGS:
+            try:
+                blurb_result = await generate_candidate_blurb(entry, lang=lang)
+                entry["blurb_by_lang"][lang] = blurb_result.get("blurb")
+                entry["business_understanding_by_lang"][lang] = {
+                    "key": "business_understanding",
+                    "name": "Entender el negocio" if lang == "es" else "Understanding the business",
+                    "passed": blurb_result.get("business_understanding_passed"),
+                    "reason": blurb_result.get("business_understanding_reason", ""),
+                }
+                entry["checklist_reasons_by_lang"][lang] = blurb_result.get("checklist_reasons") or {}
+            except Exception as exc:
+                logger.warning("undervalued_screener_service: blurb (%s) failed for %s: %s", lang, entry["ticker"], exc)
 
     cache_set(CACHE_KEY, results, CACHE_TTL)
     logger.info("undervalued_screener_service: refreshed, %d/%d tickers had positive margin of safety", len(results), len(UNIVERSE))
@@ -176,8 +208,13 @@ def bootstrap_fill_if_empty_sync() -> None:
     from app.api.routes.screener import UNIVERSE
     results = _scan(UNIVERSE[:_BOOTSTRAP_LIMIT])
     results = _cap_per_sector(results, _MAX_PER_SECTOR)
-    for entry in results:
-        _finalize_checklist(entry)
+    # Deliberately NOT finalized here (no AI calls, no language pref known
+    # yet at this layer) — left in the same un-finalized shape as a full
+    # refresh's results, so get_undervalued()'s per-request/per-language
+    # finalize step works identically regardless of which path populated
+    # the cache. Real checklist "reason" text still shows the deterministic
+    # Python templates until the next full refresh replaces this bootstrap
+    # entry with real AI-generated text in both languages.
     if results:
         cache_set(CACHE_KEY, results, BOOTSTRAP_TTL)
         logger.info("undervalued_screener_service: bootstrap-filled %d results from a %d-ticker subset", len(results), _BOOTSTRAP_LIMIT)
@@ -199,16 +236,45 @@ def _cap_per_sector(results: list[dict], max_per_sector: int) -> list[dict]:
     return capped
 
 
-def get_undervalued(limit: int = 60, sector: Optional[str] = None) -> dict:
+def get_undervalued(limit: int = 60, sector: Optional[str] = None, lang: str = "es") -> dict:
     """Fast, cache-only read. `generated_at` (unix timestamp, 0 if the cache
     is empty) lets callers disclose honestly how stale the snapshot is.
     Callers should call bootstrap_fill_if_empty_sync() first if they need a
     guarantee of non-empty results (see screener.py's endpoint and chat.py's
     context-block builder). Caps at 5 candidates per sector (real ones only
-    — a sector with fewer than 5 qualifying stocks just shows fewer)."""
+    — a sector with fewer than 5 qualifying stocks just shows fewer).
+
+    The cache stores AI text keyed by language (see refresh_undervalued_
+    screener) — this is where the requested `lang` is actually applied,
+    on a per-request DEEP COPY of each cached entry (never mutating the
+    shared cached object, since the same cache entry is finalized
+    differently for an "es" request and an "en" request)."""
+    lang = lang if lang in _SUPPORTED_LANGS else "es"
     results, ts = cache_get_with_ts(CACHE_KEY)
     results = results or []
     if sector:
         results = [r for r in results if (r.get("sector") or "").lower() == sector.lower()]
     results = _cap_per_sector(results, _MAX_PER_SECTOR)
-    return {"results": results[:limit], "generated_at": ts}
+
+    finalized = []
+    for r in results[:limit]:
+        entry = copy.deepcopy(r)
+        blurb_by_lang = entry.pop("blurb_by_lang", {}) or {}
+        business_understanding_by_lang = entry.pop("business_understanding_by_lang", {}) or {}
+        checklist_reasons_by_lang = entry.pop("checklist_reasons_by_lang", {}) or {}
+        weak_dimension = entry.pop("weak_dimension", None)
+
+        entry["blurb"] = blurb_by_lang.get(lang) or blurb_by_lang.get("es")
+        entry["weak_dimension_warning"] = _format_weak_dimension_warning(weak_dimension, lang)
+        # checklist_items_real may already be gone if this entry was
+        # finalized once by an older cache version — nothing to merge in
+        # that case, "checklist" (if present) is left as-is.
+        if "checklist_items_real" in entry:
+            _finalize_checklist(
+                entry,
+                business_understanding_by_lang.get(lang) or business_understanding_by_lang.get("es"),
+                checklist_reasons_by_lang.get(lang) or checklist_reasons_by_lang.get("es"),
+            )
+        finalized.append(entry)
+
+    return {"results": finalized, "generated_at": ts}

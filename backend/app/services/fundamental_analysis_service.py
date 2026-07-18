@@ -247,6 +247,7 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[di
     avg_roic = gb.get("avg_roic_pct")
     moat_pass = avg_roic is not None and avg_roic >= 15
     items.append({
+        "key": "moat",
         "name": "Ventaja competitiva (Moat)",
         "passed": moat_pass,
         "reason": (
@@ -258,6 +259,7 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[di
 
     bq = thesis_scores.get("business_quality")
     items.append({
+        "key": "business_quality",
         "name": "Calidad del negocio",
         "passed": bq is not None and bq >= 60,
         "reason": f"Business Quality Score real: {bq}/100." if bq is not None else "No disponible.",
@@ -266,6 +268,7 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[di
 
     mgmt = thesis_scores.get("management_capital_allocation")
     items.append({
+        "key": "management_capital_allocation",
         "name": "Management y asignación de capital",
         "passed": mgmt is not None and mgmt >= 60,
         "reason": f"Management & Capital Allocation Score real: {mgmt}/100." if mgmt is not None else "No disponible.",
@@ -274,6 +277,7 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[di
 
     fs = thesis_scores.get("financial_strength")
     items.append({
+        "key": "financial_strength",
         "name": "Fortaleza financiera",
         "passed": fs is not None and fs >= 60,
         "reason": f"Financial Strength Score real: {fs}/100." if fs is not None else "No disponible.",
@@ -284,6 +288,7 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[di
     pred = thesis_scores.get("predictability")
     growth_pass = go is not None and pred is not None and go >= 50 and pred >= 50
     items.append({
+        "key": "growth_predictability",
         "name": "Crecimiento futuro predecible",
         "passed": growth_pass,
         "reason": (
@@ -295,6 +300,7 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[di
 
     mos = dcf.get("margin_of_safety_pct")
     items.append({
+        "key": "valuation",
         "name": "Valor intrínseco y margen de seguridad",
         "passed": mos is not None and mos > 0,
         "reason": f"Margen de seguridad real: {'+' if mos >= 0 else ''}{mos}%." if mos is not None else "No se pudo calcular el DCF.",

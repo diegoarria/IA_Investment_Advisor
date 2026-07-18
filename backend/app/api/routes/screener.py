@@ -341,14 +341,15 @@ async def undervalued(sector: str | None = None, limit: int = 60, user_id: str =
     profile = _get_user_profile(user_id)
     if not _is_premium(profile):
         raise HTTPException(status_code=403, detail="El screener de subvaluadas requiere Premium")
+    lang = getattr(profile, "preferred_language", None) or "es"
     from app.services.undervalued_screener_service import get_undervalued, bootstrap_fill_if_empty_sync
-    result = get_undervalued(limit=limit, sector=sector)
+    result = get_undervalued(limit=limit, sector=sector, lang=lang)
     if not result["results"]:
         # Cache is completely empty (worker hasn't run its startup/weekly
         # refresh yet) — never return a blank screen. Slower this one time
         # (small subset scan), fast for every request after.
         await asyncio.to_thread(bootstrap_fill_if_empty_sync)
-        result = get_undervalued(limit=limit, sector=sector)
+        result = get_undervalued(limit=limit, sector=sector, lang=lang)
     return result
 
 
@@ -395,7 +396,8 @@ async def quick_analysis(query: str, user_id: str = Depends(get_current_user_id)
     if not data or not data.get("dcf"):
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para calcular el valor intrínseco de {ticker}")
 
-    ai_result = await ai_service.generate_quick_valuation_summary(data)
+    lang = getattr(profile, "preferred_language", None) or "es"
+    ai_result = await ai_service.generate_quick_valuation_summary(data, lang=lang)
     dcf = data["dcf"]
 
     # 7-point investment checklist — item 1 (Entender el negocio) is Claude's
@@ -406,7 +408,8 @@ async def quick_analysis(query: str, user_id: str = Depends(get_current_user_id)
     # here so both entry points merge identically).
     from app.services.undervalued_screener_service import _finalize_checklist
     _finalize_checklist(data, {
-        "name": "Entender el negocio",
+        "key": "business_understanding",
+        "name": "Entender el negocio" if lang != "en" else "Understanding the business",
         "passed": ai_result.get("business_understanding_passed"),
         "reason": ai_result.get("business_understanding_reason", ""),
     }, ai_result.get("checklist_reasons"))
