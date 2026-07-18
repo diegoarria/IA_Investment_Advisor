@@ -1887,10 +1887,10 @@ export default function PortfolioScreen() {
               </View>
             </TouchableOpacity>
 
-            {/* Investment Journal — every full análisis de Mentor IA se guarda
-                automáticamente aquí (solo Premium); on-demand review, sin push. */}
+            {/* Acciones Subvaluadas (DCF) — todas las candidatas reales con
+                margen de seguridad positivo, mismo motor que Mentor IA. */}
             <TouchableOpacity
-              onPress={() => router.push("/journal")}
+              onPress={() => router.push("/subvaluadas")}
               activeOpacity={0.85}
               style={{ borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden", marginTop: 12 }}
             >
@@ -1899,8 +1899,8 @@ export default function PortfolioScreen() {
                   <Ionicons name="bookmark-outline" size={24} color="#fff" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: "900", color: "#fff" }}>Investment Journal</Text>
-                  <Text style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>Revisa tus tesis guardadas contra los datos de hoy</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "900", color: "#fff" }}>Acciones Subvaluadas (DCF)</Text>
+                  <Text style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>Todas las candidatas reales con margen de seguridad positivo</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#6b7280" />
               </View>

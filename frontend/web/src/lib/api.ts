@@ -374,12 +374,6 @@ export const decisionsApi = {
   getBiases: () => api.get("/api/decisions/biases"),
 };
 
-export const journalApi = {
-  list: (ticker?: string) => api.get("/api/journal", { params: ticker ? { ticker } : {} }),
-  get: (id: string) => api.get(`/api/journal/${id}`),
-  review: (id: string) => api.post(`/api/journal/${id}/review`),
-};
-
 export const watchlist = {
   get: () => api.get("/api/watchlist"),
   add: (ticker: string, name?: string) => api.post("/api/watchlist", { ticker, name }),

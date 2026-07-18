@@ -228,12 +228,6 @@ export const researchApi = {
   downloadPdfUrl: (id: string) => `${BASE_URL}/api/research/reports/${id}/pdf`,
 };
 
-export const journalApi = {
-  list: (ticker?: string) => api.get("/api/journal", { params: ticker ? { ticker } : {} }),
-  getOne: (id: string) => api.get(`/api/journal/${id}`),
-  review: (id: string) => api.post(`/api/journal/${id}/review`),
-};
-
 export const learnApi = {
   getScenario: (difficulty: string) => api.post("/api/learn/scenario", { difficulty }),
   submitScenarioResult: (scenarioId: string, choice: string, difficulty: string) =>

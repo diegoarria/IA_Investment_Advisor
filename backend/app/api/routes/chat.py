@@ -369,22 +369,20 @@ def _resolve_ticker_via_search(message: str) -> list[str]:
     return []
 
 
-def _fundamentals_context_block(tickers: list[str]) -> tuple[str, list[tuple[str, dict]]]:
+def _fundamentals_context_block(tickers: list[str]) -> str:
     from app.services.fundamental_analysis_service import (
         get_fundamental_analysis,
         format_fundamental_analysis_for_prompt,
     )
     blocks = []
-    snapshots: list[tuple[str, dict]] = []
     for t in tickers[:_MAX_FUNDAMENTALS_TICKERS]:
         try:
             data = get_fundamental_analysis(t)
             if data:
                 blocks.append(format_fundamental_analysis_for_prompt(data))
-                snapshots.append((t, data))
         except Exception as e:
             logger.warning("_fundamentals_context_block(%s) failed: %s", t, e)
-    return "\n\n".join(blocks), snapshots
+    return "\n\n".join(blocks)
 
 
 def _undervalued_screener_context_block() -> str:
@@ -422,7 +420,7 @@ def _undervalued_screener_context_block() -> str:
     return "\n".join(lines)
 
 
-def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -> tuple[str, list[tuple[str, dict]]]:
+def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -> str:
     """Prepend global market context + per-company context, and — Premium
     users asking for a full company verdict only — a real computed
     fundamental analysis (10-year trends, ROIC, deterministic DCF; see
@@ -450,7 +448,6 @@ def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -
     global_ctx  = ""
     company_ctx = ""
     fundamentals_ctx = ""
-    fundamentals_snapshots: list[tuple[str, dict]] = []
     screener_ctx = ""
     try:
         global_ctx = f_global.result(timeout=timeout)
@@ -462,7 +459,7 @@ def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -
         pass
     if f_fundamentals:
         try:
-            fundamentals_ctx, fundamentals_snapshots = f_fundamentals.result(timeout=_FUNDAMENTALS_TIMEOUT)
+            fundamentals_ctx = f_fundamentals.result(timeout=_FUNDAMENTALS_TIMEOUT)
         except Exception:
             pass
     if f_screener:
@@ -480,8 +477,7 @@ def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -
         parts.append("\n\n" + global_ctx)
     if company_ctx:
         parts.append(company_ctx)
-    enriched = "\n".join(parts) if len(parts) > 1 else message
-    return enriched, fundamentals_snapshots
+    return "\n".join(parts) if len(parts) > 1 else message
 
 
 @router.post("/stream")
@@ -509,15 +505,11 @@ async def chat_stream(
     enrich_timeout = 4.0 if premium else 2.5
 
     async def _safe_enrich():
-        # This route has no active caller (see NOTE above) — journal snapshots
-        # are only saved from chat_message()'s /message route, so the second
-        # element of _enrich_message's return is discarded here.
         try:
-            enriched_text, _snapshots = await asyncio.wait_for(
+            return await asyncio.wait_for(
                 asyncio.to_thread(_enrich_message, body.message, enrich_timeout, premium),
                 timeout=enrich_timeout + 1.0,
             )
-            return enriched_text
         except Exception:
             return body.message
 
@@ -634,11 +626,7 @@ async def chat_message(
 
     enrich_timeout = 4.0 if premium else 2.5
     tickers  = await asyncio.to_thread(detect_tickers, body.message)
-    fundamentals_snapshots: list[tuple[str, dict]] = []
-    if has_images:
-        enriched = body.message
-    else:
-        enriched, fundamentals_snapshots = await asyncio.to_thread(_enrich_message, body.message, enrich_timeout, premium)
+    enriched = await asyncio.to_thread(_enrich_message, body.message, enrich_timeout, premium) if not has_images else body.message
     images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
     if not images and body.image_data:
         images = [{"data": body.image_data, "type": body.image_type or "image/jpeg"}]
@@ -682,14 +670,6 @@ async def chat_message(
     clean_reply, actions = _extract_action(clean_reply)
     if cache_key:
         store_answer(cache_key, clean_reply)
-
-    # Investment Journal — fire-and-forget, on-demand-only (no push/scheduler,
-    # see investment_journal_service). Only the first ticker is journaled:
-    # deep-analysis turns are effectively always single-company "Analízame X".
-    if premium and fundamentals_snapshots:
-        from app.services.investment_journal_service import save_thesis
-        journal_ticker, journal_data = fundamentals_snapshots[0]
-        asyncio.create_task(save_thesis(user_id, journal_ticker, journal_data, clean_reply))
 
     return {"reply": clean_reply, "risk_assessment": bscore, "tickers": tickers, "actions": actions}
 

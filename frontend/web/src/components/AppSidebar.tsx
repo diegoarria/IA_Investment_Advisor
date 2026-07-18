@@ -48,7 +48,7 @@ const MAIN_NAV: NavItem[] = [
 ];
 
 const SECONDARY_NAV: NavItem[] = [
-  { href: "/journal",       icon: BookMarked,     labelKey: "common.nav.journal",       minLevel: "basico" },
+  { href: "/subvaluadas",   icon: BookMarked,     labelKey: "common.nav.undervalued",   minLevel: "basico" },
   { href: "/notifications", icon: Bell,           labelKey: "common.nav.notifications", minLevel: "basico" },
   { href: "/profile",       icon: User,           labelKey: "common.nav.profile",       minLevel: "basico" },
   { href: "/products",      icon: ShoppingBag,    labelKey: "common.nav.products",      minLevel: "basico" },
