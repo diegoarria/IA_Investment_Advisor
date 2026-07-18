@@ -1,10 +1,13 @@
 import asyncio
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.services import ai_service
 from app.api.routes.market import _get_user_profile
 from app.core.cache import cache_get, cache_set
 from app.core.finnhub import fh_quote, fh_metrics, fh_search
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/market/screener", tags=["screener"])
 
@@ -354,13 +357,19 @@ async def undervalued(sector: str | None = None, limit: int = 60, lang: str | No
     if lang not in ("es", "en"):
         lang = getattr(profile, "preferred_language", None) or "es"
     from app.services.undervalued_screener_service import get_undervalued, bootstrap_fill_if_empty_sync
-    result = get_undervalued(limit=limit, sector=sector, lang=lang)
-    if not result["results"]:
-        # Cache is completely empty (worker hasn't run its startup/weekly
-        # refresh yet) — never return a blank screen. Slower this one time
-        # (small subset scan), fast for every request after.
-        await asyncio.to_thread(bootstrap_fill_if_empty_sync)
+    try:
         result = get_undervalued(limit=limit, sector=sector, lang=lang)
+        if not result["results"]:
+            # Cache is completely empty (worker hasn't run its startup/weekly
+            # refresh yet) — never return a blank screen. Slower this one time
+            # (small subset scan), fast for every request after.
+            await asyncio.to_thread(bootstrap_fill_if_empty_sync)
+            result = get_undervalued(limit=limit, sector=sector, lang=lang)
+    except Exception as exc:
+        # This list must never fail visibly — worst case, show an empty
+        # (but honest) list rather than a raw 500.
+        logger.error("undervalued(): get_undervalued/bootstrap failed: %s", exc, exc_info=True)
+        result = {"results": [], "generated_at": 0}
     return result
 
 
@@ -406,13 +415,35 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
         raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
 
     from app.services.fundamental_analysis_service import get_fundamental_analysis
-    data = await asyncio.to_thread(get_fundamental_analysis, ticker)
+    try:
+        data = await asyncio.to_thread(get_fundamental_analysis, ticker)
+    except Exception as exc:
+        # A real data-provider hiccup (FMP/Finnhub timeout, rate limit,
+        # malformed response) must never surface as a raw 500 — this
+        # search box is meant to never fail visibly to the user.
+        logger.error("quick_analysis(%s): get_fundamental_analysis failed: %s", ticker, exc, exc_info=True)
+        raise HTTPException(status_code=503, detail=f"No pudimos obtener los datos financieros de {ticker} en este momento. Intenta de nuevo en unos segundos.")
     if not data or not data.get("dcf"):
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para calcular el valor intrínseco de {ticker}")
 
     if lang not in ("es", "en"):
         lang = getattr(profile, "preferred_language", None) or "es"
-    ai_result = await ai_service.generate_quick_valuation_summary(data, lang=lang)
+
+    # The AI narrative is a nice-to-have layer on top of the real DCF
+    # numbers already in `data` — a Claude timeout/error must degrade to a
+    # plain-numbers card, never take down the whole request.
+    try:
+        ai_result = await ai_service.generate_quick_valuation_summary(data, lang=lang)
+    except Exception as exc:
+        logger.error("quick_analysis(%s): generate_quick_valuation_summary failed: %s", ticker, exc, exc_info=True)
+        ai_result = {
+            "summary": (
+                "We couldn't generate the AI summary right now. The real numbers above are still accurate."
+                if lang == "en" else
+                "No pudimos generar el resumen con IA en este momento. Las cifras reales de arriba siguen siendo correctas."
+            ),
+            "business_understanding_stars": None, "business_understanding_reason": "", "checklist_reasons": {},
+        }
     dcf = data["dcf"]
 
     # 7-point investment checklist — item 1 (Entender el negocio) is Claude's
@@ -422,13 +453,17 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
     # evidence (see undervalued_screener_service._finalize_checklist, reused
     # here so both entry points merge identically).
     from app.services.undervalued_screener_service import _finalize_checklist
-    _finalize_checklist(data, {
-        "key": "business_understanding",
-        "name": "Entender el negocio" if lang != "en" else "Understanding the business",
-        "stars": ai_result.get("business_understanding_stars"),
-        "reason": ai_result.get("business_understanding_reason", ""),
-    }, ai_result.get("checklist_reasons"))
-    checklist = data["checklist"]
+    try:
+        _finalize_checklist(data, {
+            "key": "business_understanding",
+            "name": "Entender el negocio" if lang != "en" else "Understanding the business",
+            "stars": ai_result.get("business_understanding_stars"),
+            "reason": ai_result.get("business_understanding_reason", ""),
+        }, ai_result.get("checklist_reasons"))
+        checklist = data.get("checklist")
+    except Exception as exc:
+        logger.error("quick_analysis(%s): _finalize_checklist failed: %s", ticker, exc, exc_info=True)
+        checklist = None
 
     return {
         "ticker": data["ticker"],

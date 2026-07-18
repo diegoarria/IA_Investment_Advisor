@@ -265,23 +265,29 @@ def get_undervalued(limit: int = 60, sector: Optional[str] = None, lang: str = "
 
     finalized = []
     for r in results[:limit]:
-        entry = copy.deepcopy(r)
-        blurb_by_lang = entry.pop("blurb_by_lang", {}) or {}
-        business_understanding_by_lang = entry.pop("business_understanding_by_lang", {}) or {}
-        checklist_reasons_by_lang = entry.pop("checklist_reasons_by_lang", {}) or {}
-        weak_dimension = entry.pop("weak_dimension", None)
+        # One malformed/stale cached entry (e.g. from an older cache-schema
+        # version) must never take down the entire list — same "one bad
+        # ticker can't abort the batch" rule already used in _scan().
+        try:
+            entry = copy.deepcopy(r)
+            blurb_by_lang = entry.pop("blurb_by_lang", {}) or {}
+            business_understanding_by_lang = entry.pop("business_understanding_by_lang", {}) or {}
+            checklist_reasons_by_lang = entry.pop("checklist_reasons_by_lang", {}) or {}
+            weak_dimension = entry.pop("weak_dimension", None)
 
-        entry["blurb"] = blurb_by_lang.get(lang) or blurb_by_lang.get("es")
-        entry["weak_dimension_warning"] = _format_weak_dimension_warning(weak_dimension, lang)
-        # checklist_items_real may already be gone if this entry was
-        # finalized once by an older cache version — nothing to merge in
-        # that case, "checklist" (if present) is left as-is.
-        if "checklist_items_real" in entry:
-            _finalize_checklist(
-                entry,
-                business_understanding_by_lang.get(lang) or business_understanding_by_lang.get("es"),
-                checklist_reasons_by_lang.get(lang) or checklist_reasons_by_lang.get("es"),
-            )
-        finalized.append(entry)
+            entry["blurb"] = blurb_by_lang.get(lang) or blurb_by_lang.get("es")
+            entry["weak_dimension_warning"] = _format_weak_dimension_warning(weak_dimension, lang)
+            # checklist_items_real may already be gone if this entry was
+            # finalized once by an older cache version — nothing to merge in
+            # that case, "checklist" (if present) is left as-is.
+            if "checklist_items_real" in entry:
+                _finalize_checklist(
+                    entry,
+                    business_understanding_by_lang.get(lang) or business_understanding_by_lang.get("es"),
+                    checklist_reasons_by_lang.get(lang) or checklist_reasons_by_lang.get("es"),
+                )
+            finalized.append(entry)
+        except Exception as exc:
+            logger.warning("get_undervalued: skipping malformed cached entry for %s: %s", r.get("ticker"), exc)
 
     return {"results": finalized, "generated_at": ts}
