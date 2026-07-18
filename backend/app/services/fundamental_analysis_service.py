@@ -84,7 +84,15 @@ _SECTOR_TERMINAL_GROWTH: list[tuple[str, float]] = [
     ("communication services", 0.025),
     ("healthcare", 0.025),
     ("biotechnology", 0.028),
-    ("technology", 0.03),
+    # Lowered from 0.03 — real testing (TSM/Adobe/Intuit all showing
+    # 55-67% "margin of safety") traced back to this being the single
+    # highest terminal-growth ceiling combined with a high-ROIC moat bonus,
+    # producing systematically inflated intrinsic values for quality tech
+    # names. Terminal value dominates a DCF (often 60-70%+ of EV), so this
+    # is the highest-leverage lever — 2% matches the more conservative
+    # standard practitioner ceiling (~long-run inflation) instead of
+    # assuming tech keeps outgrowing the economy forever.
+    ("technology", 0.02),
 ]
 _DEFAULT_TERMINAL_GROWTH = 0.025
 
@@ -1040,6 +1048,18 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
     elif avg_fcf_margin and avg_fcf_margin > 0 and latest_rev and shares_out and price:
         base_fcf = avg_fcf_margin * latest_rev
 
+        # High-ROIC discount-rate floor — same fix already applied to the
+        # financial-sector model (Chubb/Amex testing): a low measured beta
+        # can make CAPM understate the true cost of capital for a genuinely
+        # excellent, capital-efficient business — low beta reflects price
+        # defensiveness, not the same thing as low business risk. Real
+        # testing (TSM/Adobe/Intuit, all avg ROIC 25%+) showed this
+        # combining with the terminal-growth ceiling to inflate intrinsic
+        # value specifically for the highest-quality names.
+        if avg_roic is not None and avg_roic >= 25 and wacc_details.get("method") == "capm" and base_discount_rate < 0.09:
+            base_discount_rate = 0.09
+            wacc_details["high_roic_floor_applied"] = True
+
         # ── Quality-adjusted growth rate ──────────────────────────────────
         # A pure historical-CAGR projection is exactly the trap flagged after
         # testing this against real companies: a mature, low-revenue-growth
@@ -1065,14 +1085,20 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         # faked into this formula.
         base_historical_growth = max(rev_cagr / 100, 0.0) if rev_cagr is not None else 0.08
 
+        # Moat adjustment REMOVED (was up to +3pp on top of the already-real
+        # historical CAGR for avg_roic >= 40%) — real testing (TSM/Adobe/
+        # Intuit, all high-ROIC) showed this stacked with a generous
+        # terminal-growth ceiling to systematically inflate intrinsic value
+        # for exactly the highest-quality names, producing 55-67% "margin
+        # of safety" that doesn't hold up. It was also arguably double-
+        # counting quality already reflected in the FCF margin/ROIC feeding
+        # base_fcf and the confidence/business-quality scores elsewhere —
+        # a business's real moat should show up in its ACTUAL margins and
+        # cash generation, not an extra speculative growth bonus on top.
+        # Kept as a field (always 0.0) rather than removed outright since
+        # growth_buildup's moat_adjustment_pct is read by the prompt
+        # formatter and thesis-scorecard code below.
         moat_adjustment = 0.0
-        if avg_roic is not None:
-            if avg_roic >= 40:
-                moat_adjustment = 0.03
-            elif avg_roic >= 25:
-                moat_adjustment = 0.02
-            elif avg_roic >= 15:
-                moat_adjustment = 0.01
 
         # Buyback rate — real annual % reduction in share count implied by
         # FCF-per-share growing faster than total FCF. This does NOT get
