@@ -97,6 +97,24 @@ def _sector_terminal_growth(sector: str | None) -> float:
     return _DEFAULT_TERMINAL_GROWTH
 
 
+# ── Financial-sector detection ────────────────────────────────────────────────
+# Banks/insurers/brokers don't generate a normal "free cash flow" the way the
+# 2-stage DCF below assumes (deposits, underwriting float, and regulatory
+# capital requirements make "operating cash flow minus capex" meaningless) —
+# confirmed for real with Progressive Corp (PGR), whose DCF produced a
+# 7x-of-price intrinsic value purely from this mismatch, not a real signal.
+# Reuses the exact same substring keys already used for the WACC/terminal-
+# growth sector tables, for consistency.
+_FINANCIAL_SECTOR_KEYS = ("financial services", "bank", "insurance")
+
+
+def _is_financial_sector(sector: str | None) -> bool:
+    if not sector:
+        return False
+    s = sector.lower()
+    return any(k in s for k in _FINANCIAL_SECTOR_KEYS)
+
+
 # ── Real CAPM-based WACC ──────────────────────────────────────────────────────
 _EQUITY_RISK_PREMIUM = 0.046  # long-run US equity risk premium (Damodaran-style estimate)
 _MIN_COST_OF_DEBT = 0.03
@@ -210,15 +228,20 @@ def _confidence_score(
     return round(fcf_stability_score * 0.4 + roic_stability_score * 0.4 + data_completeness_score * 0.2)
 
 
-def _build_checklist_items(dcf: dict, thesis_scores: dict) -> list[dict]:
+def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[dict] = None) -> list[dict]:
     """6 of the 7 items of the investment checklist (in order of importance,
     skipping item 1 "Entender el negocio" — that one is inherently
     qualitative/subjective and added separately by the caller via Claude's
-    judgment, disclosed as such). Every item here is a real pass/fail
-    computed from numbers already produced by this module — never an AI
-    guess. Thresholds reuse ones already established elsewhere in this file
-    (e.g. the 15% ROIC moat-adjustment tier) for consistency."""
+    judgment, disclosed as such). "passed" is always a real, deterministic
+    threshold computed from numbers already produced by this module — never
+    an AI guess. The templated "reason" strings here are only a FALLBACK,
+    used if the AI call (which reasons over `evidence`, the real multi-factor
+    data for each dimension) fails or is skipped — see
+    ai_service.generate_quick_valuation_summary/generate_candidate_blurb,
+    which overwrite "reason" with a nuanced, non-absolutist explanation
+    grounded in `evidence` without changing "passed"."""
     items = []
+    evidence = evidence or {}
 
     gb = dcf.get("growth_buildup") or {}
     avg_roic = gb.get("avg_roic_pct")
@@ -230,6 +253,7 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict) -> list[dict]:
             f"ROIC promedio real de {avg_roic}% — {'evidencia real de ventaja competitiva duradera' if moat_pass else 'no muestra evidencia clara de un moat sostenido'}."
             if avg_roic is not None else "No hay suficiente historial de ROIC real para evaluar esto."
         ),
+        "evidence": evidence.get("moat"),
     })
 
     bq = thesis_scores.get("business_quality")
@@ -237,6 +261,7 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict) -> list[dict]:
         "name": "Calidad del negocio",
         "passed": bq is not None and bq >= 60,
         "reason": f"Business Quality Score real: {bq}/100." if bq is not None else "No disponible.",
+        "evidence": evidence.get("business_quality"),
     })
 
     mgmt = thesis_scores.get("management_capital_allocation")
@@ -244,6 +269,7 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict) -> list[dict]:
         "name": "Management y asignación de capital",
         "passed": mgmt is not None and mgmt >= 60,
         "reason": f"Management & Capital Allocation Score real: {mgmt}/100." if mgmt is not None else "No disponible.",
+        "evidence": evidence.get("management_capital_allocation"),
     })
 
     fs = thesis_scores.get("financial_strength")
@@ -251,6 +277,7 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict) -> list[dict]:
         "name": "Fortaleza financiera",
         "passed": fs is not None and fs >= 60,
         "reason": f"Financial Strength Score real: {fs}/100." if fs is not None else "No disponible.",
+        "evidence": evidence.get("financial_strength"),
     })
 
     go = thesis_scores.get("growth_outlook")
@@ -263,6 +290,7 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict) -> list[dict]:
             f"Growth Outlook real {go}/100, Predictability real {pred}/100."
             if go is not None and pred is not None else "No disponible."
         ),
+        "evidence": evidence.get("growth_predictability"),
     })
 
     mos = dcf.get("margin_of_safety_pct")
@@ -270,6 +298,7 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict) -> list[dict]:
         "name": "Valor intrínseco y margen de seguridad",
         "passed": mos is not None and mos > 0,
         "reason": f"Margen de seguridad real: {'+' if mos >= 0 else ''}{mos}%." if mos is not None else "No se pudo calcular el DCF.",
+        "evidence": evidence.get("valuation"),
     })
 
     return items
@@ -387,6 +416,139 @@ def _implied_constant_growth_rate(
         else:
             hi = mid
     return round((lo + hi) / 2 * 100, 1)
+
+
+def _build_financial_sector_valuation(
+    roe_trend: list[Optional[float]], latest_equity: float, shares_out: float, price: float,
+    cost_of_equity: float, latest_dividends_paid: float, latest_net_income: Optional[float],
+    total_debt: float, cash: float, sector: Optional[str], wacc_details: dict,
+) -> Optional[dict]:
+    """Real valuation for banks/insurers/brokers — Justified Price-to-Book
+    (mathematically the closed-form, Gordon-growth version of a Residual
+    Income Model): Justified P/B = (ROE - g) / (Cost of Equity - g), where
+    g is the REAL sustainable growth rate (ROE × retention ratio, from real
+    dividend/net-income data) — not the 2-stage FCF-based DCF above, which
+    is unreliable for this sector (confirmed with Progressive Corp — see
+    _is_financial_sector's docstring). Every input is real: ROE trend,
+    book value, dividends paid, and the same CAPM cost of equity already
+    computed for the standard DCF. Populates the same dict shape as the
+    normal `dcf` return (scenarios/margin_of_safety_pct/etc.) so downstream
+    code (checklist, screener, prompt formatting) doesn't need to
+    special-case the methodology — just reads a "methodology" label."""
+    roe_valid = [v for v in roe_trend if v is not None]
+    if not roe_valid or not latest_equity or latest_equity <= 0 or not shares_out or not price:
+        return None
+
+    # Real-world floor on cost of equity — CAPM with an unusually low beta
+    # (seen for real with Progressive Corp's beta of 0.25) understates equity
+    # risk for financial institutions, whose leverage/underwriting risk isn't
+    # fully captured by market beta. 7% is a standard practitioner floor
+    # (Damodaran uses a similar convention) — disclosed, not silently hidden.
+    cost_of_equity = max(cost_of_equity, 0.07)
+
+    # Recency-weighted average ROE — same rationale as avg_fcf_margin above:
+    # the latest year alone can be noisy, a flat average lets stale years
+    # drag down a genuinely improving trend.
+    weight_sum = sum(i + 1 for i in range(len(roe_valid)))
+    avg_roe = sum((i + 1) * v for i, v in enumerate(roe_valid)) / weight_sum / 100  # decimal
+
+    book_value_per_share = latest_equity / shares_out
+
+    payout_ratio = (
+        min(max(latest_dividends_paid / latest_net_income, 0.0), 1.0)
+        if latest_net_income and latest_net_income > 0 else 0.0
+    )
+    retention_ratio = 1 - payout_ratio
+    # Cap sustainable growth at a realistic long-run ceiling: a mature
+    # financial institution's book value can't keep compounding at its
+    # current high ROE forever — real long-run growth converges toward
+    # overall economic growth. 6% is generous relative to the 2% terminal
+    # growth used for this sector in the standard DCF table, but bounded
+    # (not the raw, sometimes 15-20%+, ROE × retention product).
+    sustainable_growth = min(avg_roe * retention_ratio, 0.06)
+
+    def justified_pb_and_value(coe: float, g: float) -> tuple[float, float]:
+        # Guard: the Gordon-growth form requires coe > g, or it's undefined/
+        # explosive — clamp g to a safe margin below coe rather than let the
+        # formula blow up (disclosed, not hidden). P/B ceiling of 6x matches
+        # what even excellent real-world financials rarely exceed.
+        g_safe = min(g, coe - 0.005)
+        pb = max(0.0, min((avg_roe - g_safe) / (coe - g_safe), 6.0))
+        return pb, book_value_per_share * pb
+
+    scenarios = {}
+    for name, coe_delta, label_g in [("pessimistic", 0.01, sustainable_growth), ("base", 0.0, sustainable_growth), ("optimistic", -0.01, sustainable_growth)]:
+        coe_scenario = max(cost_of_equity + coe_delta, 0.02)
+        pb, value = justified_pb_and_value(coe_scenario, label_g)
+        scenarios[name] = {
+            "stage1_growth_pct": round(sustainable_growth * 100, 1),
+            "discount_rate_pct": round(coe_scenario * 100, 1),
+            "intrinsic_value_per_share": round(value, 2),
+            "justified_pb": round(pb, 2),
+        }
+
+    base_value = scenarios["base"]["intrinsic_value_per_share"]
+    if base_value <= 0:
+        return None
+
+    margin_of_safety = round((base_value - price) / base_value * 100, 1)
+    expected_value_per_share = round(
+        scenarios["pessimistic"]["intrinsic_value_per_share"] * 0.25
+        + scenarios["base"]["intrinsic_value_per_share"] * 0.5
+        + scenarios["optimistic"]["intrinsic_value_per_share"] * 0.25, 2,
+    )
+
+    # Reverse formula: solve for g such that price = BVPS × (ROE-g)/(r-g).
+    # Linear in g — closed form, no binary search needed.
+    implied_growth_pct = None
+    denom = price - book_value_per_share
+    if abs(denom) > 1e-6:
+        g_implied = (price * cost_of_equity - book_value_per_share * avg_roe) / denom
+        if -0.30 < g_implied < cost_of_equity:
+            implied_growth_pct = round(g_implied * 100, 1)
+
+    roe_stdev = statistics.pstdev(roe_valid) if len(roe_valid) >= 3 else None
+    confidence_score = _score(roe_stdev, [(5, 90), (10, 75), (18, 55), (30, 35), (999, 15)]) if roe_stdev is not None else 50
+
+    net_cash = cash - total_debt
+    valuation_risk_label = "Bajo" if margin_of_safety >= 0 else "Medio" if margin_of_safety >= -30 else "Alto" if margin_of_safety >= -100 else "Muy alto"
+    operational_risk_label = "Bajo" if confidence_score >= 80 else "Medio" if confidence_score >= 60 else "Alto" if confidence_score >= 40 else "Muy alto"
+
+    return {
+        "methodology": "residual_income_justified_pb",
+        "sector": sector,
+        "book_value_per_share": round(book_value_per_share, 2),
+        "avg_roe_pct": round(avg_roe * 100, 1),
+        "cost_of_equity_pct": round(cost_of_equity * 100, 2),
+        "base_discount_rate_pct": round(cost_of_equity * 100, 2),
+        "wacc_details": wacc_details,
+        "sustainable_growth_pct": round(sustainable_growth * 100, 1),
+        "terminal_growth_pct": round(sustainable_growth * 100, 1),
+        "payout_ratio_pct": round(payout_ratio * 100, 1),
+        "justified_pb": scenarios["base"]["justified_pb"],
+        "total_debt": round(total_debt, 0),
+        "cash": round(cash, 0),
+        "net_cash": round(net_cash, 0),
+        "shares_outstanding": round(shares_out, 0),
+        "projected_shares_outstanding": round(shares_out, 0),
+        "current_price": price,
+        "scenarios": scenarios,
+        "margin_of_safety_pct": margin_of_safety,
+        "expected_value_per_share": expected_value_per_share,
+        "implied_growth_pct": implied_growth_pct,
+        "confidence_score": confidence_score,
+        "operational_risk_label": operational_risk_label,
+        "valuation_risk_label": valuation_risk_label,
+        "growth_buildup": {
+            "historical_growth_pct": round(sustainable_growth * 100, 1),
+            "moat_adjustment_pct": 0.0,
+            "avg_roic_pct": round(avg_roe * 100, 1),  # ROE substitutes for ROIC in this sector — same moat-evidence role
+            "quality_metric_label": "ROE",
+            "quality_adjusted_growth_pct": round(sustainable_growth * 100, 1),
+            "buyback_rate_pct": 0.0,
+            "fcf_per_share_cagr_pct": None,
+        },
+    }
 
 
 def get_fundamental_analysis(ticker: str) -> Optional[dict]:
@@ -599,7 +761,24 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         beta, risk_free_rate, market_cap, total_debt, latest_interest_expense, tax_rate, sector,
     )
 
-    if avg_fcf_margin and avg_fcf_margin > 0 and latest_rev and shares_out and price:
+    if _is_financial_sector(sector):
+        # Banks/insurers/brokers: the FCF-based DCF below is unreliable for
+        # this sector (confirmed with Progressive Corp) — use the real
+        # Justified Price-to-Book / Residual Income model instead.
+        cost_of_equity = (
+            wacc_details.get("cost_of_equity_pct") / 100
+            if wacc_details.get("method") == "capm" and wacc_details.get("cost_of_equity_pct") is not None
+            else base_discount_rate
+        )
+        latest_equity = _num(latest_bal.get("Stockholders Equity"))
+        latest_dividends_paid_fin = abs(_num(cashflow[-1].get("Dividends Paid")) or 0) if cashflow else 0
+        latest_net_income = ni_valid[-1] if ni_valid else None
+        dcf = _build_financial_sector_valuation(
+            roe_trend, latest_equity, shares_out, price, cost_of_equity,
+            latest_dividends_paid_fin, latest_net_income, total_debt, cash_latest, sector, wacc_details,
+        )
+
+    elif avg_fcf_margin and avg_fcf_margin > 0 and latest_rev and shares_out and price:
         base_fcf = avg_fcf_margin * latest_rev
 
         # ── Quality-adjusted growth rate ──────────────────────────────────
@@ -912,14 +1091,49 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
     # ── Quality score (0-10, matches the "Calidad del negocio: X.X/10" format) ──
     latest_roic = next((v for v in reversed(roic_trend) if v is not None), None)
     latest_om   = next((v for v in reversed(operating_margin_trend) if v is not None), None)
+    latest_nm   = next((v for v in reversed(net_margin_trend) if v is not None), None)
 
     roic_score   = _score(latest_roic, [(4, 20), (7, 40), (10, 55), (15, 70), (20, 85), (999, 95)])
     margin_score = _score(latest_om,   [(0, 10), (10, 35), (15, 55), (20, 70), (30, 85), (999, 95)])
+    net_margin_score = _score(latest_nm, [(0, 15), (5, 40), (10, 55), (15, 70), (25, 85), (999, 95)])
     growth_score = _score(rev_cagr,    [(0, 15), (5, 40), (10, 60), (15, 75), (20, 88), (999, 95)])
+    fcf_margin_score = _score(avg_fcf_margin * 100 if avg_fcf_margin is not None else None, [(0, 15), (5, 40), (10, 55), (15, 70), (25, 85), (999, 95)])
     if cash_latest > 0:
         debt_score = _score(total_debt / cash_latest, [(0.5, 90), (1, 75), (2, 55), (4, 35), (999, 15)])
     else:
         debt_score = 90 if net_cash >= 0 else 20
+
+    # Interest coverage — real, from actual interest expense, a genuine
+    # additional (not redundant with net-debt/cash) signal of financial
+    # resilience: a company can carry debt comfortably if operating income
+    # covers interest many times over, even with modest net cash.
+    interest_coverage_score = None
+    if latest_interest_expense and latest_interest_expense > 0 and latest_om is not None and latest_rev:
+        operating_income_latest = latest_om / 100 * latest_rev
+        interest_coverage = operating_income_latest / latest_interest_expense
+        interest_coverage_score = _score(interest_coverage, [(1, 15), (2, 35), (4, 55), (8, 75), (15, 88), (999, 95)])
+    financial_strength_components = [s for s in [debt_score, interest_coverage_score] if s is not None]
+    financial_strength_score = round(sum(financial_strength_components) / len(financial_strength_components)) if financial_strength_components else debt_score
+
+    # Business Quality — a genuine blend across profitability, margin
+    # quality, cash generation and growth, NOT a single metric (ROIC alone
+    # used to be the entire score here — replaced per the Buffett-checklist
+    # redesign, which explicitly requires multi-factor evaluation for every
+    # criterion).
+    business_quality_components = [s for s in [roic_score, margin_score, net_margin_score, fcf_margin_score, growth_score] if s is not None]
+    business_quality_score = round(sum(business_quality_components) / len(business_quality_components)) if business_quality_components else None
+
+    # Payout sanity — real, from actual dividends paid vs. net income:
+    # penalizes distributing more than the business earns (unsustainable),
+    # rewards disciplined, sustainable capital return. Distinct from
+    # financial_strength's leverage focus — this is about capital
+    # allocation judgment, not balance-sheet resilience.
+    payout_sanity_score = None
+    latest_ni_for_payout = ni_valid[-1] if ni_valid else None
+    latest_dividends_paid_mgmt = abs(_num(cashflow[-1].get("Dividends Paid")) or 0) if cashflow else 0
+    if latest_ni_for_payout and latest_ni_for_payout > 0:
+        payout_ratio_mgmt = latest_dividends_paid_mgmt / latest_ni_for_payout if latest_dividends_paid_mgmt else 0.0
+        payout_sanity_score = _score(payout_ratio_mgmt, [(0.6, 90), (0.8, 75), (1.0, 55), (1.2, 30), (999, 10)])
 
     comp_scores = [s for s in [roic_score, margin_score, growth_score, debt_score] if s is not None]
     quality_score_100 = round(sum(comp_scores) / len(comp_scores)) if comp_scores else None
@@ -996,17 +1210,19 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         growth_score_adj = _score(qual_growth, [(0, 15), (5, 40), (10, 60), (15, 75), (20, 88), (999, 95)])
         buyback_rate_pct = gb.get("buyback_rate_pct") or 0.0
         buyback_component = _score(buyback_rate_pct, [(0, 30), (1, 50), (2, 65), (3, 80), (5, 90), (999, 95)])
-        management_capital_allocation = (
-            round(buyback_component * 0.5 + debt_score * 0.5)
-            if buyback_component is not None and debt_score is not None else None
-        )
+        # Management & Capital Allocation — buyback discipline blended with
+        # payout sustainability (NOT leverage, which financial_strength
+        # already covers — duplicating it here would make the two
+        # dimensions redundant instead of independent signals).
+        mgmt_components = [s for s in [buyback_component, payout_sanity_score] if s is not None]
+        management_capital_allocation = round(sum(mgmt_components) / len(mgmt_components)) if mgmt_components else None
         thesis_scores = {
-            "business_quality": roic_score,  # profitability/moat proxy — return on capital
+            "business_quality": business_quality_score,  # blend: ROIC, operating margin, net margin, FCF margin, growth — not a single metric
             "valuation": fair_value_score,
             "predictability": dcf.get("confidence_score"),
-            "financial_strength": debt_score,  # balance-sheet resilience (debt vs. cash)
+            "financial_strength": financial_strength_score,  # blend: net-debt/cash coverage + interest coverage
             "growth_outlook": growth_score_adj,  # scored from the quality-adjusted growth rate, not raw historical CAGR
-            "management_capital_allocation": management_capital_allocation,  # real buyback-rate + debt-discipline blend
+            "management_capital_allocation": management_capital_allocation,  # real buyback-rate + payout-sustainability blend
         }
 
         # ── Operational risk vs. Valuation risk — kept as two SEPARATE labels
@@ -1055,7 +1271,50 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
             "50": [round(center - half_spread * 0.35, 2), round(center + half_spread * 0.35, 2)],
         }
 
-    checklist_items_real = _build_checklist_items(dcf, thesis_scores) if dcf and thesis_scores else []
+    # Real, multi-factor evidence per checklist dimension — handed to Claude
+    # (see ai_service.generate_quick_valuation_summary/generate_candidate_blurb)
+    # so it can write a nuanced, non-absolutist explanation grounded in
+    # actual numbers instead of a single templated metric per item. Every
+    # value here is already computed above from real financial-statement
+    # data — nothing here is invented for the sake of narration.
+    checklist_evidence = {
+        "moat": {
+            "avg_roic_pct": (dcf.get("growth_buildup") or {}).get("avg_roic_pct") if dcf else None,
+            "quality_metric_label": (dcf.get("growth_buildup") or {}).get("quality_metric_label", "ROIC") if dcf else "ROIC",
+            "roic_trend_pct": roic_trend if not _is_financial_sector(sector) else roe_trend,
+            "gross_margin_trend_pct": gross_margin_trend,
+            "operating_margin_trend_pct": operating_margin_trend,
+            "revenue_cagr_pct": rev_cagr,
+            "market_cap": round(market_cap, 0) if market_cap else None,
+            "sector": sector,
+        } if dcf else None,
+        "business_quality": {
+            "roic_score": roic_score, "operating_margin_score": margin_score,
+            "net_margin_score": net_margin_score, "fcf_margin_score": fcf_margin_score,
+            "growth_score": growth_score,
+            "latest_operating_margin_pct": latest_om, "latest_net_margin_pct": latest_nm,
+            "avg_fcf_margin_pct": round(avg_fcf_margin * 100, 1) if avg_fcf_margin is not None else None,
+            "revenue_cagr_pct": rev_cagr,
+        },
+        "management_capital_allocation": {
+            "buyback_rate_pct": (dcf.get("growth_buildup") or {}).get("buyback_rate_pct") if dcf else None,
+            "payout_ratio_pct": round(payout_ratio_mgmt * 100, 1) if latest_ni_for_payout and latest_ni_for_payout > 0 else None,
+            "net_income_cagr_pct": ni_cagr,
+            "data_years_available": n,
+        },
+        "financial_strength": {
+            "total_debt": round(total_debt, 0), "cash": round(cash_latest, 0), "net_cash": round(net_cash, 0),
+            "interest_coverage_score": interest_coverage_score, "net_debt_to_cash_score": debt_score,
+        },
+        "growth_predictability": {
+            "growth_outlook_score": growth_score_adj,
+            "revenue_cagr_pct": rev_cagr, "fcf_cagr_pct": fcf_cagr, "net_income_cagr_pct": ni_cagr,
+            "predictability_score": dcf.get("confidence_score") if dcf else None,
+        },
+        "valuation": dcf,
+    }
+
+    checklist_items_real = _build_checklist_items(dcf, thesis_scores, checklist_evidence) if dcf and thesis_scores else []
 
     return {
         "ticker": ticker,

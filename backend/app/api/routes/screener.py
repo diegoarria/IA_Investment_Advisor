@@ -399,15 +399,18 @@ async def quick_analysis(query: str, user_id: str = Depends(get_current_user_id)
     dcf = data["dcf"]
 
     # 7-point investment checklist — item 1 (Entender el negocio) is Claude's
-    # qualitative judgment from ai_result above; items 2-7 are real, computed
-    # by fundamental_analysis_service (see _build_checklist_items).
-    checklist_items = [{
+    # qualitative judgment from ai_result above; items 2-7's "passed" flags
+    # are real, computed by fundamental_analysis_service, and their "reason"
+    # text is Claude's nuanced explanation grounded in real multi-factor
+    # evidence (see undervalued_screener_service._finalize_checklist, reused
+    # here so both entry points merge identically).
+    from app.services.undervalued_screener_service import _finalize_checklist
+    _finalize_checklist(data, {
         "name": "Entender el negocio",
         "passed": ai_result.get("business_understanding_passed"),
         "reason": ai_result.get("business_understanding_reason", ""),
-    }] + list(data.get("checklist_items_real") or [])
-    passed_count = sum(1 for it in checklist_items if it.get("passed") is True)
-    checklist = {"items": checklist_items, "score": f"{passed_count}/{len(checklist_items)}"}
+    }, ai_result.get("checklist_reasons"))
+    checklist = data["checklist"]
 
     return {
         "ticker": data["ticker"],

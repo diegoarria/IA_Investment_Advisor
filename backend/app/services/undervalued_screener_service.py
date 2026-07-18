@@ -97,12 +97,26 @@ def _scan(tickers: list[dict]) -> list[dict]:
     return results
 
 
-def _finalize_checklist(entry: dict, business_understanding: Optional[dict] = None) -> None:
+_CHECKLIST_REASON_KEYS = ["moat", "business_quality", "management_capital_allocation", "financial_strength", "growth_predictability", "valuation"]
+
+
+def _finalize_checklist(entry: dict, business_understanding: Optional[dict] = None, checklist_reasons: Optional[dict] = None) -> None:
     """Merges checklist item 1 ("Entender el negocio" — Claude's judgment,
-    or None if not evaluated) with items 2-7 (real, computed — see
-    fundamental_analysis_service._build_checklist_items) into the final
-    7-item checklist + "X/7" score, mutating `entry` in place."""
+    or None if not evaluated) with items 2-7 (real "passed" flags, computed
+    by fundamental_analysis_service._build_checklist_items) into the final
+    7-item checklist + "X/7" score, mutating `entry` in place. If Claude
+    returned `checklist_reasons` (see ai_service._CHECKLIST_INSTRUCTIONS),
+    those nuanced ~70-word explanations OVERWRITE items 2-7's templated
+    "reason" text — never their "passed" flag, which stays the real,
+    deterministic threshold. The internal-only `evidence` field (raw numbers
+    fed to Claude) is stripped before the checklist reaches the frontend."""
     items = list(entry.pop("checklist_items_real", []))
+    checklist_reasons = checklist_reasons or {}
+    for item, key in zip(items, _CHECKLIST_REASON_KEYS):
+        reason_text = checklist_reasons.get(key)
+        if reason_text:
+            item["reason"] = reason_text
+        item.pop("evidence", None)
     items.insert(0, business_understanding or {
         "name": "Entender el negocio",
         "passed": None,
@@ -131,7 +145,7 @@ async def refresh_undervalued_screener() -> None:
                 "name": "Entender el negocio",
                 "passed": blurb_result.get("business_understanding_passed"),
                 "reason": blurb_result.get("business_understanding_reason", ""),
-            })
+            }, blurb_result.get("checklist_reasons"))
         except Exception as exc:
             logger.warning("undervalued_screener_service: blurb failed for %s: %s", entry["ticker"], exc)
             _finalize_checklist(entry)

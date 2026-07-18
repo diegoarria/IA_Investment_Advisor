@@ -80,7 +80,7 @@ function InsightBox({ text, colors }: { text: string; colors: any }) {
     <View style={[s.insightBox, { backgroundColor: "rgba(0,168,94,0.06)", borderColor: "rgba(0,168,94,0.18)" }]}>
       <Ionicons name="sparkles" size={13} color={colors.accentLight} style={{ marginTop: 2 }} />
       <View style={{ flex: 1 }}>
-        <Markdown style={{ body: { color: colors.textSub, fontSize: 12, lineHeight: 17 }, strong: { color: colors.text, fontWeight: "800" } }}>
+        <Markdown style={{ body: { color: colors.textSub, fontSize: 15, lineHeight: 21 }, strong: { color: colors.text, fontWeight: "800" } }}>
           {text}
         </Markdown>
       </View>

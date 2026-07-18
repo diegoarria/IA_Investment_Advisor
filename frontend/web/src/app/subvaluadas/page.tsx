@@ -71,7 +71,7 @@ function InsightBox({ children }: { children: string }) {
     <div className="rounded-xl p-3 flex gap-2 items-start"
          style={{ background: "rgba(0,168,94,0.06)", border: "1px solid rgba(0,168,94,0.18)" }}>
       <Sparkles className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "var(--accent-l)" }} />
-      <div className="text-xs leading-relaxed prose-sm [&_p]:m-0 [&_p+p]:mt-2" style={{ color: "var(--sub)" }}>
+      <div className="text-base leading-relaxed [&_p]:m-0 [&_p+p]:mt-2" style={{ color: "var(--sub)" }}>
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{children}</ReactMarkdown>
       </div>
     </div>

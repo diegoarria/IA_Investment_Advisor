@@ -2775,6 +2775,37 @@ def _parse_json_response(text: str) -> Optional[dict]:
         return None
 
 
+def _format_checklist_evidence_for_prompt(checklist_items_real: list, sector: Optional[str], dcf: Optional[dict]) -> str:
+    """Renders the real, multi-factor evidence per checklist dimension
+    (fundamental_analysis_service._build_checklist_items' `evidence` field)
+    into plain text for the prompt — the raw numbers Claude must reason from
+    for items 2-7 of the Buffett-style checklist, never inventing new ones."""
+    is_financial = sector and any(k in sector.lower() for k in ("financial services", "bank", "insurance"))
+    lines = []
+    for item in checklist_items_real or []:
+        ev = item.get("evidence")
+        if not ev:
+            continue
+        lines.append(f"- {item['name']}: {ev}")
+    methodology_note = (
+        "Esta empresa es una institución financiera (banco/aseguradora/broker) — el ítem 7 usa un modelo de "
+        "Justified Price-to-Book (ROE, valor en libros, costo de equity), NO un DCF de flujo de caja libre tradicional. "
+        "No la compares con una empresa no financiera como si tuviera FCF normal."
+        if is_financial else ""
+    )
+    return "\n".join(lines) + ("\n" + methodology_note if methodology_note else "")
+
+
+_CHECKLIST_INSTRUCTIONS = """Reglas para razonar los 7 ítems del checklist de inversión estilo Warren Buffett (evalúa primero la calidad y durabilidad del negocio, luego la administración y fortaleza financiera, y solo al final si el precio ofrece margen de seguridad):
+- Ningún ítem debe depender de una sola métrica — usa TODAS las cifras reales dadas para ese ítem.
+- Evita conclusiones absolutas ("no tiene moat", "management malo") cuando la evidencia es mixta — explica matices, fortalezas Y debilidades cuando coexistan.
+- Nunca concluyas "sin moat" solo porque el ROIC histórico sea bajo — empresas jóvenes o en expansión (ej. escala, efecto red, marca) pueden tener ventaja competitiva aún no reflejada en el ROIC.
+- No penalices automáticamente a empresas jóvenes en "management y asignación de capital" — evalúa la trayectoria y disciplina reciente, no solo el historial largo.
+- En "crecimiento futuro predecible" separa claramente Growth Outlook (tamaño de mercado, expansión) de Predictability (estabilidad de márgenes/FCF/ingresos) — si son distintos, explica por qué.
+- En "valor intrínseco y margen de seguridad" nunca presentes solo un porcentaje — explica qué crecimiento implícito está pagando el mercado y qué significa eso.
+- Lenguaje profesional, objetivo, basado en evidencia, máximo 70 palabras por ítem, entendible para un inversionista principiante pero riguroso para uno avanzado."""
+
+
 async def generate_quick_valuation_summary(data: dict) -> dict:
     """Quick-search valuation summary — a SHORT (80-130 word) narrative around
     the real numbers already computed by fundamental_analysis_service, for
@@ -2783,75 +2814,106 @@ async def generate_quick_valuation_summary(data: dict) -> dict:
     narrative to make the real numbers make sense at a glance. Haiku-tier:
     this is a short, cheap call, not a full analysis.
 
-    Also returns item 1 ("Entender el negocio") of the 7-point investment
-    checklist — the one item that's inherently qualitative (is the business
-    model simple enough for an ordinary investor to understand), so it's
-    Claude's judgment rather than a computed number. Items 2-7 are computed
-    separately and for real in fundamental_analysis_service._build_checklist_
-    items — the caller merges both into the final 7-item checklist.
+    Also returns all 7 items of the investment checklist's EXPLANATION text
+    (item 1 "Entender el negocio" is entirely Claude's qualitative judgment;
+    items 2-7's "passed" boolean is always the real, deterministic threshold
+    from fundamental_analysis_service._build_checklist_items — only the
+    "reason" text is replaced here, reasoned over that function's real
+    multi-factor `evidence` per item, following the Buffett-checklist
+    writing rules). The caller (get_undervalued's route or the merge helper)
+    overlays these reasons onto the real "passed" flags — never the reverse.
 
     Returns {"summary": str, "business_understanding_passed": bool|None,
-    "business_understanding_reason": str}. Falls back to passed=None (never
-    fakes a checklist result) if the model's JSON doesn't parse."""
+    "business_understanding_reason": str, "checklist_reasons": dict}. Falls
+    back to passed=None / empty checklist_reasons (never fakes a checklist
+    result) if the model's JSON doesn't parse."""
     from app.services.fundamental_analysis_service import format_fundamental_analysis_for_prompt
 
     data_block = format_fundamental_analysis_for_prompt(data)
+    evidence_block = _format_checklist_evidence_for_prompt(data.get("checklist_items_real") or [], data.get("sector"), data.get("dcf"))
 
     prompt = f"""Aquí tienes datos financieros y de valoración REALES y ya calculados de {data.get('company_name', data.get('ticker'))} ({data.get('ticker')}):
 
 {data_block}
 
+Evidencia real por dimensión del checklist de inversión (para los ítems 2-7):
+{evidence_block}
+
+{_CHECKLIST_INSTRUCTIONS}
+
 Responde ÚNICAMENTE con un JSON válido (sin markdown fuera del JSON, sin texto antes o después) con esta estructura exacta:
 {{
   "summary": "<resumen breve, 80-130 palabras, español, para una tarjeta compacta de búsqueda rápida — NO un análisis completo. Debe incluir: 1 línea sobre qué hace la empresa (tu conocimiento general, dicho como tal); el valor intrínseco (escenario base) y el margen de seguridad reales, usando EXACTAMENTE las cifras del bloque de arriba, nunca inventadas ni redondeadas distinto; una frase sobre qué crecimiento está pagando el mercado hoy (DCF inverso) si está disponible; nunca digas Comprar/No comprar/Mantener; cierra recordando que esto no es un semáforo de compra y que hay un análisis completo pidiéndole a Mentor IA 'analiza {data.get('ticker')}'. Texto plano en párrafos cortos, sin encabezados markdown (nada de #), sin bullets — como mucho **negrita** para 2-3 cifras clave.>",
   "business_understanding_passed": true o false — ¿es el modelo de negocio de esta empresa fácil de entender para un inversionista común (círculo de competencia de Buffett)? Esto es tu juicio cualitativo, no un dato calculado,
-  "business_understanding_reason": "<1 frase corta explicando por qué sí o no es fácil de entender>"
+  "business_understanding_reason": "<explicación de máx 70 palabras: cómo gana dinero, qué podría destruir el negocio, si está dentro de un círculo de competencia razonable>",
+  "checklist_reasons": {{
+    "moat": "<máx 70 palabras: qué tipo(s) de moat tiene (marca, escala, efecto red, switching costs, ventaja de costos, patentes, regulación, distribución, datos), por qué existe, qué tan difícil sería reemplazar a la empresa, qué riesgos lo erosionarían>",
+    "business_quality": "<máx 70 palabras: qué hace extraordinario o mediocre al negocio, si convierte eficientemente ingresos en flujo de caja>",
+    "management_capital_allocation": "<máx 70 palabras: historial de asignación de capital, uso del efectivo, recompras oportunistas, dilución, disciplina financiera>",
+    "financial_strength": "<máx 70 palabras: qué riesgos financieros existen, qué tan resiliente sería en una recesión>",
+    "growth_predictability": "<máx 70 palabras: separa Growth Outlook de Predictability explícitamente>",
+    "valuation": "<máx 70 palabras: qué crecimiento implícito paga hoy el mercado y qué significaría no alcanzarlo>"
+  }}
 }}"""
 
     response = await _claude(
         model="claude-haiku-4-5-20251001",
-        max_tokens=500,
+        max_tokens=1200,
         messages=[{"role": "user", "content": prompt}],
     )
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and "summary" in parsed:
+        parsed.setdefault("checklist_reasons", {})
         return parsed
-    return {"summary": text, "business_understanding_passed": None, "business_understanding_reason": ""}
+    return {"summary": text, "business_understanding_passed": None, "business_understanding_reason": "", "checklist_reasons": {}}
 
 
 async def generate_candidate_blurb(entry: dict) -> dict:
     """One-liner (~15-25 words) for a single undervalued-screener candidate —
     called once per real candidate during the weekly refresh (see
     undervalued_screener_service.refresh_undervalued_screener), never live
-    per-request. Deliberately lean prompt (no full data block) since this
-    runs ~60-90 times per refresh — keeps the weekly cost small.
-
-    Also returns checklist item 1 ("Entender el negocio") — see
-    generate_quick_valuation_summary's docstring for why this one item is
-    Claude's judgment rather than a computed number.
+    per-request. Deliberately lean prompt (compact evidence lines, no full
+    data block) since this runs ~60-90 times per refresh — keeps the weekly
+    cost small, but each of the 7 checklist items still gets a real,
+    multi-factor-grounded ~70-word reason (see _CHECKLIST_INSTRUCTIONS).
 
     Returns {"blurb": str, "business_understanding_passed": bool|None,
-    "business_understanding_reason": str}."""
+    "business_understanding_reason": str, "checklist_reasons": dict}."""
     ts = entry.get("thesis_scores") or {}
+    evidence_block = _format_checklist_evidence_for_prompt(entry.get("checklist_items_real") or [], entry.get("sector"), None)
     prompt = f"""{entry.get('company_name') or entry['ticker']} ({entry['ticker']}, sector {entry.get('sector') or 'N/D'}): precio real ${entry.get('price')}, valor intrínseco real ${entry.get('intrinsic_value_base')}, margen de seguridad real +{entry.get('margin_of_safety_pct')}%. Business Quality {ts.get('business_quality', 'N/D')}/100, Financial Strength {ts.get('financial_strength', 'N/D')}/100.
+
+Evidencia real por dimensión del checklist (ítems 2-7):
+{evidence_block}
+
+{_CHECKLIST_INSTRUCTIONS}
 
 Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta estructura exacta:
 {{
   "blurb": "<UNA sola frase (15-25 palabras, español) explicando por qué esta empresa podría estar subvaluada ahora mismo — tu conocimiento general de la industria/empresa para el motivo cualitativo (ciclo de la industria, sentimiento temporal, resultado reciente), pero nunca inventes cifras nuevas. Sin 'Comprar/No comprar'. Sin comillas ni prefijos.>",
   "business_understanding_passed": true o false — ¿es el modelo de negocio fácil de entender para un inversionista común (círculo de competencia de Buffett)? Tu juicio cualitativo, no un dato calculado,
-  "business_understanding_reason": "<1 frase corta explicando por qué sí o no>"
+  "business_understanding_reason": "<máx 70 palabras: cómo gana dinero, qué podría destruir el negocio, si está dentro de un círculo de competencia razonable>",
+  "checklist_reasons": {{
+    "moat": "<máx 70 palabras>",
+    "business_quality": "<máx 70 palabras>",
+    "management_capital_allocation": "<máx 70 palabras>",
+    "financial_strength": "<máx 70 palabras>",
+    "growth_predictability": "<máx 70 palabras>",
+    "valuation": "<máx 70 palabras>"
+  }}
 }}"""
 
     response = await _claude(
         model="claude-haiku-4-5-20251001",
-        max_tokens=200,
+        max_tokens=1000,
         messages=[{"role": "user", "content": prompt}],
     )
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and "blurb" in parsed:
+        parsed.setdefault("checklist_reasons", {})
         return parsed
-    return {"blurb": text, "business_understanding_passed": None, "business_understanding_reason": ""}
+    return {"blurb": text, "business_understanding_passed": None, "business_understanding_reason": "", "checklist_reasons": {}}
 
 
