@@ -98,6 +98,7 @@ def _scan(tickers: list[dict]) -> list[dict]:
                     "margin_of_safety_pct": mos,
                     "thesis_scores": thesis_scores,
                     "weak_dimension": _weak_dimension(thesis_scores),
+                    "liquidity_gate": data.get("liquidity_gate"),
                     # AI text (blurb + checklist reasons), keyed by language —
                     # filled in during the full weekly refresh only (see
                     # refresh_undervalued_screener). get_undervalued() reads

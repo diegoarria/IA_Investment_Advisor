@@ -477,6 +477,7 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
         "thesis_scores": data.get("thesis_scores"),
         "summary": ai_result.get("summary", ""),
         "checklist": checklist,
+        "liquidity_gate": data.get("liquidity_gate"),
     }
 
 

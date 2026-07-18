@@ -145,6 +145,42 @@ def _conv(value, currency: str) -> Optional[float]:
     return round(v * r, 2)
 
 
+# ─── Cross-validation ─────────────────────────────────────────────────────────
+# Automatic sanity check on every income-statement period, at the point of
+# standardization — so it applies uniformly across ALL providers (FMP,
+# yfinance), not just one. Revenue - COGS - OpEx should reconcile with the
+# reported Operating Income; a real mismatch beyond a reasonable tolerance
+# (rounding, currency conversion, provider-specific line-item bucketing)
+# means the record shouldn't be silently trusted — it gets flagged
+# "requiere revisión manual" instead of quietly feeding the DCF/ratios as if
+# it were clean.
+_INCOME_CONSISTENCY_TOLERANCE_PCT = 5.0  # % of revenue
+
+
+def _validate_income_consistency(rev: Optional[float], cogs: Optional[float], opex: Optional[float], oi: Optional[float]) -> dict:
+    """Returns {"valido": bool|None, "diferencia_pct": float|None, "detalle": str}.
+    `valido=None` (not False) when there isn't enough real data to check —
+    a data gap is not the same signal as a real inconsistency, and must
+    never be reported as if it were one."""
+    if rev is None or cogs is None or opex is None or oi is None or rev == 0:
+        return {
+            "valido": None,
+            "diferencia_pct": None,
+            "detalle": "No se pudo validar consistencia (COGS, OpEx u Operating Income no reportados por separado por el proveedor de datos).",
+        }
+    implied_oi = rev - cogs - opex
+    diff_pct = round(abs(implied_oi - oi) / abs(rev) * 100, 2)
+    valido = diff_pct <= _INCOME_CONSISTENCY_TOLERANCE_PCT
+    return {
+        "valido": valido,
+        "diferencia_pct": diff_pct,
+        "detalle": (
+            f"Revenue - COGS - OpEx (${implied_oi:,.0f}) vs. Operating Income reportado (${oi:,.0f}): "
+            f"difieren {diff_pct}% del revenue — {'dentro de tolerancia' if valido else 'REQUIERE REVISIÓN MANUAL, fuera de tolerancia'}."
+        ),
+    }
+
+
 # ─── Canonical period builders ────────────────────────────────────────────────
 
 def _income_period(
@@ -180,6 +216,7 @@ def _income_period(
         if ii != 0 or ie != 0:
             pti = round(oi + ii + ie, 2)
 
+    opex_num = _num(operating_expenses)
     return {
         "period": period,
         "Total Revenue": rev,
@@ -188,7 +225,7 @@ def _income_period(
         "Gross Margin %": gm,
         "Research And Development": _num(rd),
         "Selling General Administrative": _num(sga),
-        "Operating Expenses": _num(operating_expenses),
+        "Operating Expenses": opex_num,
         "Operating Income": oi,
         "Operating Margin %": om,
         "Interest Income": _num(interest_income),
@@ -201,6 +238,7 @@ def _income_period(
         "Depreciation And Amortization": _num(depreciation_amortization),
         "Diluted EPS": _num(diluted_eps),
         "Basic EPS": _num(basic_eps),
+        "validation": _validate_income_consistency(rev, cogs, opex_num, oi),
     }
 
 
@@ -445,6 +483,49 @@ def get_beta(symbol: str) -> Optional[float]:
             return _num(data[0].get("beta"))
     except Exception as exc:
         logger.debug("FMP profile/beta request failed for %s: %s", symbol, exc)
+    return None
+
+
+def get_shares_float(symbol: str) -> Optional[dict]:
+    """Real free-float data (FMP's shares-float endpoint) — outstanding
+    shares vs. the free-floating (non-restricted, non-insider) portion.
+    Used by the liquidity gate (fundamental_analysis_service.check_
+    liquidity_gate) to catch cases like a thinly-traded ADR or a stock
+    with minimal public float, where a full DCF looks rigorous but is
+    built on a price that barely trades — real bug seen with GNP Seguros.
+    Returns {"free_float_pct": float, "float_shares": float,
+    "outstanding_shares": float} or None if unavailable."""
+    if not FMP_KEY:
+        return None
+    ck = f"fmp:shares_float:{symbol}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
+    try:
+        r = requests.get(
+            f"{FMP_BASE}/shares-float",
+            params={"apikey": FMP_KEY, "symbol": symbol},
+            headers=_REQ_HEADERS,
+            timeout=14,
+        )
+        data = r.json()
+        if isinstance(data, list) and data:
+            d = data[0]
+            outstanding = _num(d.get("outstandingShares"))
+            float_shares = _num(d.get("floatShares"))
+            free_float_pct = (
+                round(float_shares / outstanding * 100, 1)
+                if outstanding and float_shares is not None and outstanding > 0 else None
+            )
+            result = {
+                "free_float_pct": free_float_pct,
+                "float_shares": float_shares,
+                "outstanding_shares": outstanding,
+            }
+            cache_set(ck, result, ttl=24 * 3600)
+            return result
+    except Exception as exc:
+        logger.debug("FMP shares-float request failed for %s: %s", symbol, exc)
     return None
 
 

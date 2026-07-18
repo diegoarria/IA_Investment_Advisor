@@ -17,8 +17,10 @@ import logging
 import statistics
 from typing import Optional
 
-from app.services.financial_data_service import get_financials, get_revenue_segments, get_beta, get_risk_free_rate
-from app.core.finnhub import fh_quote, fh_profile, fh_price_target
+from scipy.optimize import brentq
+
+from app.services.financial_data_service import get_financials, get_revenue_segments, get_beta, get_risk_free_rate, get_shares_float
+from app.core.finnhub import fh_quote, fh_profile, fh_price_target, fh_metrics, fh_recommendation
 
 logger = logging.getLogger(__name__)
 
@@ -115,10 +117,114 @@ def _is_financial_sector(sector: str | None) -> bool:
     return any(k in s for k in _FINANCIAL_SECTOR_KEYS)
 
 
+# ── Liquidity gate ─────────────────────────────────────────────────────────────
+# Running a full DCF on a stock with minimal free float or trading volume
+# produces a precise-looking number built on a price that barely trades —
+# a real case seen with GNP Seguros (thin ADR/foreign-ordinary volume). This
+# must run BEFORE the valuation is presented with normal confidence, not as
+# an afterthought — a low-liquidity stock's price itself is less trustworthy,
+# independent of whether the underlying business or the DCF math is sound.
+_MIN_AVG_VOLUME_30D = 50_000       # shares/day — below this, price discovery itself is suspect
+_MIN_FREE_FLOAT_PCT = 10.0         # % of shares outstanding actually tradeable
+_MIN_ANALYST_COVERAGE = 1          # at least one analyst actively covering
+
+
+def check_liquidity_gate(ticker: str) -> dict:
+    """Real, pre-valuation liquidity check — average 3-month daily trading
+    volume (Finnhub), free float % (FMP shares-float), and analyst coverage
+    count (Finnhub recommendation trend). Returns:
+    {"paso": bool, "avg_volume_30d": float|None, "free_float_pct": float|None,
+     "analyst_coverage": int, "detalle": str}
+
+    `paso=False` (gate failed) only when we have REAL data showing volume or
+    float below threshold — never fabricated. If both volume and float are
+    genuinely unavailable (data gap, not a real low-liquidity signal), the
+    gate reports `paso=True` but with `detalle` disclosing the data gap
+    honestly, rather than either silently passing as if fully verified or
+    blocking a legitimate ticker just because one data source lacks
+    coverage."""
+    metrics = fh_metrics(ticker) or {}
+    avg_volume = _num(metrics.get("3MonthAverageTradingVolume"))
+    # Finnhub reports this in MILLIONS of shares — normalize to raw shares
+    # so it's comparable against _MIN_AVG_VOLUME_30D.
+    if avg_volume is not None:
+        avg_volume = avg_volume * 1_000_000
+
+    float_data = get_shares_float(ticker)
+    free_float_pct = float_data.get("free_float_pct") if float_data else None
+
+    rec = fh_recommendation(ticker)
+    analyst_coverage = (
+        (rec.get("buy", 0) + rec.get("hold", 0) + rec.get("sell", 0) + rec.get("strong_buy", 0) + rec.get("strong_sell", 0))
+        if rec else 0
+    )
+
+    reasons = []
+    if avg_volume is not None and avg_volume < _MIN_AVG_VOLUME_30D:
+        reasons.append(f"volumen promedio real de {avg_volume:,.0f} acciones/día (mínimo esperado: {_MIN_AVG_VOLUME_30D:,})")
+    if free_float_pct is not None and free_float_pct < _MIN_FREE_FLOAT_PCT:
+        reasons.append(f"free float real de {free_float_pct}% (mínimo esperado: {_MIN_FREE_FLOAT_PCT}%)")
+
+    if reasons:
+        return {
+            "paso": False,
+            "avg_volume_30d": avg_volume,
+            "free_float_pct": free_float_pct,
+            "analyst_coverage": analyst_coverage,
+            "detalle": "Liquidez real baja: " + "; ".join(reasons) + ". El precio de mercado es menos confiable como referencia — trátalo con más cautela que una acción líquida.",
+        }
+
+    data_gap = avg_volume is None and free_float_pct is None
+    return {
+        "paso": True,
+        "avg_volume_30d": avg_volume,
+        "free_float_pct": free_float_pct,
+        "analyst_coverage": analyst_coverage,
+        "detalle": (
+            "No se pudo verificar volumen/free float real para este ticker (dato no disponible) — no es una señal de baja liquidez, solo un vacío de datos."
+            if data_gap else "Liquidez real dentro de rangos esperados."
+        ),
+    }
+
+
+# ── Versioned scenario assumptions ────────────────────────────────────────────
+# Single source of truth for the 3-scenario (pessimistic/base/optimistic)
+# multipliers used in every DCF run — never improvised inline. Every `dcf`
+# dict this module returns carries `scenario_config_version`, so a stored or
+# cached result is always traceable to exactly which assumption-set produced
+# it; bump the version string whenever these numbers change, so an old
+# cached result is never silently compared against a new one as if they used
+# the same methodology.
+SCENARIO_CONFIG_VERSION = "v1.0.0"
+
+# FCF-based 2-stage DCF (non-financial companies) — growth_multiplier scales
+# the raw quality-adjusted growth rate; discount_rate_delta_pct shifts WACC;
+# the caps bound how high growth can go even after the multiplier, so a
+# very-high-growth company doesn't blow through a sane ceiling.
+FCF_DCF_SCENARIOS = {
+    "pessimistic": {"growth_multiplier": 0.5, "discount_rate_delta_pct": 1.5, "revenue_growth_cap_pct": 15.0, "fcf_growth_cap_pct": 15.0},
+    "base":        {"growth_multiplier": 1.0, "discount_rate_delta_pct": 0.0, "revenue_growth_cap_pct": 25.0, "fcf_growth_cap_pct": 25.0},
+    "optimistic":  {"growth_multiplier": 1.3, "discount_rate_delta_pct": -1.0, "revenue_growth_cap_pct": 40.0, "fcf_growth_cap_pct": 35.0},
+}
+
+# Excess Return / Justified P-B (banks, insurers, brokers) — cost_of_equity_
+# delta_pct shifts the discount rate; growth_multiplier scales sustainable
+# growth (ROE × retention), still bounded by the model's own growth ceiling.
+EXCESS_RETURN_SCENARIOS = {
+    "pessimistic": {"cost_of_equity_delta_pct": 1.0, "growth_multiplier": 0.5},
+    "base":        {"cost_of_equity_delta_pct": 0.0, "growth_multiplier": 1.0},
+    "optimistic":  {"cost_of_equity_delta_pct": -1.0, "growth_multiplier": 1.3},
+}
+
+
 # ── Real CAPM-based WACC ──────────────────────────────────────────────────────
 _EQUITY_RISK_PREMIUM = 0.046  # long-run US equity risk premium (Damodaran-style estimate)
 _MIN_COST_OF_DEBT = 0.03
 _MAX_COST_OF_DEBT = 0.15
+
+
+_QUALITATIVE_ADJUSTMENT_MIN_PCT = -0.5
+_QUALITATIVE_ADJUSTMENT_MAX_PCT = 2.0
 
 
 def _calc_wacc(
@@ -129,18 +235,37 @@ def _calc_wacc(
     interest_expense: Optional[float],
     tax_rate: float,
     sector: Optional[str],
+    qualitative_adjustment_pct: float = 0.0,
+    qualitative_adjustment_reason: Optional[str] = None,
 ) -> tuple[float, dict]:
     """Real WACC via CAPM: cost of equity = risk-free + beta × ERP, cost of
     debt = interest expense / total debt (with a floor/ceiling), blended by
     market-value weights of equity and debt, net of the tax shield on debt.
     Falls back to the sector-proxy table ONLY if beta or the live risk-free
     rate genuinely isn't available (e.g. FMP down) — this is disclosed
-    explicitly in the output so it's never silently mistaken for a real WACC."""
+    explicitly in the output so it's never silently mistaken for a real WACC.
+
+    `qualitative_adjustment_pct`: an optional analyst override added directly
+    to the discount rate for a company-specific risk not captured by beta
+    (e.g. "active DOJ antitrust investigation", "customer concentration in
+    4 hyperscalers") — range [-0.5%, +2.0%]. This is infrastructure for a
+    future analyst-driven override (no caller sets it yet; defaults to 0/
+    None, i.e. no adjustment). It's deliberately NEVER allowed as a bare
+    number: any non-zero value MUST come with `qualitative_adjustment_
+    reason`, or this raises — a discount-rate fudge factor with no recorded
+    justification is exactly the "ad hoc" failure mode this whole hardening
+    effort exists to prevent."""
+    if qualitative_adjustment_pct != 0.0:
+        if not qualitative_adjustment_reason:
+            raise ValueError("qualitative_adjustment_pct distinto de 0 requiere qualitative_adjustment_reason — nunca un ajuste sin justificación registrada.")
+        if not (_QUALITATIVE_ADJUSTMENT_MIN_PCT <= qualitative_adjustment_pct <= _QUALITATIVE_ADJUSTMENT_MAX_PCT):
+            raise ValueError(f"qualitative_adjustment_pct debe estar en [{_QUALITATIVE_ADJUSTMENT_MIN_PCT}%, {_QUALITATIVE_ADJUSTMENT_MAX_PCT}%], recibido {qualitative_adjustment_pct}%.")
+
     if beta is None or risk_free_rate is None or not market_cap:
         return _sector_discount_rate(sector), {"method": "sector_fallback (beta o tasa libre de riesgo no disponibles)"}
 
     beta_clamped = max(min(beta, 3.0), 0.3)  # sanity clamp — an extreme/negative beta breaks CAPM
-    cost_of_equity = risk_free_rate + beta_clamped * _EQUITY_RISK_PREMIUM
+    cost_of_equity = risk_free_rate + beta_clamped * _EQUITY_RISK_PREMIUM + qualitative_adjustment_pct / 100
 
     if total_debt > 0 and interest_expense:
         cost_of_debt = min(max(abs(interest_expense) / total_debt, _MIN_COST_OF_DEBT), _MAX_COST_OF_DEBT)
@@ -157,6 +282,8 @@ def _calc_wacc(
         "beta": round(beta, 2),
         "risk_free_rate_pct": round(risk_free_rate * 100, 2),
         "equity_risk_premium_pct": round(_EQUITY_RISK_PREMIUM * 100, 2),
+        "qualitative_adjustment_pct": round(qualitative_adjustment_pct, 2),
+        "qualitative_adjustment_reason": qualitative_adjustment_reason,
         "cost_of_equity_pct": round(cost_of_equity * 100, 2),
         "cost_of_debt_pct": round(cost_of_debt * 100, 2),
         "tax_rate_pct": round(tax_rate * 100, 1),
@@ -386,29 +513,24 @@ def _implied_growth_rate(
     total_debt: float, cash: float, shares_out: float, target_price: float,
 ) -> Optional[float]:
     """Reverse DCF: holding WACC and terminal growth fixed at the base
-    scenario's real values, solves (by binary search — intrinsic value is
-    monotonic increasing in growth) for the year-1 growth rate that would
-    make the DCF's intrinsic value equal today's actual market price. This
+    scenario's real values, solves algebraically (Brent's method — intrinsic
+    value is monotonic increasing in growth, so a bracketed root always
+    exists if one is in range) for the year-1 growth rate that would make
+    the DCF's intrinsic value equal today's actual market price. This
     answers "what growth is the market actually pricing in?" with a real
     computed number instead of a vague narrative guess — it's the concrete
     answer to "what is the investor buying at this price." Returns None if
     no growth rate in a wide, sane search range reconciles the two (e.g. the
     market price implies a genuinely absurd/impossible growth rate)."""
-    def intrinsic_at(g: float) -> float:
+    def equity_at(g: float) -> float:
         result = _run_dcf(base_fcf, g, discount_rate, terminal_growth)
-        equity = result["enterprise_value"] - total_debt + cash
-        return equity / shares_out
+        return (result["enterprise_value"] - total_debt + cash) / shares_out
 
     lo, hi = -0.30, 1.50
-    if intrinsic_at(lo) > target_price or intrinsic_at(hi) < target_price:
+    if equity_at(lo) > target_price or equity_at(hi) < target_price:
         return None
-    for _ in range(60):
-        mid = (lo + hi) / 2
-        if intrinsic_at(mid) < target_price:
-            lo = mid
-        else:
-            hi = mid
-    return round((lo + hi) / 2 * 100, 1)
+    g_implied = brentq(lambda g: equity_at(g) - target_price, lo, hi, xtol=1e-6)
+    return round(g_implied * 100, 1)
 
 
 def _run_dcf_constant_growth(base_fcf: float, growth: float, discount_rate: float, terminal_growth: float, years: int = _PROJECTION_YEARS) -> dict:
@@ -440,26 +562,60 @@ def _implied_constant_growth_rate(
     base_fcf: float, discount_rate: float, terminal_growth: float,
     total_debt: float, cash: float, shares_out: float, target_price: float,
 ) -> Optional[float]:
-    """Reverse DCF for Expectations Investing: same binary-search approach as
-    _implied_growth_rate, but solving for a CONSTANT annual growth rate
-    (not a year-1 rate that fades to terminal) — the standard formulation
-    for "what growth rate, sustained flat for 10 years, justifies this
-    price." Returns None if no rate in a sane range reconciles the price."""
-    def intrinsic_at(g: float) -> float:
+    """Reverse DCF for Expectations Investing: same algebraic (Brent's
+    method) approach as _implied_growth_rate, but solving for a CONSTANT
+    annual growth rate (not a year-1 rate that fades to terminal) — the
+    standard formulation for "what growth rate, sustained flat for 10
+    years, justifies this price." Returns None if no rate in a sane range
+    reconciles the price."""
+    def equity_at(g: float) -> float:
         result = _run_dcf_constant_growth(base_fcf, g, discount_rate, terminal_growth)
-        equity = result["enterprise_value"] - total_debt + cash
-        return equity / shares_out
+        return (result["enterprise_value"] - total_debt + cash) / shares_out
 
     lo, hi = -0.30, 1.50
-    if intrinsic_at(lo) > target_price or intrinsic_at(hi) < target_price:
+    if equity_at(lo) > target_price or equity_at(hi) < target_price:
         return None
-    for _ in range(60):
-        mid = (lo + hi) / 2
-        if intrinsic_at(mid) < target_price:
-            lo = mid
-        else:
-            hi = mid
-    return round((lo + hi) / 2 * 100, 1)
+    g_implied = brentq(lambda g: equity_at(g) - target_price, lo, hi, xtol=1e-6)
+    return round(g_implied * 100, 1)
+
+
+def sanity_check_reverse_dcf(
+    implied_growth_pct: Optional[float], fcf_base: float,
+    historical_fcf_cagr_pct: Optional[float], years: int = _PROJECTION_YEARS,
+) -> Optional[dict]:
+    """Automatic sanity check for the reverse-DCF's implied growth rate —
+    never let a raw percentage stand alone without context. Projects FCF
+    forward `years` at the implied rate and compares it explicitly against
+    the company's OWN real historical FCF CAGR (already computed elsewhere
+    in this module, never a peer/industry average) — flagging when the
+    market is pricing in more than 2x the historical pace, which signals
+    "the price requires a regime change, not just continuation" rather than
+    a simple extrapolation. Returns None if there isn't enough real data
+    (no implied growth solved, or no historical CAGR to compare against)."""
+    if implied_growth_pct is None or historical_fcf_cagr_pct is None or fcf_base is None:
+        return None
+    g = implied_growth_pct / 100
+    fcf_projected_year_n = round(fcf_base * (1 + g) ** years, 0)
+    hist_cagr = historical_fcf_cagr_pct / 100
+    if hist_cagr > 0:
+        ratio = g / hist_cagr
+        vs_historical = "mayor" if ratio > 1.15 else "menor" if ratio < 0.85 else "similar"
+    else:
+        vs_historical = "mayor" if g > 0 else "similar"
+    regime_change_flag = hist_cagr > 0 and g > 2 * hist_cagr
+    return {
+        "fcf_projected_year_n": fcf_projected_year_n,
+        "years": years,
+        "vs_cagr_historico_propio": vs_historical,
+        "regime_change_flag": regime_change_flag,
+        "detalle": (
+            f"El crecimiento implícito ({implied_growth_pct}%) es más del doble del CAGR histórico real de FCF de la "
+            f"propia empresa ({historical_fcf_cagr_pct}%) — el precio actual exige un cambio de régimen de crecimiento, "
+            f"no solo continuidad del historial."
+            if regime_change_flag else
+            f"Crecimiento implícito ({implied_growth_pct}%) {vs_historical} al CAGR histórico real de FCF de la empresa ({historical_fcf_cagr_pct}%)."
+        ),
+    }
 
 
 def _build_financial_sector_valuation(
@@ -503,29 +659,57 @@ def _build_financial_sector_valuation(
         if latest_net_income and latest_net_income > 0 else 0.0
     )
     retention_ratio = 1 - payout_ratio
-    # Cap sustainable growth at a realistic long-run ceiling: a mature
+    # Cap sustainable growth at a realistic long-run ceiling. A mature
     # financial institution's book value can't keep compounding at its
-    # current high ROE forever — real long-run growth converges toward
-    # overall economic growth. 6% is generous relative to the 2% terminal
-    # growth used for this sector in the standard DCF table, but bounded
-    # (not the raw, sometimes 15-20%+, ROE × retention product).
-    sustainable_growth = min(avg_roe * retention_ratio, 0.06)
+    # current ROE forever — real long-run growth converges toward overall
+    # economic growth (~long-run nominal GDP, roughly 3-4%). A 6% cap
+    # (this model's first version) was calibrated against an extreme case
+    # (Progressive Corp's 26%+ ROIC) to prevent a blow-up, but for a
+    # NORMAL, merely-good insurer (e.g. Chubb, ROE ~12-13%, cost of equity
+    # ~8%) it still leaves too thin an (r-g) spread — the Gordon-growth
+    # formula is extremely sensitive there, and 6% inflated the justified
+    # P/B well above what real-world justified P/B multiples for insurers
+    # actually look like (rarely above ~3x book even for excellent
+    # underwriters). 4% is the standard long-run ceiling instead.
+    sustainable_growth = min(avg_roe * retention_ratio, 0.04)
 
     def justified_pb_and_value(coe: float, g: float) -> tuple[float, float]:
         # Guard: the Gordon-growth form requires coe > g, or it's undefined/
         # explosive — clamp g to a safe margin below coe rather than let the
-        # formula blow up (disclosed, not hidden). P/B ceiling of 6x matches
-        # what even excellent real-world financials rarely exceed.
+        # formula blow up (disclosed, not hidden).
+        #
+        # Ceiling of 8x is a backstop against pathological inputs (the
+        # original Progressive Corp blow-up), NOT an active constraint on
+        # legitimate high-ROE companies — confirmed by testing against 9
+        # real cases (see section-10 validation): Chubb's justified P/B
+        # (~1.95x, ROE ~12%) was never anywhere near even the old 4x
+        # ceiling, proving the ceiling wasn't what fixed that case (the
+        # growth cap and cost-of-equity floor above did the real work).
+        # A 4x ceiling, however, DID incorrectly cap American Express
+        # (ROE ~30%, real-world P/B genuinely 4-6x) — a flat cap can't
+        # serve both a merely-good insurer and an exceptional, sustained
+        # high-ROE franchise. 8x lets the formula do its job for real
+        # outliers like AXP while still catching genuine blow-ups.
         g_safe = min(g, coe - 0.005)
-        pb = max(0.0, min((avg_roe - g_safe) / (coe - g_safe), 6.0))
+        pb = max(0.0, min((avg_roe - g_safe) / (coe - g_safe), 8.0))
         return pb, book_value_per_share * pb
 
+    # Vary BOTH cost of equity AND growth per scenario — mirrors the
+    # standard FCF-DCF's pattern (mult 0.5/1.0/1.3 on growth) above, so the
+    # three scenarios actually differentiate instead of only moving the
+    # discount rate while holding growth fixed (a real inconsistency in
+    # the first version of this model — a wide legitimate risk this
+    # dimension should reflect, e.g. a soft insurance cycle depressing ROE,
+    # is invisible if growth never varies across scenarios).
     scenarios = {}
-    for name, coe_delta, label_g in [("pessimistic", 0.01, sustainable_growth), ("base", 0.0, sustainable_growth), ("optimistic", -0.01, sustainable_growth)]:
+    for name, assumptions in EXCESS_RETURN_SCENARIOS.items():
+        coe_delta = assumptions["cost_of_equity_delta_pct"] / 100
+        g_mult = assumptions["growth_multiplier"]
         coe_scenario = max(cost_of_equity + coe_delta, 0.02)
-        pb, value = justified_pb_and_value(coe_scenario, label_g)
+        g_scenario = min(sustainable_growth * g_mult, 0.04)
+        pb, value = justified_pb_and_value(coe_scenario, g_scenario)
         scenarios[name] = {
-            "stage1_growth_pct": round(sustainable_growth * 100, 1),
+            "stage1_growth_pct": round(g_scenario * 100, 1),
             "discount_rate_pct": round(coe_scenario * 100, 1),
             "intrinsic_value_per_share": round(value, 2),
             "justified_pb": round(pb, 2),
@@ -560,6 +744,7 @@ def _build_financial_sector_valuation(
 
     return {
         "methodology": "residual_income_justified_pb",
+        "scenario_config_version": SCENARIO_CONFIG_VERSION,
         "sector": sector,
         "book_value_per_share": round(book_value_per_share, 2),
         "avg_roe_pct": round(avg_roe * 100, 1),
@@ -616,11 +801,41 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
     income, balance, cashflow = income[-n:], balance[-n:], cashflow[-n:]
     years = [str(row.get("period", ""))[:4] for row in income]
 
+    # Cross-validation summary — each period's Revenue-COGS-OpEx≈Operating
+    # Income check was already computed per-period in financial_data_service.
+    # _income_period (applies uniformly across providers). Aggregate here so
+    # a real inconsistency in ANY reported year surfaces as "requiere
+    # revisión manual" instead of being silently absorbed into the trends/
+    # DCF as if every year were equally clean.
+    flagged_years = [
+        y for y, row in zip(years, income)
+        if (row.get("validation") or {}).get("valido") is False
+    ]
+    data_validation = {
+        "requiere_revision_manual": bool(flagged_years),
+        "years_flagged": flagged_years,
+        "detalle": (
+            f"Los años {', '.join(flagged_years)} tienen inconsistencias reales entre Revenue-COGS-OpEx y el Operating "
+            f"Income reportado (más allá de la tolerancia) — trátalos con cautela, podrían reflejar cargos especiales, "
+            f"reclasificaciones contables, o un error del proveedor de datos."
+            if flagged_years else "Todos los años disponibles pasaron la validación cruzada de consistencia contable."
+        ),
+    }
+
     quote   = fh_quote(ticker) or {}
     profile = fh_profile(ticker) or {}
     price = _num(quote.get("price"))
     shares_out_m = _num(profile.get("shareOutstanding"))  # Finnhub reports this in millions
     shares_out = shares_out_m * 1_000_000 if shares_out_m else None
+
+    # Liquidity gate — must run before the valuation is shown with normal
+    # confidence (see check_liquidity_gate's docstring: a precise-looking
+    # DCF built on a barely-traded price is worse than no DCF at all).
+    try:
+        liquidity_gate = check_liquidity_gate(ticker)
+    except Exception as e:
+        logger.warning("get_fundamental_analysis(%s): liquidity gate failed: %s", ticker, e)
+        liquidity_gate = {"paso": True, "avg_volume_30d": None, "free_float_pct": None, "analyst_coverage": 0, "detalle": "No se pudo verificar la liquidez real por un error técnico."}
 
     # Analyst consensus price target — a SEPARATE reference point, never
     # blended into the DCF math. It answers a different question (where
@@ -900,11 +1115,11 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         # it).
 
         scenarios = {}
-        for name, mult, dr, rev_cap, fcf_cap in [
-            ("pessimistic", 0.5, base_discount_rate + 0.015, 0.15, 0.15),
-            ("base",        1.0, base_discount_rate,          0.25, 0.25),
-            ("optimistic",  1.3, base_discount_rate - 0.01,   0.40, 0.35),
-        ]:
+        for name, assumptions in FCF_DCF_SCENARIOS.items():
+            mult = assumptions["growth_multiplier"]
+            dr = base_discount_rate + assumptions["discount_rate_delta_pct"] / 100
+            rev_cap = assumptions["revenue_growth_cap_pct"] / 100
+            fcf_cap = assumptions["fcf_growth_cap_pct"] / 100
             g1_fcf = min(g1_rev_raw * mult, fcf_cap)
             dcf_result = _run_dcf(base_fcf, g1_fcf, dr, terminal_growth)
             ev = dcf_result["enterprise_value"]
@@ -960,6 +1175,12 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
             implied_growth_pct = _implied_growth_rate(
                 base_fcf, base_discount_rate, terminal_growth, total_debt, cash_latest, projected_shares, price,
             )
+
+            # Mandatory sanity check — never present the implied growth
+            # rate as a bare percentage. Compares it against the company's
+            # OWN real historical FCF CAGR and flags a "regime change"
+            # signal when the market prices in more than 2x that pace.
+            reverse_dcf_sanity_check = sanity_check_reverse_dcf(implied_growth_pct, base_fcf, fcf_cagr)
 
             # ── Reverse DCF — Expectations Investing (Rappaport) ───────────
             # A distinct question from the "DCF inverso" above: instead of
@@ -1103,6 +1324,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                 "sector": sector,
                 "base_discount_rate_pct": round(base_discount_rate * 100, 2),
                 "wacc_details": wacc_details,
+                "scenario_config_version": SCENARIO_CONFIG_VERSION,
                 "terminal_growth_pct": round(terminal_growth * 100, 2),
                 "projection_years": _PROJECTION_YEARS,
                 "total_debt": round(total_debt, 0),
@@ -1115,6 +1337,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                 "margin_of_safety_pct": margin_of_safety,
                 "sensitivity": sensitivity,
                 "implied_growth_pct": implied_growth_pct,
+                "reverse_dcf_sanity_check": reverse_dcf_sanity_check,
                 "expectations_investing": expectations_investing,
                 "confidence_score": confidence_score,
                 "fcf_volatility_cv": round(fcf_cv, 2) if fcf_cv is not None else None,
@@ -1399,6 +1622,8 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         "analyst_target": analyst_target,
         "data_years_available": n,
         "data_source": fin.get("provider"),
+        "liquidity_gate": liquidity_gate,
+        "data_validation": data_validation,
     }
 
 
@@ -1447,6 +1672,21 @@ def format_fundamental_analysis_for_prompt(data: dict) -> str:
         f"Años con datos reales disponibles: {data['data_years_available']} (fuente: {data.get('data_source', 'N/D')})",
         "",
     ]
+    liquidity_gate = data.get("liquidity_gate")
+    if liquidity_gate and not liquidity_gate.get("paso"):
+        lines.append(
+            f"⚠️ ALERTA DE LIQUIDEZ REAL (debes abrir tu respuesta con esto, ANTES de cualquier cifra de valoración): "
+            f"{liquidity_gate['detalle']} No presentes el valor intrínseco/margen de seguridad con el mismo tono de "
+            f"confianza que usarías para una acción líquida — dilo explícitamente."
+        )
+        lines.append("")
+    data_validation = data.get("data_validation")
+    if data_validation and data_validation.get("requiere_revision_manual"):
+        lines.append(
+            f"⚠️ ALERTA DE VALIDACIÓN CONTABLE (menciónalo antes de usar cifras de esos años específicos): "
+            f"{data_validation['detalle']}"
+        )
+        lines.append("")
     segments = data.get("segments") or []
     if segments:
         lines.append("Segmentos de negocio (ingresos del último año fiscal reportado, reales — de los filings de la empresa vía FMP):")
@@ -1652,6 +1892,9 @@ def format_fundamental_analysis_for_prompt(data: dict) -> str:
                 f"usuario qué tan optimista o realista es esa expectativa — esto es lo que el inversionista está comprando: "
                 f"la apuesta de que la empresa va a crecer a ese ritmo, no solo un número de 'cara/barata'."
             )
+            sanity = dcf.get("reverse_dcf_sanity_check")
+            if sanity:
+                lines.append(f"SANITY CHECK del DCF inverso (obligatorio mencionar): {sanity['detalle']}")
         else:
             lines.append(
                 "DCF INVERSO: no se pudo calcular un crecimiento implícito razonable para el precio actual "

@@ -36,6 +36,12 @@ interface UndervaluedResult {
   weak_dimension_warning: string | null;
   blurb: string | null;
   checklist: Checklist | null;
+  liquidity_gate: { paso: boolean; detalle: string } | null;
+}
+
+interface LiquidityGate {
+  paso: boolean;
+  detalle: string;
 }
 
 interface QuickAnalysisResult {
@@ -50,6 +56,18 @@ interface QuickAnalysisResult {
   thesis_scores: Record<string, number> | null;
   summary: string;
   checklist: Checklist | null;
+  liquidity_gate: LiquidityGate | null;
+}
+
+function LiquidityWarning({ gate }: { gate: LiquidityGate }) {
+  if (gate.paso) return null;
+  return (
+    <div className="rounded-xl p-3 flex gap-2 items-start"
+         style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
+      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "#ef4444" }} />
+      <p className="text-[11px] font-medium" style={{ color: "#ef4444" }}>{gate.detalle}</p>
+    </div>
+  );
 }
 
 function StatChip({ label, value }: { label: string; value: string }) {
@@ -307,6 +325,8 @@ export default function SubvaluadasPage() {
                       <MosBadge pct={quickResult.margin_of_safety_pct} />
                     </div>
 
+                    {quickResult.liquidity_gate && <LiquidityWarning gate={quickResult.liquidity_gate} />}
+
                     <div className="flex gap-2">
                       <StatChip label={t("subvaluadas.stats.price")} value={`$${quickResult.price}`} />
                       <StatChip label={t("subvaluadas.stats.intrinsicValue")} value={`$${quickResult.intrinsic_value_base}`} />
@@ -403,6 +423,8 @@ export default function SubvaluadasPage() {
                         </div>
                         <MosBadge pct={u.margin_of_safety_pct} />
                       </div>
+
+                      {u.liquidity_gate && <LiquidityWarning gate={u.liquidity_gate} />}
 
                       <div className="flex gap-2">
                         <StatChip label={t("subvaluadas.stats.price")} value={`$${u.price}`} />
