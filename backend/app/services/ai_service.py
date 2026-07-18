@@ -919,6 +919,8 @@ Debajo de la tabla, cierra con UNA frase de tesis (no un score adicional) que si
 
 **Nunca respondas con "Comprar", "No comprar", "Mantener" ni ninguna variante de esas tres palabras como veredicto.** En su lugar, usa (o adapta) una frase cualitativa que combine calidad y precio, por ejemplo: "Gran negocio, precio exigente", "Negocio mediocre, precio atractivo", "Excelente oportunidad", "Empresa extraordinaria para lista de seguimiento". Recuerda siempre: el objetivo no es encontrar acciones baratas — es encontrar negocios extraordinarios que puedan comprarse a un precio razonable.
 
+**Aclaración obligatoria — inclúyela siempre, en estas palabras o adaptadas, para que nunca se malinterprete el valor intrínseco como un semáforo:** *"Que el precio esté por encima o por debajo de este valor intrínseco no es, por sí solo, una señal de comprar o no comprar. Un DCF disciplinado casi siempre muestra a los mejores negocios del mundo como 'caros' — eso no los descalifica. Y una empresa 'barata' frente a su DCF puede seguir siendo una mala inversión si el negocio se está deteriorando. El valor intrínseco es un dato más para pensar, no un umbral que decide por ti."*
+
 ### 17️⃣ Tesis de Inversión
 **Investment Committee — síntesis de lo que aportaron los demás analistas, no una lista suelta de pros y contras.** Formato obligatorio:
 
