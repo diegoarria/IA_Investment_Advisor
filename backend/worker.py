@@ -2532,24 +2532,41 @@ def _fetch_ticker_news(ticker: str) -> list[str]:
 
 
 _MAJOR_NEWS_DAILY_CAP = 3
-_MAJOR_NEWS_CATEGORY_EMOJI = {"geopolitics": "🌐", "macro": "📊", "corporate": "🏢", "leadership": "🎤"}
+_MAJOR_NEWS_LOOKBACK_DAYS = 5  # how far back "don't repeat the same ongoing story" checks
+_MAJOR_NEWS_CATEGORY_EMOJI = {"geopolitics": "🌐", "macro": "📊", "corporate": "🏢", "leadership": "🎤", "global_event": "🌍"}
 
 
-async def _curate_major_news(raw_search_text: str, already_sent_headlines: list[str], max_items: int) -> list[dict]:
+async def _curate_major_news(
+    raw_search_text: str, already_sent_headlines: list[str], max_items: int,
+    recent_days_headlines: list[str] | None = None,
+) -> list[dict]:
     """Ask Claude to filter a broad news search down to ONLY genuinely major
-    geopolitical/macro/big-corporate/leadership stories — explicitly excluding
-    analyst opinions (price-target changes, upgrades/downgrades), which are
-    noise for this feature even though they're valid "why" catalysts
-    elsewhere in the app. Returns [] if nothing qualifies — never forces a
-    filler story just to fill the quota."""
+    geopolitical/macro/big-corporate/leadership/global-event stories —
+    explicitly excluding analyst opinions (price-target changes,
+    upgrades/downgrades), which are noise for this feature even though
+    they're valid "why" catalysts elsewhere in the app. Returns [] if
+    nothing qualifies — never forces a filler story just to fill the quota.
+
+    `recent_days_headlines` (last _MAJOR_NEWS_LOOKBACK_DAYS days, not just
+    today) fixes a real complaint: the same ongoing situation (e.g. an
+    active geopolitical standoff) kept getting resent day after day because
+    the old dedup only checked TODAY's sent headlines — an unrelated new
+    headline about the same multi-day story always passed that check. Now
+    Claude is explicitly told not to resend the same underlying situation
+    unless something materially NEW happened (an escalation, a resolution,
+    a concrete new development) — continuing tension alone doesn't count."""
     import anthropic, json as _json
 
     already_sent_str = (
         "\n".join(f"- {h}" for h in already_sent_headlines)
         if already_sent_headlines else "(ninguna todavía hoy)"
     )
+    recent_days_str = (
+        "\n".join(f"- {h}" for h in recent_days_headlines)
+        if recent_days_headlines else "(sin historial reciente)"
+    )
 
-    prompt = f"""Eres un editor financiero senior filtrando noticias para una alerta de "solo lo verdaderamente importante" — nada de ruido.
+    prompt = f"""Eres un editor senior filtrando noticias para una alerta de "solo lo verdaderamente importante" — nada de ruido, y nada repetitivo.
 
 RESULTADOS DE BÚSQUEDA WEB (fuente cruda, puede contener info irrelevante):
 {raw_search_text}
@@ -2557,28 +2574,37 @@ RESULTADOS DE BÚSQUEDA WEB (fuente cruda, puede contener info irrelevante):
 NOTICIAS YA ENVIADAS HOY (no repitas ninguna de estas, aunque aparezcan en la búsqueda):
 {already_sent_str}
 
-TU TAREA: de toda esa información, extrae ÚNICAMENTE historias que caigan en estas 4 categorías:
+NOTICIAS ENVIADAS EN LOS ÚLTIMOS {_MAJOR_NEWS_LOOKBACK_DAYS} DÍAS (para evitar fatiga de la misma historia — ver regla abajo):
+{recent_days_str}
 
-1. GEOPOLÍTICA que afecte la economía global: tensiones o conflictos entre países que muevan mercados (ej. EE.UU. vs Irán, China vs EE.UU., sanciones, guerras, bloqueos comerciales).
+TU TAREA: de toda esa información, extrae ÚNICAMENTE historias que caigan en estas 5 categorías:
+
+1. GEOPOLÍTICA Y ASUNTOS DE GOBIERNO: desarrollos políticos o de gobierno realmente significativos en CUALQUIER país (no solo potencias económicas) — conflictos, sanciones, crisis o cambios de gobierno, decisiones políticas mayores, situaciones de un país que el mundo esté siguiendo (ej. la situación del gobierno de Venezuela). No tiene que mover mercados globales directamente, pero sí ser un hecho real y de relevancia genuina — no un rumor ni un comentario político menor.
 2. INDICADORES MACROECONÓMICOS: decisiones de tasas de interés (Fed u otros bancos centrales), datos de desempleo, PIB, inflación (CPI/PCE), políticas monetarias, condiciones de crédito.
-3. RESULTADOS O NOTICIAS CORPORATIVAS DE GRAN IMPACTO GLOBAL: solo de empresas verdaderamente grandes (Nvidia, Apple, Google, Amazon, Microsoft, Meta, etc.) y solo si el hecho en sí mismo es noticia mayor (earnings que sorprenden fuertemente al mercado completo, un producto/decisión que mueve al sector entero) — NUNCA opiniones de analistas.
-4. DECLARACIONES O ANUNCIOS DE LÍDERES CLAVE: solo cuando un CEO/fundador de una de las empresas más grandes del mundo (ej. Elon Musk, Jensen Huang, Jeff Bezos, Warren Buffett, Mark Zuckerberg, Tim Cook, Satya Nadella, Sam Altman, o cualquier CEO de una empresa del top global por capitalización de mercado) comunica algo con impacto real en el mercado — un anuncio de producto mayor, un acuerdo/alianza importante, una fusión o adquisición grande, un cambio de estrategia relevante, una renuncia/salida sorpresiva, o comentarios que muevan la acción de su empresa o el sector. NO cuenta cualquier tweet o declaración menor sin impacto real — solo cuando el hecho en sí es noticia mayor.
+3. NOTICIAS CORPORATIVAS DE GRAN IMPACTO: de empresas grandes y reconocidas (no solo las 10 más grandes del mundo por capitalización) — restricciones o decisiones regulatorias/comerciales que las afecten (ej. China negándole a Nvidia licencias de exportación de chips), expansión estratégica mayor a nuevos mercados (ej. McDonald's abriendo cientos de restaurantes en India), fusiones o adquisiciones grandes, resultados que sorprenden fuertemente, decisiones que cambien significativamente su negocio. Tiene que ser un HECHO real y concreto, no una opinión de analista ni un cambio de precio objetivo.
+4. DECLARACIONES O ANUNCIOS DE LÍDERES CLAVE: solo cuando un CEO/fundador de una empresa grande y reconocida comunica algo con impacto real — un anuncio de producto mayor, un acuerdo/alianza importante, una fusión o adquisición grande, un cambio de estrategia relevante, una renuncia/salida sorpresiva. NO cuenta cualquier tweet o declaración menor sin impacto real.
+5. EVENTOS GLOBALES DE GRAN RELEVANCIA CULTURAL/DEPORTIVA: resultados o hitos de eventos que el mundo entero sigue (ej. final de un Mundial u Olimpiadas, una elección presidencial mayor, un evento histórico de alcance global) — no necesitan mover mercados, pero sí ser genuinamente de interés masivo y mundial, no un evento deportivo/cultural menor o regional.
+
+En resumen: el criterio ya NO es "¿esto mueve los mercados globales?" para todas las categorías — es "¿esto es un hecho real, concreto, y genuinamente importante que alguien bien informado querría saber hoy?". Sigue siendo un filtro estricto (nada de ruido, nada trivial), pero cubre geopolítica/gobierno, macro, empresas grandes (no solo mega-caps), líderes, y eventos globales — noticias de todo tipo, mientras sean genuinamente relevantes.
+
+REGLA CLAVE CONTRA REPETICIÓN (esto es lo más importante hoy): si una historia de "NOTICIAS ENVIADAS EN LOS ÚLTIMOS {_MAJOR_NEWS_LOOKBACK_DAYS} DÍAS" trata sobre la MISMA situación en desarrollo (ej. la misma tensión geopolítica, el mismo conflicto, la misma negociación) y lo único que cambió es que "sigue tensa" o "continúa" sin un hecho NUEVO y CONCRETO (una escalada real, una resolución, un anuncio oficial, un cambio de postura confirmado), NO la incluyas — no repitas la misma historia solo porque sigue en las noticias. Prioriza diversidad: si hay varias historias calificando, prefiere la que NO se parezca a algo ya enviado recientemente, y prefiere cubrir distintas categorías/regiones en vez de repetir el mismo tipo de historia varias veces seguidas.
 
 EXCLUYE SIEMPRE, sin excepción (esto NO cuenta como noticia relevante aquí):
 - Cualquier cosa tipo "Banco X sube/baja el precio objetivo de la acción Y" — esto es ruido, no un evento real
 - Upgrades/downgrades de analistas
 - Especulación o rumores sin confirmar
-- Noticias de empresas medianas/pequeñas sin impacto en toda la economía o el mercado en general
+- Noticias de empresas pequeñas/desconocidas sin relevancia real para el público general
 - Comentarios triviales o de bajo impacto de figuras públicas (chismes, declaraciones políticas sin relación con negocios/mercados, tweets sin consecuencia real)
+- Eventos deportivos/culturales menores o regionales sin interés verdaderamente mundial
 
 REGLAS:
-- Máximo {max_items} historias — si genuinamente no hay {max_items} historias que califiquen, devuelve menos, incluso cero. NUNCA rellenes con algo débil solo para completar el número.
-- Si no hay NADA que califique, responde exactamente: {{"items": []}}
+- Máximo {max_items} historias — si genuinamente no hay {max_items} historias que califiquen, devuelve menos, incluso cero. NUNCA rellenes con algo débil o repetido solo para completar el número.
+- Si no hay NADA que califique (o todo lo que califica ya se envió recientemente sin novedad real), responde exactamente: {{"items": []}}
 - Cada item debe tener una notificación push MUY corta (máximo 90-120 caracteres), directa, sin relleno — el usuario la lee en la pantalla de bloqueo.
 - Genera el texto de la notificación en DOS idiomas: español (push_body_es) e inglés (push_body_en) — misma información, mismo tono directo, cada uno natural en su idioma (no una traducción literal palabra por palabra).
 
 Responde ÚNICAMENTE con JSON válido, sin texto adicional, en este formato exacto:
-{{"items": [{{"category": "geopolitics|macro|corporate|leadership", "headline": "título corto interno para dedup", "push_body_es": "texto en español, máx 90-120 caracteres", "push_body_en": "text in English, máx 90-120 characters"}}]}}"""
+{{"items": [{{"category": "geopolitics|macro|corporate|leadership|global_event", "headline": "título corto interno para dedup", "push_body_es": "texto en español, máx 90-120 caracteres", "push_body_en": "text in English, máx 90-120 characters"}}]}}"""
 
     try:
         client = anthropic.AsyncAnthropic()
@@ -2613,10 +2639,11 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional, en este formato exac
 
 async def job_major_news_alert():
     """Every 2 hours, 7 days a week, 8am-9pm ET — sends up to 3 genuinely
-    major geopolitical/macro/big-corporate/leadership news alerts PER DAY (shared
-    across ALL users, not per-user, not premium-gated). This is a "warn
-    everyone about big events" feature, not personalized analysis — most
-    cycles should send nothing, since most news isn't actually major.
+    major geopolitical/macro/big-corporate/leadership/global-event news
+    alerts PER DAY (shared across ALL users, not per-user, not premium-
+    gated). This is a "warn everyone about big events" feature, not
+    personalized analysis — most cycles should send nothing, since most
+    news isn't actually major.
 
     Runs on weekends too (deliberately, unlike market-hours jobs) since
     geopolitical/macro news doesn't stop when markets are closed.
@@ -2624,6 +2651,11 @@ async def job_major_news_alert():
     Daily cap of 3 is enforced via major_news_events (DB table), not an
     in-memory/Redis cache — same lesson as the price-alert dedup fix: a
     cache-based counter resets on every worker restart/redeploy.
+
+    Also looks back _MAJOR_NEWS_LOOKBACK_DAYS days (not just today) to stop
+    an ongoing multi-day story from getting resent every cycle just because
+    it's still in the news — a real complaint (the same geopolitical
+    tension alerted 4 days straight). See _curate_major_news's docstring.
     """
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push, _today_et
@@ -2644,25 +2676,49 @@ async def job_major_news_alert():
                         len(already_sent), _MAJOR_NEWS_DAILY_CAP)
             return
 
+        # Real complaint fixed here: the old dedup only checked TODAY's sent
+        # headlines, so an ongoing multi-day story (e.g. an active
+        # geopolitical standoff) got resent day after day since each day's
+        # headline text was technically "new" against an empty daily list.
+        # Looking back _MAJOR_NEWS_LOOKBACK_DAYS lets the curation prompt
+        # recognize "same situation, no material new development" and skip it.
+        from datetime import datetime, timedelta
+        lookback_start = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=_MAJOR_NEWS_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
+        recent_res = await run_query(
+            db.table("major_news_events").select("headline")
+            .gte("event_date", lookback_start).lt("event_date", today)
+        )
+        recent_days_headlines = [r["headline"] for r in (recent_res.data or [])]
+
         query = (
-            "¿Cuáles son las noticias más importantes de las últimas horas que podrían afectar "
-            "a los mercados financieros globales? Busca específicamente: 1) tensiones geopolíticas "
-            "entre países que afecten la economía (ej. EE.UU./Irán, China/EE.UU., sanciones, conflictos "
-            "comerciales), 2) datos o decisiones macroeconómicas (tasas de interés, Fed, desempleo, PIB, "
-            "inflación, política monetaria), 3) resultados o anuncios de gran impacto de empresas grandes "
-            "(Nvidia, Apple, Google, Amazon, Microsoft, Meta, etc.), 4) declaraciones, anuncios o acuerdos "
-            "importantes de líderes de grandes empresas (ej. Elon Musk, Jensen Huang, Jeff Bezos, Warren "
-            "Buffett, Mark Zuckerberg, Tim Cook, Satya Nadella, Sam Altman, o CEOs de otras empresas top "
-            "por capitalización de mercado) que muevan el mercado — nuevos productos, fusiones y "
-            "adquisiciones, alianzas estratégicas, renuncias sorpresivas. Ignora cambios de precio objetivo "
-            "de analistas o notas de research — eso no es lo que busco. Da fecha y fuente si es posible."
+            "¿Cuáles son las noticias más importantes de las últimas horas a nivel mundial? Busca "
+            "con la MAYOR diversidad posible de temas y regiones (no te limites a un solo conflicto "
+            "o tensión si hay otras noticias igual de relevantes): 1) desarrollos políticos o de "
+            "gobierno significativos en cualquier país — conflictos, sanciones, crisis o cambios de "
+            "gobierno, situaciones que el mundo esté siguiendo (ej. la situación del gobierno de "
+            "Venezuela), no solo entre las potencias económicas más mediáticas, 2) datos o decisiones "
+            "macroeconómicas (tasas de interés, Fed, desempleo, PIB, inflación, política monetaria), "
+            "3) noticias corporativas de gran impacto de empresas grandes y reconocidas — no solo las "
+            "10 más grandes del mundo — incluyendo restricciones comerciales/regulatorias (ej. China "
+            "negándole a Nvidia licencias de exportación de chips), expansión estratégica mayor a "
+            "nuevos mercados (ej. McDonald's abriendo cientos de restaurantes en India), fusiones y "
+            "adquisiciones grandes, resultados que sorprenden fuertemente, 4) declaraciones, anuncios "
+            "o acuerdos importantes de líderes de empresas grandes y reconocidas — nuevos productos, "
+            "fusiones y adquisiciones, alianzas estratégicas, renuncias sorpresivas, 5) eventos "
+            "globales de gran relevancia cultural o deportiva que el mundo entero siga (ej. resultado "
+            "de una final de Mundial u Olimpiadas, una elección presidencial mayor). Ignora cambios de "
+            "precio objetivo de analistas o notas de research — eso no es lo que busco. Da fecha y "
+            "fuente si es posible."
         )
         raw = await asyncio.to_thread(search_web, query, False)
         if not raw:
             logger.info("job_major_news_alert: Perplexity returned nothing this cycle")
             return
 
-        items = await _curate_major_news(raw, [r["headline"] for r in already_sent], slots_remaining)
+        items = await _curate_major_news(
+            raw, [r["headline"] for r in already_sent], slots_remaining,
+            recent_days_headlines=recent_days_headlines,
+        )
         if not items:
             logger.info("job_major_news_alert: no genuinely major news found this cycle")
             return
