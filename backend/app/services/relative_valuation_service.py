@@ -10,12 +10,11 @@ get_fundamental_analysis() output — never re-derived with a separate,
 parallel calculation that could quietly drift from the DCF engine's own
 numbers.
 
-Deliberately NOT wired into the live quick-analysis search path — computing
-this means running a full fundamental analysis for 5-10 real peers, which
-is exactly the kind of per-request cost the rest of this platform goes out
-of its way to avoid (see undervalued_screener_service's weekly-cache
-design). This belongs in the same weekly batch refresh, amortized the same
-way the DCF itself already is for the curated universe.
+Run in two places: the weekly screener batch (undervalued_screener_service),
+amortized across the whole curated universe, and the live single-ticker
+quick-analysis search (screener.py's /quick-analysis) — a single ticker's
+5-10 real peers is cheap enough for a live request, and the whole response
+is cached 24h per ticker so a repeat search never re-pays the cost.
 """
 
 from __future__ import annotations

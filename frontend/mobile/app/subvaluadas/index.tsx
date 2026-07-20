@@ -93,6 +93,7 @@ interface QuickAnalysisResult {
   fair_value_range: FairValueRangeData | null;
   confidence_meter: ConfidenceMeterData | null;
   market_expectations: MarketExpectationsData | null;
+  consensus_valuation: ConsensusValuationData | null;
   summary: string;
   checklist: Checklist | null;
   liquidity_gate: LiquidityGate | null;
@@ -635,7 +636,7 @@ export default function SubvaluadasScreen() {
 
             {quickResult.liquidity_gate && <LiquidityWarning gate={quickResult.liquidity_gate} />}
 
-            {quickResult.fair_value_range && <FairValueRangeDisplay range={quickResult.fair_value_range} colors={colors} />}
+            {quickResult.fair_value_range && <FairValueRangeDisplay range={quickResult.fair_value_range} consensus={quickResult.consensus_valuation} colors={colors} />}
             {quickResult.confidence_meter && <ConfidenceMeter data={quickResult.confidence_meter} colors={colors} />}
             {quickResult.market_expectations && <MarketExpectationsPanel data={quickResult.market_expectations} colors={colors} />}
 
