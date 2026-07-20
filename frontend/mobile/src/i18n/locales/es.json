@@ -602,7 +602,52 @@
     }
   },
   "subvaluadas": {
-    "title": "Acciones Subvaluadas (DCF)",
+    "title": "Mejores Oportunidades",
+    "rankStrip": {
+      "overall": "Mejor en general",
+      "discount": "Mayor descuento",
+      "quality": "Mayor calidad",
+      "momentum": "Cambio de tendencia"
+    },
+    "compare": {
+      "enable": "Comparar",
+      "disable": "Cancelar comparación",
+      "clear": "Limpiar",
+      "compareButton": "Comparar ({{count}})",
+      "title": "Comparación de acciones",
+      "metric": {
+        "price": "Precio",
+        "intrinsicValue": "Valor intrínseco",
+        "marginOfSafety": "Margen de seguridad",
+        "composite": "Score compuesto",
+        "confidence": "Confianza",
+        "businessQuality": "Calidad del negocio",
+        "financialStrength": "Fortaleza financiera",
+        "predictability": "Predictibilidad",
+        "growthOutlook": "Perspectiva de crecimiento",
+        "fairValueRange": "Rango de valor razonable",
+        "momentum1m": "Retorno 1 mes",
+        "momentum6m": "Retorno 6 meses"
+      }
+    },
+    "confidence": {
+      "high": "Alta confianza",
+      "moderate": "Confianza moderada",
+      "low": "Confianza baja",
+      "speculative": "Especulativo"
+    },
+    "fairValueRange": {
+      "label": "Rango de valor razonable",
+      "base": "Escenario base",
+      "consensus": "Fair Value (Consenso)"
+    },
+    "marketExpectations": {
+      "label": "¿Qué está descontando el mercado?",
+      "marketAssumes": "El mercado asume",
+      "nuvosBelieves": "Nuvos cree",
+      "growth": "Crecimiento",
+      "margin": "Margen FCF"
+    },
     "disclaimer": {
       "title": "ESTO NO ES RECOMENDACIÓN DE INVERSIÓN",
       "subtitle": "Para un análisis más detallado, ve a Mentor IA."

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, TextInput,
+  View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, TextInput, Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import Svg, { Circle } from "react-native-svg";
 import Markdown from "react-native-markdown-display";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -29,6 +30,37 @@ interface LiquidityGate {
   detalle: string;
 }
 
+interface FairValueRangeData {
+  low: number;
+  high: number;
+  base: number;
+}
+
+interface ConfidenceMeterData {
+  score: number;
+  label: string;
+  stars: number;
+}
+
+interface MarketExpectationsData {
+  market_implied_growth_pct: number | null;
+  market_implied_fcf_margin_pct: number | null;
+  nuvos_growth_estimate_pct: number;
+  nuvos_fcf_margin_estimate_pct: number;
+}
+
+interface ConsensusValuationData {
+  archetype: string;
+  methods_used: Record<string, { value: number; weight: number }>;
+  consensus_fair_value: number;
+}
+
+interface MomentumData {
+  return_1m_pct: number;
+  return_6m_pct: number;
+  turn_score: number;
+}
+
 interface UndervaluedResult {
   ticker: string;
   company_name: string | null;
@@ -36,6 +68,11 @@ interface UndervaluedResult {
   price: number | null;
   intrinsic_value_base: number | null;
   margin_of_safety_pct: number | null;
+  composite_score: number | null;
+  fair_value_range: FairValueRangeData | null;
+  confidence_meter: ConfidenceMeterData | null;
+  consensus_valuation: ConsensusValuationData | null;
+  momentum: MomentumData | null;
   thesis_scores: Record<string, number> | null;
   weak_dimension_warning: string | null;
   blurb: string | null;
@@ -52,6 +89,10 @@ interface QuickAnalysisResult {
   expected_value_per_share: number | null;
   margin_of_safety_pct: number | null;
   implied_growth_pct: number | null;
+  composite_score: number | null;
+  fair_value_range: FairValueRangeData | null;
+  confidence_meter: ConfidenceMeterData | null;
+  market_expectations: MarketExpectationsData | null;
   summary: string;
   checklist: Checklist | null;
   liquidity_gate: LiquidityGate | null;
@@ -90,6 +131,229 @@ function MosBadge({ pct }: { pct: number | null }) {
       <Text style={{ fontSize: 14, fontWeight: "900", color: positive ? "#22c55e" : "#ef4444" }}>
         {positive ? "+" : ""}{pct}%
       </Text>
+    </View>
+  );
+}
+
+type SortLens = "overall" | "discount" | "quality" | "momentum";
+
+function RankStrip({ lens, onChange, colors }: { lens: SortLens; onChange: (lens: SortLens) => void; colors: any }) {
+  const { t } = useTranslation();
+  const lenses: SortLens[] = ["overall", "discount", "quality", "momentum"];
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        {lenses.map((l) => (
+          <TouchableOpacity key={l} onPress={() => onChange(l)}
+                             style={[s.chip, {
+                               borderColor: lens === l ? colors.accent : colors.border,
+                               backgroundColor: lens === l ? colors.accent + "20" : colors.card,
+                             }]}>
+            <Text style={{ fontSize: 11, color: lens === l ? colors.accentLight : colors.textSub, fontWeight: "700" }}>
+              {t(`subvaluadas.rankStrip.${l}`)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+function CompareToggle({ checked, disabled, onToggle, colors }: { checked: boolean; disabled: boolean; onToggle: () => void; colors: any }) {
+  return (
+    <TouchableOpacity onPress={onToggle} disabled={disabled && !checked}
+                      style={{
+                        width: 24, height: 24, borderRadius: 6, borderWidth: 1, alignItems: "center", justifyContent: "center",
+                        opacity: disabled && !checked ? 0.3 : 1,
+                        borderColor: checked ? colors.accent : colors.border,
+                        backgroundColor: checked ? colors.accent : "transparent",
+                      }}>
+      {checked && <Ionicons name="checkmark" size={14} color="#000" />}
+    </TouchableOpacity>
+  );
+}
+
+function CompareTray({ items, onRemove, onClear, onCompare, colors }: {
+  items: UndervaluedResult[]; onRemove: (ticker: string) => void; onClear: () => void; onCompare: () => void; colors: any;
+}) {
+  const { t } = useTranslation();
+  if (items.length === 0) return null;
+  return (
+    <View style={[s.compareTray, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          {items.map((it) => (
+            <View key={it.ticker} style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.bgRaised, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+              <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>{it.ticker}</Text>
+              <TouchableOpacity onPress={() => onRemove(it.ticker)}>
+                <Ionicons name="close" size={12} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+      <TouchableOpacity onPress={onClear}>
+        <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textMuted }}>{t("subvaluadas.compare.clear")}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={onCompare} disabled={items.length < 2}
+                        style={{ backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, opacity: items.length < 2 ? 0.4 : 1 }}>
+        <Text style={{ fontSize: 11, fontWeight: "900", color: "#000" }}>{t("subvaluadas.compare.compareButton", { count: items.length })}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function CompareRow({ label, values, format, colors }: { label: string; values: (number | string | null)[]; format?: (v: number) => string; colors: any }) {
+  return (
+    <View style={{ flexDirection: "row", borderTopWidth: 1, borderTopColor: colors.border, paddingVertical: 8 }}>
+      <Text style={{ width: 110, fontSize: 10, fontWeight: "800", color: colors.textMuted }}>{label}</Text>
+      {values.map((v, i) => (
+        <Text key={i} style={{ width: 80, fontSize: 11, fontWeight: "800", color: colors.text, textAlign: "center" }}>
+          {v === null || v === undefined ? "N/D" : typeof v === "number" && format ? format(v) : v}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
+function CompareModal({ items, onClose, colors }: { items: UndervaluedResult[]; onClose: () => void; colors: any }) {
+  const { t } = useTranslation();
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
+        <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <Text style={{ fontSize: 14, fontWeight: "900", color: colors.text }}>{t("subvaluadas.compare.title")}</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView horizontal>
+            <ScrollView contentContainerStyle={{ padding: 16 }}>
+              <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                <View style={{ width: 110 }} />
+                {items.map((it) => (
+                  <View key={it.ticker} style={{ width: 80, alignItems: "center", gap: 4 }}>
+                    <StockAvatar ticker={it.ticker} size={28} />
+                    <Text style={{ fontSize: 11, fontWeight: "900", color: colors.text }}>{it.ticker}</Text>
+                  </View>
+                ))}
+              </View>
+              <CompareRow colors={colors} label={t("subvaluadas.compare.metric.price")} values={items.map((it) => it.price)} format={(v) => `$${v.toFixed(2)}`} />
+              <CompareRow colors={colors} label={t("subvaluadas.compare.metric.intrinsicValue")} values={items.map((it) => it.intrinsic_value_base)} format={(v) => `$${v.toFixed(2)}`} />
+              <CompareRow colors={colors} label={t("subvaluadas.compare.metric.marginOfSafety")} values={items.map((it) => it.margin_of_safety_pct)} format={(v) => `${v > 0 ? "+" : ""}${v}%`} />
+              <CompareRow colors={colors} label={t("subvaluadas.compare.metric.composite")} values={items.map((it) => it.composite_score)} format={(v) => `${v}/100`} />
+              <CompareRow colors={colors} label={t("subvaluadas.compare.metric.confidence")} values={items.map((it) => it.confidence_meter?.score ?? null)} format={(v) => `${v}/100`} />
+              <CompareRow colors={colors} label={t("subvaluadas.compare.metric.businessQuality")} values={items.map((it) => it.thesis_scores?.business_quality ?? null)} format={(v) => `${v}/100`} />
+              <CompareRow colors={colors} label={t("subvaluadas.compare.metric.financialStrength")} values={items.map((it) => it.thesis_scores?.financial_strength ?? null)} format={(v) => `${v}/100`} />
+              <CompareRow colors={colors} label={t("subvaluadas.compare.metric.predictability")} values={items.map((it) => it.thesis_scores?.predictability ?? null)} format={(v) => `${v}/100`} />
+              <CompareRow colors={colors} label={t("subvaluadas.compare.metric.growthOutlook")} values={items.map((it) => it.thesis_scores?.growth_outlook ?? null)} format={(v) => `${v}/100`} />
+              <CompareRow
+                colors={colors}
+                label={t("subvaluadas.compare.metric.fairValueRange")}
+                values={items.map((it) => it.fair_value_range ? `$${Math.min(it.fair_value_range.low, it.fair_value_range.high).toFixed(0)}–${Math.max(it.fair_value_range.low, it.fair_value_range.high).toFixed(0)}` : null)}
+              />
+              <CompareRow colors={colors} label={t("subvaluadas.compare.metric.momentum1m")} values={items.map((it) => it.momentum?.return_1m_pct ?? null)} format={(v) => `${v > 0 ? "+" : ""}${v}%`} />
+              <CompareRow colors={colors} label={t("subvaluadas.compare.metric.momentum6m")} values={items.map((it) => it.momentum?.return_6m_pct ?? null)} format={(v) => `${v > 0 ? "+" : ""}${v}%`} />
+            </ScrollView>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function ConfidenceMeter({ data, colors }: { data: ConfidenceMeterData; colors: any }) {
+  const { t } = useTranslation();
+  const color = data.score >= 85 ? "#22c55e" : data.score >= 65 ? "#eab308" : data.score >= 45 ? "#f59e0b" : "#ef4444";
+  const labelKey = data.score >= 85 ? "high" : data.score >= 65 ? "moderate" : data.score >= 45 ? "low" : "speculative";
+  const size = 36;
+  const strokeWidth = 3.5;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = circumference * (1 - data.score / 100);
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+        <Svg width={size} height={size} style={{ position: "absolute" }}>
+          <Circle cx={size / 2} cy={size / 2} r={radius} stroke={colors.border} strokeWidth={strokeWidth} fill="none" />
+          <Circle
+            cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth={strokeWidth} fill="none"
+            strokeDasharray={circumference} strokeDashoffset={progress} strokeLinecap="round"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        </Svg>
+        <Text style={{ fontSize: 9, fontWeight: "900", color }}>{data.score}</Text>
+      </View>
+      <View>
+        <Text style={{ fontSize: 10, fontWeight: "800", color: colors.text }}>{t(`subvaluadas.confidence.${labelKey}`)}</Text>
+        <View style={{ flexDirection: "row", gap: 1 }}>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Ionicons key={i} name={i <= data.stars ? "star" : "star-outline"} size={9} color={i <= data.stars ? "#f59e0b" : colors.border} />
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function FairValueRangeDisplay({ range, consensus, colors }: { range: FairValueRangeData; consensus?: ConsensusValuationData | null; colors: any }) {
+  const { t } = useTranslation();
+  const lo = Math.min(range.low, range.high);
+  const hi = Math.max(range.low, range.high);
+  const baseValue = consensus?.consensus_fair_value ?? range.base;
+  return (
+    <View style={[s.fvrBox, { backgroundColor: colors.bgRaised }]}>
+      <Text style={[s.fvrLabel, { color: colors.textMuted }]}>
+        {consensus ? t("subvaluadas.fairValueRange.consensus") : t("subvaluadas.fairValueRange.label")}
+      </Text>
+      <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text }}>
+        ${lo.toFixed(0)} – ${hi.toFixed(0)}
+      </Text>
+      <Text style={{ fontSize: 11, color: colors.textSub }}>
+        {t("subvaluadas.fairValueRange.base")}: <Text style={{ fontWeight: "800" }}>${baseValue.toFixed(0)}</Text>
+      </Text>
+      {consensus && (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
+          {Object.entries(consensus.methods_used).map(([key, m]) => (
+            <Text key={key} style={{ fontSize: 9, color: colors.textMuted }}>
+              {key.replace(/_/g, " ")}: <Text style={{ fontVariant: ["tabular-nums"] }}>${m.value.toFixed(0)}</Text>
+            </Text>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function MarketExpectationsPanel({ data, colors }: { data: MarketExpectationsData; colors: any }) {
+  const { t } = useTranslation();
+  if (data.market_implied_growth_pct === null) return null;
+  return (
+    <View style={[s.mktExpBox, { borderColor: colors.border, backgroundColor: colors.bgRaised }]}>
+      <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text, marginBottom: 8 }}>{t("subvaluadas.marketExpectations.label")}</Text>
+      <View style={{ flexDirection: "row", gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.mktExpHeading, { color: colors.textMuted }]}>{t("subvaluadas.marketExpectations.marketAssumes")}</Text>
+          <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>
+            {t("subvaluadas.marketExpectations.growth")}: {data.market_implied_growth_pct}%
+          </Text>
+          {data.market_implied_fcf_margin_pct !== null && (
+            <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>
+              {t("subvaluadas.marketExpectations.margin")}: {data.market_implied_fcf_margin_pct}%
+            </Text>
+          )}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.mktExpHeading, { color: colors.textMuted }]}>{t("subvaluadas.marketExpectations.nuvosBelieves")}</Text>
+          <Text style={{ fontSize: 11, fontWeight: "800", color: colors.accentLight }}>
+            {t("subvaluadas.marketExpectations.growth")}: {data.nuvos_growth_estimate_pct}%
+          </Text>
+          <Text style={{ fontSize: 11, fontWeight: "800", color: colors.accentLight }}>
+            {t("subvaluadas.marketExpectations.margin")}: {data.nuvos_fcf_margin_estimate_pct}%
+          </Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -218,6 +482,11 @@ export default function SubvaluadasScreen() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [quickResult, setQuickResult] = useState<QuickAnalysisResult | null>(null);
   const [watchlisted, setWatchlisted] = useState<Set<string>>(new Set());
+  const [sortLens, setSortLens] = useState<SortLens>("overall");
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareSelection, setCompareSelection] = useState<string[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const MAX_COMPARE = 4;
 
   const handleFollow = async (ticker: string, companyName: string | null) => {
     if (watchlisted.has(ticker)) return;
@@ -265,6 +534,37 @@ export default function SubvaluadasScreen() {
   }, [results]);
 
   const filtered = sectorFilter === "Todos" ? results : results.filter((r) => r.sector === sectorFilter);
+
+  const sortedFiltered = useMemo(() => {
+    const arr = [...filtered];
+    const byNullable = (v: number | null | undefined) => (v === null || v === undefined ? -Infinity : v);
+    switch (sortLens) {
+      case "discount":
+        arr.sort((a, b) => byNullable(b.margin_of_safety_pct) - byNullable(a.margin_of_safety_pct));
+        break;
+      case "quality":
+        arr.sort((a, b) => byNullable(b.thesis_scores?.business_quality) - byNullable(a.thesis_scores?.business_quality));
+        break;
+      case "momentum":
+        arr.sort((a, b) => byNullable(b.momentum?.turn_score) - byNullable(a.momentum?.turn_score));
+        break;
+      default:
+        arr.sort((a, b) => byNullable(b.composite_score) - byNullable(a.composite_score) || byNullable(b.margin_of_safety_pct) - byNullable(a.margin_of_safety_pct));
+    }
+    return arr;
+  }, [filtered, sortLens]);
+
+  const toggleCompare = (ticker: string) => {
+    setCompareSelection((prev) => {
+      if (prev.includes(ticker)) return prev.filter((t) => t !== ticker);
+      if (prev.length >= MAX_COMPARE) return prev;
+      return [...prev, ticker];
+    });
+  };
+
+  const compareItems = compareSelection
+    .map((t) => results.find((r) => r.ticker === t))
+    .filter((r): r is UndervaluedResult => !!r);
 
   return (
     <SafeAreaView style={[s.container, { backgroundColor: colors.bg }]}>
@@ -335,6 +635,10 @@ export default function SubvaluadasScreen() {
 
             {quickResult.liquidity_gate && <LiquidityWarning gate={quickResult.liquidity_gate} />}
 
+            {quickResult.fair_value_range && <FairValueRangeDisplay range={quickResult.fair_value_range} colors={colors} />}
+            {quickResult.confidence_meter && <ConfidenceMeter data={quickResult.confidence_meter} colors={colors} />}
+            {quickResult.market_expectations && <MarketExpectationsPanel data={quickResult.market_expectations} colors={colors} />}
+
             <View style={s.statsRow}>
               <StatChip label={t("subvaluadas.stats.price")} value={`$${quickResult.price}`} colors={colors} />
               <StatChip label={t("subvaluadas.stats.intrinsicValue")} value={`$${quickResult.intrinsic_value_base}`} colors={colors} />
@@ -382,6 +686,22 @@ export default function SubvaluadasScreen() {
           </View>
         ) : (
           <>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <View style={{ flex: 1 }}>
+                <RankStrip lens={sortLens} onChange={setSortLens} colors={colors} />
+              </View>
+              <TouchableOpacity
+                onPress={() => { setCompareMode((v) => !v); if (compareMode) setCompareSelection([]); }}
+                style={[s.chip, {
+                  marginBottom: 10,
+                  borderColor: compareMode ? colors.accent : colors.border,
+                  backgroundColor: compareMode ? colors.accent + "20" : colors.card,
+                }]}>
+                <Text style={{ fontSize: 11, color: compareMode ? colors.accentLight : colors.textSub, fontWeight: "700" }}>
+                  {compareMode ? t("subvaluadas.compare.disable") : t("subvaluadas.compare.enable")}
+                </Text>
+              </TouchableOpacity>
+            </View>
             {sectors.length > 2 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                 <View style={{ flexDirection: "row", gap: 8 }}>
@@ -400,9 +720,14 @@ export default function SubvaluadasScreen() {
               </ScrollView>
             )}
             <View style={{ gap: 10 }}>
-              {filtered.map((u) => (
+              {sortedFiltered.map((u) => (
                 <View key={u.ticker} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <View style={s.cardHeader}>
+                    {compareMode && (
+                      <CompareToggle checked={compareSelection.includes(u.ticker)}
+                                     disabled={compareSelection.length >= MAX_COMPARE}
+                                     onToggle={() => toggleCompare(u.ticker)} colors={colors} />
+                    )}
                     <StockAvatar ticker={u.ticker} size={40} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={[s.ticker, { color: colors.text }]} numberOfLines={1}>{u.ticker}</Text>
@@ -414,6 +739,9 @@ export default function SubvaluadasScreen() {
                   </View>
 
                   {u.liquidity_gate && <LiquidityWarning gate={u.liquidity_gate} />}
+
+                  {u.fair_value_range && <FairValueRangeDisplay range={u.fair_value_range} consensus={u.consensus_valuation} colors={colors} />}
+                  {u.confidence_meter && <ConfidenceMeter data={u.confidence_meter} colors={colors} />}
 
                   <View style={s.statsRow}>
                     <StatChip label={t("subvaluadas.stats.price")} value={`$${u.price}`} colors={colors} />
@@ -440,6 +768,16 @@ export default function SubvaluadasScreen() {
         )}
       </ScrollView>
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={t("subvaluadas.premiumGate.paywallReason")} />
+      {compareMode && (
+        <CompareTray
+          items={compareItems}
+          onRemove={(ticker) => setCompareSelection((prev) => prev.filter((t) => t !== ticker))}
+          onClear={() => setCompareSelection([])}
+          onCompare={() => setCompareOpen(true)}
+          colors={colors}
+        />
+      )}
+      {compareOpen && <CompareModal items={compareItems} onClose={() => setCompareOpen(false)} colors={colors} />}
     </SafeAreaView>
   );
 }
@@ -477,6 +815,15 @@ const s = StyleSheet.create({
   statLabel: { fontSize: 8, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3 },
   statValue: { fontSize: 12, fontWeight: "800", marginTop: 1 },
   mosBadge: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 },
+  fvrBox: { borderRadius: 12, padding: 12, gap: 2 },
+  fvrLabel: { fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2 },
+  mktExpBox: { borderWidth: 1, borderRadius: 12, padding: 12 },
+  mktExpHeading: { fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2 },
+  compareTray: {
+    position: "absolute", bottom: 16, left: 16, right: 16, borderWidth: 1, borderRadius: 16,
+    paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 10,
+    shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 6,
+  },
   insightBox: { flexDirection: "row", gap: 8, borderWidth: 1, borderRadius: 12, padding: 10 },
   checklistBox: { borderWidth: 1, borderRadius: 12, overflow: "hidden" },
   checklistHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 },

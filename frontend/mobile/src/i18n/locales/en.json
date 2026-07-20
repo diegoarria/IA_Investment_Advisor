@@ -602,7 +602,52 @@
     }
   },
   "subvaluadas": {
-    "title": "Undervalued Stocks (DCF)",
+    "title": "Top Opportunities",
+    "rankStrip": {
+      "overall": "Best overall",
+      "discount": "Deepest discount",
+      "quality": "Highest quality",
+      "momentum": "Momentum turns"
+    },
+    "compare": {
+      "enable": "Compare",
+      "disable": "Cancel compare",
+      "clear": "Clear",
+      "compareButton": "Compare ({{count}})",
+      "title": "Stock comparison",
+      "metric": {
+        "price": "Price",
+        "intrinsicValue": "Intrinsic value",
+        "marginOfSafety": "Margin of safety",
+        "composite": "Composite score",
+        "confidence": "Confidence",
+        "businessQuality": "Business quality",
+        "financialStrength": "Financial strength",
+        "predictability": "Predictability",
+        "growthOutlook": "Growth outlook",
+        "fairValueRange": "Fair value range",
+        "momentum1m": "1-month return",
+        "momentum6m": "6-month return"
+      }
+    },
+    "confidence": {
+      "high": "High confidence",
+      "moderate": "Moderate confidence",
+      "low": "Low confidence",
+      "speculative": "Speculative"
+    },
+    "fairValueRange": {
+      "label": "Fair Value Range",
+      "base": "Base case",
+      "consensus": "Fair Value (Consensus)"
+    },
+    "marketExpectations": {
+      "label": "What is the market pricing in?",
+      "marketAssumes": "Market assumes",
+      "nuvosBelieves": "Nuvos believes",
+      "growth": "Growth",
+      "margin": "FCF margin"
+    },
     "disclaimer": {
       "title": "THIS IS NOT INVESTMENT ADVICE",
       "subtitle": "For a more detailed analysis, go to Mentor AI."

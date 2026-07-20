@@ -486,6 +486,61 @@ def get_beta(symbol: str) -> Optional[float]:
     return None
 
 
+def get_historical_prices_near_dates(symbol: str, dates: list[str]) -> dict[str, Optional[float]]:
+    """Real historical closing prices as-of a list of target dates (fiscal
+    year-end dates, "YYYY-MM-DD") — powers Historical Valuation (Method 4 of
+    the valuation engine): a company's own real P/E, EV/EBITDA, Price/FCF
+    history requires the real price the market was actually paying at each
+    past fiscal year-end, not an estimate.
+
+    Fetches ONE real FMP historical-price range spanning the earliest to
+    latest requested date (not one call per date), then maps each target
+    date to the closest real trading-day close ON OR BEFORE it — the
+    standard convention for "the price as of period-end" when the exact
+    date falls on a weekend/holiday. Returns {date: price or None} — never
+    fabricates a price for a date with no real trading data in range."""
+    result: dict[str, Optional[float]] = {d: None for d in dates}
+    if not FMP_KEY or not dates:
+        return result
+    valid_dates = sorted(d for d in dates if d)
+    if not valid_dates:
+        return result
+    ck = f"fmp:hist_price:{symbol}:{valid_dates[0]}:{valid_dates[-1]}"
+    cached = cache_get(ck)
+    if cached is not None:
+        rows = cached
+    else:
+        try:
+            r = requests.get(
+                f"{FMP_BASE}/historical-price-eod/light",
+                params={"apikey": FMP_KEY, "symbol": symbol, "from": valid_dates[0], "to": valid_dates[-1]},
+                headers=_REQ_HEADERS,
+                timeout=20,
+            )
+            rows = r.json()
+            if not isinstance(rows, list):
+                rows = []
+            cache_set(ck, rows, ttl=30 * 24 * 3600)  # historical prices never change — cache generously
+        except Exception as exc:
+            logger.debug("FMP historical-price-eod request failed for %s: %s", symbol, exc)
+            return result
+
+    # FMP returns newest-first; sort ascending once for a simple backward scan.
+    by_date = sorted(((row.get("date"), _num(row.get("price"))) for row in rows if row.get("date")), key=lambda t: t[0])
+    if not by_date:
+        return result
+
+    for target in valid_dates:
+        best = None
+        for d, p in by_date:
+            if d <= target and p is not None:
+                best = p
+            elif d > target:
+                break
+        result[target] = best
+    return result
+
+
 def get_shares_float(symbol: str) -> Optional[dict]:
     """Real free-float data (FMP's shares-float endpoint) — outstanding
     shares vs. the free-floating (non-restricted, non-insider) portion.

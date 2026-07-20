@@ -107,6 +107,43 @@ def _sector_terminal_growth(sector: str | None) -> float:
     return _DEFAULT_TERMINAL_GROWTH
 
 
+# ── Sector cyclicality dampener (Top Opportunities ranking score) ────────────
+# A commodity/cyclical business mid-upcycle can show a real, honestly-computed
+# margin of safety that's really just "the cycle hasn't turned yet" — not the
+# same kind of opportunity as a durable compounder trading cheap for no good
+# reason. This damps the composite ranking score for structurally cyclical
+# sectors, [0.9, 1.0], so a cyclical name needs a genuinely stronger score to
+# out-rank a defensive/durable one — never a hard exclusion, just a fair tilt.
+_SECTOR_CYCLICALITY_DAMPENER: list[tuple[str, float]] = [
+    ("energy", 0.90),
+    ("basic materials", 0.90),
+    ("consumer cyclical", 0.92),
+    ("industrials", 0.93),
+    ("retail", 0.93),
+    ("financial services", 0.95),
+    ("bank", 0.95),
+    ("insurance", 0.95),
+    ("real estate", 0.95),
+    ("utilities", 0.95),
+    ("biotechnology", 0.95),
+    ("communication services", 0.97),
+    ("healthcare", 0.98),
+    ("consumer defensive", 1.0),
+    ("technology", 1.0),
+]
+_DEFAULT_CYCLICALITY_DAMPENER = 0.95
+
+
+def _sector_cyclicality_dampener(sector: str | None) -> float:
+    if not sector:
+        return _DEFAULT_CYCLICALITY_DAMPENER
+    s = sector.lower()
+    for key, factor in _SECTOR_CYCLICALITY_DAMPENER:
+        if key in s:
+            return factor
+    return _DEFAULT_CYCLICALITY_DAMPENER
+
+
 # ── Financial-sector detection ────────────────────────────────────────────────
 # Banks/insurers/brokers don't generate a normal "free cash flow" the way the
 # 2-stage DCF below assumes (deposits, underwriting float, and regulatory
@@ -397,6 +434,91 @@ def _stars_from_roic(avg_roic: Optional[float]) -> Optional[int]:
     return 1
 
 
+# ── Composite ranking score ("Top Opportunities" — Best Overall) ─────────────
+# Sorting a discovery list by margin of safety alone rewards businesses the
+# market may be right to avoid — a real value trap reads as the #1 result on
+# that sort. This blends 6 already-real, already-multi-factor pillars (each
+# one itself a blend, not a single metric) into one sortable number, then
+# applies the sector-cyclicality dampener above so a cyclical name mid-upcycle
+# needs a genuinely stronger score to out-rank a durable compounder.
+_COMPOSITE_SCORE_WEIGHTS: dict[str, float] = {
+    "valuation": 0.25,
+    "business_quality": 0.20,
+    "financial_strength": 0.15,
+    "predictability": 0.15,
+    "growth_outlook": 0.15,
+    "management_capital_allocation": 0.10,
+}
+
+
+def _confidence_meter(
+    predictability_score: Optional[float], years_available: int,
+    fair_value_range: dict, liquidity_ok: bool,
+) -> Optional[dict]:
+    """How much to trust the Fair Value Range shown next to it — real inputs
+    only, never a decoration next to the number. The "method agreement"
+    component is currently a proxy: the real bear/bull scenario spread
+    already in `fair_value_range` (tighter spread = more agreement) — once
+    Method 3 (Relative) and Method 4 (Historical) exist, this should
+    incorporate the real cross-method spread instead, which is the richer
+    signal the original design called for; this is the honest version
+    buildable today without waiting on that."""
+    if predictability_score is None:
+        return None
+    completeness = min(100, round(years_available / 10 * 100))
+    base, low, high = fair_value_range.get("base"), fair_value_range.get("low"), fair_value_range.get("high")
+    dispersion_pct = min(100, abs(high - low) / base * 100) if base and base > 0 else 50.0
+    agreement = 100 - dispersion_pct
+    liquidity_component = 100 if liquidity_ok else 40
+
+    score = round(
+        0.35 * predictability_score
+        + 0.25 * completeness
+        + 0.25 * agreement
+        + 0.15 * liquidity_component
+    )
+    if score >= 85: label = "Alta confianza"
+    elif score >= 65: label = "Confianza moderada"
+    elif score >= 45: label = "Confianza baja"
+    else: label = "Especulativo — rango amplio de incertidumbre"
+    stars = max(1, min(5, round(score / 20)))
+    return {"score": int(score), "label": label, "stars": stars}
+
+
+def _fair_value_range(scenarios: dict) -> dict:
+    """Real range, not a single point estimate — reuses the pessimistic/base/
+    optimistic scenarios already computed (no new math, no waiting on a
+    multi-method consensus engine to exist first). "An analyst thinks in
+    ranges, not exact figures" — low/high are the real bear/bull intrinsic
+    values already in `scenarios`, base is the real base-case value."""
+    low = scenarios["pessimistic"]["intrinsic_value_per_share"]
+    high = scenarios["optimistic"]["intrinsic_value_per_share"]
+    return {
+        "low": round(min(low, high), 2),
+        "high": round(max(low, high), 2),
+        "base": scenarios["base"]["intrinsic_value_per_share"],
+    }
+
+
+def _composite_ranking_score(thesis_scores: Optional[dict], sector: Optional[str]) -> Optional[float]:
+    """Weighted blend of the 6 Investment Thesis Scorecard dimensions (all
+    already real, already computed) — never a fresh metric of its own.
+    Gracefully degrades: if one pillar is missing (rare), its weight is
+    redistributed proportionally across the pillars that ARE available,
+    rather than either failing outright or silently treating a missing
+    pillar as a zero (which would unfairly punish a company just because
+    one input couldn't be computed)."""
+    if not thesis_scores:
+        return None
+    available = {k: v for k, v in thesis_scores.items() if k in _COMPOSITE_SCORE_WEIGHTS and v is not None}
+    if not available:
+        return None
+    total_weight = sum(_COMPOSITE_SCORE_WEIGHTS[k] for k in available)
+    raw = sum(_COMPOSITE_SCORE_WEIGHTS[k] * v for k, v in available.items()) / total_weight
+    dampener = _sector_cyclicality_dampener(sector)
+    return round(raw * dampener, 1)
+
+
 def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[dict] = None) -> list[dict]:
     """6 of the 7 items of the investment checklist (in order of importance,
     skipping item 1 "Entender el negocio" — that one is inherently
@@ -539,6 +661,33 @@ def _implied_growth_rate(
         return None
     g_implied = brentq(lambda g: equity_at(g) - target_price, lo, hi, xtol=1e-6)
     return round(g_implied * 100, 1)
+
+
+def _implied_fcf_margin_at_fixed_growth(
+    revenue: float, growth_fixed: float, discount_rate: float, terminal_growth: float,
+    total_debt: float, cash: float, shares_out: float, target_price: float,
+) -> Optional[float]:
+    """The complementary reverse-DCF question — not "what growth is priced
+    in" (that's _implied_growth_rate, which holds margin fixed via base_fcf
+    and solves for growth), but "holding growth at what we actually believe
+    is realistic, what FCF margin would the market need to believe in for
+    this price to be fair?" Two free variables (growth, margin) and one
+    equation (price = DCF value) can't both be solved from price alone —
+    this is what makes it a genuinely different, complementary diagnostic
+    rather than redundant with the growth version: growth is pinned at
+    Nuvos's own real trend-based estimate, not backed out from price.
+    Returns None if no margin in a sane range [0%, 60%] reconciles the price
+    — this itself is a real signal (the price can't be justified by a
+    margin assumption alone; growth must also be doing real work)."""
+    def equity_at(margin: float) -> float:
+        result = _run_dcf(revenue * margin, growth_fixed, discount_rate, terminal_growth)
+        return (result["enterprise_value"] - total_debt + cash) / shares_out
+
+    lo, hi = 0.0, 0.60
+    if equity_at(lo) > target_price or equity_at(hi) < target_price:
+        return None
+    margin_implied = brentq(lambda m: equity_at(m) - target_price, lo, hi, xtol=1e-6)
+    return round(margin_implied * 100, 1)
 
 
 def _run_dcf_constant_growth(base_fcf: float, growth: float, discount_rate: float, terminal_growth: float, years: int = _PROJECTION_YEARS) -> dict:
@@ -770,6 +919,7 @@ def _build_financial_sector_valuation(
         "projected_shares_outstanding": round(shares_out, 0),
         "current_price": price,
         "scenarios": scenarios,
+        "fair_value_range": _fair_value_range(scenarios),
         "margin_of_safety_pct": margin_of_safety,
         "expected_value_per_share": expected_value_per_share,
         "implied_growth_pct": implied_growth_pct,
@@ -1208,6 +1358,27 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
             # signal when the market prices in more than 2x that pace.
             reverse_dcf_sanity_check = sanity_check_reverse_dcf(implied_growth_pct, base_fcf, fcf_cagr)
 
+            # ── Reverse DCF — market expectations panel ─────────────────────
+            # Complements implied_growth_pct with the OTHER half of the
+            # "what does today's price assume" question: holding growth at
+            # Nuvos's own real trend-based estimate (never backed out from
+            # price), what FCF margin would the market need to believe in for
+            # the current price to be fair? Presented as belief-vs-belief,
+            # never as "the market is wrong" — both are real, disclosed model
+            # outputs, not certainties.
+            implied_margin_pct = None
+            if latest_rev:
+                implied_margin_pct = _implied_fcf_margin_at_fixed_growth(
+                    latest_rev, base_historical_growth, base_discount_rate, terminal_growth,
+                    total_debt, cash_latest, projected_shares, price,
+                )
+            market_expectations = {
+                "market_implied_growth_pct": implied_growth_pct,
+                "market_implied_fcf_margin_pct": implied_margin_pct,
+                "nuvos_growth_estimate_pct": round(base_historical_growth * 100, 1),
+                "nuvos_fcf_margin_estimate_pct": round(avg_fcf_margin * 100, 1),
+            }
+
             # ── Reverse DCF — Expectations Investing (Rappaport) ───────────
             # A distinct question from the "DCF inverso" above: instead of
             # the year-1-fading-to-terminal growth rate, this solves for a
@@ -1360,10 +1531,12 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                 "buyback_rate_pct": round(buyback_rate * 100, 1),
                 "current_price": price,
                 "scenarios": scenarios,
+                "fair_value_range": _fair_value_range(scenarios),
                 "margin_of_safety_pct": margin_of_safety,
                 "sensitivity": sensitivity,
                 "implied_growth_pct": implied_growth_pct,
                 "reverse_dcf_sanity_check": reverse_dcf_sanity_check,
+                "market_expectations": market_expectations,
                 "expectations_investing": expectations_investing,
                 "confidence_score": confidence_score,
                 "fcf_volatility_cv": round(fcf_cv, 2) if fcf_cv is not None else None,
@@ -1498,6 +1671,12 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
     buyback_component = None
     thesis_scores = None
     if dcf:
+        # Confidence Meter — computed once here, generically, for whichever
+        # methodology produced `dcf` (FCF DCF or Justified P/B both populate
+        # the same "confidence_score"/"fair_value_range" keys).
+        dcf["confidence_meter"] = _confidence_meter(
+            dcf.get("confidence_score"), n, dcf.get("fair_value_range") or {}, liquidity_ok=liquidity_gate.get("paso", True),
+        )
         gb = dcf.get("growth_buildup") or {}
         qual_growth = gb.get("quality_adjusted_growth_pct")
         growth_score_adj = _score(qual_growth, [(0, 15), (5, 40), (10, 60), (15, 75), (20, 88), (999, 95)])
@@ -1638,6 +1817,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         "fair_value_score_100": fair_value_score,
         "investment_opportunity_score_100": investment_opportunity_score,
         "thesis_scores": thesis_scores,
+        "composite_score": _composite_ranking_score(thesis_scores, sector),
         "checklist_items_real": checklist_items_real,
         "pe_ratio": pe_ratio,
         "ev_ebitda": ev_ebitda,

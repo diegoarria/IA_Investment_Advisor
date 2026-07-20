@@ -73,18 +73,27 @@ def _format_weak_dimension_warning(weak_dimension: Optional[dict], lang: str) ->
     return f"{weak_dimension['label']} {suffix} ({weak_dimension['score']}/100)"
 
 
-def _scan(tickers: list[dict]) -> list[dict]:
+def _scan(tickers: list[dict], analysis_cache: Optional[dict[str, Optional[dict]]] = None) -> list[dict]:
     """Runs the real DCF engine over the given ticker entries, keeps only
     positive-margin-of-safety results, sorted descending. Per-ticker
     try/except — one bad ticker must never abort the whole batch. This is
     blocking (real HTTP calls) — callers on the async side must wrap it in
-    asyncio.to_thread."""
+    asyncio.to_thread.
+
+    `analysis_cache`, when passed, is populated with EVERY scanned ticker's
+    full analysis (not just the positive-margin-of-safety survivors kept in
+    the return value) — a scan of the whole curated universe already
+    computes most of what Method 3 (Relative Valuation)'s peer lookups need
+    later in the same refresh, so this avoids re-fetching a same-sector
+    peer that just isn't itself undervalued right now."""
     from app.services.fundamental_analysis_service import get_fundamental_analysis
 
     results = []
     for entry in tickers:
         try:
             data = get_fundamental_analysis(entry["ticker"])
+            if analysis_cache is not None:
+                analysis_cache[entry["ticker"]] = data
             dcf = data.get("dcf") if data else None
             mos = dcf.get("margin_of_safety_pct") if dcf else None
             if dcf and mos is not None and mos > 0:
@@ -96,6 +105,10 @@ def _scan(tickers: list[dict]) -> list[dict]:
                     "price": data.get("current_price"),
                     "intrinsic_value_base": dcf["scenarios"]["base"]["intrinsic_value_per_share"],
                     "margin_of_safety_pct": mos,
+                    "composite_score": data.get("composite_score"),
+                    "fair_value_range": dcf.get("fair_value_range"),
+                    "confidence_meter": dcf.get("confidence_meter"),
+                    "momentum": None,  # only computed in the full weekly refresh (see refresh_undervalued_screener) — real historical-price fetch, too costly for the bootstrap subset scan
                     "thesis_scores": thesis_scores,
                     "weak_dimension": _weak_dimension(thesis_scores),
                     "liquidity_gate": data.get("liquidity_gate"),
@@ -110,7 +123,14 @@ def _scan(tickers: list[dict]) -> list[dict]:
                 })
         except Exception as exc:
             logger.warning("undervalued_screener_service: %s failed: %s", entry["ticker"], exc)
-    results.sort(key=lambda r: -r["margin_of_safety_pct"])
+    # "Best Overall" default — the composite score (real business quality +
+    # financial strength + predictability + growth + management, not just
+    # discount) beats sorting by margin of safety alone, which rewards a
+    # value trap just as readily as a real opportunity. Falls back to
+    # margin of safety only for the rare case composite_score couldn't be
+    # computed (missing thesis_scores), so a result is never silently
+    # dropped for lack of one derived field.
+    results.sort(key=lambda r: (r["composite_score"] if r["composite_score"] is not None else -1, r["margin_of_safety_pct"]), reverse=True)
     return results
 
 
@@ -171,8 +191,81 @@ async def refresh_undervalued_screener() -> None:
     Nothing is finalized into a single "checklist" here — that merge
     happens per-request, per-language, in get_undervalued()."""
     from app.api.routes.screener import UNIVERSE
-    results = _scan(UNIVERSE)
+    analysis_cache: dict[str, Optional[dict]] = {}
+    results = _scan(UNIVERSE, analysis_cache=analysis_cache)
     results = _cap_per_sector(results, _MAX_PER_SECTOR)
+
+    # Methods 3 (Relative), 4 (Historical) and 5 (Consensus) of the
+    # valuation engine — deliberately only run here, on the already-capped
+    # candidate list (~30-40 tickers), never in the live quick-analysis
+    # path: Method 3 alone means a full analysis per real peer, and Method 4
+    # means a real historical-price fetch — exactly the kind of per-request
+    # cost this weekly batch job exists to amortize instead.
+    from app.services.relative_valuation_service import compute_relative_valuation
+    from app.services.historical_valuation_service import compute_historical_valuation
+    from app.services.consensus_valuation_service import classify_archetype, compute_consensus_fair_value
+    from app.services.fundamental_analysis_service import _is_financial_sector, _sector_cyclicality_dampener, get_financials
+
+    for entry in results:
+        try:
+            candidate_data = analysis_cache.get(entry["ticker"]) or {}
+            dcf = candidate_data.get("dcf") or {}
+            thesis_scores = candidate_data.get("thesis_scores") or {}
+            price = entry.get("price")
+            shares_out = dcf.get("shares_outstanding") or dcf.get("shares_out")
+            total_debt = candidate_data.get("total_debt") or 0
+            cash = candidate_data.get("cash") or 0
+            sector = entry.get("sector")
+
+            fin = get_financials(entry["ticker"], limit=10)
+            income = fin.get("incomeStatement", {}).get("annual", [])
+            balance = fin.get("balanceSheet", {}).get("annual", [])
+            cashflow = fin.get("cashFlow", {}).get("annual", [])
+            n = min(len(income), len(balance), len(cashflow))
+            income, balance, cashflow = income[-n:], balance[-n:], cashflow[-n:]
+            latest_income = income[-1] if income else {}
+            latest_eps = latest_income.get("Diluted EPS") or latest_income.get("Basic EPS")
+            latest_ebitda = latest_income.get("EBITDA")
+            fcf_trend_vals = [v for v in (candidate_data.get("fcf_trend") or []) if v is not None]
+            latest_fcf = fcf_trend_vals[-1] if fcf_trend_vals else None
+            industry = next((u["industry"] for u in UNIVERSE if u["ticker"] == entry["ticker"]), None)
+
+            relative = None
+            historical = None
+            if price and shares_out:
+                relative = compute_relative_valuation(
+                    entry["ticker"], price, shares_out, latest_eps, latest_ebitda, latest_fcf,
+                    total_debt, cash, sector, industry, analysis_cache=analysis_cache,
+                )
+                if n >= 5:
+                    historical = compute_historical_valuation(
+                        entry["ticker"], income, balance, cashflow, price, shares_out, total_debt, cash,
+                        latest_eps, latest_ebitda, latest_fcf,
+                    )
+
+            archetype = classify_archetype(
+                _is_financial_sector(sector), thesis_scores.get("business_quality"),
+                thesis_scores.get("predictability"), _sector_cyclicality_dampener(sector),
+            )
+            scenarios = dcf.get("scenarios") or {}
+            conservative_dcf_value = (scenarios.get("pessimistic") or {}).get("intrinsic_value_per_share")
+            professional_dcf_value = (scenarios.get("base") or {}).get("intrinsic_value_per_share")
+            consensus = compute_consensus_fair_value(archetype, conservative_dcf_value, professional_dcf_value, relative, historical)
+
+            entry["relative_valuation"] = relative
+            entry["historical_valuation"] = historical
+            entry["consensus_valuation"] = consensus
+        except Exception as exc:
+            logger.warning("undervalued_screener_service: valuation engine (methods 3-5) failed for %s: %s", entry["ticker"], exc)
+            entry["relative_valuation"] = None
+            entry["historical_valuation"] = None
+            entry["consensus_valuation"] = None
+
+        try:
+            entry["momentum"] = _compute_momentum(entry["ticker"], entry.get("price"))
+        except Exception as exc:
+            logger.warning("undervalued_screener_service: momentum failed for %s: %s", entry["ticker"], exc)
+            entry["momentum"] = None
 
     from app.services.ai_service import generate_candidate_blurb
     for entry in results:
@@ -226,6 +319,40 @@ def bootstrap_fill_if_empty_sync() -> None:
     if results:
         cache_set(CACHE_KEY, results, BOOTSTRAP_TTL)
         logger.info("undervalued_screener_service: bootstrap-filled %d results from a %d-ticker subset", len(results), _BOOTSTRAP_LIMIT)
+
+
+def _compute_momentum(ticker: str, current_price: Optional[float]) -> Optional[dict]:
+    """Real short/medium-term price-momentum signal for the "Momentum Turns"
+    ranking lens, computed from actual historical closes (financial_data_
+    service.get_historical_prices_near_dates — the same real FMP historical-
+    price endpoint Method 4 uses), never invented. `turn_score` is
+    return_1m_pct - return_6m_pct: positive when a stock has been recovering
+    recently (up over the last month) after a longer decline (down over the
+    last six months) — a genuine "turning around while still cheap" signal,
+    distinct from raw momentum-chasing. Returns None (never a fabricated 0)
+    if either real historical price is unavailable."""
+    if not current_price:
+        return None
+    import datetime
+    from app.services.financial_data_service import get_historical_prices_near_dates
+
+    today = datetime.date.today()
+    date_1m = (today - datetime.timedelta(days=30)).isoformat()
+    date_6m = (today - datetime.timedelta(days=182)).isoformat()
+    try:
+        prices = get_historical_prices_near_dates(ticker, [date_1m, date_6m])
+    except Exception:
+        return None
+    price_1m, price_6m = prices.get(date_1m), prices.get(date_6m)
+    if not price_1m or not price_6m:
+        return None
+    return_1m_pct = round((current_price - price_1m) / price_1m * 100, 1)
+    return_6m_pct = round((current_price - price_6m) / price_6m * 100, 1)
+    return {
+        "return_1m_pct": return_1m_pct,
+        "return_6m_pct": return_6m_pct,
+        "turn_score": round(return_1m_pct - return_6m_pct, 1),
+    }
 
 
 def _cap_per_sector(results: list[dict], max_per_sector: int) -> list[dict]:
