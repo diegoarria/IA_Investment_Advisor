@@ -593,33 +593,56 @@ def _finnhub_recent_earnings(symbol: str, days_back: int) -> dict | None:
     cache_key = f"earnings:recent:{symbol}:{days_back}:{_today_et()}"
     cached = cache_get(cache_key)
     if cached is not None:
-        return cached or None  # cache_set below stores {} for "checked, nothing found" so a miss isn't re-fetched all day
+        return cached or None  # cache_set below stores {} for a GENUINE "checked, nothing found" — never for a failed check
 
     today = datetime.strptime(_today_et(), "%Y-%m-%d").date()
     window_start = today - timedelta(days=days_back)
-    result = None
-    try:
-        r = _req.get(
-            "https://finnhub.io/api/v1/calendar/earnings",
-            params={"symbol": symbol, "from": window_start.isoformat(), "to": today.isoformat(), "token": key},
-            timeout=8,
-        )
-        items = (r.json() or {}).get("earningsCalendar") or []
-        reported = [it for it in items if it.get("date") and it.get("epsActual") is not None]
-        if reported:
-            reported.sort(key=lambda it: it["date"], reverse=True)
-            latest = reported[0]
-            result = {
-                "ticker": symbol,
-                "event_date": latest["date"],
-                "eps_estimate": round(float(latest["epsEstimate"]), 2) if latest.get("epsEstimate") is not None else None,
-                "eps_actual": round(float(latest["epsActual"]), 2) if latest.get("epsActual") is not None else None,
-                "revenue_estimate": f"{round(float(latest['revenueEstimate']) / 1e9, 1)}B" if latest.get("revenueEstimate") else None,
-                "revenue_actual": f"{round(float(latest['revenueActual']) / 1e9, 1)}B" if latest.get("revenueActual") else None,
-            }
-    except Exception as e:
-        logger.debug("_finnhub_recent_earnings(%s) failed: %s", symbol, e)
 
+    # Up to 2 tries — a transient timeout/rate-limit/connection error must
+    # never be treated the same as "this ticker genuinely has no report in
+    # the window": that conflation is exactly what let real portfolio/
+    # watchlist tickers silently vanish from the feed for up to 15 minutes
+    # whenever a single Finnhub request hiccuped. On a real failure (both
+    # tries exhausted), return None WITHOUT caching anything, so the very
+    # next request tries again instead of trusting a false "no report."
+    items = None
+    for attempt in range(2):
+        try:
+            r = _req.get(
+                "https://finnhub.io/api/v1/calendar/earnings",
+                params={"symbol": symbol, "from": window_start.isoformat(), "to": today.isoformat(), "token": key},
+                timeout=8,
+            )
+            if r.status_code != 200:
+                raise ValueError(f"Finnhub returned status {r.status_code}")
+            items = (r.json() or {}).get("earningsCalendar") or []
+            break
+        except Exception as e:
+            logger.debug("_finnhub_recent_earnings(%s) attempt %d failed: %s", symbol, attempt + 1, e)
+            if attempt == 0:
+                import time as _time
+                _time.sleep(0.5)
+
+    if items is None:
+        logger.warning("_finnhub_recent_earnings(%s): both attempts failed — skipping this check, NOT caching a false negative", symbol)
+        return None
+
+    result = None
+    reported = [it for it in items if it.get("date") and it.get("epsActual") is not None]
+    if reported:
+        reported.sort(key=lambda it: it["date"], reverse=True)
+        latest = reported[0]
+        result = {
+            "ticker": symbol,
+            "event_date": latest["date"],
+            "eps_estimate": round(float(latest["epsEstimate"]), 2) if latest.get("epsEstimate") is not None else None,
+            "eps_actual": round(float(latest["epsActual"]), 2) if latest.get("epsActual") is not None else None,
+            "revenue_estimate": f"{round(float(latest['revenueEstimate']) / 1e9, 1)}B" if latest.get("revenueEstimate") else None,
+            "revenue_actual": f"{round(float(latest['revenueActual']) / 1e9, 1)}B" if latest.get("revenueActual") else None,
+        }
+
+    # Only reached after a REAL, successful check (whether it found a
+    # report or not) — this is the only path allowed to cache.
     cache_set(cache_key, result or {}, ttl=_TTL_RECENT_REPORTERS)
     return result
 
