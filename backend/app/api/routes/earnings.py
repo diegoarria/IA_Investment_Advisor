@@ -568,6 +568,62 @@ async def get_earnings_analysis(
     return result
 
 
+_TTL_RECENT_REPORTERS = 900  # 15 min — short enough that "today" always feels live, without hammering Finnhub on every screen open
+
+
+def _finnhub_recent_earnings(symbol: str, days_back: int) -> dict | None:
+    """Real most-recently ALREADY-REPORTED earnings event within the last
+    `days_back` days, in America/New_York calendar terms (the US market's
+    own timezone — using naive server-local "today" would misdate a report
+    near midnight UTC on a Railway box). Deliberately NOT built on top of
+    _finnhub_earnings_date/_fetch_events_for_symbol: those hardcode their
+    own 7-day recency filter for the unrelated "upcoming earnings alert"
+    use case and would silently drop a real report from, say, 10 days ago
+    — exactly the kind of report this "reportó recientemente" feed needs to
+    keep showing for the full 14-day window. Returns None (never invented)
+    if Finnhub has nothing real for this ticker in that window."""
+    import os
+    import requests as _req
+    from app.services.notification_engine import _today_et
+
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        return None
+
+    cache_key = f"earnings:recent:{symbol}:{days_back}:{_today_et()}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached or None  # cache_set below stores {} for "checked, nothing found" so a miss isn't re-fetched all day
+
+    today = datetime.strptime(_today_et(), "%Y-%m-%d").date()
+    window_start = today - timedelta(days=days_back)
+    result = None
+    try:
+        r = _req.get(
+            "https://finnhub.io/api/v1/calendar/earnings",
+            params={"symbol": symbol, "from": window_start.isoformat(), "to": today.isoformat(), "token": key},
+            timeout=8,
+        )
+        items = (r.json() or {}).get("earningsCalendar") or []
+        reported = [it for it in items if it.get("date") and it.get("epsActual") is not None]
+        if reported:
+            reported.sort(key=lambda it: it["date"], reverse=True)
+            latest = reported[0]
+            result = {
+                "ticker": symbol,
+                "event_date": latest["date"],
+                "eps_estimate": round(float(latest["epsEstimate"]), 2) if latest.get("epsEstimate") is not None else None,
+                "eps_actual": round(float(latest["epsActual"]), 2) if latest.get("epsActual") is not None else None,
+                "revenue_estimate": f"{round(float(latest['revenueEstimate']) / 1e9, 1)}B" if latest.get("revenueEstimate") else None,
+                "revenue_actual": f"{round(float(latest['revenueActual']) / 1e9, 1)}B" if latest.get("revenueActual") else None,
+            }
+    except Exception as e:
+        logger.debug("_finnhub_recent_earnings(%s) failed: %s", symbol, e)
+
+    cache_set(cache_key, result or {}, ttl=_TTL_RECENT_REPORTERS)
+    return result
+
+
 @router.get("/recent-reporters")
 async def get_recent_reporters(
     symbols: str = "",
@@ -576,9 +632,11 @@ async def get_recent_reporters(
     """Cheap, no-AI read: which of the given tickers (the caller passes the
     user's portfolio+watchlist symbols, same as EarningsPanel.tsx already
     assembles) reported real earnings within the last
-    _RECENT_REPORTERS_WINDOW_DAYS days. Powers the new Earnings screen's
-    "reportaron recientemente" feed without paying any AI/Perplexity cost
-    until the user actually taps one to see the full analysis."""
+    _RECENT_REPORTERS_WINDOW_DAYS days (America/New_York "today", checked
+    fresh at most every 15 minutes — see _finnhub_recent_earnings). Powers
+    the new Earnings screen's "reportaron recientemente" feed without
+    paying any AI/Perplexity cost until the user actually taps one to see
+    the full analysis."""
     from app.api.routes.chat import _is_premium
 
     profile = _get_user_profile(user_id)
@@ -589,13 +647,11 @@ async def get_recent_reporters(
     if not ticker_list:
         return {"reporters": []}
 
-    all_events = await asyncio.to_thread(_fetch_earnings_calendar, ticker_list[:50])
-    cutoff = (datetime.now().date() - timedelta(days=_RECENT_REPORTERS_WINDOW_DAYS)).isoformat()
-    today_str = datetime.now().date().isoformat()
-    reporters = [
-        e for e in all_events
-        if e["event_type"] == "earnings" and e["status"] == "past" and e.get("event_date")
-        and cutoff <= e["event_date"] <= today_str
-    ]
+    results = await asyncio.to_thread(
+        lambda: list(_EARNINGS_POOL.map(
+            lambda t: _finnhub_recent_earnings(t, _RECENT_REPORTERS_WINDOW_DAYS), ticker_list[:50],
+        ))
+    )
+    reporters = [r for r in results if r]
     reporters.sort(key=lambda x: x.get("event_date") or "", reverse=True)
     return {"reporters": reporters}
