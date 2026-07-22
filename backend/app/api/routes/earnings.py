@@ -532,6 +532,14 @@ async def get_earnings_analysis(
     cache_key = f"earnings:v2:{symbol}:{fiscal_key}:{lang}"
     cached = cache_get(cache_key)
     if cached:
+        # Re-sanitize even a cached hit — a response cached before the
+        # type-coercion fix in ai_service._sanitize_earnings_analysis (e.g.
+        # a string "8.8" instead of a float for rating_out_of_10, which
+        # crashed the whole earnings screen client-side) would otherwise
+        # keep serving the broken shape for the rest of its 60-day TTL.
+        # Sanitizing well-formed data is a harmless no-op.
+        if cached.get("structured_analysis"):
+            cached["structured_analysis"] = ai_service._sanitize_earnings_analysis(cached["structured_analysis"])
         return cached
 
     web_context = await _search_earnings_context(symbol, earnings_data.get("name", symbol), earnings_data.get("fiscal_label", symbol))

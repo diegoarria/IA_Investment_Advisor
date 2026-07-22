@@ -80,12 +80,17 @@ export function BeatMissBadge({ actual, estimate }: { actual: number | null; est
 }
 
 export function RatingBadge({ rating }: { rating: number | null }) {
-  if (rating === null) return null;
-  const color = rating >= 8 ? "#22c55e" : rating >= 6 ? "#eab308" : rating >= 4 ? "#f59e0b" : "#ef4444";
+  // Defense in depth — the backend now sanitizes this to a real number or
+  // null, but never trust an external API response's type at the call site
+  // that does math on it. A stray string here previously crashed the whole
+  // screen via `.toFixed()` on a non-number.
+  const n = typeof rating === "number" ? rating : Number(rating);
+  if (rating === null || rating === undefined || Number.isNaN(n)) return null;
+  const color = n >= 8 ? "#22c55e" : n >= 6 ? "#eab308" : n >= 4 ? "#f59e0b" : "#ef4444";
   return (
     <div className="rounded-xl px-3 py-2 flex items-center gap-2 shrink-0" style={{ background: "var(--raised)" }}>
       <Sparkles className="w-4 h-4" style={{ color }} />
-      <span className="text-lg font-black tabular-nums" style={{ color }}>{rating.toFixed(1)}</span>
+      <span className="text-lg font-black tabular-nums" style={{ color }}>{n.toFixed(1)}</span>
       <span className="text-[10px] font-bold" style={{ color: "var(--muted)" }}>/10</span>
     </div>
   );
@@ -135,7 +140,16 @@ export function SegmentsList({ segments }: { segments: EarningsSegment[] }) {
 
 export function EarningsAnalysisCard({ result }: { result: EarningsAnalysisResponse }) {
   const { t } = useTranslation();
-  const { structured_analysis: a, earnings_data: d } = result;
+  const { structured_analysis: rawAnalysis, earnings_data: d } = result;
+  // Defense in depth — the backend sanitizes these to arrays, but a render
+  // must never trust an external API payload's shape enough to call
+  // `.map()`/`.length` on it unchecked.
+  const a = {
+    ...rawAnalysis,
+    positives: Array.isArray(rawAnalysis.positives) ? rawAnalysis.positives : [],
+    negatives: Array.isArray(rawAnalysis.negatives) ? rawAnalysis.negatives : [],
+    segments: Array.isArray(rawAnalysis.segments) ? rawAnalysis.segments : [],
+  };
   return (
     <div className="rounded-2xl border p-4 space-y-4" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
       <div className="flex items-center gap-3">

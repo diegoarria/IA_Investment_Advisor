@@ -2061,6 +2061,70 @@ async def generate_generic_answer(
 # FEATURE: Análisis automático de earnings
 # ──────────────────────────────────────────────────────────────
 
+def _sanitize_earnings_analysis(parsed: dict) -> dict:
+    """Coerces every field of the LLM's JSON to the exact type the frontend
+    expects, no matter what the model actually returned. The prompt asks
+    for a number for "rating_out_of_10" and arrays for "positives"/
+    "negatives"/"segments", but nothing enforces that on the model's
+    output — a stray string (e.g. "8.8" instead of 8.8) reaches the web/
+    mobile cards as-is otherwise, and `.toFixed()`/`.map()` on the wrong
+    type throws a real, uncaught runtime error (crashed the whole earnings
+    screen in production). Every field here degrades to a safe default
+    instead of ever passing a wrong-typed value through."""
+    def _as_str(v, default="") -> str:
+        return v if isinstance(v, str) else (str(v) if v is not None else default)
+
+    def _as_str_list(v) -> list[str]:
+        if isinstance(v, list):
+            return [_as_str(item) for item in v if item is not None]
+        if isinstance(v, str) and v:
+            return [v]
+        return []
+
+    def _as_float(v) -> Optional[float]:
+        try:
+            return round(float(v), 1) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    segments = []
+    for seg in parsed.get("segments") or []:
+        if isinstance(seg, dict) and seg.get("name"):
+            segments.append({
+                "name": _as_str(seg.get("name")),
+                "metric": _as_str(seg.get("metric")),
+                "value": _as_str(seg.get("value")),
+                "note": _as_str(seg.get("note"), default=None) if seg.get("note") is not None else None,
+            })
+
+    guidance_change = None
+    gc = parsed.get("guidance_change")
+    if isinstance(gc, dict):
+        status = gc.get("status")
+        if status in ("raised", "lowered", "maintained", "unknown"):
+            guidance_change = {
+                "status": status,
+                "old_range": _as_str(gc.get("old_range"), default=None) if gc.get("old_range") is not None else None,
+                "new_range": _as_str(gc.get("new_range"), default=None) if gc.get("new_range") is not None else None,
+                "note": _as_str(gc.get("note"), default=None) if gc.get("note") is not None else None,
+            }
+
+    portfolio_note = parsed.get("portfolio_note")
+
+    return {
+        "headline": _as_str(parsed.get("headline")),
+        "positives": _as_str_list(parsed.get("positives")),
+        "negatives": _as_str_list(parsed.get("negatives")),
+        "segments": segments,
+        "guidance_change": guidance_change,
+        "why_stock_moved": _as_str(parsed.get("why_stock_moved")),
+        "thesis_impact": _as_str(parsed.get("thesis_impact")),
+        "rating_out_of_10": _as_float(parsed.get("rating_out_of_10")),
+        "rating_reasoning": _as_str(parsed.get("rating_reasoning")),
+        "portfolio_note": _as_str(portfolio_note, default=None) if portfolio_note is not None else None,
+    }
+
+
 async def analyze_earnings(
     symbol: str,
     earnings_data: dict,
@@ -2153,12 +2217,7 @@ Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta est
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and "headline" in parsed:
-        parsed.setdefault("segments", [])
-        parsed.setdefault("positives", [])
-        parsed.setdefault("negatives", [])
-        parsed.setdefault("guidance_change", None)
-        parsed.setdefault("portfolio_note", None)
-        return parsed
+        return _sanitize_earnings_analysis(parsed)
     _log.warning("analyze_earnings(%s): JSON parse failed, response likely truncated (%d chars)", symbol, len(text))
     fallback_headline = (
         "We couldn't generate the AI analysis right now. The real numbers above are still accurate."

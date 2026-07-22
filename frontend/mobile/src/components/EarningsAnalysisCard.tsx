@@ -77,12 +77,17 @@ export function BeatMissBadge({ actual, estimate, colors }: { actual: number | n
 }
 
 export function RatingBadge({ rating, colors }: { rating: number | null; colors: any }) {
-  if (rating === null) return null;
-  const color = rating >= 8 ? "#22c55e" : rating >= 6 ? "#eab308" : rating >= 4 ? "#f59e0b" : "#ef4444";
+  // Defense in depth — the backend now sanitizes this to a real number or
+  // null, but never trust an external API response's type at the call
+  // site that does math on it. A stray string here previously crashed the
+  // whole screen via `.toFixed()` on a non-number.
+  const n = typeof rating === "number" ? rating : Number(rating);
+  if (rating === null || rating === undefined || Number.isNaN(n)) return null;
+  const color = n >= 8 ? "#22c55e" : n >= 6 ? "#eab308" : n >= 4 ? "#f59e0b" : "#ef4444";
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.bgRaised, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 }}>
       <Ionicons name="sparkles" size={14} color={color} />
-      <Text style={{ fontSize: 16, fontWeight: "900", color }}>{rating.toFixed(1)}</Text>
+      <Text style={{ fontSize: 16, fontWeight: "900", color }}>{n.toFixed(1)}</Text>
       <Text style={{ fontSize: 10, fontWeight: "800", color: colors.textMuted }}>/10</Text>
     </View>
   );
@@ -132,7 +137,16 @@ export function SegmentsList({ segments, colors }: { segments: EarningsSegment[]
 
 export function EarningsAnalysisCard({ result, colors }: { result: EarningsAnalysisResponse; colors: any }) {
   const { t } = useTranslation();
-  const { structured_analysis: a, earnings_data: d } = result;
+  const { structured_analysis: rawAnalysis, earnings_data: d } = result;
+  // Defense in depth — the backend sanitizes these to arrays, but a render
+  // must never trust an external API payload's shape enough to call
+  // `.map()`/`.length` on it unchecked.
+  const a = {
+    ...rawAnalysis,
+    positives: Array.isArray(rawAnalysis.positives) ? rawAnalysis.positives : [],
+    negatives: Array.isArray(rawAnalysis.negatives) ? rawAnalysis.negatives : [],
+    segments: Array.isArray(rawAnalysis.segments) ? rawAnalysis.segments : [],
+  };
   return (
     <View style={[cs.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={cs.cardHeader}>
