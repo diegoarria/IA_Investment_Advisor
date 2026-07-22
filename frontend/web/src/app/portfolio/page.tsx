@@ -20,7 +20,6 @@ import type { AdvancedRow } from "@/components/AdvancedStockTable";
 import StockDetailModal from "@/components/StockDetailModal";
 import MonthlyReport from "@/components/MonthlyReport";
 import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
-import EarningsPanel from "@/components/EarningsPanel";
 import PremiumToolLockedWeb from "@/components/PremiumToolLocked";
 import PaywallModal from "@/components/PaywallModal";
 import GuidedSteps from "@/components/GuidedSteps";
@@ -3502,12 +3501,6 @@ export default function PortfolioPage() {
                     onUnlock={() => setPaywallOpen(true)}
                   />
               }
-
-              <EarningsPanel
-                positions={positions.map(p => ({ ticker: p.ticker, shares: p.shares, avg_cost: p.avgPrice }))}
-                isPremium={isPremium}
-                onUpgrade={() => setPaywallOpen(true)}
-              />
 
               <WeeklyScreenerCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} tickers={positions.map(p => p.ticker)} />
 
