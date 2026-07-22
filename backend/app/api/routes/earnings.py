@@ -637,8 +637,11 @@ def _finnhub_recent_earnings(symbol: str, days_back: int) -> dict | None:
             "event_date": latest["date"],
             "eps_estimate": round(float(latest["epsEstimate"]), 2) if latest.get("epsEstimate") is not None else None,
             "eps_actual": round(float(latest["epsActual"]), 2) if latest.get("epsActual") is not None else None,
-            "revenue_estimate": f"{round(float(latest['revenueEstimate']) / 1e9, 1)}B" if latest.get("revenueEstimate") else None,
-            "revenue_actual": f"{round(float(latest['revenueActual']) / 1e9, 1)}B" if latest.get("revenueActual") else None,
+            # Raw numbers (not pre-formatted) — the frontend formats these the
+            # same way it already formats the detail card's revenue figures,
+            # and needs the raw values to compute beat/miss for the list row.
+            "revenue_estimate": float(latest["revenueEstimate"]) if latest.get("revenueEstimate") is not None else None,
+            "revenue_actual": float(latest["revenueActual"]) if latest.get("revenueActual") is not None else None,
         }
 
     # Only reached after a REAL, successful check (whether it found a
