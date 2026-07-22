@@ -32,7 +32,7 @@ import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
   Cloud, CloudOff, Check, BarChart2, TrendingUp, TrendingDown, GraduationCap, CheckSquare, Bell, Users, Share2,
-  ChevronDown, ChevronUp, Loader2, Microscope, ArrowRight,
+  ChevronDown, ChevronUp, Loader2, Microscope, ArrowRight, FileBarChart,
 } from "lucide-react";
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
@@ -3503,6 +3503,26 @@ export default function PortfolioPage() {
               }
 
               <WeeklyScreenerCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} tickers={positions.map(p => p.ticker)} />
+
+              {/* Análisis de Earnings — desglose por segmento + rating real,
+                  grounded en Finnhub/FMP + búsqueda web en vivo. The /earnings
+                  page itself shows the paywall for non-premium users, same as
+                  the mobile card's behavior. */}
+              <button onClick={() => router.push("/earnings")}
+                      className="w-full text-left rounded-3xl overflow-hidden transition-transform hover:scale-[1.01] active:scale-[0.99]"
+                      style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+                <div className="flex items-center gap-4 p-5">
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
+                       style={{ background: "linear-gradient(135deg,#3b82f6,#2563eb)" }}>
+                    <FileBarChart className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-black" style={{ color: "var(--text)" }}>{t("earnings.title")}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{t("earnings.premiumGate.desc")}</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
+                </div>
+              </button>
 
               {/* Nuvos Deep Research — available to every tier, just cheaper for
                   Premium, so this isn't gated behind PremiumToolLocked's paywall. */}
