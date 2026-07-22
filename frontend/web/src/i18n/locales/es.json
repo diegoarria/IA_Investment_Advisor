@@ -9,7 +9,8 @@
       "profile": "Perfil",
       "products": "Productos",
       "support": "Soporte",
-      "undervalued": "Oportunidades"
+      "undervalued": "Oportunidades",
+      "earnings": "Análisis de Earnings"
     },
     "login": "Iniciar sesión",
     "createAccount": "Crear cuenta",
@@ -540,6 +541,49 @@
     },
     "mentorNote": {
       "label": "NOTA DE TU MENTOR"
+    }
+  },
+  "earnings": {
+    "title": "Análisis de Earnings",
+    "disclaimer": {
+      "title": "ESTO NO ES RECOMENDACIÓN DE INVERSIÓN",
+      "subtitle": "El rating y el análisis son el juicio de la IA, no un hecho objetivo."
+    },
+    "search": {
+      "label": "Buscar el reporte de cualquier acción",
+      "placeholder": "Ticker (ej. GEV, AAPL, MELI)",
+      "button": "Analizar",
+      "error": "No se pudo obtener el análisis de earnings para esa búsqueda."
+    },
+    "recentReporters": {
+      "label": "Reportaron recientemente",
+      "empty": "Ninguna de tus acciones (portafolio + watchlist) ha reportado en los últimos días."
+    },
+    "beat": "Beat",
+    "miss": "Miss",
+    "sections": {
+      "positives": "Lo positivo",
+      "negatives": "Lo negativo",
+      "segments": "Desglose por segmento",
+      "guidance": "Guidance",
+      "whyMoved": "¿Por qué se movió la acción?",
+      "thesisImpact": "Impacto en la tesis",
+      "ratingReasoning": "Por qué esta calificación"
+    },
+    "segments": {
+      "none": "No encontramos detalle de segmentos para este reporte."
+    },
+    "guidance": {
+      "raised": "Guidance elevado",
+      "lowered": "Guidance reducido",
+      "maintained": "Guidance sin cambios",
+      "unknown": "Sin información de guidance"
+    },
+    "premiumGate": {
+      "title": "Exclusivo Premium",
+      "desc": "El análisis de earnings usa datos reales de Finnhub/FMP más una búsqueda en tiempo real del reporte — disponible solo para usuarios Premium.",
+      "cta": "Desbloquear Premium",
+      "paywallReason": "Análisis de earnings"
     }
   },
   "subvaluadas": {

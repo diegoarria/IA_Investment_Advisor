@@ -342,8 +342,10 @@ export const paperApi = {
 export const earningsApi = {
   getCalendar: (symbols: string[]) =>
     api.get("/api/earnings/calendar", { params: { symbols: symbols.join(",") } }),
-  getAnalysis: (symbol: string, shares = 0, avgCost = 0) =>
-    api.get(`/api/earnings/analysis/${symbol}`, { params: { shares, avg_cost: avgCost } }),
+  getAnalysis: (symbol: string, shares = 0, avgCost = 0, lang?: string) =>
+    api.get(`/api/earnings/analysis/${symbol}`, { params: { shares, avg_cost: avgCost, lang } }),
+  getRecentReporters: (symbols: string[]) =>
+    api.get("/api/earnings/recent-reporters", { params: { symbols: symbols.join(",") } }),
 };
 
 export const screenerApi = {

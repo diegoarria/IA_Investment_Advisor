@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 _EARNINGS_POOL = ThreadPoolExecutor(max_workers=10, thread_name_prefix="earnings")
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 import yfinance as yf
 from app.api.deps import get_current_user_id
 from app.api.routes.market import _get_user_profile, _fetch_quote_light
@@ -16,8 +16,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/earnings", tags=["earnings"])
 
 _TTL_CALENDAR  = 3600   # 1 hour
-_TTL_ANALYSIS  = 1800   # 30 minutes
+_TTL_ANALYSIS  = 1800   # 30 minutes — only for the raw-data fetch, not the AI analysis (see _TTL_ANALYSIS_V2)
+_TTL_ANALYSIS_V2 = 60 * 24 * 3600  # 60 days — a reported quarter's numbers never change, so this can be cached long
 _WINDOW_DAYS   = 180    # look forward 6 months
+_RECENT_REPORTERS_WINDOW_DAYS = 14  # how far back "reportó recientemente" looks
 
 
 def _finnhub_dividend_events(symbol: str, window_start, window_end, today) -> list[dict]:
@@ -273,67 +275,183 @@ def _fetch_earnings_calendar(symbols: list[str]) -> list[dict]:
     return all_events
 
 
+def _fetch_latest_reported_quarter(symbol: str) -> dict | None:
+    """Real most-recently REPORTED fiscal quarter's EPS actual/estimate plus
+    its fiscal quarter/year label, straight from Finnhub /stock/earnings —
+    the same endpoint worker.py's _fetch_historical_earnings_reactions
+    already uses. This endpoint already labels each entry with the correct
+    FISCAL quarter/year (e.g. quarter=2, year=2026 for a period ending
+    2026-06-30), unlike deriving a quarter number from the later report/
+    announcement date, which would be wrong (a Q2 report is announced in
+    Q3). Returns None (never a guess) if Finnhub has nothing real."""
+    import os
+    import requests as _req
+
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        return None
+    try:
+        r = _req.get(
+            "https://finnhub.io/api/v1/stock/earnings",
+            params={"symbol": symbol, "token": key},
+            timeout=8,
+        )
+        if r.status_code != 200:
+            return None
+        items = [it for it in (r.json() or []) if it.get("period") and it.get("actual") is not None]
+        if not items:
+            return None
+        items.sort(key=lambda it: it["period"], reverse=True)
+        latest = items[0]
+        return {
+            "period":       latest["period"],
+            "fiscal_quarter": latest.get("quarter"),
+            "fiscal_year":  latest.get("year"),
+            "eps_actual":   latest.get("actual"),
+            "eps_estimate": latest.get("estimate"),
+            "surprise_pct": latest.get("surprisePercent"),
+        }
+    except Exception as e:
+        logger.debug("_fetch_latest_reported_quarter(%s) failed: %s", symbol, e)
+        return None
+
+
+def _fetch_revenue_for_period(symbol: str, period: str) -> dict:
+    """Real revenue actual (FMP's own quarterly income statement, matched to
+    the same fiscal period-end date Finnhub reported) and revenue estimate
+    (Finnhub's earnings calendar, matched to the announcement shortly AFTER
+    that period-end — that endpoint only carries estimates tied to the
+    announcement date, not the fiscal period-end). Returns None fields
+    (never a guess) when no real match is found for either."""
+    revenue_actual = None
+    revenue_estimate = None
+
+    try:
+        from app.services.financial_data_service import get_financials
+        fin = get_financials(symbol, limit=8)
+        income_q = fin.get("incomeStatement", {}).get("quarterly", [])
+        # Exact period match first; fall back to the closest period within
+        # 10 days (provider period-end dates occasionally differ by a day
+        # or two) — never further than that, to avoid mismatching quarters.
+        exact = next((row for row in income_q if row.get("period") == period), None)
+        if exact:
+            revenue_actual = exact.get("Total Revenue")
+        else:
+            try:
+                target = datetime.strptime(period, "%Y-%m-%d").date()
+                close = min(
+                    (row for row in income_q if row.get("period")),
+                    key=lambda row: abs((datetime.strptime(row["period"], "%Y-%m-%d").date() - target).days),
+                    default=None,
+                )
+                if close and abs((datetime.strptime(close["period"], "%Y-%m-%d").date() - target).days) <= 10:
+                    revenue_actual = close.get("Total Revenue")
+            except Exception:
+                pass
+    except Exception as e:
+        logger.debug("_fetch_revenue_for_period(%s) actual failed: %s", symbol, e)
+
+    try:
+        import os
+        import requests as _req
+
+        key = os.getenv("FINNHUB_API_KEY", "")
+        if key:
+            period_dt = datetime.strptime(period, "%Y-%m-%d").date()
+            r = _req.get(
+                "https://finnhub.io/api/v1/calendar/earnings",
+                params={
+                    "symbol": symbol,
+                    "from": period_dt.isoformat(),
+                    "to": (period_dt + timedelta(days=75)).isoformat(),
+                    "token": key,
+                },
+                timeout=8,
+            )
+            items = (r.json() or {}).get("earningsCalendar") or []
+            if items:
+                items.sort(key=lambda it: it.get("date") or "")
+                revenue_estimate = items[0].get("revenueEstimate")
+    except Exception as e:
+        logger.debug("_fetch_revenue_for_period(%s) estimate failed: %s", symbol, e)
+
+    return {"revenue_actual": revenue_actual, "revenue_estimate": revenue_estimate}
+
+
 def _fetch_earnings_data(symbol: str) -> dict:
-    """Fetch latest earnings figures for analysis."""
-    key = f"earnings:data:{symbol}"
+    """Real latest-reported-quarter earnings figures — Finnhub for EPS
+    actual/estimate + fiscal quarter/year label, FMP/Finnhub for revenue
+    actual/estimate (see _fetch_revenue_for_period), and a thin Finnhub
+    quote/profile fallback for current price/name only (yfinance was
+    dropped for the core actual-vs-estimate numbers — it's not the
+    Finnhub/FMP real-data source the rest of this codebase relies on)."""
+    key = f"earnings:data:v2:{symbol}"
     cached = cache_get(key)
     if cached:
         return cached
     try:
-        t = yf.Ticker(symbol)
-        info = t.info or {}
-        # Quarterly financials
-        qf = t.quarterly_financials
-        qe = t.quarterly_earnings
+        from app.core.finnhub import fh_profile, fh_quote
 
-        eps_actual   = None
-        eps_estimate = None
-        rev_actual   = None
-        rev_estimate = None
-        highlights   = []
+        latest = _fetch_latest_reported_quarter(symbol)
+        if not latest:
+            return {"symbol": symbol, "error": "No real earnings data available from Finnhub for this ticker."}
 
-        if qe is not None and not qe.empty:
-            latest = qe.iloc[0]
-            eps_actual   = round(float(latest.get("Reported EPS", 0) or 0), 4)
-            eps_estimate = round(float(latest.get("EPS Estimate",  0) or 0), 4)
-
-        if qf is not None and not qf.empty:
-            rev_row = qf[qf.index == "Total Revenue"]
-            if not rev_row.empty:
-                rev_val = rev_row.iloc[0, 0]
-                rev_actual = round(float(rev_val) / 1e9, 2) if rev_val else None
-
-        rev_estimate_raw = info.get("revenueEstimate", {})
-        if isinstance(rev_estimate_raw, dict):
-            rev_estimate = round(rev_estimate_raw.get("avg", 0) / 1e9, 2)
-        elif isinstance(rev_estimate_raw, (int, float)):
-            rev_estimate = round(rev_estimate_raw / 1e9, 2)
-
-        rev_growth = info.get("revenueGrowth")
-        if rev_growth:
-            highlights.append(f"Crecimiento de ingresos: {round(rev_growth * 100, 1)}% YoY")
-        margin = info.get("profitMargins")
-        if margin:
-            highlights.append(f"Margen neto: {round(margin * 100, 1)}%")
-        forward_pe = info.get("forwardPE")
-        if forward_pe:
-            highlights.append(f"P/E forward: {round(forward_pe, 1)}x")
+        revenue = _fetch_revenue_for_period(symbol, latest["period"])
+        quote = fh_quote(symbol) or {}
+        profile = fh_profile(symbol) or {}
+        fiscal_label = f"Q{latest['fiscal_quarter']} {latest['fiscal_year']}" if latest.get("fiscal_quarter") and latest.get("fiscal_year") else symbol
 
         data = {
-            "symbol":        symbol,
-            "name":          info.get("shortName", symbol),
-            "current_price": round(float(info.get("currentPrice", 0) or 0), 2),
-            "eps_actual":    eps_actual,
-            "eps_estimate":  eps_estimate,
-            "revenue_actual": rev_actual,
-            "revenue_estimate": rev_estimate,
-            "guidance":      info.get("forwardEps", "No disponible"),
-            "highlights":    " | ".join(highlights),
+            "symbol":           symbol,
+            "name":             profile.get("name", symbol),
+            "current_price":    quote.get("price"),
+            "eps_actual":       latest["eps_actual"],
+            "eps_estimate":     latest["eps_estimate"],
+            "revenue_actual":   revenue["revenue_actual"],
+            "revenue_estimate": revenue["revenue_estimate"],
+            "fiscal_quarter":   latest.get("fiscal_quarter"),
+            "fiscal_year":      latest.get("fiscal_year"),
+            "fiscal_label":     fiscal_label,
+            "period":           latest["period"],
         }
         cache_set(key, data, ttl=_TTL_ANALYSIS)
         return data
     except Exception as e:
         return {"symbol": symbol, "error": str(e)}
+
+
+async def _search_earnings_context(symbol: str, company_name: str, fiscal_label: str) -> str:
+    """Real-time web search (Perplexity) for the actual earnings-release
+    detail no structured data source in this codebase provides — segment
+    revenue/orders growth, backlog, guidance changes, analyst/market
+    reaction. Same defensive pattern as price_alert_service.
+    search_price_catalyst: returns "" (never a guess) on timeout, missing
+    key, or a genuinely empty search — callers must treat that as "no
+    detail found" and say so explicitly, never fabricate a segment number
+    or backlog figure to fill the gap."""
+    from app.services.perplexity_service import search_web
+
+    query = (
+        f"Resultados del reporte trimestral de {company_name} ({symbol}) para {fiscal_label}: "
+        f"busca el desglose de ingresos y crecimiento de órdenes por SEGMENTO de negocio, "
+        f"backlog u órdenes acumuladas, cualquier cambio en el guidance (rango anterior vs nuevo) "
+        f"para el año fiscal completo, y la reacción del mercado/analistas al reporte. Da cifras "
+        f"exactas y de qué segmento/línea de negocio provienen cuando estén disponibles."
+    )
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(search_web, query, False),
+            timeout=35.0,
+        )
+        if not result:
+            logger.warning("Perplexity returned no earnings context for %s (%s)", symbol, fiscal_label)
+        return result
+    except asyncio.TimeoutError:
+        logger.warning("Perplexity earnings context search TIMED OUT for %s (>35s)", symbol)
+        return ""
+    except Exception as e:
+        logger.warning("Perplexity earnings context search failed for %s: %s", symbol, e)
+        return ""
 
 
 @router.get("/calendar")
@@ -353,29 +471,131 @@ async def get_earnings_calendar(
     return {"earnings": results}
 
 
+def _render_analysis_text(analysis: dict, lang: str) -> str:
+    """Plain-text rendering of the structured analysis dict, for the OLD
+    consumers (EarningsPanel.tsx and the mobile earnings panels embedded in
+    the Academy tab) that still expect `analysis` to be a single string —
+    real content, just reformatted, never a separate/weaker analysis."""
+    parts = [analysis.get("headline", "")]
+    if analysis.get("positives"):
+        label = "What's working" if lang == "en" else "Lo positivo"
+        parts.append(f"\n✅ {label}:\n" + "\n".join(f"• {p}" for p in analysis["positives"]))
+    if analysis.get("negatives"):
+        label = "What's not" if lang == "en" else "Lo negativo"
+        parts.append(f"\n❌ {label}:\n" + "\n".join(f"• {n}" for n in analysis["negatives"]))
+    if analysis.get("why_stock_moved"):
+        label = "Why the stock moved" if lang == "en" else "Por qué se movió la acción"
+        parts.append(f"\n📊 {label}: {analysis['why_stock_moved']}")
+    if analysis.get("thesis_impact"):
+        label = "Thesis impact" if lang == "en" else "Impacto en la tesis"
+        parts.append(f"\n🧠 {label}: {analysis['thesis_impact']}")
+    if analysis.get("rating_out_of_10") is not None:
+        label = "Rating" if lang == "en" else "Calificación"
+        parts.append(f"\n⭐ {label}: {analysis['rating_out_of_10']}/10 — {analysis.get('rating_reasoning', '')}")
+    return "\n".join(p for p in parts if p).strip()
+
+
 @router.get("/analysis/{symbol}")
 async def get_earnings_analysis(
     symbol: str,
     shares: float = 0,
     avg_cost: float = 0,
+    lang: str | None = None,
     user_id: str = Depends(get_current_user_id),
 ):
-    """AI analysis of latest earnings for a symbol."""
+    """Structured, real-data-grounded AI analysis of a company's most
+    recently reported quarter — real Finnhub/FMP actual-vs-estimate numbers
+    plus a live Perplexity search for segment/orders/backlog/guidance detail
+    (see _search_earnings_context). Premium-gated, same as /quick-analysis.
+
+    Cached per (symbol, fiscal quarter, lang) for 60 days — a released
+    quarter's report is immutable, so only the first viewer of each new
+    quarter pays for the Perplexity search + Claude call; every other view
+    of that same quarter is a cache hit. This is a deliberate change from
+    the old blanket 30-minute TTL keyed only by symbol, which re-paid that
+    cost every half hour regardless of whether a new quarter had reported."""
+    from app.api.routes.chat import _is_premium
+
     symbol = symbol.upper()
-    cache_key = f"earnings:ai:{symbol}"
-    cached = cache_get(cache_key)
+    profile = _get_user_profile(user_id)
+    if not _is_premium(profile):
+        raise HTTPException(status_code=403, detail="El análisis de earnings requiere Premium")
+
+    if lang not in ("es", "en"):
+        lang = getattr(profile, "preferred_language", None) or "es"
 
     earnings_data = await asyncio.to_thread(_fetch_earnings_data, symbol)
     if "error" in earnings_data:
-        return {"symbol": symbol, "analysis": "No se pudieron obtener los datos de earnings.", "earnings_data": {}}
+        raise HTTPException(status_code=404, detail=f"No hay datos reales de earnings disponibles para {symbol}")
 
-    # Only generate new AI analysis if not cached
-    if not cached:
-        profile  = _get_user_profile(user_id)
-        position = {"shares": shares, "avg_cost": avg_cost} if shares else None
-        analysis = await ai_service.analyze_earnings(symbol, earnings_data, position, profile)
-        cache_set(cache_key, analysis, ttl=_TTL_ANALYSIS)
-    else:
-        analysis = cached
+    fiscal_key = f"{earnings_data.get('fiscal_year')}Q{earnings_data.get('fiscal_quarter')}"
+    cache_key = f"earnings:v2:{symbol}:{fiscal_key}:{lang}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
 
-    return {"symbol": symbol, "analysis": analysis, "earnings_data": earnings_data}
+    web_context = await _search_earnings_context(symbol, earnings_data.get("name", symbol), earnings_data.get("fiscal_label", symbol))
+    position = {"shares": shares, "avg_cost": avg_cost} if shares else None
+    try:
+        analysis = await ai_service.analyze_earnings(symbol, earnings_data, position, profile, lang=lang, web_context=web_context)
+    except Exception as e:
+        logger.error("get_earnings_analysis(%s): AI analysis failed: %s", symbol, e, exc_info=True)
+        analysis = {
+            "headline": (
+                "We couldn't generate the AI analysis right now. The real numbers above are still accurate."
+                if lang == "en" else
+                "No pudimos generar el análisis con IA en este momento. Las cifras reales de arriba siguen siendo correctas."
+            ),
+            "positives": [], "negatives": [], "segments": [], "guidance_change": None,
+            "why_stock_moved": "", "thesis_impact": "", "rating_out_of_10": None,
+            "rating_reasoning": "", "portfolio_note": None,
+        }
+
+    result = {
+        "symbol": symbol,
+        # Backward-compat plain-text rendering — EarningsPanel.tsx and the
+        # mobile earnings panels (embedded in the Academy tab) still expect
+        # `analysis` to be a string; `structured_analysis` below is the new
+        # object the dedicated /earnings screen renders. Once those panels
+        # are migrated, this rendered string can be dropped.
+        "analysis": _render_analysis_text(analysis, lang),
+        "structured_analysis": analysis,
+        "earnings_data": earnings_data,
+    }
+    # Only cache a successful, complete result — never a transient failure,
+    # so a provider hiccup doesn't get "stuck" wrong for 60 days.
+    cache_set(cache_key, result, ttl=_TTL_ANALYSIS_V2)
+    return result
+
+
+@router.get("/recent-reporters")
+async def get_recent_reporters(
+    symbols: str = "",
+    user_id: str = Depends(get_current_user_id),
+):
+    """Cheap, no-AI read: which of the given tickers (the caller passes the
+    user's portfolio+watchlist symbols, same as EarningsPanel.tsx already
+    assembles) reported real earnings within the last
+    _RECENT_REPORTERS_WINDOW_DAYS days. Powers the new Earnings screen's
+    "reportaron recientemente" feed without paying any AI/Perplexity cost
+    until the user actually taps one to see the full analysis."""
+    from app.api.routes.chat import _is_premium
+
+    profile = _get_user_profile(user_id)
+    if not _is_premium(profile):
+        raise HTTPException(status_code=403, detail="El análisis de earnings requiere Premium")
+
+    ticker_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    if not ticker_list:
+        return {"reporters": []}
+
+    all_events = await asyncio.to_thread(_fetch_earnings_calendar, ticker_list[:50])
+    cutoff = (datetime.now().date() - timedelta(days=_RECENT_REPORTERS_WINDOW_DAYS)).isoformat()
+    today_str = datetime.now().date().isoformat()
+    reporters = [
+        e for e in all_events
+        if e["event_type"] == "earnings" and e["status"] == "past" and e.get("event_date")
+        and cutoff <= e["event_date"] <= today_str
+    ]
+    reporters.sort(key=lambda x: x.get("event_date") or "", reverse=True)
+    return {"reporters": reporters}

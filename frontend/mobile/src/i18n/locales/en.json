@@ -601,6 +601,49 @@
       "description": "Type the ticker or company name — e.g. AAPL or Tesla. Nuvos will alert you when there are important moves."
     }
   },
+  "earnings": {
+    "title": "Earnings Analysis",
+    "disclaimer": {
+      "title": "THIS IS NOT INVESTMENT ADVICE",
+      "subtitle": "The rating and analysis are the AI's judgment, not an objective fact."
+    },
+    "search": {
+      "label": "Search any stock's earnings report",
+      "placeholder": "Ticker (e.g. GEV, AAPL, MELI)",
+      "button": "Analyze",
+      "error": "Couldn't get the earnings analysis for that search."
+    },
+    "recentReporters": {
+      "label": "Reported recently",
+      "empty": "None of your stocks (portfolio + watchlist) has reported in the last few days."
+    },
+    "beat": "Beat",
+    "miss": "Miss",
+    "sections": {
+      "positives": "The positives",
+      "negatives": "The negatives",
+      "segments": "Segment breakdown",
+      "guidance": "Guidance",
+      "whyMoved": "Why did the stock move?",
+      "thesisImpact": "Thesis impact",
+      "ratingReasoning": "Why this rating"
+    },
+    "segments": {
+      "none": "We couldn't find segment-level detail for this report."
+    },
+    "guidance": {
+      "raised": "Guidance raised",
+      "lowered": "Guidance lowered",
+      "maintained": "Guidance unchanged",
+      "unknown": "No guidance information"
+    },
+    "premiumGate": {
+      "title": "Premium Exclusive",
+      "desc": "Earnings analysis uses real Finnhub/FMP data plus a real-time search of the report — available for Premium users only.",
+      "cta": "Unlock Premium",
+      "paywallReason": "Earnings analysis"
+    }
+  },
   "subvaluadas": {
     "title": "Top Opportunities",
     "rankStrip": {

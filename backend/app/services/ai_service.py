@@ -2066,7 +2066,24 @@ async def analyze_earnings(
     earnings_data: dict,
     position: dict | None = None,
     profile: UserProfile | None = None,
-) -> str:
+    lang: str = "es",
+    web_context: str = "",
+) -> dict:
+    """Structured earnings-report analysis — grounded in the real Finnhub/FMP
+    actual-vs-estimate numbers in `earnings_data` plus a live Perplexity
+    search (`web_context`, built by earnings.py's _search_earnings_context)
+    for segment/orders/backlog/guidance detail that no structured data
+    source in this codebase provides (get_revenue_segments is annual-only).
+
+    Critical honesty rule: "segments", "guidance_change", and any backlog/
+    orders figure must come ONLY from what earnings_data or web_context
+    actually contain — never invented. Mirrors the NO_CATALYST discipline in
+    price_alert_service.generate_price_alert_why: if the search surfaced no
+    real segment/guidance detail, the model must say so rather than guess.
+
+    Returns a dict (never a bare string) — see the JSON schema in the prompt
+    below. Falls back to an honest "couldn't generate" skeleton (never fakes
+    ratings/segments) if the model's JSON doesn't parse."""
     system_prompt = build_system_prompt(profile)
     position_ctx = ""
     if position:
@@ -2076,14 +2093,13 @@ async def analyze_earnings(
         impact = round((current_price - avg_cost) * shares, 2) if current_price and avg_cost and shares else None
         if impact is not None:
             sign = "+" if impact >= 0 else ""
-            position_ctx = f"\n\nEl usuario tiene {shares} acciones con costo promedio ${avg_cost}. Impacto estimado en after-hours: {sign}${impact:.2f}."
+            position_ctx = f"\n\nEl usuario tiene {shares} acciones con costo promedio ${avg_cost}. Impacto estimado: {sign}${impact:.2f}."
 
     eps_actual   = earnings_data.get("eps_actual")
     eps_estimate = earnings_data.get("eps_estimate")
     rev_actual   = earnings_data.get("revenue_actual")
     rev_estimate = earnings_data.get("revenue_estimate")
-    guidance     = earnings_data.get("guidance", "No disponible")
-    highlights   = earnings_data.get("highlights", "")
+    fiscal_label = earnings_data.get("fiscal_label") or symbol
 
     beat_miss_eps = ""
     if eps_actual is not None and eps_estimate is not None:
@@ -2095,39 +2111,65 @@ async def analyze_earnings(
         diff_pct = ((rev_actual - rev_estimate) / rev_estimate * 100) if rev_estimate else 0
         beat_miss_rev = f"✅ BEAT +{diff_pct:.1f}%" if diff_pct >= 0 else f"❌ MISS {diff_pct:.1f}%"
 
-    prompt = f"""Analiza los resultados de earnings de {symbol}:
+    web_section = (
+        f"BÚSQUEDA WEB EN TIEMPO REAL del reporte real ({fiscal_label}):\n{web_context}"
+        if web_context else
+        f"BÚSQUEDA WEB EN TIEMPO REAL del reporte real ({fiscal_label}):\n(sin resultados — no hay detalle de segmentos/guidance/backlog disponible)"
+    )
 
+    prompt = f"""{_output_language_directive(lang)}Eres el analista de earnings de Nuvos AI. Analiza el reporte de resultados de {symbol} ({fiscal_label}):
+
+DATOS REALES:
 EPS: ${eps_actual} real vs ${eps_estimate} estimado {beat_miss_eps}
-Revenue: ${rev_actual}B real vs ${rev_estimate}B estimado {beat_miss_rev}
-Guidance: {guidance}
-Highlights: {highlights}{position_ctx}
+Revenue: {rev_actual} real vs {rev_estimate} estimado {beat_miss_rev}
 
-Responde en este formato exacto con bullets y emojis:
+{web_section}{position_ctx}
 
-**📊 Veredicto rápido**
-Una línea con el resultado general (beat/miss/en línea) y su calidad.
+REGLAS CRÍTICAS (no negociables):
+1. Los campos "segments", "guidance_change" y cualquier cifra de backlog/órdenes SOLO pueden venir de lo que aparece literalmente en la BÚSQUEDA WEB de arriba o de los DATOS REALES de EPS/Revenue — NUNCA inventes un número de backlog, crecimiento de segmento o cambio de guidance que no esté ahí. Si la búsqueda no trae ese detalle, deja el campo como null o un array vacío y dilo explícitamente en el texto (ej. "no encontramos detalle de segmentos para este reporte").
+2. "rating_out_of_10" y "rating_reasoning" son tu juicio subjetivo como analista — dilo explícitamente, no lo presentes como un hecho objetivo.
+3. Nunca digas "Comprar/Vender" — esto no es asesoría de inversión.
 
-**🔍 Lo que importa**
-3 bullets sobre los números que realmente mueven la tesis de inversión (no solo EPS/revenue).
-
-**📈 Impacto en tu portafolio**
-1-2 líneas sobre qué significa este resultado para quien tiene acciones de {symbol}.
-
-**🧠 Lo que diría tu mentor**
-1 párrafo corto con la perspectiva del mentor según el perfil del usuario.
-
-**⚡ Acción sugerida**
-Una línea directa: mantener / considerar agregar / monitorear — con la razón en 10 palabras.
-
-Sin introducciones. Sin conclusiones genéricas. Directo al punto."""
+Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta estructura exacta:
+{{
+  "headline": "<1 línea: veredicto general del trimestre y su calidad>",
+  "positives": ["<viñeta positiva 1 con cifra real>", "..."],
+  "negatives": ["<viñeta negativa 1 con cifra real>", "..."],
+  "segments": [{{"name": "<nombre real del segmento mencionado en la búsqueda>", "metric": "<ej. 'órdenes', 'revenue' o 'EBITDA'>", "value": "<cifra real, ej. '+135%' o '-$275M'>", "note": "<contexto breve>"}}],
+  "guidance_change": {{"status": "raised|lowered|maintained|unknown", "old_range": "<o null>", "new_range": "<o null>", "note": "<o null>"}},
+  "why_stock_moved": "<explicación breve de por qué el mercado reaccionó así, basada solo en lo real de arriba>",
+  "thesis_impact": "<1 párrafo: qué significa este reporte para la tesis de inversión de largo plazo>",
+  "rating_out_of_10": <número decimal, ej. 8.8>,
+  "rating_reasoning": "<por qué esa calificación — tu juicio subjetivo>",
+  "portfolio_note": "<1 línea sobre el impacto en la posición del usuario si aplica, o null>"
+}}"""
 
     response = await _claude(
         model=settings.claude_model,
-        max_tokens=700,
+        max_tokens=1600,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
-    return response.content[0].text
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and "headline" in parsed:
+        parsed.setdefault("segments", [])
+        parsed.setdefault("positives", [])
+        parsed.setdefault("negatives", [])
+        parsed.setdefault("guidance_change", None)
+        parsed.setdefault("portfolio_note", None)
+        return parsed
+    _log.warning("analyze_earnings(%s): JSON parse failed, response likely truncated (%d chars)", symbol, len(text))
+    fallback_headline = (
+        "We couldn't generate the AI analysis right now. The real numbers above are still accurate."
+        if lang == "en" else
+        "No pudimos generar el análisis con IA en este momento. Las cifras reales de arriba siguen siendo correctas."
+    )
+    return {
+        "headline": fallback_headline, "positives": [], "negatives": [], "segments": [],
+        "guidance_change": None, "why_stock_moved": "", "thesis_impact": "",
+        "rating_out_of_10": None, "rating_reasoning": "", "portfolio_note": None,
+    }
 
 
 # ──────────────────────────────────────────────────────────────

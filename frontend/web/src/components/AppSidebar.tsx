@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import Image from "next/image";
 import {
   BrainCircuit, Wallet, Bell, User, GraduationCap,
-  MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, ArrowRight, Lock, LogOut, Home, ShoppingBag, Menu, BookMarked,
+  MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, ArrowRight, Lock, LogOut, Home, ShoppingBag, Menu, BookMarked, FileBarChart,
 } from "lucide-react";
 
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
@@ -49,6 +49,7 @@ const MAIN_NAV: NavItem[] = [
 
 const SECONDARY_NAV: NavItem[] = [
   { href: "/subvaluadas",   icon: BookMarked,     labelKey: "common.nav.undervalued",   minLevel: "basico" },
+  { href: "/earnings",      icon: FileBarChart,   labelKey: "common.nav.earnings",      minLevel: "basico" },
   { href: "/notifications", icon: Bell,           labelKey: "common.nav.notifications", minLevel: "basico" },
   { href: "/profile",       icon: User,           labelKey: "common.nav.profile",       minLevel: "basico" },
   { href: "/products",      icon: ShoppingBag,    labelKey: "common.nav.products",      minLevel: "basico" },

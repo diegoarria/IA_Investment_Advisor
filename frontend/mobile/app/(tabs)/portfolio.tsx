@@ -1906,6 +1906,25 @@ export default function PortfolioScreen() {
               </View>
             </TouchableOpacity>
 
+            {/* Análisis de Earnings — desglose por segmento + rating real,
+                grounded en Finnhub/FMP + búsqueda web en vivo. */}
+            <TouchableOpacity
+              onPress={() => router.push("/earnings" as any)}
+              activeOpacity={0.85}
+              style={{ borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden", marginTop: 12 }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, backgroundColor: "#151821" }}>
+                <View style={{ width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#3b82f6" }}>
+                  <Ionicons name="bar-chart-outline" size={24} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: "900", color: "#fff" }}>{t("earnings.title")}</Text>
+                  <Text style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{t("earnings.premiumGate.desc")}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+              </View>
+            </TouchableOpacity>
+
           </View>
         )}
 
