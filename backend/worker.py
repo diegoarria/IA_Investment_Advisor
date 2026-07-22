@@ -274,11 +274,37 @@ _COMPANY_NAMES: dict[str, str] = {
     "CRWD": "CrowdStrike",     "PANW": "Palo Alto",      "OKTA": "Okta",
     "ARM": "Arm Holdings",     "AVGO": "Broadcom",       "QCOM": "Qualcomm",
     "TXN": "Texas Instruments","MU": "Micron Technology","AMAT": "Applied Materials",
+    "GEV": "GE Vernova",       "MELI": "Mercado Libre",
 }
 
 
 def _company_name(ticker: str) -> str:
-    return _COMPANY_NAMES.get(ticker, ticker)
+    """Real company name for a ticker — never just falls back to the bare
+    ticker symbol silently. Checks the hand-curated short-name map first
+    (fastest, no I/O, and gives nicer short names like "Amazon" instead of
+    "Amazon.com, Inc." for the ~90 most common tickers), then the curated
+    screener UNIVERSE (also no I/O), then a real Finnhub company-profile
+    lookup (cached 24h) for any other real ticker — e.g. "GE Vernova" or
+    "MercadoLibre" previously showed up as the bare ticker in push
+    notifications simply because they weren't in the hardcoded map. Only
+    returns the bare ticker if Finnhub itself has no profile for it."""
+    if ticker in _COMPANY_NAMES:
+        return _COMPANY_NAMES[ticker]
+    try:
+        from app.api.routes.screener import UNIVERSE
+        universe_match = next((u["name"] for u in UNIVERSE if u["ticker"] == ticker), None)
+        if universe_match:
+            return universe_match
+    except Exception:
+        pass
+    try:
+        from app.core.finnhub import fh_profile
+        profile = fh_profile(ticker)
+        if profile and profile.get("name"):
+            return profile["name"]
+    except Exception as e:
+        logger.warning("_company_name(%s): Finnhub profile fallback failed: %s", ticker, e)
+    return ticker
 
 
 # strftime's %B depends on the server's locale, which isn't guaranteed to be
@@ -1925,7 +1951,7 @@ async def job_portfolio_alerts():
         ticker_title:  dict[str, str] = {}
         today_et = _today_et()
         for ticker, pct in movers.items():
-            ticker_title[ticker] = _company_name(ticker)
+            ticker_title[ticker] = await asyncio.to_thread(_company_name, ticker)
 
             cache_key = f"price_why:{ticker}:{today_et}"
             cached = cache_get(cache_key)
