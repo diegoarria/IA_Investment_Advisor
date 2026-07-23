@@ -1217,6 +1217,16 @@ async def _generate_market_wrap(
     respectively). `language` picks Spanish or English — this is generated
     once per language among the batch of users being emailed (not per user),
     since the narrative content is identical for everyone in that language."""
+    if sp_pct is None and nq_pct is None and not top_movers:
+        # Nothing real to summarize — never let the model freely improvise a
+        # narrative about "no data available" and have that get sent to
+        # users looking like a real analysis (see the 2026-07-17 incident,
+        # where exactly this happened). Callers should ideally not reach
+        # this point at all (job_daily_email now skips sending rather than
+        # calling this with empty data), but this is the last line of
+        # defense for any other caller.
+        return ""
+
     try:
         import anthropic
         from app.services.price_alert_service import fetch_ticker_news
@@ -1423,6 +1433,21 @@ async def job_daily_email():
         # email used to show mislabeled as "esta semana."
         spy_w = await asyncio.to_thread(_finnhub_weekly_pct, "SPY")
         qqq_w = await asyncio.to_thread(_finnhub_weekly_pct, "QQQ")
+        if not spy_w and not qqq_w:
+            # Both index fetches failing together points at a transient
+            # Finnhub hiccup (rate limit, brief outage) rather than a real
+            # "no data" condition — one retry after a short backoff usually
+            # recovers. If it still fails, skip sending entirely: a broken
+            # email with "—" indices and an AI paragraph admitting it has no
+            # data to work with is worse than no email, and previously went
+            # out anyway (see the 2026-07-17 incident).
+            logger.warning("job_daily_email: SPY/QQQ weekly fetch both failed, retrying once in 30s")
+            await asyncio.sleep(30)
+            spy_w = await asyncio.to_thread(_finnhub_weekly_pct, "SPY")
+            qqq_w = await asyncio.to_thread(_finnhub_weekly_pct, "QQQ")
+            if not spy_w and not qqq_w:
+                logger.error("job_daily_email: SPY/QQQ weekly fetch failed twice — skipping this send, not sending a dataless email")
+                return
         sp_pct = spy_w["pct"] if spy_w else None
         nq_pct = qqq_w["pct"] if qqq_w else None
         sp_px  = spy_w["curr"] if spy_w else None
