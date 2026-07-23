@@ -165,18 +165,11 @@ def _calc_portfolio_close_data(
 
 
 def _is_premium_user(tier: str, trial_started: str | None) -> bool:
-    """Consistent premium check used by all notification jobs.
-    Covers: explicit premium/pro tier, and active 30-day trial."""
-    if tier in ("premium", "pro"):
-        return True
-    if trial_started:
-        try:
-            from datetime import datetime as _dt, timezone as _tz
-            started = _dt.fromisoformat(trial_started.replace("Z", "+00:00"))
-            return (_dt.now(_tz.utc) - started).days < 30
-        except Exception:
-            pass
-    return False
+    """Consistent premium check used by all notification jobs. Delegates to
+    app.core.subscription.is_premium_active — the single canonical
+    trial-window check shared across the whole app."""
+    from app.core.subscription import is_premium_active
+    return is_premium_active(tier, trial_started)
 
 
 def _top_performer(positions: list, prices: dict) -> tuple[str | None, float | None]:

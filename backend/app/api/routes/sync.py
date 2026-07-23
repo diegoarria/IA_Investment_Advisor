@@ -488,13 +488,8 @@ async def get_trial_status(user_id: str = Depends(get_current_user_id)):
         return {"trial_started_at": None, "tier": "free"}
     row = result.data[0]
     trial_started_at = row.get("trial_started_at")
-    is_active = False
-    if trial_started_at:
-        try:
-            started = datetime.fromisoformat(trial_started_at.replace("Z", "+00:00"))
-            is_active = datetime.now(timezone.utc) < started + timedelta(days=90)
-        except Exception:
-            pass
+    from app.core.subscription import is_premium_active
+    is_active = is_premium_active(row.get("subscription_tier"), trial_started_at)
     return {
         "trial_started_at": trial_started_at,
         "trial_active":     is_active,
@@ -572,13 +567,8 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
     profile_row = profile_res.data[0] if profile_res.data else {}
 
     trial_started_at = profile_row.get("trial_started_at")
-    trial_active = False
-    if trial_started_at:
-        try:
-            started = datetime.fromisoformat(trial_started_at.replace("Z", "+00:00"))
-            trial_active = datetime.now(timezone.utc) < started + timedelta(days=90)
-        except Exception:
-            pass
+    from app.core.subscription import is_premium_active
+    trial_active = is_premium_active(profile_row.get("subscription_tier"), trial_started_at)
 
     resp = {
         "portfolio": {

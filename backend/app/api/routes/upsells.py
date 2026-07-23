@@ -17,22 +17,13 @@ logger = logging.getLogger(__name__)
 
 PRIORITY = ["session", "annual_report", "family_plan"]
 
-_PROMO_DAYS = 30
-
 
 def _effective_tier(raw_tier: str, trial_started_at: str | None) -> str:
-    """Return 'premium' if user is paid premium OR within 30-day promo trial."""
-    if raw_tier == "premium":
-        return "premium"
-    if not trial_started_at:
-        return raw_tier
-    try:
-        started = datetime.fromisoformat(trial_started_at.replace("Z", "+00:00"))
-        if (datetime.now(timezone.utc) - started).total_seconds() / 86400 < _PROMO_DAYS:
-            return "premium"
-    except Exception:
-        pass
-    return raw_tier
+    """Return 'premium' if user is paid premium OR within their active trial.
+    Delegates to app.core.subscription.is_premium_active — the single
+    canonical trial-window check shared across the whole app."""
+    from app.core.subscription import is_premium_active
+    return "premium" if is_premium_active(raw_tier, trial_started_at) else raw_tier
 
 PRICES = {
     "annual_report": {"free": 34.99, "premium": 19.99},

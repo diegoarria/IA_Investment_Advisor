@@ -65,21 +65,13 @@ async def _check_daily_cost_cap(user_id: str) -> None:
 
 
 def _is_premium(profile) -> bool:
-    """True for premium/pro subscribers and users within their 30-day trial."""
+    """True for premium/pro subscribers and users within their trial.
+    Delegates to app.core.subscription.is_premium_active — the single
+    canonical trial-window check shared across the whole app."""
     if profile is None:
         return False
-    from datetime import datetime as _dt, timezone as _tz
-    tier = getattr(profile, "subscription_tier", "") or ""
-    if tier in ("premium", "pro"):
-        return True
-    trial = getattr(profile, "trial_started_at", None)
-    if trial:
-        try:
-            started = _dt.fromisoformat(trial.replace("Z", "+00:00"))
-            return (_dt.now(_tz.utc) - started).days < 30
-        except Exception:
-            pass
-    return False
+    from app.core.subscription import is_premium_active
+    return is_premium_active(getattr(profile, "subscription_tier", None), getattr(profile, "trial_started_at", None))
 
 
 _LIVE_DATA_RE = re.compile(r"\bmi (portafolio|cuenta|posici[oó]n|inversi[oó]n)\b|\b(hoy|ahora|today|now)\b", re.IGNORECASE)

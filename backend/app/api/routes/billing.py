@@ -8,6 +8,7 @@ from typing import Literal
 from app.api.deps import get_current_user_id
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
+from app.core.cache import cache_delete
 from app.services import investor_progress_service
 
 logger = logging.getLogger(__name__)
@@ -109,6 +110,7 @@ async def stripe_webhook(request: Request):
             await run_query(
                 db.table("user_profiles").update(update).eq("user_id", user_id)
             )
+            cache_delete(f"profile:{user_id}")
 
     elif event["type"] in ("customer.subscription.deleted", "customer.subscription.paused"):
         customer_id = event["data"]["object"].get("customer")
@@ -118,6 +120,7 @@ async def stripe_webhook(request: Request):
                     "subscription_tier": "free",
                 }).eq("stripe_customer_id", customer_id)
             )
+            await _invalidate_profile_cache_by_customer(customer_id, db)
             await _revoke_duo_secondary(customer_id, db)
 
     elif event["type"] == "invoice.payment_failed":
@@ -128,6 +131,7 @@ async def stripe_webhook(request: Request):
                     "subscription_tier": "free",
                 }).eq("stripe_customer_id", customer_id)
             )
+            await _invalidate_profile_cache_by_customer(customer_id, db)
             await _revoke_duo_secondary(customer_id, db)
 
     elif event["type"] == "invoice.payment_succeeded":
@@ -140,8 +144,24 @@ async def stripe_webhook(request: Request):
                     "subscription_tier": "premium",
                 }).eq("stripe_customer_id", customer_id)
             )
+            await _invalidate_profile_cache_by_customer(customer_id, db)
 
     return {"received": True}
+
+
+async def _invalidate_profile_cache_by_customer(customer_id: str, db):
+    """Webhook branches that key their update by stripe_customer_id (rather
+    than user_id) don't have the user_id in scope to invalidate the /profile
+    cache directly — without this, a tier change from Stripe could be masked
+    by a stale cached /profile response for up to 120s."""
+    try:
+        res = await run_query(
+            db.table("user_profiles").select("user_id").eq("stripe_customer_id", customer_id)
+        )
+        for row in (res.data or []):
+            cache_delete(f"profile:{row['user_id']}")
+    except Exception as e:
+        logger.warning("_invalidate_profile_cache_by_customer failed: %s", e)
 
 
 # ── Broker call checkout ──────────────────────────────────────────────────────
@@ -176,7 +196,7 @@ async def broker_call_checkout(user_id: str = Depends(get_current_user_id)):
     return {"url": session.url}
 
 
-_PROMO_DAYS = 30
+from app.core.subscription import TRIAL_DAYS as _PROMO_DAYS
 
 
 @router.get("/status")
@@ -204,6 +224,7 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
             .update({"trial_started_at": trial_started})
             .eq("user_id", user_id)
         )
+        cache_delete(f"profile:{user_id}")
 
     # Compute effective tier: premium if paid OR within 30-day promo window OR streak bonus active
     effective_tier = tier
@@ -309,6 +330,7 @@ async def _revoke_duo_secondary(primary_customer_id: str, db):
                 .update({"subscription_tier": "free", "duo_primary_user_id": None})
                 .eq("user_id", secondary_id)
             )
+            cache_delete(f"profile:{secondary_id}")
             logger.info("Duo secondary %s reverted to free", secondary_email)
         await run_query(
             db.table("user_profiles")
@@ -354,6 +376,7 @@ async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
         .update({"subscription_tier": "premium", "duo_primary_user_id": user_id})
         .eq("user_id", secondary_id)
     )
+    cache_delete(f"profile:{secondary_id}")
 
     # 4. Save secondary email + resolved id on primary profile (caching the id
     # avoids re-scanning all auth users by email on every future lookup).

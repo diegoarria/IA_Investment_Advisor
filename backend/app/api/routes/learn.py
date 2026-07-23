@@ -36,22 +36,16 @@ async def _get_profile_raw(user_id: str) -> dict | None:
         return None
 
 async def _is_premium(user_id: str) -> bool:
+    """Delegates to app.core.subscription.is_premium_active — the single
+    canonical trial-window check shared across the whole app. This used to
+    only check subscription_tier == "premium" and never consulted
+    trial_started_at at all, so any user in an active trial was silently
+    treated as free on every Learn endpoint."""
+    from app.core.subscription import is_premium_active
     p = await _get_profile_raw(user_id)
-    return bool(p and p.get("subscription_tier") == "premium")
-
-def _is_trial_active(profile: dict | None) -> bool:
-    """Returns True if user is within their 7-day free trial."""
-    if not profile:
+    if not p:
         return False
-    ts = profile.get("trial_started_at")
-    if not ts:
-        return False
-    from datetime import datetime, timezone, timedelta
-    try:
-        started = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        return datetime.now(timezone.utc) < started + timedelta(days=7)
-    except Exception:
-        return False
+    return is_premium_active(p.get("subscription_tier"), p.get("trial_started_at"))
 
 async def _get_daily_usage(user_id: str) -> dict:
     """Fetch or create today's usage row from Supabase."""
