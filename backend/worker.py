@@ -2557,9 +2557,13 @@ def _fetch_ticker_news(ticker: str) -> list[str]:
     return fetch_ticker_news(ticker)
 
 
-_MAJOR_NEWS_DAILY_CAP = 3
+_MAJOR_NEWS_DAILY_CAP = 5
 _MAJOR_NEWS_LOOKBACK_DAYS = 5  # how far back "don't repeat the same ongoing story" checks
 _MAJOR_NEWS_CATEGORY_EMOJI = {"geopolitics": "🌐", "macro": "📊", "corporate": "🏢", "leadership": "🎤", "global_event": "🌍"}
+# 5 fixed daily windows (America/New_York) — one scheduled run per window,
+# each one mandatory-delivers exactly 1 of the day's 5 alerts. Registered as
+# 5 separate cron jobs (one per window start) further down in this file.
+_MAJOR_NEWS_WINDOWS = [(8, 10), (11, 13), (14, 16), (17, 19), (20, 22)]
 
 
 async def _curate_major_news(
@@ -2570,8 +2574,16 @@ async def _curate_major_news(
     geopolitical/macro/big-corporate/leadership/global-event stories —
     explicitly excluding analyst opinions (price-target changes,
     upgrades/downgrades), which are noise for this feature even though
-    they're valid "why" catalysts elsewhere in the app. Returns [] if
-    nothing qualifies — never forces a filler story just to fill the quota.
+    they're valid "why" catalysts elsewhere in the app.
+
+    This now runs once per fixed daily window (see _MAJOR_NEWS_WINDOWS) and
+    is expected to deliver exactly 1 real item per run — it's a mandatory
+    5-alerts-a-day product decision, not "alert only on truly rare huge
+    news." Still never invents a story: it must pick the single best REAL,
+    concrete item the search actually returned, relaxing how "major" it
+    needs to be rather than fabricating one. Only returns [] if the search
+    genuinely surfaced nothing usable in any of the 5 categories, which
+    should be rare given how broad the search query is.
 
     `recent_days_headlines` (last _MAJOR_NEWS_LOOKBACK_DAYS days, not just
     today) fixes a real complaint: the same ongoing situation (e.g. an
@@ -2580,7 +2592,10 @@ async def _curate_major_news(
     headline about the same multi-day story always passed that check. Now
     Claude is explicitly told not to resend the same underlying situation
     unless something materially NEW happened (an escalation, a resolution,
-    a concrete new development) — continuing tension alone doesn't count."""
+    a concrete new development) — continuing tension alone doesn't count.
+    Repeating the same CATEGORY, or a different real statement from the
+    same or a different public figure (e.g. Bezos today, Musk tomorrow), is
+    explicitly fine — only the exact underlying story must not repeat."""
     import anthropic, json as _json
 
     already_sent_str = (
@@ -2613,7 +2628,9 @@ TU TAREA: de toda esa información, extrae ÚNICAMENTE historias que caigan en e
 
 En resumen: el criterio ya NO es "¿esto mueve los mercados globales?" para todas las categorías — es "¿esto es un hecho real, concreto, y genuinamente importante que alguien bien informado querría saber hoy?". Sigue siendo un filtro estricto (nada de ruido, nada trivial), pero cubre geopolítica/gobierno, macro, empresas grandes (no solo mega-caps), líderes, y eventos globales — noticias de todo tipo, mientras sean genuinamente relevantes.
 
-REGLA CLAVE CONTRA REPETICIÓN (esto es lo más importante hoy): si una historia de "NOTICIAS ENVIADAS EN LOS ÚLTIMOS {_MAJOR_NEWS_LOOKBACK_DAYS} DÍAS" trata sobre la MISMA situación en desarrollo (ej. la misma tensión geopolítica, el mismo conflicto, la misma negociación) y lo único que cambió es que "sigue tensa" o "continúa" sin un hecho NUEVO y CONCRETO (una escalada real, una resolución, un anuncio oficial, un cambio de postura confirmado), NO la incluyas — no repitas la misma historia solo porque sigue en las noticias. Prioriza diversidad: si hay varias historias calificando, prefiere la que NO se parezca a algo ya enviado recientemente, y prefiere cubrir distintas categorías/regiones en vez de repetir el mismo tipo de historia varias veces seguidas.
+REGLA CLAVE CONTRA REPETICIÓN (esto es lo más importante hoy): si una historia de "NOTICIAS ENVIADAS EN LOS ÚLTIMOS {_MAJOR_NEWS_LOOKBACK_DAYS} DÍAS" trata sobre la MISMA situación en desarrollo (ej. la misma tensión geopolítica, el mismo conflicto, la misma negociación) y lo único que cambió es que "sigue tensa" o "continúa" sin un hecho NUEVO y CONCRETO (una escalada real, una resolución, un anuncio oficial, un cambio de postura confirmado), NO la incluyas — no repitas la misma historia solo porque sigue en las noticias.
+
+IMPORTANTE — repetir CATEGORÍA está bien: la regla de arriba es SOLO sobre la misma historia/situación específica. Está perfectamente bien tener varias historias de la misma categoría el mismo día (ej. dos noticias de "declaraciones de líderes" — Jeff Bezos habló de algo hoy en la mañana, Elon Musk habló de otra cosa en la tarde — son dos historias distintas y ambas califican). NO descartes ni penalices una historia real solo porque ya se envió otra de la misma categoría hoy o esta semana — lo único que nunca se repite es la MISMA historia/situación concreta.
 
 EXCLUYE SIEMPRE, sin excepción (esto NO cuenta como noticia relevante aquí):
 - Cualquier cosa tipo "Banco X sube/baja el precio objetivo de la acción Y" — esto es ruido, no un evento real
@@ -2624,8 +2641,8 @@ EXCLUYE SIEMPRE, sin excepción (esto NO cuenta como noticia relevante aquí):
 - Eventos deportivos/culturales menores o regionales sin interés verdaderamente mundial
 
 REGLAS:
-- Máximo {max_items} historias — si genuinamente no hay {max_items} historias que califiquen, devuelve menos, incluso cero. NUNCA rellenes con algo débil o repetido solo para completar el número.
-- Si no hay NADA que califique (o todo lo que califica ya se envió recientemente sin novedad real), responde exactamente: {{"items": []}}
+- Este es un horario programado y OBLIGATORIO de la alerta — debes devolver EXACTAMENTE 1 historia real y concreta de las 5 categorías (nunca más de {max_items}). Si hay varias que califican, elige la más relevante/reciente. Si ninguna es "muy grande", igual elige la MEJOR historia real disponible ahora mismo entre las categorías — no necesita ser excepcional, solo real, concreta y verificable. Solo responde con items vacío si la búsqueda genuinamente no trajo NADA real y verificable en ninguna de las 5 categorías — esto debería ser rarísimo dado lo amplia que es la búsqueda. NUNCA inventes una historia que no esté en los resultados de búsqueda.
+- Si de verdad no hay absolutamente nada real que califique, responde exactamente: {{"items": []}}
 - Cada item debe tener una notificación push MUY corta (máximo 90-120 caracteres), directa, sin relleno — el usuario la lee en la pantalla de bloqueo.
 - Genera el texto de la notificación en DOS idiomas: español (push_body_es) e inglés (push_body_en) — misma información, mismo tono directo, cada uno natural en su idioma (no una traducción literal palabra por palabra).
 
@@ -2664,24 +2681,29 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional, en este formato exac
 
 
 async def job_major_news_alert():
-    """Every 2 hours, 7 days a week, 8am-9pm ET — sends up to 3 genuinely
+    """Runs once in each of 5 fixed daily windows, 7 days a week (see
+    _MAJOR_NEWS_WINDOWS — registered as 5 separate cron triggers at each
+    window's start: 8am, 11am, 2pm, 5pm, 8pm ET) — sends exactly 5 genuinely
     major geopolitical/macro/big-corporate/leadership/global-event news
-    alerts PER DAY (shared across ALL users, not per-user, not premium-
-    gated). This is a "warn everyone about big events" feature, not
-    personalized analysis — most cycles should send nothing, since most
-    news isn't actually major.
+    alerts PER DAY, one per window, MANDATORY (shared across ALL users, not
+    per-user, not premium-gated). Unlike the old "up to 3, often 0" design,
+    this is a guaranteed 5-a-day product decision — see _curate_major_news's
+    docstring for how it stays mandatory without ever inventing a story.
 
     Runs on weekends too (deliberately, unlike market-hours jobs) since
     geopolitical/macro news doesn't stop when markets are closed.
 
-    Daily cap of 3 is enforced via major_news_events (DB table), not an
-    in-memory/Redis cache — same lesson as the price-alert dedup fix: a
-    cache-based counter resets on every worker restart/redeploy.
+    Daily cap of _MAJOR_NEWS_DAILY_CAP (5) is enforced via major_news_events
+    (DB table), not an in-memory/Redis cache — same lesson as the
+    price-alert dedup fix: a cache-based counter resets on every worker
+    restart/redeploy.
 
     Also looks back _MAJOR_NEWS_LOOKBACK_DAYS days (not just today) to stop
-    an ongoing multi-day story from getting resent every cycle just because
+    the same underlying story from getting resent every window just because
     it's still in the news — a real complaint (the same geopolitical
-    tension alerted 4 days straight). See _curate_major_news's docstring.
+    tension alerted day after day). Repeating the same CATEGORY across
+    windows/days is explicitly fine (see _curate_major_news's docstring) —
+    only the exact same story must never repeat.
     """
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push, _today_et
@@ -4589,10 +4611,13 @@ async def main():
     # APScheduler will still run the job if it missed by less than this window.
     scheduler = AsyncIOScheduler(job_defaults={"misfire_grace_time": 600})
 
-    # ── 7 days/week: major geopolitical/macro/corporate news alerts (max 3/day) ──
+    # ── 7 days/week: major geopolitical/macro/corporate news alerts ─────────────
+    # Mandatory 5/day, one per fixed window (see _MAJOR_NEWS_WINDOWS) — 5
+    # separate cron triggers at each window's start (8am/11am/2pm/5pm/8pm ET).
     # Deliberately includes weekends — unlike the market-hours jobs below,
     # geopolitical/macro news doesn't pause when markets are closed.
-    scheduler.add_job(job_major_news_alert,     "cron", hour="8-20/2", minute=0, timezone="America/New_York")
+    for _window_start_hour in (w[0] for w in _MAJOR_NEWS_WINDOWS):
+        scheduler.add_job(job_major_news_alert, "cron", hour=_window_start_hour, minute=0, timezone="America/New_York")
 
     # ── Mon-Fri: core daily jobs ──────────────────────────────────────────────
     scheduler.add_job(job_ipo_alerts,            "cron",                        hour=7,       minute=45,    timezone="America/New_York")
