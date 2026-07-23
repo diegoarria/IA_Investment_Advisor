@@ -187,7 +187,7 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("/insights")
-async def get_ai_insights(user_id: str = Depends(get_current_user_id)):
+async def get_ai_insights(lang: str | None = None, user_id: str = Depends(get_current_user_id)):
     """Analyze chat history to detect behavioral patterns and suggest profile updates."""
     try:
         db = get_supabase()
@@ -201,11 +201,13 @@ async def get_ai_insights(user_id: str = Depends(get_current_user_id)):
         )
         msgs = result.data
         profile_row_res = await run_query(
-            db.table("user_profiles").select("risk_tolerance,mentor,subscription_tier").eq("user_id", user_id)
+            db.table("user_profiles").select("risk_tolerance,mentor,subscription_tier,preferred_language").eq("user_id", user_id)
         )
         profile_data = profile_row_res.data[0] if profile_row_res.data else {}
         declared_risk = profile_data.get("risk_tolerance", "moderate")
         is_premium = profile_data.get("subscription_tier") == "premium"
+        if lang not in ("es", "en"):
+            lang = profile_data.get("preferred_language") or "es"
 
         # Premium: 50 msgs, deeper analysis; Free: 20 msgs, basic analysis
         min_msgs = 5 if is_premium else 8
@@ -214,9 +216,34 @@ async def get_ai_insights(user_id: str = Depends(get_current_user_id)):
             return {"ready": False, "reason": "few_messages"}
 
         combined = "\n".join(f"- {m['content'][:200]}" for m in msgs)
+        lang_directive = (
+            "IMPORTANT: Write every text value in this JSON entirely in English, regardless of the language of the instructions below.\n\n"
+            if lang == "en" else ""
+        )
 
         if is_premium:
-            prompt = f"""Analiza en profundidad los mensajes de un inversor y genera un perfil psicológico-financiero completo.
+            if lang == "en":
+                prompt = f"""{lang_directive}Deeply analyze an investor's messages and produce a complete psychological-financial profile.
+Declared profile: {declared_risk}
+
+MESSAGES:
+{combined}
+
+Reply ONLY with this JSON:
+{{
+  "topics": ["up to 6 most frequent topics"],
+  "risk_behavior": "conservative|moderate|aggressive",
+  "risk_match": true/false,
+  "risk_note": "if it doesn't match {declared_risk}, explain what behavior this reveals",
+  "interests": ["up to 5 sectors or assets mentioned most"],
+  "suggestion": "personalized, specific recommendation of what they should study or do",
+  "maturity_signal": "beginner|intermediate|advanced",
+  "behavioral_biases": ["up to 3 detected biases (e.g. FOMO, loss aversion, overconfidence)"],
+  "evolution_note": "1 sentence on how their investor thinking has evolved",
+  "next_level_tip": "concrete advice to take their thinking to the next level"
+}}"""
+            else:
+                prompt = f"""Analiza en profundidad los mensajes de un inversor y genera un perfil psicológico-financiero completo.
 Perfil declarado: {declared_risk}
 
 MENSAJES:
@@ -236,7 +263,25 @@ Responde SOLO con este JSON:
   "next_level_tip": "consejo concreto para llevar su pensamiento al siguiente nivel"
 }}"""
         else:
-            prompt = f"""Analiza los mensajes de un usuario de una app de inversión y detecta patrones básicos.
+            if lang == "en":
+                prompt = f"""{lang_directive}Analyze an investing app user's messages and detect basic patterns.
+Declared profile: {declared_risk}
+
+MESSAGES:
+{combined}
+
+Reply ONLY with this JSON:
+{{
+  "topics": ["up to 4 most frequent topics they ask about"],
+  "risk_behavior": "conservative|moderate|aggressive",
+  "risk_match": true/false,
+  "risk_note": "if it doesn't match {declared_risk}, explain in 1 sentence what behavior this reveals",
+  "interests": ["up to 3 sectors or assets mentioned most"],
+  "suggestion": "1-sentence personalized recommendation of what they should explore or learn",
+  "maturity_signal": "beginner|intermediate|advanced"
+}}"""
+            else:
+                prompt = f"""Analiza los mensajes de un usuario de una app de inversión y detecta patrones básicos.
 Perfil declarado: {declared_risk}
 
 MENSAJES:

@@ -235,7 +235,7 @@ export const learn = {
 };
 
 export const insights = {
-  get: () => api.get("/api/profile/insights"),
+  get: (lang?: string) => api.get("/api/profile/insights", { params: { lang } }),
 };
 
 export const mentorLetter = {

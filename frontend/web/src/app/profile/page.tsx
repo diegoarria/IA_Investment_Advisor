@@ -142,7 +142,7 @@ const riskETFs: Record<string, string> = {
 };
 
 export default function ProfilePage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile, maturityScore, maturityHistory, setProfile } = useProfileStore();
@@ -203,7 +203,7 @@ export default function ProfilePage() {
   const riskMetrics = getRiskMetrics(t);
 
   useEffect(() => {
-    insightsApi.get().then((r) => setInsights(r.data)).catch(() => {});
+    insightsApi.get(i18n.language).then((r) => setInsights(r.data)).catch(() => {});
     notifApi.getAll().then(() => {}).catch(() => {});
     feedApi.getLiked().then((r) => setLikedClips(r.data.clips || [])).catch(() => {});
     subStore.fetchStatus().catch(() => {});
