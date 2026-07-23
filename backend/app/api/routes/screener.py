@@ -430,7 +430,11 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
     if not ticker:
         raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
 
-    cache_key = f"quick_analysis:{lang}:{ticker}"
+    # v2 — bumped so a stale English-requested cache entry generated before
+    # the "summary"/"blurb" schema's hardcoded "español" instruction was
+    # fixed (it silently overrode the top-level language directive) doesn't
+    # keep serving Spanish text under an English UI for its remaining TTL.
+    cache_key = f"quick_analysis:v2:{lang}:{ticker}"
     cached = cache_get(cache_key)
     if cached:
         return cached
