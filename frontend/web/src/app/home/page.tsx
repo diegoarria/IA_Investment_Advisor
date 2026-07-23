@@ -347,9 +347,23 @@ export default function HomePage() {
     return { total: total * fxRate, dayGain: dayGain * fxRate, dayGainPct, totalGain: totalGain * fxRate, totalGainPct };
   }, [positions, prices, fxRate]);
 
+  // Positions can hold the same ticker more than once (separate buy lots) —
+  // "Top gainers/losers" are about which STOCKS moved, not which lots, so
+  // dedupe by ticker first. Without this, a ticker held in two lots renders
+  // two rows with the same React key ("Encountered two children with the
+  // same key").
+  const uniquePositionsByTicker = useMemo(() => {
+    const seen = new Set<string>();
+    return positions.filter((p) => {
+      if (seen.has(p.ticker)) return false;
+      seen.add(p.ticker);
+      return true;
+    });
+  }, [positions]);
+
   // ── Top gainers today (sorted by % change desc, top 4) ────────────────────
   const movers = useMemo(() => {
-    return [...positions]
+    return [...uniquePositionsByTicker]
       .map((p) => {
         const px   = prices[p.ticker];
         const curr = px?.price ?? p.avgPrice;
@@ -361,11 +375,11 @@ export default function HomePage() {
       .filter((m) => m.chg > 0)
       .sort((a, b) => b.chg - a.chg)
       .slice(0, 4);
-  }, [positions, prices, fxRate]);
+  }, [uniquePositionsByTicker, prices, fxRate]);
 
   // ── Top losers today (sorted by % change asc, top 4, only negative) ────────
   const losers = useMemo(() => {
-    return [...positions]
+    return [...uniquePositionsByTicker]
       .map((p) => {
         const px   = prices[p.ticker];
         const curr = px?.price ?? p.avgPrice;
@@ -377,7 +391,7 @@ export default function HomePage() {
       .filter((m) => m.chg < 0)
       .sort((a, b) => a.chg - b.chg)
       .slice(0, 4);
-  }, [positions, prices, fxRate]);
+  }, [uniquePositionsByTicker, prices, fxRate]);
 
   // ── Goal ───────────────────────────────────────────────────────────────────
   const GOAL_MAP: Record<string, { label: string; emoji: string }> = {
@@ -780,11 +794,24 @@ export default function HomePage() {
                     </p>
                     {loading ? (
                       <div className="h-10 w-44 rounded-lg animate-pulse" style={{ background: "var(--raised)" }} />
-                    ) : (
-                      <p className="text-4xl font-black tracking-tight leading-none" style={{ color: "var(--text)" }}>
-                        {fmt(total, portfolioCurrency)}
-                      </p>
-                    )}
+                    ) : (() => {
+                      const heroValueStr = fmt(total, portfolioCurrency);
+                      // Guards against very large portfolio values overflowing this
+                      // card next to the avatar — shrinks proportionally to length
+                      // instead of wrapping or clipping.
+                      const heroValueSize =
+                        heroValueStr.length > 16 ? "1.5rem" :
+                        heroValueStr.length > 13 ? "1.8rem" :
+                        heroValueStr.length > 10 ? "2.1rem" : undefined;
+                      return (
+                        <p
+                          className="text-4xl font-black tracking-tight leading-none whitespace-nowrap"
+                          style={{ color: "var(--text)", fontSize: heroValueSize }}
+                        >
+                          {heroValueStr}
+                        </p>
+                      );
+                    })()}
                   </div>
 
                   {/* Profile avatar */}

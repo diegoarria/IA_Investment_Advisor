@@ -36,10 +36,16 @@ function TrialExpiredModal() {
   const [paywallOpen, setPaywallOpen] = useState(false);
 
   useEffect(() => {
+    // hasFetchedStatus guards against judging on stale/default state: when a
+    // trial just started, trialStartDate is set optimistically (see
+    // startTrialIfNeeded in subscriptionStore.ts) before the server
+    // confirms `tier`, so without this a brand-new trial user could
+    // momentarily see "your trial expired" — exactly the flicker reported.
+    if (!subStore.hasFetchedStatus) return;
     const trialStarted = subStore.trialStartDate !== null;
     const expired = trialStarted && !hasPremiumAccess(subStore);
     if (expired) setVisible(true);
-  }, [subStore.trialStartDate, subStore.tier]);
+  }, [subStore.trialStartDate, subStore.tier, subStore.hasFetchedStatus]);
 
   if (!visible) return null;
 
@@ -189,6 +195,8 @@ function AppStack() {
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="stock/[ticker]" options={{ headerShown: false }} />
+      <Stack.Screen name="earnings" options={{ headerShown: false }} />
+      <Stack.Screen name="subvaluadas" options={{ headerShown: false }} />
       <Stack.Screen
         name="profile/edit"
         options={{

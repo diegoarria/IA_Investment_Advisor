@@ -149,6 +149,7 @@ const MAIN_NAV = [
 ];
 
 const SECONDARY_NAV = [
+  { icon: "bookmark-outline",        labelKey: "common.nav.undervalued",   path: "/subvaluadas",   minLevel: "basico" as const },
   { icon: "notifications-outline",  labelKey: "common.nav.notifications", path: "/notifications", minLevel: "basico" as const },
   { icon: "person-outline",         labelKey: "common.nav.profile",       path: "/profile",       minLevel: "basico" as const },
   { icon: "bag-outline",            labelKey: "common.nav.products",      path: "/products",      minLevel: "basico" as const },

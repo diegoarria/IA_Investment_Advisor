@@ -2463,9 +2463,24 @@ export default function PortfolioPage() {
                                 </button>
                               </span>
                               </p>
-                              <p className="text-[2.4rem] font-black tracking-tight leading-none" style={{ color: "var(--text)" }}>
-                                {currencySymbol}{(hovData?.value ?? totals.current).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </p>
+                              {(() => {
+                                const bigValueStr = `${currencySymbol}${(hovData?.value ?? totals.current).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                                // Large portfolios (7-8+ figures) can otherwise overflow this
+                                // card's width at the default size — shrink proportionally to
+                                // the digit count instead of letting it wrap or clip.
+                                const bigValueSize =
+                                  bigValueStr.length > 16 ? "1.5rem" :
+                                  bigValueStr.length > 13 ? "1.8rem" :
+                                  bigValueStr.length > 10 ? "2.1rem" : "2.4rem";
+                                return (
+                                  <p
+                                    className="font-black tracking-tight leading-none whitespace-nowrap"
+                                    style={{ color: "var(--text)", fontSize: bigValueSize }}
+                                  >
+                                    {bigValueStr}
+                                  </p>
+                                );
+                              })()}
                               {hovData ? (
                                 <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
                                   {fmtChartDate(hovData.date, true)}

@@ -87,16 +87,8 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
             .eq("user_id", user_id)
         )
         pr = profile_res.data[0] if profile_res.data else {}
-        _tier  = pr.get("subscription_tier") or "free"
-        _trial = pr.get("trial_started_at")
-        _is_prem = _tier in ("premium", "pro")
-        if not _is_prem and _trial:
-            try:
-                from datetime import datetime as _dt, timezone as _tz
-                _started = _dt.fromisoformat(_trial.replace("Z", "+00:00"))
-                _is_prem = (_dt.now(_tz.utc) - _started).days < 30
-            except Exception:
-                pass
+        from app.core.subscription import is_premium_active
+        _is_prem = is_premium_active(pr.get("subscription_tier"), pr.get("trial_started_at"))
         if not _is_prem:
             # Allow syncing existing positions; block only if count is INCREASING beyond limit
             existing_pos = await run_query(
@@ -250,16 +242,8 @@ async def create_portfolio(body: dict, user_id: str = Depends(get_current_user_i
         db.table("user_profiles").select("subscription_tier, trial_started_at").eq("user_id", user_id)
     )
     profile = profile_res.data[0] if profile_res.data else {}
-    tier = profile.get("subscription_tier") or "free"
-    trial = profile.get("trial_started_at")
-    is_premium = tier in ("premium", "pro")
-    if not is_premium and trial:
-        try:
-            from datetime import datetime as _dt, timezone as _tz
-            started = _dt.fromisoformat(trial.replace("Z", "+00:00"))
-            is_premium = (_dt.now(_tz.utc) - started).days < 30
-        except Exception:
-            pass
+    from app.core.subscription import is_premium_active
+    is_premium = is_premium_active(profile.get("subscription_tier"), profile.get("trial_started_at"))
     if not is_premium:
         raise HTTPException(status_code=403, detail="Los portafolios múltiples son exclusivos para usuarios Premium.")
     existing = await run_query(
@@ -337,16 +321,8 @@ async def sync_paper(body: dict, user_id: str = Depends(get_current_user_id)):
             .eq("user_id", user_id)
         )
         pr = pr_res.data[0] if pr_res.data else {}
-        _tier  = pr.get("subscription_tier") or "free"
-        _trial = pr.get("trial_started_at")
-        _is_prem = _tier in ("premium", "pro")
-        if not _is_prem and _trial:
-            try:
-                from datetime import datetime as _dt, timezone as _tz
-                _started = _dt.fromisoformat(_trial.replace("Z", "+00:00"))
-                _is_prem = (_dt.now(_tz.utc) - _started).days < 30
-            except Exception:
-                pass
+        from app.core.subscription import is_premium_active
+        _is_prem = is_premium_active(pr.get("subscription_tier"), pr.get("trial_started_at"))
         if not _is_prem:
             existing_paper = await run_query(
                 db.table("user_paper_trading").select("trades").eq("user_id", user_id)

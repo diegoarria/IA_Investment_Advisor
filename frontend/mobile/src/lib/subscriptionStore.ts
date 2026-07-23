@@ -13,6 +13,12 @@ interface SubscriptionStore {
   trialStartDate: string | null;
   isTrialPremium: boolean;
   trialDaysLeftServer: number;
+  // True once fetchStatus() has resolved with a real server answer at least
+  // once. Gates any "your trial expired" UI — without this, a brand-new
+  // trial user could see trialStartDate get set optimistically (see
+  // startTrialIfNeeded below) while `tier` is still its stale/default "free"
+  // value, and briefly get told their trial already ended.
+  hasFetchedStatus: boolean;
   // Actions
   fetchStatus: () => Promise<void>;
   setTier: (tier: SubscriptionTier) => void;
@@ -32,6 +38,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       trialStartDate: null,
       isTrialPremium: false,
       trialDaysLeftServer: 0,
+      hasFetchedStatus: false,
 
       fetchStatus: async () => {
         try {
@@ -47,6 +54,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
             msgWindowStart:      res.data.msg_window_start ?? null,
             isTrialPremium:      res.data.is_trial ?? false,
             trialDaysLeftServer: res.data.trial_days_left ?? 0,
+            hasFetchedStatus:    true,
             ...(res.data.trial_started_at
               ? { trialStartDate: res.data.trial_started_at }
               : {}),

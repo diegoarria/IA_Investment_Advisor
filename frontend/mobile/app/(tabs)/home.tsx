@@ -541,9 +541,23 @@ export default function HomeScreen() {
     return { total, dayGain, dayGainPct, totalGain, totalGainPct };
   }, [positions, prices]);
 
+  // Positions can hold the same ticker more than once (separate buy lots) —
+  // "Top Movers"/"Más caídas hoy" are about which STOCKS moved, not which
+  // lots, so dedupe by ticker first. Without this, a ticker held in two lots
+  // rendered two rows with the same React key ("Encountered two children
+  // with the same key").
+  const uniquePositionsByTicker = React.useMemo(() => {
+    const seen = new Set<string>();
+    return positions.filter((p) => {
+      if (seen.has(p.ticker)) return false;
+      seen.add(p.ticker);
+      return true;
+    });
+  }, [positions]);
+
   // ── Top gainers today (positive movers only, sorted best first, max 4) ──────
   const movers = React.useMemo(() => {
-    return [...positions]
+    return [...uniquePositionsByTicker]
       .map((p) => {
         const px  = prices[p.ticker];
         const curr = px?.price ?? p.avgPrice;
@@ -553,11 +567,11 @@ export default function HomeScreen() {
       .filter((m) => m.chg > 0)
       .sort((a, b) => b.chg - a.chg)
       .slice(0, 4);
-  }, [positions, prices]);
+  }, [uniquePositionsByTicker, prices]);
 
   // ── Top losers (only negative, sorted worst first, max 4) ─────────────────
   const losers = React.useMemo(() => {
-    return [...positions]
+    return [...uniquePositionsByTicker]
       .map((p) => {
         const px   = prices[p.ticker];
         const curr = px?.price ?? p.avgPrice;
@@ -567,7 +581,7 @@ export default function HomeScreen() {
       .filter((m) => m.chg < 0)
       .sort((a, b) => a.chg - b.chg)
       .slice(0, 4);
-  }, [positions, prices]);
+  }, [uniquePositionsByTicker, prices]);
 
   // ── Data loading ──────────────────────────────────────────────────────────
   const loadData = useCallback(async (silent = false) => {
@@ -981,7 +995,7 @@ export default function HomeScreen() {
           style={[ss.heroCard, { backgroundColor: colors.card, borderColor: colors.border, marginHorizontal: 0, marginTop: 0, width: W - 48 }]}
         >
           <View style={ss.heroTop}>
-            <View>
+            <View style={{ flexShrink: 1 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <Text style={[ss.heroLabel, { color: colors.textMuted }]}>{t("home.portfolio.label")}</Text>
                 <View style={{ backgroundColor: colors.bgRaised ?? colors.card, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 }}>
@@ -990,7 +1004,12 @@ export default function HomeScreen() {
               </View>
               {loading
                 ? <Skeleton w={160} h={36} r={8} />
-                : <Text style={[ss.heroBalance, { color: colors.text }]}>
+                : <Text
+                    style={[ss.heroBalance, { color: colors.text }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.5}
+                  >
                     {fmt(total, portfolioCurrency)}
                   </Text>
               }

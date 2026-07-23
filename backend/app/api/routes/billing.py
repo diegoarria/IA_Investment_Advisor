@@ -226,19 +226,22 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
         )
         cache_delete(f"profile:{user_id}")
 
-    # Compute effective tier: premium if paid OR within 30-day promo window OR streak bonus active
+    # Compute effective tier: premium if paid OR within the trial window OR streak
+    # bonus active. is_trial/effective_tier defer to the canonical
+    # is_premium_active() so this — the single endpoint every client trusts for
+    # its subscription state — can never drift from the trial-window math used
+    # everywhere else in the app.
+    from app.core.subscription import is_premium_active
     effective_tier = tier
     is_trial       = False
     days_left      = 0
-    if tier != "premium" and trial_started:
+    if tier != "premium" and trial_started and is_premium_active(tier, trial_started):
+        effective_tier = "premium"
+        is_trial       = True
         try:
             started   = datetime.fromisoformat(trial_started.replace("Z", "+00:00"))
             elapsed   = (datetime.now(timezone.utc) - started).total_seconds() / 86400
-            remaining = _PROMO_DAYS - elapsed
-            if remaining > 0:
-                effective_tier = "premium"
-                is_trial       = True
-                days_left      = int(remaining)
+            days_left = max(0, int(_PROMO_DAYS - elapsed))
         except Exception:
             pass
 

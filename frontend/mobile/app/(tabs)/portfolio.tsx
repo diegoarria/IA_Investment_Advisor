@@ -1683,7 +1683,7 @@ export default function PortfolioScreen() {
       >
 
         {/* ── PORTFOLIO SWITCHER ── */}
-        <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, gap: 8, flexWrap: "wrap" }}>
+        <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingTop: 2, paddingBottom: 2, gap: 8, flexWrap: "wrap" }}>
           {portfolios.map(p => (
             <TouchableOpacity
               key={p.id}
@@ -1776,32 +1776,32 @@ export default function PortfolioScreen() {
 
         {/* ── TAB SWITCHER ── */}
         <View style={[s.subTabBar, { backgroundColor: "#090f1f" }]}>
-          <View style={[s.subTabInner, { backgroundColor: "#0d1526" }]}>
+          <View style={s.subTabInner}>
             <TouchableOpacity
-              style={[s.subTab, activeSection === "portafolio" && [s.subTabActive, { backgroundColor: "#162035" }]]}
+              style={[s.subTab, activeSection === "portafolio" && s.subTabActive]}
               onPress={() => setActiveSection("portafolio")}
-              activeOpacity={0.75}
+              activeOpacity={0.8}
             >
               <Ionicons
-                name="briefcase-outline"
-                size={14}
-                color={activeSection === "portafolio" ? "#00d47e" : "#6b7280"}
+                name={activeSection === "portafolio" ? "briefcase" : "briefcase-outline"}
+                size={15}
+                color={activeSection === "portafolio" ? "#04211a" : "#6b7280"}
               />
-              <Text style={[s.subTabText, { color: activeSection === "portafolio" ? "#fff" : "#6b7280" }]}>
+              <Text style={[s.subTabText, { color: activeSection === "portafolio" ? "#04211a" : "#6b7280" }]}>
                 {t("portfolio.tabs.myPortfolio")}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[s.subTab, activeSection === "herramientas" && [s.subTabActive, { backgroundColor: "#162035" }]]}
+              style={[s.subTab, activeSection === "herramientas" && s.subTabActive]}
               onPress={() => setActiveSection("herramientas")}
-              activeOpacity={0.75}
+              activeOpacity={0.8}
             >
               <Ionicons
-                name="sparkles-outline"
-                size={14}
-                color={activeSection === "herramientas" ? "#00d47e" : "#6b7280"}
+                name={activeSection === "herramientas" ? "sparkles" : "sparkles-outline"}
+                size={15}
+                color={activeSection === "herramientas" ? "#04211a" : "#6b7280"}
               />
-              <Text style={[s.subTabText, { color: activeSection === "herramientas" ? "#00d47e" : "#6b7280" }]}>
+              <Text style={[s.subTabText, { color: activeSection === "herramientas" ? "#04211a" : "#6b7280" }]}>
                 {t("portfolio.tabs.tools")}
               </Text>
             </TouchableOpacity>
@@ -2278,7 +2278,6 @@ export default function PortfolioScreen() {
               const histPct = sp?.pct;
               const histAmt = sp?.amount;
               const histDate = sp?.date;
-              const spyPct = sp?.spy_pct;
               const up = histPct !== undefined ? histPct >= 0 : totals.diff >= 0;
               const color = up ? "#22c55e" : "#ef4444";
               return (
@@ -2310,12 +2309,17 @@ export default function PortfolioScreen() {
                           </TouchableOpacity>
                         </View>
                       </View>
-                      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 14 }}>
-                        <Text style={{ fontSize: 34, fontFamily: "DMSans_800ExtraBold", color: "#fff", letterSpacing: -0.5, fontVariant: ["tabular-nums"] }}>
+                      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 14, gap: 8 }}>
+                        <Text
+                          style={{ flexShrink: 1, fontSize: 34, fontFamily: "DMSans_800ExtraBold", color: "#fff", letterSpacing: -0.5, fontVariant: ["tabular-nums"] }}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.5}
+                        >
                           {currencySymbol}{totals.current.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Text>
                         {histPct !== undefined ? (
-                          <View style={{ alignItems: "flex-end" }}>
+                          <View style={{ alignItems: "flex-end", flexShrink: 0 }}>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                               <Ionicons name={up ? "caret-up" : "caret-down"} size={11} color={color} />
                               <Text style={{ fontSize: 16, fontWeight: "800", color, fontVariant: ["tabular-nums"] }}>
@@ -2337,25 +2341,12 @@ export default function PortfolioScreen() {
                           </View>
                         )}
                       </View>
-                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#181b24" }}>
+                      <View style={{ paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#181b24" }}>
                         <Text style={{ fontSize: 11.5, color: "#5b6270" }}>
                           {t("portfolio.totals.invested")}{" "}
                           <Text style={{ fontWeight: "700", color: "#8b93a3" }}>{currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
                           {histDate ? `  ·  ${t("portfolio.totals.since", { date: histDate })}` : ""}
                         </Text>
-                        {spyPct !== undefined && histPct !== undefined && (() => {
-                          const diff = histPct - spyPct;
-                          const beats = diff >= 0;
-                          return (
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                              <Text style={{ fontSize: 10.5, color: "#5b6270" }}>{t("portfolio.totals.vsSp")}</Text>
-                              <Ionicons name={beats ? "caret-up" : "caret-down"} size={9} color={beats ? "#00d47e" : "#ff5c5c"} />
-                              <Text style={{ fontSize: 11, fontWeight: "800", color: beats ? "#00d47e" : "#ff5c5c" }}>
-                                {Math.abs(diff).toFixed(2)}%
-                              </Text>
-                            </View>
-                          );
-                        })()}
                       </View>
                     </>
                   )}
@@ -3887,19 +3878,21 @@ export default function PortfolioScreen() {
 const portfolioStyles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#090f1f" }, // matches header/tab bar's colors.card
     subTabBar: {
-      paddingHorizontal: 16, paddingVertical: 10,
+      paddingHorizontal: 16, paddingTop: 2, paddingBottom: 10,
     },
     subTabInner: {
-      flexDirection: "row", borderRadius: 14, padding: 3,
+      flexDirection: "row", borderRadius: 16, padding: 4, gap: 4,
+      backgroundColor: "#0d1526", borderWidth: 1, borderColor: "#1a2036",
     },
     subTab: {
       flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-      gap: 6, paddingVertical: 11, paddingHorizontal: 8, borderRadius: 11,
+      gap: 7, paddingVertical: 12, paddingHorizontal: 8, borderRadius: 13,
     },
     subTabActive: {
-      shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, elevation: 2,
+      backgroundColor: "#00d47e",
+      shadowColor: "#00d47e", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 4,
     },
-    subTabText: { fontSize: 13, fontWeight: "700", letterSpacing: -0.1 },
+    subTabText: { fontSize: 13.5, fontWeight: "800", letterSpacing: -0.1 },
     premiumToolCard: { borderRadius: 18, borderWidth: 1, padding: 16 },
     premiumToolHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 10 },
     premiumToolIcon: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },

@@ -292,17 +292,8 @@ async def add_to_watchlist(body: dict, user_id: str = Depends(get_current_user_i
         .eq("user_id", user_id)
     )
     row = tier_res.data[0] if tier_res.data else {}
-    tier  = row.get("subscription_tier", "free") or "free"
-    trial = row.get("trial_started_at")
-
-    is_premium = tier in ("premium", "pro")
-    if not is_premium and trial:
-        try:
-            from datetime import datetime as _dt, timezone as _tz
-            started = _dt.fromisoformat(trial.replace("Z", "+00:00"))
-            is_premium = (_dt.now(_tz.utc) - started).days < 30
-        except Exception:
-            pass
+    from app.core.subscription import is_premium_active
+    is_premium = is_premium_active(row.get("subscription_tier"), row.get("trial_started_at"))
 
     if not is_premium:
         count_res = await run_query(
