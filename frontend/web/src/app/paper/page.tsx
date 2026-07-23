@@ -206,7 +206,7 @@ export default function PaperPage() {
                 <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "var(--muted)" }}>
                   {t("paper.portfolioLabel")}
                 </p>
-                <p className="text-4xl font-black leading-none tracking-tight" style={{ color: "var(--text)" }}>
+                <p className="text-4xl font-black leading-none tracking-tight whitespace-nowrap" style={{ color: "var(--text)" }}>
                   {fmtMoney(portfolioValue)}
                 </p>
                 {totalReturn !== 0 && (

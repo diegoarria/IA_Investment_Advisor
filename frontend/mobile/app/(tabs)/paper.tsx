@@ -261,7 +261,7 @@ export default function PaperScreen() {
               <View style={s.balanceRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.balanceLabel}>{t("paper.virtualPortfolio")}</Text>
-                  <Text style={s.balanceTotal}>{fmtMoney(totalValue)}</Text>
+                  <Text style={s.balanceTotal} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{fmtMoney(totalValue)}</Text>
                   <View style={s.balanceReturnRow}>
                     <Ionicons name={isUp ? "caret-up" : "caret-down"} size={11} color={isUp ? "#00d47e" : "#ff5c5c"} />
                     <Text style={[s.returnBadgeText, { color: isUp ? "#00d47e" : "#ff5c5c" }]}>

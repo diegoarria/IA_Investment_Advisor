@@ -67,7 +67,7 @@ function SummaryCard({
       <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "var(--muted)" }}>
         {label}
       </p>
-      <p className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>
+      <p className="text-2xl font-black tracking-tight whitespace-nowrap overflow-hidden text-ellipsis" style={{ color: "var(--text)" }}>
         {value}
       </p>
       {sub && (

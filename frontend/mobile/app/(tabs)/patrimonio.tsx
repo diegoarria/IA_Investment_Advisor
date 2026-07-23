@@ -114,11 +114,16 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
               <Text style={{ fontSize: 9, fontWeight: "900", color: colors.textMuted, letterSpacing: 0.5 }}>{portfolioCurrency}</Text>
             </View>
           </View>
-          <Text style={[ss.statValue, { color: colors.text }]}>{fmtMoney(totalValue, portfolioCurrency)}</Text>
+          <Text style={[ss.statValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{fmtMoney(totalValue, portfolioCurrency)}</Text>
         </View>
         <View style={[ss.statCard, { flex: 1, backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[ss.statLabel, { color: colors.textMuted }]}>{t("patrimonio.portfolioTab.dayGain")}</Text>
-          <Text style={[ss.statValue, { color: dayGain >= 0 ? colors.up ?? "#10b981" : colors.down ?? "#ef4444" }]}>
+          <Text
+            style={[ss.statValue, { color: dayGain >= 0 ? colors.up ?? "#10b981" : colors.down ?? "#ef4444" }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.5}
+          >
             {fmtMoney(dayGain, portfolioCurrency)}
           </Text>
           <Text style={{ fontSize: 11, fontWeight: "600", color: dayGain >= 0 ? colors.up ?? "#10b981" : colors.down ?? "#ef4444", marginTop: 2 }}>
@@ -129,7 +134,12 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
 
       <View style={[ss.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[ss.statLabel, { color: colors.textMuted }]}>{t("patrimonio.portfolioTab.totalGain")}</Text>
-        <Text style={[ss.statValue, { color: totalGain >= 0 ? colors.up ?? "#10b981" : colors.down ?? "#ef4444" }]}>
+        <Text
+          style={[ss.statValue, { color: totalGain >= 0 ? colors.up ?? "#10b981" : colors.down ?? "#ef4444" }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.5}
+        >
           {fmtMoney(totalGain, portfolioCurrency)}{" "}
           <Text style={ss.statSubValue}>{fmtPct(totalGainPct)}</Text>
         </Text>
@@ -291,17 +301,22 @@ function SimuladorTab({ prices, loading, colors }: { prices: PriceMap; loading: 
       <View style={{ flexDirection: "row", gap: 8 }}>
         <View style={[ss.statCard, { flex: 1, backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[ss.statLabel, { color: colors.textMuted }]}>{t("patrimonio.common.totalValue")}</Text>
-          <Text style={[ss.statValue, { color: colors.text }]}>{fmtMoney(totalValue)}</Text>
+          <Text style={[ss.statValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{fmtMoney(totalValue)}</Text>
         </View>
         <View style={[ss.statCard, { flex: 1, backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[ss.statLabel, { color: colors.textMuted }]}>{t("patrimonio.simuladorTab.cash")}</Text>
-          <Text style={[ss.statValue, { color: colors.text }]}>{fmtMoney(cash)}</Text>
+          <Text style={[ss.statValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{fmtMoney(cash)}</Text>
         </View>
       </View>
 
       <View style={[ss.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[ss.statLabel, { color: colors.textMuted }]}>{t("patrimonio.simuladorTab.gainVsInitial")}</Text>
-        <Text style={[ss.statValue, { color: gain >= 0 ? colors.up ?? "#10b981" : colors.down ?? "#ef4444" }]}>
+        <Text
+          style={[ss.statValue, { color: gain >= 0 ? colors.up ?? "#10b981" : colors.down ?? "#ef4444" }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.5}
+        >
           {fmtMoney(gain)}{" "}
           <Text style={ss.statSubValue}>{fmtPct(gainPct)}</Text>
         </Text>

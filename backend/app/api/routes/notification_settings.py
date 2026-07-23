@@ -499,17 +499,7 @@ async def trigger_price_alerts(
             user_tickers[uid] = {"port": port_map, "watch": watch_set}
 
     # 3. Batch-fetch names + tiers (including trial_started_at for trial detection)
-    def _check_premium(tier: str, trial_started: str | None) -> bool:
-        if tier in ("premium", "pro"):
-            return True
-        if trial_started:
-            try:
-                from datetime import datetime, timezone
-                started = datetime.fromisoformat(trial_started.replace("Z", "+00:00"))
-                return (datetime.now(timezone.utc) - started).days < 30
-            except Exception:
-                pass
-        return False
+    from app.core.subscription import is_premium_active as _check_premium
 
     all_uids = list(user_tickers.keys())
     prof_res = await run_query(

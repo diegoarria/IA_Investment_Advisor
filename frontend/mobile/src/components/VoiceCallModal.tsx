@@ -38,6 +38,10 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
   const [muted, setMuted] = useState(false);
   const [callSeconds, setCallSeconds] = useState(0);
   const mutedRef = useRef(false);
+  // Defaults to on — unlike a private phone call, a hands-free AI mentor call
+  // is almost always used on loudspeaker.
+  const [speakerOn, setSpeakerOn] = useState(true);
+  const speakerOnRef = useRef(true);
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -93,6 +97,23 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
+  // Centralizes the audio-mode config so the speaker toggle is respected
+  // consistently everywhere audio mode gets (re-)applied — previously start()
+  // and playNextInQueue() each called setAudioModeAsync with their own
+  // hardcoded literal, so a speaker preference set here would've silently
+  // been overwritten the next time a sentence started playing.
+  // Note: playThroughEarpieceAndroid reliably controls speaker vs earpiece on
+  // Android. iOS has no public expo-av API to force loudspeaker while
+  // allowsRecordingIOS is true (required here for continuous barge-in
+  // listening) — iOS may still route to the earpiece regardless of this flag.
+  async function applyAudioMode() {
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+      playThroughEarpieceAndroid: !speakerOnRef.current,
+    });
+  }
+
   async function start() {
     try {
       const { status: permStatus } = await Audio.requestPermissionsAsync();
@@ -101,7 +122,7 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
         setErrorMsg(t("voiceCallModal.errors.micPermission"));
         return;
       }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      await applyAudioMode();
 
       tokenRef.current = (await SecureStore.getItemAsync("access_token")) || "";
       connectWebSocket();
@@ -303,7 +324,7 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
     try {
       const path = (FileSystem.cacheDirectory ?? "") + `nuvos_call_${Date.now()}.mp3`;
       await FileSystem.writeAsStringAsync(path, next, { encoding: FileSystem.EncodingType.Base64 });
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      await applyAudioMode();
       const { sound } = await Audio.Sound.createAsync({ uri: path });
       soundRef.current = sound;
       assistantSpeakingRef.current = true;
@@ -353,14 +374,25 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
     if (heartbeatTimerRef.current) { clearInterval(heartbeatTimerRef.current); heartbeatTimerRef.current = null; }
     if (reconnectTimerRef.current) { clearTimeout(reconnectTimerRef.current); reconnectTimerRef.current = null; }
     reconnectAttemptsRef.current = 0;
+    // Drop any sentences still queued so a hang-up mid-response can't resume
+    // playback on the next call — previously only stopAllPlayback() cleared this.
+    playQueueRef.current = [];
+    assistantSpeakingRef.current = false;
+    awaitingMoreRef.current = false;
     const recording = recordingRef.current;
     recordingRef.current = null;
     if (recording) {
       recording.stopAndUnloadAsync().catch(() => {});
     }
     if (soundRef.current) {
-      soundRef.current.unloadAsync().catch(() => {});
+      const sound = soundRef.current;
       soundRef.current = null;
+      // Must stopAsync() before unloadAsync() — unloading a still-playing
+      // sound without stopping it first could let the assistant's voice
+      // keep audibly playing for a moment after hang-up.
+      sound.stopAsync().catch(() => {}).finally(() => {
+        sound.unloadAsync().catch(() => {});
+      });
     }
     Audio.setAudioModeAsync({ allowsRecordingIOS: false }).catch(() => {});
     wsRef.current?.close();
@@ -376,6 +408,15 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
     setMuted((m) => {
       const next = !m;
       mutedRef.current = next;
+      return next;
+    });
+  }
+
+  function toggleSpeaker() {
+    setSpeakerOn((s) => {
+      const next = !s;
+      speakerOnRef.current = next;
+      applyAudioMode().catch(() => {});
       return next;
     });
   }
@@ -412,6 +453,12 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
           </TouchableOpacity>
           <TouchableOpacity onPress={handleHangUp} style={styles.hangupBtn}>
             <Ionicons name="call" size={26} color="#fff" style={{ transform: [{ rotate: "135deg" }] }} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={toggleSpeaker}
+            style={[styles.controlBtn, { backgroundColor: speakerOn ? "#fff" : "rgba(255,255,255,0.14)" }]}
+          >
+            <Ionicons name={speakerOn ? "volume-high" : "volume-medium-outline"} size={22} color={speakerOn ? "#000" : "#fff"} />
           </TouchableOpacity>
         </View>
       </View>

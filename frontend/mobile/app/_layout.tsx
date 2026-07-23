@@ -128,6 +128,27 @@ function AppStack() {
         // Weekly Oportunidades rotation push (see worker.py's
         // _notify_undervalued_screener_updated).
         router.navigate("/subvaluadas");
+      } else if (data.screen === "portfolio") {
+        // Market open/close, monthly report, re-engagement, risk-management,
+        // Sunday review, quarterly earnings digest — all point here.
+        router.navigate("/(tabs)/portfolio");
+      } else if (data.screen === "watchlist") {
+        // job_portfolio_alerts' price-mover push for a watchlist (not
+        // portfolio) ticker.
+        router.navigate("/(tabs)/watchlist");
+      } else if (data.screen === "home") {
+        // job_major_news_alert.
+        router.navigate("/(tabs)/home");
+      } else if (data.screen === "stock_detail" && data.ticker) {
+        // Free-tier earnings push — no access to the full Earnings Analysis
+        // screen, so this deep-links to the plain stock detail page instead.
+        router.navigate(`/stock/${data.ticker}` as any);
+      } else if (data.screen === "profile") {
+        // job_annual_scoreboard. Note: doesn't yet auto-scroll to the
+        // "scoreboard" section the push refers to (data.section) — that
+        // would need profile.tsx to support a scroll-to-anchor param, which
+        // it doesn't today.
+        router.navigate("/(tabs)/profile");
       }
     });
     return () => sub.remove();
