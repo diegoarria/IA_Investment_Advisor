@@ -493,24 +493,6 @@ function PatrimonioContent() {
 
         <PersonalizedMessageBanner className="mx-6 mt-3" />
 
-        {/* Investor Progress Engine entry point */}
-        <div className="px-6 pt-3 shrink-0">
-          <button
-            onClick={() => router.push("/progress")}
-            className="w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-opacity hover:opacity-85"
-            style={{ background: "rgba(0,168,94,0.06)", borderColor: "rgba(0,168,94,0.25)" }}
-          >
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(0,168,94,0.12)" }}>
-              <TrendingUp className="w-4.5 h-4.5" style={{ color: "var(--accent-l)" }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("patrimonio.progress.title")}</p>
-              <p className="text-xs" style={{ color: "var(--muted)" }}>{t("patrimonio.progress.subtitle")}</p>
-            </div>
-            <ArrowRight className="w-4 h-4 shrink-0" style={{ color: "var(--accent-l)" }} />
-          </button>
-        </div>
-
         {/* Sub-tab Bar */}
         <div
           className="flex gap-1 px-6 py-2 border-b shrink-0"
