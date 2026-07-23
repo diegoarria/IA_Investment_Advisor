@@ -40,6 +40,9 @@ BOOTSTRAP_TTL = 24 * 3600      # short-lived — the next full weekly/startup re
 _BOOTSTRAP_LIMIT = 20          # small subset so a cold-cache request stays reasonably fast
 _MAX_PER_SECTOR = 5            # never more than 5 candidates from the same sector in the results shown
 
+_FEATURED_POOL_SIZE = 15  # rotate among the top N by composite_score — stays within "genuinely strong" candidates
+_FEATURED_COUNT = 5       # how many appear first each week
+
 
 _WEAK_DIMENSION_THRESHOLD = 40  # below this on any of these dimensions, flag it — a real value-trap signal, not just "cheap"
 _WEAK_DIMENSIONS = [
@@ -176,6 +179,36 @@ def _finalize_checklist(entry: dict, business_understanding: Optional[dict] = No
     entry["checklist"] = {"items": items, "avg_stars": avg_stars}
 
 
+def _rotate_featured_order(results: list[dict]) -> list[dict]:
+    """Rotates which _FEATURED_COUNT candidates appear FIRST each week, so
+    the same 5 tickers aren't glued to the top of "Oportunidades" every
+    single week — cycles through the top _FEATURED_POOL_SIZE candidates
+    (already sorted by composite_score, so still all genuinely strong
+    picks) in fixed-size slices.
+
+    Deliberately stateless: the slice to feature is purely a function of
+    the ISO week number, so this needs no extra DB row and is naturally
+    idempotent if the weekly refresh job ever reruns mid-week (same week
+    number → same featured slice, not a fresh shuffle). Only reorders the
+    pool — every real candidate that qualified is still in the list, just
+    not always in the first 5 positions."""
+    if len(results) <= _FEATURED_COUNT:
+        return results
+    from datetime import datetime
+    import zoneinfo
+
+    pool = results[:_FEATURED_POOL_SIZE]
+    rest = results[_FEATURED_POOL_SIZE:]
+    num_slices = max(1, len(pool) // _FEATURED_COUNT)
+    iso_week = datetime.now(zoneinfo.ZoneInfo("America/New_York")).isocalendar().week
+    slice_idx = iso_week % num_slices
+    start = slice_idx * _FEATURED_COUNT
+    featured = pool[start:start + _FEATURED_COUNT]
+    featured_tickers = {r["ticker"] for r in featured}
+    remaining_pool = [r for r in pool if r["ticker"] not in featured_tickers]
+    return featured + remaining_pool + rest
+
+
 async def refresh_undervalued_screener() -> None:
     """Full weekly refresh — the entire curated universe. Applies the
     per-sector cap (_MAX_PER_SECTOR) here (not just at read time) so the
@@ -293,6 +326,7 @@ async def refresh_undervalued_screener() -> None:
                 except Exception as exc:
                     logger.warning("undervalued_screener_service: blurb (%s) attempt %d failed for %s: %s", lang, attempt + 1, entry["ticker"], exc)
 
+    results = _rotate_featured_order(results)
     cache_set(CACHE_KEY, results, CACHE_TTL)
     logger.info("undervalued_screener_service: refreshed, %d/%d tickers had positive margin of safety", len(results), len(UNIVERSE))
 

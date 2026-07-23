@@ -2303,17 +2303,63 @@ async def job_weekly_screener_push():
 
 
 async def job_refresh_undervalued_screener():
-    """3:00 AM ET Sunday — precomputes the real DCF-backed undervalued-stocks
-    screener (undervalued_screener_service) across the curated ticker
-    universe, ahead of Saturday's job_weekly_screener_push so both stay on a
-    predictable weekly cadence. No push/notification here — this only
-    refreshes the cache the /market/screener/undervalued endpoint and the
-    Mentor IA chat trigger read from on demand."""
+    """12:05 PM ET Sunday — precomputes the real DCF-backed "Oportunidades"
+    (Top Opportunities) screener across the curated ticker universe,
+    rotating which 5 candidates are featured first this week (see
+    undervalued_screener_service._rotate_featured_order — the same real
+    candidates, just a different 5 up front so it doesn't look identical
+    week after week), then pushes a "this week's picks just updated" notice
+    to premium users so they come back and see the new featured picks."""
     from app.services.undervalued_screener_service import refresh_undervalued_screener
     try:
         await refresh_undervalued_screener()
     except Exception as e:
         logger.error("job_refresh_undervalued_screener failed: %s", e)
+        return
+
+    try:
+        await _notify_undervalued_screener_updated()
+    except Exception as e:
+        logger.error("job_refresh_undervalued_screener: notification failed: %s", e)
+
+
+async def _notify_undervalued_screener_updated():
+    """Generic (not personalized) push to premium users that this week's
+    featured Oportunidades picks just rotated — Oportunidades is
+    premium-gated, so free users wouldn't be able to open it anyway.
+    Deliberately separate from job_weekly_screener_push (Saturday's
+    per-risk-profile personalized picks) — this is just "come see what's
+    new," no per-user LLM call needed."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+
+    db = get_supabase()
+    profiles_res = await run_query(
+        db.table("user_profiles").select("user_id,subscription_tier,trial_started_at,preferred_language,push_token")
+    )
+    web_res = await run_query(db.table("web_push_subscriptions").select("user_id"))
+    web_uids = {r["user_id"] for r in (web_res.data or [])}
+
+    sent = 0
+    for r in (profiles_res.data or []):
+        uid = r["user_id"]
+        if not _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at")):
+            continue
+        token = r.get("push_token") or ""
+        has_push = token.startswith("ExponentPushToken") or uid in web_uids
+        if not has_push:
+            continue
+        is_en = (r.get("preferred_language") or "es") == "en"
+        title = "🔄 Opportunities updated" if is_en else "🔄 Oportunidades actualizada"
+        body = (
+            "This week's 5 featured stocks just rotated — come see the new picks."
+            if is_en else
+            "Las 5 acciones destacadas de esta semana rotaron — ven a ver las nuevas."
+        )
+        await send_push(uid, "undervalued_screener_weekly", title, body, {"screen": "subvaluadas"}, db)
+        sent += 1
+        await asyncio.sleep(random.uniform(0, 0.05))
+    logger.info("job_refresh_undervalued_screener: notified %d premium users of the weekly rotation", sent)
 
 
 def _fetch_historical_earnings_reactions(ticker: str) -> dict:
@@ -4638,7 +4684,7 @@ async def main():
     scheduler.add_job(job_weekly_screener_push, "cron", day_of_week="sat",     hour=11,      minute=0,     timezone="America/New_York")
 
     # ── Sunday: undervalued-stocks screener cache refresh (real DCF engine) ───
-    scheduler.add_job(job_refresh_undervalued_screener, "cron", day_of_week="sun", hour=3,   minute=0,     timezone="America/New_York")
+    scheduler.add_job(job_refresh_undervalued_screener, "cron", day_of_week="sun", hour=12,  minute=5,     timezone="America/New_York")
 
     # ── AI Portfolio Manager — proactive alerts (written earlier, now scheduled) ──
     scheduler.add_job(job_risk_mgmt_push,        "cron", day_of_week="fri",     hour=15, minute=0, timezone="America/New_York")

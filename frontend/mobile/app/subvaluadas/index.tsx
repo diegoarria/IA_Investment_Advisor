@@ -550,7 +550,12 @@ export default function SubvaluadasScreen() {
         arr.sort((a, b) => byNullable(b.momentum?.turn_score) - byNullable(a.momentum?.turn_score));
         break;
       default:
-        arr.sort((a, b) => byNullable(b.composite_score) - byNullable(a.composite_score) || byNullable(b.margin_of_safety_pct) - byNullable(a.margin_of_safety_pct));
+        // "Best Overall" — deliberately does NOT re-sort by composite_score
+        // here. The backend already orders this list by composite_score,
+        // then rotates which 5 candidates appear first each week (see
+        // undervalued_screener_service._rotate_featured_order) — re-sorting
+        // client-side would silently undo that rotation every time.
+        break;
     }
     return arr;
   }, [filtered, sortLens]);
