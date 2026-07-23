@@ -41,7 +41,7 @@ type Offer = "session" | "annual_report" | "family_plan";
 
 function UpsellSuccessContent() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const OFFER_META = getOfferMeta(t);
   const params = useSearchParams();
   const offer = (params.get("offer") ?? "session") as Offer;
@@ -87,7 +87,7 @@ function UpsellSuccessContent() {
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      const res = await api.get("/api/annual-report/generate", { responseType: "blob" });
+      const res = await api.get("/api/annual-report/generate", { params: { lang: i18n.language }, responseType: "blob" });
       const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
       const a = document.createElement("a");
       a.href = url;

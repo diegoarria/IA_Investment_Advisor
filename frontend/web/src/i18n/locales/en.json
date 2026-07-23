@@ -306,6 +306,28 @@
     "speculative": "Speculative",
     "maturityGrowthDesc": "Rises with every good decision in the app (staying calm, diversifying, thinking long term).",
     "latestSignals": "Latest signals",
+    "maturityLevels": {
+      "apprentice": "Apprentice",
+      "beginner": "Beginner",
+      "developing": "Developing",
+      "mature": "Mature",
+      "expert": "Expert"
+    },
+    "maturitySignals": {
+      "analisisRacional": "rational analysis",
+      "toleraVolatilidad": "tolerates volatility",
+      "largoPlazo": "long term",
+      "diversificacionConsciente": "conscious diversification",
+      "compraEnCaidas": "buys the dip",
+      "decisionPorFundamentos": "decides on fundamentals",
+      "aceptaPerdidaEducada": "accepts an informed loss",
+      "panicoVenta": "panic selling",
+      "buscaGarantias": "seeks guarantees",
+      "fomo": "FOMO",
+      "especulacion": "speculation",
+      "decisionPorPrecio": "decides on price alone",
+      "horizonteCorto": "short horizon"
+    },
     "yourMentor": "Your mentor",
     "letterOf": "Letter from {{name}}",
     "monthlyLetterDesc": "Your personalized monthly letter",
@@ -357,6 +379,7 @@
     "inviteFriendsDesc": "You and your friend both get 14 days of premium free",
     "referredFriends": "Friends referred",
     "pendingReward": "Reward",
+    "pendingRewardValue": "{{days}} days free",
     "referralLink": "Your referral link",
     "referralShareText": "I'm using Nuvos AI — the best AI investment mentor. Join for free 👉 {{link}}",
     "shareInvite": "Share invite",
@@ -3159,6 +3182,227 @@
       "title": "Want deep research on {{ticker}}?",
       "subtitle": "Nuvos Deep Research compares, values and personalizes with your portfolio in minutes.",
       "cta": "Research"
+    }
+  },
+  "onboarding": {
+    "months": ["January","February","March","April","May","June","July","August","September","October","November","December"],
+    "goals": {
+      "house": "Buy a house",
+      "car": "Buy a car",
+      "passiveIncome": "Live off my investments",
+      "retirement": "Retirement / pension",
+      "financialFreedom": "Financial freedom",
+      "longTermWealth": "Long-term wealth"
+    },
+    "knowledge": {
+      "basic": { "label": "Basic", "desc": "No experience or just starting out. I know about savings, CDs, or basic funds." },
+      "intermediate": { "label": "Intermediate", "desc": "I have experience with ETFs and stocks. I understand diversification and returns." },
+      "advanced": { "label": "Advanced", "desc": "I handle fundamental analysis, derivatives, market cycles, and complex strategies." }
+    },
+    "risk": {
+      "conservative": { "label": "Conservative", "desc": "You prioritize safety and capital preservation. You prefer stable returns." },
+      "moderate": { "label": "Moderate", "desc": "You look for balance between growth and protection. You accept some volatility." },
+      "aggressive": { "label": "Aggressive", "desc": "You seek maximum growth. You tolerate high volatility in exchange for higher returns." }
+    },
+    "quiz": {
+      "q1": {
+        "category": "01 · MINDSET",
+        "question": "If you invest $100,000 and the market crashes 40%, what would you do?",
+        "options": {
+          "A": "Sell everything immediately to avoid further losses",
+          "B": "Wait and do nothing until the market recovers",
+          "C": "Hold my position — the fundamentals haven't changed",
+          "D": "Buy more — this is the opportunity I was waiting for"
+        },
+        "labels": { "A": "Sells everything", "B": "Waits passively", "C": "Holds position", "D": "Buys more" }
+      },
+      "q4": {
+        "category": "02 · RISK",
+        "question": "You have $100,000 to invest. Which scenario do you prefer?",
+        "options": {
+          "A": "Earn $5K guaranteed, with no chance of losing anything",
+          "B": "Likely earn $15K, with risk of losing $5K",
+          "C": "Possibly earn $40K, with risk of losing $20K",
+          "D": "Possibly earn $120K, with risk of losing it all"
+        },
+        "labels": { "A": "$5K guaranteed", "B": "$15K / risk $5K", "C": "$40K / risk $20K", "D": "$120K / total risk" }
+      }
+    },
+    "countries": {
+      "mx": "Mexico", "us": "United States", "co": "Colombia", "ar": "Argentina",
+      "ve": "Venezuela", "pe": "Peru", "cl": "Chile", "es": "Spain", "other": "Other country"
+    },
+    "step0": {
+      "subtitle": "WELCOME",
+      "title": "Hi! Tell us about yourself",
+      "nameLabel": "Your full name",
+      "namePlaceholder": "E.g. Diego Arria",
+      "nameHint": "This is how we'll address you and how the AI will know how to talk to you.",
+      "birthDateLabel": "Date of birth",
+      "day": "Day", "month": "Month", "year": "Year",
+      "birthDateHint": "You must be at least 18 years old to use Nuvos AI.",
+      "countryLabel": "Where do you invest from?"
+    },
+    "step1": {
+      "subtitle": "YOUR PROFILE",
+      "title": "What's your investing knowledge level?",
+      "titleNamed": "{{name}}, what's your investing knowledge level?"
+    },
+    "step2": {
+      "subtitle": "FINANCIAL GOALS",
+      "title": "Tell us about your plan",
+      "incomeLabel": "What's your monthly income?",
+      "incomeHint": "This helps us personalize how much makes sense for you to invest.",
+      "capitalLabel": "How much do you have available to start investing today?",
+      "capitalPlaceholder": "0 if you don't have any yet",
+      "capitalHint": "Don't worry if it's $0 — many people start from zero. It's just to personalize your plan.",
+      "contributionLabel": "How much do you want to invest monthly?",
+      "goalAmountLabel": "How much wealth do you want to have?",
+      "goalAmountHint": "The app will calculate when you'll reach this goal with your contributions.",
+      "horizonLabel": "For how many years do you want to invest?",
+      "perMonth": "/mo",
+      "years": "years"
+    },
+    "step3": {
+      "subtitle": "OBJECTIVE",
+      "title": "What's your goal when investing?"
+    },
+    "step6": {
+      "subtitle": "YOUR STARTING POINT",
+      "title": "Do you already have experience in the market?",
+      "titleNamed": "{{name}}, do you already have experience in the market?",
+      "brokerQuestion": "Do you have an account with a broker?",
+      "brokerYes": "Yes, I already have one",
+      "brokerNo": "Not yet",
+      "brokerNamePlaceholder": "E.g. Robinhood, GBM, Fidelity, Interactive Brokers...",
+      "brokerNameHint": "This lets Nuvos know which platform you use so it can guide you better.",
+      "investmentsQuestion": "Do you already have money invested in the market?",
+      "investmentsYes": "Yes, I've already invested",
+      "investmentsNo": "I'll be a first-timer",
+      "firstTimeTitle": "Perfect starting point!",
+      "firstTimeDesc": "Nuvos will guide you step by step so you make your first investment with confidence."
+    },
+    "step65": {
+      "subtitle": "GETTING TO KNOW YOU",
+      "title": "What have you heard about investing?",
+      "titleNamed": "{{name}}, what have you heard about investing?",
+      "prompt": "Tell us what you know, have read, or have been told — by friends, social media, anything. There's no wrong answer.",
+      "placeholder": "E.g. That you should diversify, that the S&P 500 goes up over time, that cryptocurrencies are risky...",
+      "hint": "Your answer helps the AI get to know you better from the start. It's completely optional — you can leave it blank and continue."
+    },
+    "step7": {
+      "subtitle": "YOUR INVESTOR PROFILE",
+      "title": "Your profile, {{name}}",
+      "defaultName": "investor",
+      "investorOfType": "{{type}} Investor",
+      "lowRisk": "Low risk",
+      "highRisk": "High risk",
+      "summaryTitle": "Your profile summary",
+      "ageValue": "{{age}} years old",
+      "yes": "Yes",
+      "noBrokerYet": "No broker yet",
+      "investedBefore": "Already invested before",
+      "firstTime": "First time 🌱",
+      "answersTitle": "Your answers",
+      "q1Label": "Facing a market crash",
+      "q4Label": "Preferred risk scenario",
+      "rows": {
+        "name": "Name", "age": "Age", "country": "Country", "level": "Level", "goal": "Goal",
+        "initialCapital": "Initial capital", "monthlyContribution": "Monthly contribution",
+        "targetWealth": "Target wealth", "horizon": "Horizon", "broker": "Broker",
+        "priorInvestments": "Prior investments"
+      }
+    },
+    "step8": {
+      "subtitle": "YOUR PROJECTION",
+      "title": "Your path to {{amount}}",
+      "contributing": "Contributing ${{amount}}/mo",
+      "perYear": "/yr",
+      "atYears": "At {{years}} years (your horizon)",
+      "tenMoreYears": "If you leave it 10 more years ({{total}} total)",
+      "tenMoreYearsExtra": "10 more years: +{{extra}} extra (+{{pct}}%)",
+      "compoundNote": "Compound interest accelerates — the last years generate more than the first ones.",
+      "illustrativeNote": "* Illustrative. Based on historical market averages. Doesn't guarantee future returns.",
+      "goalReached": "You'll reach your goal within {{years}} years!",
+      "goalNeedsYears": "You need ~{{years}} years to reach {{amount}}",
+      "goalIncreaseContribution": "In {{years}} years you'd have {{amount}} — increase your monthly contribution",
+      "featuresTitle": "Nuvos AI works with you",
+      "features": {
+        "ai": { "title": "AI that knows your profile", "sub": "Personalized analysis based on your level and risk tolerance" },
+        "portfolio": { "title": "Real-time portfolio", "sub": "Prices every 30s with Today / YTD / Total returns" },
+        "calendar": { "title": "Event calendar", "sub": "Earnings, dividends, and ex-dividend dates for your positions" },
+        "paper": { "title": "Risk-free paper trading", "sub": "Practice with $10,000 virtual at real market prices" }
+      }
+    },
+    "legal": {
+      "subtitle": "LEGAL NOTICE",
+      "title": "Before we start",
+      "bannerTitle": "Educational Notice — read it in full before continuing",
+      "section1": {
+        "title": "1. Nature of the service",
+        "body1": "Nuvos AI is a technology tool of an educational and informational nature focused on financial education and market analysis. Nuvos AI",
+        "notEmphasis": "is not",
+        "body2": "a banking institution, brokerage firm, investment advisor, or any other entity regulated by the CNBV, CONDUSEF, SEC, or any other financial regulator in Mexico, the United States, or any other country."
+      },
+      "section2": {
+        "title": "2. Absence of personalized financial advice",
+        "body": "No content generated within the application —including risk profiles, portfolio analysis, comparisons with other investors, simulations, alerts, or earnings calendars— constitutes a personalized investment recommendation, an offer, or an invitation to buy, sell, or hold any financial instrument. All content is general and educational in nature, generated or assisted by artificial intelligence."
+      },
+      "section3": {
+        "title": "3. Risks of investing in financial markets",
+        "body1": "All investing carries risk, including the possible total or partial loss of invested capital. Past performance does not guarantee future results. Any investment decision you make, inside or outside the application,",
+        "responsibilityEmphasis": "is the sole responsibility of the user"
+      },
+      "section4": {
+        "title": "4. Limitations of artificial intelligence",
+        "body": "AI-generated content within Nuvos AI may contain errors, inaccuracies, or omissions arising from technical limitations of the models used or from available market information. It should not be interpreted as a claim of absolute accuracy nor as a substitute for consulting a certified financial professional."
+      },
+      "section5": {
+        "title": "5. User responsibility",
+        "body": "Use of Nuvos AI's information and tools is entirely voluntary. Nuvos AI, its founders, and collaborators assume no responsibility for losses, damages, or harm related to investment decisions made based, wholly or partially, on the application's content."
+      },
+      "section6": {
+        "title": "6. Handling of personal data",
+        "body": "The personal and financial data provided will be handled in accordance with the Federal Law on Protection of Personal Data Held by Private Parties and other applicable provisions, as described in the"
+      },
+      "privacyNoticeLink": "Nuvos AI Privacy Notice",
+      "acceptTermsPrefix": "I have read and accept the",
+      "termsLink": "Terms of Use",
+      "and": "and the",
+      "privacyLink": "Privacy Policy",
+      "understandPrefix": "I understand that Nuvos AI offers AI-generated educational content,",
+      "understandEmphasis": "which does not constitute personalized financial advice or investment recommendations",
+      "understandSuffix": ", and that any financial decision I make is my sole responsibility."
+    },
+    "buttons": {
+      "back": "Back", "exit": "Exit", "next": "Next", "start": "Get started!", "saving": "Saving..."
+    },
+    "stepCounter": "Step {{current}} of {{total}}",
+    "errors": {
+      "saveFailed": "Couldn't save your profile. Please try again."
+    },
+    "welcome": {
+      "goals": {
+        "house": "buying a house", "car": "buying a car", "passiveIncome": "living off your investments",
+        "retirement": "retirement and pension", "financialFreedom": "financial freedom",
+        "longTermWealth": "building long-term wealth"
+      },
+      "levelIntro": {
+        "basic": "No matter where you're starting from, I'll go step by step with you.",
+        "intermediate": "With your experience in ETFs and stocks, we can go straight to what matters.",
+        "advanced": "With your advanced level, we'll dive into more sophisticated analysis from the start."
+      },
+      "yearsProjection": "\n\n📊 With **${{amount}}/mo** and a historical average return of **{{rate}}** annually, you could reach **{{goal}}** in about **{{years}} years**.",
+      "brokerContext": {
+        "namedBroker": "I see you already use **{{broker}}**",
+        "hasBroker": "I see you already have a broker",
+        "noBroker": "Since you don't have a broker yet, one of our first steps will be helping you open one"
+      },
+      "investContext": {
+        "hasInvested": "and you already have experience in the market",
+        "firstTime": "and this will be your first time investing — the best thing that could happen"
+      },
+      "message": "Welcome to Nuvos, **{{name}}**! 🎉\n\nI've reviewed your full profile. You're a **{{riskType}}** investor with a goal of **{{goal}}**.{{yearsProjection}}\n\n{{brokerContext}} {{investContext}}.\n\n{{levelIntro}}\n\n**Where would you like to start?**"
     }
   }
 }

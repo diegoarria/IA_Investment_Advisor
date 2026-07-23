@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { userScopedStorage } from "./userScopedStorage";
+import i18n from "../i18n";
+
+function _newChatTitle(): string {
+  return i18n.language === "en" ? "New chat" : "Nuevo chat";
+}
 
 export interface Message {
   role: "user" | "assistant";
@@ -87,7 +92,7 @@ export const useChatStore = create<ChatStore>()(
         const id = makeId();
         set((s) => ({
           sessions: [
-            { id, title: "Nuevo chat", messages: [], createdAt: Date.now(), updatedAt: Date.now(), diagnosis: null },
+            { id, title: _newChatTitle(), messages: [], createdAt: Date.now(), updatedAt: Date.now(), diagnosis: null },
             ...s.sessions,
           ],
           currentId: id,

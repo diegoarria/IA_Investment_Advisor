@@ -226,6 +226,7 @@ async def analyze_paper(body: dict, user_id: str = Depends(get_current_user_id))
     total_return   = float(body.get("total_return_pct") or 0)
     cash           = float(body.get("cash") or 0)
     portfolio_value = float(body.get("portfolio_value") or 10000)
+    lang           = body.get("lang") if body.get("lang") in ("es", "en") else "es"
 
     result = await ai_service.analyze_paper_portfolio(
         positions=positions,
@@ -233,6 +234,7 @@ async def analyze_paper(body: dict, user_id: str = Depends(get_current_user_id))
         total_return_pct=total_return,
         cash=cash,
         portfolio_value=portfolio_value,
+        lang=lang,
     )
     return result
 

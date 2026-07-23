@@ -314,12 +314,13 @@ export const feedbackApi = {
 export const paperApi = {
   analyze: (
     positions: unknown[], trades: unknown[],
-    totalReturnPct: number, cash: number, portfolioValue: number,
+    totalReturnPct: number, cash: number, portfolioValue: number, lang?: string,
   ) => api.post("/api/paper/analyze", {
     positions, trades,
     total_return_pct: totalReturnPct,
     cash,
     portfolio_value: portfolioValue,
+    lang,
   }),
 };
 

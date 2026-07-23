@@ -306,6 +306,28 @@
     "speculative": "Especulativo",
     "maturityGrowthDesc": "Sube con cada buena decisión en la app (mantener calma, diversificar, largo plazo).",
     "latestSignals": "Últimas señales",
+    "maturityLevels": {
+      "apprentice": "Aprendiz",
+      "beginner": "Principiante",
+      "developing": "En Desarrollo",
+      "mature": "Maduro",
+      "expert": "Experto"
+    },
+    "maturitySignals": {
+      "analisisRacional": "análisis racional",
+      "toleraVolatilidad": "tolera volatilidad",
+      "largoPlazo": "largo plazo",
+      "diversificacionConsciente": "diversificación consciente",
+      "compraEnCaidas": "compra en caídas",
+      "decisionPorFundamentos": "decisión por fundamentos",
+      "aceptaPerdidaEducada": "acepta pérdida educada",
+      "panicoVenta": "pánico venta",
+      "buscaGarantias": "busca garantías",
+      "fomo": "fomo",
+      "especulacion": "especulación",
+      "decisionPorPrecio": "decisión por precio",
+      "horizonteCorto": "horizonte corto"
+    },
     "yourMentor": "Tu mentor",
     "letterOf": "Carta de {{name}}",
     "monthlyLetterDesc": "Tu carta mensual personalizada",
@@ -357,6 +379,7 @@
     "inviteFriendsDesc": "Tú y tu amigo obtienen 14 días de premium gratis",
     "referredFriends": "Amigos referidos",
     "pendingReward": "Recompensa",
+    "pendingRewardValue": "{{days}} días gratis",
     "referralLink": "Tu enlace de referido",
     "referralShareText": "Estoy usando Nuvos AI — el mejor mentor de inversiones con IA. Únete gratis 👉 {{link}}",
     "shareInvite": "Compartir invitación",
@@ -3159,6 +3182,227 @@
       "title": "¿Quieres una investigación a fondo de {{ticker}}?",
       "subtitle": "Nuvos Deep Research compara, valora y personaliza con tu portafolio en minutos.",
       "cta": "Investigar"
+    }
+  },
+  "onboarding": {
+    "months": ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"],
+    "goals": {
+      "house": "Comprar una casa",
+      "car": "Comprar un carro",
+      "passiveIncome": "Vivir de mis inversiones",
+      "retirement": "Retiro / pensión",
+      "financialFreedom": "Libertad financiera",
+      "longTermWealth": "Patrimonio de largo plazo"
+    },
+    "knowledge": {
+      "basic": { "label": "Básico", "desc": "Sin experiencia o apenas inicio. Conozco ahorro, CETES o fondos básicos." },
+      "intermediate": { "label": "Intermedio", "desc": "Tengo experiencia con ETFs y acciones. Entiendo diversificación y rendimiento." },
+      "advanced": { "label": "Avanzado", "desc": "Manejo análisis fundamental, derivados, ciclos de mercado y estrategias complejas." }
+    },
+    "risk": {
+      "conservative": { "label": "Conservador", "desc": "Priorizas la seguridad y la preservación de tu capital. Prefieres rendimientos estables." },
+      "moderate": { "label": "Moderado", "desc": "Buscas equilibrio entre crecimiento y protección. Aceptas cierta volatilidad." },
+      "aggressive": { "label": "Agresivo", "desc": "Buscas máximo crecimiento. Toleras alta volatilidad a cambio de retornos superiores." }
+    },
+    "quiz": {
+      "q1": {
+        "category": "01 · MENTALIDAD",
+        "question": "Si inviertes $100,000 y el mercado se desploma 40%, ¿qué harías?",
+        "options": {
+          "A": "Vendo todo inmediatamente para evitar más pérdidas",
+          "B": "Espero sin hacer nada hasta que el mercado se recupere",
+          "C": "Mantengo mi posición — los fundamentos no cambiaron",
+          "D": "Compro más — es la oportunidad que estaba esperando"
+        },
+        "labels": { "A": "Vende todo", "B": "Espera pasivo", "C": "Mantiene posición", "D": "Compra más" }
+      },
+      "q4": {
+        "category": "02 · RIESGO",
+        "question": "Tienes $100,000 para invertir. ¿Qué escenario prefieres?",
+        "options": {
+          "A": "Ganar $5K seguro, sin posibilidad de perder nada",
+          "B": "Ganar $15K probable, con riesgo de perder $5K",
+          "C": "Ganar $40K posible, con riesgo de perder $20K",
+          "D": "Ganar $120K posible, con riesgo de perder todo"
+        },
+        "labels": { "A": "$5K seguro", "B": "$15K / riesgo $5K", "C": "$40K / riesgo $20K", "D": "$120K / riesgo total" }
+      }
+    },
+    "countries": {
+      "mx": "México", "us": "Estados Unidos", "co": "Colombia", "ar": "Argentina",
+      "ve": "Venezuela", "pe": "Perú", "cl": "Chile", "es": "España", "other": "Otro país"
+    },
+    "step0": {
+      "subtitle": "BIENVENIDO",
+      "title": "¡Hola! Cuéntanos sobre ti",
+      "nameLabel": "Tu nombre completo",
+      "namePlaceholder": "Ej. Diego Arria",
+      "nameHint": "Así te llamaremos y la IA sabrá cómo dirigirse a ti.",
+      "birthDateLabel": "Fecha de nacimiento",
+      "day": "Día", "month": "Mes", "year": "Año",
+      "birthDateHint": "Debes tener al menos 18 años para usar Nuvos AI.",
+      "countryLabel": "¿Desde dónde inviertes?"
+    },
+    "step1": {
+      "subtitle": "TU PERFIL",
+      "title": "¿Cuál es tu nivel de conocimiento en inversiones?",
+      "titleNamed": "{{name}}, ¿cuál es tu nivel de conocimiento en inversiones?"
+    },
+    "step2": {
+      "subtitle": "METAS FINANCIERAS",
+      "title": "Cuéntanos sobre tu plan",
+      "incomeLabel": "¿Cuáles son tus ingresos mensuales?",
+      "incomeHint": "Nos ayuda a personalizar cuánto tiene sentido que inviertas.",
+      "capitalLabel": "¿Cuánto tienes disponible para empezar a invertir hoy?",
+      "capitalPlaceholder": "0 si todavía no tienes",
+      "capitalHint": "No te preocupes si es $0 — muchos empiezan de cero. Es solo para personalizar tu plan.",
+      "contributionLabel": "¿Cuánto quieres invertir mensualmente?",
+      "goalAmountLabel": "¿Cuánto patrimonio quieres tener?",
+      "goalAmountHint": "La app calculará cuándo llegarás a esta meta con tus aportaciones.",
+      "horizonLabel": "¿Por cuántos años quieres invertir?",
+      "perMonth": "/mes",
+      "years": "años"
+    },
+    "step3": {
+      "subtitle": "OBJETIVO",
+      "title": "¿Cuál es tu meta al invertir?"
+    },
+    "step6": {
+      "subtitle": "TU PUNTO DE PARTIDA",
+      "title": "¿Ya tienes experiencia en el mercado?",
+      "titleNamed": "{{name}}, ¿ya tienes experiencia en el mercado?",
+      "brokerQuestion": "¿Tienes cuenta en algún broker?",
+      "brokerYes": "Sí, ya tengo",
+      "brokerNo": "No todavía",
+      "brokerNamePlaceholder": "Ej. Robinhood, GBM, Fidelity, Interactive Brokers...",
+      "brokerNameHint": "Así Nuvos sabrá qué plataforma usas y podrá guiarte mejor.",
+      "investmentsQuestion": "¿Ya tienes dinero invertido en el mercado?",
+      "investmentsYes": "Sí, ya invertí",
+      "investmentsNo": "Seré primerizo",
+      "firstTimeTitle": "¡Perfecto punto de partida!",
+      "firstTimeDesc": "Nuvos te va a acompañar paso a paso para que hagas tu primera inversión con confianza."
+    },
+    "step65": {
+      "subtitle": "CONOCIÉNDOTE MEJOR",
+      "title": "¿Qué has escuchado sobre las inversiones?",
+      "titleNamed": "{{name}}, ¿qué has escuchado sobre las inversiones?",
+      "prompt": "Cuéntanos lo que sepas, hayas leído o te hayan dicho — de amigos, redes, lo que sea. No hay respuesta incorrecta.",
+      "placeholder": "Ej. Que hay que diversificar, que el S&P 500 sube con el tiempo, que las criptomonedas son riesgosas...",
+      "hint": "Con tu respuesta la IA conocerá más detalles iniciales de ti. Es completamente opcional — puedes dejarlo en blanco y seguir."
+    },
+    "step7": {
+      "subtitle": "TU PERFIL DE INVERSIÓN",
+      "title": "Tu perfil, {{name}}",
+      "defaultName": "inversionista",
+      "investorOfType": "Inversionista {{type}}",
+      "lowRisk": "Bajo riesgo",
+      "highRisk": "Alto riesgo",
+      "summaryTitle": "Resumen de tu perfil",
+      "ageValue": "{{age}} años",
+      "yes": "Sí",
+      "noBrokerYet": "Sin broker aún",
+      "investedBefore": "Ya invertí antes",
+      "firstTime": "Primera vez 🌱",
+      "answersTitle": "Tus respuestas",
+      "q1Label": "Ante una caída del mercado",
+      "q4Label": "Escenario de riesgo preferido",
+      "rows": {
+        "name": "Nombre", "age": "Edad", "country": "País", "level": "Nivel", "goal": "Meta",
+        "initialCapital": "Capital inicial", "monthlyContribution": "Aportación mensual",
+        "targetWealth": "Patrimonio objetivo", "horizon": "Horizonte", "broker": "Broker",
+        "priorInvestments": "Inversiones previas"
+      }
+    },
+    "step8": {
+      "subtitle": "TU PROYECCIÓN",
+      "title": "Tu camino hacia {{amount}}",
+      "contributing": "Aportando ${{amount}}/mes",
+      "perYear": "/año",
+      "atYears": "A los {{years}} años (tu horizonte)",
+      "tenMoreYears": "Si lo dejas 10 años más ({{total}} total)",
+      "tenMoreYearsExtra": "10 años más: +{{extra}} extra (+{{pct}}%)",
+      "compoundNote": "El interés compuesto se acelera — los últimos años generan más que los primeros.",
+      "illustrativeNote": "* Ilustrativo. Basado en promedios históricos del mercado. No garantiza rendimientos futuros.",
+      "goalReached": "¡Alcanzas tu meta dentro de los {{years}} años!",
+      "goalNeedsYears": "Necesitas ~{{years}} años para alcanzar {{amount}}",
+      "goalIncreaseContribution": "En {{years}} años tendrías {{amount}} — aumenta tu aportación mensual",
+      "featuresTitle": "Nuvos AI trabaja contigo",
+      "features": {
+        "ai": { "title": "IA que conoce tu perfil", "sub": "Análisis personalizado según tu nivel y tolerancia al riesgo" },
+        "portfolio": { "title": "Portafolio en tiempo real", "sub": "Precios cada 30s con rendimientos Hoy / YTD / Total" },
+        "calendar": { "title": "Calendario de eventos", "sub": "Earnings, dividendos y ex-dividendos de tus posiciones" },
+        "paper": { "title": "Paper trading sin riesgo", "sub": "Practica con $10,000 virtuales a precios reales del mercado" }
+      }
+    },
+    "legal": {
+      "subtitle": "AVISO LEGAL",
+      "title": "Antes de empezar",
+      "bannerTitle": "Aviso de Carácter Educativo — léelo completo antes de continuar",
+      "section1": {
+        "title": "1. Naturaleza del servicio",
+        "body1": "Nuvos AI es una herramienta tecnológica de carácter educativo e informativo orientada a la educación financiera y al análisis de mercados. Nuvos AI",
+        "notEmphasis": "no es",
+        "body2": "una institución bancaria, casa de bolsa, asesor en inversiones, ni ninguna otra entidad regulada por la CNBV, CONDUSEF, SEC ni cualquier otro regulador financiero en México, Estados Unidos o cualquier otro país."
+      },
+      "section2": {
+        "title": "2. Ausencia de asesoría financiera personalizada",
+        "body": "Ningún contenido generado dentro de la aplicación —incluyendo perfiles de riesgo, análisis de portafolios, comparativos con inversionistas, simulaciones, alertas o calendarios de resultados— constituye una recomendación personalizada de inversión, una oferta, ni una invitación para comprar, vender o mantener algún instrumento financiero. Todo el contenido es de naturaleza general y educativa, generado o asistido por inteligencia artificial."
+      },
+      "section3": {
+        "title": "3. Riesgos de invertir en los mercados financieros",
+        "body1": "Toda inversión conlleva riesgo, incluyendo la posible pérdida total o parcial del capital invertido. El desempeño histórico no garantiza resultados futuros. Cualquier decisión de inversión que tomes, dentro o fuera de la aplicación,",
+        "responsibilityEmphasis": "es responsabilidad exclusiva del usuario"
+      },
+      "section4": {
+        "title": "4. Limitaciones de la inteligencia artificial",
+        "body": "El contenido generado por IA dentro de Nuvos AI puede contener errores, imprecisiones u omisiones derivados de limitaciones técnicas de los modelos utilizados o de la información de mercado disponible. No debe interpretarse como una afirmación de exactitud absoluta ni como sustituto de la consulta con un profesional financiero certificado."
+      },
+      "section5": {
+        "title": "5. Responsabilidad del usuario",
+        "body": "El uso de la información y herramientas de Nuvos AI es completamente voluntario. Nuvos AI, sus fundadores y colaboradores no asumen responsabilidad alguna por pérdidas, daños o perjuicios relacionados con decisiones de inversión tomadas con base, total o parcial, en el contenido de la aplicación."
+      },
+      "section6": {
+        "title": "6. Tratamiento de datos personales",
+        "body": "Los datos personales y financieros proporcionados serán tratados conforme a la Ley Federal de Protección de Datos Personales en Posesión de Particulares y demás disposiciones aplicables, según se describe en el"
+      },
+      "privacyNoticeLink": "Aviso de Privacidad de Nuvos AI",
+      "acceptTermsPrefix": "He leído y acepto los",
+      "termsLink": "Términos de Uso",
+      "and": "y la",
+      "privacyLink": "Política de Privacidad",
+      "understandPrefix": "Entiendo que Nuvos AI ofrece contenido educativo generado con IA,",
+      "understandEmphasis": "que no constituye asesoría financiera personalizada ni recomendación de inversión",
+      "understandSuffix": ", y que cualquier decisión financiera que tome es de mi exclusiva responsabilidad."
+    },
+    "buttons": {
+      "back": "Atrás", "exit": "Salir", "next": "Siguiente", "start": "¡Comenzar!", "saving": "Guardando..."
+    },
+    "stepCounter": "Paso {{current}} de {{total}}",
+    "errors": {
+      "saveFailed": "Error al guardar el perfil. Intenta de nuevo."
+    },
+    "welcome": {
+      "goals": {
+        "house": "comprar una casa", "car": "comprar un carro", "passiveIncome": "vivir de tus inversiones",
+        "retirement": "retiro y pensión", "financialFreedom": "libertad financiera",
+        "longTermWealth": "construir patrimonio a largo plazo"
+      },
+      "levelIntro": {
+        "basic": "Sin importar desde dónde empiezes, voy paso a paso contigo.",
+        "intermediate": "Con tu experiencia en ETFs y acciones, podemos ir directo a lo que importa.",
+        "advanced": "Con tu nivel avanzado, iremos a los análisis más sofisticados desde el inicio."
+      },
+      "yearsProjection": "\n\n📊 Con **${{amount}}/mes** y un retorno histórico promedio del **{{rate}}** anual, podrías alcanzar **{{goal}}** en aproximadamente **{{years}} años**.",
+      "brokerContext": {
+        "namedBroker": "Veo que ya usas **{{broker}}**",
+        "hasBroker": "Veo que ya tienes broker",
+        "noBroker": "Como todavía no tienes broker, uno de nuestros primeros pasos será ayudarte a abrir uno"
+      },
+      "investContext": {
+        "hasInvested": "y ya tienes experiencia en el mercado",
+        "firstTime": "y será tu primera vez invirtiendo — lo mejor que te puede pasar"
+      },
+      "message": "¡Bienvenido a Nuvos, **{{name}}**! 🎉\n\nYa revisé tu perfil completo. Eres un inversionista **{{riskType}}** con meta de **{{goal}}**.{{yearsProjection}}\n\n{{brokerContext}} {{investContext}}.\n\n{{levelIntro}}\n\n**¿Por dónde quieres empezar?**"
     }
   }
 }

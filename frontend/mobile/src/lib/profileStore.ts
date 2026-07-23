@@ -102,12 +102,36 @@ export function computeMaturityDelta(signals: string[]): number {
   return signals.reduce((acc, sig) => acc + (MATURITY_DELTAS[sig] ?? 0), 0);
 }
 
-export function maturityLabel(score: number): { label: string; color: string } {
-  if (score < 30) return { label: "Aprendiz",      color: "#ef4444" };
-  if (score < 50) return { label: "Principiante",  color: "#f97316" };
-  if (score < 65) return { label: "En Desarrollo", color: "#f59e0b" };
-  if (score < 80) return { label: "Maduro",        color: "#22c55e" };
-  return                 { label: "Experto",        color: "#16a34a" };
+// Maps each raw signal key (matching MATURITY_DELTAS above) to its i18n key
+// under profile.maturitySignals.* — these used to render as the raw
+// Spanish key with underscores replaced by spaces, even in English.
+const MATURITY_SIGNAL_I18N_KEYS: Record<string, string> = {
+  "análisis_racional": "analisisRacional",
+  "tolera_volatilidad": "toleraVolatilidad",
+  "largo_plazo": "largoPlazo",
+  "diversificación_consciente": "diversificacionConsciente",
+  "compra_en_caídas": "compraEnCaidas",
+  "decisión_por_fundamentos": "decisionPorFundamentos",
+  "acepta_pérdida_educada": "aceptaPerdidaEducada",
+  "pánico_venta": "panicoVenta",
+  "busca_garantías": "buscaGarantias",
+  "fomo": "fomo",
+  "especulación": "especulacion",
+  "decisión_por_precio": "decisionPorPrecio",
+  "horizonte_corto": "horizonteCorto",
+};
+
+export function maturitySignalI18nKey(signal: string): string {
+  const key = MATURITY_SIGNAL_I18N_KEYS[signal];
+  return key ? `profile.maturitySignals.${key}` : "";
+}
+
+export function maturityLabel(score: number, t: (key: string) => string): { label: string; color: string } {
+  if (score < 30) return { label: t("profile.maturityLevels.apprentice"),  color: "#ef4444" };
+  if (score < 50) return { label: t("profile.maturityLevels.beginner"),    color: "#f97316" };
+  if (score < 65) return { label: t("profile.maturityLevels.developing"), color: "#f59e0b" };
+  if (score < 80) return { label: t("profile.maturityLevels.mature"),     color: "#22c55e" };
+  return                 { label: t("profile.maturityLevels.expert"),     color: "#16a34a" };
 }
 
 /** Knowledge level derived from the actual maturity score (overrides quiz self-report). */

@@ -20,11 +20,6 @@ router = APIRouter(prefix="/referral", tags=["referral"])
 # every referral pays out the same reward, stacking with any active streak
 # or prior referral bonus already on the account).
 REFERRAL_BONUS_DAYS = 14
-_REWARD_MESSAGE = "Tú y tu amigo obtienen 14 días de premium gratis"
-
-
-def _pending_reward(_count: int) -> str:
-    return _REWARD_MESSAGE
 
 
 async def _grant_referral_bonus(user_id: str, db) -> None:
@@ -101,7 +96,10 @@ async def get_stats(user_id: str = Depends(get_current_user_id)):
         "code": code,
         "link": f"https://nuvosai.app/join?ref={code}",
         "referred_count": count,
-        "pending_reward": _pending_reward(count),
+        # The frontend renders this via i18n (t("profile.pendingRewardValue",
+        # {days})) — a hardcoded Spanish string used to live here regardless
+        # of the user's language setting.
+        "bonus_days": REFERRAL_BONUS_DAYS,
     }
 
 

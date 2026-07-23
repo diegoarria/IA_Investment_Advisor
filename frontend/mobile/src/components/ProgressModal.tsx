@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
-import { useAppStore, maturityLabel } from "../lib/profileStore";
+import { useAppStore, maturityLabel, maturitySignalI18nKey } from "../lib/profileStore";
 import { useLearnStore } from "../lib/learnStore";
 import { useChatStore } from "../lib/chatStore";
 import { usePortfolioStore } from "../lib/portfolioStore";
@@ -22,7 +22,7 @@ export default function ProgressModal({ visible, onClose }: Props) {
   const sessions = useChatStore((s) => s.sessions);
   const positions = usePortfolioStore((s) => s.positions);
 
-  const ml = maturityLabel(maturityScore);
+  const ml = maturityLabel(maturityScore, t);
 
   // Build maturity graph from history (last 10 data points)
   const graphPoints = useMemo(() => {
@@ -149,7 +149,7 @@ export default function ProgressModal({ visible, onClose }: Props) {
                   >
                     <View style={[s.signalDot, { backgroundColor: ev.delta >= 0 ? "#22c55e" : "#ef4444" }]} />
                     <Text style={[s.signalText, { color: colors.textSub }]} numberOfLines={1}>
-                      {ev.signals.map((sig) => sig.replace(/_/g, " ")).join(", ")}
+                      {ev.signals.map((sig) => { const k = maturitySignalI18nKey(sig); return k ? t(k) : sig.replace(/_/g, " "); }).join(", ")}
                     </Text>
                     <Text style={[s.signalDelta, { color: ev.delta >= 0 ? "#22c55e" : "#ef4444" }]}>
                       {ev.delta >= 0 ? "+" : ""}{ev.delta}

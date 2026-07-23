@@ -138,7 +138,7 @@ _CHECKLIST_REASON_KEYS = ["moat", "business_quality", "management_capital_alloca
 _SUPPORTED_LANGS = ("es", "en")
 
 
-def _finalize_checklist(entry: dict, business_understanding: Optional[dict] = None, checklist_reasons: Optional[dict] = None) -> None:
+def _finalize_checklist(entry: dict, business_understanding: Optional[dict] = None, checklist_reasons: Optional[dict] = None, lang: str = "es") -> None:
     """Merges checklist item 1 ("Entender el negocio"/"Understanding the
     business" — Claude's judgment, or None if not evaluated) with items 2-7
     (real "stars" ratings, 1-5, computed by fundamental_analysis_service.
@@ -167,9 +167,9 @@ def _finalize_checklist(entry: dict, business_understanding: Optional[dict] = No
         item.pop("evidence", None)
     items.insert(0, business_understanding or {
         "key": "business_understanding",
-        "name": "Entender el negocio",
+        "name": "Entender el negocio" if lang != "en" else "Understanding the business",
         "stars": None,
-        "reason": "No evaluado en esta carga rápida.",
+        "reason": "No evaluado en esta carga rápida." if lang != "en" else "Not evaluated in this quick load.",
     })
     rated = [it["stars"] for it in items if it.get("stars") is not None]
     avg_stars = round(sum(rated) / len(rated), 1) if rated else None
@@ -270,18 +270,28 @@ async def refresh_undervalued_screener() -> None:
     from app.services.ai_service import generate_candidate_blurb
     for entry in results:
         for lang in _SUPPORTED_LANGS:
-            try:
-                blurb_result = await generate_candidate_blurb(entry, lang=lang)
-                entry["blurb_by_lang"][lang] = blurb_result.get("blurb")
-                entry["business_understanding_by_lang"][lang] = {
-                    "key": "business_understanding",
-                    "name": "Entender el negocio" if lang == "es" else "Understanding the business",
-                    "stars": blurb_result.get("business_understanding_stars"),
-                    "reason": blurb_result.get("business_understanding_reason", ""),
-                }
-                entry["checklist_reasons_by_lang"][lang] = blurb_result.get("checklist_reasons") or {}
-            except Exception as exc:
-                logger.warning("undervalued_screener_service: blurb (%s) failed for %s: %s", lang, entry["ticker"], exc)
+            # One retry on a genuine failure (network hiccup, rate limit) —
+            # get_undervalued used to silently fall back to the Spanish
+            # blurb when the English one was simply missing here, showing
+            # Spanish text under an English UI with no indication. Retrying
+            # once means that gap is rare, and get_undervalued no longer
+            # crosses languages at all (see its own fix below), so a
+            # still-missing blurb now shows nothing rather than the wrong
+            # language.
+            for attempt in range(2):
+                try:
+                    blurb_result = await generate_candidate_blurb(entry, lang=lang)
+                    entry["blurb_by_lang"][lang] = blurb_result.get("blurb")
+                    entry["business_understanding_by_lang"][lang] = {
+                        "key": "business_understanding",
+                        "name": "Entender el negocio" if lang == "es" else "Understanding the business",
+                        "stars": blurb_result.get("business_understanding_stars"),
+                        "reason": blurb_result.get("business_understanding_reason", ""),
+                    }
+                    entry["checklist_reasons_by_lang"][lang] = blurb_result.get("checklist_reasons") or {}
+                    break
+                except Exception as exc:
+                    logger.warning("undervalued_screener_service: blurb (%s) attempt %d failed for %s: %s", lang, attempt + 1, entry["ticker"], exc)
 
     cache_set(CACHE_KEY, results, CACHE_TTL)
     logger.info("undervalued_screener_service: refreshed, %d/%d tickers had positive margin of safety", len(results), len(UNIVERSE))
@@ -403,7 +413,11 @@ def get_undervalued(limit: int = 60, sector: Optional[str] = None, lang: str = "
             checklist_reasons_by_lang = entry.pop("checklist_reasons_by_lang", {}) or {}
             weak_dimension = entry.pop("weak_dimension", None)
 
-            entry["blurb"] = blurb_by_lang.get(lang) or blurb_by_lang.get("es")
+            # Never cross languages — a missing English blurb used to
+            # silently fall back to the Spanish one, showing Spanish text
+            # under an English UI with no indication. Better to show nothing
+            # for that one entry than the wrong language.
+            entry["blurb"] = blurb_by_lang.get(lang)
             entry["weak_dimension_warning"] = _format_weak_dimension_warning(weak_dimension, lang)
             # checklist_items_real may already be gone if this entry was
             # finalized once by an older cache version — nothing to merge in
@@ -411,8 +425,9 @@ def get_undervalued(limit: int = 60, sector: Optional[str] = None, lang: str = "
             if "checklist_items_real" in entry:
                 _finalize_checklist(
                     entry,
-                    business_understanding_by_lang.get(lang) or business_understanding_by_lang.get("es"),
-                    checklist_reasons_by_lang.get(lang) or checklist_reasons_by_lang.get("es"),
+                    business_understanding_by_lang.get(lang),
+                    checklist_reasons_by_lang.get(lang),
+                    lang=lang,
                 )
             finalized.append(entry)
         except Exception as exc:

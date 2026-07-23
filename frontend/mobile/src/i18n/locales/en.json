@@ -397,6 +397,28 @@
       "note": "Goes up with every good decision in the app. It doesn't reflect your self-reported knowledge level.",
       "recentSignals": "Latest signals detected"
     },
+    "maturityLevels": {
+      "apprentice": "Apprentice",
+      "beginner": "Beginner",
+      "developing": "Developing",
+      "mature": "Mature",
+      "expert": "Expert"
+    },
+    "maturitySignals": {
+      "analisisRacional": "rational analysis",
+      "toleraVolatilidad": "tolerates volatility",
+      "largoPlazo": "long term",
+      "diversificacionConsciente": "conscious diversification",
+      "compraEnCaidas": "buys the dip",
+      "decisionPorFundamentos": "decides on fundamentals",
+      "aceptaPerdidaEducada": "accepts an informed loss",
+      "panicoVenta": "panic selling",
+      "buscaGarantias": "seeks guarantees",
+      "fomo": "FOMO",
+      "especulacion": "speculation",
+      "decisionPorPrecio": "decides on price alone",
+      "horizonteCorto": "short horizon"
+    },
     "mentor": {
       "sectionTitle": "Your mentor",
       "letterTitle": "Letter from {{name}}",
@@ -474,6 +496,7 @@
       "subtitle": "You and your friend both get 14 days of premium free",
       "referredFriends": "Referred friends",
       "pendingReward": "Reward",
+      "pendingRewardValue": "{{days}} days free",
       "loading": "Loading...",
       "share": "Share invite",
       "note": "The 14 days activate automatically as soon as your friend signs up with your code.",

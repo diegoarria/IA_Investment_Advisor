@@ -36,7 +36,7 @@ function fmtMoney(n: number): string {
 }
 
 export default function PaperPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router   = useRouter();
   const { isAuthenticated }  = useAuthStore();
   const subStore = useSubscriptionStore();
@@ -715,6 +715,7 @@ export default function PaperPage() {
                         totalReturn,
                         cash,
                         portfolioValue,
+                        i18n.language,
                       );
                       setAnalysis(res.data as PaperAnalysis);
                     } catch {

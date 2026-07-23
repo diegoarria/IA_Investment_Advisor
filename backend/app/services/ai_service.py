@@ -1908,8 +1908,9 @@ async def chat_stream(
 
 async def screen_stocks(stocks: list[dict], query: str, profile: UserProfile | None = None) -> str:
     system_prompt = build_system_prompt(profile)
+    lang = _lang_from_profile(profile)
     data_str = json.dumps(stocks[:20], ensure_ascii=False)
-    prompt = f"""El usuario busca: "{query}"
+    prompt = f"""{_plain_text_language_directive(lang)}El usuario busca: "{query}"
 
 Datos de acciones disponibles (JSON):
 {data_str}
@@ -1928,8 +1929,9 @@ Formato visual y compacto. Termina con una línea de insight general."""
 
 async def generate_alert_context(ticker: str, change_pct: float, profile: UserProfile | None = None) -> str:
     system_prompt = build_system_prompt(profile)
+    lang = _lang_from_profile(profile)
     direction = "subió" if change_pct >= 0 else "cayó"
-    prompt = f"""{ticker} {direction} {abs(change_pct):.1f}% hoy.
+    prompt = f"""{_plain_text_language_directive(lang)}{ticker} {direction} {abs(change_pct):.1f}% hoy.
 
 En máximo 4 bullets visuales:
 1. Qué pudo causar este movimiento
@@ -1954,8 +1956,9 @@ async def generate_notification_insight(
     profile: UserProfile | None = None
 ) -> str:
     system_prompt = build_system_prompt(profile)
+    lang = _lang_from_profile(profile)
 
-    prompt = f"""Genera un mensaje de notificación educativa personalizada para este evento de mercado.
+    prompt = f"""{_plain_text_language_directive(lang)}Genera un mensaje de notificación educativa personalizada para este evento de mercado.
 
 Tipo: {notification_type}
 Evento: {market_event}
@@ -2193,6 +2196,7 @@ REGLAS CRÍTICAS (no negociables):
 1. Los campos "segments", "guidance_change" y cualquier cifra de backlog/órdenes SOLO pueden venir de lo que aparece literalmente en la BÚSQUEDA WEB de arriba o de los DATOS REALES de EPS/Revenue — NUNCA inventes un número de backlog, crecimiento de segmento o cambio de guidance que no esté ahí. Si la búsqueda no trae ese detalle, deja el campo como null o un array vacío y dilo explícitamente en el texto (ej. "no encontramos detalle de segmentos para este reporte").
 2. "rating_out_of_10" y "rating_reasoning" son tu juicio subjetivo como analista — dilo explícitamente, no lo presentes como un hecho objetivo.
 3. Nunca digas "Comprar/Vender" — esto no es asesoría de inversión.
+4. La BÚSQUEDA WEB de arriba puede estar en español o en inglés según de dónde vino la fuente — no importa: TODOS los campos de texto de tu respuesta deben estar 100% en el idioma indicado al inicio de este prompt. Traduce cualquier cifra, cita o frase que tomes de la búsqueda al idioma de salida — nunca copies una oración textual en el idioma original si no coincide con el idioma pedido.
 
 Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta estructura exacta:
 {{
@@ -2341,8 +2345,9 @@ async def generate_weekly_picks(
     risk_guidance = RISK_GUIDANCE.get(risk, RISK_GUIDANCE["moderate"])
 
     data_str = json.dumps(candidates[:50], ensure_ascii=False)
+    lang = _lang_from_profile(profile)
 
-    prompt = f"""Eres el mentor de inversión personal del usuario. Tu trabajo esta semana: elegir exactamente 5 acciones para que el usuario investigue, completamente personalizadas a su perfil.
+    prompt = f"""{_output_language_directive(lang)}Eres el mentor de inversión personal del usuario. Tu trabajo esta semana: elegir exactamente 5 acciones para que el usuario investigue, completamente personalizadas a su perfil.
 
 ═══ PERFIL DEL USUARIO ═══
 • Riesgo: {risk}
@@ -2435,6 +2440,7 @@ async def simulate_whatif(
     profile: UserProfile | None = None,
 ) -> dict:
     system_prompt = build_system_prompt(profile)
+    lang = _lang_from_profile(profile)
     portfolio_str = json.dumps(portfolio, ensure_ascii=False)
 
     if scenario_type == "swap":
@@ -2453,7 +2459,7 @@ async def simulate_whatif(
     else:
         prompt_detail = str(scenario_params)
 
-    prompt = f"""El usuario tiene este portafolio actual:
+    prompt = f"""{_output_language_directive(lang)}El usuario tiene este portafolio actual:
 {portfolio_str}
 
 Escenario ¿qué pasa si?: {prompt_detail}
@@ -2517,6 +2523,7 @@ async def analyze_portfolio_score(portfolio: list[dict], profile: "UserProfile |
     from datetime import datetime as _dt
     today = _dt.now().strftime("%d de %B de %Y")
     risk = profile.risk_tolerance if profile else "moderado"
+    lang = _lang_from_profile(profile)
     # Minimal system prompt — intentionally avoids ACTION_TAG_INSTRUCTIONS so the
     # response is pure JSON without chat-interface action blocks appended.
     system_prompt = (
@@ -2525,15 +2532,16 @@ async def analyze_portfolio_score(portfolio: list[dict], profile: "UserProfile |
         "Respondes ÚNICAMENTE con JSON estructurado válido. Sin texto adicional, sin markdown, sin comentarios."
     )
     portfolio_str = json.dumps(portfolio, ensure_ascii=False)
+    score_label_options = "Excellent|Very Good|Good|Fair|Needs Work" if lang == "en" else "Excelente|Muy Bueno|Bueno|Regular|Mejorable"
 
-    prompt = f"""Analiza este portafolio y responde con JSON puro (sin markdown, sin texto extra).
+    prompt = f"""{_output_language_directive(lang)}Analiza este portafolio y responde con JSON puro (sin markdown, sin texto extra).
 
 Portafolio: {portfolio_str}
 
 JSON requerido (sé conciso — máx 1 oración por campo de texto):
 {{
   "score": <1-100>,
-  "score_label": "<Excelente|Muy Bueno|Bueno|Regular|Mejorable>",
+  "score_label": "<{score_label_options}>",
   "score_color": "<#22c55e si>=80, #84cc16 si>=65, #f59e0b si>=50, #ef4444 si<50>",
   "summary": "<2 oraciones: valoración global y tickers clave>",
   "sections": [
@@ -2583,7 +2591,11 @@ Reglas: score honesto; tickers reales; solo JSON puro."""
             "score": 0,
             "score_label": "Error",
             "score_color": "#6b7280",
-            "summary": "No se pudo completar el análisis. Intenta de nuevo en unos segundos.",
+            "summary": (
+                "Couldn't complete the analysis. Try again in a few seconds."
+                if lang == "en" else
+                "No se pudo completar el análisis. Intenta de nuevo en unos segundos."
+            ),
             "sections": [],
             "strengths": [],
             "weaknesses": [],
@@ -2677,9 +2689,11 @@ async def analyze_decision_biases(
     profile: UserProfile | None = None,
 ) -> dict:
     system_prompt = build_system_prompt(profile)
+    lang = _lang_from_profile(profile)
     decisions_str = json.dumps(decisions[-20:], ensure_ascii=False)  # last 20 — sufficient for bias detection
+    overall_label_options = "Rational Investor / Emotional Investor / Developing Investor" if lang == "en" else "Inversor Racional / Inversor Emocional / Inversor en Desarrollo"
 
-    prompt = f"""Analiza el historial de decisiones de inversión de este usuario y detecta sus sesgos conductuales.
+    prompt = f"""{_output_language_directive(lang)}Analiza el historial de decisiones de inversión de este usuario y detecta sus sesgos conductuales.
 
 Decisiones registradas (JSON):
 {decisions_str}
@@ -2691,7 +2705,7 @@ Responde SOLO con JSON válido:
   "total_decisions": 0,
   "analysis_period": "Últimos X días",
   "overall_score": 0,
-  "overall_label": "Inversor Racional / Inversor Emocional / Inversor en Desarrollo",
+  "overall_label": "{overall_label_options}",
   "biases_detected": [
     {{
       "name": "Nombre del sesgo (ej: Aversión a la pérdida)",
@@ -2788,12 +2802,19 @@ No uses el formato de 4 secciones con emojis — esta es una respuesta corta y h
     return response.content[0].text.strip()
 
 
+_PAPER_DISCLAIMER = {
+    "es": "Invertir en acciones individuales conlleva riesgo de pérdida de capital. Realiza tu propia investigación antes de tomar cualquier decisión financiera.",
+    "en": "Investing in individual stocks carries the risk of capital loss. Do your own research before making any financial decision.",
+}
+
+
 async def analyze_paper_portfolio(
     positions: list[dict],
     trades: list[dict],
     total_return_pct: float,
     cash: float,
     portfolio_value: float,
+    lang: str = "es",
 ) -> dict:
     """Analyze paper trading portfolio and return structured readiness verdict."""
     import json as _json
@@ -2803,7 +2824,7 @@ async def analyze_paper_portfolio(
     buy_trades     = [t for t in trades if t.get("type") == "buy"]
     sell_trades    = [t for t in trades if t.get("type") == "sell"]
     tickers        = sorted({p.get("ticker", "") for p in positions})
-    ticker_str     = ", ".join(tickers) if tickers else "ninguna"
+    ticker_str     = ", ".join(tickers) if tickers else ("none" if lang == "en" else "ninguna")
 
     # Detect behavioral signals from trade history
     sell_count = len(sell_trades)
@@ -2816,7 +2837,40 @@ async def analyze_paper_portfolio(
                     rapid_sells.append(s.get("ticker"))
                     break
 
-    prompt = f"""Eres un coach de inversiones que analiza el portafolio de simulación (paper trading) de un usuario.
+    disclaimer = _PAPER_DISCLAIMER.get(lang, _PAPER_DISCLAIMER["es"])
+
+    if lang == "en":
+        prompt = f"""{_output_language_directive(lang)}You are an investing coach analyzing a user's paper-trading (simulated) portfolio.
+
+SIMULATED PORTFOLIO DATA:
+- Total value: ${portfolio_value:,.2f} (started with $10,000)
+- Total return: {total_return_pct:+.2f}%
+- Cash available: ${cash:,.2f}
+- Current positions ({num_positions}): {ticker_str}
+- Total trades: {num_trades} ({len(buy_trades)} buys, {sell_count} sells)
+- Rapid sells (<3 days after buying): {len(rapid_sells)} ({', '.join(rapid_sells) if rapid_sells else 'none'})
+
+INSTRUCTIONS:
+Analyze this portfolio and assess whether the user is ready to invest real money in individual stocks.
+
+Return ONLY a valid JSON with this exact structure (no markdown, no extra text):
+{{
+  "verdict": "practice_more" | "promising" | "ready",
+  "headline": "<short, direct phrase, max 12 words>",
+  "feedback": "<3-5 sentence paragraph with honest analysis of the behavior>",
+  "positives": ["<positive point 1>", "<positive point 2>"],
+  "improvements": ["<area to improve 1>", "<area to improve 2>"],
+  "disclaimer": "{disclaimer}"
+}}
+
+Verdict criteria:
+- "practice_more": < 5 trades, no diversification, very negative return (< -15%), or frequent panic pattern
+- "promising": reasonable behavior with room to improve; can keep practicing a few more months
+- "ready": ≥ 10 disciplined trades, proper diversification, no panic sells, return between -5% and positive
+
+Be honest, educational, and empathetic. Don't give advice on specific stocks."""
+    else:
+        prompt = f"""{_output_language_directive(lang)}Eres un coach de inversiones que analiza el portafolio de simulación (paper trading) de un usuario.
 
 DATOS DEL PORTAFOLIO SIMULADO:
 - Valor total: ${portfolio_value:,.2f} (empezó con $10,000)
@@ -2836,7 +2890,7 @@ Devuelve ÚNICAMENTE un JSON válido con esta estructura exacta (sin markdown, s
   "feedback": "<párrafo de 3-5 oraciones con análisis honesto del comportamiento>",
   "positives": ["<punto positivo 1>", "<punto positivo 2>"],
   "improvements": ["<área de mejora 1>", "<área de mejora 2>"],
-  "disclaimer": "Invertir en acciones individuales conlleva riesgo de pérdida de capital. Realiza tu propia investigación antes de tomar cualquier decisión financiera."
+  "disclaimer": "{disclaimer}"
 }}
 
 Criterios para el veredicto:
@@ -2862,11 +2916,11 @@ Sé honesto, educativo y empático. No des consejos sobre acciones específicas.
     except Exception:
         return {
             "verdict": "promising",
-            "headline": "Análisis disponible",
+            "headline": "Analysis available" if lang == "en" else "Análisis disponible",
             "feedback": text,
             "positives": [],
             "improvements": [],
-            "disclaimer": "Invertir en acciones individuales conlleva riesgo de pérdida de capital. Realiza tu propia investigación antes de tomar cualquier decisión financiera.",
+            "disclaimer": disclaimer,
         }
 
 
@@ -2916,6 +2970,23 @@ _CHECKLIST_INSTRUCTIONS = """Reglas para razonar los 7 ítems del checklist de i
 - En "crecimiento futuro predecible" separa claramente Growth Outlook (tamaño de mercado, expansión) de Predictability (estabilidad de márgenes/FCF/ingresos) — si son distintos, explica por qué.
 - En "valor intrínseco y margen de seguridad" nunca presentes solo un porcentaje — explica qué crecimiento implícito está pagando el mercado y qué significa eso. Si mencionas sensibilidad a la tasa de descuento (del heatmap o la tabla de sensibilidad reales dados arriba), SIEMPRE enmárcalo explícitamente como un escenario hipotético, nunca como un hecho o predicción — ej. "en un escenario de +100 puntos base en la tasa de descuento, el valor intrínseco disminuiría aproximadamente Y%", usando las cifras reales de esa tabla, no una cifra inventada.
 - Lenguaje profesional, objetivo, basado en evidencia, máximo 70 palabras por ítem, entendible para un inversionista principiante pero riguroso para uno avanzado."""
+
+
+def _lang_from_profile(profile) -> str:
+    """Resolves the app's UI language from a profile object — used by
+    functions that take `profile` but not an explicit `lang` param, so they
+    can honor the user's language setting without every call site needing
+    to be updated to thread a new parameter through."""
+    lang = getattr(profile, "preferred_language", None)
+    return lang if lang in ("es", "en") else "es"
+
+
+def _plain_text_language_directive(lang: str) -> str:
+    """Same idea as _output_language_directive but for callers that return
+    plain text (not JSON)."""
+    if lang == "en":
+        return "IMPORTANT: Write your entire reply in English, regardless of the language of the instructions below.\n\n"
+    return ""
 
 
 def _output_language_directive(lang: str) -> str:

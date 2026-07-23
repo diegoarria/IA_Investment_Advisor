@@ -335,8 +335,8 @@ export const paperApi = {
   setAlias: (alias: string) => api.post("/api/paper/alias", { alias }),
   syncState: (cash: number, positions: unknown[], trades: unknown[], freeTradeMonth?: string | null, freeTradeCount?: number) =>
     api.post("/api/sync/paper", { cash, positions, trades, freeTradeMonth: freeTradeMonth ?? null, freeTradeCount: freeTradeCount ?? 0 }),
-  analyze: (positions: unknown[], trades: unknown[], totalReturnPct: number, cash: number, portfolioValue: number) =>
-    api.post("/api/paper/analyze", { positions, trades, total_return_pct: totalReturnPct, cash, portfolio_value: portfolioValue }),
+  analyze: (positions: unknown[], trades: unknown[], totalReturnPct: number, cash: number, portfolioValue: number, lang?: string) =>
+    api.post("/api/paper/analyze", { positions, trades, total_return_pct: totalReturnPct, cash, portfolio_value: portfolioValue, lang }),
 };
 
 export const earningsApi = {

@@ -36,7 +36,15 @@ def _clean(text: str) -> str:
     return str(text).translate(_ACCENT_MAP)
 
 
-def _score_label(score: float) -> str:
+def _score_label(score: float, lang: str = "es") -> str:
+    if lang == "en":
+        if score < 25:
+            return "Beginner"
+        if score < 50:
+            return "Intermediate"
+        if score < 75:
+            return "Advanced"
+        return "Expert"
     if score < 25:
         return "Principiante"
     if score < 50:
@@ -44,6 +52,94 @@ def _score_label(score: float) -> str:
     if score < 75:
         return "Avanzado"
     return "Experto"
+
+
+def _pdf_labels(lang: str) -> dict:
+    """All static PDF strings, in one place — the whole 7-page report used
+    to be hardcoded Spanish regardless of the user's language setting."""
+    if lang == "en":
+        return {
+            "footer_brand": "Nuvos AI - Annual Investor Maturity Report",
+            "page_prefix": "Page",
+            "cover_title_1": "ANNUAL INVESTOR",
+            "cover_title_2": "MATURITY REPORT",
+            "year_label": "Year {year}",
+            "confidential_line": "Nuvos AI  |  {date}  |  Confidential",
+            "exec_summary_header": "EXECUTIVE SUMMARY",
+            "score_suffix": "of 100  -  {label}",
+            "stat_streak_value": "{n} days",
+            "stat_streak_label": "Active streak",
+            "stat_goal_label": "Investment goal",
+            "stat_goal_default": "No goal",
+            "stat_risk_label": "Risk profile",
+            "stat_risk_default": "N/A",
+            "summary_of_year": "Summary of the year",
+            "evolution_header": "SCORE EVOLUTION",
+            "current_label": "Current",
+            "interpretation_header": "Interpretation",
+            "interp_intro": "Your current score of {score}/100 reflects your investor maturity level as of the end of {year}. ",
+            "interp_streak": "You kept an active streak of {n} consecutive days, showing solid commitment to your financial education.",
+            "interp_no_streak": "Keep building consistent habits to improve your score next year.",
+            "behavior_header": "BEHAVIORAL ANALYSIS",
+            "risk_score_label": "Behavioral Risk Score / 100",
+            "portfolio_header": "PORTFOLIO SUMMARY",
+            "no_positions": "No positions recorded this year",
+            "table_headers": ["Asset", "Value (USD)", "Return %"],
+            "total_invested_label": "Total invested:",
+            "total_value_label": "Current value:",
+            "total_return_label": "Total return:",
+            "recommendations_header": "RECOMMENDATIONS FOR {year}",
+            "certificate_header": "DIGITAL CERTIFICATE",
+            "certificate_title": "Informed Investor",
+            "cert_text": "This certificate recognizes that {name} completed a full year of actively tracking their investor maturity with Nuvos AI.",
+            "issued_on": "Issued on {date}",
+            "founder_title": "Founder, Nuvos AI",
+            "tagline": "Smart investing education platform",
+            "goal_default": "Wealth growth",
+            "risk_tolerance_default": "Moderate",
+            "investor_default": "Investor",
+        }
+    return {
+        "footer_brand": "Nuvos AI - Reporte Anual de Madurez Inversora",
+        "page_prefix": "Pag.",
+        "cover_title_1": "REPORTE ANUAL DE MADUREZ",
+        "cover_title_2": "INVERSORA",
+        "year_label": "Ano {year}",
+        "confidential_line": "Nuvos AI  |  {date}  |  Confidencial",
+        "exec_summary_header": "RESUMEN EJECUTIVO",
+        "score_suffix": "de 100  -  {label}",
+        "stat_streak_value": "{n} dias",
+        "stat_streak_label": "Racha activa",
+        "stat_goal_label": "Meta de inversion",
+        "stat_goal_default": "Sin meta",
+        "stat_risk_label": "Perfil de riesgo",
+        "stat_risk_default": "N/D",
+        "summary_of_year": "Resumen del ano",
+        "evolution_header": "EVOLUCION DE PUNTUACION",
+        "current_label": "Actual",
+        "interpretation_header": "Interpretacion",
+        "interp_intro": "Tu puntuacion actual de {score}/100 refleja tu nivel de madurez inversora al cierre del ano {year}. ",
+        "interp_streak": "Mantuviste una racha activa de {n} dias consecutivos, lo cual demuestra un compromiso solido con tu educacion financiera.",
+        "interp_no_streak": "Sigue construyendo habitos constantes para mejorar tu puntuacion el proximo ano.",
+        "behavior_header": "ANALISIS DE COMPORTAMIENTO",
+        "risk_score_label": "Puntuacion de Riesgo Conductual / 100",
+        "portfolio_header": "RESUMEN DE PORTAFOLIO",
+        "no_positions": "Sin posiciones registradas este ano",
+        "table_headers": ["Activo", "Valor (USD)", "Rendimiento %"],
+        "total_invested_label": "Total invertido:",
+        "total_value_label": "Valor actual:",
+        "total_return_label": "Rendimiento total:",
+        "recommendations_header": "RECOMENDACIONES PARA {year}",
+        "certificate_header": "CERTIFICADO DIGITAL",
+        "certificate_title": "Inversor Informado",
+        "cert_text": "Este certificado acredita que {name} completo un ano de seguimiento activo de su madurez inversora con Nuvos AI.",
+        "issued_on": "Emitido el {date}",
+        "founder_title": "Fundador, Nuvos AI",
+        "tagline": "Plataforma educativa de inversion inteligente",
+        "goal_default": "Crecimiento patrimonial",
+        "risk_tolerance_default": "Moderado",
+        "investor_default": "Inversor",
+    }
 
 
 # ─── Claude content generation ───────────────────────────────────────────────
@@ -56,6 +152,7 @@ async def _generate_narrative(
     investment_goal_amount: float,
     risk_tolerance: str,
     streak_count: int,
+    lang: str = "es",
 ) -> dict:
     """Call Claude to generate narrative sections (3 short JSON text fields — no
     extended reasoning needed, so this deliberately skips thinking and Opus)."""
@@ -65,25 +162,47 @@ async def _generate_narrative(
         for i, m in enumerate(maturity_history[-12:])
     ) if maturity_history else f"score actual: {maturity_score}"
 
-    prompt = (
-        f"Genera 3 secciones para un reporte anual de madurez inversora en espanol "
-        f"para un usuario con estas estadisticas:\n"
-        f"- Puntuacion de madurez: {maturity_score}/100 (historial: {history_summary})\n"
-        f"- Puntuacion de riesgo conductual: {behavioral_risk_score}/100\n"
-        f"- Meta de inversion: {investment_goal}, Monto: ${investment_goal_amount}\n"
-        f"- Perfil de riesgo: {risk_tolerance}\n"
-        f"- Racha de dias activos: {streak_count}\n\n"
-        f"Responde UNICAMENTE con un objeto JSON valido (sin markdown, sin bloques de codigo) "
-        f"con estas claves:\n"
-        f"- \"executive_summary\": resumen ejecutivo de 2-3 oraciones en texto plano\n"
-        f"- \"behavioral_analysis\": 2-3 parrafos analizando patrones conductuales del usuario "
-        f"y 3-4 sesgos especificos que probablemente tenga segun su puntuacion "
-        f"(texto plano, sin markdown)\n"
-        f"- \"recommendations\": exactamente 5 puntos para el proximo ano, cada uno comenzando "
-        f"con un emoji relevante, separados por saltos de linea "
-        f"(formato: \"emoji Texto del punto...\")\n"
-        f"No incluyas comillas extra, bloques de codigo ni texto fuera del JSON."
-    )
+    if lang == "en":
+        prompt = (
+            f"IMPORTANT: Write every text field below entirely in English.\n\n"
+            f"Generate 3 sections for an annual investor-maturity report "
+            f"for a user with these stats:\n"
+            f"- Maturity score: {maturity_score}/100 (history: {history_summary})\n"
+            f"- Behavioral risk score: {behavioral_risk_score}/100\n"
+            f"- Investment goal: {investment_goal}, Amount: ${investment_goal_amount}\n"
+            f"- Risk profile: {risk_tolerance}\n"
+            f"- Active-day streak: {streak_count}\n\n"
+            f"Reply ONLY with a valid JSON object (no markdown, no code blocks) "
+            f"with these keys:\n"
+            f"- \"executive_summary\": 2-3 sentence executive summary, plain text\n"
+            f"- \"behavioral_analysis\": 2-3 paragraphs analyzing the user's behavioral patterns "
+            f"and 3-4 specific biases they likely have given their score "
+            f"(plain text, no markdown)\n"
+            f"- \"recommendations\": exactly 5 bullet points for next year, each starting "
+            f"with a relevant emoji, separated by newlines "
+            f"(format: \"emoji Point text...\")\n"
+            f"Don't include extra quotes, code blocks, or text outside the JSON."
+        )
+    else:
+        prompt = (
+            f"Genera 3 secciones para un reporte anual de madurez inversora en espanol "
+            f"para un usuario con estas estadisticas:\n"
+            f"- Puntuacion de madurez: {maturity_score}/100 (historial: {history_summary})\n"
+            f"- Puntuacion de riesgo conductual: {behavioral_risk_score}/100\n"
+            f"- Meta de inversion: {investment_goal}, Monto: ${investment_goal_amount}\n"
+            f"- Perfil de riesgo: {risk_tolerance}\n"
+            f"- Racha de dias activos: {streak_count}\n\n"
+            f"Responde UNICAMENTE con un objeto JSON valido (sin markdown, sin bloques de codigo) "
+            f"con estas claves:\n"
+            f"- \"executive_summary\": resumen ejecutivo de 2-3 oraciones en texto plano\n"
+            f"- \"behavioral_analysis\": 2-3 parrafos analizando patrones conductuales del usuario "
+            f"y 3-4 sesgos especificos que probablemente tenga segun su puntuacion "
+            f"(texto plano, sin markdown)\n"
+            f"- \"recommendations\": exactamente 5 puntos para el proximo ano, cada uno comenzando "
+            f"con un emoji relevante, separados por saltos de linea "
+            f"(formato: \"emoji Texto del punto...\")\n"
+            f"No incluyas comillas extra, bloques de codigo ni texto fuera del JSON."
+        )
 
     client = anthropic.AsyncAnthropic()
     response = await asyncio.wait_for(
@@ -112,10 +231,32 @@ async def _generate_narrative(
         return json.loads(cleaned)
     except Exception:
         logger.warning("Could not parse Claude JSON response, using defaults")
-        return _default_narrative(maturity_score)
+        return _default_narrative(maturity_score, lang)
 
 
-def _default_narrative(maturity_score: float) -> dict:
+def _default_narrative(maturity_score: float, lang: str = "es") -> dict:
+    if lang == "en":
+        return {
+            "executive_summary": (
+                f"This year, you reached an investor maturity score of {int(maturity_score)}/100, "
+                f"showing sustained progress in your financial education. "
+                f"Your commitment to continuous learning is the foundation of your growth as an investor."
+            ),
+            "behavioral_analysis": (
+                "The behavioral analysis reveals patterns typical of a developing investor. "
+                "Biases identified include confirmation bias, where you seek information that "
+                "confirms prior beliefs. Loss aversion also shows up, which can lead to holding "
+                "losing positions too long. Overconfidence during bull periods and herd behavior — "
+                "following trends without your own analysis — are key areas to improve."
+            ),
+            "recommendations": (
+                "📈 Diversify your portfolio across at least 3 different sectors\n"
+                "📚 Spend 20 minutes a day on structured financial education\n"
+                "🎯 Set SMART investment goals and review them quarterly\n"
+                "⚖️ Rebalance your portfolio every quarter to maintain your target allocation\n"
+                "🧠 Document your investment decisions and analyze your wins and mistakes"
+            ),
+        }
     return {
         "executive_summary": (
             f"Este ano, lograste una puntuacion de madurez inversora de {int(maturity_score)}/100, "
@@ -141,15 +282,15 @@ def _default_narrative(maturity_score: float) -> dict:
 
 # ─── PDF builder ─────────────────────────────────────────────────────────────
 
-def _page_footer(pdf: FPDF, W: int, H: int, mid_gray: tuple, page_num: int) -> None:
+def _page_footer(pdf: FPDF, W: int, H: int, mid_gray: tuple, page_num: int, L: dict) -> None:
     pdf.set_draw_color(*mid_gray)
     pdf.line(20, H - 14, W - 20, H - 14)
     pdf.set_font("Helvetica", "", 7)
     pdf.set_text_color(*mid_gray)
     pdf.set_xy(20, H - 12)
-    pdf.cell(85, 5, "Nuvos AI - Reporte Anual de Madurez Inversora", align="L")
+    pdf.cell(85, 5, L["footer_brand"], align="L")
     pdf.set_xy(W - 30, H - 12)
-    pdf.cell(10, 5, _clean(f"Pag. {page_num}"), align="R")
+    pdf.cell(10, 5, _clean(f"{L['page_prefix']} {page_num}"), align="R")
 
 
 def _build_pdf(
@@ -163,9 +304,11 @@ def _build_pdf(
     risk_tolerance: str,
     portfolio_perf: dict,
     narrative: dict,
+    lang: str = "es",
 ) -> bytes:
     """Build the 7-page PDF and return raw bytes."""
 
+    L = _pdf_labels(lang)
     pdf = FPDF()
     pdf.set_auto_page_break(auto=False)
 
@@ -205,9 +348,9 @@ def _build_pdf(
     pdf.set_font("Helvetica", "B", 22)
     pdf.set_text_color(*WHITE)
     pdf.set_xy(0, 105)
-    pdf.cell(W, 12, "REPORTE ANUAL DE MADUREZ", align="C")
+    pdf.cell(W, 12, L["cover_title_1"], align="C")
     pdf.set_xy(0, 118)
-    pdf.cell(W, 12, "INVERSORA", align="C")
+    pdf.cell(W, 12, L["cover_title_2"], align="C")
 
     # Decorative line
     pdf.set_fill_color(*GREEN)
@@ -223,14 +366,14 @@ def _build_pdf(
     pdf.set_font("Helvetica", "", 14)
     pdf.set_text_color(*WHITE)
     pdf.set_xy(0, 156)
-    pdf.cell(W, 8, _clean(f"Ano {year}"), align="C")
+    pdf.cell(W, 8, _clean(L["year_label"].format(year=year)), align="C")
 
     # Bottom text
     date_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(*MID_GRAY)
     pdf.set_xy(0, H - 18)
-    pdf.cell(W, 6, _clean(f"Nuvos AI  |  {date_str}  |  Confidencial"), align="C")
+    pdf.cell(W, 6, _clean(L["confidential_line"].format(date=date_str)), align="C")
 
     # ── Page 2: Resumen Ejecutivo ─────────────────────────────────────────────
     pdf.add_page()
@@ -244,7 +387,7 @@ def _build_pdf(
     pdf.set_font("Helvetica", "B", 10)
     pdf.set_text_color(*GREEN)
     pdf.set_xy(20, 18)
-    pdf.cell(0, 6, "RESUMEN EJECUTIVO", ln=True)
+    pdf.cell(0, 6, L["exec_summary_header"], ln=True)
 
     # Divider
     pdf.set_fill_color(*GREEN)
@@ -259,18 +402,18 @@ def _build_pdf(
     pdf.set_font("Helvetica", "", 11)
     pdf.set_text_color(*MID_GRAY)
     pdf.set_xy(0, 64)
-    pdf.cell(W, 6, _clean(f"de 100  -  {_score_label(maturity_score)}"), align="C")
+    pdf.cell(W, 6, _clean(L["score_suffix"].format(label=_score_label(maturity_score, lang))), align="C")
 
     # 3 stat boxes
     box_y = 78
     box_h = 28
-    goal_label = _clean(str(investment_goal or "Sin meta"))
+    goal_label = _clean(str(investment_goal or L["stat_goal_default"]))
     if len(goal_label) > 14:
         goal_label = goal_label[:14] + "..."
     stats = [
-        (f"{streak_count} dias", "Racha activa"),
-        (goal_label, "Meta de inversion"),
-        (_clean(str(risk_tolerance or "N/D")), "Perfil de riesgo"),
+        (L["stat_streak_value"].format(n=streak_count), L["stat_streak_label"]),
+        (goal_label, L["stat_goal_label"]),
+        (_clean(str(risk_tolerance or L["stat_risk_default"])), L["stat_risk_label"]),
     ]
     box_w = 52
     for i, (val, lbl) in enumerate(stats):
@@ -290,7 +433,7 @@ def _build_pdf(
     pdf.set_font("Helvetica", "B", 9)
     pdf.set_text_color(*GREEN)
     pdf.set_xy(20, 115)
-    pdf.cell(0, 6, "Resumen del ano", ln=True)
+    pdf.cell(0, 6, L["summary_of_year"], ln=True)
 
     pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color(*DARK_TEXT)
@@ -299,7 +442,7 @@ def _build_pdf(
     pdf.multi_cell(170, 6, _clean(narrative.get("executive_summary", "")))
     pdf.set_right_margin(10)
 
-    _page_footer(pdf, W, H, MID_GRAY, 2)
+    _page_footer(pdf, W, H, MID_GRAY, 2, L)
 
     # ── Page 3: Evolucion de Madurez ─────────────────────────────────────────
     pdf.add_page()
@@ -311,7 +454,7 @@ def _build_pdf(
     pdf.set_font("Helvetica", "B", 10)
     pdf.set_text_color(*GREEN)
     pdf.set_xy(20, 18)
-    pdf.cell(0, 6, "EVOLUCION DE PUNTUACION", ln=True)
+    pdf.cell(0, 6, L["evolution_header"], ln=True)
     pdf.set_fill_color(*GREEN)
     pdf.rect(20, 26, 30, 0.8, "F")
 
@@ -327,7 +470,7 @@ def _build_pdf(
 
     history = maturity_history[-12:] if maturity_history else []
     if not history:
-        history = [{"month": "Actual", "score": maturity_score}]
+        history = [{"month": L["current_label"], "score": maturity_score}]
 
     n = len(history)
     bar_w = min(18, (chart_w - 10) / n - 2)
@@ -362,19 +505,13 @@ def _build_pdf(
     pdf.set_font("Helvetica", "B", 9)
     pdf.set_text_color(*GREEN)
     pdf.set_xy(20, chart_y + chart_h + 8)
-    pdf.cell(0, 6, "Interpretacion", ln=True)
+    pdf.cell(0, 6, L["interpretation_header"], ln=True)
 
-    interp = (
-        f"Tu puntuacion actual de {int(maturity_score)}/100 refleja tu nivel de madurez inversora "
-        f"al cierre del ano {year}. "
-    )
+    interp = L["interp_intro"].format(score=int(maturity_score), year=year)
     if streak_count > 0:
-        interp += (
-            f"Mantuviste una racha activa de {streak_count} dias consecutivos, "
-            f"lo cual demuestra un compromiso solido con tu educacion financiera."
-        )
+        interp += L["interp_streak"].format(n=streak_count)
     else:
-        interp += "Sigue construyendo habitos constantes para mejorar tu puntuacion el proximo ano."
+        interp += L["interp_no_streak"]
 
     pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color(*DARK_TEXT)
@@ -383,7 +520,7 @@ def _build_pdf(
     pdf.multi_cell(170, 6, _clean(interp))
     pdf.set_right_margin(10)
 
-    _page_footer(pdf, W, H, MID_GRAY, 3)
+    _page_footer(pdf, W, H, MID_GRAY, 3, L)
 
     # ── Page 4: Sesgos & Comportamiento ──────────────────────────────────────
     pdf.add_page()
@@ -395,7 +532,7 @@ def _build_pdf(
     pdf.set_font("Helvetica", "B", 10)
     pdf.set_text_color(*GREEN)
     pdf.set_xy(20, 18)
-    pdf.cell(0, 6, "ANALISIS DE COMPORTAMIENTO", ln=True)
+    pdf.cell(0, 6, L["behavior_header"], ln=True)
     pdf.set_fill_color(*GREEN)
     pdf.rect(20, 26, 30, 0.8, "F")
 
@@ -408,7 +545,7 @@ def _build_pdf(
     pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color(*MID_GRAY)
     pdf.set_xy(0, 54)
-    pdf.cell(W, 6, "Puntuacion de Riesgo Conductual / 100", align="C")
+    pdf.cell(W, 6, L["risk_score_label"], align="C")
 
     # Behavioral analysis text
     pdf.set_font("Helvetica", "", 10)
@@ -418,7 +555,7 @@ def _build_pdf(
     pdf.multi_cell(170, 6, _clean(narrative.get("behavioral_analysis", "")))
     pdf.set_right_margin(10)
 
-    _page_footer(pdf, W, H, MID_GRAY, 4)
+    _page_footer(pdf, W, H, MID_GRAY, 4, L)
 
     # ── Page 5: Portafolio ────────────────────────────────────────────────────
     pdf.add_page()
@@ -430,7 +567,7 @@ def _build_pdf(
     pdf.set_font("Helvetica", "B", 10)
     pdf.set_text_color(*GREEN)
     pdf.set_xy(20, 18)
-    pdf.cell(0, 6, "RESUMEN DE PORTAFOLIO", ln=True)
+    pdf.cell(0, 6, L["portfolio_header"], ln=True)
     pdf.set_fill_color(*GREEN)
     pdf.rect(20, 26, 30, 0.8, "F")
 
@@ -439,10 +576,10 @@ def _build_pdf(
         pdf.set_font("Helvetica", "I", 11)
         pdf.set_text_color(*MID_GRAY)
         pdf.set_xy(0, 80)
-        pdf.cell(W, 10, "Sin posiciones registradas este ano", align="C")
+        pdf.cell(W, 10, L["no_positions"], align="C")
     else:
         col_w = [80, 50, 40]
-        headers = ["Activo", "Valor (USD)", "Rendimiento %"]
+        headers = L["table_headers"]
         table_y = 38
 
         # Table header
@@ -479,9 +616,9 @@ def _build_pdf(
 
         summary_y = row_y + 12
         for label, value_str, color in [
-            ("Total invertido:", f"${total_invested:,.2f}", GREEN),
-            ("Valor actual:", f"${total_value:,.2f}", GREEN),
-            ("Rendimiento total:", f"{total_return:+.2f}%",
+            (L["total_invested_label"], f"${total_invested:,.2f}", GREEN),
+            (L["total_value_label"], f"${total_value:,.2f}", GREEN),
+            (L["total_return_label"], f"{total_return:+.2f}%",
              (0, 180, 100) if total_return >= 0 else (220, 50, 50)),
         ]:
             pdf.set_font("Helvetica", "B", 9)
@@ -492,7 +629,7 @@ def _build_pdf(
             pdf.cell(85, 7, value_str, align="L")
             summary_y += 9
 
-    _page_footer(pdf, W, H, MID_GRAY, 5)
+    _page_footer(pdf, W, H, MID_GRAY, 5, L)
 
     # ── Page 6: Recomendaciones ───────────────────────────────────────────────
     pdf.add_page()
@@ -504,7 +641,7 @@ def _build_pdf(
     pdf.set_font("Helvetica", "B", 10)
     pdf.set_text_color(*GREEN)
     pdf.set_xy(20, 18)
-    pdf.cell(0, 6, _clean(f"RECOMENDACIONES PARA {year + 1}"), ln=True)
+    pdf.cell(0, 6, _clean(L["recommendations_header"].format(year=year + 1)), ln=True)
     pdf.set_fill_color(*GREEN)
     pdf.rect(20, 26, 30, 0.8, "F")
 
@@ -531,7 +668,7 @@ def _build_pdf(
 
         bullet_y += 28
 
-    _page_footer(pdf, W, H, MID_GRAY, 6)
+    _page_footer(pdf, W, H, MID_GRAY, 6, L)
 
     # ── Page 7: Certificado ───────────────────────────────────────────────────
     pdf.add_page()
@@ -554,7 +691,7 @@ def _build_pdf(
     pdf.set_font("Helvetica", "B", 10)
     pdf.set_text_color(*GREEN)
     pdf.set_xy(0, 38)
-    pdf.cell(W, 7, "CERTIFICADO DIGITAL", align="C")
+    pdf.cell(W, 7, L["certificate_header"], align="C")
 
     # Decorative line
     pdf.set_fill_color(*GREEN)
@@ -568,7 +705,7 @@ def _build_pdf(
     pdf.set_font("Helvetica", "B", 28)
     pdf.set_text_color(*WHITE)
     pdf.set_xy(0, 105)
-    pdf.cell(W, 16, "Inversor Informado", align="C")
+    pdf.cell(W, 16, L["certificate_title"], align="C")
 
     # Second decorative line
     pdf.set_fill_color(*GREEN)
@@ -583,10 +720,7 @@ def _build_pdf(
     # Certificate body
     pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color((200, 210, 225))
-    cert_text = (
-        f"Este certificado acredita que {_clean(first_name)} completo un ano de seguimiento "
-        f"activo de su madurez inversora con Nuvos AI."
-    )
+    cert_text = _clean(L["cert_text"].format(name=_clean(first_name)))
     pdf.set_xy(30, 148)
     pdf.set_right_margin(30)
     pdf.multi_cell(150, 6, cert_text, align="C")
@@ -597,7 +731,7 @@ def _build_pdf(
     pdf.set_text_color(*MID_GRAY)
     issue_date = datetime.now(timezone.utc).strftime("%d/%m/%Y")
     pdf.set_xy(0, 170)
-    pdf.cell(W, 6, _clean(f"Emitido el {issue_date}"), align="C")
+    pdf.cell(W, 6, _clean(L["issued_on"].format(date=issue_date)), align="C")
 
     # Signature line
     pdf.set_draw_color(*GREEN)
@@ -612,7 +746,7 @@ def _build_pdf(
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(*MID_GRAY)
     pdf.set_xy(0, 222)
-    pdf.cell(W, 5, "Fundador, Nuvos AI", align="C")
+    pdf.cell(W, 5, L["founder_title"], align="C")
 
     # Bottom Nuvos label
     pdf.set_font("Helvetica", "B", 8)
@@ -623,7 +757,7 @@ def _build_pdf(
     pdf.set_font("Helvetica", "", 7)
     pdf.set_text_color(*MID_GRAY)
     pdf.set_xy(0, H - 16)
-    pdf.cell(W, 4, "Plataforma educativa de inversion inteligente", align="C")
+    pdf.cell(W, 4, L["tagline"], align="C")
 
     # Return bytes
     return bytes(pdf.output())
@@ -635,6 +769,7 @@ def _build_pdf(
 @limiter.limit("3/hour")
 async def generate_annual_report(
     request: Request,
+    lang: str | None = None,
     user: dict = Depends(get_current_user),
 ):
     """Generate a 7-page annual investor maturity PDF report for the authenticated user."""
@@ -649,24 +784,28 @@ async def generate_annual_report(
         db.table("user_profiles").select(
             "maturity_score, maturity_history, behavioral_risk_score, risk_tolerance, "
             "investment_goal, investment_goal_amount, streak_count, created_at, "
-            "subscription_tier, first_name, last_name, full_name"
+            "subscription_tier, first_name, last_name, full_name, preferred_language"
         ).eq("user_id", user_id).single()
     )
     profile = profile_result.data or {}
+
+    if lang not in ("es", "en"):
+        lang = profile.get("preferred_language") or "es"
+    L = _pdf_labels(lang)
 
     # Resolve display name
     first_name = (
         profile.get("first_name")
         or (profile.get("full_name") or "").split()[0]
         or user_email.split("@")[0]
-        or "Inversor"
+        or L["investor_default"]
     )
 
     maturity_score         = float(profile.get("maturity_score") or 0)
     maturity_history       = profile.get("maturity_history") or []
     behavioral_risk_score  = float(profile.get("behavioral_risk_score") or 0)
-    risk_tolerance         = profile.get("risk_tolerance") or "Moderado"
-    investment_goal        = profile.get("investment_goal") or "Crecimiento patrimonial"
+    risk_tolerance         = profile.get("risk_tolerance") or L["risk_tolerance_default"]
+    investment_goal        = profile.get("investment_goal") or L["goal_default"]
     investment_goal_amount = float(profile.get("investment_goal_amount") or 0)
     streak_count           = int(profile.get("streak_count") or 0)
 
@@ -705,10 +844,11 @@ async def generate_annual_report(
             investment_goal_amount=investment_goal_amount,
             risk_tolerance=risk_tolerance,
             streak_count=streak_count,
+            lang=lang,
         )
     except Exception as e:
         logger.error("Claude narrative generation failed: %s", e)
-        narrative = _default_narrative(maturity_score)
+        narrative = _default_narrative(maturity_score, lang)
 
     # Build PDF (CPU-bound, run in thread)
     pdf_bytes = await asyncio.to_thread(
@@ -723,6 +863,7 @@ async def generate_annual_report(
         risk_tolerance,
         portfolio_perf,
         narrative,
+        lang,
     )
 
     buffer = io.BytesIO(pdf_bytes)

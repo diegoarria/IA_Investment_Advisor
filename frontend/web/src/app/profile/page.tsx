@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import {
   useAuthStore, useProfileStore, useSubscriptionStore,
-  useThemeStore, useLanguageStore, msgsRemaining, FREE_MSG_LIMIT, maturityLabel,
+  useThemeStore, useLanguageStore, msgsRemaining, FREE_MSG_LIMIT, maturityLabel, maturitySignalI18nKey,
 } from "@/lib/store";
 import { auth as authApi, billing, feedApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi, voiceCallsApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
@@ -161,7 +161,7 @@ export default function ProfilePage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
-  const [referralStats, setReferralStats] = useState<{ referred_count: number; pending_reward: string } | null>(null);
+  const [referralStats, setReferralStats] = useState<{ referred_count: number; bonus_days: number } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [copiedProfile, setCopiedProfile] = useState(false);
@@ -194,7 +194,7 @@ export default function ProfilePage() {
   const mentor = getMentorInfo(profile?.mentor);
   const riskColor = profile ? (RISK_COLOR[profile.risk_tolerance] ?? "var(--accent)") : "var(--accent)";
   const riskCat = profile ? riskCategory(profile.risk_tolerance) : "moderate";
-  const maturity = maturityLabel(maturityScore);
+  const maturity = maturityLabel(maturityScore, t);
   const RISK_LABEL = getRiskLabel(t);
   const QUIZ_LABELS = getQuizLabels(t);
   const LEVEL_OPTIONS = getLevelOptions(t);
@@ -662,7 +662,7 @@ export default function ProfilePage() {
                               {ev.delta >= 0 ? "+" : ""}{ev.delta}
                             </span>
                             <span className="text-xs flex-1 truncate" style={{ color: "var(--sub)" }}>
-                              {ev.signals.map((s) => s.replace(/_/g, " ")).join(", ")}
+                              {ev.signals.map((s) => { const k = maturitySignalI18nKey(s); return k ? t(k) : s.replace(/_/g, " "); }).join(", ")}
                             </span>
                             <span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>{ev.newScore}</span>
                           </div>
@@ -1153,7 +1153,9 @@ export default function ProfilePage() {
                         </div>
                         <div className="w-px" style={{ background: "var(--border)" }} />
                         <div className="flex-1 flex flex-col items-center py-3">
-                          <span className="text-xl font-black" style={{ color: "#22c55e" }}>{referralStats.pending_reward || "—"}</span>
+                          <span className="text-xl font-black" style={{ color: "#22c55e" }}>
+                            {referralStats.bonus_days ? t("profile.pendingRewardValue", { days: referralStats.bonus_days }) : "—"}
+                          </span>
                           <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("profile.pendingReward")}</span>
                         </div>
                       </div>

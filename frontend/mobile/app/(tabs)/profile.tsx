@@ -9,7 +9,7 @@ import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import * as ImagePicker from "expo-image-picker";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
-import { useAppStore, RISK_CONFIG, getAge, maturityLabel } from "../../src/lib/profileStore";
+import { useAppStore, RISK_CONFIG, getAge, maturityLabel, maturitySignalI18nKey } from "../../src/lib/profileStore";
 import { getMentorInfo } from "../../src/lib/mentorData";
 import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
@@ -173,7 +173,7 @@ export default function ProfileScreen() {
 
   const [insights, setInsights] = useState<{ ready: boolean; topics?: string[]; risk_behavior?: string; risk_match?: boolean; risk_note?: string; suggestion?: string; interests?: string[] } | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
-  const [referralStats, setReferralStats] = useState<{ referred_count: number; pending_reward: string } | null>(null);
+  const [referralStats, setReferralStats] = useState<{ referred_count: number; bonus_days: number } | null>(null);
   const [likedClips, setLikedClips] = useState<{ id: string; title: string; thumbnail_url: string; speaker: string; duration_sec: number }[]>([]);
 
   const subStore = useSubscriptionStore();
@@ -312,7 +312,7 @@ if (!profile) {
   const riskCfg = RISK_CONFIG[profile.risk_tolerance];
   const age = getAge(profile.birth_date ?? "");
   const mentor = getMentorInfo(profile.mentor);
-  const maturity = maturityLabel(maturityScore);
+  const maturity = maturityLabel(maturityScore, t);
   const quizKeys = ["q1", "q2", "q3", "q4", "q5"] as const;
 
   const handleLogout = () => {
@@ -732,7 +732,7 @@ if (!profile) {
                       </Text>
                     </View>
                     <Text style={[s.histSig, { color: colors.textSub }]} numberOfLines={1}>
-                      {ev.signals.map((sig) => sig.replace(/_/g, " ")).join(", ")}
+                      {ev.signals.map((sig) => { const k = maturitySignalI18nKey(sig); return k ? t(k) : sig.replace(/_/g, " "); }).join(", ")}
                     </Text>
                     <Text style={[s.histScore, { color: colors.textMuted }]}>{ev.newScore}</Text>
                   </View>
@@ -1083,7 +1083,9 @@ if (!profile) {
                 </View>
                 <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 4 }} />
                 <View style={s.referralStat}>
-                  <Text style={[s.referralStatNum, { color: "#22c55e" }]}>{referralStats.pending_reward || "—"}</Text>
+                  <Text style={[s.referralStatNum, { color: "#22c55e" }]}>
+                    {referralStats.bonus_days ? t("profile.referral.pendingRewardValue", { days: referralStats.bonus_days }) : "—"}
+                  </Text>
                   <Text style={[s.referralStatLabel, { color: colors.textMuted }]}>{t("profile.referral.pendingReward")}</Text>
                 </View>
               </View>

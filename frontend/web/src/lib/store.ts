@@ -87,12 +87,37 @@ export function computeMaturityDelta(signals: string[]): number {
   return signals.reduce((acc, sig) => acc + (MATURITY_DELTAS[sig] ?? 0), 0);
 }
 
-export function maturityLabel(score: number): { label: string; color: string } {
-  if (score < 30) return { label: "Aprendiz",      color: "#ef4444" };
-  if (score < 50) return { label: "Principiante",  color: "#f97316" };
-  if (score < 65) return { label: "En Desarrollo", color: "#f59e0b" };
-  if (score < 80) return { label: "Maduro",        color: "#22c55e" };
-  return                 { label: "Experto",        color: "#16a34a" };
+// Maps each raw signal key (as stored in MaturityEvent.signals, matching
+// MATURITY_DELTAS above) to its i18n key under profile.maturitySignals.* —
+// these used to be rendered as the raw Spanish key with underscores
+// replaced by spaces, showing "análisis racional" etc. even in English.
+const MATURITY_SIGNAL_I18N_KEYS: Record<string, string> = {
+  "análisis_racional": "analisisRacional",
+  "tolera_volatilidad": "toleraVolatilidad",
+  "largo_plazo": "largoPlazo",
+  "diversificación_consciente": "diversificacionConsciente",
+  "compra_en_caídas": "compraEnCaidas",
+  "decisión_por_fundamentos": "decisionPorFundamentos",
+  "acepta_pérdida_educada": "aceptaPerdidaEducada",
+  "pánico_venta": "panicoVenta",
+  "busca_garantías": "buscaGarantias",
+  "fomo": "fomo",
+  "especulación": "especulacion",
+  "decisión_por_precio": "decisionPorPrecio",
+  "horizonte_corto": "horizonteCorto",
+};
+
+export function maturitySignalI18nKey(signal: string): string {
+  const key = MATURITY_SIGNAL_I18N_KEYS[signal];
+  return key ? `profile.maturitySignals.${key}` : "";
+}
+
+export function maturityLabel(score: number, t: (key: string) => string): { label: string; color: string } {
+  if (score < 30) return { label: t("profile.maturityLevels.apprentice"),  color: "#ef4444" };
+  if (score < 50) return { label: t("profile.maturityLevels.beginner"),    color: "#f97316" };
+  if (score < 65) return { label: t("profile.maturityLevels.developing"), color: "#f59e0b" };
+  if (score < 80) return { label: t("profile.maturityLevels.mature"),     color: "#22c55e" };
+  return                 { label: t("profile.maturityLevels.expert"),     color: "#16a34a" };
 }
 
 // ─── Streak helpers ─────────────────────────────────────────────────────────
@@ -175,9 +200,16 @@ function makeSessionId() {
   return `chat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function _newChatTitle(): string {
+  // Plain store module (no React context) — reads the language store
+  // directly rather than via useTranslation(), same as other cross-store
+  // reads in this file (e.g. useChatStore.getState() elsewhere).
+  return useLanguageStore.getState().language === "en" ? "New chat" : "Nuevo chat";
+}
+
 function makeSessionTitle(messages: ChatMessage[]): string {
   const first = messages.find((m) => m.role === "user");
-  if (!first) return "Nuevo chat";
+  if (!first) return _newChatTitle();
   return first.content.length > 36
     ? first.content.slice(0, 36).trimEnd() + "…"
     : first.content;
@@ -334,7 +366,7 @@ export const useChatStore = create<ChatState>()(
         const id = makeSessionId();
         set((s) => ({
           sessions: [
-            { id, title: "Nuevo chat", messages: [], createdAt: Date.now(), updatedAt: Date.now() },
+            { id, title: _newChatTitle(), messages: [], createdAt: Date.now(), updatedAt: Date.now() },
             ...s.sessions,
           ],
           currentId: id,

@@ -397,6 +397,28 @@
       "note": "Sube con cada buena decisión en la app. No refleja tu nivel de conocimiento declarado.",
       "recentSignals": "Últimas señales detectadas"
     },
+    "maturityLevels": {
+      "apprentice": "Aprendiz",
+      "beginner": "Principiante",
+      "developing": "En Desarrollo",
+      "mature": "Maduro",
+      "expert": "Experto"
+    },
+    "maturitySignals": {
+      "analisisRacional": "análisis racional",
+      "toleraVolatilidad": "tolera volatilidad",
+      "largoPlazo": "largo plazo",
+      "diversificacionConsciente": "diversificación consciente",
+      "compraEnCaidas": "compra en caídas",
+      "decisionPorFundamentos": "decisión por fundamentos",
+      "aceptaPerdidaEducada": "acepta pérdida educada",
+      "panicoVenta": "pánico venta",
+      "buscaGarantias": "busca garantías",
+      "fomo": "fomo",
+      "especulacion": "especulación",
+      "decisionPorPrecio": "decisión por precio",
+      "horizonteCorto": "horizonte corto"
+    },
     "mentor": {
       "sectionTitle": "Tu mentor",
       "letterTitle": "Carta de {{name}}",
@@ -474,6 +496,7 @@
       "subtitle": "Tú y tu amigo obtienen 14 días de premium gratis",
       "referredFriends": "Amigos referidos",
       "pendingReward": "Recompensa",
+      "pendingRewardValue": "{{days}} días gratis",
       "loading": "Cargando...",
       "share": "Compartir invitación",
       "note": "Los 14 días se activan automáticamente en cuanto tu amigo se registra con tu código.",

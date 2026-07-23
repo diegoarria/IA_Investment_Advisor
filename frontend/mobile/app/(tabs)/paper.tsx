@@ -122,7 +122,7 @@ const SM = StyleSheet.create({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function PaperScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const s = darkStyles;
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
@@ -152,7 +152,7 @@ export default function PaperScreen() {
     posthog.capture("paper_ai_analysis_requested", { trade_count: trades.length, return_pct: totalReturnPct });
     setAnalysisLoading(true);
     try {
-      const res = await paperApi.analyze(positions, trades, totalReturnPct, cash, totalValue);
+      const res = await paperApi.analyze(positions, trades, totalReturnPct, cash, totalValue, i18n.language);
       setAnalysis(res.data as PaperAnalysis);
     } catch {
       setAnalysis({

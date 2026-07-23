@@ -420,7 +420,7 @@ def _fetch_earnings_data(symbol: str) -> dict:
         return {"symbol": symbol, "error": str(e)}
 
 
-async def _search_earnings_context(symbol: str, company_name: str, fiscal_label: str) -> str:
+async def _search_earnings_context(symbol: str, company_name: str, fiscal_label: str, lang: str = "es") -> str:
     """Real-time web search (Perplexity) for the actual earnings-release
     detail no structured data source in this codebase provides — segment
     revenue/orders growth, backlog, guidance changes, analyst/market
@@ -428,16 +428,31 @@ async def _search_earnings_context(symbol: str, company_name: str, fiscal_label:
     search_price_catalyst: returns "" (never a guess) on timeout, missing
     key, or a genuinely empty search — callers must treat that as "no
     detail found" and say so explicitly, never fabricate a segment number
-    or backlog figure to fill the gap."""
+    or backlog figure to fill the gap.
+
+    The query itself is written in `lang` (not always Spanish) — a Spanish
+    query tends to surface Spanish-language source material, which can bias
+    Claude into leaking Spanish phrases/quotes into an English response even
+    though ai_service.analyze_earnings is explicitly told which language to
+    write in."""
     from app.services.perplexity_service import search_web
 
-    query = (
-        f"Resultados del reporte trimestral de {company_name} ({symbol}) para {fiscal_label}: "
-        f"busca el desglose de ingresos y crecimiento de órdenes por SEGMENTO de negocio, "
-        f"backlog u órdenes acumuladas, cualquier cambio en el guidance (rango anterior vs nuevo) "
-        f"para el año fiscal completo, y la reacción del mercado/analistas al reporte. Da cifras "
-        f"exactas y de qué segmento/línea de negocio provienen cuando estén disponibles."
-    )
+    if lang == "en":
+        query = (
+            f"Quarterly earnings report results for {company_name} ({symbol}), {fiscal_label}: "
+            f"find the revenue and order-growth breakdown by business SEGMENT, "
+            f"backlog or accumulated orders, any guidance change (old range vs new) "
+            f"for the full fiscal year, and the market/analyst reaction to the report. Give exact "
+            f"figures and which segment/business line they come from when available."
+        )
+    else:
+        query = (
+            f"Resultados del reporte trimestral de {company_name} ({symbol}) para {fiscal_label}: "
+            f"busca el desglose de ingresos y crecimiento de órdenes por SEGMENTO de negocio, "
+            f"backlog u órdenes acumuladas, cualquier cambio en el guidance (rango anterior vs nuevo) "
+            f"para el año fiscal completo, y la reacción del mercado/analistas al reporte. Da cifras "
+            f"exactas y de qué segmento/línea de negocio provienen cuando estén disponibles."
+        )
     try:
         result = await asyncio.wait_for(
             asyncio.to_thread(search_web, query, False),
@@ -542,7 +557,7 @@ async def get_earnings_analysis(
             cached["structured_analysis"] = ai_service._sanitize_earnings_analysis(cached["structured_analysis"])
         return cached
 
-    web_context = await _search_earnings_context(symbol, earnings_data.get("name", symbol), earnings_data.get("fiscal_label", symbol))
+    web_context = await _search_earnings_context(symbol, earnings_data.get("name", symbol), earnings_data.get("fiscal_label", symbol), lang=lang)
     position = {"shares": shares, "avg_cost": avg_cost} if shares else None
     try:
         analysis = await ai_service.analyze_earnings(symbol, earnings_data, position, profile, lang=lang, web_context=web_context)
