@@ -64,13 +64,7 @@ export default function EarningsTickerScreen() {
         ) : error ? (
           <Text style={{ fontSize: 12, color: "#ef4444" }}>{error}</Text>
         ) : result ? (
-          <>
-            <View style={[s.warningBox, { borderColor: "#ef4444", backgroundColor: "rgba(239,68,68,0.08)" }]}>
-              <Text style={s.warningTitle}>{t("earnings.disclaimer.title")}</Text>
-              <Text style={[s.warningSubtitle, { color: colors.textSub }]}>{t("earnings.disclaimer.subtitle")}</Text>
-            </View>
-            <EarningsAnalysisCard result={result} colors={colors} />
-          </>
+          <EarningsAnalysisCard result={result} colors={colors} />
         ) : null}
       </ScrollView>
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={t("earnings.premiumGate.paywallReason")} />
@@ -90,8 +84,5 @@ const s = StyleSheet.create({
   paywallDesc: { fontSize: 13, textAlign: "center", lineHeight: 18, marginBottom: 18 },
   paywallBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, backgroundColor: "#00a85e" },
   paywallBtnText: { fontSize: 13, fontWeight: "900", color: "#fff" },
-  warningBox: { borderWidth: 2, borderRadius: 16, padding: 14, marginBottom: 16, alignItems: "center" },
-  warningTitle: { fontSize: 16, fontWeight: "900", color: "#ef4444", textAlign: "center" },
-  warningSubtitle: { fontSize: 11, marginTop: 4, textAlign: "center" },
   center: { paddingVertical: 40, alignItems: "center" },
 });

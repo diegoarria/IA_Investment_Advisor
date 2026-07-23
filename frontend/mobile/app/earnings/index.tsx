@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, TextInput,
+  View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -26,8 +26,6 @@ export default function EarningsScreen() {
 
   const [reporters, setReporters] = useState<RecentReporter[]>([]);
   const [loadingReporters, setLoadingReporters] = useState(false);
-
-  const [query, setQuery] = useState("");
 
   const symbols = useMemo(() => {
     const port = positions.map((p) => p.ticker);
@@ -73,30 +71,6 @@ export default function EarningsScreen() {
           </View>
         ) : (
           <>
-            <View style={[s.warningBox, { borderColor: "#ef4444", backgroundColor: "rgba(239,68,68,0.08)" }]}>
-              <Text style={s.warningTitle}>{t("earnings.disclaimer.title")}</Text>
-              <Text style={[s.warningSubtitle, { color: colors.textSub }]}>{t("earnings.disclaimer.subtitle")}</Text>
-            </View>
-
-            <Text style={[s.sectionLabel, { color: colors.text }]}>{t("earnings.search.label")}</Text>
-            <View style={s.searchRow}>
-              <View style={[s.searchInputWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                <Ionicons name="search" size={16} color={colors.textMuted} />
-                <TextInput
-                  value={query}
-                  onChangeText={setQuery}
-                  onSubmitEditing={() => openTicker(query)}
-                  placeholder={t("earnings.search.placeholder")}
-                  placeholderTextColor={colors.placeholder}
-                  style={[s.searchInput, { color: colors.text }]}
-                />
-              </View>
-              <TouchableOpacity onPress={() => openTicker(query)} disabled={!query.trim()}
-                                style={[s.searchBtn, { backgroundColor: colors.accent, opacity: !query.trim() ? 0.5 : 1 }]}>
-                <Text style={s.searchBtnText}>{t("earnings.search.button")}</Text>
-              </TouchableOpacity>
-            </View>
-
             <Text style={[s.sectionLabel, { color: colors.text }]}>{t("earnings.recentReporters.label")}</Text>
             {loadingReporters ? (
               <View style={s.center}>
@@ -150,15 +124,7 @@ const s = StyleSheet.create({
   paywallDesc: { fontSize: 13, textAlign: "center", lineHeight: 18, marginBottom: 18 },
   paywallBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, backgroundColor: "#00a85e" },
   paywallBtnText: { fontSize: 13, fontWeight: "900", color: "#fff" },
-  warningBox: { borderWidth: 2, borderRadius: 16, padding: 14, marginBottom: 16, alignItems: "center" },
-  warningTitle: { fontSize: 16, fontWeight: "900", color: "#ef4444", textAlign: "center" },
-  warningSubtitle: { fontSize: 11, marginTop: 4, textAlign: "center" },
   sectionLabel: { fontSize: 13, fontWeight: "800", marginBottom: 8 },
-  searchRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
-  searchInputWrap: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12 },
-  searchInput: { flex: 1, paddingVertical: 10, fontSize: 13 },
-  searchBtn: { paddingHorizontal: 16, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  searchBtnText: { fontSize: 13, fontWeight: "900", color: "#000" },
   center: { paddingVertical: 40, alignItems: "center" },
   emptyCard: { borderWidth: 1, borderRadius: 16, padding: 24 },
   reporterRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 14, padding: 10 },

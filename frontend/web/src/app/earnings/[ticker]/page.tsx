@@ -74,13 +74,7 @@ export default function EarningsTickerPage() {
                 <p className="text-xs font-medium" style={{ color: "#ef4444" }}>{error}</p>
               </div>
             ) : result ? (
-              <>
-                <div className="rounded-2xl border-2 p-4 mb-5 text-center" style={{ borderColor: "#ef4444", background: "rgba(239,68,68,0.08)" }}>
-                  <p className="text-lg font-black tracking-tight" style={{ color: "#ef4444" }}>{t("earnings.disclaimer.title")}</p>
-                  <p className="text-xs mt-1" style={{ color: "var(--sub)" }}>{t("earnings.disclaimer.subtitle")}</p>
-                </div>
-                <EarningsAnalysisCard result={result} />
-              </>
+              <EarningsAnalysisCard result={result} />
             ) : null}
           </div>
         </div>

@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { Loader2, Lock, FileBarChart, Search, X, AlertTriangle } from "lucide-react";
+import { Loader2, Lock, FileBarChart } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
@@ -54,9 +54,6 @@ export default function EarningsPage() {
   const [reporters, setReporters] = useState<RecentReporter[]>([]);
   const [loadingReporters, setLoadingReporters] = useState(false);
 
-  const [query, setQuery] = useState("");
-  const [searchError, setSearchError] = useState<string | null>(null);
-
   const symbols = useMemo(() => {
     const port = positions.map((p) => p.ticker);
     const watch = watchlistItems.map((w) => w.ticker);
@@ -74,7 +71,6 @@ export default function EarningsPage() {
 
   const openTicker = (ticker: string) => {
     if (!ticker.trim()) return;
-    setSearchError(null);
     router.push(`/earnings/${ticker.trim().toUpperCase()}`);
   };
 
@@ -85,14 +81,9 @@ export default function EarningsPage() {
         <MarketTickerBar />
         <div className="flex-1 overflow-y-auto scrollbar-thin p-6">
           <div className="max-w-2xl mx-auto">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-5">
               <FileBarChart className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
               <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>{t("earnings.title")}</h1>
-            </div>
-
-            <div className="rounded-2xl border-2 p-4 mb-5 text-center" style={{ borderColor: "#ef4444", background: "rgba(239,68,68,0.08)" }}>
-              <p className="text-lg font-black tracking-tight" style={{ color: "#ef4444" }}>{t("earnings.disclaimer.title")}</p>
-              <p className="text-xs mt-1" style={{ color: "var(--sub)" }}>{t("earnings.disclaimer.subtitle")}</p>
             </div>
 
             {!isPremium ? (
@@ -108,37 +99,6 @@ export default function EarningsPage() {
               </div>
             ) : (
               <>
-                <h2 className="text-sm font-bold mb-2" style={{ color: "var(--text)" }}>{t("earnings.search.label")}</h2>
-                <div className="flex gap-2 mb-6">
-                  <div className="flex-1 flex items-center gap-2 rounded-xl border px-3" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                    <Search className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
-                    <input
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && openTicker(query)}
-                      placeholder={t("earnings.search.placeholder")}
-                      className="flex-1 py-2.5 text-sm bg-transparent outline-none"
-                      style={{ color: "var(--text)" }}
-                    />
-                    {query && (
-                      <button onClick={() => { setQuery(""); setSearchError(null); }}>
-                        <X className="w-4 h-4" style={{ color: "var(--muted)" }} />
-                      </button>
-                    )}
-                  </div>
-                  <button onClick={() => openTicker(query)} disabled={!query.trim()}
-                          className="px-4 py-2.5 rounded-xl text-sm font-bold text-black disabled:opacity-40" style={{ background: "var(--accent)" }}>
-                    {t("earnings.search.button")}
-                  </button>
-                </div>
-
-                {searchError && (
-                  <div className="rounded-xl p-3 flex gap-2 items-start mb-4" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
-                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "#ef4444" }} />
-                    <p className="text-xs font-medium" style={{ color: "#ef4444" }}>{searchError}</p>
-                  </div>
-                )}
-
                 <h2 className="text-sm font-bold mb-2" style={{ color: "var(--text)" }}>{t("earnings.recentReporters.label")}</h2>
                 {loadingReporters ? (
                   <div className="flex items-center justify-center py-8">

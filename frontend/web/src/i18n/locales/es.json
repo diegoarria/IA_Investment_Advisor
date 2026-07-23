@@ -544,14 +544,7 @@
   },
   "earnings": {
     "title": "Análisis de Earnings",
-    "disclaimer": {
-      "title": "ESTO NO ES RECOMENDACIÓN DE INVERSIÓN",
-      "subtitle": "El rating y el análisis son el juicio de la IA, no un hecho objetivo."
-    },
     "search": {
-      "label": "Buscar el reporte de cualquier acción",
-      "placeholder": "Ticker (ej. GEV, AAPL, MELI)",
-      "button": "Analizar",
       "error": "No se pudo obtener el análisis de earnings para esa búsqueda."
     },
     "recentReporters": {

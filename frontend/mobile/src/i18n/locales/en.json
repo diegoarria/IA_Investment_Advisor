@@ -603,14 +603,7 @@
   },
   "earnings": {
     "title": "Earnings Analysis",
-    "disclaimer": {
-      "title": "THIS IS NOT INVESTMENT ADVICE",
-      "subtitle": "The rating and analysis are the AI's judgment, not an objective fact."
-    },
     "search": {
-      "label": "Search any stock's earnings report",
-      "placeholder": "Ticker (e.g. GEV, AAPL, MELI)",
-      "button": "Analyze",
       "error": "Couldn't get the earnings analysis for that search."
     },
     "recentReporters": {
