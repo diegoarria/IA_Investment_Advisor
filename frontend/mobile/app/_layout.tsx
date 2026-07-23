@@ -114,6 +114,10 @@ function AppStack() {
         const autoMsg = data.suggested_message || data.msg;
         if (autoMsg) params.msg = encodeURIComponent(decodeURIComponent(autoMsg));
         router.navigate({ pathname: "/(tabs)/chat", params });
+      } else if (typeof data.screen === "string" && data.screen.startsWith("earnings/")) {
+        // Premium earnings-report push (see worker.py's _job_earnings_dispatch)
+        // — deep-links straight into that ticker's real analysis screen.
+        router.navigate(`/${data.screen}` as any);
       }
     });
     return () => sub.remove();

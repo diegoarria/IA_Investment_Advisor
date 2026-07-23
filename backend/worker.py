@@ -3538,7 +3538,7 @@ async def _job_earnings_dispatch(hour_filter: str):
     logger.info("job_earnings [%s]: %d tickers reported: %s", hour_filter, len(reported_tickers), reported_tickers)
 
     # 2. Load all users
-    users_res = await run_query(db.table("user_profiles").select("user_id,name,preferred_language"))
+    users_res = await run_query(db.table("user_profiles").select("user_id,name,preferred_language,subscription_tier,trial_started_at"))
     users = users_res.data or []
     if not users:
         return
@@ -3571,15 +3571,26 @@ async def _job_earnings_dispatch(hour_filter: str):
         if not relevant:
             continue
 
-        language = (u.get("preferred_language") or "es")
+        language  = (u.get("preferred_language") or "es")
+        is_prem   = _is_premium_user(u.get("subscription_tier") or "free", u.get("trial_started_at"))
         await asyncio.sleep(random.uniform(0, 0.05))
         for ticker in relevant:
             res  = results_map[ticker]
             title, body = _earnings_push_content(ticker, res, language=language)
+            if is_prem:
+                # Premium-only teaser + deep link into the real structured
+                # Earnings Analysis screen (segments/guidance/rating grounded
+                # in real data) — free users keep the plain beat/miss body
+                # and generic stock_detail link, since they don't have
+                # access to that screen.
+                body += ("\nCome see the full analysis." if language == "en" else "\nVen a ver el análisis de lo que pasó.")
+                data = {"ticker": ticker, "screen": f"earnings/{ticker}"}
+            else:
+                data = {"ticker": ticker, "screen": "stock_detail"}
             await send_push(
                 uid, f"earnings_{ticker.lower()}",
                 title, body,
-                {"ticker": ticker, "screen": "stock_detail"},
+                data,
                 db,
             )
             notified += 1
