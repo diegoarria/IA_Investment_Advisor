@@ -174,8 +174,6 @@ export default function ChatScreen() {
   const [notificationContext, setNotificationContext] = useState<string | null>(null);
   const [pendingActions, setPendingActions] = useState<Array<{ type: string; label: string; data: Record<string, unknown> }> | null>(null);
   const [committedActions, setCommittedActions] = useState<Set<number>>(new Set());
-  const [decisionModal, setDecisionModal] = useState<{ action: string; ticker: string; notes: string } | null>(null);
-  const [decisionSaved, setDecisionSaved] = useState(false);
 
   // Handle notification deep-link params
   useEffect(() => {
@@ -705,8 +703,11 @@ Instrucciones críticas:
                 <TouchableOpacity
                   onPress={() => {
                     if (action.type === "decision") {
+                      // Logs immediately with Mentor IA's own suggested data —
+                      // no confirmation modal, matching every other chip type
+                      // here which all execute right away too.
                       const d = action.data as Record<string, string>;
-                      setDecisionModal({ action: d.action ?? "hold", ticker: d.ticker ?? "", notes: d.notes ?? "" });
+                      decisionsApi.log({ action: d.action ?? "hold", ticker: d.ticker ?? "", notes: d.notes ?? "", date: new Date().toISOString() }).catch(() => {});
                     } else if (action.type === "chat") {
                       const d = action.data as Record<string, string>;
                       sendMessage(d.message);
@@ -1204,119 +1205,6 @@ Instrucciones críticas:
           </TouchableOpacity>
 
         </View>
-      </View>
-    </Modal>
-
-    {/* Decision journal modal */}
-    <Modal
-      visible={!!decisionModal}
-      transparent
-      animationType="slide"
-      statusBarTranslucent
-      onRequestClose={() => setDecisionModal(null)}
-    >
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
-        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setDecisionModal(null)} />
-        {decisionModal && (
-          <View style={{
-            backgroundColor: colors.card,
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
-            padding: 20,
-            gap: 12,
-            borderTopWidth: 1,
-            borderColor: colors.border,
-          }}>
-            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>{t("chat.logDecisionTitle")}</Text>
-            <Text style={{ fontSize: 12, color: colors.textSub }}>
-              {t("chat.logDecisionDesc")}
-            </Text>
-            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>{t("chat.decisionLabel")}</Text>
-            <TextInput
-              style={{
-                backgroundColor: colors.bgRaised,
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 10,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                fontSize: 14,
-                color: colors.text,
-              }}
-              value={decisionModal.action}
-              onChangeText={(v) => setDecisionModal({ ...decisionModal, action: v })}
-              placeholder={t("chat.decisionPlaceholder")}
-              placeholderTextColor={colors.textMuted}
-            />
-            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>{t("chat.tickerLabel")}</Text>
-            <TextInput
-              style={{
-                backgroundColor: colors.bgRaised,
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 10,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                fontSize: 14,
-                color: colors.text,
-              }}
-              value={decisionModal.ticker}
-              onChangeText={(v) => setDecisionModal({ ...decisionModal, ticker: v })}
-              placeholder={t("chat.tickerPlaceholder")}
-              placeholderTextColor={colors.textMuted}
-              autoCapitalize="characters"
-            />
-            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>{t("chat.notesLabel")}</Text>
-            <TextInput
-              style={{
-                backgroundColor: colors.bgRaised,
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 10,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                fontSize: 14,
-                color: colors.text,
-                minHeight: 70,
-                textAlignVertical: "top",
-              }}
-              value={decisionModal.notes}
-              onChangeText={(v) => setDecisionModal({ ...decisionModal, notes: v })}
-              placeholder={t("chat.notesPlaceholder")}
-              placeholderTextColor={colors.textMuted}
-              multiline
-            />
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
-              <TouchableOpacity
-                onPress={() => setDecisionModal(null)}
-                style={{
-                  flex: 1, paddingVertical: 12, borderRadius: 12,
-                  backgroundColor: colors.bgRaised, alignItems: "center",
-                  borderWidth: 1, borderColor: colors.border,
-                }}
-              >
-                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.textSub }}>{t("chat.cancel")}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={async () => {
-                  try {
-                    await decisionsApi.log({ action: decisionModal.action, ticker: decisionModal.ticker, notes: decisionModal.notes, date: new Date().toISOString() });
-                  } catch {}
-                  setDecisionSaved(true);
-                  setTimeout(() => { setDecisionSaved(false); setDecisionModal(null); }, 1500);
-                }}
-                style={{
-                  flex: 1, paddingVertical: 12, borderRadius: 12,
-                  backgroundColor: colors.accent, alignItems: "center",
-                }}
-              >
-                <Text style={{ fontSize: 14, fontWeight: "600", color: "#fff" }}>
-                  {decisionSaved ? t("chat.saved") : t("chat.save")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
       </View>
     </Modal>
 

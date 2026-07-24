@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
-  View, Text, TouchableOpacity, Modal, ScrollView, TextInput,
+  View, Text, TouchableOpacity,
   ActivityIndicator, StyleSheet, Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -41,18 +41,14 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
   const { colors } = useTheme();
   const { t } = useTranslation();
   const s = styles(colors);
-  const ACTION_OPTIONS = getActionOptions(t);
-  const TRIGGER_OPTIONS = getTriggerOptions(t);
   const ALL_TRIGGER_LABELS = getAllTriggerLabels(t);
+  const ACTION_OPTIONS = getActionOptions(t);
 
   const [tab, setTab]               = useState<"diary" | "biases">("diary");
   const [decisions, setDecisions]   = useState<any[]>([]);
   const [biases, setBiases]         = useState<any>(null);
   const [loadingD, setLoadingD]     = useState(false);
   const [loadingB, setLoadingB]     = useState(false);
-  const [logOpen, setLogOpen]       = useState(false);
-  const [saving, setSaving]         = useState(false);
-  const [form, setForm]             = useState({ action: "buy", ticker: "", trigger: "manual", notes: "" });
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [clearingAll, setClearingAll] = useState(false);
 
@@ -72,18 +68,6 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
     setLoadingB(true);
     try { const r: any = await decisionsApi.getBiases(); setBiases(r.data); }
     catch {} finally { setLoadingB(false); }
-  };
-
-  const handleLog = async () => {
-    if (!form.ticker.trim()) return;
-    setSaving(true);
-    try {
-      await decisionsApi.log({ ...form, ticker: form.ticker.toUpperCase() });
-      setForm({ action: "buy", ticker: "", trigger: "manual", notes: "" });
-      setLogOpen(false);
-      fetchDecisions();
-      setBiases(null);
-    } catch {} finally { setSaving(false); }
   };
 
   const handleDeleteOne = async (id: string) => {
@@ -188,13 +172,6 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
                 <Text style={[s.inlineSub, { color: colors.textMuted }]}>{t("mobileDecisionDiary.inlineSub")}</Text>
               </View>
             </View>
-            <TouchableOpacity
-              onPress={() => setLogOpen(true)}
-              style={[s.registerBtn, { backgroundColor: TOOL_COLOR }]}>
-              <View style={s.ctaGlow} />
-              <Ionicons name="add" size={14} color="white" />
-              <Text style={s.registerBtnText}>{t("mobileDecisionDiary.register")}</Text>
-            </TouchableOpacity>
           </View>
 
           {/* Tabs */}
@@ -395,73 +372,6 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
           )}
         </View>
       </View>
-
-      {/* Log decision modal */}
-      <Modal visible={logOpen} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setLogOpen(false)}>
-        <View style={[s.logModal, { backgroundColor: colors.bg }]}>
-          <View style={[s.logHeader, { borderBottomColor: colors.border }]}>
-            <Text style={[s.logHeaderTitle, { color: colors.text }]}>{t("mobileDecisionDiary.logTitle")}</Text>
-            <TouchableOpacity onPress={() => setLogOpen(false)}>
-              <Ionicons name="close" size={22} color={colors.textMuted} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={s.logContent}>
-            <Text style={[s.fieldLabel, { color: colors.textMuted }]}>{t("mobileDecisionDiary.actionField")}</Text>
-            <View style={s.optionsRow}>
-              {ACTION_OPTIONS.map((a) => (
-                <TouchableOpacity key={a.id}
-                  style={[s.optionBtn, {
-                    borderColor: form.action === a.id ? TOOL_COLOR : colors.border,
-                    backgroundColor: form.action === a.id ? TOOL_COLOR + "15" : colors.bgRaised,
-                  }]}
-                  onPress={() => setForm((f) => ({ ...f, action: a.id }))}>
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: form.action === a.id ? TOOL_COLOR : colors.textMuted }}>
-                    {a.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={[s.fieldLabel, { color: colors.textMuted }]}>{t("mobileDecisionDiary.tickerField")}</Text>
-            <TextInput
-              style={[s.input, { borderColor: colors.border, backgroundColor: colors.bgRaised, color: colors.text }]}
-              placeholder={t("mobileDecisionDiary.tickerPlaceholder")} placeholderTextColor={colors.placeholder}
-              autoCapitalize="characters" value={form.ticker}
-              onChangeText={(txt) => setForm((f) => ({ ...f, ticker: txt.toUpperCase() }))} />
-
-            <Text style={[s.fieldLabel, { color: colors.textMuted }]}>{t("mobileDecisionDiary.whyField")}</Text>
-            <View style={s.optionsRow}>
-              {TRIGGER_OPTIONS.map((opt) => (
-                <TouchableOpacity key={opt.id}
-                  style={[s.optionBtn, {
-                    borderColor: form.trigger === opt.id ? TOOL_COLOR : colors.border,
-                    backgroundColor: form.trigger === opt.id ? TOOL_COLOR + "15" : colors.bgRaised,
-                  }]}
-                  onPress={() => setForm((f) => ({ ...f, trigger: opt.id }))}>
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: form.trigger === opt.id ? TOOL_COLOR : colors.textMuted }}>
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={[s.fieldLabel, { color: colors.textMuted }]}>{t("mobileDecisionDiary.notesField")}</Text>
-            <TextInput
-              style={[s.textArea, { borderColor: colors.border, backgroundColor: colors.bgRaised, color: colors.text }]}
-              placeholder={t("mobileDecisionDiary.notesPlaceholder")} placeholderTextColor={colors.placeholder}
-              multiline numberOfLines={3} value={form.notes}
-              onChangeText={(txt) => setForm((f) => ({ ...f, notes: txt }))} />
-
-            <TouchableOpacity
-              style={[s.saveBtn, { backgroundColor: TOOL_COLOR, opacity: saving || !form.ticker.trim() ? 0.6 : 1 }]}
-              onPress={handleLog} disabled={saving || !form.ticker.trim()}>
-              {saving
-                ? <ActivityIndicator color="white" />
-                : <Text style={s.saveBtnText}>{t("mobileDecisionDiary.saveDecision")}</Text>}
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </Modal>
     </>
   );
 }
@@ -477,8 +387,6 @@ const styles = (_c: any) => StyleSheet.create({
   headerIconBox:{ width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   inlineTitle:  { fontSize: 14, fontWeight: "800" },
   inlineSub:    { fontSize: 11, marginTop: 1 },
-  registerBtn:  { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 12, overflow: "hidden" },
-  registerBtnText: { fontSize: 12, fontWeight: "800", color: "white" },
 
   // Tabs
   tabRow:    { flexDirection: "row", borderRadius: 12, padding: 3, gap: 2 },
@@ -561,17 +469,4 @@ const styles = (_c: any) => StyleSheet.create({
   cta:         { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 16, paddingVertical: 15, overflow: "hidden" },
   ctaGlow:     { position: "absolute", top: 0, left: 0, right: 0, height: "50%", backgroundColor: "rgba(255,255,255,0.12)" },
   ctaText:     { color: "white", fontWeight: "800", fontSize: 15, letterSpacing: 0.2 },
-
-  // ── Log modal ─────────────────────────────────────────────────────────
-  logModal:      { flex: 1 },
-  logHeader:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 18, borderBottomWidth: StyleSheet.hairlineWidth },
-  logHeaderTitle:{ fontSize: 17, fontWeight: "800" },
-  logContent:    { padding: 16, paddingBottom: 48, gap: 4 },
-  fieldLabel:    { fontSize: 11, fontWeight: "600", marginBottom: 6 },
-  optionsRow:    { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
-  optionBtn:     { borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
-  input:         { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 14 },
-  textArea:      { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, minHeight: 80, textAlignVertical: "top", marginBottom: 14 },
-  saveBtn:       { borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 4 },
-  saveBtnText:   { color: "white", fontWeight: "800", fontSize: 15 },
 });

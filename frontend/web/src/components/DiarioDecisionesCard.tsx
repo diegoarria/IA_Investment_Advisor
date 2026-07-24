@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, Loader2, TrendingUp, TrendingDown, CheckCircle, RefreshCw, Plus, X, AlertTriangle, Brain, BookMarked, BarChart2, Target, Trash2, RotateCw } from "lucide-react";
+import { BookOpen, Loader2, TrendingUp, TrendingDown, CheckCircle, RefreshCw, AlertTriangle, Brain, BookMarked, BarChart2, Target, Trash2, RotateCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import PremiumToolLocked from "@/components/PremiumToolLocked";
@@ -52,8 +52,6 @@ interface BiasReport {
   generated_at?: string;
 }
 
-const ACTION_OPTIONS = ["buy", "sell", "hold", "ignored_alert", "acted_on_alert"];
-const TRIGGER_OPTIONS = ["manual", "alert", "mentor", "fomo", "panic", "research"];
 function getActionLabels(t: TFunction): Record<string, string> {
   return {
     buy: t("diarioDecisiones.actions.buy"),
@@ -94,9 +92,6 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
   const [biases, setBiases]       = useState<BiasReport | null>(null);
   const [loadingD, setLoadingD]   = useState(false);
   const [loadingB, setLoadingB]   = useState(false);
-  const [logOpen, setLogOpen]     = useState(false);
-  const [form, setForm]           = useState({ action: "buy", ticker: "", trigger: "manual", notes: "" });
-  const [saving, setSaving]       = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [clearingAll, setClearingAll] = useState(false);
 
@@ -137,18 +132,6 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
       setDecisions([]);
       setBiases(null);
     } catch {} finally { setClearingAll(false); }
-  };
-
-  const handleLog = async () => {
-    if (!form.ticker.trim() || !form.action) return;
-    setSaving(true);
-    try {
-      await decisionsApi.log({ ...form, ticker: form.ticker.toUpperCase() });
-      setForm({ action: "buy", ticker: "", trigger: "manual", notes: "" });
-      setLogOpen(false);
-      fetchDecisions();
-      setBiases(null);
-    } catch {} finally { setSaving(false); }
   };
 
   const actionIcon = (action: string) =>
@@ -192,13 +175,6 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
                 <p className="text-[10px]" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.headerSubtitle")}</p>
               </div>
             </div>
-            <button
-              onClick={() => setLogOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white"
-              style={{ background: "linear-gradient(90deg,#a78bfa,#7c3aed)" }}
-            >
-              <Plus className="w-3.5 h-3.5" /> {t("diarioDecisiones.register")}
-            </button>
           </div>
 
           {/* Tabs */}
@@ -407,69 +383,6 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
         </div>
       </div>
 
-      {/* Log decision modal */}
-      {logOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-             style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
-          <div className="w-full max-w-sm rounded-2xl border"
-               style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-            <div className="h-1" style={{ background: "linear-gradient(90deg,#a78bfa,#7c3aed)" }} />
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-4">
-                <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("diarioDecisiones.modal.title")}</p>
-                <button onClick={() => setLogOpen(false)} style={{ color: "var(--muted)" }}>
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.modal.action")}</label>
-                  <select className="w-full rounded-lg border px-2 py-1.5 text-xs"
-                          style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-                          value={form.action}
-                          onChange={(e) => setForm((f) => ({ ...f, action: e.target.value }))}>
-                    {ACTION_OPTIONS.map((a) => (
-                      <option key={a} value={a}>{ACTION_LABELS[a] ?? a}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.modal.ticker")}</label>
-                  <input type="text" placeholder={t("diarioDecisiones.modal.tickerPlaceholder")}
-                         className="w-full rounded-lg border px-2 py-1.5 text-xs uppercase"
-                         style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-                         value={form.ticker}
-                         onChange={(e) => setForm((f) => ({ ...f, ticker: e.target.value.toUpperCase() }))} />
-                </div>
-                <div>
-                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.modal.whyLabel")}</label>
-                  <select className="w-full rounded-lg border px-2 py-1.5 text-xs"
-                          style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-                          value={form.trigger}
-                          onChange={(e) => setForm((f) => ({ ...f, trigger: e.target.value }))}>
-                    {TRIGGER_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>{TRIGGER_LABELS[opt] ?? opt}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("diarioDecisiones.modal.notesLabel")}</label>
-                  <textarea rows={2} placeholder={t("diarioDecisiones.modal.notesPlaceholder")}
-                            className="w-full rounded-lg border px-2 py-1.5 text-xs resize-none"
-                            style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-                            value={form.notes}
-                            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
-                </div>
-                <button onClick={handleLog} disabled={saving || !form.ticker.trim()}
-                        className="w-full py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-60"
-                        style={{ background: "linear-gradient(90deg,#a78bfa,#7c3aed)" }}>
-                  {saving ? t("diarioDecisiones.modal.saving") : t("diarioDecisiones.modal.save")}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

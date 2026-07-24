@@ -171,8 +171,6 @@ export default function ChatPage() {
   const [notificationContext, setNotificationContext] = useState<string | null>(null);
   const [pendingActions, setPendingActions] = useState<Array<{ type: string; label: string; data: Record<string, unknown> }> | null>(null);
   const [committedActions, setCommittedActions] = useState<Set<number>>(new Set());
-  const [decisionModal, setDecisionModal] = useState<{ action: string; ticker: string; notes: string } | null>(null);
-  const [decisionSaved, setDecisionSaved] = useState(false);
 
   // ── Guided tour & 1:1 suggestion ─────────────────────────────────────────
   const [guidedTour, setGuidedTour]     = useState(false);
@@ -1143,8 +1141,14 @@ export default function ChatPage() {
                         <button
                           onClick={() => {
                             if (action.type === "decision") {
+                              // Logs immediately using Mentor IA's own suggested
+                              // data — no confirmation modal. A manual "review
+                              // and save" step here was exactly the kind of
+                              // friction that meant decisions never actually
+                              // got logged; matches every other chip type below,
+                              // which all execute right away too.
                               const d = action.data as Record<string, string>;
-                              setDecisionModal({ action: d.action ?? "hold", ticker: d.ticker ?? "", notes: d.notes ?? "" });
+                              decisionsApi.log({ action: d.action ?? "hold", ticker: d.ticker ?? "", notes: d.notes ?? "", date: new Date().toISOString() }).catch(() => {});
                             } else if (action.type === "chat") {
                               const d = action.data as Record<string, string>;
                               sendMessage(d.message);
@@ -1513,73 +1517,6 @@ export default function ChatPage() {
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={paywallReason} />
       <TutorialModal />
-
-      {/* Decision journal modal */}
-      {decisionModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)" }}
-          onClick={() => setDecisionModal(null)}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl p-5 flex flex-col gap-3"
-            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("chat.decisionModalTitle")}</p>
-            <p className="text-xs" style={{ color: "var(--sub)" }}>
-              {t("chat.decisionModalDesc")}
-            </p>
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-semibold" style={{ color: "var(--sub)" }}>{t("chat.decisionLabel")}</label>
-              <input
-                className="rounded-lg px-3 py-2 text-sm outline-none border focus:border-[var(--accent)]"
-                style={{ background: "var(--raised)", border: "1px solid var(--border)", color: "var(--text)" }}
-                value={decisionModal.action}
-                onChange={(e) => setDecisionModal({ ...decisionModal, action: e.target.value })}
-                placeholder={t("chat.decisionPlaceholder")}
-              />
-              <label className="text-xs font-semibold" style={{ color: "var(--sub)" }}>{t("chat.tickerLabel")}</label>
-              <input
-                className="rounded-lg px-3 py-2 text-sm outline-none border focus:border-[var(--accent)]"
-                style={{ background: "var(--raised)", border: "1px solid var(--border)", color: "var(--text)" }}
-                value={decisionModal.ticker}
-                onChange={(e) => setDecisionModal({ ...decisionModal, ticker: e.target.value })}
-                placeholder={t("chat.tickerPlaceholder")}
-              />
-              <label className="text-xs font-semibold" style={{ color: "var(--sub)" }}>{t("chat.notesLabel")}</label>
-              <textarea
-                rows={3}
-                className="rounded-lg px-3 py-2 text-sm outline-none border focus:border-[var(--accent)] resize-none"
-                style={{ background: "var(--raised)", border: "1px solid var(--border)", color: "var(--text)" }}
-                value={decisionModal.notes}
-                onChange={(e) => setDecisionModal({ ...decisionModal, notes: e.target.value })}
-                placeholder={t("chat.notesPlaceholder")}
-              />
-            </div>
-            <div className="flex gap-2 mt-1">
-              <button
-                className="flex-1 py-2 rounded-xl text-sm font-semibold transition-colors"
-                style={{ background: "var(--raised)", color: "var(--sub)" }}
-                onClick={() => setDecisionModal(null)}
-              >{t("chat.cancel")}</button>
-              <button
-                className="flex-1 py-2 rounded-xl text-sm font-semibold transition-colors"
-                style={{ background: "var(--accent)", color: "#fff" }}
-                onClick={async () => {
-                  try {
-                    await decisionsApi.log({ action: decisionModal.action, ticker: decisionModal.ticker, notes: decisionModal.notes, date: new Date().toISOString() });
-                  } catch {}
-                  setDecisionSaved(true);
-                  setTimeout(() => { setDecisionSaved(false); setDecisionModal(null); }, 1500);
-                }}
-              >
-                {decisionSaved ? t("chat.saved") : t("chat.save")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {isTour && (
         <TourSpotlight
