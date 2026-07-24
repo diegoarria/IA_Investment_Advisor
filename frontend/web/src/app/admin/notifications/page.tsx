@@ -31,8 +31,6 @@ export default function NotificationAnalyticsPage() {
   const [testResult, setTestResult] = useState<"sent" | "no_channel" | "error" | null>(null);
   const [closeSending, setCloseSending] = useState(false);
   const [closeResult, setCloseResult] = useState<"sent" | "error" | null>(null);
-  const [reportSending, setReportSending] = useState(false);
-  const [reportResult, setReportResult] = useState<"sent" | "error" | null>(null);
 
   useEffect(() => {
     if (!userId || !isAuthenticated) return;   // wait for auth to restore
@@ -51,24 +49,6 @@ export default function NotificationAnalyticsPage() {
       setLoading(false);
     })();
   }, [userId, isAuthenticated, router]);
-
-  async function sendMonthlyReport(email: string, month: string) {
-    setReportSending(true);
-    setReportResult(null);
-    try {
-      const res = await fetch(`${API}/api/admin/send-monthly-report`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, month }),
-      });
-      // endpoint returns immediately with status:"queued" — treat as sent
-      setReportResult(res.ok ? "sent" : "error");
-    } catch {
-      setReportResult("error");
-    }
-    setReportSending(false);
-  }
 
   async function testMarketClosePush() {
     setCloseSending(true);
@@ -125,22 +105,6 @@ export default function NotificationAnalyticsPage() {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap justify-end">
-            {reportResult === "sent" && <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 600 }}>✓ Reporte enviado</span>}
-            {reportResult === "error" && <span style={{ color: "#ef4444", fontSize: 13, fontWeight: 600 }}>✗ Error al enviar reporte</span>}
-            <button
-              onClick={() => sendMonthlyReport("diego.arria19@gmail.com", "Julio 2026")}
-              disabled={reportSending}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm"
-              style={{
-                background: reportSending ? "rgba(59,130,246,0.1)" : "rgba(59,130,246,0.15)",
-                border: "1px solid rgba(59,130,246,0.4)",
-                color: "#60a5fa",
-                cursor: reportSending ? "not-allowed" : "pointer",
-              }}
-            >
-              {reportSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart2 className="w-4 h-4" />}
-              Enviar reporte Julio
-            </button>
             {closeResult === "sent" && <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 600 }}>✓ Push cierre enviado</span>}
             {closeResult === "error" && <span style={{ color: "#ef4444", fontSize: 13, fontWeight: 600 }}>✗ Error al enviar</span>}
             <button

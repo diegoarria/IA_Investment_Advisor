@@ -94,10 +94,6 @@ async def stripe_webhook(request: Request):
         customer_id = session.get("customer")
         metadata = session.get("metadata") or {}
 
-        # Annual report one-time purchase: log for on-demand generation
-        if metadata.get("offer") == "annual_report" and user_id:
-            logger.info("annual_report purchased by %s", user_id)
-
         if user_id and session.get("mode") == "subscription":
             from datetime import datetime, timezone
             update = {

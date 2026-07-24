@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { X, Calendar, Users, Video, Star, ArrowRight, Check } from "lucide-react";
+import { X, Users, Video, Star, ArrowRight, Check } from "lucide-react";
 import api from "@/lib/api";
 import { useSubscriptionStore } from "@/lib/store";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 
-export type UpsellOffer = "annual_report" | "family_plan" | "session";
+export type UpsellOffer = "family_plan" | "session";
 
 interface UpsellModalProps {
   offer: UpsellOffer | null;
@@ -19,15 +19,6 @@ interface UpsellModalProps {
 
 function getOfferMeta(t: TFunction) {
   return {
-    annual_report: {
-      icon: Calendar,
-      emoji: "📊",
-      title: t("upsellModal.annualReport.title"),
-      subtitle: t("upsellModal.annualReport.subtitle"),
-      features: t("upsellModal.annualReport.features", { returnObjects: true }) as string[],
-      color: "#8b5cf6",
-      badge: t("upsellModal.annualReport.badge"),
-    },
     family_plan: {
       icon: Users,
       emoji: "👫",

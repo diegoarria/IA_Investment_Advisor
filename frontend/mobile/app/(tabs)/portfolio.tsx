@@ -19,7 +19,6 @@ import { marketApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
-import MobileMonthlyReport from "../../src/components/MobileMonthlyReport";
 import MobileWeeklyScreener from "../../src/components/MobileWeeklyScreener";
 import PremiumToolCard from "../../src/components/PremiumToolCard";
 import { useAppStore, getAge, UserProfile } from "../../src/lib/profileStore";
@@ -1822,27 +1821,6 @@ export default function PortfolioScreen() {
                 </View>
               </View>
             </View>
-
-            {/* ── REPORTE MENSUAL ── */}
-            {isPremiumAccess
-              ? <MobileMonthlyReport
-                  positions={positions.map((p) => ({ ticker: p.ticker, name: p.name, shares: p.shares, avg_cost: p.avgPrice, current_price: prices[p.ticker]?.price ?? 0, value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice) }))}
-                  isPremium={true} onUpgrade={() => setPaywallOpen(true)} />
-              : <PremiumToolCard
-                  title={t("portfolio.premiumTools.monthlyReport.title")}
-                  tagline={t("portfolio.premiumTools.monthlyReport.tagline")}
-                  description={t("portfolio.premiumTools.monthlyReport.description")}
-                  icon="document-text-outline"
-                  color="#3b82f6"
-                  benefits={[
-                    { icon: "📊", text: t("portfolio.premiumTools.monthlyReport.benefits.0") },
-                    { icon: "📉", text: t("portfolio.premiumTools.monthlyReport.benefits.1") },
-                    { icon: "🎓", text: t("portfolio.premiumTools.monthlyReport.benefits.2") },
-                    { icon: "✅", text: t("portfolio.premiumTools.monthlyReport.benefits.3") },
-                  ]}
-                  onUnlock={() => setPaywallOpen(true)}
-                />
-            }
 
             {/* ── SCREENER SEMANAL ── */}
             {isPremiumAccess

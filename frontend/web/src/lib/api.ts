@@ -367,11 +367,6 @@ export const simulateApi = {
   ) => api.post("/api/simulate", { scenario_type: scenarioType, scenario_params: scenarioParams, portfolio }),
 };
 
-export const reportApi = {
-  monthly: (portfolio: unknown[]) =>
-    api.post("/api/report/monthly", { portfolio }),
-};
-
 export const decisionsApi = {
   log: (decision: Record<string, unknown>) => api.post("/api/decisions/log", decision),
   getAll: (limit = 50) => api.get("/api/decisions", { params: { limit } }),
@@ -445,9 +440,6 @@ export const brokerageApi = {
 };
 
 export const progressApi = {
-  getSummary: () => api.get("/api/progress/summary"),
-  getMilestones: () => api.get("/api/progress/milestones"),
-  getDecisionsThatHelped: () => api.get("/api/progress/decisions-that-helped"),
   getPersonalizedMessage: () => api.get("/api/progress/personalized-message"),
 };
 

@@ -801,41 +801,6 @@
       "open": "Abrir simulador →"
     }
   },
-  "progress": {
-    "metrics": {
-      "sinceFirstInvestment": "Desde tu primera inversión",
-      "timeUsingNuvos": "Tiempo usando Nuvos",
-      "totalOperations": "Operaciones realizadas",
-      "capitalInvested": "Capital invertido",
-      "currentPatrimonio": "Patrimonio actual",
-      "cumulativeReturn": "Retorno acumulado",
-      "bestYear": "Mejor año ({{year}})",
-      "worstYear": "Año más difícil ({{year}})",
-      "consecutiveMonths": "Meses seguidos aportando"
-    },
-    "paywall": {
-      "title": "Tu evolución como inversionista",
-      "description": "Nuvos guarda tu historia completa como inversor — hitos, patrimonio, decisiones que evitaron errores. Entre más tiempo te quedes, más vale.",
-      "cta": "Activar Premium"
-    },
-    "empty": {
-      "title": "Aún estamos construyendo tu historial.",
-      "subtitle": "Sigue invirtiendo y usando Nuvos — tu evolución aparecerá aquí."
-    },
-    "benchmark": {
-      "sectionTitle": "CÓMO TE COMPARAS",
-      "beats": "Superas al {{percentile}}%",
-      "profileConnector": "de inversionistas con perfil",
-      "inMetricSuffix": "en {{metric}}.",
-      "anonymousNote": "Comparado de forma anónima contra {{count}} inversionistas — nunca vemos ni compartimos datos individuales de nadie."
-    },
-    "milestones": {
-      "sectionTitle": "HITOS"
-    },
-    "decisions": {
-      "sectionTitle": "DECISIONES QUE EVITARON ERRORES COSTOSOS"
-    }
-  },
   "explore": {
     "weeklyPicks": {
       "title": "Picks de la Semana",
@@ -1327,17 +1292,6 @@
     "premiumTools": {
       "title": "Herramientas Premium",
       "subtitle": "Análisis avanzado de tu portafolio",
-      "monthlyReport": {
-        "title": "Reporte Mensual",
-        "tagline": "Tu portafolio analizado con IA cada mes",
-        "description": "Genera un reporte profesional con rendimiento vs S&P 500, Sharpe ratio, volatilidad, mejores y peores posiciones del mes y nota personal de tu mentor.",
-        "benefits": [
-          "Rendimiento real vs S&P 500 y benchmarks",
-          "Sharpe ratio, volatilidad y drawdown máximo",
-          "Nota personalizada de tu mentor cada mes",
-          "3 acciones concretas para el mes siguiente"
-        ]
-      },
       "weeklyScreener": {
         "title": "Screener Semanal",
         "tagline": "5 oportunidades personalizadas cada lunes",
@@ -1446,15 +1400,6 @@
       "opening": "Abriendo...",
       "buy": "Comprar →",
       "items": [
-        {
-          "title": "Reporte Anual de Inversiones",
-          "features": [
-            "Retorno real de todo tu año como inversor",
-            "Comparativa vs índices (S&P 500 y más)",
-            "Lecciones aprendidas generadas por IA",
-            "Plan personalizado para el año siguiente"
-          ]
-        },
         {
           "title": "Sesión 1:1 de Guía Personalizada",
           "features": [
@@ -2882,19 +2827,6 @@
   },
   "upsellModal": {
     "offers": {
-      "annualReport": {
-        "title": "Reporte Anual de Madurez Inversora",
-        "subtitle": "Tu evolución como inversor, documentada",
-        "badge": "Edición anual",
-        "features": [
-          "Evolución mes a mes de tu Puntuación de Madurez (1-100)",
-          "Análisis de tu perfil de riesgo y comportamiento inversor",
-          "Perfil de riesgo real vs. declarado al registrarte",
-          "Recomendaciones de tu Mentor IA para el próximo año",
-          "Certificado digital: \"Inversor Informado — Nuvos AI\""
-        ],
-        "ctaLabel": "Obtener mi reporte"
-      },
       "familyPlan": {
         "title": "Plan Dúo",
         "subtitle": "Dos cuentas Premium, una sola factura",
@@ -3121,31 +3053,6 @@
     "aiAnalysisPremium": "Análisis IA · Premium",
     "assetsCount": "{{count}} activos"
   },
-  "mobileMonthlyReport": {
-    "generateError": "No se pudo generar el reporte.",
-    "shareText": "📊 Reporte Nuvos AI — {{month}}\n\n{{summary}}\n\nRendimiento: {{returnPct}}%\nValor total: ${{totalValue}}\n\n🎓 {{mentorNote}}",
-    "shareTitle": "Reporte {{month}}",
-    "title": "Reporte Mensual",
-    "tagline": "Tu portafolio analizado con IA cada mes",
-    "feature1": "Rendimiento real vs S&P 500 y benchmarks",
-    "feature2": "Sharpe ratio, volatilidad y drawdown",
-    "feature3": "3 acciones concretas para el mes siguiente",
-    "generating": "Generando...",
-    "generateReport": "Generar Reporte",
-    "portfolioReport": "Reporte de portafolio",
-    "metricReturn": "Rendimiento",
-    "metricTotalValue": "Valor total",
-    "metricGain": "Ganancia",
-    "metricVsSp500": "vs S&P 500",
-    "best": "🏆 Mejor",
-    "worst": "📉 Peor",
-    "sharpe": "Sharpe",
-    "volatility": "Volatilidad",
-    "drawdown": "Drawdown",
-    "mentorNote": "🎓 NOTA DE TU MENTOR",
-    "nextMonthActions": "✅ ACCIONES PARA EL PRÓXIMO MES",
-    "behavioralInsight": "💡 INSIGHT CONDUCTUAL"
-  },
   "paywallModal": {
     "plans": {
       "yearly": {
@@ -3331,7 +3238,6 @@
     "activatePremium": "Activar Premium",
     "createAccountLogin": "Crear cuenta · Iniciar sesión",
     "daysLeft": "{{days}}d restantes",
-    "evolution": "Evolución",
     "login": "Entrar",
     "myGoal": "Mi meta",
     "myPortfolio": "Mi Portafolio",
@@ -3354,8 +3260,7 @@
       "support": "Soporte",
       "videos": "Videos",
       "watchlist": "Watchlist"
-    },
-    "yourEvolution": "Tu evolución como inversionista"
+    }
   },
   "research": {
     "title": "Nuvos Deep Research",

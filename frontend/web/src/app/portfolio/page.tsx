@@ -18,9 +18,7 @@ import { useFxRate } from "@/lib/useFxRate";
 import AdvancedStockTable from "@/components/AdvancedStockTable";
 import type { AdvancedRow } from "@/components/AdvancedStockTable";
 import StockDetailModal from "@/components/StockDetailModal";
-import MonthlyReport from "@/components/MonthlyReport";
 import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
-import PremiumToolLockedWeb from "@/components/PremiumToolLocked";
 import PaywallModal from "@/components/PaywallModal";
 import GuidedSteps from "@/components/GuidedSteps";
 import PremiumBadge from "@/components/PremiumBadge";
@@ -30,8 +28,8 @@ import BrokerConnectModal from "@/components/BrokerConnectModal";
 import { useUpsellStore } from "@/lib/upsellStore";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2,
-  BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
-  Cloud, CloudOff, Check, BarChart2, TrendingUp, TrendingDown, GraduationCap, CheckSquare, Bell, Users, Share2,
+  BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Pencil, Eye,
+  Cloud, CloudOff, Check, TrendingUp, Bell, Users, Share2,
   ChevronDown, ChevronUp, Loader2, Microscope, ArrowRight, FileBarChart,
 } from "lucide-react";
 
@@ -3489,33 +3487,6 @@ export default function PortfolioPage() {
               <p className="text-xs" style={{ color: "var(--muted)" }}>
                 {t("portfolio.toolsTab.subtitle")}
               </p>
-
-              {isPremium
-                ? <MonthlyReport
-                    positions={positions.map((p) => ({
-                      ticker: p.ticker, name: p.name, shares: p.shares,
-                      avg_cost: p.avgPrice,
-                      current_price: prices[p.ticker]?.price ?? 0,
-                      value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
-                    }))}
-                    isPremium={true}
-                    onUpgrade={() => setPaywallOpen(true)}
-                  />
-                : <PremiumToolLockedWeb
-                    title="Reporte Mensual"
-                    tagline="Tu portafolio analizado con IA cada mes"
-                    description="Genera un reporte profesional con rendimiento vs S&P 500, Sharpe ratio, volatilidad, mejores y peores posiciones del mes y nota personal de tu mentor."
-                    icon={FileText}
-                    color="#3b82f6"
-                    benefits={[
-                      { icon: BarChart2,     text: "Rendimiento real vs S&P 500 y benchmarks" },
-                      { icon: TrendingDown,  text: "Sharpe ratio, volatilidad y drawdown máximo" },
-                      { icon: GraduationCap, text: "Nota personalizada de tu mentor cada mes" },
-                      { icon: CheckSquare,   text: "3 acciones concretas para el mes siguiente" },
-                    ]}
-                    onUnlock={() => setPaywallOpen(true)}
-                  />
-              }
 
               <WeeklyScreenerCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} tickers={positions.map(p => p.ticker)} />
 

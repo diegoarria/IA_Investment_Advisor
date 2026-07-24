@@ -40,18 +40,9 @@ function getOneTimeItems(t: TFunction): OneTimeItem[] {
   }[];
   return [
     {
-      emoji: "📊",
+      emoji: "📱",
       title: items[0].title,
       features: items[0].features,
-      priceFree: "$34.99 USD",
-      pricePremium: "$19.99 USD",
-      offer: "annual_report",
-      variant: "default",
-    },
-    {
-      emoji: "📱",
-      title: items[1].title,
-      features: items[1].features,
       priceFree: "$149 USD",
       pricePremium: "$99 USD",
       offer: "session",
@@ -59,17 +50,17 @@ function getOneTimeItems(t: TFunction): OneTimeItem[] {
     },
     {
       emoji: "📦",
-      title: items[2].title,
-      features: items[2].features,
+      title: items[1].title,
+      features: items[1].features,
       pricePremium: "$247 USD",
-      note: items[2].note,
+      note: items[1].note,
       offer: "session",
       variant: "bundle",
     },
     {
       emoji: "🔬",
-      title: items[3].title,
-      features: items[3].features,
+      title: items[2].title,
+      features: items[2].features,
       priceFree: "$19.99 USD",
       pricePremium: "$9.99 USD",
       offer: "deep_research",

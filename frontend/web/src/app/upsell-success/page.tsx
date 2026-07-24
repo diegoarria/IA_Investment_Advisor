@@ -4,8 +4,8 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { CheckCircle, Calendar, ExternalLink, ArrowRight, Download, Loader2, Users } from "lucide-react";
-import api, { billing } from "@/lib/api";
+import { CheckCircle, Calendar, ExternalLink, ArrowRight, Loader2, Users } from "lucide-react";
+import { billing } from "@/lib/api";
 import { getSupabaseClient } from "@/lib/supabase";
 
 // ← Reemplaza con tu link real de Calendly
@@ -20,13 +20,6 @@ function getOfferMeta(t: TFunction) {
       subtitle: t("upsellSuccess.offers.session.subtitle"),
       cta: true,
     },
-    annual_report: {
-      emoji: "📊",
-      color: "#8b5cf6",
-      title: t("upsellSuccess.offers.annual_report.title"),
-      subtitle: t("upsellSuccess.offers.annual_report.subtitle"),
-      cta: false,
-    },
     family_plan: {
       emoji: "👫",
       color: "#3b82f6",
@@ -37,18 +30,17 @@ function getOfferMeta(t: TFunction) {
   };
 }
 
-type Offer = "session" | "annual_report" | "family_plan";
+type Offer = "session" | "family_plan";
 
 function UpsellSuccessContent() {
   const router = useRouter();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const OFFER_META = getOfferMeta(t);
   const params = useSearchParams();
   const offer = (params.get("offer") ?? "session") as Offer;
   const meta = OFFER_META[offer] ?? OFFER_META.session;
 
   const [visible, setVisible] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   // Duo plan setup state
   const [myEmail, setMyEmail] = useState("");
   const [secondaryEmail, setSecondaryEmail] = useState("");
@@ -82,22 +74,6 @@ function UpsellSuccessContent() {
     } finally {
       setDuoSaving(false);
     }
-  };
-
-  const handleDownload = async () => {
-    setDownloading(true);
-    try {
-      const res = await api.get("/api/annual-report/generate", { params: { lang: i18n.language }, responseType: "blob" });
-      const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `reporte-anual-nuvos-${new Date().getFullYear()}.pdf`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      // silent — user can retry
-    }
-    setDownloading(false);
   };
 
   return (
@@ -187,62 +163,6 @@ function UpsellSuccessContent() {
                   {t("upsellSuccess.session.nextStepDesc")}
                 </p>
               </div>
-            </>
-          )}
-
-          {offer === "annual_report" && (
-            <>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <CheckCircle size={18} color="#22c55e" />
-                <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.annualReport.paymentProcessed")}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <CheckCircle size={18} color="#22c55e" />
-                <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.annualReport.customReport")}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <CheckCircle size={18} color="#22c55e" />
-                <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.annualReport.certificate")}</span>
-              </div>
-
-              {/* Download button */}
-              <button
-                onClick={handleDownload}
-                disabled={downloading}
-                style={{
-                  marginTop: 8,
-                  width: "100%",
-                  padding: "14px 16px",
-                  borderRadius: 14,
-                  border: "none",
-                  background: downloading
-                    ? "rgba(0,212,126,0.15)"
-                    : "linear-gradient(135deg, #00d47ecc, #00d47e)",
-                  color: "#fff",
-                  fontWeight: 800,
-                  fontSize: 15,
-                  cursor: downloading ? "not-allowed" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  boxShadow: downloading ? "none" : "0 4px 20px #00d47e44",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                {downloading ? (
-                  <>
-                    <Loader2 size={17} style={{ animation: "spin 1s linear infinite" }} />
-                    {t("upsellSuccess.annualReport.downloading")}
-                  </>
-                ) : (
-                  <>
-                    <Download size={17} />
-                    {t("upsellSuccess.annualReport.download")}
-                  </>
-                )}
-              </button>
-              <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
             </>
           )}
 

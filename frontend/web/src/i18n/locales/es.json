@@ -477,46 +477,6 @@
     },
     "languageToggle": "Cambiar idioma"
   },
-  "progress": {
-    "paywall": {
-      "title": "Tu evolución como inversionista",
-      "description": "Nuvos guarda tu historia completa como inversor — hitos, patrimonio, decisiones que evitaron errores. Entre más tiempo te quedes, más vale.",
-      "activatePremium": "Activar Premium"
-    },
-    "header": {
-      "title": "Tu evolución como inversionista",
-      "subtitle": "Todo respaldado por tus datos reales — nunca inventamos progreso"
-    },
-    "empty": {
-      "title": "Aún estamos construyendo tu historial.",
-      "subtitle": "Sigue invirtiendo y usando Nuvos — tu evolución aparecerá aquí."
-    },
-    "metrics": {
-      "sinceFirstInvestment": "Desde tu primera inversión",
-      "timeUsingNuvos": "Tiempo usando Nuvos",
-      "daysUnit": "{{count}} días",
-      "operationsCompleted": "Operaciones realizadas",
-      "capitalInvested": "Capital invertido",
-      "currentWealth": "Patrimonio actual",
-      "cumulativeReturn": "Retorno acumulado",
-      "bestYear": "Mejor año ({{year}})",
-      "hardestYear": "Año más difícil ({{year}})",
-      "consecutiveMonthsContributing": "Meses seguidos aportando"
-    },
-    "benchmark": {
-      "sectionTitle": "CÓMO TE COMPARAS",
-      "youBeat": "Superas al {{percentile}}%",
-      "ofInvestorsWithProfile": "de inversionistas con perfil",
-      "in": "en",
-      "anonymousComparison": "Comparado de forma anónima contra {{count}} inversionistas — nunca vemos ni compartimos datos individuales de nadie."
-    },
-    "milestones": {
-      "sectionTitle": "HITOS"
-    },
-    "decisions": {
-      "sectionTitle": "DECISIONES QUE EVITARON ERRORES COSTOSOS"
-    }
-  },
   "screener": {
     "etf": {
       "title": "ETFs para tu perfil",
@@ -708,10 +668,6 @@
     "header": {
       "eyebrow": "Mi dinero",
       "title": "Patrimonio"
-    },
-    "progress": {
-      "title": "Tu evolución como inversionista",
-      "subtitle": "Hitos, patrimonio y decisiones que evitaron errores"
     },
     "tabs": {
       "portfolio": "Portafolio",
@@ -1357,15 +1313,6 @@
     ],
     "oneTimeProducts": [
       {
-        "title": "Reporte Anual de Inversiones",
-        "features": [
-          "Retorno real de todo tu año como inversor",
-          "Comparativa vs índices (S&P 500 y más)",
-          "Lecciones aprendidas generadas por IA",
-          "Plan personalizado para el año siguiente"
-        ]
-      },
-      {
         "title": "Sesión 1:1 de Guía Personalizada",
         "features": [
           "45 minutos en vivo con un guía",
@@ -1882,10 +1829,6 @@
         "title": "¡Sesión confirmada!",
         "subtitle": "Tu pago fue procesado exitosamente."
       },
-      "annual_report": {
-        "title": "¡Reporte solicitado!",
-        "subtitle": "Tu pago fue procesado exitosamente."
-      },
       "family_plan": {
         "title": "¡Plan Dúo activado!",
         "subtitle": "Tu pago fue procesado exitosamente."
@@ -1899,13 +1842,6 @@
       "nextStep": "Siguiente paso",
       "nextStepDesc": "Elige el día y hora que mejor te quede. Recibirás una confirmación por email con el link de la videollamada.",
       "scheduleCta": "Agendar mi sesión en Calendly"
-    },
-    "annualReport": {
-      "paymentProcessed": "Pago procesado correctamente",
-      "customReport": "Reporte personalizado con tu historial de madurez",
-      "certificate": "Certificado digital de Inversor Informado",
-      "downloading": "Generando tu reporte...",
-      "download": "Descargar mi Reporte PDF"
     },
     "familyPlan": {
       "whichAccounts": "¿Qué cuentas quieres agregar?",
@@ -2279,18 +2215,6 @@
     "basicEps": "EPS Básico"
   },
   "upsellModal": {
-    "annualReport": {
-      "title": "Reporte Anual de Madurez Inversora",
-      "subtitle": "Tu evolución como inversor, documentada",
-      "badge": "Edición anual",
-      "features": [
-        "Evolución mes a mes de tu Puntuación de Madurez (1-100)",
-        "Análisis de tu perfil de riesgo y comportamiento inversor",
-        "Perfil de riesgo real vs. declarado al registrarte",
-        "Recomendaciones de tu Mentor IA para el próximo año",
-        "Certificado digital compartible: \"Inversor Informado - Nuvos AI\""
-      ]
-    },
     "familyPlan": {
       "title": "Plan Dúo",
       "subtitle": "Dos cuentas Premium, una sola factura",
@@ -2612,34 +2536,6 @@
       "cautiousDesc": "Volatilidad elevada — mayor precaución",
       "highVolLabel": "Alta volatilidad",
       "highVolDesc": "Estrés de mercado — movimientos bruscos"
-    }
-  },
-  "monthlyReport": {
-    "title": "Reporte Mensual",
-    "subtitle": "Tu portafolio analizado con IA cada mes",
-    "feature1": "Rendimiento real vs S&P 500 y benchmarks",
-    "feature2": "Sharpe ratio, volatilidad y drawdown",
-    "feature3": "3 acciones concretas para el mes siguiente",
-    "generating": "Generando...",
-    "generateCta": "Generar Reporte",
-    "errorPrefix": "Error",
-    "generateFailed": "No se pudo generar el reporte. Intenta de nuevo.",
-    "reportTitle": "Reporte de Portafolio",
-    "generatedOn": "Generado el",
-    "exportPdf": "Exportar PDF",
-    "executiveSummary": "RESUMEN EJECUTIVO",
-    "bestPosition": "Mejor posición",
-    "worstPosition": "Peor posición",
-    "sectorBreakdown": "DISTRIBUCIÓN POR SECTOR",
-    "mentorNote": "NOTA DE TU MENTOR",
-    "actionItems": "ACCIONES PARA EL PRÓXIMO MES",
-    "learningInsight": "INSIGHT CONDUCTUAL DEL MES",
-    "metrics": {
-      "totalReturn": "Rendimiento total",
-      "totalValue": "Valor total",
-      "unrealizedGain": "Ganancia no realizada",
-      "vsSp500": "vs S&P 500",
-      "volatility": "Volatilidad"
     }
   },
   "voiceCallModal": {

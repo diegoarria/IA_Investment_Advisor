@@ -801,41 +801,6 @@
       "open": "Open simulator →"
     }
   },
-  "progress": {
-    "metrics": {
-      "sinceFirstInvestment": "Since your first investment",
-      "timeUsingNuvos": "Time using Nuvos",
-      "totalOperations": "Operations made",
-      "capitalInvested": "Capital invested",
-      "currentPatrimonio": "Current net worth",
-      "cumulativeReturn": "Cumulative return",
-      "bestYear": "Best year ({{year}})",
-      "worstYear": "Toughest year ({{year}})",
-      "consecutiveMonths": "Consecutive months contributing"
-    },
-    "paywall": {
-      "title": "Your evolution as an investor",
-      "description": "Nuvos keeps your full history as an investor — milestones, net worth, decisions that avoided mistakes. The longer you stay, the more it's worth.",
-      "cta": "Activate Premium"
-    },
-    "empty": {
-      "title": "We're still building your history.",
-      "subtitle": "Keep investing and using Nuvos — your evolution will show up here."
-    },
-    "benchmark": {
-      "sectionTitle": "HOW YOU COMPARE",
-      "beats": "You beat {{percentile}}%",
-      "profileConnector": "of investors with a",
-      "inMetricSuffix": "profile on {{metric}}.",
-      "anonymousNote": "Compared anonymously against {{count}} investors — we never see or share anyone's individual data."
-    },
-    "milestones": {
-      "sectionTitle": "MILESTONES"
-    },
-    "decisions": {
-      "sectionTitle": "DECISIONS THAT AVOIDED COSTLY MISTAKES"
-    }
-  },
   "explore": {
     "weeklyPicks": {
       "title": "This Week's Picks",
@@ -1327,17 +1292,6 @@
     "premiumTools": {
       "title": "Premium Tools",
       "subtitle": "Advanced analysis of your portfolio",
-      "monthlyReport": {
-        "title": "Monthly Report",
-        "tagline": "Your portfolio analyzed with AI every month",
-        "description": "Generate a professional report with performance vs the S&P 500, Sharpe ratio, volatility, best and worst positions of the month, and a personal note from your mentor.",
-        "benefits": [
-          "Real performance vs S&P 500 and benchmarks",
-          "Sharpe ratio, volatility, and maximum drawdown",
-          "Personalized note from your mentor every month",
-          "3 concrete actions for next month"
-        ]
-      },
       "weeklyScreener": {
         "title": "Weekly Screener",
         "tagline": "5 personalized opportunities every Monday",
@@ -1446,15 +1400,6 @@
       "opening": "Opening...",
       "buy": "Buy →",
       "items": [
-        {
-          "title": "Annual Investment Report",
-          "features": [
-            "Your real return for the whole year as an investor",
-            "Comparison vs. indices (S&P 500 and more)",
-            "AI-generated lessons learned",
-            "Personalized plan for next year"
-          ]
-        },
         {
           "title": "1:1 Personalized Guidance Session",
           "features": [
@@ -2882,19 +2827,6 @@
   },
   "upsellModal": {
     "offers": {
-      "annualReport": {
-        "title": "Investor Maturity Annual Report",
-        "subtitle": "Your evolution as an investor, documented",
-        "badge": "Annual edition",
-        "features": [
-          "Month-by-month evolution of your Maturity Score (1-100)",
-          "Analysis of your risk profile and investor behavior",
-          "Real vs. self-reported risk profile at sign-up",
-          "Recommendations from your AI Mentor for next year",
-          "Digital certificate: \"Informed Investor — Nuvos AI\""
-        ],
-        "ctaLabel": "Get my report"
-      },
       "familyPlan": {
         "title": "Duo Plan",
         "subtitle": "Two Premium accounts, one bill",
@@ -3121,31 +3053,6 @@
     "aiAnalysisPremium": "AI Analysis · Premium",
     "assetsCount": "{{count}} assets"
   },
-  "mobileMonthlyReport": {
-    "generateError": "Could not generate the report.",
-    "shareText": "📊 Nuvos AI Report — {{month}}\n\n{{summary}}\n\nReturn: {{returnPct}}%\nTotal value: ${{totalValue}}\n\n🎓 {{mentorNote}}",
-    "shareTitle": "Report {{month}}",
-    "title": "Monthly Report",
-    "tagline": "Your portfolio analyzed with AI every month",
-    "feature1": "Real performance vs S&P 500 and benchmarks",
-    "feature2": "Sharpe ratio, volatility and drawdown",
-    "feature3": "3 concrete actions for next month",
-    "generating": "Generating...",
-    "generateReport": "Generate Report",
-    "portfolioReport": "Portfolio report",
-    "metricReturn": "Return",
-    "metricTotalValue": "Total value",
-    "metricGain": "Gain",
-    "metricVsSp500": "vs S&P 500",
-    "best": "🏆 Best",
-    "worst": "📉 Worst",
-    "sharpe": "Sharpe",
-    "volatility": "Volatility",
-    "drawdown": "Drawdown",
-    "mentorNote": "🎓 NOTE FROM YOUR MENTOR",
-    "nextMonthActions": "✅ ACTIONS FOR NEXT MONTH",
-    "behavioralInsight": "💡 BEHAVIORAL INSIGHT"
-  },
   "paywallModal": {
     "plans": {
       "yearly": {
@@ -3331,7 +3238,6 @@
     "activatePremium": "Activate Premium",
     "createAccountLogin": "Create account · Log in",
     "daysLeft": "{{days}}d left",
-    "evolution": "Evolution",
     "login": "Log in",
     "myGoal": "My goal",
     "myPortfolio": "My Portfolio",
@@ -3354,8 +3260,7 @@
       "support": "Support",
       "videos": "Videos",
       "watchlist": "Watchlist"
-    },
-    "yourEvolution": "Your evolution as an investor"
+    }
   },
   "research": {
     "title": "Nuvos Deep Research",

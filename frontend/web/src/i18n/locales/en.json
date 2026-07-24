@@ -477,46 +477,6 @@
     },
     "languageToggle": "Switch language"
   },
-  "progress": {
-    "paywall": {
-      "title": "Your evolution as an investor",
-      "description": "Nuvos keeps your complete history as an investor — milestones, net worth, decisions that avoided mistakes. The longer you stay, the more valuable it gets.",
-      "activatePremium": "Activate Premium"
-    },
-    "header": {
-      "title": "Your evolution as an investor",
-      "subtitle": "Everything backed by your real data — we never make up progress"
-    },
-    "empty": {
-      "title": "We're still building your history.",
-      "subtitle": "Keep investing and using Nuvos — your evolution will show up here."
-    },
-    "metrics": {
-      "sinceFirstInvestment": "Since your first investment",
-      "timeUsingNuvos": "Time using Nuvos",
-      "daysUnit": "{{count}} days",
-      "operationsCompleted": "Operations completed",
-      "capitalInvested": "Capital invested",
-      "currentWealth": "Current net worth",
-      "cumulativeReturn": "Cumulative return",
-      "bestYear": "Best year ({{year}})",
-      "hardestYear": "Hardest year ({{year}})",
-      "consecutiveMonthsContributing": "Consecutive months contributing"
-    },
-    "benchmark": {
-      "sectionTitle": "HOW YOU COMPARE",
-      "youBeat": "You beat {{percentile}}%",
-      "ofInvestorsWithProfile": "of investors with a",
-      "in": "profile in",
-      "anonymousComparison": "Compared anonymously against {{count}} investors — we never see or share anyone's individual data."
-    },
-    "milestones": {
-      "sectionTitle": "MILESTONES"
-    },
-    "decisions": {
-      "sectionTitle": "DECISIONS THAT AVOIDED COSTLY MISTAKES"
-    }
-  },
   "screener": {
     "etf": {
       "title": "ETFs for your profile",
@@ -708,10 +668,6 @@
     "header": {
       "eyebrow": "My money",
       "title": "Wealth"
-    },
-    "progress": {
-      "title": "Your evolution as an investor",
-      "subtitle": "Milestones, wealth, and decisions that avoided mistakes"
     },
     "tabs": {
       "portfolio": "Portfolio",
@@ -1357,15 +1313,6 @@
     ],
     "oneTimeProducts": [
       {
-        "title": "Annual Investment Report",
-        "features": [
-          "Your real return for the whole year as an investor",
-          "Comparison vs. indices (S&P 500 and more)",
-          "AI-generated lessons learned",
-          "Personalized plan for next year"
-        ]
-      },
-      {
         "title": "1:1 Personalized Guidance Session",
         "features": [
           "45 minutes live with a guide",
@@ -1882,10 +1829,6 @@
         "title": "Session confirmed!",
         "subtitle": "Your payment was processed successfully."
       },
-      "annual_report": {
-        "title": "Report requested!",
-        "subtitle": "Your payment was processed successfully."
-      },
       "family_plan": {
         "title": "Duo Plan activated!",
         "subtitle": "Your payment was processed successfully."
@@ -1899,13 +1842,6 @@
       "nextStep": "Next step",
       "nextStepDesc": "Pick the day and time that works best for you. You'll get an email confirmation with the video call link.",
       "scheduleCta": "Schedule my session on Calendly"
-    },
-    "annualReport": {
-      "paymentProcessed": "Payment processed successfully",
-      "customReport": "Personalized report with your maturity history",
-      "certificate": "Digital Informed Investor certificate",
-      "downloading": "Generating your report...",
-      "download": "Download my PDF Report"
     },
     "familyPlan": {
       "whichAccounts": "Which accounts do you want to add?",
@@ -2279,18 +2215,6 @@
     "basicEps": "Basic EPS"
   },
   "upsellModal": {
-    "annualReport": {
-      "title": "Annual Investor Maturity Report",
-      "subtitle": "Your evolution as an investor, documented",
-      "badge": "Annual edition",
-      "features": [
-        "Month-by-month evolution of your Maturity Score (1-100)",
-        "Analysis of your risk profile and investor behavior",
-        "Real risk profile vs. the one you declared at signup",
-        "Recommendations from your AI Mentor for the coming year",
-        "Shareable digital certificate: \"Informed Investor - Nuvos AI\""
-      ]
-    },
     "familyPlan": {
       "title": "Duo Plan",
       "subtitle": "Two Premium accounts, one single bill",
@@ -2612,34 +2536,6 @@
       "cautiousDesc": "Elevated volatility — more caution",
       "highVolLabel": "High volatility",
       "highVolDesc": "Market stress — sharp movements"
-    }
-  },
-  "monthlyReport": {
-    "title": "Monthly Report",
-    "subtitle": "Your portfolio analyzed with AI every month",
-    "feature1": "Real performance vs S&P 500 and benchmarks",
-    "feature2": "Sharpe ratio, volatility, and drawdown",
-    "feature3": "3 concrete actions for next month",
-    "generating": "Generating...",
-    "generateCta": "Generate Report",
-    "errorPrefix": "Error",
-    "generateFailed": "Could not generate the report. Try again.",
-    "reportTitle": "Portfolio Report",
-    "generatedOn": "Generated on",
-    "exportPdf": "Export PDF",
-    "executiveSummary": "EXECUTIVE SUMMARY",
-    "bestPosition": "Best position",
-    "worstPosition": "Worst position",
-    "sectorBreakdown": "SECTOR BREAKDOWN",
-    "mentorNote": "NOTE FROM YOUR MENTOR",
-    "actionItems": "ACTIONS FOR NEXT MONTH",
-    "learningInsight": "BEHAVIORAL INSIGHT OF THE MONTH",
-    "metrics": {
-      "totalReturn": "Total return",
-      "totalValue": "Total value",
-      "unrealizedGain": "Unrealized gain",
-      "vsSp500": "vs S&P 500",
-      "volatility": "Volatility"
     }
   },
   "voiceCallModal": {

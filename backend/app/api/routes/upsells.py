@@ -1,5 +1,5 @@
 """
-Upsell system: Annual Report, Family Plan, 1:1 Session with Diego.
+Upsell system: Family Plan, 1:1 Session with Diego, Deep Research.
 Trigger evaluation runs server-side; frontend decides when to call based on user events.
 """
 import asyncio
@@ -15,7 +15,7 @@ from app.core.config import settings
 router = APIRouter(prefix="/upsells", tags=["upsells"])
 logger = logging.getLogger(__name__)
 
-PRIORITY = ["session", "annual_report", "family_plan"]
+PRIORITY = ["session", "family_plan"]
 
 
 def _effective_tier(raw_tier: str, trial_started_at: str | None) -> str:
@@ -26,7 +26,6 @@ def _effective_tier(raw_tier: str, trial_started_at: str | None) -> str:
     return "premium" if is_premium_active(raw_tier, trial_started_at) else raw_tier
 
 PRICES = {
-    "annual_report": {"free": 34.99, "premium": 19.99},
     "session":       {"free": 149.0, "premium": 99.0, "bundle": 247.0},
     "family_plan":   {"monthly": 23.99, "yearly": 224.99},
     "deep_research": {"free": 19.99, "premium": 9.99},
@@ -37,8 +36,6 @@ DISMISS_COOLDOWN_DAYS = 14
 
 def _price_id_for(offer: str, tier: str, variant: str = "default") -> str:
     mapping = {
-        ("annual_report", "free"):    settings.stripe_price_annual_report_free,
-        ("annual_report", "premium"): settings.stripe_price_annual_report_premium,
         ("session", "free"):          settings.stripe_price_session_free,
         ("session", "premium"):       settings.stripe_price_session_premium,
         ("session", "bundle"):        settings.stripe_price_session_bundle,
@@ -84,11 +81,6 @@ def _is_eligible(offer: str, tier: str, account_days: int, sub_days: int, trigge
         else:
             # Premium: after 5+ deep chats, stress test, or month 1 anniversary
             return trigger_source in ("deep_chats", "stress_test_done", "month_1_premium")
-
-    if offer == "annual_report":
-        # Available at month 11 of account age (330+ days) OR every December
-        is_december = datetime.now(timezone.utc).month == 12
-        return account_days >= 330 or is_december or trigger_source == "annual_renewal"
 
     if offer == "family_plan":
         if tier != "premium":
@@ -151,7 +143,7 @@ async def check_upsell(
 async def dismiss_upsell(body: dict, user_id: str = Depends(get_current_user_id)):
     """Record that user dismissed an offer. Won't re-show for 14 days."""
     offer_type = body.get("offer_type", "")
-    if offer_type not in ("annual_report", "family_plan", "session"):
+    if offer_type not in ("family_plan", "session"):
         return {"ok": False, "error": "invalid offer_type"}
     db = get_supabase()
     await run_query(
@@ -168,13 +160,13 @@ async def dismiss_upsell(body: dict, user_id: str = Depends(get_current_user_id)
 @router.post("/checkout")
 async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id)):
     """
-    Create Stripe one-time checkout for annual_report or session.
+    Create Stripe one-time checkout for session.
     Family Plan uses /billing/family-plan endpoint (subscription upgrade).
     """
     offer = body.get("offer")
     variant = body.get("variant", "default")  # 'bundle' | 'monthly' | 'yearly' | tier
 
-    if offer not in ("annual_report", "session", "family_plan", "deep_research"):
+    if offer not in ("session", "family_plan", "deep_research"):
         return {"error": "Invalid offer"}
 
     if not settings.stripe_secret_key:

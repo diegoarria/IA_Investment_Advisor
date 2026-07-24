@@ -21,15 +21,6 @@ interface UpsellModalProps {
 
 function getOfferMeta(t: TFunction) {
   return {
-    annual_report: {
-      emoji: "📊",
-      title: t("upsellModal.offers.annualReport.title"),
-      subtitle: t("upsellModal.offers.annualReport.subtitle"),
-      color: "#8b5cf6",
-      badge: t("upsellModal.offers.annualReport.badge"),
-      features: t("upsellModal.offers.annualReport.features", { returnObjects: true }) as string[],
-      ctaLabel: t("upsellModal.offers.annualReport.ctaLabel"),
-    },
     family_plan: {
       emoji: "👫",
       title: t("upsellModal.offers.familyPlan.title"),

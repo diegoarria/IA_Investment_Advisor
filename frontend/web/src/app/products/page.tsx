@@ -46,7 +46,6 @@ function getOneTimeProducts(t: TFunction) {
     title: string; features: string[]; note?: string;
   }[];
   const meta = [
-    { icon: "📊", price_free: "$34.99 USD", price_premium: "$19.99 USD", offer: "annual_report", variant: "default" },
     { icon: "📱", price_free: "$149 USD", price_premium: "$99 USD", offer: "session", variant: "default" },
     { icon: "📦", price_premium: "$247 USD", offer: "session", variant: "bundle" },
     { icon: "🔬", price_free: "$19.99 USD", price_premium: "$9.99 USD", offer: "deep_research", variant: "default" },

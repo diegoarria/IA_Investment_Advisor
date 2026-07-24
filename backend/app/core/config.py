@@ -32,8 +32,6 @@ class Settings(BaseSettings):
     stripe_price_id_monthly: str = ""
     stripe_price_id_yearly: str = ""
     # Upsell one-time prices (create in Stripe dashboard as one-time products)
-    stripe_price_annual_report_free: str = ""     # $34.99
-    stripe_price_annual_report_premium: str = ""  # $19.99
     stripe_price_session_free: str = ""           # $149
     stripe_price_session_premium: str = ""        # $99
     stripe_price_session_bundle: str = ""         # $247 (3 sessions, premium only)

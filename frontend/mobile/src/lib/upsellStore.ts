@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import api from "./api";
 
-export type UpsellOffer = "annual_report" | "family_plan" | "session";
+export type UpsellOffer = "family_plan" | "session";
 
 interface UpsellState {
   activeOffer: UpsellOffer | null;

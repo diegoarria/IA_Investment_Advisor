@@ -144,10 +144,6 @@ function AppStack() {
         // screen, so this deep-links to the plain stock detail page instead.
         router.navigate(`/stock/${data.ticker}` as any);
       } else if (data.screen === "profile") {
-        // job_annual_scoreboard. Note: doesn't yet auto-scroll to the
-        // "scoreboard" section the push refers to (data.section) — that
-        // would need profile.tsx to support a scroll-to-anchor param, which
-        // it doesn't today.
         router.navigate("/(tabs)/profile");
       }
     });
