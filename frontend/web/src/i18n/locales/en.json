@@ -701,79 +701,6 @@
       "openFull": "Open full simulator"
     }
   },
-  "decisions": {
-    "actionLabels": {
-      "buy": "Bought",
-      "sell": "Sold",
-      "hold": "Held (chose not to act)",
-      "ignoredAlert": "Ignored an alert",
-      "actedOnAlert": "Acted on an alert"
-    },
-    "triggerLabels": {
-      "manual": "My own decision",
-      "alert": "System alert",
-      "mentor": "Mentor's recommendation",
-      "fomo": "FOMO (fear of missing out)",
-      "panic": "Panic / stress",
-      "research": "My own research"
-    },
-    "locked": {
-      "title": "Decision Journal",
-      "unlockPart1": "This section unlocks once you reach",
-      "levelName": "Intermediate",
-      "unlockPart2": "level. Logging and analyzing behavioral biases requires having made investment decisions with context — keep learning in the chat and your portfolio.",
-      "meanwhile": "In the meantime, focus on:",
-      "tips": {
-        "addPositions": "Add your first positions to your portfolio",
-        "exploreNews": "Explore the news feed for your stocks",
-        "reviewAnalysis": "Review the analysis of your positions in Wealth"
-      }
-    },
-    "paywall": {
-      "title": "Decision Journal",
-      "description": "Log every investment decision and the AI spots your behavioral biases over time — the one feature that actually makes you a better investor.",
-      "activateButton": "Activate Premium"
-    },
-    "header": {
-      "title": "Decision Journal",
-      "subtitle": "Log your moves and discover your biases as an investor",
-      "logButton": "Log decision"
-    },
-    "tabs": {
-      "diary": "Journal",
-      "biases": "Bias analysis"
-    },
-    "diary": {
-      "empty": "No decisions logged yet.",
-      "emptyHint": "Start by logging your first investment decision.",
-      "triggerLabel": "Trigger: {{trigger}}"
-    },
-    "biases": {
-      "analyzeButton": "Analyze",
-      "analyzing": "Analyzing your patterns with AI...",
-      "scoreLabel": "YOUR REAL INVESTOR PROFILE",
-      "basedOn": "Based on {{count}} decisions · {{period}}",
-      "detectedTitle": "BIASES DETECTED",
-      "occurrences": "Occurrences",
-      "costEstimate": "Estimated cost",
-      "realExample": "Real example",
-      "howToImprove": "How to improve",
-      "strengthsTitle": "YOUR STRENGTHS",
-      "mentorAssessmentTitle": "YOUR MENTOR'S ASSESSMENT",
-      "nextChallengeTitle": "THIS WEEK'S CHALLENGE"
-    },
-    "modal": {
-      "title": "Log decision",
-      "actionLabel": "Action",
-      "tickerLabel": "Ticker",
-      "tickerPlaceholder": "e.g. AAPL",
-      "triggerLabel": "Why did I do it?",
-      "notesLabel": "Notes (optional)",
-      "notesPlaceholder": "What were you thinking at the time?",
-      "saving": "Saving...",
-      "saveButton": "Save decision"
-    }
-  },
   "watchlist": {
     "marketState": {
       "live": "Live",
@@ -2455,6 +2382,34 @@
       "actinver": "Mexican brokerage firm"
     }
   },
+  "investmentGraph": {
+    "sectionTitle": "Your Journal",
+    "companyTabLabel": "Your history with this company",
+    "loading": "Loading your history...",
+    "empty": "No history logged here yet.",
+    "emptyCompany": "You don't have any history with this company yet — every question, analysis, or decision about it will be saved here.",
+    "metrics": {
+      "totalTheses": "Theses written",
+      "opinionReversals": "Opinion reversals",
+      "analyzedNeverBought": "Analyzed, never bought",
+      "avgDeliberationDays": "Avg. days to decide",
+      "longestConviction": "Longest conviction",
+      "thesisAccuracy": "Your thesis accuracy"
+    },
+    "event": {
+      "question": "You asked Mentor IA",
+      "thesis": "You viewed the valuation analysis",
+      "thesisDetail": "Margin of safety: {{mos}}% · Score: {{score}}",
+      "watchlistAdd": "Added to your watchlist",
+      "watchlistRemove": "Removed from your watchlist",
+      "earningsBeat": "Reported earnings — beat expectations",
+      "earningsMiss": "Reported earnings — missed expectations",
+      "marketEvent": "Market event",
+      "decisionBuy": "You bought",
+      "decisionSell": "You sold",
+      "decisionOther": "You logged a decision"
+    }
+  },
   "diarioDecisiones": {
     "headerTitle": "Bias Diary",
     "headerSubtitle": "Log your moves and discover your biases",
@@ -2464,6 +2419,9 @@
     "noDecisions": "No decisions logged yet.",
     "noDecisionsHint": "Start by logging your first decision.",
     "trigger": "Trigger",
+    "deleteOne": "Delete this decision",
+    "clearAll": "Delete my entire decision history",
+    "confirmClearAll": "Are you sure you want to delete your entire decision history? This also resets your bias analysis — this can't be undone.",
     "analyze": "Analyze",
     "analyzingPatterns": "Analyzing your patterns with AI...",
     "realProfileTitle": "REAL PROFILE AS AN INVESTOR",
@@ -2489,7 +2447,8 @@
       "mentor": "Mentor's recommendation",
       "fomo": "FOMO (fear of missing out)",
       "panic": "Panic / stress",
-      "research": "Own research"
+      "research": "Own research",
+      "autoSync": "Auto-detected"
     },
     "locked": {
       "title": "Bias Diary",

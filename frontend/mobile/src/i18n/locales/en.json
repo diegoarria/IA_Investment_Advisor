@@ -2957,6 +2957,34 @@
     "yesterday": "Yesterday",
     "daysAgo": "{{count}}d ago"
   },
+  "investmentGraph": {
+    "sectionTitle": "Your Journal",
+    "companyTabLabel": "History",
+    "loading": "Loading your history...",
+    "empty": "No history logged here yet.",
+    "emptyCompany": "You don't have any history with this company yet — every question, analysis, or decision about it will be saved here.",
+    "metrics": {
+      "totalTheses": "Theses written",
+      "opinionReversals": "Opinion reversals",
+      "analyzedNeverBought": "Analyzed, never bought",
+      "avgDeliberationDays": "Avg. days to decide",
+      "longestConviction": "Longest conviction",
+      "thesisAccuracy": "Your thesis accuracy"
+    },
+    "event": {
+      "question": "You asked Mentor IA",
+      "thesis": "You viewed the valuation analysis",
+      "thesisDetail": "Margin of safety: {{mos}}% · Score: {{score}}",
+      "watchlistAdd": "Added to your watchlist",
+      "watchlistRemove": "Removed from your watchlist",
+      "earningsBeat": "Reported earnings — beat expectations",
+      "earningsMiss": "Reported earnings — missed expectations",
+      "marketEvent": "Market event",
+      "decisionBuy": "You bought",
+      "decisionSell": "You sold",
+      "decisionOther": "You logged a decision"
+    }
+  },
   "mobileDecisionDiary": {
     "heroTitle": "Bias Diary",
     "heroTagline": "Discover which biases are costing you money",
@@ -2972,6 +3000,10 @@
     "noDecisions": "No decisions logged yet.",
     "startLogging": "Start by logging your first decision.",
     "triggerLabel": "Trigger",
+    "deleteOne": "Delete this decision",
+    "clearAll": "Delete my entire history",
+    "confirmClearAll": "Are you sure you want to delete your entire decision history? This also resets your bias analysis — this can't be undone.",
+    "cancel": "Cancel",
     "analyze": "Analyze",
     "analyzingPatterns": "Analyzing your patterns with AI...",
     "realProfileLabel": "YOUR REAL INVESTOR PROFILE",
@@ -3005,7 +3037,8 @@
       "mentor": "Mentor recommendation",
       "fomo": "FOMO",
       "panic": "Panic / stress",
-      "research": "My own research"
+      "research": "My own research",
+      "autoSync": "Auto-detected"
     }
   },
   "mobileEarningsCalendar": {

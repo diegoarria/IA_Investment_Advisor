@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   View, Text, TouchableOpacity, Modal, ScrollView, TextInput,
-  ActivityIndicator, StyleSheet,
+  ActivityIndicator, StyleSheet, Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -29,6 +29,10 @@ const getTriggerOptions = (t: TFunction) => [
   { id: "panic",    label: t("mobileDecisionDiary.triggers.panic") },
   { id: "research", label: t("mobileDecisionDiary.triggers.research") },
 ];
+const getAllTriggerLabels = (t: TFunction) => [
+  ...getTriggerOptions(t),
+  { id: "auto_sync", label: t("mobileDecisionDiary.triggers.autoSync") },
+];
 const SEVERITY_COLOR: Record<string, string> = { alto: "#ef4444", medio: "#f59e0b", bajo: "#22c55e" };
 
 const TOOL_COLOR = "#a78bfa";
@@ -39,6 +43,7 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
   const s = styles(colors);
   const ACTION_OPTIONS = getActionOptions(t);
   const TRIGGER_OPTIONS = getTriggerOptions(t);
+  const ALL_TRIGGER_LABELS = getAllTriggerLabels(t);
 
   const [tab, setTab]               = useState<"diary" | "biases">("diary");
   const [decisions, setDecisions]   = useState<any[]>([]);
@@ -48,6 +53,8 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
   const [logOpen, setLogOpen]       = useState(false);
   const [saving, setSaving]         = useState(false);
   const [form, setForm]             = useState({ action: "buy", ticker: "", trigger: "manual", notes: "" });
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [clearingAll, setClearingAll] = useState(false);
 
   useEffect(() => {
     if (!isPremium) return;
@@ -77,6 +84,37 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
       fetchDecisions();
       setBiases(null);
     } catch {} finally { setSaving(false); }
+  };
+
+  const handleDeleteOne = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await decisionsApi.deleteOne(id);
+      setDecisions((prev) => prev.filter((d) => d.id !== id));
+      setBiases(null);
+    } catch {} finally { setDeletingId(null); }
+  };
+
+  const handleClearAll = () => {
+    Alert.alert(
+      t("mobileDecisionDiary.clearAll"),
+      t("mobileDecisionDiary.confirmClearAll"),
+      [
+        { text: t("mobileDecisionDiary.cancel"), style: "cancel" },
+        {
+          text: t("mobileDecisionDiary.clearAll"),
+          style: "destructive",
+          onPress: async () => {
+            setClearingAll(true);
+            try {
+              await decisionsApi.deleteAll();
+              setDecisions([]);
+              setBiases(null);
+            } catch {} finally { setClearingAll(false); }
+          },
+        },
+      ]
+    );
   };
 
   const actionIcon = (action: string) => ({
@@ -204,17 +242,34 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
                         </View>
                         {d.trigger && (
                           <Text style={[s.decTrigger, { color: colors.textMuted }]}>
-                            {t("mobileDecisionDiary.triggerLabel")}: {TRIGGER_OPTIONS.find((opt) => opt.id === d.trigger)?.label ?? d.trigger}
+                            {t("mobileDecisionDiary.triggerLabel")}: {ALL_TRIGGER_LABELS.find((opt) => opt.id === d.trigger)?.label ?? d.trigger}
                           </Text>
                         )}
                         {d.notes && <Text style={[s.decNotes, { color: colors.textSub }]}>{d.notes}</Text>}
                       </View>
-                      <Text style={[s.decDate, { color: colors.textDim }]}>
-                        {d.created_at ? new Date(d.created_at).toLocaleDateString("es-MX") : ""}
-                      </Text>
+                      <View style={{ alignItems: "flex-end", gap: 6 }}>
+                        <Text style={[s.decDate, { color: colors.textDim }]}>
+                          {d.created_at ? new Date(d.created_at).toLocaleDateString("es-MX") : ""}
+                        </Text>
+                        {d.id && (
+                          <TouchableOpacity onPress={() => handleDeleteOne(d.id)} disabled={deletingId === d.id} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                            {deletingId === d.id
+                              ? <ActivityIndicator size="small" color={colors.textMuted} />
+                              : <Ionicons name="trash-outline" size={14} color={colors.textMuted} />}
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     </View>
                   );
                 })
+              )}
+              {decisions.length > 0 && (
+                <TouchableOpacity onPress={handleClearAll} disabled={clearingAll} style={s.clearAllBtn}>
+                  {clearingAll
+                    ? <ActivityIndicator size="small" color="#ef4444" />
+                    : <Ionicons name="trash-outline" size={13} color="#ef4444" />}
+                  <Text style={s.clearAllText}>{t("mobileDecisionDiary.clearAll")}</Text>
+                </TouchableOpacity>
               )}
             </View>
           )}
@@ -450,6 +505,8 @@ const styles = (_c: any) => StyleSheet.create({
   decTrigger:  { fontSize: 10, marginTop: 2 },
   decNotes:    { fontSize: 11, marginTop: 3 },
   decDate:     { fontSize: 10, flexShrink: 0 },
+  clearAllBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, marginTop: 2 },
+  clearAllText:{ fontSize: 11, fontWeight: "700", color: "#ef4444" },
 
   // Score
   scoreCard:   { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, padding: 16, alignItems: "center" },

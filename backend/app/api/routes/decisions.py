@@ -96,3 +96,66 @@ async def get_bias_analysis(
     analysis["generated_at"] = datetime.utcnow().isoformat()
     cache_set(cache_key, analysis, ttl=_TTL_BIAS)
     return analysis
+
+
+@router.delete("/{decision_id}")
+async def delete_decision(decision_id: str, user_id: str = Depends(get_current_user_id)):
+    """Privacy control for 'Tu Memoria' — a user must be able to see and
+    delete anything Nuvos remembers about their investing behavior, not just
+    have it explained to them in a legal disclaimer. Scoped to user_id so a
+    user can only ever delete their own entries."""
+    db = get_supabase()
+    await run_query(
+        db.table("investment_decisions").delete()
+        .eq("id", decision_id).eq("user_id", user_id)
+    )
+    cache_set(f"biases:{user_id}", None, ttl=1)
+    return {"ok": True}
+
+
+@router.delete("")
+async def delete_all_decisions(user_id: str = Depends(get_current_user_id)):
+    """Clears the entire decision journal for this user — the 'forget me'
+    control for this specific memory, distinct from full account deletion."""
+    db = get_supabase()
+    await run_query(db.table("investment_decisions").delete().eq("user_id", user_id))
+    cache_set(f"biases:{user_id}", None, ttl=1)
+    return {"ok": True}
+
+
+async def get_bias_context_for_mentor(user_id: str) -> str | None:
+    """Compact bias/strength summary for injection into Mentor IA's dynamic
+    system prompt addendum. Reuses the exact same cache key/TTL as
+    GET /decisions/biases (`biases:{user_id}`, 1h) so a chat message never
+    triggers a second, redundant Claude call within the same hour — whichever
+    of the two (this or the profile screen) is hit first pays the real cost,
+    the other just reads the cache.
+    Returns None when there's not enough history yet, so a brand-new user's
+    prompt stays exactly as small as it was before this feature existed."""
+    cache_key = f"biases:{user_id}"
+    cached = cache_get(cache_key)
+    if cached is None:
+        decisions = await _get_decisions(user_id, limit=100)
+        if len(decisions) < 3:
+            return None
+        try:
+            profile = _get_user_profile(user_id)
+            cached = await ai_service.analyze_decision_biases(decisions, profile)
+            cached["generated_at"] = datetime.utcnow().isoformat()
+            cache_set(cache_key, cached, ttl=_TTL_BIAS)
+        except Exception:
+            return None
+
+    if not cached:
+        return None
+    biases = cached.get("biases_detected") or []
+    strengths = cached.get("strengths") or []
+    if not biases and not strengths:
+        return None
+
+    lines = ["## 🧠 SESGOS Y FORTALEZAS DETECTADAS (evidencia real de su historial, no genérico)"]
+    for b in biases[:2]:
+        lines.append(f"- Sesgo real detectado: {b.get('name')} ({b.get('severity')}) — {b.get('description')}")
+    for s in strengths[:2]:
+        lines.append(f"- Fortaleza real detectada: {s.get('name')} — {s.get('description')}")
+    return "\n".join(lines)

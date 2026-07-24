@@ -337,6 +337,9 @@ async def add_to_watchlist(body: dict, user_id: str = Depends(get_current_user_i
             raise HTTPException(status_code=409, detail=f"{ticker} already in watchlist")
         raise HTTPException(status_code=500, detail="Could not add to watchlist")
 
+    from app.services import investment_graph_service as graph_service
+    asyncio.create_task(graph_service.log_event(user_id, ticker, "watchlist_add", payload={"name": resolved_name}))
+
     return {"ticker": ticker, "name": resolved_name}
 
 
@@ -350,4 +353,8 @@ async def remove_from_watchlist(ticker: str, user_id: str = Depends(get_current_
     )
     if not res.data:
         raise HTTPException(status_code=404, detail=f"{ticker} not found in watchlist")
+
+    from app.services import investment_graph_service as graph_service
+    asyncio.create_task(graph_service.log_event(user_id, ticker, "watchlist_remove"))
+
     return {"deleted": ticker}

@@ -518,7 +518,12 @@ async def chat_stream(
         # mentor doesn't get the deeper progress narrative either.
         if not premium:
             return None
-        return await investor_progress_service.build_progress_context_for_mentor(user_id)
+        from app.api.routes.decisions import get_bias_context_for_mentor
+        progress, bias = await asyncio.gather(
+            investor_progress_service.build_progress_context_for_mentor(user_id),
+            get_bias_context_for_mentor(user_id),
+        )
+        return "\n\n".join(p for p in (progress, bias) if p) or None
 
     async def _memory_ctx():
         # See the same-named helper in chat_message() below for why this is
@@ -633,7 +638,12 @@ async def chat_message(
     async def _progress_ctx():
         if not premium:
             return None
-        return await investor_progress_service.build_progress_context_for_mentor(user_id)
+        from app.api.routes.decisions import get_bias_context_for_mentor
+        progress, bias = await asyncio.gather(
+            investor_progress_service.build_progress_context_for_mentor(user_id),
+            get_bias_context_for_mentor(user_id),
+        )
+        return "\n\n".join(p for p in (progress, bias) if p) or None
 
     async def _memory_ctx():
         # The frontend already sends the last ~18-20 turns of the CURRENT
@@ -670,6 +680,17 @@ async def chat_message(
     clean_reply, actions = _extract_action(clean_reply)
     if cache_key:
         store_answer(cache_key, clean_reply)
+
+    if tickers:
+        # Investment Graph — every question that mentions a ticker becomes a
+        # timestamped node in that company's history. Fire-and-forget: a
+        # logging failure must never affect the chat response itself.
+        from app.services import investment_graph_service as graph_service
+        for _ticker in tickers:
+            asyncio.create_task(graph_service.log_event(
+                user_id, _ticker, "question",
+                payload={"question": body.message[:500], "reply_excerpt": clean_reply[:500]},
+            ))
 
     return {"reply": clean_reply, "risk_assessment": bscore, "tickers": tickers, "actions": actions}
 

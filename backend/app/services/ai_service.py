@@ -2621,6 +2621,14 @@ async def analyze_decision_biases(
 Decisiones registradas (JSON):
 {decisions_str}
 
+IMPORTANTE sobre el campo "trigger": el valor "auto_sync" significa que este evento se detectó automáticamente
+al comparar el portafolio antes/después de sincronizar — es un HECHO OBJETIVO (compró o vendió X), no una
+etiqueta psicológica. NUNCA trates "auto_sync" como si el propio usuario hubiera declarado FOMO o pánico.
+Para estos eventos, infiere el sesgo (si lo hay) a partir de patrones reales: tiempo de tenencia entre compra y
+venta, si vendió justo después de una caída, si compró justo después de que algo subió mucho, frecuencia de
+reversiones, etc. — nunca del campo trigger en sí. Los valores manual/alert/mentor/fomo/panic/research sí son
+razones que el propio usuario declaró al registrar la decisión.
+
 Detecta patrones reales. Solo reporta sesgos que tengan evidencia en los datos (mínimo 2-3 ocurrencias).
 
 Responde SOLO con JSON válido:

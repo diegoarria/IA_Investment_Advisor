@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, Loader2, TrendingUp, TrendingDown, CheckCircle, RefreshCw, Plus, X, AlertTriangle, Brain, BookMarked, BarChart2, Target } from "lucide-react";
+import { BookOpen, Loader2, TrendingUp, TrendingDown, CheckCircle, RefreshCw, Plus, X, AlertTriangle, Brain, BookMarked, BarChart2, Target, Trash2, RotateCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import PremiumToolLocked from "@/components/PremiumToolLocked";
@@ -71,6 +71,7 @@ function getTriggerLabels(t: TFunction): Record<string, string> {
     fomo: t("diarioDecisiones.triggers.fomo"),
     panic: t("diarioDecisiones.triggers.panic"),
     research: t("diarioDecisiones.triggers.research"),
+    auto_sync: t("diarioDecisiones.triggers.autoSync"),
   };
 }
 const SEVERITY_COLOR: Record<string, string> = {
@@ -96,6 +97,8 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
   const [logOpen, setLogOpen]     = useState(false);
   const [form, setForm]           = useState({ action: "buy", ticker: "", trigger: "manual", notes: "" });
   const [saving, setSaving]       = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [clearingAll, setClearingAll] = useState(false);
 
   const fetchDecisions = async () => {
     setLoadingD(true);
@@ -116,6 +119,25 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
   useEffect(() => {
     if (isPremium) { fetchDecisions(); fetchBiases(); }
   }, [isPremium]);
+
+  const handleDeleteOne = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await decisionsApi.deleteOne(id);
+      setDecisions((prev) => prev.filter((d) => d.id !== id));
+      setBiases(null);
+    } catch {} finally { setDeletingId(null); }
+  };
+
+  const handleClearAll = async () => {
+    if (!window.confirm(t("diarioDecisiones.confirmClearAll"))) return;
+    setClearingAll(true);
+    try {
+      await decisionsApi.deleteAll();
+      setDecisions([]);
+      setBiases(null);
+    } catch {} finally { setClearingAll(false); }
+  };
 
   const handleLog = async () => {
     if (!form.ticker.trim() || !form.action) return;
@@ -228,11 +250,38 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
                         <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>{d.notes}</p>
                       )}
                     </div>
-                    <p className="text-[10px] shrink-0" style={{ color: "var(--dim)" }}>
-                      {d.created_at ? new Date(d.created_at).toLocaleDateString("es-MX") : ""}
-                    </p>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <p className="text-[10px]" style={{ color: "var(--dim)" }}>
+                        {d.created_at ? new Date(d.created_at).toLocaleDateString("es-MX") : ""}
+                      </p>
+                      {d.id && (
+                        <button
+                          onClick={() => handleDeleteOne(d.id!)}
+                          disabled={deletingId === d.id}
+                          title={t("diarioDecisiones.deleteOne")}
+                          className="p-1 rounded-md hover:opacity-70 disabled:opacity-40"
+                        >
+                          {deletingId === d.id
+                            ? <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--muted)" }} />
+                            : <Trash2 className="w-3 h-3" style={{ color: "var(--muted)" }} />}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))
+              )}
+              {decisions.length > 0 && (
+                <button
+                  onClick={handleClearAll}
+                  disabled={clearingAll}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 mt-1 rounded-lg text-[11px] font-semibold disabled:opacity-50"
+                  style={{ color: "#ef4444" }}
+                >
+                  {clearingAll
+                    ? <RotateCw className="w-3 h-3 animate-spin" />
+                    : <Trash2 className="w-3 h-3" />}
+                  {t("diarioDecisiones.clearAll")}
+                </button>
               )}
             </div>
           )}

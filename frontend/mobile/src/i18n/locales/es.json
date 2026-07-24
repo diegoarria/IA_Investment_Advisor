@@ -2957,6 +2957,34 @@
     "yesterday": "Ayer",
     "daysAgo": "Hace {{count}}d"
   },
+  "investmentGraph": {
+    "sectionTitle": "Tu Bitácora",
+    "companyTabLabel": "Historia",
+    "loading": "Cargando tu historial...",
+    "empty": "Aún no hay historial registrado aquí.",
+    "emptyCompany": "Todavía no tienes historial con esta empresa — cada pregunta, análisis o decisión que hagas sobre ella se guardará aquí.",
+    "metrics": {
+      "totalTheses": "Tesis escritas",
+      "opinionReversals": "Cambios de opinión",
+      "analyzedNeverBought": "Analizadas, nunca compradas",
+      "avgDeliberationDays": "Días promedio para decidir",
+      "longestConviction": "Convicción más larga",
+      "thesisAccuracy": "Precisión de tus tesis"
+    },
+    "event": {
+      "question": "Le preguntaste a Mentor IA",
+      "thesis": "Viste el análisis de valuación",
+      "thesisDetail": "Margen de seguridad: {{mos}}% · Score: {{score}}",
+      "watchlistAdd": "Agregaste a tu watchlist",
+      "watchlistRemove": "Quitaste de tu watchlist",
+      "earningsBeat": "Reportó ganancias — superó expectativas",
+      "earningsMiss": "Reportó ganancias — no alcanzó expectativas",
+      "marketEvent": "Evento de mercado",
+      "decisionBuy": "Compraste",
+      "decisionSell": "Vendiste",
+      "decisionOther": "Registraste una decisión"
+    }
+  },
   "mobileDecisionDiary": {
     "heroTitle": "Diario de Sesgos",
     "heroTagline": "Descubre qué sesgos te cuestan dinero",
@@ -2972,6 +3000,10 @@
     "noDecisions": "Sin decisiones registradas aún.",
     "startLogging": "Empieza registrando tu primera decisión.",
     "triggerLabel": "Trigger",
+    "deleteOne": "Borrar esta decisión",
+    "clearAll": "Borrar todo mi historial",
+    "confirmClearAll": "¿Seguro que quieres borrar todo tu historial de decisiones? Esto también reinicia tu análisis de sesgos — no se puede deshacer.",
+    "cancel": "Cancelar",
     "analyze": "Analizar",
     "analyzingPatterns": "Analizando tus patrones con IA...",
     "realProfileLabel": "PERFIL REAL COMO INVERSOR",
@@ -3005,7 +3037,8 @@
       "mentor": "Recomendación del mentor",
       "fomo": "FOMO",
       "panic": "Pánico / estrés",
-      "research": "Investigación propia"
+      "research": "Investigación propia",
+      "autoSync": "Detectado automáticamente"
     }
   },
   "mobileEarningsCalendar": {

@@ -15,6 +15,8 @@ import { auth as authApi, billing, feedApi, insights as insightsApi, mentorLette
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
 import WrappedCard from "@/components/WrappedCard";
+import DiarioDecisionesCard from "@/components/DiarioDecisionesCard";
+import InvestmentGraphSection from "@/components/InvestmentGraphSection";
 import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
   Loader2, Copy, Check, Gift, Users, Share2, Trash2, Phone,
@@ -670,6 +672,28 @@ export default function ProfilePage() {
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* Fortalezas y Puntos Ciegos — Personal Investment Memory:
+                    detección real de sesgos/fortalezas a partir del
+                    historial de decisiones (auto-capturado en cada sync de
+                    portafolio, ver sync.py), no de una encuesta. */}
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>
+                    {t("diarioDecisiones.headerTitle")}
+                  </p>
+                  <DiarioDecisionesCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />
+                </div>
+
+                {/* Tu Bitácora — Investment Graph: distinto de Fortalezas y
+                    Puntos Ciegos (eso es psicología); esto es el archivo
+                    intelectual — tesis, preguntas, watchlist, eventos de
+                    mercado, cruzados por empresa y en el tiempo. */}
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>
+                    {t("investmentGraph.sectionTitle")}
+                  </p>
+                  <InvestmentGraphSection isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />
                 </div>
 
                 {/* Mentor card */}

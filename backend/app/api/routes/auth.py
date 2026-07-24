@@ -476,6 +476,7 @@ _USER_DATA_TABLES = [
     "valuation_alert_state", "thesis_drift_state",
     "clip_likes", "clip_saves", "clip_views", "clip_comments",
     "research_jobs", "research_reports", "security_events",
+    "investment_graph_events",
 ]
 
 

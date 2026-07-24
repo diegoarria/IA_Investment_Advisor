@@ -701,79 +701,6 @@
       "openFull": "Abrir simulador completo"
     }
   },
-  "decisions": {
-    "actionLabels": {
-      "buy": "Compré",
-      "sell": "Vendí",
-      "hold": "Mantuve (decidí no actuar)",
-      "ignoredAlert": "Ignoré una alerta",
-      "actedOnAlert": "Actué en una alerta"
-    },
-    "triggerLabels": {
-      "manual": "Decisión propia",
-      "alert": "Alerta del sistema",
-      "mentor": "Recomendación del mentor",
-      "fomo": "FOMO (miedo a perderme algo)",
-      "panic": "Pánico / estrés",
-      "research": "Investigación propia"
-    },
-    "locked": {
-      "title": "Diario de Decisiones",
-      "unlockPart1": "Esta sección se desbloquea cuando alcances el nivel",
-      "levelName": "Intermedio",
-      "unlockPart2": "Registrar y analizar sesgos conductuales requiere haber tomado decisiones de inversión con contexto — sigue aprendiendo en el chat y el portafolio.",
-      "meanwhile": "Mientras tanto, enfócate en:",
-      "tips": {
-        "addPositions": "Agrega tus primeras posiciones al portafolio",
-        "exploreNews": "Explora el feed de noticias de tus acciones",
-        "reviewAnalysis": "Revisa el análisis de tus posiciones en Patrimonio"
-      }
-    },
-    "paywall": {
-      "title": "Diario de Decisiones",
-      "description": "Registra cada decisión de inversión y la IA detecta tus sesgos conductuales con el tiempo — el único feature que te hace mejor inversor.",
-      "activateButton": "Activar Premium"
-    },
-    "header": {
-      "title": "Diario de Decisiones",
-      "subtitle": "Registra tus movimientos y descubre tus sesgos como inversor",
-      "logButton": "Registrar decisión"
-    },
-    "tabs": {
-      "diary": "Diario",
-      "biases": "Análisis de sesgos"
-    },
-    "diary": {
-      "empty": "Aún no hay decisiones registradas.",
-      "emptyHint": "Empieza registrando tu primera decisión de inversión.",
-      "triggerLabel": "Trigger: {{trigger}}"
-    },
-    "biases": {
-      "analyzeButton": "Analizar",
-      "analyzing": "Analizando tus patrones con IA...",
-      "scoreLabel": "PERFIL REAL COMO INVERSOR",
-      "basedOn": "Basado en {{count}} decisiones · {{period}}",
-      "detectedTitle": "SESGOS DETECTADOS",
-      "occurrences": "Ocurrencias",
-      "costEstimate": "Costo estimado",
-      "realExample": "Ejemplo real",
-      "howToImprove": "Cómo mejorar",
-      "strengthsTitle": "TUS FORTALEZAS",
-      "mentorAssessmentTitle": "EVALUACIÓN DE TU MENTOR",
-      "nextChallengeTitle": "RETO DE LA SEMANA"
-    },
-    "modal": {
-      "title": "Registrar decisión",
-      "actionLabel": "Acción",
-      "tickerLabel": "Ticker",
-      "tickerPlaceholder": "Ej: AAPL",
-      "triggerLabel": "¿Por qué lo hice?",
-      "notesLabel": "Notas (opcional)",
-      "notesPlaceholder": "¿Qué pensabas en ese momento?",
-      "saving": "Guardando...",
-      "saveButton": "Guardar decisión"
-    }
-  },
   "watchlist": {
     "marketState": {
       "live": "En vivo",
@@ -2455,6 +2382,34 @@
       "actinver": "Casa de bolsa mexicana"
     }
   },
+  "investmentGraph": {
+    "sectionTitle": "Tu Bitácora",
+    "companyTabLabel": "Tu historia con esta empresa",
+    "loading": "Cargando tu historial...",
+    "empty": "Aún no hay historial registrado aquí.",
+    "emptyCompany": "Todavía no tienes historial con esta empresa — cada pregunta, análisis o decisión que hagas sobre ella se guardará aquí.",
+    "metrics": {
+      "totalTheses": "Tesis escritas",
+      "opinionReversals": "Cambios de opinión",
+      "analyzedNeverBought": "Analizadas, nunca compradas",
+      "avgDeliberationDays": "Días promedio para decidir",
+      "longestConviction": "Convicción más larga",
+      "thesisAccuracy": "Precisión de tus tesis"
+    },
+    "event": {
+      "question": "Le preguntaste a Mentor IA",
+      "thesis": "Viste el análisis de valuación",
+      "thesisDetail": "Margen de seguridad: {{mos}}% · Score: {{score}}",
+      "watchlistAdd": "Agregaste a tu watchlist",
+      "watchlistRemove": "Quitaste de tu watchlist",
+      "earningsBeat": "Reportó ganancias — superó expectativas",
+      "earningsMiss": "Reportó ganancias — no alcanzó expectativas",
+      "marketEvent": "Evento de mercado",
+      "decisionBuy": "Compraste",
+      "decisionSell": "Vendiste",
+      "decisionOther": "Registraste una decisión"
+    }
+  },
   "diarioDecisiones": {
     "headerTitle": "Diario de Sesgos",
     "headerSubtitle": "Registra tus movimientos y descubre tus sesgos",
@@ -2464,6 +2419,9 @@
     "noDecisions": "Sin decisiones registradas aún.",
     "noDecisionsHint": "Empieza registrando tu primera decisión.",
     "trigger": "Trigger",
+    "deleteOne": "Borrar esta decisión",
+    "clearAll": "Borrar todo mi historial de decisiones",
+    "confirmClearAll": "¿Seguro que quieres borrar todo tu historial de decisiones? Esto también reinicia tu análisis de sesgos — no se puede deshacer.",
     "analyze": "Analizar",
     "analyzingPatterns": "Analizando tus patrones con IA...",
     "realProfileTitle": "PERFIL REAL COMO INVERSOR",
@@ -2489,7 +2447,8 @@
       "mentor": "Recomendación del mentor",
       "fomo": "FOMO (miedo a perderme algo)",
       "panic": "Pánico / estrés",
-      "research": "Investigación propia"
+      "research": "Investigación propia",
+      "autoSync": "Detectado automáticamente"
     },
     "locked": {
       "title": "Diario de Sesgos",

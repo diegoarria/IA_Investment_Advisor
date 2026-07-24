@@ -13,6 +13,9 @@ import { useAppStore, RISK_CONFIG, getAge, maturityLabel, maturitySignalI18nKey 
 import { getMentorInfo } from "../../src/lib/mentorData";
 import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
+import MobileDecisionDiary from "../../src/components/MobileDecisionDiary";
+import MobileInvestmentGraph from "../../src/components/MobileInvestmentGraph";
+import PaywallModal from "../../src/components/PaywallModal";
 import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi, billingApi, voiceCallsApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -135,6 +138,7 @@ export default function ProfileScreen() {
   const setAvatarUri = useAppStore((s) => s.setAvatarUri);
 
   const [progressOpen, setProgressOpen] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
   const [startScreenPickerOpen, setStartScreenPickerOpen] = useState(false);
   const [startScreen, setStartScreenState] = useState<string>("home");
   const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
@@ -740,6 +744,26 @@ if (!profile) {
               </>
             )}
           </TouchableOpacity>
+        </View>
+
+        {/* ── FORTALEZAS Y PUNTOS CIEGOS (Personal Investment Memory) ──
+            Detección real de sesgos/fortalezas a partir del historial de
+            decisiones, auto-capturado en cada sync de portafolio. */}
+        <View style={s.section}>
+          <View style={s.sectionHeader}>
+            <Text style={[s.sectionTitle, { color: colors.text }]}>{t("mobileDecisionDiary.heroTitle")}</Text>
+          </View>
+          <MobileDecisionDiary isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />
+        </View>
+
+        {/* ── TU BITÁCORA (Investment Graph) — distinto de Fortalezas y
+            Puntos Ciegos: eso es psicología, esto es el archivo intelectual
+            (tesis, preguntas, watchlist, eventos de mercado). ── */}
+        <View style={s.section}>
+          <View style={s.sectionHeader}>
+            <Text style={[s.sectionTitle, { color: colors.text }]}>{t("investmentGraph.sectionTitle")}</Text>
+          </View>
+          <MobileInvestmentGraph isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />
         </View>
 
         {/* ── MENTOR ── */}
@@ -1479,6 +1503,7 @@ if (!profile) {
 
       <ProgressModal visible={progressOpen} onClose={() => setProgressOpen(false)} />
       <TutorialModal visible={tutorialFromProfile} onClose={() => setTutorialFromProfile(false)} />
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={t("mobileDecisionDiary.heroTitle")} />
 
       {/* ── Start Screen Picker ── */}
       <Modal visible={startScreenPickerOpen} transparent animationType="slide" onRequestClose={() => setStartScreenPickerOpen(false)}>

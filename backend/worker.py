@@ -3454,6 +3454,18 @@ async def _job_earnings_dispatch(hour_filter: str):
         for ticker in relevant:
             res  = results_map[ticker]
             title, body = _earnings_push_content(ticker, res, language=language)
+            # Investment Graph — earnings reports are the market_event node:
+            # they get linked automatically to any user holding/watching
+            # this ticker, the same relevance check the push notification
+            # itself already uses.
+            from app.services import investment_graph_service as graph_service
+            asyncio.create_task(graph_service.log_event(
+                uid, ticker, "market_event",
+                payload={
+                    "kind": "earnings", "beat_eps": res.get("beat_eps"),
+                    "eps_actual": res.get("eps_actual"), "eps_estimate": res.get("eps_estimate"),
+                },
+            ))
             if is_prem:
                 # Premium-only teaser + deep link into the real structured
                 # Earnings Analysis screen (segments/guidance/rating grounded

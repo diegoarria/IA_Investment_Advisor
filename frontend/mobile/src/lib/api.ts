@@ -399,6 +399,14 @@ export const decisionsApi = {
   log: (decision: Record<string, unknown>) => api.post("/api/decisions/log", decision),
   getAll: (limit = 50) => api.get("/api/decisions", { params: { limit } }),
   getBiases: () => api.get("/api/decisions/biases"),
+  deleteOne: (id: string) => api.delete(`/api/decisions/${id}`),
+  deleteAll: () => api.delete("/api/decisions"),
+};
+
+export const graphApi = {
+  getCompanyTimeline: (ticker: string, limit = 100) => api.get(`/api/graph/company/${ticker}`, { params: { limit } }),
+  getGlobalTimeline: (limit = 100) => api.get("/api/graph/timeline", { params: { limit } }),
+  getMetrics: () => api.get("/api/graph/metrics"),
 };
 
 

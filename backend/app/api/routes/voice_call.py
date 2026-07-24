@@ -115,7 +115,15 @@ async def _load_call_context(user_id: str, profile: UserProfile | None, is_premi
     async def _progress_ctx():
         if not is_premium:
             return None
-        return await investor_progress_service.build_progress_context_for_mentor(user_id)
+        from app.api.routes.decisions import get_bias_context_for_mentor
+        progress, bias = await asyncio.gather(
+            investor_progress_service.build_progress_context_for_mentor(user_id),
+            get_bias_context_for_mentor(user_id),
+            return_exceptions=True,
+        )
+        progress = None if isinstance(progress, Exception) else progress
+        bias = None if isinstance(bias, Exception) else bias
+        return "\n\n".join(p for p in (progress, bias) if p) or None
 
     deep_ctx, progress_ctx = await asyncio.gather(
         _get_mentor_deep_context(user_id),

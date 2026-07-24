@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { market as marketApi } from "@/lib/api";
+import { market as marketApi, graphApi } from "@/lib/api";
+import InvestmentGraphTimeline, { type GraphEvent } from "@/components/InvestmentGraphTimeline";
 import IncomeStatementTab from "@/components/IncomeStatementTab";
 import BalanceSheetTab from "@/components/BalanceSheetTab";
 import CashFlowTab from "@/components/CashFlowTab";
@@ -710,7 +711,7 @@ function ForecastChart({ prices, current, targetLow, targetMean, targetHigh }: {
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type Tab = "verdict" | "chart" | "financials" | "analyst" | "company";
+type Tab = "verdict" | "chart" | "financials" | "analyst" | "company" | "history";
 
 function getTabs(t: TFunction): { key: Tab; label: string }[] {
   return [
@@ -719,6 +720,7 @@ function getTabs(t: TFunction): { key: Tab; label: string }[] {
     { key: "financials", label: t("stockDetailModal.tabs.financials") },
     { key: "analyst",    label: t("stockDetailModal.tabs.analyst") },
     { key: "company",    label: t("stockDetailModal.tabs.company") },
+    { key: "history",    label: t("investmentGraph.companyTabLabel") },
   ];
 }
 
@@ -752,6 +754,9 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
   const [chartError, setChartError] = useState(false);
   const [incomeAnalysis, setIncomeAnalysis] = useState<string>("");
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [graphEvents, setGraphEvents] = useState<GraphEvent[]>([]);
+  const [loadingGraph, setLoadingGraph] = useState(false);
+  const [graphLoaded, setGraphLoaded] = useState(false);
 
   // Rich financials from /api/stocks/{ticker}/financials (uses income_stmt, not quoteSummary)
   type RichFinancials = {
@@ -829,6 +834,16 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
       .then((r) => setIncomeAnalysis(r.data?.analysis ?? ""))
       .catch(() => {})
       .finally(() => setLoadingAnalysis(false));
+  }, [tab, ticker]); // eslint-disable-line
+
+  // Lazy-load Investment Graph timeline when the "history" tab is opened
+  useEffect(() => {
+    if (tab !== "history" || graphLoaded || loadingGraph) return;
+    setLoadingGraph(true);
+    graphApi.getCompanyTimeline(ticker)
+      .then((r) => setGraphEvents(r.data?.timeline ?? []))
+      .catch(() => {})
+      .finally(() => { setLoadingGraph(false); setGraphLoaded(true); });
   }, [tab, ticker]); // eslint-disable-line
 
   const profile = data?.profile;
@@ -1825,6 +1840,17 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
               })() : (
                 <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>{t("stockDetailModal.noCompanyData")}</p>
               )}
+            </div>
+          )}
+
+          {/* Investment Graph — "Tu historia con esta empresa" */}
+          {tab === "history" && (
+            <div className="px-5 py-4">
+              <InvestmentGraphTimeline
+                events={graphEvents}
+                loading={loadingGraph}
+                emptyLabel={t("investmentGraph.emptyCompany")}
+              />
             </div>
           )}
           </div>{/* end max-w-3xl */}

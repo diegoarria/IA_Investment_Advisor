@@ -19,6 +19,20 @@ from app.core.database import get_supabase, run_query
 from app.core.cache import cache_get, cache_set, cache_delete
 from app.services import fmg_service
 
+
+async def _log_auto_decision(user_id: str, event: dict) -> None:
+    """Fire-and-forget wrapper around decisions.py's journal writer, used by
+    the portfolio-sync diff below. Isolated in its own try/except so a
+    failure here can never affect the sync response the user is waiting on."""
+    try:
+        from app.api.routes.decisions import _log_decision
+        from app.core.cache import cache_set as _cache_set
+        await _log_decision(user_id, event)
+        _cache_set(f"biases:{user_id}", None, ttl=1)  # invalidate so next view re-analyzes
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("_log_auto_decision failed for %s: %s", user_id, e)
+
 MAX_PORTFOLIOS = 3
 
 router = APIRouter(prefix="/sync", tags=["sync"])
@@ -34,6 +48,54 @@ _TTL_MISC      = 60    # nav-order, theme, behavioral-risk
 
 
 # ─── Portfolio ────────────────────────────────────────────────────────────────
+
+def _diff_positions_for_auto_decisions(old_positions: list[dict], new_positions: list[dict]) -> list[dict]:
+    """Compares the portfolio's previous and new position lists and returns
+    inferred buy/sell events — this is what auto-populates the decision
+    journal (investment_decisions) from real portfolio activity, since
+    manually logging every trade in a separate diary was never realistically
+    adopted (the feature existed but sat empty). Only the objective fact
+    (ticker, direction, price, portfolio value) is recorded — this never
+    guesses a psychological trigger (fomo/panic/etc) for these events, since
+    that would be fabricating context we don't actually have. Trigger
+    inference from behavior is left entirely to analyze_decision_biases,
+    which reasons over the real timing/price data instead of a label."""
+    def _agg(positions: list[dict]) -> dict[str, dict]:
+        agg: dict[str, dict] = {}
+        for p in positions:
+            ticker = p.get("ticker")
+            if not ticker:
+                continue
+            shares = float(p.get("shares") or 0)
+            avg_price = float(p.get("avgPrice") or 0)
+            row = agg.setdefault(ticker, {"shares": 0.0, "avg_price": avg_price})
+            row["shares"] += shares
+            if avg_price:
+                row["avg_price"] = avg_price
+        return agg
+
+    old_agg = _agg(old_positions)
+    new_agg = _agg(new_positions)
+    new_total_value = sum(v["shares"] * v["avg_price"] for v in new_agg.values())
+
+    events: list[dict] = []
+    for ticker in set(old_agg) | set(new_agg):
+        old_shares = old_agg.get(ticker, {}).get("shares", 0.0)
+        new_shares = new_agg.get(ticker, {}).get("shares", 0.0)
+        delta = round(new_shares - old_shares, 6)
+        if abs(delta) < 1e-6:
+            continue
+        price_source = new_agg.get(ticker) or old_agg.get(ticker)
+        events.append({
+            "action": "buy" if delta > 0 else "sell",
+            "ticker": ticker,
+            "price_at_action": price_source["avg_price"],
+            "portfolio_value_at_action": round(new_total_value, 2),
+            "trigger": "auto_sync",
+            "notes": f"Registrado automáticamente al sincronizar portafolio ({'+' if delta > 0 else ''}{delta:g} acciones).",
+        })
+    return events
+
 
 def _parse_portfolio(raw) -> dict:
     """Parse portfolio data regardless of storage format (v1 array, v2, or v3 with
@@ -122,6 +184,7 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
         .eq("user_id", user_id).eq("portfolio_id", portfolio_id)
     )
     prev_position_count = 0
+    old_positions_list = None
     if existing.data:
         current_updated_at = existing.data[0]["updated_at"]
         prev_position_count = len(_parse_portfolio(existing.data[0]["positions"]).get("positions", []))
@@ -142,6 +205,7 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
             closed_positions = existing_parsed["closed_positions"]
         if not has_inception_key:
             inception_date = existing_parsed["inception_date"]
+        old_positions_list = existing_parsed["positions"]
     closed_positions = closed_positions or []
 
     portfolio_state = {
@@ -167,6 +231,15 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
             metadata={"portfolio_id": portfolio_id, "ticker": positions[0].get("ticker")},
             milestone_key="first_investment",
         ))
+    if old_positions_list is not None:
+        # Auto-populate the decision journal from real portfolio activity —
+        # this is what feeds analyze_decision_biases (Personal Investment
+        # Memory) without depending on users manually logging every trade,
+        # which never happened in practice. Skipped on the very first sync
+        # (old_positions_list is None then) since a bulk import isn't a
+        # timestamped decision.
+        for auto_event in _diff_positions_for_auto_decisions(old_positions_list, positions):
+            asyncio.create_task(_log_auto_decision(user_id, auto_event))
     # Echo back the exact timestamp the write was committed with, so clients can
     # show a server-confirmed "saved at" time instead of just trusting their own
     # local clock/state.

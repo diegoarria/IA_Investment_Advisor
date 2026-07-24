@@ -437,6 +437,7 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
     cache_key = f"quick_analysis:v2:{lang}:{ticker}"
     cached = cache_get(cache_key)
     if cached:
+        _log_thesis_event(user_id, ticker, cached)
         return cached
 
     from app.services.fundamental_analysis_service import get_fundamental_analysis
@@ -570,7 +571,27 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
     # Only successful, complete results are cached — never a 404/503, so a
     # transient provider hiccup doesn't get "stuck" wrong for 24h.
     cache_set(cache_key, result, _QUICK_ANALYSIS_CACHE_TTL)
+    _log_thesis_event(user_id, ticker, result)
     return result
+
+
+def _log_thesis_event(user_id: str, ticker: str, result: dict) -> None:
+    """Investment Graph — every time a user views this ticker's valuation
+    (whether freshly computed or served from cache), it's logged as a
+    'thesis' node in that company's history. Logged on BOTH exit paths of
+    quick_analysis (cache hit and fresh compute) since viewing the analysis
+    is the event that matters here, not whether the numbers were recomputed."""
+    from app.services import investment_graph_service as graph_service
+    asyncio.create_task(graph_service.log_event(
+        user_id, ticker, "thesis",
+        payload={
+            "company_name": result.get("company_name"),
+            "price": result.get("price"),
+            "margin_of_safety_pct": result.get("margin_of_safety_pct"),
+            "composite_score": result.get("composite_score"),
+            "confidence_meter": result.get("confidence_meter"),
+        },
+    ))
 
 
 @router.get("/weekly")

@@ -26,6 +26,8 @@ import StockAvatar from "../StockAvatar";
 import PremiumToolCard from "../PremiumToolCard";
 import PaywallModal from "../PaywallModal";
 import { useSubscriptionStore, hasPremiumAccess } from "../../lib/subscriptionStore";
+import { graphApi } from "../../lib/api";
+import InvestmentGraphTimeline, { type GraphEvent } from "../InvestmentGraphTimeline";
 
 // ─── Palette ─────────────────────────────────────────────────────────────────
 const D = {
@@ -547,6 +549,7 @@ function getTabs(t: TFunction) {
     { id: "financieros", label: t("stockDetailScreen.tabs.financials"),  icon: "bar-chart-outline" as const },
     { id: "analistas",   label: t("stockDetailScreen.tabs.analysts"),    icon: "people-outline" as const },
     { id: "empresa",     label: t("stockDetailScreen.tabs.company"),     icon: "business-outline" as const },
+    { id: "historia",    label: t("investmentGraph.companyTabLabel"),   icon: "time-outline" as const },
   ] as const;
 }
 
@@ -556,6 +559,7 @@ const TABS = [
   { id: "financieros" },
   { id: "analistas" },
   { id: "empresa" },
+  { id: "historia" },
 ] as const;
 
 type TabId = typeof TABS[number]["id"];
@@ -572,10 +576,23 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [graphEvents, setGraphEvents] = useState<GraphEvent[]>([]);
+  const [loadingGraph, setLoadingGraph] = useState(false);
+  const [graphLoaded, setGraphLoaded] = useState(false);
 
   useEffect(() => {
     if (ticker) posthog.capture("stock_detail_viewed", { ticker });
   }, [ticker]);
+
+  // Lazy-load Investment Graph timeline when the "historia" tab is opened
+  useEffect(() => {
+    if (activeTab !== "historia" || graphLoaded || loadingGraph) return;
+    setLoadingGraph(true);
+    graphApi.getCompanyTimeline(ticker)
+      .then((r: any) => setGraphEvents(r.data?.timeline ?? []))
+      .catch(() => {})
+      .finally(() => { setLoadingGraph(false); setGraphLoaded(true); });
+  }, [activeTab, ticker]); // eslint-disable-line
   const { data: richFin } = useRichFinancials(ticker, activeTab === "financieros");
 
   const pricePct = data?.profile?.current_price != null && data?.profile?.prev_close != null && data.profile.prev_close !== 0
@@ -682,6 +699,18 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
 
           <SectionHeader title={t("stockDetailScreen.similarCompanies")} icon="git-compare-outline" />
           <StockCompetitors ticker={ticker} />
+        </View>
+      );
+    }
+
+    if (activeTab === "historia") {
+      return (
+        <View style={{ paddingBottom: 48 }}>
+          <InvestmentGraphTimeline
+            events={graphEvents}
+            loading={loadingGraph}
+            emptyLabel={t("investmentGraph.emptyCompany")}
+          />
         </View>
       );
     }
