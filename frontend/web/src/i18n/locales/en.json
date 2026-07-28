@@ -2400,17 +2400,6 @@
       "decisionOther": "You logged a decision"
     }
   },
-  "panicStreak": {
-    "eyebrow": "Your streak",
-    "badge": "Streak active",
-    "days": "days",
-    "dayLabel": "Day {{count}}",
-    "caption": "Without selling on a red market day.",
-    "nextMilestone": "Day {{days}} · Premium bonus",
-    "allMilestonesReached": "All milestones reached!",
-    "claimCta": "Claim day {{days}} bonus",
-    "claiming": "Claiming..."
-  },
   "thenNow": {
     "title": "Then vs. now",
     "then": "How you thought",

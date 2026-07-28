@@ -2978,17 +2978,6 @@
       "decisionOther": "Registraste una decisión"
     }
   },
-  "panicStreak": {
-    "eyebrow": "Tu racha",
-    "badge": "Racha activa",
-    "days": "días",
-    "dayLabel": "Día {{count}}",
-    "caption": "Sin vender en un día rojo del mercado.",
-    "nextMilestone": "Día {{days}} · Bono Premium",
-    "allMilestonesReached": "¡Todos los hitos alcanzados!",
-    "claimCta": "Reclamar bono del día {{days}}",
-    "claiming": "Reclamando..."
-  },
   "thenNow": {
     "title": "Entonces vs. ahora",
     "then": "Cómo pensabas",
