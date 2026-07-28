@@ -98,6 +98,30 @@ async def get_bias_analysis(
     return analysis
 
 
+@router.get("/panic-streak")
+async def get_panic_streak_route(user_id: str = Depends(get_current_user_id)):
+    """Days since the user last sold on a red S&P 500 day — see
+    panic_streak_service for the exact (non-AI, fully mechanical) rule."""
+    from app.services.panic_streak_service import get_panic_streak
+    return await get_panic_streak(user_id)
+
+
+@router.post("/panic-streak/claim")
+async def claim_panic_streak_route(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Claim a panic-streak milestone reward. Idempotent — safe to call
+    multiple times, mirrors learn.py's Academy streak milestone-claim."""
+    from app.services.panic_streak_service import claim_panic_streak_milestone
+    milestone_days = int(body.get("days", 0))
+    try:
+        return await claim_panic_streak_milestone(user_id, milestone_days)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Hito inválido")
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Aún no alcanzas este hito")
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Perfil no encontrado")
+
+
 @router.delete("/{decision_id}")
 async def delete_decision(decision_id: str, user_id: str = Depends(get_current_user_id)):
     """Privacy control for 'Tu Memoria' — a user must be able to see and

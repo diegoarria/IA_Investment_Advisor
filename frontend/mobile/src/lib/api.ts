@@ -401,10 +401,13 @@ export const decisionsApi = {
   getBiases: () => api.get("/api/decisions/biases"),
   deleteOne: (id: string) => api.delete(`/api/decisions/${id}`),
   deleteAll: () => api.delete("/api/decisions"),
+  getPanicStreak: () => api.get("/api/decisions/panic-streak"),
+  claimPanicStreakMilestone: (days: number) => api.post("/api/decisions/panic-streak/claim", { days }),
 };
 
 export const graphApi = {
   getCompanyTimeline: (ticker: string, limit = 100) => api.get(`/api/graph/company/${ticker}`, { params: { limit } }),
+  getThenNow: (ticker: string) => api.get(`/api/graph/company/${ticker}/then-now`),
   getGlobalTimeline: (limit = 100) => api.get("/api/graph/timeline", { params: { limit } }),
   getMetrics: () => api.get("/api/graph/metrics"),
 };

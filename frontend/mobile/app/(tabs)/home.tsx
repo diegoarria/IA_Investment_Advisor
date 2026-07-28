@@ -27,6 +27,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../src/lib/supabase";
 import PricingModal from "../../src/components/PricingModal";
 import PersonalizedMessageBanner from "../../src/components/PersonalizedMessageBanner";
+import MobilePanicStreakCard from "../../src/components/MobilePanicStreakCard";
 
 // ── Sparkline helpers ─────────────────────────────────────────────────────────
 function sparkPath(prices: number[], w: number, h: number, close = false): string {
@@ -972,6 +973,8 @@ export default function HomeScreen() {
         }
       >
         <PersonalizedMessageBanner style={{ marginHorizontal: 16, marginBottom: 12 }} />
+
+        <MobilePanicStreakCard style={{ marginHorizontal: 16, marginBottom: 12 }} />
 
         {/* ── Onboarding checklist ─────────────────────────────────────────── */}
         {!allOnboardingDone && (
