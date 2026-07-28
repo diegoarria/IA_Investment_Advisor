@@ -63,6 +63,20 @@ const COUNTRIES = [
   { value: "OTHER", flag: "🌎", labelKey: "onboarding.countries.other" },
 ];
 
+// E.164 dial codes for the phone field's country selector — no "OTHER" entry
+// here since there's no single calling code for it (unlike COUNTRIES above,
+// which only needs a locale bucket, not a real dial code).
+const DIAL_CODES = [
+  { value: "MX", code: "+52", flag: "🇲🇽", labelKey: "onboarding.countries.mx" },
+  { value: "US", code: "+1",  flag: "🇺🇸", labelKey: "onboarding.countries.us" },
+  { value: "CO", code: "+57", flag: "🇨🇴", labelKey: "onboarding.countries.co" },
+  { value: "AR", code: "+54", flag: "🇦🇷", labelKey: "onboarding.countries.ar" },
+  { value: "VE", code: "+58", flag: "🇻🇪", labelKey: "onboarding.countries.ve" },
+  { value: "PE", code: "+51", flag: "🇵🇪", labelKey: "onboarding.countries.pe" },
+  { value: "CL", code: "+56", flag: "🇨🇱", labelKey: "onboarding.countries.cl" },
+  { value: "ES", code: "+34", flag: "🇪🇸", labelKey: "onboarding.countries.es" },
+];
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function calculateRisk(q1: string, q4: string): RiskTolerance {
   const m: Record<QuizAnswer, number> = { A: 1, B: 2, C: 3, D: 4 };
@@ -97,6 +111,8 @@ function yearsToGoal(pmt: number, goal: number, annualRate: number): number | nu
 
 // ─── Form State ────────────────────────────────────────────────────────────────
 type FormState = {
+  phone_dial_code: string;
+  phone_local: string;
   name: string;
   birth_day: string;
   birth_month: string;
@@ -134,6 +150,7 @@ export default function OnboardingPage() {
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
 
   const [form, setForm] = useState<FormState>({
+    phone_dial_code: "", phone_local: "",
     name: "", birth_day: "", birth_month: "", birth_year: "", country: "",
     knowledge_level: "", monthly_income: "", monthly_contribution: "", initial_capital: "",
     investment_goal_amount: "", investment_horizon: "", investment_goal: "",
@@ -223,14 +240,46 @@ export default function OnboardingPage() {
     ? t("onboarding.step8.goalNeedsYears", { years: yrsNeeded, amount: fmtMoney(goalAmt) })
     : t("onboarding.step8.goalIncreaseContribution", { years: horizonYrs, amount: fmtMoney(fvHorizon) });
 
+  const phoneDigits = form.phone_local.replace(/\D/g, "");
+  const phoneValid  = !!form.phone_dial_code && phoneDigits.length >= 7 && phoneDigits.length <= 14;
+
   const STEPS = [
-    // 0 — Nombre + fecha de nacimiento + país
+    // 0 — Teléfono + nombre + fecha de nacimiento + país
     {
       subtitle: t("onboarding.step0.subtitle"),
       title: t("onboarding.step0.title"),
-      valid: () => form.name.trim().length >= 2 && birthDateValid && !!form.country,
+      valid: () => phoneValid && form.name.trim().length >= 2 && birthDateValid && !!form.country,
       content: (
         <div className="space-y-5">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              {t("onboarding.step0.phoneLabel")}
+            </label>
+            <div className="flex gap-2">
+              <select value={form.phone_dial_code}
+                      onChange={(e) => setForm(f => ({ ...f, phone_dial_code: e.target.value }))}
+                      className="rounded-xl border px-3 py-3 text-sm outline-none appearance-none shrink-0 w-[7.5rem]"
+                      style={{ background: "var(--raised)", borderColor: "var(--border)", color: form.phone_dial_code ? "var(--text)" : "var(--muted)" }}>
+                <option value="">{t("onboarding.step0.phoneCode")}</option>
+                {DIAL_CODES.map((d) => (
+                  <option key={d.value} value={d.code}>{d.flag} {d.code}</option>
+                ))}
+              </select>
+              <input
+                value={form.phone_local}
+                onChange={(e) => setForm(f => ({ ...f, phone_local: e.target.value }))}
+                type="tel" inputMode="tel"
+                className="flex-1 rounded-xl border px-4 py-3 text-sm outline-none"
+                placeholder={t("onboarding.step0.phonePlaceholder")}
+                autoFocus
+                style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+              />
+            </div>
+            <p className="text-xs mt-1.5" style={{ color: "var(--dim)" }}>
+              {t("onboarding.step0.phoneHint")}
+            </p>
+          </div>
+
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
               {t("onboarding.step0.nameLabel")}
@@ -240,7 +289,6 @@ export default function OnboardingPage() {
               onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
               className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
               placeholder={t("onboarding.step0.namePlaceholder")}
-              autoFocus
               style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
             />
             <p className="text-xs mt-1.5" style={{ color: "var(--dim)" }}>
@@ -926,6 +974,7 @@ export default function OnboardingPage() {
     setLoading(true); setError("");
     try {
       const payload = {
+        phone_number:           form.phone_dial_code + phoneDigits,
         name:                   form.name.trim(),
         birth_date:             birthDateStr || undefined,
         country:                form.country || undefined,

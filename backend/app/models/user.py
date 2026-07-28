@@ -1,5 +1,8 @@
+import re
 from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
+
+_E164_RE = re.compile(r"^\+[1-9]\d{6,14}$")
 
 
 class UserProfileCreate(BaseModel):
@@ -22,7 +25,15 @@ class UserProfileCreate(BaseModel):
     has_broker: Optional[bool] = None
     broker_name: Optional[str] = None
     has_investments: Optional[bool] = None
+    phone_number: Optional[str] = None  # E.164, e.g. "+525512345678" — required by the onboarding UI
     language: Optional[str] = None  # UI language at signup ("es"/"en") — welcome email + preferred_language
+
+    @field_validator("phone_number")
+    @classmethod
+    def _validate_phone_e164(cls, v: Optional[str]) -> Optional[str]:
+        if v and not _E164_RE.match(v):
+            raise ValueError("phone_number must be in E.164 format, e.g. +525512345678")
+        return v
 
 
 class UserProfileUpdate(BaseModel):
@@ -45,6 +56,14 @@ class UserProfileUpdate(BaseModel):
     has_broker: Optional[bool] = None
     broker_name: Optional[str] = None
     has_investments: Optional[bool] = None
+    phone_number: Optional[str] = None
+
+    @field_validator("phone_number")
+    @classmethod
+    def _validate_phone_e164(cls, v: Optional[str]) -> Optional[str]:
+        if v and not _E164_RE.match(v):
+            raise ValueError("phone_number must be in E.164 format, e.g. +525512345678")
+        return v
 
 
 class UserProfile(BaseModel):
@@ -75,6 +94,7 @@ class UserProfile(BaseModel):
     has_broker: Optional[bool] = None
     broker_name: Optional[str] = None
     has_investments: Optional[bool] = None
+    phone_number: Optional[str] = None
     net_worth_usd: Optional[float] = None
     monthly_expenses_usd: Optional[float] = None
     currency: Optional[str] = None

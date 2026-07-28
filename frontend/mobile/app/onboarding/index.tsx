@@ -30,6 +30,22 @@ function getCountries(t: TFunction) {
   ];
 }
 
+// E.164 dial codes for the phone field — no "OTHER" entry since there's no
+// single calling code for it (unlike getCountries above, which only needs a
+// locale bucket, not a real dial code).
+function getDialCodes(t: TFunction) {
+  return [
+    { value: "MX", code: "+52", label: t("onboarding.countries.MX"), emoji: "🇲🇽" },
+    { value: "US", code: "+1",  label: t("onboarding.countries.US"), emoji: "🇺🇸" },
+    { value: "CO", code: "+57", label: t("onboarding.countries.CO"), emoji: "🇨🇴" },
+    { value: "AR", code: "+54", label: t("onboarding.countries.AR"), emoji: "🇦🇷" },
+    { value: "VE", code: "+58", label: t("onboarding.countries.VE"), emoji: "🇻🇪" },
+    { value: "PE", code: "+51", label: t("onboarding.countries.PE"), emoji: "🇵🇪" },
+    { value: "CL", code: "+56", label: t("onboarding.countries.CL"), emoji: "🇨🇱" },
+    { value: "ES", code: "+34", label: t("onboarding.countries.ES"), emoji: "🇪🇸" },
+  ];
+}
+
 function getGoals(t: TFunction) {
   return [
     { value: "house",             label: t("profileEdit.goals.house"),             emoji: "🏠" },
@@ -115,6 +131,7 @@ function yearsToGoal(pmt: number, goal: number, annualRate: number): number | nu
 }
 
 type FormState = {
+  phone_dial_code: string; phone_local: string;
   name: string; birth_day: string; birth_month: string; birth_year: string;
   country: string;
   knowledge_level: QuizAnswer | "";
@@ -133,6 +150,7 @@ type FormState = {
 export default function OnboardingScreen() {
   const { t } = useTranslation();
   const COUNTRIES = getCountries(t);
+  const DIAL_CODES = getDialCodes(t);
   const GOALS = getGoals(t);
   const KNOWLEDGE_LEVELS = getKnowledgeLevels(t);
   const RISK_EXTRA = getRiskExtra(t);
@@ -153,6 +171,7 @@ export default function OnboardingScreen() {
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
 
   const [form, setForm] = useState<FormState>({
+    phone_dial_code: "", phone_local: "",
     name: "", birth_day: "", birth_month: "", birth_year: "",
     country: "",
     knowledge_level: "", monthly_income: "", initial_capital: "",
@@ -160,6 +179,8 @@ export default function OnboardingScreen() {
     investment_horizon: "", investment_goal: "", q1: "", q4: "",
     has_broker: "", broker_name: "", has_investments: "", investing_knowledge: "",
   });
+  const phoneDigits = form.phone_local.replace(/\D/g, "");
+  const phoneValid  = !!form.phone_dial_code && phoneDigits.length >= 7 && phoneDigits.length <= 14;
   const firstName  = form.name.trim().split(" ")[0];
   const calculated = calculateRisk(form.q1, form.q4);
   const riskCfg    = RISK_CONFIG[calculated];
@@ -233,16 +254,50 @@ export default function OnboardingScreen() {
       emoji: "👋",
       title: t("onboarding.step0.title"),
       sub: t("onboarding.step0.sub"),
-      isValid: () => form.name.trim().length >= 2 && birthDateValid && !!form.country,
+      isValid: () => phoneValid && form.name.trim().length >= 2 && birthDateValid && !!form.country,
       content: (
         <View style={{ gap: 20 }}>
+          <View>
+            <Text style={S.label}>{t("onboarding.step0.phoneLabel")}</Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, flex: 1 }}>
+                {DIAL_CODES.map((d) => {
+                  const active = form.phone_dial_code === d.code;
+                  return (
+                    <TouchableOpacity
+                      key={d.value}
+                      onPress={() => setForm(f => ({ ...f, phone_dial_code: d.code }))}
+                      style={{
+                        flexDirection: "row", alignItems: "center", gap: 4,
+                        paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: active ? "#00d47e" : "#1a1d27",
+                        backgroundColor: active ? "rgba(0,212,126,0.1)" : "#111318",
+                      }}
+                    >
+                      <Text style={{ fontSize: 14 }}>{d.emoji}</Text>
+                      <Text style={{ fontSize: 12, fontWeight: "600", color: active ? "#00d47e" : "#9ca3af" }}>{d.code}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+            <TextInput
+              style={[S.input, { marginTop: 8 }]} value={form.phone_local}
+              onChangeText={(v) => setForm(f => ({ ...f, phone_local: v }))}
+              placeholder={t("onboarding.step0.phonePlaceholder")} placeholderTextColor="#374151"
+              keyboardType="phone-pad" autoFocus
+            />
+            <Text style={S.hint}>{t("onboarding.step0.phoneHint")}</Text>
+          </View>
+
           <View>
             <Text style={S.label}>{t("onboarding.step0.fullName")}</Text>
             <TextInput
               style={S.input} value={form.name}
               onChangeText={(v) => setForm(f => ({ ...f, name: v }))}
               placeholder={t("onboarding.step0.namePlaceholder")} placeholderTextColor="#374151"
-              autoCapitalize="words" autoFocus
+              autoCapitalize="words"
             />
             <Text style={S.hint}>{t("onboarding.step0.nameHint")}</Text>
           </View>
@@ -776,6 +831,7 @@ export default function OnboardingScreen() {
     setLoading(true); setError("");
     try {
       const profileData = {
+        phone_number:           form.phone_dial_code + phoneDigits,
         name:                   form.name.trim(),
         birth_date:             birthDateStr || undefined,
         country:                form.country || undefined,
