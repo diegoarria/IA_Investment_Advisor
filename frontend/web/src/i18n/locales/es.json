@@ -2400,6 +2400,31 @@
       "decisionOther": "Registraste una decisión"
     }
   },
+  "panicStreak": {
+    "eyebrow": "Tu racha",
+    "badge": "Racha activa",
+    "days": "días",
+    "dayLabel": "Día {{count}}",
+    "caption": "Sin vender en un día rojo del mercado.",
+    "nextMilestone": "Día {{days}} · Bono Premium",
+    "allMilestonesReached": "¡Todos los hitos alcanzados!",
+    "claimCta": "Reclamar bono del día {{days}}",
+    "claiming": "Reclamando..."
+  },
+  "thenNow": {
+    "title": "Entonces vs. ahora",
+    "then": "Cómo pensabas",
+    "now": "Cómo piensas hoy",
+    "marginOfSafety": "Margen de seguridad {{pct}}%",
+    "priceThen": "Precio ${{price}}",
+    "thesisViewed": "Viste el análisis de esta empresa",
+    "decisionBuy": "Compraste",
+    "decisionSell": "Vendiste",
+    "decisionOther": "Registraste una decisión",
+    "reversalSignFlip": "Cambio de opinión detectado",
+    "reversalNoNewThesis": "Actuaste sin registrar una nueva tesis",
+    "daysHolding": "{{count}} días manteniendo"
+  },
   "diarioDecisiones": {
     "headerTitle": "Diario de Sesgos",
     "headerSubtitle": "Registra tus movimientos y descubre tus sesgos",
@@ -3079,6 +3104,10 @@
     "step0": {
       "subtitle": "BIENVENIDO",
       "title": "¡Hola! Cuéntanos sobre ti",
+      "phoneLabel": "Tu número de teléfono",
+      "phoneCode": "Código",
+      "phonePlaceholder": "55 1234 5678",
+      "phoneHint": "Lo usaremos para funciones futuras como llamadas de tu mentor y avisos importantes.",
       "nameLabel": "Tu nombre completo",
       "namePlaceholder": "Ej. Diego Arria",
       "nameHint": "Así te llamaremos y la IA sabrá cómo dirigirse a ti.",

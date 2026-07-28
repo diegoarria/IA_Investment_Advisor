@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { market as marketApi, graphApi } from "@/lib/api";
 import InvestmentGraphTimeline, { type GraphEvent } from "@/components/InvestmentGraphTimeline";
+import ThenNowCard, { type ThenNowData } from "@/components/ThenNowCard";
 import IncomeStatementTab from "@/components/IncomeStatementTab";
 import BalanceSheetTab from "@/components/BalanceSheetTab";
 import CashFlowTab from "@/components/CashFlowTab";
@@ -757,6 +758,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
   const [graphEvents, setGraphEvents] = useState<GraphEvent[]>([]);
   const [loadingGraph, setLoadingGraph] = useState(false);
   const [graphLoaded, setGraphLoaded] = useState(false);
+  const [thenNow, setThenNow] = useState<ThenNowData | null>(null);
 
   // Rich financials from /api/stocks/{ticker}/financials (uses income_stmt, not quoteSummary)
   type RichFinancials = {
@@ -844,6 +846,9 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
       .then((r) => setGraphEvents(r.data?.timeline ?? []))
       .catch(() => {})
       .finally(() => { setLoadingGraph(false); setGraphLoaded(true); });
+    graphApi.getThenNow(ticker)
+      .then((r) => setThenNow(r.data?.has_data ? r.data : null))
+      .catch(() => {});
   }, [tab, ticker]); // eslint-disable-line
 
   const profile = data?.profile;
@@ -1846,6 +1851,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
           {/* Investment Graph — "Tu historia con esta empresa" */}
           {tab === "history" && (
             <div className="px-5 py-4">
+              {thenNow && <ThenNowCard data={thenNow} className="mb-4" />}
               <InvestmentGraphTimeline
                 events={graphEvents}
                 loading={loadingGraph}

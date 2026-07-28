@@ -2355,6 +2355,9 @@
       "fullName": "Tu nombre completo",
       "nameHint": "Así te llamaremos en la app.",
       "namePlaceholder": "Ej. Diego Arria",
+      "phoneLabel": "Tu número de teléfono",
+      "phonePlaceholder": "55 1234 5678",
+      "phoneHint": "Lo usaremos para funciones futuras como llamadas de tu mentor y avisos importantes.",
       "sub": "Necesitamos tu nombre y edad para personalizar tu experiencia.",
       "title": "¡Hola! Cuéntanos sobre ti",
       "whereInvestFrom": "¿Desde dónde inviertes?"
@@ -2974,6 +2977,31 @@
       "decisionSell": "Vendiste",
       "decisionOther": "Registraste una decisión"
     }
+  },
+  "panicStreak": {
+    "eyebrow": "Tu racha",
+    "badge": "Racha activa",
+    "days": "días",
+    "dayLabel": "Día {{count}}",
+    "caption": "Sin vender en un día rojo del mercado.",
+    "nextMilestone": "Día {{days}} · Bono Premium",
+    "allMilestonesReached": "¡Todos los hitos alcanzados!",
+    "claimCta": "Reclamar bono del día {{days}}",
+    "claiming": "Reclamando..."
+  },
+  "thenNow": {
+    "title": "Entonces vs. ahora",
+    "then": "Cómo pensabas",
+    "now": "Cómo piensas hoy",
+    "marginOfSafety": "Margen de seguridad {{pct}}%",
+    "priceThen": "Precio ${{price}}",
+    "thesisViewed": "Viste el análisis de esta empresa",
+    "decisionBuy": "Compraste",
+    "decisionSell": "Vendiste",
+    "decisionOther": "Registraste una decisión",
+    "reversalSignFlip": "Cambio de opinión detectado",
+    "reversalNoNewThesis": "Actuaste sin registrar una nueva tesis",
+    "daysHolding": "{{count}} días manteniendo"
   },
   "mobileDecisionDiary": {
     "heroTitle": "Diario de Sesgos",

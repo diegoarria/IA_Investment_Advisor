@@ -28,6 +28,7 @@ import PaywallModal from "../PaywallModal";
 import { useSubscriptionStore, hasPremiumAccess } from "../../lib/subscriptionStore";
 import { graphApi } from "../../lib/api";
 import InvestmentGraphTimeline, { type GraphEvent } from "../InvestmentGraphTimeline";
+import MobileThenNowCard, { type ThenNowData } from "../MobileThenNowCard";
 
 // ─── Palette ─────────────────────────────────────────────────────────────────
 const D = {
@@ -579,6 +580,7 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
   const [graphEvents, setGraphEvents] = useState<GraphEvent[]>([]);
   const [loadingGraph, setLoadingGraph] = useState(false);
   const [graphLoaded, setGraphLoaded] = useState(false);
+  const [thenNow, setThenNow] = useState<ThenNowData | null>(null);
 
   useEffect(() => {
     if (ticker) posthog.capture("stock_detail_viewed", { ticker });
@@ -592,6 +594,9 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
       .then((r: any) => setGraphEvents(r.data?.timeline ?? []))
       .catch(() => {})
       .finally(() => { setLoadingGraph(false); setGraphLoaded(true); });
+    graphApi.getThenNow(ticker)
+      .then((r: any) => setThenNow(r.data?.has_data ? r.data : null))
+      .catch(() => {});
   }, [activeTab, ticker]); // eslint-disable-line
   const { data: richFin } = useRichFinancials(ticker, activeTab === "financieros");
 
@@ -706,6 +711,7 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
     if (activeTab === "historia") {
       return (
         <View style={{ paddingBottom: 48 }}>
+          {thenNow && <MobileThenNowCard data={thenNow} style={{ marginBottom: 16 }} />}
           <InvestmentGraphTimeline
             events={graphEvents}
             loading={loadingGraph}

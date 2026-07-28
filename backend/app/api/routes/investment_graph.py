@@ -24,6 +24,17 @@ async def get_company_timeline(ticker: str, limit: int = 100, user_id: str = Dep
     return {"ticker": ticker.upper(), "timeline": timeline}
 
 
+@router.get("/company/{ticker}/then-now")
+async def get_then_now(ticker: str, user_id: str = Depends(get_current_user_id)):
+    """'Entonces vs. ahora' comparison for one ticker. Returns
+    {"has_data": false} when there's nothing real to compare yet — the
+    frontend simply doesn't render the card in that case."""
+    comparison = await graph_service.get_then_now(user_id, ticker)
+    if not comparison:
+        return {"has_data": False}
+    return {"has_data": True, **comparison}
+
+
 @router.get("/timeline")
 async def get_global_timeline(limit: int = 100, user_id: str = Depends(get_current_user_id)):
     """Cross-company feed — 'Tu Bitácora'."""

@@ -2355,6 +2355,9 @@
       "fullName": "Your full name",
       "nameHint": "This is how we'll address you in the app.",
       "namePlaceholder": "e.g. Diego Arria",
+      "phoneLabel": "Your phone number",
+      "phonePlaceholder": "55 1234 5678",
+      "phoneHint": "We'll use it for future features like mentor calls and important alerts.",
       "sub": "We need your name and age to personalize your experience.",
       "title": "Hi! Tell us about yourself",
       "whereInvestFrom": "Where do you invest from?"
@@ -2974,6 +2977,31 @@
       "decisionSell": "You sold",
       "decisionOther": "You logged a decision"
     }
+  },
+  "panicStreak": {
+    "eyebrow": "Your streak",
+    "badge": "Streak active",
+    "days": "days",
+    "dayLabel": "Day {{count}}",
+    "caption": "Without selling on a red market day.",
+    "nextMilestone": "Day {{days}} · Premium bonus",
+    "allMilestonesReached": "All milestones reached!",
+    "claimCta": "Claim day {{days}} bonus",
+    "claiming": "Claiming..."
+  },
+  "thenNow": {
+    "title": "Then vs. now",
+    "then": "How you thought",
+    "now": "How you think today",
+    "marginOfSafety": "Margin of safety {{pct}}%",
+    "priceThen": "Price ${{price}}",
+    "thesisViewed": "You viewed this company's analysis",
+    "decisionBuy": "You bought",
+    "decisionSell": "You sold",
+    "decisionOther": "You logged a decision",
+    "reversalSignFlip": "Opinion change detected",
+    "reversalNoNewThesis": "You acted without logging a new thesis",
+    "daysHolding": "{{count}} days holding"
   },
   "mobileDecisionDiary": {
     "heroTitle": "Bias Diary",

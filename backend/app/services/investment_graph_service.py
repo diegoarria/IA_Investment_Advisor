@@ -123,6 +123,81 @@ async def get_global_timeline(user_id: str, limit: int = 100) -> list[dict]:
     return combined[:limit]
 
 
+async def get_then_now(user_id: str, ticker: str) -> dict | None:
+    """'Entonces vs. ahora' comparison for one ticker — the Bitácora's
+    highest-leverage view: how did your real, logged thinking about this
+    company change? Two cases, both derived only from real logged data,
+    never a fabricated quote or invented detail:
+
+    1. Two or more thesis views exist for this ticker -> compare the
+       earliest and the latest. Flags a reversal if margin_of_safety_pct
+       flipped sign (same rule as compute_metrics' opinion_reversals).
+    2. Only one thesis view exists, but a buy/sell decision happened after
+       it with no updated thesis in between -> flags that the user acted
+       without registering a new view of their own reasoning. This is
+       never framed as "you doubled your position" or similar, since
+       investment_decisions doesn't carry a share-count delta — only what's
+       actually there (that a decision happened, and when).
+
+    Returns None when there's nothing real to compare (no thesis at all,
+    or a single thesis never acted on since)."""
+    ticker = ticker.upper()
+    events = await _fetch_graph_events(user_id, ticker, limit=200)
+    decisions = await _fetch_decisions(user_id, ticker, limit=200)
+    theses = sorted(
+        (e for e in events if e["event_type"] == "thesis"),
+        key=lambda e: e.get("occurred_at") or "",
+    )
+    if not theses:
+        return None
+
+    then = theses[0]
+    now_node: dict | None = None
+    reversal_detected = False
+    reversal_reason: str | None = None
+
+    if len(theses) >= 2:
+        now_node = theses[-1]
+        then_mos = (then.get("payload") or {}).get("margin_of_safety_pct")
+        now_mos = (now_node.get("payload") or {}).get("margin_of_safety_pct")
+        if then_mos is not None and now_mos is not None and (then_mos > 0) != (now_mos > 0):
+            reversal_detected = True
+            reversal_reason = "sign_flip"
+    else:
+        later_decisions = sorted(
+            (d for d in decisions if (d.get("occurred_at") or "") > (then.get("occurred_at") or "")),
+            key=lambda d: d.get("occurred_at") or "",
+        )
+        if later_decisions:
+            now_node = later_decisions[-1]
+            reversal_detected = True
+            reversal_reason = "decision_without_new_thesis"
+
+    if now_node is None:
+        return None
+
+    days_holding = None
+    buys = sorted(
+        d["occurred_at"] for d in decisions
+        if (d.get("payload") or {}).get("action") == "buy" and d.get("occurred_at")
+    )
+    if buys:
+        try:
+            first_buy = datetime.fromisoformat(buys[0].replace("Z", "+00:00"))
+            days_holding = (datetime.now(timezone.utc) - first_buy).days
+        except Exception:
+            pass
+
+    return {
+        "ticker": ticker,
+        "then": then,
+        "now": now_node,
+        "reversal_detected": reversal_detected,
+        "reversal_reason": reversal_reason,
+        "days_holding": days_holding,
+    }
+
+
 async def compute_metrics(user_id: str, price_lookup: dict[str, float] | None = None) -> dict:
     """The 6 metrics from the design doc. Deliberately simple, honest
     heuristics for v1 — not a full backtesting engine. Every number here is
