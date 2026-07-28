@@ -1,8 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
 import * as SecureStore from "expo-secure-store";
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+// Fallbacks matter here specifically because EAS build profiles can silently
+// omit the `env` block (as the `preview` profile did) — without a fallback,
+// createClient() below throws on an empty URL at module-import time, before
+// any UI renders, which looks like the app crashing/closing immediately on open.
+const SUPABASE_URL =
+  process.env.EXPO_PUBLIC_SUPABASE_URL || "https://nyxcqjzeiyptyipigsaz.supabase.co";
+const SUPABASE_ANON_KEY =
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55eGNxanplaXlwdHlpcGlnc2F6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1NDYwOTIsImV4cCI6MjA5NTEyMjA5Mn0.zrOA6106uiBblb95PHc-jEvtBkFfB8jIHjxC_qZrlwg";
 
 const ExpoSecureStoreAdapter = {
   getItem: async (key: string) => {
