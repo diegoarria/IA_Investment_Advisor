@@ -1479,8 +1479,8 @@ export default function PortfolioScreen() {
     posthog.capture("portfolio_ai_analysis_requested", { position_count: positions.length });
     setAnalysisLoading(true); setPortfolioAnalysis(null);
     try {
-      const posPayload = positions.map((p) => ({
-        ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice, name: p.name,
+      const posPayload = aggregatedPositions.map((p) => ({
+        ticker: p.ticker, shares: p.totalShares, avg_price: p.avgPrice, name: p.name,
         current_price: prices[p.ticker]?.price ?? undefined,
       }));
       const res = await marketApi.analyzePortfolio(posPayload);
@@ -3056,7 +3056,7 @@ export default function PortfolioScreen() {
               )}
             </View>
             <Text style={[s.simSubtitle, { color: "#6b7280" }]}>
-              {t("portfolio.analysis.sectionSubtitle", { count: positions.length })}
+              {t("portfolio.analysis.sectionSubtitle", { count: aggregatedPositions.length })}
             </Text>
           </View>
         </View>

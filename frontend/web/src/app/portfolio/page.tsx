@@ -1582,8 +1582,8 @@ export default function PortfolioPage() {
     if (positions.length === 0) return;
     setAnalysisLoading(true); setPortfolioAnalysis(null); setAnalysisError(null);
     try {
-      const posPayload = positions.map((p) => ({
-        ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice, name: p.name,
+      const posPayload = aggregatedPositions.map((p) => ({
+        ticker: p.ticker, shares: p.totalShares, avg_price: p.avgPrice, name: p.name,
         current_price: prices[p.ticker]?.price ?? undefined,
       }));
       const res = await marketApi.analyzePortfolio(posPayload);
@@ -3187,7 +3187,7 @@ export default function PortfolioPage() {
                   {!isPremium && <span className="text-xs px-1.5 py-0.5 rounded-md font-bold" style={{ background:"rgba(245,158,11,0.15)", color:"#f59e0b" }}>Premium</span>}
                 </div>
                 <p className="text-xs" style={{ color:"var(--muted)" }}>
-                  {t("portfolio.analyze.subtitle", { count: positions.length })}
+                  {t("portfolio.analyze.subtitle", { count: aggregatedPositions.length })}
                 </p>
               </div>
             </div>
