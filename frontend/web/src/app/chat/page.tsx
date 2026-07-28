@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import TourSpotlight from "@/components/TourSpotlight";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -163,6 +163,9 @@ export default function ChatPage() {
   const { language } = useLanguageStore();
   const subStore = useSubscriptionStore();
   const { positions, loadFromServer: loadPortfolio } = usePortfolioStore();
+  // Distinct holdings, not purchase lots — buying more of a ticker you
+  // already own shouldn't inflate this count.
+  const distinctPositionsCount = useMemo(() => new Set(positions.map((p) => p.ticker)).size, [positions]);
   const upsellTrigger = useUpsellStore((s) => s.trigger);
   const mentor = getMentorInfo(profile?.mentor);
   const cancelRef = useRef({ cancelled: false });
@@ -436,13 +439,30 @@ export default function ChatPage() {
     const q4Labels: Record<string, string> = { A: "conservador — prefiere $5K garantizado", B: "moderado-bajo — acepta riesgo de $5K", C: "moderado-alto — acepta riesgo de $20K", D: "especulador — arriesga todo" };
     const q5Labels: Record<string, string> = { A: "pasivo — inversión automática", B: "semipasivo — revisión mensual", C: "activo — revisiones semanales", D: "muy activo — gestión diaria" };
 
+    // `positions` is one row per purchase lot (buying more of a ticker you
+    // already hold adds a new lot, by design) — aggregate by ticker before
+    // describing the portfolio to Mentor IA, or a stock bought twice reads
+    // as two separate holdings.
+    const holdingsMap = new Map<string, { ticker: string; name?: string; shares: number; cost: number }>();
+    for (const p of positions) {
+      const existing = holdingsMap.get(p.ticker);
+      if (existing) {
+        existing.shares += p.shares;
+        existing.cost += p.shares * p.avgPrice;
+      } else {
+        holdingsMap.set(p.ticker, { ticker: p.ticker, name: p.name, shares: p.shares, cost: p.shares * p.avgPrice });
+      }
+    }
+    const holdings = Array.from(holdingsMap.values());
+
     let portfolioBlock = "\n\n[PORTAFOLIO REAL DEL USUARIO]";
-    if (positions.length === 0) {
+    if (holdings.length === 0) {
       portfolioBlock += "\nEl usuario aún no tiene posiciones registradas.";
     } else {
-      portfolioBlock += `\nPosiciones (${positions.length}):`;
-      for (const p of positions) {
-        portfolioBlock += `\n- ${p.ticker}${p.name ? ` (${p.name})` : ""}: ${p.shares} acc × $${p.avgPrice.toFixed(2)} costo promedio`;
+      portfolioBlock += `\nPosiciones (${holdings.length}):`;
+      for (const h of holdings) {
+        const avgPrice = h.shares > 0 ? h.cost / h.shares : 0;
+        portfolioBlock += `\n- ${h.ticker}${h.name ? ` (${h.name})` : ""}: ${h.shares} acc × $${avgPrice.toFixed(2)} costo promedio`;
       }
     }
 
@@ -930,10 +950,10 @@ export default function ChatPage() {
                           </span>
                         );
                       })()}
-                      {positions.length > 0 && (
+                      {distinctPositionsCount > 0 && (
                         <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full border"
                               style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--card)" }}>
-                          💼 {positions.length !== 1 ? t("chat.positionsCount", { count: positions.length }) : t("chat.positionsCountSingular", { count: positions.length })}
+                          💼 {distinctPositionsCount !== 1 ? t("chat.positionsCount", { count: distinctPositionsCount }) : t("chat.positionsCountSingular", { count: distinctPositionsCount })}
                         </span>
                       )}
                       {!isPremium && (

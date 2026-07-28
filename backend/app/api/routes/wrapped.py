@@ -129,7 +129,11 @@ async def get_wrapped(
     else:
         raw = {}
     positions: list = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
-    tickers = [p["ticker"] for p in positions if p.get("ticker")]
+    # `positions` is one row per purchase lot — a ticker bought twice must
+    # still count as ONE real holding here (dict.fromkeys dedupes while
+    # keeping the original order), or it can crowd the top-3 YTD list with
+    # the same stock twice instead of showing an actually different holding.
+    tickers = list(dict.fromkeys(p["ticker"] for p in positions if p.get("ticker")))
 
     # ── 4. Top 3 stocks by YTD return ────────────────────────────────────────
     ytd_results: list[dict] = []
@@ -147,9 +151,11 @@ async def get_wrapped(
         sector_tasks = await asyncio.gather(*[_ticker_sector(t) for t in tickers])
         sector_counts: dict[str, float] = {}
         for ticker, sector in zip(tickers, sector_tasks):
-            # Weight by value if available
-            value = next((p.get("value", 1) for p in positions if p.get("ticker") == ticker), 1)
-            sector_counts[sector] = sector_counts.get(sector, 0) + float(value or 1)
+            # Weight by value, summed across every lot of this ticker —
+            # not just the first lot, or a stock bought twice under-counts
+            # its real weight in the dominant-sector calc.
+            value = sum(float(p.get("value", 1) or 1) for p in positions if p.get("ticker") == ticker)
+            sector_counts[sector] = sector_counts.get(sector, 0) + value
         if sector_counts:
             dominant = max(sector_counts, key=lambda k: sector_counts[k])
             top_sector = _es_sector(dominant)

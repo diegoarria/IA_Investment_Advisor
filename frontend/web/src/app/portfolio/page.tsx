@@ -542,22 +542,37 @@ interface PriceData { price: number | null; currency: string; name: string }
 
 function scorePortfolio(positions: Position[], pricesData: Record<string, PriceData>) {
   if (!positions.length) return { score:0, levelIdx:0, sectorPcts:{} };
+  // Aggregate by ticker first — buying more of a stock you already hold
+  // adds a new purchase lot, not a new holding. Without this, a ticker
+  // split across lots under-reports its real concentration weight (each
+  // lot's value is smaller than the combined position), and the ">=10"
+  // penalty below counts lots instead of real distinct holdings.
+  const holdingsMap = new Map<string, { shares: number; cost: number }>();
+  for (const pos of positions) {
+    const existing = holdingsMap.get(pos.ticker);
+    if (existing) { existing.shares += pos.shares; existing.cost += pos.shares * pos.avgPrice; }
+    else holdingsMap.set(pos.ticker, { shares: pos.shares, cost: pos.shares * pos.avgPrice });
+  }
+  const holdings = Array.from(holdingsMap.entries()).map(([ticker, agg]) => ({
+    ticker, shares: agg.shares, avgPrice: agg.shares > 0 ? agg.cost / agg.shares : 0,
+  }));
+
   let totalVal=0, weightedRisk=0;
   const sectorVals: Record<string,number> = {};
-  for (const pos of positions) {
-    const price = pricesData[pos.ticker]?.price ?? pos.avgPrice;
-    const val = pos.shares * price;
+  for (const h of holdings) {
+    const price = pricesData[h.ticker]?.price ?? h.avgPrice;
+    const val = h.shares * price;
     totalVal += val;
-    weightedRisk += getPositionRisk(pos.ticker) * val;
-    const sector = TICKER_SECTOR[pos.ticker] ?? "Otro";
+    weightedRisk += getPositionRisk(h.ticker) * val;
+    const sector = TICKER_SECTOR[h.ticker] ?? "Otro";
     sectorVals[sector] = (sectorVals[sector]??0) + val;
   }
   if (totalVal === 0) return { score:0, levelIdx:0, sectorPcts:{} };
   let score = weightedRisk / totalVal;
-  const topVal = Math.max(...positions.map((p) => p.shares * (pricesData[p.ticker]?.price ?? p.avgPrice)));
+  const topVal = Math.max(...holdings.map((h) => h.shares * (pricesData[h.ticker]?.price ?? h.avgPrice)));
   const topPct = topVal / totalVal;
   if (topPct > 0.4) score = Math.min(100, score + (topPct-0.4)*20);
-  if (positions.length >= 10) score = Math.max(0, score - 4);
+  if (holdings.length >= 10) score = Math.max(0, score - 4);
   score = Math.round(Math.min(100, Math.max(0, score)));
   const idx = PORTFOLIO_LEVEL_BOUNDS.findIndex((l) => score >= l.min && score < l.max);
   const sectorPcts: Record<string,number> = {};

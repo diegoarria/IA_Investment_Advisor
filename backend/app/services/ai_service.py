@@ -1106,6 +1106,36 @@ def build_profile_context(profile: UserProfile) -> str:
 ADAPTA TODO tu análisis a este perfil específico, incluyendo su estilo de inversión declarado. Si no tiene broker ni inversiones, guíalo hacia su primera inversión de forma simple y sin jerga técnica."""
 
 
+def aggregate_positions_by_ticker(positions: list[dict]) -> list[dict]:
+    """`positions` is one row per purchase LOT, by design — buying more of a
+    ticker you already hold adds a new lot rather than merging into the
+    existing one, so each lot keeps its own price/date. Any code that feeds
+    positions to an LLM (or counts them) must aggregate by ticker first, or
+    a stock bought twice reads as two separate holdings with split weights.
+    Returns one row per ticker with combined shares and a shares-weighted
+    average cost — never fabricates a price, just re-derives the same real
+    numbers the caller already had."""
+    agg_by_ticker: dict[str, dict] = {}
+    for p in positions:
+        ticker = (p.get("ticker") or "?").upper()
+        shares = float(p.get("shares", 0) or 0)
+        avg    = float(p.get("avg_price", p.get("avgPrice", 0)) or 0)
+        entry  = agg_by_ticker.setdefault(ticker, {"ticker": ticker, "name": p.get("name"), "shares": 0.0, "cost": 0.0})
+        entry["shares"] += shares
+        entry["cost"]   += shares * avg
+        if not entry.get("name") and p.get("name"):
+            entry["name"] = p.get("name")
+    return [
+        {
+            "ticker": e["ticker"],
+            "name": e.get("name"),
+            "shares": e["shares"],
+            "avg_price": (e["cost"] / e["shares"] if e["shares"] else 0.0),
+        }
+        for e in agg_by_ticker.values()
+    ]
+
+
 def build_deep_user_context(
     extended: dict,
     positions: list[dict],
@@ -1123,7 +1153,15 @@ def build_deep_user_context(
     parts = ["\n## 🧬 LO QUE SABES DE ESTE USUARIO (úsalo en CADA respuesta — eres su mentor, no un chatbot):"]
 
     # ── Portfolio real ─────────────────────────────────────────────────────────
+    # `positions` is one row per purchase LOT (buying more of a ticker you
+    # already hold adds a new lot, by design — it preserves each lot's own
+    # price/date). The mentor must reason about real HOLDINGS, not lots, or
+    # a stock bought twice reads as two separate positions with split
+    # weights — aggregate by ticker (shares-weighted avg cost) before
+    # anything below touches `positions`.
     if positions:
+        positions = aggregate_positions_by_ticker(positions)
+
         total_cost = sum(
             float(p.get("shares", 0) or 0) * float(p.get("avg_price", 0) or 0)
             for p in positions
@@ -2441,7 +2479,7 @@ async def simulate_whatif(
 ) -> dict:
     system_prompt = build_system_prompt(profile)
     lang = _lang_from_profile(profile)
-    portfolio_str = json.dumps(portfolio, ensure_ascii=False)
+    portfolio_str = json.dumps(aggregate_positions_by_ticker(portfolio), ensure_ascii=False)
 
     if scenario_type == "swap":
         sell_ticker = scenario_params.get("sell_ticker", "")
@@ -2531,7 +2569,7 @@ async def analyze_portfolio_score(portfolio: list[dict], profile: "UserProfile |
         f"El perfil de riesgo del usuario es: {risk}. "
         "Respondes ÚNICAMENTE con JSON estructurado válido. Sin texto adicional, sin markdown, sin comentarios."
     )
-    portfolio_str = json.dumps(portfolio, ensure_ascii=False)
+    portfolio_str = json.dumps(aggregate_positions_by_ticker(portfolio), ensure_ascii=False)
     score_label_options = "Excellent|Very Good|Good|Fair|Needs Work" if lang == "en" else "Excelente|Muy Bueno|Bueno|Regular|Mejorable"
 
     prompt = f"""{_output_language_directive(lang)}Analiza este portafolio y responde con JSON puro (sin markdown, sin texto extra).

@@ -389,7 +389,7 @@ export default function NotificationsPage() {
                     <div className="flex flex-col items-center gap-2 py-6">
                       <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent-l)" }} />
                       <p className="text-xs" style={{ color: "var(--dim)" }}>
-                        {t("notifications.searchingNewsFor", { tickers: positions.map((p) => p.ticker).join(", ") })}
+                        {t("notifications.searchingNewsFor", { tickers: [...new Set(positions.map((p) => p.ticker))].join(", ") })}
                       </p>
                     </div>
                   ) : newsError ? (

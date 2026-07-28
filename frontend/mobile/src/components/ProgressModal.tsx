@@ -42,11 +42,15 @@ export default function ProgressModal({ visible, onClose }: Props) {
     [sessions]
   );
 
+  // Distinct holdings, not purchase lots — buying more of a ticker you
+  // already own shouldn't inflate this stat.
+  const distinctPositionsCount = useMemo(() => new Set(positions.map((p) => p.ticker)).size, [positions]);
+
   const stats = [
     { icon: "flame-outline",           color: "#f59e0b", label: t("progressModal.activeStreak"),  value: t("progressModal.daysUnit", { count: streak }) },
     { icon: "book-outline",             color: "#22c55e", label: t("progressModal.topicsLearned"), value: `${totalCompleted}` },
     { icon: "chatbubble-ellipses-outline", color: "#0ea5e9", label: t("progressModal.aiQueries"), value: `${totalMessages}` },
-    { icon: "bar-chart-outline",        color: "#8b5cf6", label: t("progressModal.positions"),    value: `${positions.length}` },
+    { icon: "bar-chart-outline",        color: "#8b5cf6", label: t("progressModal.positions"),    value: `${distinctPositionsCount}` },
   ];
 
   return (

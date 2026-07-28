@@ -102,6 +102,9 @@ export default function HomePage() {
   const { isAuthenticated, authRestoring } = useAuthStore();
   const { profile, setProfile } = useProfileStore();
   const { positions, portfolioCurrency } = usePortfolioStore();
+  // Distinct holdings, not purchase lots — buying more of a ticker you
+  // already own shouldn't inflate this count.
+  const distinctPositionsCount = useMemo(() => new Set(positions.map((p) => p.ticker)).size, [positions]);
   const fxRate = useFxRate(portfolioCurrency);
   const streak = useLearnStore((s) => s.streak);
   const completedToday = useLearnStore((s) => s.completedToday);
@@ -1222,8 +1225,8 @@ export default function HomePage() {
               <div className="flex-1 text-left">
                 <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("home.mentorCta.title")}</p>
                 <p className="text-xs" style={{ color: "var(--muted)" }}>
-                  {positions.length
-                    ? t("home.mentorCta.withPositions", { count: positions.length })
+                  {distinctPositionsCount
+                    ? t("home.mentorCta.withPositions", { count: distinctPositionsCount })
                     : t("home.mentorCta.withoutPositions")}
                 </p>
               </div>

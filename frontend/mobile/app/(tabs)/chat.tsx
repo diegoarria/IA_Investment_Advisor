@@ -134,6 +134,9 @@ export default function ChatScreen() {
   const messages = currentMessages();
   const diagnosis = currentDiagnosis();
   const positions = usePortfolioStore((s) => s.positions);
+  // Distinct holdings, not purchase lots — buying more of a ticker you
+  // already own shouldn't inflate this count.
+  const distinctPositionsCount = useMemo(() => new Set(positions.map((p) => p.ticker)).size, [positions]);
 
   const subStore = useSubscriptionStore();
   const { activeOffer, userTier: upsellTier, prices: upsellPrices, triggerSource: upsellSource, trigger: upsellTrigger, dismiss: upsellDismiss } = useUpsellStore();
@@ -290,32 +293,49 @@ export default function ChatScreen() {
       ? "Declaró apetito especulativo máximo — si entra en pánico con volatilidad normal, es contradicción"
       : "";
 
-    // Portfolio block
+    // Portfolio block — `positions` is one row per purchase lot (buying more
+    // of a ticker you already hold adds a new lot, by design), so aggregate
+    // by ticker first or a stock bought twice reads as two separate
+    // holdings with split weights/P&L instead of one combined position.
+    const holdingsMap = new Map<string, { ticker: string; name?: string; shares: number; invested: number }>();
+    for (const p of positions) {
+      const invested = p.shares * p.avgPrice;
+      const existing = holdingsMap.get(p.ticker);
+      if (existing) {
+        existing.shares += p.shares;
+        existing.invested += invested;
+      } else {
+        holdingsMap.set(p.ticker, { ticker: p.ticker, name: p.name, shares: p.shares, invested });
+      }
+    }
+    const holdings = Array.from(holdingsMap.values());
+
     let portfolioBlock = "\n\n[PORTAFOLIO REAL DEL USUARIO]";
-    if (positions.length === 0) {
+    if (holdings.length === 0) {
       portfolioBlock += "\nEl usuario aún no tiene posiciones registradas en su portafolio.";
     } else {
       let totalInvested = 0;
       let totalCurrent = 0;
-      const posLines: { p: typeof positions[0]; invested: number; current: number; currentPrice: number }[] = [];
-      for (const p of positions) {
-        const invested = p.shares * p.avgPrice;
-        const currentPrice = livePrices[p.ticker] ?? p.avgPrice;
-        const current = p.shares * currentPrice;
-        totalInvested += invested;
+      const posLines: { h: typeof holdings[0]; invested: number; current: number; currentPrice: number }[] = [];
+      for (const h of holdings) {
+        const avgPrice = h.shares > 0 ? h.invested / h.shares : 0;
+        const currentPrice = livePrices[h.ticker] ?? avgPrice;
+        const current = h.shares * currentPrice;
+        totalInvested += h.invested;
         totalCurrent += current;
-        posLines.push({ p, invested, current, currentPrice });
+        posLines.push({ h, invested: h.invested, current, currentPrice });
       }
       portfolioBlock += `\nCapital invertido: $${totalInvested.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
       portfolioBlock += `\nValor actual: $${totalCurrent.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
       const totalPnl = totalInvested > 0 ? ((totalCurrent - totalInvested) / totalInvested * 100) : 0;
       portfolioBlock += ` (${totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(1)}% total)`;
-      portfolioBlock += `\n\nPosiciones (${positions.length}):`;
-      for (const { p, invested, current, currentPrice } of posLines as any[]) {
+      portfolioBlock += `\n\nPosiciones (${holdings.length}):`;
+      for (const { h, invested, current, currentPrice } of posLines) {
         const weight = totalCurrent > 0 ? (current / totalCurrent * 100) : 0;
         const pnl = invested > 0 ? ((current - invested) / invested * 100) : 0;
-        const hasLive = !!livePrices[p.ticker];
-        portfolioBlock += `\n- ${p.ticker}${p.name ? ` (${p.name})` : ""}: ${p.shares} acc × $${p.avgPrice.toFixed(2)} compra${hasLive ? ` | Precio actual: $${currentPrice.toFixed(2)} | P&L: ${pnl >= 0 ? "+" : ""}${pnl.toFixed(1)}%` : ""} | Peso: ${weight.toFixed(1)}%`;
+        const hasLive = !!livePrices[h.ticker];
+        const avgPrice = h.shares > 0 ? h.invested / h.shares : 0;
+        portfolioBlock += `\n- ${h.ticker}${h.name ? ` (${h.name})` : ""}: ${h.shares} acc × $${avgPrice.toFixed(2)} compra${hasLive ? ` | Precio actual: $${currentPrice.toFixed(2)} | P&L: ${pnl >= 0 ? "+" : ""}${pnl.toFixed(1)}%` : ""} | Peso: ${weight.toFixed(1)}%`;
       }
       portfolioBlock += `\n\nUsa este portafolio para contextualizar cualquier pregunta del usuario. Analiza concentración, diversificación, correlaciones entre posiciones y cómo cada posición encaja con su perfil de riesgo. NO recomiendes comprar ni vender activos específicos — guía con análisis educativo y preguntas que ayuden al usuario a pensar por sí mismo.`;
     }
@@ -890,9 +910,9 @@ Instrucciones críticas:
                         </View>
                       );
                     })()}
-                    {positions.length > 0 && (
+                    {distinctPositionsCount > 0 && (
                       <View style={[styles.contextChip, { borderColor: colors.border }]}>
-                        <Text style={[styles.contextChipText, { color: colors.textMuted }]}>{t("chat.positionsCount", { count: positions.length })}</Text>
+                        <Text style={[styles.contextChipText, { color: colors.textMuted }]}>{t("chat.positionsCount", { count: distinctPositionsCount })}</Text>
                       </View>
                     )}
                     {!isPremiumAccess && (

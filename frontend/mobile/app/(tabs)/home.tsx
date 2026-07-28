@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Image, RefreshControl, Animated, Dimensions,
@@ -344,6 +344,9 @@ export default function HomeScreen() {
   const [pendingMilestone, setPendingMilestone] = React.useState<StreakMilestone | null>(null);
   const [claimingMilestone, setClaimingMilestone] = React.useState(false);
   const { positions, portfolioCurrency } = usePortfolioStore();
+  // Distinct holdings, not purchase lots — buying more of a ticker you
+  // already own shouldn't inflate this count.
+  const distinctPositionsCount = useMemo(() => new Set(positions.map((p) => p.ticker)).size, [positions]);
   const hasChatted = useChatStore((s) => s.sessions.some((sess) => sess.messages.length > 0));
   const watchlistItems = useWatchlistStore((s) => s.items);
   const subStore = useSubscriptionStore();
@@ -1598,8 +1601,8 @@ export default function HomeScreen() {
           <View style={{ flex: 1 }}>
             <Text style={[ss.insightTitle, { color: colors.text }]}>{t("home.aiCta.title")}</Text>
             <Text style={[ss.insightSub, { color: colors.textMuted }]}>
-              {positions.length
-                ? t("home.aiCta.withPositions", { count: positions.length })
+              {distinctPositionsCount
+                ? t("home.aiCta.withPositions", { count: distinctPositionsCount })
                 : t("home.aiCta.noPositions")
               }
             </Text>
