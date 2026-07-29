@@ -10,6 +10,7 @@ import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
 import StockAvatar from "@/components/StockAvatar";
+import DcfCalculator from "@/components/DcfCalculator";
 import { screenerApi, watchlist } from "@/lib/api";
 import { useSubscriptionStore } from "@/lib/store";
 
@@ -73,6 +74,9 @@ interface UndervaluedResult {
   blurb: string | null;
   checklist: Checklist | null;
   liquidity_gate: { paso: boolean; detalle: string } | null;
+  current_fcf: number | null;
+  net_cash: number | null;
+  shares_outstanding: number | null;
 }
 
 interface LiquidityGate {
@@ -99,6 +103,9 @@ interface QuickAnalysisResult {
   checklist: Checklist | null;
   liquidity_gate: LiquidityGate | null;
   generated_at: number;
+  current_fcf: number | null;
+  net_cash: number | null;
+  shares_outstanding: number | null;
 }
 
 function GeneratedAtNote({ generatedAt }: { generatedAt: number }) {
@@ -649,6 +656,16 @@ export default function SubvaluadasPage() {
 
                     <InsightBox>{quickResult.summary}</InsightBox>
 
+                    <DcfCalculator
+                      ticker={quickResult.ticker}
+                      price={quickResult.price}
+                      fcfRaw={quickResult.current_fcf}
+                      netCashRaw={quickResult.net_cash}
+                      sharesRaw={quickResult.shares_outstanding}
+                      isPremium={isPremium}
+                      onUnlock={() => setPaywallOpen(true)}
+                    />
+
                     <div className="flex gap-2">
                       <FollowButton ticker={quickResult.ticker} watchlisted={watchlisted.has(quickResult.ticker)}
                                     onFollow={() => handleFollow(quickResult.ticker, quickResult.company_name)} />
@@ -764,6 +781,16 @@ export default function SubvaluadasPage() {
                       {u.weak_dimension_warning && <WarningBadge text={u.weak_dimension_warning} />}
                       {u.checklist && <ChecklistDisplay checklist={u.checklist} />}
                       {u.blurb && <InsightBox>{u.blurb}</InsightBox>}
+
+                      <DcfCalculator
+                        ticker={u.ticker}
+                        price={u.price}
+                        fcfRaw={u.current_fcf}
+                        netCashRaw={u.net_cash}
+                        sharesRaw={u.shares_outstanding}
+                        isPremium={isPremium}
+                        onUnlock={() => setPaywallOpen(true)}
+                      />
 
                       <div className="flex gap-2">
                         <FollowButton ticker={u.ticker} watchlisted={watchlisted.has(u.ticker)}

@@ -561,6 +561,30 @@
       "paywallReason": "Análisis de earnings"
     }
   },
+  "dcfCalculator": {
+    "title": "Calculadora de Valor Intrínseco — {{ticker}}",
+    "fcf": "FCF (TTM)",
+    "netCash": "Caja neta",
+    "shares": "Acciones diluidas",
+    "currentPrice": "Precio actual",
+    "notAvailable": "No disponible",
+    "enterManually": "Ingresar manual",
+    "missingDataHint": "Faltan datos para calcular — ingrésalos manualmente arriba.",
+    "growthLabel": "Crecimiento anual",
+    "discountLabel": "Tasa de descuento",
+    "terminalGrowthLabel": "Crecimiento a perpetuidad",
+    "intrinsicValue": "Valor intrínseco por acción",
+    "vsCurrentPrice": "vs. precio actual ${{price}}",
+    "marginPositive": "+{{pct}}% de margen de seguridad",
+    "marginNegative": "{{pct}}% de margen de seguridad",
+    "noSolution": "Sin solución con estos supuestos — ajusta los sliders.",
+    "sensitivityTitle": "Mapa de sensibilidad",
+    "sensitivityNote": "La casilla con borde marcado es tu escenario actual. Si moverte un par de puntos en r o g cambia mucho el resultado, trata ese número con más cautela — no es una verdad fija, es un rango de posibilidades.",
+    "you": "TÚ",
+    "unlockTitle": "Desbloquea los supuestos personalizados con Premium",
+    "unlockCta": "Ver planes",
+    "disclaimer": "Herramienta educativa de modelaje financiero. No es asesoría de inversión ni recomendación de compra o venta. El resultado depende enteramente de los supuestos que elijas — Nuvos AI no garantiza que el precio de mercado converja hacia este número."
+  },
   "subvaluadas": {
     "title": "Mejores Oportunidades",
     "rankStrip": {

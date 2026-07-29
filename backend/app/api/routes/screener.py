@@ -546,11 +546,23 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
         logger.error("quick_analysis(%s): _finalize_checklist failed: %s", ticker, exc, exc_info=True)
         checklist = None
 
+    # DCF calculator inputs (frontend "Calculadora de Valor Intrínseco") —
+    # re-derived independently from `data`/`dcf` rather than reusing the
+    # locals from the try block above (lines 482-528), since those are only
+    # guaranteed to exist if that block ran to completion without raising.
+    _fcf_trend_vals = [v for v in (data.get("fcf_trend") or []) if v is not None]
+    current_fcf = _fcf_trend_vals[-1] if _fcf_trend_vals else None
+    net_cash = (data.get("cash") or 0) - (data.get("total_debt") or 0)
+    shares_outstanding = dcf.get("shares_outstanding")
+
     result = {
         "ticker": data["ticker"],
         "company_name": data.get("company_name"),
         "sector": data.get("sector"),
         "price": data.get("current_price"),
+        "current_fcf": current_fcf,
+        "net_cash": net_cash,
+        "shares_outstanding": shares_outstanding,
         "intrinsic_value_base": dcf["scenarios"]["base"]["intrinsic_value_per_share"],
         "expected_value_per_share": dcf.get("expected_value_per_share"),
         "margin_of_safety_pct": dcf.get("margin_of_safety_pct"),

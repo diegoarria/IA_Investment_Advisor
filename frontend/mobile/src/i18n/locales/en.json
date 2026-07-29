@@ -661,6 +661,30 @@
       "paywallReason": "Earnings analysis"
     }
   },
+  "dcfCalculator": {
+    "title": "Intrinsic Value Calculator — {{ticker}}",
+    "fcf": "FCF (TTM)",
+    "netCash": "Net cash",
+    "shares": "Diluted shares",
+    "currentPrice": "Current price",
+    "notAvailable": "Not available",
+    "enterManually": "Enter manually",
+    "missingDataHint": "Missing data to calculate — enter it manually above.",
+    "growthLabel": "Annual growth",
+    "discountLabel": "Discount rate",
+    "terminalGrowthLabel": "Terminal growth",
+    "intrinsicValue": "Intrinsic value per share",
+    "vsCurrentPrice": "vs. current price ${{price}}",
+    "marginPositive": "+{{pct}}% margin of safety",
+    "marginNegative": "{{pct}}% margin of safety",
+    "noSolution": "No solution with these assumptions — adjust the sliders.",
+    "sensitivityTitle": "Sensitivity map",
+    "sensitivityNote": "The outlined cell is your current scenario. If moving r or g by a couple points swings the result a lot, treat that number with more caution — it's not a fixed truth, it's a range of possibilities.",
+    "you": "YOU",
+    "unlockTitle": "Unlock custom assumptions with Premium",
+    "unlockCta": "See plans",
+    "disclaimer": "Educational financial modeling tool. Not investment advice or a buy/sell recommendation. The result depends entirely on the assumptions you choose — Nuvos AI does not guarantee the market price will converge toward this number."
+  },
   "subvaluadas": {
     "title": "Top Opportunities",
     "rankStrip": {

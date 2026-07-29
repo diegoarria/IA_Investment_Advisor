@@ -12,6 +12,7 @@ import { screenerWeeklyApi, watchlistServerApi } from "../../src/lib/api";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
 import StockAvatar from "../../src/components/StockAvatar";
+import MobileDcfCalculator from "../../src/components/MobileDcfCalculator";
 
 interface ChecklistItem {
   key?: string;
@@ -78,6 +79,9 @@ interface UndervaluedResult {
   blurb: string | null;
   checklist: Checklist | null;
   liquidity_gate: LiquidityGate | null;
+  current_fcf: number | null;
+  net_cash: number | null;
+  shares_outstanding: number | null;
 }
 
 interface QuickAnalysisResult {
@@ -98,6 +102,9 @@ interface QuickAnalysisResult {
   checklist: Checklist | null;
   liquidity_gate: LiquidityGate | null;
   generated_at: number;
+  current_fcf: number | null;
+  net_cash: number | null;
+  shares_outstanding: number | null;
 }
 
 function GeneratedAtNote({ generatedAt, colors }: { generatedAt: number; colors: any }) {
@@ -655,6 +662,18 @@ export default function SubvaluadasScreen() {
             <InsightBox text={quickResult.summary} colors={colors} />
 
             <View style={{ marginTop: 10 }}>
+              <MobileDcfCalculator
+                ticker={quickResult.ticker}
+                price={quickResult.price}
+                fcfRaw={quickResult.current_fcf}
+                netCashRaw={quickResult.net_cash}
+                sharesRaw={quickResult.shares_outstanding}
+                isPremium={isPremium}
+                onUnlock={() => setPaywallOpen(true)}
+              />
+            </View>
+
+            <View style={{ marginTop: 10 }}>
               <ActionButtons ticker={quickResult.ticker} companyName={quickResult.company_name}
                              watchlisted={watchlisted.has(quickResult.ticker)}
                              onFollow={() => handleFollow(quickResult.ticker, quickResult.company_name)}
@@ -758,6 +777,18 @@ export default function SubvaluadasScreen() {
                   {u.weak_dimension_warning && <WarningBadge text={u.weak_dimension_warning} />}
                   {u.checklist && <ChecklistDisplay checklist={u.checklist} colors={colors} />}
                   {u.blurb && <InsightBox text={u.blurb} colors={colors} />}
+
+                  <View style={{ marginTop: 10 }}>
+                    <MobileDcfCalculator
+                      ticker={u.ticker}
+                      price={u.price}
+                      fcfRaw={u.current_fcf}
+                      netCashRaw={u.net_cash}
+                      sharesRaw={u.shares_outstanding}
+                      isPremium={isPremium}
+                      onUnlock={() => setPaywallOpen(true)}
+                    />
+                  </View>
 
                   <View style={{ marginTop: 10 }}>
                     <ActionButtons ticker={u.ticker} companyName={u.company_name}

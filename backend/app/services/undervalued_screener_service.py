@@ -288,11 +288,20 @@ async def refresh_undervalued_screener() -> None:
             entry["relative_valuation"] = relative
             entry["historical_valuation"] = historical
             entry["consensus_valuation"] = consensus
+            # DCF calculator inputs (frontend "Calculadora de Valor
+            # Intrínseco") — same fields quick_analysis exposes, derived
+            # from the locals already computed above for methods 3-5.
+            entry["current_fcf"] = latest_fcf
+            entry["net_cash"] = cash - total_debt
+            entry["shares_outstanding"] = shares_out
         except Exception as exc:
             logger.warning("undervalued_screener_service: valuation engine (methods 3-5) failed for %s: %s", entry["ticker"], exc)
             entry["relative_valuation"] = None
             entry["historical_valuation"] = None
             entry["consensus_valuation"] = None
+            entry["current_fcf"] = None
+            entry["net_cash"] = None
+            entry["shares_outstanding"] = None
 
         try:
             entry["momentum"] = _compute_momentum(entry["ticker"], entry.get("price"))
