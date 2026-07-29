@@ -1,7 +1,5 @@
 "use client";
 
-import { TrendingUp, TrendingDown } from "lucide-react";
-
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 export function fmtMoney(v: number | null | undefined): string {
@@ -37,7 +35,11 @@ export function fmtYear(period: string): string {
 
 export type Row = Record<string, unknown>;
 
-// ─── Card shell — sticky metric column + horizontal-scroll fade ──────────────
+// ─── Card shell — real <table>, sticky metric column + sticky header ─────────
+// Redesigned for density and signal-over-decoration (stockanalysis.com-style):
+// thin borders instead of tinted row backgrounds, weight/rules over color to
+// mark totals, a single understated accent line under the latest-year column
+// instead of a full green wash, and inline (not pill) growth deltas.
 
 const METRIC_COL_WIDTH = 200;
 
@@ -51,80 +53,74 @@ interface FinancialsCardProps {
 
 export function FinancialsCard({ title, growthNote, rows, latestLabel, children }: FinancialsCardProps) {
   return (
-    <div className="rounded-2xl overflow-hidden border relative"
-         style={{ borderColor: "var(--border)", background: "var(--card)", boxShadow: "0 4px 20px rgba(0,0,0,0.14)" }}>
-      <div className="overflow-x-auto scrollbar-thin">
-        <div style={{ minWidth: 480 }}>
-          {/* Title bar */}
-          <div className="flex items-center justify-between px-4 py-3 border-b"
-               style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-            <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--accent-l)" }}>
-              {title}
-            </span>
-            {growthNote && (
-              <span className="text-[9px] font-medium" style={{ color: "var(--dim)" }}>{growthNote}</span>
-            )}
-          </div>
-
-          <Header rows={rows} latestLabel={latestLabel} />
-          {children}
-        </div>
+    <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+      <div className="flex items-center justify-between px-4 py-2.5 border-b" style={{ borderColor: "var(--border)" }}>
+        <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text)" }}>
+          {title}
+        </span>
+        {growthNote && (
+          <span className="text-[10px]" style={{ color: "var(--dim)" }}>{growthNote}</span>
+        )}
       </div>
-      {/* Right-edge fade hinting there's more to scroll horizontally on narrow viewports */}
-      <div className="absolute top-0 right-0 bottom-0 w-8 pointer-events-none sm:hidden"
-           style={{ background: "linear-gradient(90deg, transparent, var(--card))" }} />
-    </div>
-  );
-}
 
-function Header({ rows, latestLabel }: { rows: Row[]; latestLabel?: string }) {
-  return (
-    <div className="flex items-stretch sticky top-0 z-10 border-b-2"
-         style={{ background: "var(--card)", borderColor: "var(--accent)" }}>
-      <div className="shrink-0 sticky left-0 z-[1] px-4 py-3 flex items-end"
-           style={{ width: METRIC_COL_WIDTH, minWidth: 160, background: "var(--card)" }}>
-        {/* Metric column header intentionally blank — title bar above already labels the table */}
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse" style={{ minWidth: 480 }}>
+          <thead>
+            <tr>
+              <th className="sticky left-0 top-0 z-20 text-left px-4 py-2.5 font-normal border-b"
+                  style={{ width: METRIC_COL_WIDTH, minWidth: 160, background: "var(--card)", borderColor: "var(--border)" }} />
+              {rows.map((r, i) => {
+                const isLast = i === rows.length - 1;
+                return (
+                  <th key={i}
+                      className="sticky top-0 z-10 text-right px-4 py-2.5 font-normal whitespace-nowrap"
+                      style={{
+                        background: "var(--card)",
+                        borderBottom: isLast ? "2px solid var(--accent)" : "1px solid var(--border)",
+                      }}>
+                    <span className="text-[13px] tabular-nums" style={{ fontWeight: isLast ? 800 : 700, color: isLast ? "var(--accent-l)" : "var(--sub)" }}>
+                      {fmtYear(String(r.period ?? ""))}
+                    </span>
+                    {isLast && latestLabel && (
+                      <div className="text-[8px] font-bold uppercase tracking-wider mt-0.5" style={{ color: "var(--accent-l)", opacity: 0.7 }}>
+                        {latestLabel}
+                      </div>
+                    )}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>{children}</tbody>
+        </table>
       </div>
-      {rows.map((r, i) => {
-        const isLast = i === rows.length - 1;
-        return (
-          <div key={i} className="flex-1 text-right px-4 py-3"
-               style={{ background: isLast ? "rgba(0,168,94,0.08)" : undefined, borderLeft: "1px solid var(--border)" }}>
-            <span className="text-[13px] font-black tabular-nums" style={{ color: isLast ? "var(--accent-l)" : "var(--muted)" }}>
-              {fmtYear(String(r.period ?? ""))}
-            </span>
-            {isLast && latestLabel && (
-              <div className="text-[8px] font-bold uppercase tracking-wider mt-0.5" style={{ color: "var(--accent-l)", opacity: 0.75 }}>
-                {latestLabel}
-              </div>
-            )}
-          </div>
-        );
-      })}
     </div>
   );
 }
 
 export function Section({ label, color = "var(--dim)" }: { label: string; color?: string }) {
+  const cols = 8; // wide enough colSpan for any statement — extra cells are simply empty
   return (
-    <div className="flex items-center gap-2 px-4 py-2 border-b"
-         style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-      <div className="w-[3px] h-3 rounded-full shrink-0" style={{ background: color }} />
-      <span className="text-[10px] font-black uppercase tracking-widest" style={{ color }}>
-        {label}
-      </span>
-    </div>
+    <tr>
+      <td className="sticky left-0 z-[1] px-4 pt-4 pb-1.5" style={{ background: "var(--card)" }}>
+        <div className="flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />
+          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+            {label}
+          </span>
+        </div>
+      </td>
+      <td className="pt-4 pb-1.5" colSpan={cols} />
+    </tr>
   );
 }
 
-function GrowthChip({ growth }: { growth: number }) {
+function GrowthDelta({ growth }: { growth: number }) {
   const up = growth >= 0;
   const color = up ? "#22c55e" : "#ef4444";
   return (
-    <span className="inline-flex items-center gap-0.5 px-1.5 py-[1px] rounded-full text-[10px] font-bold tabular-nums leading-none"
-          style={{ color, background: color + "18" }}>
-      {up ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-      {Math.abs(growth).toFixed(1)}%
+    <span className="text-[10px] font-semibold tabular-nums leading-none" style={{ color }}>
+      {up ? "▲" : "▼"} {Math.abs(growth).toFixed(1)}%
     </span>
   );
 }
@@ -146,7 +142,7 @@ interface ValueRowProps {
 }
 
 export function ValueRow({
-  rows, field, label, isTotal, isNeg, zeroAsDash, showGrowth, indent, isEPS, highlight, striped,
+  rows, field, label, isTotal, isNeg, zeroAsDash, showGrowth, indent, isEPS, highlight,
 }: ValueRowProps) {
   const vals = rows.map((r) => {
     const v = safeNum(r[field]);
@@ -154,32 +150,28 @@ export function ValueRow({
   });
   if (!vals.some((v) => v != null)) return null;
 
-  const rowBg = highlight
-    ? "rgba(0,168,94,0.06)"
-    : isTotal
-    ? "rgba(0,168,94,0.02)"
-    : striped
-    ? "rgba(255,255,255,0.015)"
-    : undefined;
+  // Totals/highlights get a rule above them (separating them from the
+  // components they sum) instead of a tinted background — one clean signal
+  // instead of a wash of color repeated on every subtotal row.
+  const topRule = isTotal || highlight;
 
   return (
-    <div className="flex items-stretch border-b transition-colors hover:bg-white/[0.035] group"
-         style={{ borderColor: "var(--border)", background: rowBg }}>
-      <div className="shrink-0 sticky left-0 z-[1] flex items-center px-4 py-2.5 group-hover:bg-white/[0.035]"
-           style={{ width: METRIC_COL_WIDTH, minWidth: 160, background: rowBg ?? "var(--card)",
-                    borderRight: "1px solid var(--border)" }}>
-        {isTotal && (
-          <div className="w-[3px] h-4 rounded-full shrink-0 mr-2.5" style={{ background: "var(--accent)" }} />
-        )}
-        {indent && (
-          <div className="w-[2px] h-3.5 rounded-full shrink-0 mr-2 ml-1" style={{ background: "var(--border)" }} />
-        )}
-        <span className="text-[12px] leading-tight"
-              style={{ fontWeight: highlight ? 800 : isTotal ? 700 : indent ? 400 : 600,
-                       color: highlight ? "var(--accent-l)" : isTotal ? "var(--text)" : indent ? "var(--muted)" : "var(--sub)" }}>
-          {label}
-        </span>
-      </div>
+    <tr className="group hover:bg-white/[0.03] transition-colors">
+      <td className="sticky left-0 z-[1] px-4 group-hover:bg-white/[0.03]"
+          style={{
+            width: METRIC_COL_WIDTH, minWidth: 160, background: "var(--card)",
+            borderTop: topRule ? "1px solid var(--border)" : undefined,
+            paddingTop: highlight ? 10 : 7, paddingBottom: highlight ? 10 : 7,
+          }}>
+        <div className="flex items-center">
+          {indent && <div className="w-3 shrink-0" />}
+          <span className="text-[12px] leading-tight truncate"
+                style={{ fontWeight: highlight ? 800 : isTotal ? 700 : 400,
+                         color: highlight ? "var(--accent-l)" : isTotal ? "var(--text)" : "var(--sub)" }}>
+            {label}
+          </span>
+        </div>
+      </td>
       {vals.map((v, i) => {
         const isLast = i === vals.length - 1;
         const prev = i > 0 ? vals[i - 1] : null;
@@ -190,19 +182,23 @@ export function ValueRow({
           : isTotal || !isNeg ? "var(--text)"
           : v >= 0 ? "var(--text)" : "#ef4444";
         return (
-          <div key={i} className="flex-1 flex flex-col items-end justify-center gap-1 px-4 py-2.5"
-               style={{ background: isLast ? (highlight ? "rgba(0,168,94,0.10)" : "rgba(0,168,94,0.045)") : undefined,
-                        borderLeft: "1px solid var(--border)" }}>
-            <span className="tabular-nums leading-none"
-                  style={{ fontSize: highlight ? 14 : isTotal ? 13 : 12,
-                           fontWeight: highlight ? 800 : isTotal ? 700 : isLast ? 600 : 400, color }}>
-              {v != null ? (isEPS ? fmtEPS(v) : fmtMoney(v)) : "—"}
-            </span>
-            {growth != null && <GrowthChip growth={growth} />}
-          </div>
+          <td key={i} className="text-right px-4"
+              style={{
+                borderTop: topRule ? "1px solid var(--border)" : undefined,
+                paddingTop: highlight ? 10 : 7, paddingBottom: highlight ? 10 : 7,
+              }}>
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="tabular-nums leading-none whitespace-nowrap"
+                    style={{ fontSize: highlight ? 14 : isTotal ? 13 : 12,
+                             fontWeight: highlight ? 800 : isTotal ? 700 : isLast ? 600 : 400, color }}>
+                {v != null ? (isEPS ? fmtEPS(v) : fmtMoney(v)) : "—"}
+              </span>
+              {growth != null && <GrowthDelta growth={growth} />}
+            </div>
+          </td>
         );
       })}
-    </div>
+    </tr>
   );
 }
 
@@ -240,25 +236,27 @@ export function MarginRow({ rows, field, label, numeratorField, fallbackPct }: M
   const marginColor = (v: number) => v >= 0 ? "#22c55e" : "#ef4444";
 
   return (
-    <div className="flex items-stretch border-b" style={{ borderColor: "var(--border)", background: "rgba(0,0,0,0.025)" }}>
-      <div className="shrink-0 sticky left-0 z-[1] flex items-center px-4 py-2"
-           style={{ width: METRIC_COL_WIDTH, minWidth: 160, background: "var(--raised)", borderRight: "1px solid var(--border)" }}>
-        <div className="w-[2px] h-3.5 rounded-full shrink-0 mr-2 ml-1" style={{ background: "var(--border)" }} />
-        <span className="text-[11px] font-semibold" style={{ color: "var(--muted)" }}>{label}</span>
-      </div>
-      {pairs.map(({ pct, dollars }, i) => (
-        <div key={i} className="flex-1 flex flex-col items-end justify-center gap-0.5 px-4 py-2"
-             style={{ background: i === pairs.length - 1 ? "rgba(0,168,94,0.045)" : undefined, borderLeft: "1px solid var(--border)" }}>
-          <span className="text-[12px] font-bold tabular-nums leading-none" style={{ color: pct == null ? "var(--dim)" : marginColor(pct) }}>
-            {pct != null ? `${pct.toFixed(1)}%` : "N/A"}
-          </span>
-          {dollars != null && (
-            <span className="text-[10px] tabular-nums leading-none" style={{ color: "var(--dim)" }}>
-              {fmtMoney(dollars)}
-            </span>
-          )}
+    <tr>
+      <td className="sticky left-0 z-[1] px-4 py-1.5" style={{ width: METRIC_COL_WIDTH, minWidth: 160, background: "var(--card)" }}>
+        <div className="flex items-center">
+          <div className="w-3 shrink-0" />
+          <span className="text-[11px] italic" style={{ color: "var(--muted)" }}>{label}</span>
         </div>
+      </td>
+      {pairs.map(({ pct, dollars }, i) => (
+        <td key={i} className="text-right px-4 py-1.5">
+          <div className="flex flex-col items-end gap-0">
+            <span className="text-[11px] font-semibold tabular-nums leading-none" style={{ color: pct == null ? "var(--dim)" : marginColor(pct) }}>
+              {pct != null ? `${pct.toFixed(1)}%` : "N/A"}
+            </span>
+            {dollars != null && (
+              <span className="text-[9px] tabular-nums leading-none mt-0.5" style={{ color: "var(--dim)" }}>
+                {fmtMoney(dollars)}
+              </span>
+            )}
+          </div>
+        </td>
       ))}
-    </div>
+    </tr>
   );
 }
