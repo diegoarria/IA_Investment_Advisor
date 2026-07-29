@@ -132,17 +132,21 @@ interface ValueRowProps {
   field: string;
   label: string;
   isTotal?: boolean;
-  isNeg?: boolean;
   zeroAsDash?: boolean;
   showGrowth?: boolean;
   indent?: boolean;
   isEPS?: boolean;
   highlight?: boolean;
   striped?: boolean;
+  /** Color the value green/red by sign. Reserved for the handful of rows
+   * where that actually carries meaning (Total Assets, Total Liabilities,
+   * Free Cash Flow, total Investing/Financing cash flow) — everything else
+   * renders in plain text so green/red isn't diluted into decoration. */
+  signColor?: boolean;
 }
 
 export function ValueRow({
-  rows, field, label, isTotal, isNeg, zeroAsDash, showGrowth, indent, isEPS, highlight,
+  rows, field, label, isTotal, zeroAsDash, showGrowth, indent, isEPS, highlight, signColor,
 }: ValueRowProps) {
   const vals = rows.map((r) => {
     const v = safeNum(r[field]);
@@ -167,7 +171,7 @@ export function ValueRow({
           {indent && <div className="w-3 shrink-0" />}
           <span className="text-[12px] leading-tight truncate"
                 style={{ fontWeight: highlight ? 800 : isTotal ? 700 : 400,
-                         color: highlight ? "var(--accent-l)" : isTotal ? "var(--text)" : "var(--sub)" }}>
+                         color: isTotal || highlight ? "var(--text)" : "var(--sub)" }}>
             {label}
           </span>
         </div>
@@ -177,10 +181,8 @@ export function ValueRow({
         const prev = i > 0 ? vals[i - 1] : null;
         const growth = showGrowth && v != null && prev != null ? pctChange(v, prev) : null;
         const color = v == null ? "var(--dim)"
-          : highlight ? (v >= 0 ? "var(--accent-l)" : "#ef4444")
-          : isNeg ? (v <= 0 ? "#ef4444" : "#22c55e")
-          : isTotal || !isNeg ? "var(--text)"
-          : v >= 0 ? "var(--text)" : "#ef4444";
+          : signColor ? (v >= 0 ? "#22c55e" : "#ef4444")
+          : "var(--text)";
         return (
           <td key={i} className="text-right px-4"
               style={{

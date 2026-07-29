@@ -28,17 +28,17 @@ export default function BalanceSheetTab({ balance }: { balance: Row[] }) {
       <ValueRow rows={rows} field="Goodwill"              label={t("balanceSheetTab.goodwill")} indent zeroAsDash />
       <ValueRow rows={rows} field="Intangible Assets"     label={t("balanceSheetTab.intangibles")} indent zeroAsDash />
       <ValueRow rows={rows} field="Long Term Investments" label={t("balanceSheetTab.longTermInvestments")} indent zeroAsDash />
-      <ValueRow rows={rows} field="Total Assets"          label={t("balanceSheetTab.totalAssets")} highlight showGrowth />
+      <ValueRow rows={rows} field="Total Assets"          label={t("balanceSheetTab.totalAssets")} highlight showGrowth signColor />
 
       {/* ── Pasivos ── */}
       <Section label={t("balanceSheetTab.currentLiabilities")} color="#f59e0b" />
-      <ValueRow rows={rows} field="Accounts Payable"    label={t("balanceSheetTab.accountsPayable")} isNeg indent />
-      <ValueRow rows={rows} field="Short Term Debt"     label={t("balanceSheetTab.shortTermDebt")} isNeg indent zeroAsDash />
-      <ValueRow rows={rows} field="Current Liabilities" label={t("balanceSheetTab.totalCurrentLiabilities")} isTotal isNeg showGrowth />
+      <ValueRow rows={rows} field="Accounts Payable"    label={t("balanceSheetTab.accountsPayable")} indent />
+      <ValueRow rows={rows} field="Short Term Debt"     label={t("balanceSheetTab.shortTermDebt")} indent zeroAsDash />
+      <ValueRow rows={rows} field="Current Liabilities" label={t("balanceSheetTab.totalCurrentLiabilities")} isTotal showGrowth />
 
       <Section label={t("balanceSheetTab.nonCurrentLiabilities")} color="#f59e0b" />
-      <ValueRow rows={rows} field="Long Term Debt"                          label={t("balanceSheetTab.longTermDebt")} isNeg indent />
-      <ValueRow rows={rows} field="Total Liabilities Net Minority Interest" label={t("balanceSheetTab.totalLiabilities")} isTotal isNeg showGrowth />
+      <ValueRow rows={rows} field="Long Term Debt"                          label={t("balanceSheetTab.longTermDebt")} indent />
+      <ValueRow rows={rows} field="Total Liabilities Net Minority Interest" label={t("balanceSheetTab.totalLiabilities")} isTotal showGrowth signColor />
 
       {/* ── Patrimonio ── */}
       <Section label={t("balanceSheetTab.equity")} color="#22c55e" />
@@ -47,8 +47,8 @@ export default function BalanceSheetTab({ balance }: { balance: Row[] }) {
 
       {/* ── Indicadores ── */}
       <Section label={t("balanceSheetTab.keyIndicators")} color="var(--accent-l)" />
-      <ValueRow rows={rows} field="Total Debt"      label={t("balanceSheetTab.totalDebt")} isNeg />
-      <ValueRow rows={rows} field="Net Debt"        label={t("balanceSheetTab.netDebt")} isNeg />
+      <ValueRow rows={rows} field="Total Debt"      label={t("balanceSheetTab.totalDebt")} />
+      <ValueRow rows={rows} field="Net Debt"        label={t("balanceSheetTab.netDebt")} />
       <ValueRow rows={rows} field="Working Capital" label={t("balanceSheetTab.workingCapital")} showGrowth />
     </FinancialsCard>
   );

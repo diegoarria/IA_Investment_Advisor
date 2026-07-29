@@ -34,24 +34,24 @@ export default function IncomeStatementTab({
       {/* ── Ingresos ── */}
       <Section label={t("incomeStatementTab.revenue")} color="#3b82f6" />
       <ValueRow rows={rows} field="Total Revenue"   label={t("incomeStatementTab.totalRevenue")}  isTotal showGrowth />
-      <ValueRow rows={rows} field="Cost Of Revenue" label={t("incomeStatementTab.costOfRevenue")}   isNeg indent />
+      <ValueRow rows={rows} field="Cost Of Revenue" label={t("incomeStatementTab.costOfRevenue")}   indent />
       <ValueRow rows={rows} field="Gross Profit"    label={t("incomeStatementTab.grossProfit")}    isTotal showGrowth />
       <MarginRow rows={rows} field="Gross Margin %" label={t("incomeStatementTab.grossMargin")}      numeratorField="Gross Profit" fallbackPct={grossMarginPct} />
 
       {/* ── Gastos Operativos ── */}
       <Section label={t("incomeStatementTab.operatingExpensesSection")} color="#f59e0b" />
-      <ValueRow rows={rows} field="Research And Development"       label={t("incomeStatementTab.researchAndDevelopment")} isNeg indent zeroAsDash />
-      <ValueRow rows={rows} field="Selling General Administrative" label={t("incomeStatementTab.sellingGeneralAdmin")}      isNeg indent zeroAsDash />
-      <ValueRow rows={rows} field="Operating Expenses"             label={t("incomeStatementTab.totalOperatingExpenses")}    isNeg zeroAsDash />
+      <ValueRow rows={rows} field="Research And Development"       label={t("incomeStatementTab.researchAndDevelopment")} indent zeroAsDash />
+      <ValueRow rows={rows} field="Selling General Administrative" label={t("incomeStatementTab.sellingGeneralAdmin")}      indent zeroAsDash />
+      <ValueRow rows={rows} field="Operating Expenses"             label={t("incomeStatementTab.totalOperatingExpenses")}    zeroAsDash />
       <ValueRow rows={rows} field="Operating Income"               label={t("incomeStatementTab.operatingIncome")}  isTotal showGrowth />
       <MarginRow rows={rows} field="Operating Margin %" label={t("incomeStatementTab.operatingMargin")} numeratorField="Operating Income" fallbackPct={operatingMarginPct} />
 
       {/* ── No Operativo ── */}
       <Section label={t("incomeStatementTab.nonOperating")} color="#8b5cf6" />
       <ValueRow rows={rows} field="Interest Income"  label={t("incomeStatementTab.interestIncome")}   indent zeroAsDash />
-      <ValueRow rows={rows} field="Interest Expense" label={t("incomeStatementTab.interestExpense")}     isNeg indent zeroAsDash />
+      <ValueRow rows={rows} field="Interest Expense" label={t("incomeStatementTab.interestExpense")}     indent zeroAsDash />
       <ValueRow rows={rows} field="Pretax Income"    label={t("incomeStatementTab.pretaxIncome")} isTotal zeroAsDash />
-      <ValueRow rows={rows} field="Tax Provision"    label={t("incomeStatementTab.taxes")}              isNeg indent zeroAsDash />
+      <ValueRow rows={rows} field="Tax Provision"    label={t("incomeStatementTab.taxes")}              indent zeroAsDash />
 
       {/* ── Resultado Final ── */}
       <Section label={t("incomeStatementTab.finalResult")} color="var(--accent-l)" />
