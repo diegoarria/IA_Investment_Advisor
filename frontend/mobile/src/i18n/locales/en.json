@@ -767,6 +767,15 @@
       "cta": "Unlock Premium",
       "paywallReason": "Undervalued stocks screener"
     },
+    "freeGate": {
+      "banner": "You get 1 free search a week. Premium: unlimited.",
+      "bannerCta": "See Premium",
+      "title": "Find out if a stock is cheap or expensive",
+      "desc": "Type any ticker or company and we'll tell you if it's worth buying right now. Free, once a week.",
+      "cta": "Search for free",
+      "limitTitle": "You've used this week's free search",
+      "limitDesc": "Come back next week, or go Premium for unlimited searches."
+    },
     "emptyState": "No weekly screener data yet — check back later.",
     "sectorAll": "All",
     "dcf": {
@@ -1471,7 +1480,8 @@
         "Follow up to 25 stocks you're interested in",
         "Full academy with lessons and quizzes",
         "See how your money is doing in the short term",
-        "General market news"
+        "General market news",
+        "1 free search a week: find out if a stock is cheap or expensive"
       ]
     },
     "premium": {
@@ -1493,7 +1503,8 @@
         "Every month we tell you if you beat the market or not",
         "Lessons built around the stocks you already own",
         "We alert you when something important happens with your money",
-        "Discover your investor style and how to improve"
+        "Discover your investor style and how to improve",
+        "Unlimited searches: find out if any stock is cheap or expensive"
       ]
     },
     "duo": {
@@ -3266,6 +3277,10 @@
       "f12": {
         "text": "Nuvos knows you better over time — and remembers everything",
         "detail": "With Premium you build your complete financial memory: behavior patterns, decision timeline, and portfolio evolution. The free plan only stores 10 basic beliefs."
+      },
+      "f13": {
+        "text": "Find out if a stock is cheap or expensive before you buy it",
+        "detail": "Type any ticker or company and we'll tell you if it's worth buying right now. The free plan gets 1 search a week — Premium is unlimited."
       }
     },
     "trust1": "Cancel anytime",

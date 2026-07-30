@@ -698,6 +698,15 @@
       "cta": "Unlock Premium",
       "paywallReason": "Undervalued stocks screener"
     },
+    "freeGate": {
+      "banner": "You get 1 free search a week. Premium: unlimited.",
+      "bannerCta": "See Premium",
+      "title": "Find out if a stock is cheap or expensive",
+      "desc": "Type any ticker or company and we'll tell you if it's worth buying right now. Free, once a week.",
+      "cta": "Search for free",
+      "limitTitle": "You've used this week's free search",
+      "limitDesc": "Come back next week, or go Premium for unlimited searches."
+    },
     "emptyState": "No weekly screener data yet — check back later.",
     "sectorAll": "All",
     "dcf": {
@@ -1374,7 +1383,8 @@
       "General notifications about the market and your stocks",
       "Follow up to 25 stocks you're interested in",
       "Full Academy with lessons and quizzes",
-      "AI remembers the basics from your conversations"
+      "AI remembers the basics from your conversations",
+      "1 free search a week: find out if a stock is cheap or expensive"
     ],
     "premium": [
       "Chat with your AI mentor beyond the Free plan's limits",
@@ -1388,7 +1398,8 @@
       "Learn about the companies you already own",
       "Compare your portfolio to the market in real time",
       "Add as many stocks as you want, no limit",
-      "AI remembers your whole history to give you sharper advice over time"
+      "AI remembers your whole history to give you sharper advice over time",
+      "Unlimited searches: find out if any stock is cheap or expensive"
     ],
     "oneTimeProducts": [
       {
@@ -2404,6 +2415,8 @@
     "feature11Detail": "The free plan has a limit of 10. Premium removes that limit so your portfolio is fully yours, complete.",
     "feature12Text": "Nuvos gets to know you better over time — and remembers everything",
     "feature12Detail": "With Premium you build your complete financial memory: behavior patterns, decision timeline, and portfolio evolution. The free plan only stores 10 basic beliefs.",
+    "feature13Text": "Find out if a stock is cheap or expensive before you buy it",
+    "feature13Detail": "Type any ticker or company and we'll tell you if it's worth buying right now. The free plan gets 1 search a week — Premium is unlimited.",
     "premiumBadge": "Nuvos AI Premium",
     "headlineLine1": "Become a",
     "headlineLine2": "real investor",

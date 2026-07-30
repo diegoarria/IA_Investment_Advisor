@@ -1,10 +1,12 @@
 import asyncio
 import logging
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.services import ai_service
 from app.api.routes.market import _get_user_profile
 from app.core.cache import cache_get, cache_set
+from app.core.database import get_supabase, run_query
 from app.core.finnhub import fh_quote, fh_metrics, fh_search
 
 logger = logging.getLogger(__name__)
@@ -444,11 +446,19 @@ async def _get_user_profile_safe(user_id: str):
 
 def _resolve_quick_ticker(query: str) -> str | None:
     """Resolves free-text (a ticker or a company name) to a real ticker
-    symbol for the quick-analysis search below. Tries the input as a
-    ticker directly first (cheapest — no extra API call); only falls back
-    to a live Finnhub symbol search for company-name input."""
-    candidate = query.strip().upper()
-    if candidate.replace(".", "").replace("-", "").isalpha() and 1 <= len(candidate) <= 6:
+    symbol for the quick-analysis search below."""
+    stripped = query.strip()
+    candidate = stripped.upper()
+    looks_like_ticker = candidate.replace(".", "").replace("-", "").isalpha() and 1 <= len(candidate) <= 6
+
+    # Only trust the input as a literal ticker when the user typed it in
+    # caps already (a deliberate ticker, e.g. "AAPL", "BRK.B") — a plain
+    # company name ("Apple", "Tesla", "Nike", "Ford") ALSO passes the same
+    # shape check (short, all letters) but isn't a real ticker under that
+    # literal spelling. This used to return "APPLE"/"TESLA" as-is and fail
+    # every single-word company-name search downstream instead of ever
+    # reaching the search below, which would have found AAPL/TSLA.
+    if looks_like_ticker and stripped == candidate:
         return candidate
 
     # Deliberately NOT filtered to "common stock"/"equity" only — Finnhub
@@ -460,7 +470,7 @@ def _resolve_quick_ticker(query: str) -> str | None:
     # clean 404 downstream for anything else that has no real data).
     _NEVER_RESOLVABLE = {"crypto", "forex", "index"}
     try:
-        for r in fh_search(query.strip()):
+        for r in fh_search(stripped):
             if r.get("symbol") and r.get("type", "").strip().lower() not in _NEVER_RESOLVABLE:
                 return r["symbol"]
     except Exception as exc:
@@ -475,7 +485,7 @@ def _resolve_quick_ticker(query: str) -> str | None:
         import requests as _requests
         resp = _requests.get(
             "https://query2.finance.yahoo.com/v1/finance/search",
-            params={"q": query.strip(), "lang": "en-US", "region": "US", "quotesCount": 5, "newsCount": 0, "listsCount": 0},
+            params={"q": stripped, "lang": "en-US", "region": "US", "quotesCount": 5, "newsCount": 0, "listsCount": 0},
             headers={"User-Agent": "Mozilla/5.0"},
             timeout=6,
         )
@@ -485,6 +495,13 @@ def _resolve_quick_ticker(query: str) -> str | None:
                 return item["symbol"]
     except Exception as exc:
         logger.warning("_resolve_quick_ticker(%r): Yahoo fallback failed: %s", query, exc)
+
+    # Last resort: both search providers came up empty (or errored) — if the
+    # input still has the shape of a real ticker (e.g. lowercase "tsla"),
+    # trust it rather than refusing outright. get_fundamental_analysis
+    # degrades to a clean 404 downstream if it turns out not to be real.
+    if looks_like_ticker:
+        return candidate
 
     return None
 
@@ -690,6 +707,50 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
     return result
 
 
+_FREE_VI_SEARCH_LIMIT = 1
+_VI_SEARCH_WINDOW_HOURS = 24 * 7  # 1 week
+
+
+async def _check_and_increment_vi_search_limit(user_id: str, profile) -> None:
+    """Free users get 1 Valor Intrínseco search per rolling 7-day window;
+    Premium is unlimited — the caller checks _is_premium and skips this
+    entirely for a Premium user. Same counter+window pattern as chat.py's
+    msg_count/msg_window_start free-message limit."""
+    db = get_supabase()
+    now = datetime.now(timezone.utc)
+    window_start = None
+    if profile.vi_search_window_start:
+        try:
+            window_start = datetime.fromisoformat(profile.vi_search_window_start.replace("Z", "+00:00"))
+        except Exception:
+            pass
+
+    if window_start is None or (now - window_start) >= timedelta(hours=_VI_SEARCH_WINDOW_HOURS):
+        await run_query(
+            db.table("user_profiles").update({
+                "vi_search_count": 1,
+                "vi_search_window_start": now.isoformat(),
+            }).eq("user_id", user_id)
+        )
+        return
+
+    if profile.vi_search_count >= _FREE_VI_SEARCH_LIMIT:
+        reset_at = window_start + timedelta(hours=_VI_SEARCH_WINDOW_HOURS)
+        days_left = max(1, int((reset_at - now).total_seconds() / 86400))
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "vi_search_limit",
+                "message": f"Ya usaste tu búsqueda gratis de esta semana. Actívate Premium para búsquedas ilimitadas, o vuelve en {days_left} día(s).",
+                "reset_in_days": days_left,
+            },
+        )
+
+    await run_query(
+        db.table("user_profiles").update({"vi_search_count": profile.vi_search_count + 1}).eq("user_id", user_id)
+    )
+
+
 @router.get("/quick-analysis")
 async def quick_analysis(query: str, lang: str | None = None, user_id: str = Depends(get_current_user_id)):
     """Ad-hoc single-ticker valuation search — the real DCF engine (same one
@@ -714,8 +775,13 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
     docstring for why this is preferred over profile.preferred_language)."""
     from app.api.routes.chat import _is_premium
     profile = await _get_user_profile_safe(user_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
+    # Free users get 1 search per week as a taste of the real feature —
+    # Premium is unlimited. Checked here (not a flat block) so the search
+    # box itself is never fully behind a paywall.
     if not _is_premium(profile):
-        raise HTTPException(status_code=403, detail="La búsqueda de valor intrínseco requiere Premium")
+        await _check_and_increment_vi_search_limit(user_id, profile)
 
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Escribe un ticker o nombre de empresa")

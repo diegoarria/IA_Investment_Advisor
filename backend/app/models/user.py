@@ -81,6 +81,8 @@ class UserProfile(BaseModel):
     stripe_customer_id: Optional[str] = None
     msg_count: int = 0
     msg_window_start: Optional[str] = None
+    vi_search_count: int = 0
+    vi_search_window_start: Optional[str] = None
     nav_order: Optional[list] = None
     theme: Optional[str] = None
     investment_goal: Optional[str] = None

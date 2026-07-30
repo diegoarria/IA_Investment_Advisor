@@ -52,6 +52,7 @@ const getAllFeatures = (t: TFunction) => [
   { text: t("paywallModal.allFeatures.f10.text"), detail: t("paywallModal.allFeatures.f10.detail") },
   { text: t("paywallModal.allFeatures.f11.text"), detail: t("paywallModal.allFeatures.f11.detail") },
   { text: t("paywallModal.allFeatures.f12.text"), detail: t("paywallModal.allFeatures.f12.detail") },
+  { text: t("paywallModal.allFeatures.f13.text"), detail: t("paywallModal.allFeatures.f13.detail") },
 ];
 
 const AVATAR_COLORS = ["#8b5cf6", "#3b82f6", "#f59e0b", "#ef4444", "#22c55e"];

@@ -13,15 +13,15 @@ import { apiBase } from "@/lib/apiBase";
 const API = apiBase();
 import {
   Brain, BarChart2, TrendingUp, Shield, Zap, BookOpen,
-  GraduationCap, Bell, Calendar, RefreshCw, Target,
+  GraduationCap, Bell, Calendar, RefreshCw, Target, Search,
   Check, ArrowRight, Sparkles, FileText,
 } from "lucide-react";
 
 function getSubscriptionFeatures(t: TFunction) {
   const free = t("products.free", { returnObjects: true }) as string[];
   const premium = t("products.premium", { returnObjects: true }) as string[];
-  const freeIcons = [Brain, BarChart2, TrendingUp, Bell, BookOpen, GraduationCap, Brain];
-  const premiumIcons = [Brain, Calendar, Shield, Sparkles, FileText, TrendingUp, Bell, RefreshCw, GraduationCap, BarChart2, Zap, Target];
+  const freeIcons = [Brain, BarChart2, TrendingUp, Bell, BookOpen, GraduationCap, Brain, Search];
+  const premiumIcons = [Brain, Calendar, Shield, Sparkles, FileText, TrendingUp, Bell, RefreshCw, GraduationCap, BarChart2, Zap, Target, Search];
   return {
     free: free.map((text, i) => ({ icon: freeIcons[i], text })),
     premium: premium.map((text, i) => ({ icon: premiumIcons[i], text })),

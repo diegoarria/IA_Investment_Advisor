@@ -53,6 +53,7 @@ function getAllFeatures(t: TFunction) {
     { text: t("paywallModal.feature10Text"), detail: t("paywallModal.feature10Detail") },
     { text: t("paywallModal.feature11Text"), detail: t("paywallModal.feature11Detail") },
     { text: t("paywallModal.feature12Text"), detail: t("paywallModal.feature12Detail") },
+    { text: t("paywallModal.feature13Text"), detail: t("paywallModal.feature13Detail") },
   ];
 }
 

@@ -196,14 +196,20 @@ export default function SubvaluadasScreen() {
   const [data, setData] = useState<QuickAnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [limitHit, setLimitHit] = useState(false);
   const [watchlisted, setWatchlisted] = useState(false);
   const [level3Open, setLevel3Open] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  // Free users get 1 search/week (enforced server-side) — don't burn that on
+  // the default AAPL auto-load; only fetch once they've actually searched,
+  // or if a deep link named a ticker explicitly.
+  const [searchTriggered, setSearchTriggered] = useState(() => !!params.ticker);
 
   useEffect(() => {
-    if (!isPremium) { setLoading(false); return; }
+    if (!isPremium && !searchTriggered) { setLoading(false); return; }
     let cancelled = false;
     const cacheKey = `vi_quick_analysis:${ticker}:${i18n.language}`;
+    setLimitHit(false);
 
     const run = async () => {
       // Stale-while-revalidate: paint instantly from the last cached
@@ -242,7 +248,13 @@ export default function SubvaluadasScreen() {
             return cancelled ? undefined : attempt(n + 1);
           }
           if (cancelled || hadCache) return; // already showing the cached result — don't rip it away
-          setError(err?.response?.data?.detail || t("subvaluadas.search.error"));
+          if (status === 429) {
+            setLimitHit(true);
+            setError(err?.response?.data?.detail?.message || t("subvaluadas.freeGate.limitDesc"));
+            return;
+          }
+          const detail = err?.response?.data?.detail;
+          setError(typeof detail === "string" ? detail : t("subvaluadas.search.error"));
         }
       };
 
@@ -252,12 +264,13 @@ export default function SubvaluadasScreen() {
 
     run();
     return () => { cancelled = true; };
-  }, [ticker, isPremium, i18n.language, t]);
+  }, [ticker, isPremium, searchTriggered, i18n.language, t]);
 
   const handleSearch = () => {
-    if (!query.trim() || !isPremium) return;
+    if (!query.trim()) return;
     setWatchlisted(false);
     setSaveState("idle");
+    setSearchTriggered(true);
     setTicker(query.trim().toUpperCase());
   };
 
@@ -317,27 +330,6 @@ export default function SubvaluadasScreen() {
     { key: "change", text: t("subvaluadas.dcf.mentor.change", { ticker: name }) },
   ];
 
-  if (!isPremium) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: viColors.bg }}>
-        <View style={{ flexDirection: "row", alignItems: "center", padding: 16 }}>
-          <TouchableOpacity onPress={() => router.back()}><Ionicons name="chevron-back" size={22} color={viColors.text} /></TouchableOpacity>
-        </View>
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: "rgba(212,162,76,0.12)", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-            <Ionicons name="lock-closed" size={26} color={GOLD} />
-          </View>
-          <Text style={{ fontSize: 15, fontWeight: "700", color: viColors.text, marginBottom: 6 }}>{t("subvaluadas.premiumGate.title")}</Text>
-          <Text style={{ fontSize: 13, color: viColors.textMuted, textAlign: "center", marginBottom: 18 }}>{t("subvaluadas.premiumGate.desc")}</Text>
-          <TouchableOpacity onPress={() => setPaywallOpen(true)} style={{ backgroundColor: GOLD, paddingHorizontal: 22, paddingVertical: 11, borderRadius: 12 }}>
-            <Text style={{ fontSize: 13, fontWeight: "800", color: "#0A0F1A" }}>{t("subvaluadas.premiumGate.cta")}</Text>
-          </TouchableOpacity>
-        </View>
-        <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={t("subvaluadas.premiumGate.paywallReason")} />
-      </SafeAreaView>
-    );
-  }
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: viColors.bg }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10 }}>
@@ -359,9 +351,39 @@ export default function SubvaluadasScreen() {
         </TouchableOpacity>
       </View>
 
-      {loading ? (
+      {!isPremium && (
+        <TouchableOpacity onPress={() => setPaywallOpen(true)}
+          style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 16, marginBottom: 12, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: "rgba(212,162,76,0.08)", borderWidth: 1, borderColor: "rgba(212,162,76,0.25)" }}>
+          <Text style={{ fontSize: 11.5, color: viColors.textSub, flex: 1, marginRight: 8 }}>{t("subvaluadas.freeGate.banner")}</Text>
+          <Text style={{ fontSize: 11.5, fontWeight: "800", color: GOLD }}>{t("subvaluadas.freeGate.bannerCta")}</Text>
+        </TouchableOpacity>
+      )}
+
+      {!isPremium && !searchTriggered && !data ? (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: "rgba(212,162,76,0.12)", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+            <Ionicons name="search" size={26} color={GOLD} />
+          </View>
+          <Text style={{ fontSize: 15, fontWeight: "700", color: viColors.text, marginBottom: 6, textAlign: "center" }}>{t("subvaluadas.freeGate.title")}</Text>
+          <Text style={{ fontSize: 13, color: viColors.textMuted, textAlign: "center", marginBottom: 18 }}>{t("subvaluadas.freeGate.desc")}</Text>
+          <TouchableOpacity onPress={() => setPaywallOpen(true)} style={{ backgroundColor: GOLD, paddingHorizontal: 22, paddingVertical: 11, borderRadius: 12 }}>
+            <Text style={{ fontSize: 13, fontWeight: "800", color: "#0A0F1A" }}>{t("subvaluadas.freeGate.cta")}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator size="large" color={GOLD} />
+        </View>
+      ) : limitHit ? (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: "rgba(212,162,76,0.12)", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+            <Ionicons name="lock-closed" size={26} color={GOLD} />
+          </View>
+          <Text style={{ fontSize: 15, fontWeight: "700", color: viColors.text, marginBottom: 6, textAlign: "center" }}>{t("subvaluadas.freeGate.limitTitle")}</Text>
+          <Text style={{ fontSize: 13, color: viColors.textMuted, textAlign: "center", marginBottom: 18 }}>{error || t("subvaluadas.freeGate.limitDesc")}</Text>
+          <TouchableOpacity onPress={() => setPaywallOpen(true)} style={{ backgroundColor: GOLD, paddingHorizontal: 22, paddingVertical: 11, borderRadius: 12 }}>
+            <Text style={{ fontSize: 13, fontWeight: "800", color: "#0A0F1A" }}>{t("subvaluadas.freeGate.cta")}</Text>
+          </TouchableOpacity>
         </View>
       ) : error || !data ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>

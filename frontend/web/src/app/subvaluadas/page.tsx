@@ -380,14 +380,20 @@ function SubvaluadasPageInner() {
   const [data, setData] = useState<QuickAnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [limitHit, setLimitHit] = useState(false);
   const [watchlisted, setWatchlisted] = useState(false);
   const [level3Open, setLevel3Open] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  // Free users get 1 search/week (enforced server-side) — don't burn that on
+  // the default AAPL auto-load; only fetch once they've actually searched,
+  // or if the URL itself names a ticker (a shared link is an explicit ask).
+  const [searchTriggered, setSearchTriggered] = useState(() => !!searchParams.get("ticker"));
 
   useEffect(() => {
-    if (!isPremium) { setLoading(false); return; }
+    if (!isPremium && !searchTriggered) { setLoading(false); return; }
     let cancelled = false;
     const cacheKey = `vi_quick_analysis:${ticker}:${i18n.language}`;
+    setLimitHit(false);
 
     // Stale-while-revalidate: paint instantly from the last cached payload
     // for this ticker+lang (localStorage) while a fresh copy loads in the
@@ -409,7 +415,7 @@ function SubvaluadasPageInner() {
     // This screen must always open with a real result, not a spinner stuck
     // on a transient network hiccup or a slow provider timeout — retry a
     // couple of times with backoff before surfacing an error. A definite
-    // answer from the server (bad ticker, not premium) is never retried.
+    // answer from the server (bad ticker, out of free searches) is never retried.
     const attempt = async (n: number): Promise<void> => {
       try {
         const res = await screenerApi.quickAnalysis(ticker, i18n.language);
@@ -425,19 +431,25 @@ function SubvaluadasPageInner() {
           return cancelled ? undefined : attempt(n + 1);
         }
         if (cancelled || hadCache) return; // already showing the cached result — don't rip it away
-        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-        setError(detail || t("subvaluadas.search.error"));
+        const rawDetail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+        if (status === 429) {
+          setLimitHit(true);
+          setError((rawDetail as { message?: string })?.message || t("subvaluadas.freeGate.limitDesc"));
+          return;
+        }
+        setError(typeof rawDetail === "string" ? rawDetail : t("subvaluadas.search.error"));
       }
     };
 
     attempt(0).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [ticker, isPremium, i18n.language, t]);
+  }, [ticker, isPremium, searchTriggered, i18n.language, t]);
 
   const handleSearch = () => {
-    if (!query.trim() || !isPremium) return;
+    if (!query.trim()) return;
     setWatchlisted(false);
     setSaveState("idle");
+    setSearchTriggered(true);
     setTicker(query.trim().toUpperCase());
   };
 
@@ -503,23 +515,18 @@ function SubvaluadasPageInner() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <MarketTickerBar />
 
-        {!isPremium ? (
-          <div className="flex-1 overflow-y-auto scrollbar-thin p-6" style={{ background: "var(--bg)" }}>
-            <div className="max-w-2xl mx-auto rounded-2xl border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(0,168,94,0.1)" }}>
-                <Lock className="w-7 h-7" style={{ color: "var(--accent-l)" }} />
-              </div>
-              <h2 className="font-bold text-base mb-2" style={{ color: "var(--text)" }}>{t("subvaluadas.premiumGate.title")}</h2>
-              <p className="text-sm mb-5 max-w-sm mx-auto" style={{ color: "var(--muted)" }}>{t("subvaluadas.premiumGate.desc")}</p>
-              <button onClick={() => setPaywallOpen(true)} className="px-6 py-2.5 rounded-xl text-sm font-bold text-white"
-                      style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-                {t("subvaluadas.premiumGate.cta")}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex-1 overflow-y-auto scrollbar-thin" style={viTheme}>
+        <div className="flex-1 overflow-y-auto scrollbar-thin" style={viTheme}>
             <div className="max-w-[1000px] mx-auto px-6 py-8 md:px-10">
+
+              {!isPremium && (
+                <div className="flex items-center justify-between gap-3 flex-wrap rounded-xl px-4 py-2.5 mb-4"
+                     style={{ background: "rgba(212,162,76,0.08)", border: "1px solid rgba(212,162,76,0.25)" }}>
+                  <span className="text-[12.5px]" style={{ color: "var(--sub)" }}>{t("subvaluadas.freeGate.banner")}</span>
+                  <button onClick={() => setPaywallOpen(true)} className="text-[12px] font-bold shrink-0" style={{ color: GOLD }}>
+                    {t("subvaluadas.freeGate.bannerCta")}
+                  </button>
+                </div>
+              )}
 
               <div className="flex gap-2 mb-8">
                 <div className="flex-1 flex items-center gap-2 rounded-xl border px-3"
@@ -546,8 +553,30 @@ function SubvaluadasPageInner() {
                 </button>
               </div>
 
-              {loading ? (
+              {!isPremium && !searchTriggered && !data ? (
+                <div className="max-w-xl mx-auto rounded-2xl border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(212,162,76,0.12)" }}>
+                    <Search className="w-7 h-7" style={{ color: GOLD }} />
+                  </div>
+                  <h2 className="font-bold text-base mb-2" style={{ color: "var(--text)" }}>{t("subvaluadas.freeGate.title")}</h2>
+                  <p className="text-sm mb-5 max-w-sm mx-auto" style={{ color: "var(--muted)" }}>{t("subvaluadas.freeGate.desc")}</p>
+                  <button onClick={() => setPaywallOpen(true)} className="px-6 py-2.5 rounded-xl text-sm font-bold" style={{ background: GOLD, color: "#0A0F1A" }}>
+                    {t("subvaluadas.freeGate.cta")}
+                  </button>
+                </div>
+              ) : loading ? (
                 <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 animate-spin" style={{ color: GOLD }} /></div>
+              ) : limitHit ? (
+                <div className="max-w-xl mx-auto rounded-2xl border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(212,162,76,0.12)" }}>
+                    <Lock className="w-7 h-7" style={{ color: GOLD }} />
+                  </div>
+                  <h2 className="font-bold text-base mb-2" style={{ color: "var(--text)" }}>{t("subvaluadas.freeGate.limitTitle")}</h2>
+                  <p className="text-sm mb-5 max-w-sm mx-auto" style={{ color: "var(--muted)" }}>{error || t("subvaluadas.freeGate.limitDesc")}</p>
+                  <button onClick={() => setPaywallOpen(true)} className="px-6 py-2.5 rounded-xl text-sm font-bold" style={{ background: GOLD, color: "#0A0F1A" }}>
+                    {t("subvaluadas.freeGate.cta")}
+                  </button>
+                </div>
               ) : error || !data ? (
                 <div className="rounded-2xl border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
                   <p className="text-sm" style={{ color: "var(--muted)" }}>{error || t("subvaluadas.search.error")}</p>
@@ -759,7 +788,6 @@ function SubvaluadasPageInner() {
               )}
             </div>
           </div>
-        )}
       </div>
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={t("subvaluadas.premiumGate.paywallReason")} />

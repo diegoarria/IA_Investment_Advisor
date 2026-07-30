@@ -698,6 +698,15 @@
       "cta": "Desbloquear Premium",
       "paywallReason": "Screener de acciones subvaluadas"
     },
+    "freeGate": {
+      "banner": "Tienes 1 búsqueda gratis por semana. Premium: ilimitadas.",
+      "bannerCta": "Ver Premium",
+      "title": "Descubre si una acción está barata o cara",
+      "desc": "Escribe cualquier ticker o empresa y te decimos si conviene comprarla ahora. Gratis, 1 vez por semana.",
+      "cta": "Buscar gratis",
+      "limitTitle": "Ya usaste tu búsqueda de esta semana",
+      "limitDesc": "Vuelve la próxima semana, o activa Premium para búsquedas ilimitadas."
+    },
     "emptyState": "Todavía no hay datos del screener semanal — vuelve más tarde.",
     "sectorAll": "Todos",
     "dcf": {
@@ -1374,7 +1383,8 @@
       "Notificaciones generales del mercado y tus acciones",
       "Sigue hasta 25 acciones que te interesen",
       "Academia completa con lecciones y quizzes",
-      "La IA recuerda lo básico de tus conversaciones"
+      "La IA recuerda lo básico de tus conversaciones",
+      "1 búsqueda gratis por semana: descubre si una acción está barata o cara"
     ],
     "premium": [
       "Chatea con tu mentor IA sin las limitaciones del plan Free",
@@ -1388,7 +1398,8 @@
       "Aprende sobre las empresas que ya tienes en tu portafolio",
       "Compara tu portafolio con el mercado en tiempo real",
       "Agrega todas las acciones que quieras, sin límite",
-      "La IA recuerda todo tu historial para darte consejos cada vez más precisos"
+      "La IA recuerda todo tu historial para darte consejos cada vez más precisos",
+      "Búsquedas ilimitadas: descubre si cualquier acción está barata o cara"
     ],
     "oneTimeProducts": [
       {
@@ -2404,6 +2415,8 @@
     "feature11Detail": "El plan gratuito tiene límite de 10. Premium elimina ese límite para que tu portafolio sea tuyo, completo.",
     "feature12Text": "Nuvos te conoce mejor con el tiempo — y recuerda todo",
     "feature12Detail": "Con Premium construyes tu memoria financiera completa: patrones de comportamiento, timeline de decisiones y evolución de tu portafolio. El plan gratuito solo guarda 10 creencias básicas.",
+    "feature13Text": "Descubre si una acción está barata o cara antes de comprarla",
+    "feature13Detail": "Escribe cualquier ticker o empresa y te decimos si conviene comprarla ahora. El plan gratuito tiene 1 búsqueda por semana — Premium es ilimitado.",
     "premiumBadge": "Nuvos AI Premium",
     "headlineLine1": "Conviértete en",
     "headlineLine2": "inversionista de verdad",
