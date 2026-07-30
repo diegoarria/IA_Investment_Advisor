@@ -328,7 +328,7 @@ async def screen(request: dict, user_id: str = Depends(get_current_user_id)):
 
     ai_insight = None
     if query and stocks:
-        profile = _get_user_profile(user_id)
+        profile = await _get_user_profile_safe(user_id)
         ai_insight = await ai_service.screen_stocks(stocks, query, profile)
 
     return {"results": stocks[:15], "ai_insight": ai_insight}
@@ -351,7 +351,7 @@ async def undervalued(sector: str | None = None, limit: int = 60, lang: str | No
     says"). Falls back to the profile field only if the frontend didn't
     send one (e.g. an older client build)."""
     from app.api.routes.chat import _is_premium
-    profile = _get_user_profile(user_id)
+    profile = await _get_user_profile_safe(user_id)
     if not _is_premium(profile):
         raise HTTPException(status_code=403, detail="El screener de subvaluadas requiere Premium")
     if lang not in ("es", "en"):
@@ -425,6 +425,23 @@ def _with_live_price(result: dict, ticker: str) -> dict:
     return result
 
 
+async def _get_user_profile_safe(user_id: str):
+    """Wraps market._get_user_profile (a blocking sync DB call made directly
+    inside async routes throughout this file) in a thread so it can never
+    block the event loop, plus one retry on a transient failure — this is
+    the premium-gate check for every screener/quick-analysis endpoint, and a
+    single flaky read here must never look identical to "not premium" to a
+    real Premium user."""
+    for attempt in range(2):
+        try:
+            return await asyncio.to_thread(_get_user_profile, user_id)
+        except Exception as exc:
+            if attempt == 1:
+                logger.error("_get_user_profile_safe(%s): failed after retry: %s", user_id, exc)
+                return None
+            await asyncio.sleep(0.3)
+
+
 def _resolve_quick_ticker(query: str) -> str | None:
     """Resolves free-text (a ticker or a company name) to a real ticker
     symbol for the quick-analysis search below. Tries the input as a
@@ -433,10 +450,7 @@ def _resolve_quick_ticker(query: str) -> str | None:
     candidate = query.strip().upper()
     if candidate.replace(".", "").replace("-", "").isalpha() and 1 <= len(candidate) <= 6:
         return candidate
-    try:
-        results = fh_search(query.strip())
-    except Exception:
-        return None
+
     # Deliberately NOT filtered to "common stock"/"equity" only — Finnhub
     # tags plenty of legitimately searchable, valuable tickers (ADRs, REITs,
     # ETFs, preferred shares) under other `type` strings, and excluding them
@@ -445,9 +459,33 @@ def _resolve_quick_ticker(query: str) -> str | None:
     # tradeable equity fundamentals (get_fundamental_analysis degrades to a
     # clean 404 downstream for anything else that has no real data).
     _NEVER_RESOLVABLE = {"crypto", "forex", "index"}
-    for r in results:
-        if r.get("symbol") and r.get("type", "").strip().lower() not in _NEVER_RESOLVABLE:
-            return r["symbol"]
+    try:
+        for r in fh_search(query.strip()):
+            if r.get("symbol") and r.get("type", "").strip().lower() not in _NEVER_RESOLVABLE:
+                return r["symbol"]
+    except Exception as exc:
+        logger.warning("_resolve_quick_ticker(%r): fh_search failed: %s", query, exc)
+
+    # Finnhub found nothing (or is having a bad day) — this search is meant
+    # to find ANY US-listed ticker/company, so fall back to an independent
+    # second source (Yahoo Finance's symbol search, the same one
+    # /market/search already relies on) rather than giving up after a single
+    # provider's hiccup.
+    try:
+        import requests as _requests
+        resp = _requests.get(
+            "https://query2.finance.yahoo.com/v1/finance/search",
+            params={"q": query.strip(), "lang": "en-US", "region": "US", "quotesCount": 5, "newsCount": 0, "listsCount": 0},
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=6,
+        )
+        quotes = (resp.json() or {}).get("quotes", [])
+        for item in quotes:
+            if item.get("symbol") and item.get("quoteType") in ("EQUITY", "ETF"):
+                return item["symbol"]
+    except Exception as exc:
+        logger.warning("_resolve_quick_ticker(%r): Yahoo fallback failed: %s", query, exc)
+
     return None
 
 
@@ -675,7 +713,7 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
     `lang` is passed explicitly by the frontend (see /undervalued's
     docstring for why this is preferred over profile.preferred_language)."""
     from app.api.routes.chat import _is_premium
-    profile = _get_user_profile(user_id)
+    profile = await _get_user_profile_safe(user_id)
     if not _is_premium(profile):
         raise HTTPException(status_code=403, detail="La búsqueda de valor intrínseco requiere Premium")
 
@@ -751,7 +789,7 @@ async def weekly_picks(
     # Filter out stocks already in portfolio
     candidates = [s for s in stocks if s["ticker"] not in existing]
 
-    profile = _get_user_profile(user_id)
+    profile = await _get_user_profile_safe(user_id)
     result  = await ai_service.generate_weekly_picks(candidates, profile, existing)
     result["generated_at"] = _dt.now().isoformat()
 
@@ -764,7 +802,7 @@ async def alert_context(request: dict, user_id: str = Depends(get_current_user_i
     """Return AI context for a price alert (called when user taps an alert)."""
     ticker    = request.get("ticker", "").upper()
     change_pct = request.get("change_pct", 0)
-    profile   = _get_user_profile(user_id)
+    profile   = await _get_user_profile_safe(user_id)
     direction = "subió" if change_pct >= 0 else "cayó"
     event     = f"{ticker} {direction} {abs(change_pct):.1f}% hoy"
     insight   = await ai_service.generate_alert_context(ticker, change_pct, profile)

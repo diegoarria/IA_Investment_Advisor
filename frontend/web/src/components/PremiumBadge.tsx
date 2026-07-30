@@ -70,5 +70,18 @@ export default function PremiumBadge() {
     );
   }
 
-  return null;
+  // A real paid subscriber (isPremium && !isTrialPremium) used to fall
+  // through to `return null` here — no visual indicator at all that they're
+  // actually Premium, which looked exactly like something was broken.
+  return (
+    <div
+      className="flex items-center gap-1 px-2.5 py-1 rounded-lg"
+      style={{ background: "rgba(0,168,94,0.08)", border: "1px solid rgba(0,212,126,0.2)" }}
+      title={t("premiumBadge.premiumActive")}
+    >
+      <span style={{ fontSize: 9, fontWeight: 800, color: "var(--accent-l)", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>
+        ✦ {t("premiumBadge.premiumActive")}
+      </span>
+    </div>
+  );
 }

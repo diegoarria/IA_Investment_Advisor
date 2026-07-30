@@ -1930,6 +1930,7 @@
   "premiumBadge": {
     "login": "Log in",
     "premiumFree": "Free Premium",
+    "premiumActive": "Premium",
     "activatePremium": "Activate Premium",
     "activate": "✦ Activate"
   },
