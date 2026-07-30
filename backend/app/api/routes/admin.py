@@ -114,6 +114,22 @@ async def test_price_alert_why(ticker: str, pct: float = 5.0, user: dict = Depen
     }
 
 
+@router.post("/refresh-undervalued-screener")
+async def admin_refresh_undervalued_screener(user: dict = Depends(get_current_user)):
+    """Forces the weekly "Oportunidades" screener cache to rebuild right now,
+    instead of waiting for the Sunday 12:05pm ET cron
+    (job_refresh_undervalued_screener in worker.py). Useful right after a
+    backend deploy that changes what a cached entry looks like — e.g. a bug
+    where a partial failure in one candidate's relative/historical valuation
+    step wiped its DCF-calculator inputs to None, which only a fresh
+    refresh_undervalued_screener() run (not the empty-cache-only bootstrap
+    path) can repair for already-cached entries."""
+    await _require_admin(user)
+    from app.services.undervalued_screener_service import refresh_undervalued_screener
+    await refresh_undervalued_screener()
+    return {"status": "ok"}
+
+
 @router.post("/test-market-open")
 async def test_market_open(user: dict = Depends(get_current_user)):
     """Fires the REAL market-open data fetch (live Finnhub ^GSPC/^IXIC quotes,
