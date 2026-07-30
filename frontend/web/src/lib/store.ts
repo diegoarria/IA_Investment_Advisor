@@ -5,21 +5,41 @@ import { sync as syncApi } from "./api";
 
 // All user-specific data is stored under per-user keys so switching accounts
 // never leaks one user's watchlist, profile, or history to another.
+//
+// Every method is wrapped in try/catch: Safari (ITP purging, and especially
+// Private Browsing, where localStorage.setItem throws synchronously) can
+// make a plain localStorage call throw. Uncaught, that exception happens
+// inside zustand's persist middleware and can abort the whole store's
+// hydration/write — which is how a subscription/trial status store ends up
+// stuck showing "free" specifically on Safari, never recovering even after
+// a successful server fetch, because the write of that fetch's result back
+// to storage is what threw.
 const userStorage = createJSONStorage(() => ({
   getItem: (name: string) => {
     if (typeof window === "undefined") return null;
-    const uid = useAuthStore.getState().userId ?? "guest";
-    return localStorage.getItem(`${name}__${uid}`);
+    try {
+      const uid = useAuthStore.getState().userId ?? "guest";
+      return localStorage.getItem(`${name}__${uid}`);
+    } catch {
+      return null;
+    }
   },
   setItem: (name: string, value: string) => {
     if (typeof window === "undefined") return;
-    const uid = useAuthStore.getState().userId ?? "guest";
-    localStorage.setItem(`${name}__${uid}`, value);
+    try {
+      const uid = useAuthStore.getState().userId ?? "guest";
+      localStorage.setItem(`${name}__${uid}`, value);
+    } catch {
+      // Safari Private Browsing / storage quota — the store still works
+      // in-memory for this session, it just won't persist across reloads.
+    }
   },
   removeItem: (name: string) => {
     if (typeof window === "undefined") return;
-    const uid = useAuthStore.getState().userId ?? "guest";
-    localStorage.removeItem(`${name}__${uid}`);
+    try {
+      const uid = useAuthStore.getState().userId ?? "guest";
+      localStorage.removeItem(`${name}__${uid}`);
+    } catch {}
   },
 }));
 // Alias kept for backward compat with the chat store reference below.
@@ -557,6 +577,12 @@ interface SubscriptionState {
   msgWindowStart: string | null;
   duoSetupPending: boolean;
   duoSecondaryEmail: string | null;
+  /** True once a fetchStatus() call has actually completed (success OR
+   * failure) at least once this session. A trial/premium user's very
+   * first paint before this flips true is the persisted (possibly stale
+   * "free") value — components that gate premium content can check this
+   * to tell "genuinely free" apart from "haven't heard back yet". */
+  hasFetchedStatus: boolean;
   fetchStatus: () => Promise<void>;
   setTier: (tier: SubscriptionTier) => void;
   incrementMsgCount: () => void;
@@ -573,21 +599,38 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       msgWindowStart: null,
       duoSetupPending: false,
       duoSecondaryEmail: null,
+      hasFetchedStatus: false,
       fetchStatus: async () => {
-        try {
-          const { billing } = await import("./api");
-          const res = await billing.getStatus();
-          set({
-            tier:              res.data.tier ?? "free",
-            trialStartedAt:    res.data.trial_started_at ?? get().trialStartedAt ?? null,
-            isTrialPremium:    res.data.is_trial ?? false,
-            trialDaysLeft:     res.data.trial_days_left ?? 0,
-            msgCount:          res.data.msg_count ?? 0,
-            msgWindowStart:    res.data.msg_window_start ?? null,
-            duoSetupPending:   res.data.duo_setup_pending ?? false,
-            duoSecondaryEmail: res.data.duo_secondary_email ?? null,
-          });
-        } catch {}
+        const { billing } = await import("./api");
+        // A single transient blip (cold API start, a dropped request, a
+        // flaky mobile network) must never be the reason a real trial/
+        // premium user gets stuck looking free for the rest of the
+        // session — retry a few times with backoff before giving up.
+        const ATTEMPTS = 3;
+        for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+          try {
+            const res = await billing.getStatus();
+            set({
+              tier:              res.data.tier ?? "free",
+              trialStartedAt:    res.data.trial_started_at ?? get().trialStartedAt ?? null,
+              isTrialPremium:    res.data.is_trial ?? false,
+              trialDaysLeft:     res.data.trial_days_left ?? 0,
+              msgCount:          res.data.msg_count ?? 0,
+              msgWindowStart:    res.data.msg_window_start ?? null,
+              duoSetupPending:   res.data.duo_setup_pending ?? false,
+              duoSecondaryEmail: res.data.duo_secondary_email ?? null,
+              hasFetchedStatus:  true,
+            });
+            return;
+          } catch (err) {
+            if (attempt === ATTEMPTS) {
+              console.error("useSubscriptionStore.fetchStatus: giving up after", ATTEMPTS, "attempts", err);
+              set({ hasFetchedStatus: true });
+              return;
+            }
+            await new Promise((r) => setTimeout(r, 500 * attempt));
+          }
+        }
       },
       setTier: (tier) => set({ tier }),
       incrementMsgCount: () => {
@@ -604,7 +647,18 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
       },
     }),
-    { name: "subscription-status", storage: userStorage }
+    {
+      name: "subscription-status",
+      storage: userStorage,
+      // hasFetchedStatus must never be persisted — every fresh page load
+      // (new tab, reload) should start from "haven't heard from the
+      // server yet" and re-verify, never trust a flag left over from a
+      // previous session.
+      partialize: (state) => {
+        const { hasFetchedStatus: _hasFetchedStatus, ...rest } = state;
+        return rest;
+      },
+    }
   )
 );
 

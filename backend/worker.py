@@ -164,12 +164,12 @@ def _calc_portfolio_close_data(
     return port_pct, round(total_curr, 2), gainers, losers
 
 
-def _is_premium_user(tier: str, trial_started: str | None) -> bool:
+def _is_premium_user(tier: str, trial_started: str | None, streak_bonus_until: str | None = None) -> bool:
     """Consistent premium check used by all notification jobs. Delegates to
     app.core.subscription.is_premium_active — the single canonical
     trial-window check shared across the whole app."""
     from app.core.subscription import is_premium_active
-    return is_premium_active(tier, trial_started)
+    return is_premium_active(tier, trial_started, streak_bonus_until)
 
 
 def _top_performer(positions: list, prices: dict) -> tuple[str | None, float | None]:
@@ -386,7 +386,7 @@ async def send_weekly_emails():
     db = get_supabase()
     try:
         users_res = await run_query(
-            db.table("user_profiles").select("user_id,name,risk_tolerance,subscription_tier")
+            db.table("user_profiles").select("user_id,name,risk_tolerance,subscription_tier,trial_started_at,streak_bonus_premium_until")
         )
         users = users_res.data
         auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
@@ -414,7 +414,7 @@ async def send_weekly_emails():
             email = auth_users.get(u["user_id"])
             if not email:
                 continue
-            is_premium = u.get("subscription_tier") == "premium"
+            is_premium = _is_premium_user(u.get("subscription_tier"), u.get("trial_started_at"), u.get("streak_bonus_premium_until"))
             snippets = []
             if is_premium:
                 chats_res = await run_query(
@@ -1975,13 +1975,16 @@ async def job_weekly_screener_push():
         if not pref_uids:
             return
 
-        # Premium-only
+        # Premium-only (paid, in-trial, or streak/referral bonus — same rule everywhere)
         profiles_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,risk_tolerance,quiz_answers,mentor,subscription_tier,preferred_language")
+            .select("user_id,name,risk_tolerance,quiz_answers,mentor,subscription_tier,preferred_language,trial_started_at,streak_bonus_premium_until")
             .in_("user_id", list(pref_uids))
         )
-        uids = [r["user_id"] for r in (profiles_res.data or []) if r.get("subscription_tier") == "premium"]
+        uids = [
+            r["user_id"] for r in (profiles_res.data or [])
+            if _is_premium_user(r.get("subscription_tier"), r.get("trial_started_at"), r.get("streak_bonus_premium_until"))
+        ]
         if not uids:
             return
 
@@ -2254,6 +2257,24 @@ async def _notify_undervalued_screener_updated():
         sent += 1
         await asyncio.sleep(random.uniform(0, 0.05))
     logger.info("job_refresh_undervalued_screener: notified %d premium users of the weekly rotation", sent)
+
+
+async def job_saved_valuation_alerts():
+    """4:10 PM ET weekdays — checks every user's saved intrinsic valuations
+    (their own frozen DCF assumptions from the Valor Intrínseco screen)
+    against fresh price/fundamentals, and pushes when the margin of safety
+    newly crosses -10%/0%/10%/20%/30%/40%. See
+    saved_valuation_service.run_milestone_check for the actual logic —
+    kept there (not here) since it's also unit-testable without a live
+    scheduler."""
+    if not _is_market_open_today():
+        logger.info("job_saved_valuation_alerts: market closed today — skipping")
+        return
+    from app.services.saved_valuation_service import run_milestone_check
+    try:
+        await run_milestone_check()
+    except Exception as e:
+        logger.error("job_saved_valuation_alerts failed: %s", e)
 
 
 def _fetch_historical_earnings_reactions(ticker: str) -> dict:
@@ -4069,10 +4090,13 @@ async def job_proactive_vs_market():
 
         prof_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,subscription_tier,mentor,preferred_language")
+            .select("user_id,name,subscription_tier,mentor,preferred_language,trial_started_at,streak_bonus_premium_until")
             .in_("user_id", user_ids)
         )
-        premium_ids = {p["user_id"] for p in (prof_res.data or []) if p.get("subscription_tier") == "premium"}
+        premium_ids = {
+            p["user_id"] for p in (prof_res.data or [])
+            if _is_premium_user(p.get("subscription_tier"), p.get("trial_started_at"), p.get("streak_bonus_premium_until"))
+        }
         lang_map = {p["user_id"]: (p.get("preferred_language") or "es") for p in (prof_res.data or [])}
 
         sent = 0
@@ -4164,10 +4188,13 @@ async def job_proactive_earnings_preview():
 
         prof_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,subscription_tier,preferred_language")
+            .select("user_id,subscription_tier,preferred_language,trial_started_at,streak_bonus_premium_until")
             .in_("user_id", user_ids)
         )
-        premium_ids = {p["user_id"] for p in (prof_res.data or []) if p.get("subscription_tier") == "premium"}
+        premium_ids = {
+            p["user_id"] for p in (prof_res.data or [])
+            if _is_premium_user(p.get("subscription_tier"), p.get("trial_started_at"), p.get("streak_bonus_premium_until"))
+        }
         lang_map = {p["user_id"]: (p.get("preferred_language") or "es") for p in (prof_res.data or [])}
 
         sent = 0
@@ -4302,6 +4329,7 @@ async def main():
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour=9,       minute="30,35,40,45,50,55", timezone="America/New_York")
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="10-15", minute="*/5", timezone="America/New_York")
     scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=0,     timezone="America/New_York")
+    scheduler.add_job(job_saved_valuation_alerts, "cron", day_of_week="mon-fri", hour=16,    minute=10,    timezone="America/New_York")
     scheduler.add_job(job_earnings_results,     "cron", day_of_week="mon-fri", hour=16,      minute=30,    timezone="America/New_York")
     scheduler.add_job(job_daily_email,          "cron", day_of_week="fri",     hour=18,      minute=0,     timezone="America/New_York")
 

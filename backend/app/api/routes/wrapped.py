@@ -84,7 +84,7 @@ async def get_wrapped(
     # ── 1. User profile ──────────────────────────────────────────────────────
     prof_res = await run_query(
         db.table("user_profiles")
-          .select("full_name, created_at, subscription_tier, trial_started_at")
+          .select("full_name, created_at, subscription_tier, trial_started_at, streak_bonus_premium_until")
           .eq("user_id", user_id)
     )
     prof = prof_res.data[0] if prof_res.data else {}
@@ -92,7 +92,7 @@ async def get_wrapped(
     full_name = prof.get("full_name") or "Inversor"
 
     from app.api.routes.upsells import _effective_tier
-    is_premium = _effective_tier(prof.get("subscription_tier", "free"), prof.get("trial_started_at")) == "premium"
+    is_premium = _effective_tier(prof.get("subscription_tier", "free"), prof.get("trial_started_at"), prof.get("streak_bonus_premium_until")) == "premium"
 
     created_raw = prof.get("created_at")
     if created_raw:

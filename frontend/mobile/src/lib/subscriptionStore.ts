@@ -41,25 +41,40 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       hasFetchedStatus: false,
 
       fetchStatus: async () => {
-        try {
-          const res = await billingApi.getStatus();
-          const prevTier = get().tier;
-          const newTier = res.data.tier ?? "free";
-          if (prevTier !== "premium" && newTier === "premium") {
-            posthog.capture("premium_upgrade_completed", { plan: res.data.plan ?? null });
+        // A single transient failure (cold API start, a flaky mobile
+        // network) must never be the reason a real trial/premium user gets
+        // stuck looking free for the rest of the session — retry a few
+        // times with backoff before giving up.
+        const ATTEMPTS = 3;
+        for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+          try {
+            const res = await billingApi.getStatus();
+            const prevTier = get().tier;
+            const newTier = res.data.tier ?? "free";
+            if (prevTier !== "premium" && newTier === "premium") {
+              posthog.capture("premium_upgrade_completed", { plan: res.data.plan ?? null });
+            }
+            set({
+              tier:                newTier,
+              msgCount:            res.data.msg_count  ?? 0,
+              msgWindowStart:      res.data.msg_window_start ?? null,
+              isTrialPremium:      res.data.is_trial ?? false,
+              trialDaysLeftServer: res.data.trial_days_left ?? 0,
+              hasFetchedStatus:    true,
+              ...(res.data.trial_started_at
+                ? { trialStartDate: res.data.trial_started_at }
+                : {}),
+            });
+            return;
+          } catch (err) {
+            if (attempt === ATTEMPTS) {
+              console.error("useSubscriptionStore.fetchStatus: giving up after", ATTEMPTS, "attempts", err);
+              set({ hasFetchedStatus: true });
+              return;
+            }
+            await new Promise((r) => setTimeout(r, 500 * attempt));
           }
-          set({
-            tier:                newTier,
-            msgCount:            res.data.msg_count  ?? 0,
-            msgWindowStart:      res.data.msg_window_start ?? null,
-            isTrialPremium:      res.data.is_trial ?? false,
-            trialDaysLeftServer: res.data.trial_days_left ?? 0,
-            hasFetchedStatus:    true,
-            ...(res.data.trial_started_at
-              ? { trialStartDate: res.data.trial_started_at }
-              : {}),
-          });
-        } catch {}
+        }
       },
 
       setTier: (tier) => set({ tier }),
@@ -83,22 +98,49 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         const { tier, trialStartDate } = get();
         if (tier === "premium" || trialStartDate !== null) return;
         // Set locally immediately so UI reacts without waiting for the network
-        set({ trialStartDate: new Date().toISOString() });
+        const optimisticDate = new Date().toISOString();
+        set({ trialStartDate: optimisticDate });
         // Persist to backend (idempotent — server won't overwrite an existing date)
         import("./api").then(({ syncApi }) => {
           syncApi.startTrial()
             .then((res) => {
+              // If the server refused (e.g. no profile row yet — onboarding
+              // not finished) there is no server-side trial to back this
+              // date up. Leaving the optimistic device-clock date in place
+              // would strand it forever with nothing to reconcile against,
+              // and — combined with the trial-expired check in
+              // app/_layout.tsx, which only looks at whether
+              // trialStartDate is set — could show "your trial expired"
+              // for a trial that, server-side, never started. Roll it back
+              // instead so the check stays a no-op until a real trial exists.
+              if (res.data?.ok === false) {
+                if (get().trialStartDate === optimisticDate) set({ trialStartDate: null });
+                return;
+              }
               // If server already had a date, adopt it (authoritative source)
               const serverDate = res.data?.trial_started_at;
               if (serverDate) set({ trialStartDate: serverDate });
             })
-            .catch(() => {});
+            .catch(() => {
+              // Network/server error — same reasoning: don't strand an
+              // unverified device-clock date.
+              if (get().trialStartDate === optimisticDate) set({ trialStartDate: null });
+            });
         });
       },
     }),
     {
       name: "subscription-status",
       storage: userScopedStorage,
+      // hasFetchedStatus must never survive a cold start — persisting it
+      // as `true` from the last session is exactly what let the
+      // trial-expired guard in app/_layout.tsx pass on stale data and show
+      // "Tu prueba Premium terminó" to a user still mid-trial, before this
+      // run's fetchStatus() had even resolved.
+      partialize: (state) => {
+        const { hasFetchedStatus: _hasFetchedStatus, ...rest } = state;
+        return rest;
+      },
     }
   )
 );

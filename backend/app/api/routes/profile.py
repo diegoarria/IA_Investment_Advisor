@@ -115,7 +115,15 @@ async def create_profile(
             db.table("user_profiles").update({**db_data, "updated_at": now}).eq("user_id", user_id)
         )
     else:
-        record = {"user_id": user_id, **db_data, "created_at": now, "updated_at": now}
+        # Start the Premium trial the instant the profile row is created
+        # (onboarding completion) instead of waiting for the client to
+        # happen to call GET /billing/status afterwards. Previously the
+        # trial only ever started lazily on that endpoint — if the app
+        # navigated the user to any screen that doesn't mount AppSidebar
+        # (the only place that called it) before that first call landed,
+        # a brand-new user could see a paywall on their very first screen
+        # after finishing onboarding, having never had their 30 days start.
+        record = {"user_id": user_id, **db_data, "trial_started_at": now, "created_at": now, "updated_at": now}
         result = await run_query(db.table("user_profiles").insert(record))
         # Send welcome email to new users (fire-and-forget)
         try:
@@ -201,12 +209,12 @@ async def get_ai_insights(lang: str | None = None, user_id: str = Depends(get_cu
         )
         msgs = result.data
         profile_row_res = await run_query(
-            db.table("user_profiles").select("risk_tolerance,mentor,subscription_tier,preferred_language,trial_started_at").eq("user_id", user_id)
+            db.table("user_profiles").select("risk_tolerance,mentor,subscription_tier,preferred_language,trial_started_at,streak_bonus_premium_until").eq("user_id", user_id)
         )
         profile_data = profile_row_res.data[0] if profile_row_res.data else {}
         declared_risk = profile_data.get("risk_tolerance", "moderate")
         from app.core.subscription import is_premium_active
-        is_premium = is_premium_active(profile_data.get("subscription_tier"), profile_data.get("trial_started_at"))
+        is_premium = is_premium_active(profile_data.get("subscription_tier"), profile_data.get("trial_started_at"), profile_data.get("streak_bonus_premium_until"))
         if lang not in ("es", "en"):
             lang = profile_data.get("preferred_language") or "es"
 

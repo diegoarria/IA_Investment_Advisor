@@ -189,11 +189,17 @@ async def _log_notification(db, user_id: str, type_: str, category: str,
 async def _track_analytics(db, event_type: str, category: str, user_id: str,
                             notification_id: Optional[str] = None):
     from app.core.database import run_query
+    from app.core.subscription import is_premium_active
     try:
         tier_res = await run_query(
-            db.table("user_profiles").select("subscription_tier").eq("user_id", user_id)
+            db.table("user_profiles").select("subscription_tier, trial_started_at, streak_bonus_premium_until").eq("user_id", user_id)
         )
-        tier = tier_res.data[0].get("subscription_tier", "free") if tier_res.data else "free"
+        row = tier_res.data[0] if tier_res.data else {}
+        raw_tier = row.get("subscription_tier", "free")
+        # Trial/streak-bonus users must show up as "premium" here too — this
+        # analytics label is what any trial-conversion dashboard reads, and a
+        # trial user logged as "free" corrupts that number silently.
+        tier = "premium" if is_premium_active(raw_tier, row.get("trial_started_at"), row.get("streak_bonus_premium_until")) else raw_tier
     except Exception:
         tier = "unknown"
     try:

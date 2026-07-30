@@ -104,7 +104,11 @@ def _is_premium(profile: UserProfile | None) -> bool:
     if profile is None:
         return False
     from app.core.subscription import is_premium_active
-    return is_premium_active(getattr(profile, "subscription_tier", None), getattr(profile, "trial_started_at", None))
+    return is_premium_active(
+        getattr(profile, "subscription_tier", None),
+        getattr(profile, "trial_started_at", None),
+        getattr(profile, "streak_bonus_premium_until", None),
+    )
 
 
 async def _load_call_context(user_id: str, profile: UserProfile | None, is_premium: bool) -> dict:

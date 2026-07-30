@@ -145,12 +145,12 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
     if len(positions) > _FREE_PORTFOLIO_LIMIT:
         profile_res = await run_query(
             db.table("user_profiles")
-            .select("subscription_tier, trial_started_at")
+            .select("subscription_tier, trial_started_at, streak_bonus_premium_until")
             .eq("user_id", user_id)
         )
         pr = profile_res.data[0] if profile_res.data else {}
         from app.core.subscription import is_premium_active
-        _is_prem = is_premium_active(pr.get("subscription_tier"), pr.get("trial_started_at"))
+        _is_prem = is_premium_active(pr.get("subscription_tier"), pr.get("trial_started_at"), pr.get("streak_bonus_premium_until"))
         if not _is_prem:
             # Allow syncing existing positions; block only if count is INCREASING beyond limit
             existing_pos = await run_query(
@@ -312,11 +312,11 @@ async def create_portfolio(body: dict, user_id: str = Depends(get_current_user_i
     """Create a new empty portfolio. Premium only, max 3 total."""
     db = get_supabase()
     profile_res = await run_query(
-        db.table("user_profiles").select("subscription_tier, trial_started_at").eq("user_id", user_id)
+        db.table("user_profiles").select("subscription_tier, trial_started_at, streak_bonus_premium_until").eq("user_id", user_id)
     )
     profile = profile_res.data[0] if profile_res.data else {}
     from app.core.subscription import is_premium_active
-    is_premium = is_premium_active(profile.get("subscription_tier"), profile.get("trial_started_at"))
+    is_premium = is_premium_active(profile.get("subscription_tier"), profile.get("trial_started_at"), profile.get("streak_bonus_premium_until"))
     if not is_premium:
         raise HTTPException(status_code=403, detail="Los portafolios múltiples son exclusivos para usuarios Premium.")
     existing = await run_query(
@@ -390,12 +390,12 @@ async def sync_paper(body: dict, user_id: str = Depends(get_current_user_id)):
     if new_trades:
         pr_res = await run_query(
             db.table("user_profiles")
-            .select("subscription_tier, trial_started_at")
+            .select("subscription_tier, trial_started_at, streak_bonus_premium_until")
             .eq("user_id", user_id)
         )
         pr = pr_res.data[0] if pr_res.data else {}
         from app.core.subscription import is_premium_active
-        _is_prem = is_premium_active(pr.get("subscription_tier"), pr.get("trial_started_at"))
+        _is_prem = is_premium_active(pr.get("subscription_tier"), pr.get("trial_started_at"), pr.get("streak_bonus_premium_until"))
         if not _is_prem:
             existing_paper = await run_query(
                 db.table("user_paper_trading").select("trades").eq("user_id", user_id)
@@ -521,6 +521,12 @@ async def start_trial(user_id: str = Depends(get_current_user_id)):
         .update({"trial_started_at": now})
         .eq("user_id", user_id)
     )
+    # Without this, GET /profile (120s cache) and GET /sync/all (20s cache)
+    # can keep serving the pre-trial "free" snapshot for up to two minutes
+    # right after the trial starts — exactly the kind of transient false
+    # "not premium" this endpoint exists to prevent.
+    cache_delete(f"profile:{user_id}")
+    cache_delete(f"sync:all:{user_id}")
     return {"ok": True, "trial_started_at": now, "already_started": False}
 
 
@@ -530,7 +536,7 @@ async def get_trial_status(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
     result = await run_query(
         db.table("user_profiles")
-        .select("trial_started_at, subscription_tier")
+        .select("trial_started_at, subscription_tier, streak_bonus_premium_until")
         .eq("user_id", user_id)
     )
     if not result.data:
@@ -538,7 +544,7 @@ async def get_trial_status(user_id: str = Depends(get_current_user_id)):
     row = result.data[0]
     trial_started_at = row.get("trial_started_at")
     from app.core.subscription import is_premium_active
-    is_active = is_premium_active(row.get("subscription_tier"), trial_started_at)
+    is_active = is_premium_active(row.get("subscription_tier"), trial_started_at, row.get("streak_bonus_premium_until"))
     return {
         "trial_started_at": trial_started_at,
         "trial_active":     is_active,
@@ -571,13 +577,13 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
     try:
         profile_res = await run_query(
             db.table("user_profiles")
-            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, completed_topic_ids, portfolio_view_mode, checklist_done, watchlist_view_mode, has_broker, preferred_language")
+            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, streak_bonus_premium_until, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, completed_topic_ids, portfolio_view_mode, checklist_done, watchlist_view_mode, has_broker, preferred_language")
             .eq("user_id", user_id)
         )
     except Exception:
         profile_res = await run_query(
             db.table("user_profiles")
-            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, investment_goal, investment_goal_amount")
+            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, streak_bonus_premium_until, nav_order, investment_goal, investment_goal_amount")
             .eq("user_id", user_id)
         )
     watchlist_res = await run_query(
@@ -617,7 +623,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
 
     trial_started_at = profile_row.get("trial_started_at")
     from app.core.subscription import is_premium_active
-    trial_active = is_premium_active(profile_row.get("subscription_tier"), trial_started_at)
+    trial_active = is_premium_active(profile_row.get("subscription_tier"), trial_started_at, profile_row.get("streak_bonus_premium_until"))
 
     resp = {
         "portfolio": {

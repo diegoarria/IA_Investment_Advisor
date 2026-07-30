@@ -11,6 +11,7 @@ import { posthog } from "../../src/config/posthog";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useAppStore, RISK_CONFIG } from "../../src/lib/profileStore";
+import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import type { QuizAnswer } from "../../src/lib/profileStore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -850,7 +851,14 @@ export default function OnboardingScreen() {
         mentor:                 null,
       };
       setProfile(profileData as unknown as import("../../src/lib/profileStore").UserProfile);
-      profileApi.create(profileData as Record<string, unknown>).catch(() => {});
+      // The trial starts server-side the instant this profile row is
+      // created (see backend profile.py) — refresh subscription status as
+      // soon as that resolves so the app already knows the user is in
+      // their 30-day trial without waiting on some other screen to
+      // happen to trigger a fetch.
+      profileApi.create(profileData as Record<string, unknown>)
+        .then(() => useSubscriptionStore.getState().fetchStatus())
+        .catch(() => {});
       posthog.capture("onboarding_completed", {
         risk_tolerance: calculated,
         knowledge_level: form.knowledge_level,

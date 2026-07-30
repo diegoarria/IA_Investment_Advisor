@@ -288,12 +288,12 @@ async def add_to_watchlist(body: dict, user_id: str = Depends(get_current_user_i
     # Check tier + active trial
     tier_res = await run_query(
         db.table("user_profiles")
-        .select("subscription_tier, trial_started_at")
+        .select("subscription_tier, trial_started_at, streak_bonus_premium_until")
         .eq("user_id", user_id)
     )
     row = tier_res.data[0] if tier_res.data else {}
     from app.core.subscription import is_premium_active
-    is_premium = is_premium_active(row.get("subscription_tier"), row.get("trial_started_at"))
+    is_premium = is_premium_active(row.get("subscription_tier"), row.get("trial_started_at"), row.get("streak_bonus_premium_until"))
 
     if not is_premium:
         count_res = await run_query(

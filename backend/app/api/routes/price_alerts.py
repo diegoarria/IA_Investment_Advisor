@@ -63,11 +63,11 @@ async def create_alert(
     )
 
     profile_res = await run_query(
-        db.table("user_profiles").select("subscription_tier, trial_started_at").eq("user_id", user_id)
+        db.table("user_profiles").select("subscription_tier, trial_started_at, streak_bonus_premium_until").eq("user_id", user_id)
     )
     profile_row = profile_res.data[0] if profile_res.data else {}
     from app.core.subscription import is_premium_active
-    is_premium = is_premium_active(profile_row.get("subscription_tier"), profile_row.get("trial_started_at"))
+    is_premium = is_premium_active(profile_row.get("subscription_tier"), profile_row.get("trial_started_at"), profile_row.get("streak_bonus_premium_until"))
 
     if not is_premium:
         all_alerts = await run_query(

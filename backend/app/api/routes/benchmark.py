@@ -52,12 +52,12 @@ async def get_my_benchmark(user_id: str = Depends(get_current_user_id)):
 
     prof_res = await run_query(
         db.table("user_profiles")
-        .select("risk_tolerance,subscription_tier,trial_started_at")
+        .select("risk_tolerance,subscription_tier,trial_started_at,streak_bonus_premium_until")
         .eq("user_id", user_id)
         .limit(1)
     )
     profile = prof_res.data[0] if prof_res.data else {}
-    tier = _effective_tier(profile.get("subscription_tier", "free"), profile.get("trial_started_at"))
+    tier = _effective_tier(profile.get("subscription_tier", "free"), profile.get("trial_started_at"), profile.get("streak_bonus_premium_until"))
     if tier != "premium":
         raise HTTPException(status_code=403, detail="Comparar tu progreso con otros inversionistas es exclusivo de Premium")
 

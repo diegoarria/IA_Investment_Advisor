@@ -294,6 +294,12 @@
     }
   },
   "profile": {
+    "savedValuations": {
+      "title": "Mis valores intrínsecos guardados",
+      "stale": "datos no disponibles",
+      "noData": "N/D",
+      "footer": "Te avisamos cuando el margen de seguridad cruce -10%, 0%, +10%, +20%, +30% o +40%."
+    },
     "language": "Idioma",
     "languagePickerTitle": "¿En qué idioma quieres usar Nuvos?",
     "languagePickerSubtitle": "Cambia el idioma de toda la app, incluyendo al Mentor IA.",
@@ -827,6 +833,11 @@
       "pageTitle": { "pre": "Calculadora de", "em": "Valor Intrínseco" },
       "pageSubtitle": "Mueve los supuestos y observa cómo cambia el resultado en tiempo real. Ningún número aquí es una verdad fija — es matemática con supuestos que tú controlas.",
       "chips": { "fcf": "FCF (TTM)", "netCash": "Deuda neta", "shares": "Acciones diluidas" },
+      "saveCta": {
+        "default": "Guardar este valor intrínseco",
+        "saved": "Guardado — te avisamos si cambia",
+        "error": "No se pudo guardar, intenta de nuevo"
+      },
       "controls": {
         "growth": "Crecimiento anual del FCF",
         "growthSub": "Próximos 10 años (g)",
@@ -3259,7 +3270,7 @@
     },
     "trust1": "Cancela cuando quieras",
     "trust2": "Pago seguro con Stripe",
-    "trust3": "7 días gratis",
+    "trust3": "30 días gratis",
     "paymentError": "No se pudo abrir el pago. Intenta de nuevo.",
     "premiumBadge": "Nuvos AI Premium",
     "headlinePrefix": "Conviértete en",

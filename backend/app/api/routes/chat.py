@@ -71,7 +71,11 @@ def _is_premium(profile) -> bool:
     if profile is None:
         return False
     from app.core.subscription import is_premium_active
-    return is_premium_active(getattr(profile, "subscription_tier", None), getattr(profile, "trial_started_at", None))
+    return is_premium_active(
+        getattr(profile, "subscription_tier", None),
+        getattr(profile, "trial_started_at", None),
+        getattr(profile, "streak_bonus_premium_until", None),
+    )
 
 
 _LIVE_DATA_RE = re.compile(r"\bmi (portafolio|cuenta|posici[oó]n|inversi[oó]n)\b|\b(hoy|ahora|today|now)\b", re.IGNORECASE)

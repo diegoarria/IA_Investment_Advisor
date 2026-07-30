@@ -103,6 +103,7 @@ class UserProfile(BaseModel):
     time_horizon_years: Optional[int] = None
     financial_freedom_target_usd: Optional[float] = None
     trial_started_at: Optional[str] = None
+    streak_bonus_premium_until: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

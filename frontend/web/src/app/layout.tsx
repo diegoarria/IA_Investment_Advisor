@@ -4,6 +4,7 @@ import "./globals.css";
 import ThemeProvider from "@/components/ThemeProvider";
 import NuvosGuide from "@/components/NuvosGuide";
 import UpsellProvider from "@/components/UpsellProvider";
+import SubscriptionStatusProvider from "@/components/SubscriptionStatusProvider";
 import FeedbackBanner from "@/components/FeedbackBanner";
 import SessionExpiredBanner from "@/components/SessionExpiredBanner";
 import PostHogProvider from "@/components/PostHogProvider";
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PostHogProvider>
           <ThemeProvider>
             {children}
+            <SubscriptionStatusProvider />
             <NuvosGuide />
             <UpsellProvider />
             <FeedbackBanner />

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useTranslation } from "react-i18next";
 import { profile as profileApi } from "@/lib/api";
-import { useProfileStore, useAuthStore, useChatStore, useLanguageStore } from "@/lib/store";
+import { useProfileStore, useAuthStore, useChatStore, useLanguageStore, useSubscriptionStore } from "@/lib/store";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -996,6 +996,11 @@ export default function OnboardingPage() {
       };
       const res = await profileApi.create(payload);
       setProfile(res.data);
+      // The trial starts server-side the instant this profile row is
+      // created — refresh subscription status right away so the very next
+      // screen already knows the user is in their 30-day trial, instead of
+      // waiting on whichever page happens to mount AppSidebar first.
+      useSubscriptionStore.getState().fetchStatus();
 
       // ── Inyectar mensaje de bienvenida del mentor en el chat ──────────────
       const _goalLabelKeys: Record<string, string> = {

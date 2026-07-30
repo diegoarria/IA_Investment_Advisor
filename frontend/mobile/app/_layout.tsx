@@ -44,7 +44,11 @@ function TrialExpiredModal() {
     if (!subStore.hasFetchedStatus) return;
     const trialStarted = subStore.trialStartDate !== null;
     const expired = trialStarted && !hasPremiumAccess(subStore);
-    if (expired) setVisible(true);
+    // Also clears the modal if a later fetch reveals the user is actually
+    // still premium (e.g. the first read raced an in-flight trial-start
+    // reconciliation) — this must never get stuck showing "expired" once
+    // the real status comes back active.
+    setVisible(expired);
   }, [subStore.trialStartDate, subStore.tier, subStore.hasFetchedStatus]);
 
   if (!visible) return null;
@@ -57,7 +61,7 @@ function TrialExpiredModal() {
             <Text style={{ fontSize: 40, textAlign: "center", marginBottom: 12 }}>⏰</Text>
             <Text style={[s.title, { color: colors.text }]}>Tu prueba Premium terminó</Text>
             <Text style={[s.body, { color: colors.textMuted }]}>
-              Tuviste 7 días de acceso completo. Activa Premium para seguir usando el Mentor IA ilimitado, análisis avanzado de portafolio, Stress Test completo y más.
+              Tuviste 30 días de acceso completo. Activa Premium para seguir usando el Mentor IA ilimitado, análisis avanzado de portafolio, Stress Test completo y más.
             </Text>
             <TouchableOpacity
               style={[s.btn, { backgroundColor: "#f59e0b" }]}

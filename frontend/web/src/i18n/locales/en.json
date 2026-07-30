@@ -374,6 +374,12 @@
     "you": "You",
     "myCalls": "My calls ({{count}})",
     "loadingEllipsis": "Loading...",
+    "savedValuations": {
+      "title": "My saved intrinsic valuations",
+      "stale": "data unavailable",
+      "noData": "N/A",
+      "footer": "We'll alert you when the margin of safety crosses -10%, 0%, +10%, +20%, +30% or +40%."
+    },
     "referralProgram": "Referral program",
     "inviteFriends": "Invite friends, earn rewards",
     "inviteFriendsDesc": "You and your friend both get 14 days of premium free",
@@ -759,6 +765,11 @@
       "pageSubtitle": "Move the assumptions and watch the result change in real time. Nothing here is a fixed truth — it's math with assumptions you control.",
       "autofillLabel": "Base data from Mentor IA",
       "chips": { "fcf": "FCF (TTM)", "netCash": "Net debt", "shares": "Diluted shares" },
+      "saveCta": {
+        "default": "Save this intrinsic value",
+        "saved": "Saved — we'll alert you if it changes",
+        "error": "Couldn't save, try again"
+      },
       "controls": {
         "growth": "Annual FCF growth",
         "growthSub": "Next 10 years (g)",
@@ -2404,7 +2415,7 @@
     "startNow": "Start now",
     "cancelAnytime": "Cancel anytime",
     "securePayment": "Secure payment with Stripe",
-    "freeTrial": "7-day free trial",
+    "freeTrial": "30-day free trial",
     "oneOnOneCta": "Prefer a 1:1 guide with an expert from our team?",
     "periodMonthly": "/mo",
     "periodYearly": "/yr"

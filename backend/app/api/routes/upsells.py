@@ -18,12 +18,14 @@ logger = logging.getLogger(__name__)
 PRIORITY = ["session", "family_plan"]
 
 
-def _effective_tier(raw_tier: str, trial_started_at: str | None) -> str:
-    """Return 'premium' if user is paid premium OR within their active trial.
-    Delegates to app.core.subscription.is_premium_active — the single
-    canonical trial-window check shared across the whole app."""
+def _effective_tier(raw_tier: str, trial_started_at: str | None, streak_bonus_premium_until: str | None = None) -> str:
+    """Return 'premium' if user is paid premium, within their active trial,
+    OR currently covered by a streak/referral premium bonus. Delegates to
+    app.core.subscription.is_premium_active — the single canonical
+    trial-window check shared across the whole app. Reused by
+    benchmark.py, progress.py, and wrapped.py."""
     from app.core.subscription import is_premium_active
-    return "premium" if is_premium_active(raw_tier, trial_started_at) else raw_tier
+    return "premium" if is_premium_active(raw_tier, trial_started_at, streak_bonus_premium_until) else raw_tier
 
 PRICES = {
     "session":       {"free": 149.0, "premium": 99.0, "bundle": 247.0},
@@ -104,12 +106,12 @@ async def check_upsell(
 
     profile_res = await run_query(
         db.table("user_profiles")
-        .select("subscription_tier, trial_started_at, created_at, subscription_started_at")
+        .select("subscription_tier, trial_started_at, created_at, subscription_started_at, streak_bonus_premium_until")
         .eq("user_id", user_id)
         .single()
     )
     profile = profile_res.data or {}
-    tier = _effective_tier(profile.get("subscription_tier", "free"), profile.get("trial_started_at"))
+    tier = _effective_tier(profile.get("subscription_tier", "free"), profile.get("trial_started_at"), profile.get("streak_bonus_premium_until"))
     account_days = _account_days(profile.get("created_at"))
     sub_days = _subscription_days(profile.get("subscription_started_at"))
 
@@ -177,12 +179,12 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
 
     profile_res = await run_query(
         db.table("user_profiles")
-        .select("stripe_customer_id, subscription_tier, trial_started_at")
+        .select("stripe_customer_id, subscription_tier, trial_started_at, streak_bonus_premium_until")
         .eq("user_id", user_id)
         .single()
     )
     profile = profile_res.data or {}
-    tier = _effective_tier(profile.get("subscription_tier", "free"), profile.get("trial_started_at"))
+    tier = _effective_tier(profile.get("subscription_tier", "free"), profile.get("trial_started_at"), profile.get("streak_bonus_premium_until"))
     customer_id = profile.get("stripe_customer_id")
 
     if offer == "family_plan":

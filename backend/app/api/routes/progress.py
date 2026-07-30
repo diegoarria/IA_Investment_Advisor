@@ -23,12 +23,12 @@ async def _require_premium(user_id: str) -> None:
     db = get_supabase()
     res = await run_query(
         db.table("user_profiles")
-        .select("subscription_tier, trial_started_at")
+        .select("subscription_tier, trial_started_at, streak_bonus_premium_until")
         .eq("user_id", user_id)
         .limit(1)
     )
     profile = res.data[0] if res.data else {}
-    tier = _effective_tier(profile.get("subscription_tier", "free"), profile.get("trial_started_at"))
+    tier = _effective_tier(profile.get("subscription_tier", "free"), profile.get("trial_started_at"), profile.get("streak_bonus_premium_until"))
     if tier != "premium":
         raise HTTPException(status_code=403, detail="Tu evolución como inversionista es exclusiva de Premium")
 

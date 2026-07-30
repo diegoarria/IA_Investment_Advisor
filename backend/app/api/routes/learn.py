@@ -29,7 +29,7 @@ async def _get_profile_raw(user_id: str) -> dict | None:
     try:
         db = get_supabase()
         result = await run_query(
-            db.table("user_profiles").select("subscription_tier, trial_started_at").eq("user_id", user_id)
+            db.table("user_profiles").select("subscription_tier, trial_started_at, streak_bonus_premium_until").eq("user_id", user_id)
         )
         return result.data[0] if result.data else None
     except Exception:
@@ -45,7 +45,7 @@ async def _is_premium(user_id: str) -> bool:
     p = await _get_profile_raw(user_id)
     if not p:
         return False
-    return is_premium_active(p.get("subscription_tier"), p.get("trial_started_at"))
+    return is_premium_active(p.get("subscription_tier"), p.get("trial_started_at"), p.get("streak_bonus_premium_until"))
 
 async def _get_daily_usage(user_id: str) -> dict:
     """Fetch or create today's usage row from Supabase."""

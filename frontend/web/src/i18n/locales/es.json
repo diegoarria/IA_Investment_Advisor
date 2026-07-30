@@ -374,6 +374,12 @@
     "you": "Tú",
     "myCalls": "Mis llamadas ({{count}})",
     "loadingEllipsis": "Cargando...",
+    "savedValuations": {
+      "title": "Mis valores intrínsecos guardados",
+      "stale": "datos no disponibles",
+      "noData": "N/D",
+      "footer": "Te avisamos cuando el margen de seguridad cruce -10%, 0%, +10%, +20%, +30% o +40%."
+    },
     "referralProgram": "Programa de referidos",
     "inviteFriends": "Invita amigos, gana recompensas",
     "inviteFriendsDesc": "Tú y tu amigo obtienen 14 días de premium gratis",
@@ -759,6 +765,11 @@
       "pageSubtitle": "Mueve los supuestos y observa cómo cambia el resultado en tiempo real. Ningún número aquí es una verdad fija — es matemática con supuestos que tú controlas.",
       "autofillLabel": "Datos base desde Mentor IA",
       "chips": { "fcf": "FCF (TTM)", "netCash": "Deuda neta", "shares": "Acciones diluidas" },
+      "saveCta": {
+        "default": "Guardar este valor intrínseco",
+        "saved": "Guardado — te avisamos si cambia",
+        "error": "No se pudo guardar, intenta de nuevo"
+      },
       "controls": {
         "growth": "Crecimiento anual del FCF",
         "growthSub": "Próximos 10 años (g)",
@@ -2404,7 +2415,7 @@
     "startNow": "Comenzar ahora",
     "cancelAnytime": "Cancela cuando quieras",
     "securePayment": "Pago seguro con Stripe",
-    "freeTrial": "7 días gratis",
+    "freeTrial": "30 días gratis",
     "oneOnOneCta": "¿Prefieres una guía 1:1 con experto de nuestro equipo?",
     "periodMonthly": "/mes",
     "periodYearly": "/año"

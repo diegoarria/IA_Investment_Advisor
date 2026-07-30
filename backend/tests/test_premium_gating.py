@@ -81,6 +81,28 @@ class TestIsPremiumActive:
         started = (datetime.now(timezone.utc) - timedelta(days=15)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         assert is_premium_active("free", started) is True
 
+    def test_streak_bonus_active_grants_premium_with_no_trial(self):
+        # A user whose ONLY premium entitlement is a streak/referral bonus —
+        # never trialed, never paid — must still pass every gate, not just
+        # /billing/status (which is what actually happened before: the UI
+        # said "Premium" while chat/watchlist/price alerts/learn all
+        # rejected them).
+        assert is_premium_active("free", None, _iso_days_ago(-5)) is True
+
+    def test_streak_bonus_expired_is_not_premium(self):
+        assert is_premium_active("free", None, _iso_days_ago(1)) is False
+
+    def test_streak_bonus_ignored_when_omitted(self):
+        # Backward compatibility: every pre-existing 2-arg call site must
+        # keep behaving exactly as before.
+        assert is_premium_active("free", None) is False
+
+    def test_trial_wins_even_if_streak_bonus_already_expired(self):
+        assert is_premium_active("free", _iso_days_ago(15), _iso_days_ago(1)) is True
+
+    def test_malformed_streak_bonus_does_not_crash_and_is_not_premium(self):
+        assert is_premium_active("free", None, "not-a-real-date") is False
+
 
 class TestRouteWrappersAgreeWithCanonical:
     """Each of these route modules keeps its own thin wrapper around
@@ -165,4 +187,54 @@ class TestNoReimplementedTrialMath:
         assert not offenders, (
             "Found ad hoc trial-window math in worker.py — use is_premium_active() instead:\n"
             + "\n".join(offenders)
+        )
+
+    # app/services/*.py legitimately contains other "days < N" comparisons
+    # that have nothing to do with premium/trial (thesis staleness windows,
+    # a 365-day lookback, etc.) — unlike app/api/routes and worker.py, where
+    # every such comparison has in practice been trial-window math. Require
+    # the line to also mention trial/premium so this doesn't flag unrelated
+    # business logic.
+    _SUSPECT_PATTERN_TRIAL_SCOPED = re.compile(r"days\s*<\s*\d+.*(trial|premium)|(trial|premium).*days\s*<\s*\d+", re.IGNORECASE)
+
+    def test_no_ad_hoc_trial_window_math_in_services(self):
+        # Same guard as the routes/worker ones above, extended to
+        # app/services/*.py — this directory was the actual blind spot: it
+        # was never scanned, and it's where notification_engine.py's
+        # analytics tracker quietly used raw subscription_tier instead of
+        # is_premium_active for months.
+        offenders: list[str] = []
+        services_dir = BACKEND_ROOT / "app" / "services"
+        for path in services_dir.glob("*.py"):
+            text = path.read_text(encoding="utf-8")
+            for i, line in enumerate(text.splitlines(), start=1):
+                if self._SUSPECT_PATTERN_TRIAL_SCOPED.search(line):
+                    offenders.append(f"{path.relative_to(BACKEND_ROOT)}:{i}: {line.strip()}")
+        assert not offenders, (
+            "Found ad hoc trial-window math outside app/core/subscription.py — "
+            "use is_premium_active() instead:\n" + "\n".join(offenders)
+        )
+
+    _TIER_ONLY_PATTERN = re.compile(r'subscription_tier["\']?\s*\)?\s*==\s*["\']premium["\']')
+
+    def test_no_tier_only_premium_check_in_worker(self):
+        # The far more common recurring bug than reimplemented date math:
+        # `subscription_tier == "premium"` with no trial_started_at or
+        # streak_bonus_premium_until check at all — silently excludes every
+        # trial/bonus user from whatever this gates (in worker.py's case,
+        # historically: weekly emails, the AI-recommendations screener push,
+        # and two proactive push jobs). A few call sites legitimately mean
+        # "already paid" (e.g. referral.py's "don't grant a bonus to a
+        # paying user") — those live in app/api/routes, not worker.py, so
+        # this guard is scoped to worker.py only to avoid false positives.
+        worker_path = BACKEND_ROOT / "worker.py"
+        text = worker_path.read_text(encoding="utf-8")
+        offenders = [
+            f"worker.py:{i}: {line.strip()}"
+            for i, line in enumerate(text.splitlines(), start=1)
+            if self._TIER_ONLY_PATTERN.search(line)
+        ]
+        assert not offenders, (
+            "Found a tier-only premium check in worker.py (ignores trial/streak-bonus users) — "
+            "use _is_premium_user()/is_premium_active() instead:\n" + "\n".join(offenders)
         )
