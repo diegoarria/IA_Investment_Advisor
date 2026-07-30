@@ -378,15 +378,52 @@ function SubvaluadasPageInner() {
 
   useEffect(() => {
     if (!isPremium) { setLoading(false); return; }
-    setLoading(true);
-    setError(null);
-    screenerApi.quickAnalysis(ticker, i18n.language)
-      .then((res) => setData(res.data))
-      .catch((err: unknown) => {
+    let cancelled = false;
+    const cacheKey = `vi_quick_analysis:${ticker}:${i18n.language}`;
+
+    // Stale-while-revalidate: paint instantly from the last cached payload
+    // for this ticker+lang (localStorage) while a fresh copy loads in the
+    // background — the screen's default ticker must never sit on a spinner
+    // when we already know the answer from a previous visit.
+    let hadCache = false;
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        setData(JSON.parse(cached));
+        setError(null);
+        setLoading(false);
+        hadCache = true;
+      }
+    } catch { /* localStorage unavailable (Safari private mode, etc.) — fall through to network */ }
+
+    if (!hadCache) { setLoading(true); setError(null); }
+
+    // This screen must always open with a real result, not a spinner stuck
+    // on a transient network hiccup or a slow provider timeout — retry a
+    // couple of times with backoff before surfacing an error. A definite
+    // answer from the server (bad ticker, not premium) is never retried.
+    const attempt = async (n: number): Promise<void> => {
+      try {
+        const res = await screenerApi.quickAnalysis(ticker, i18n.language);
+        if (cancelled) return;
+        setData(res.data);
+        setError(null);
+        try { localStorage.setItem(cacheKey, JSON.stringify(res.data)); } catch { /* ignore */ }
+      } catch (err: unknown) {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        const isDefinitive = status !== undefined && status !== 503;
+        if (!isDefinitive && n < 2) {
+          await new Promise((r) => setTimeout(r, 800 * (n + 1)));
+          return cancelled ? undefined : attempt(n + 1);
+        }
+        if (cancelled || hadCache) return; // already showing the cached result — don't rip it away
         const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
         setError(detail || t("subvaluadas.search.error"));
-      })
-      .finally(() => setLoading(false));
+      }
+    };
+
+    attempt(0).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [ticker, isPremium, i18n.language, t]);
 
   const handleSearch = () => {

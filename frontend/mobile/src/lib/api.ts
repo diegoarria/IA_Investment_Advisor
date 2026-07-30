@@ -347,7 +347,7 @@ export const screenerWeeklyApi = {
   getUndervalued: (sector?: string, limit = 10, lang?: string) =>
     api.get("/api/market/screener/undervalued", { params: { sector, limit, lang } }),
   quickAnalysis: (query: string, lang?: string) =>
-    api.get("/api/market/screener/quick-analysis", { params: { query, lang } }),
+    api.get("/api/market/screener/quick-analysis", { params: { query, lang }, timeout: 25000 }),
 };
 
 export const savedValuationsApi = {

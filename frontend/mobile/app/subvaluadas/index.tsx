@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, TextInput, Modal,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Slider from "@react-native-community/slider";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
@@ -184,12 +185,56 @@ export default function SubvaluadasScreen() {
 
   useEffect(() => {
     if (!isPremium) { setLoading(false); return; }
-    setLoading(true);
-    setError(null);
-    screenerWeeklyApi.quickAnalysis(ticker, i18n.language)
-      .then((res: any) => setData(res.data))
-      .catch((err: any) => setError(err?.response?.data?.detail || t("subvaluadas.search.error")))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    const cacheKey = `vi_quick_analysis:${ticker}:${i18n.language}`;
+
+    const run = async () => {
+      // Stale-while-revalidate: paint instantly from the last cached
+      // payload for this ticker+lang (AsyncStorage) while a fresh copy
+      // loads in the background — the screen's default ticker must never
+      // sit on a spinner when we already know the answer from a previous visit.
+      let hadCache = false;
+      try {
+        const cached = await AsyncStorage.getItem(cacheKey);
+        if (cached && !cancelled) {
+          setData(JSON.parse(cached));
+          setError(null);
+          setLoading(false);
+          hadCache = true;
+        }
+      } catch { /* ignore — fall through to network */ }
+
+      if (!hadCache && !cancelled) { setLoading(true); setError(null); }
+
+      // This screen must always open with a real result, not a spinner
+      // stuck on a transient network hiccup or a slow provider timeout —
+      // retry a couple of times with backoff before surfacing an error. A
+      // definite answer from the server (bad ticker, not premium) is never retried.
+      const attempt = async (n: number): Promise<void> => {
+        try {
+          const res: any = await screenerWeeklyApi.quickAnalysis(ticker, i18n.language);
+          if (cancelled) return;
+          setData(res.data);
+          setError(null);
+          AsyncStorage.setItem(cacheKey, JSON.stringify(res.data)).catch(() => {});
+        } catch (err: any) {
+          const status = err?.response?.status;
+          const isDefinitive = status !== undefined && status !== 503;
+          if (!isDefinitive && n < 2) {
+            await new Promise((r) => setTimeout(r, 800 * (n + 1)));
+            return cancelled ? undefined : attempt(n + 1);
+          }
+          if (cancelled || hadCache) return; // already showing the cached result — don't rip it away
+          setError(err?.response?.data?.detail || t("subvaluadas.search.error"));
+        }
+      };
+
+      await attempt(0);
+      if (!cancelled) setLoading(false);
+    };
+
+    run();
+    return () => { cancelled = true; };
   }, [ticker, isPremium, i18n.language, t]);
 
   const handleSearch = () => {

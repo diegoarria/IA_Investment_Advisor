@@ -2220,6 +2220,27 @@ async def job_refresh_undervalued_screener():
         logger.error("job_refresh_undervalued_screener: notification failed: %s", e)
 
 
+_QUICK_ANALYSIS_PREWARM_TICKER = "AAPL"
+
+
+async def job_prewarm_quick_analysis_default():
+    """Runs every few hours (well inside the 24h TTL — see
+    screener._QUICK_ANALYSIS_CACHE_TTL) to keep the Oportunidades screen's
+    default ticker (AAPL) always warm in cache, in both languages. Without
+    this, whichever user happens to open the screen right after the cache
+    entry expires pays the full live DCF+AI computation instead of an
+    instant cache hit — this job makes sure that user never exists."""
+    from app.api.routes.screener import _build_quick_analysis, _quick_analysis_cache_key, _QUICK_ANALYSIS_CACHE_TTL
+    from app.core.cache import cache_set
+
+    for lang in ("es", "en"):
+        try:
+            result = await _build_quick_analysis(_QUICK_ANALYSIS_PREWARM_TICKER, lang)
+            cache_set(_quick_analysis_cache_key(_QUICK_ANALYSIS_PREWARM_TICKER, lang), result, _QUICK_ANALYSIS_CACHE_TTL)
+        except Exception as e:
+            logger.error("job_prewarm_quick_analysis_default(%s) failed: %s", lang, e)
+
+
 async def _notify_undervalued_screener_updated():
     """Generic (not personalized) push to premium users that this week's
     featured Oportunidades picks just rotated — Oportunidades is
@@ -4358,6 +4379,11 @@ async def main():
 
     # ── Financial Memory Graph — daily portfolio snapshot ─────────────────────
     scheduler.add_job(job_fmg_snapshot,         "cron", day_of_week="mon-fri", hour=16, minute=5, timezone="America/New_York")
+
+    # ── Oportunidades default-ticker cache warmer ─────────────────────────────
+    # next_run_time=now so a fresh deploy/restart warms the cache immediately
+    # instead of waiting up to 6h for the first interval tick.
+    scheduler.add_job(job_prewarm_quick_analysis_default, "interval", hours=6, next_run_time=datetime.now())
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     scheduler.add_job(job_cleanup_analytics,    "interval", hours=1)

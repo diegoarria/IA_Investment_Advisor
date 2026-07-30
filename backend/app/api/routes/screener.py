@@ -379,70 +379,108 @@ def _resolve_quick_ticker(query: str) -> str | None:
     ticker directly first (cheapest — no extra API call); only falls back
     to a live Finnhub symbol search for company-name input."""
     candidate = query.strip().upper()
-    if candidate.isalpha() and 1 <= len(candidate) <= 5:
+    if candidate.replace(".", "").replace("-", "").isalpha() and 1 <= len(candidate) <= 6:
         return candidate
     try:
         results = fh_search(query.strip())
     except Exception:
         return None
+    # Deliberately NOT filtered to "common stock"/"equity" only — Finnhub
+    # tags plenty of legitimately searchable, valuable tickers (ADRs, REITs,
+    # ETFs, preferred shares) under other `type` strings, and excluding them
+    # here was silently telling users "no se pudo identificar esa empresa"
+    # for real, valid tickers. Only skip the types that can never resolve to
+    # tradeable equity fundamentals (get_fundamental_analysis degrades to a
+    # clean 404 downstream for anything else that has no real data).
+    _NEVER_RESOLVABLE = {"crypto", "forex", "index"}
     for r in results:
-        if r.get("symbol") and r.get("type", "").lower() in ("common stock", "equity", ""):
+        if r.get("symbol") and r.get("type", "").strip().lower() not in _NEVER_RESOLVABLE:
             return r["symbol"]
     return None
+
+
+async def _compute_extra_valuations(ticker: str, data: dict, dcf: dict):
+    """Methods 3/4/5 of the valuation engine (Relative, Historical, Consensus)
+    for quick_analysis's single-ticker live search. Split out from
+    quick_analysis so the whole block can be bounded by one asyncio.wait_for
+    — a stalled peer/history fetch must never hang the request past a few
+    seconds; the quick-analysis card just degrades to the base DCF result."""
+    from app.services.consensus_valuation_service import classify_archetype, compute_consensus_fair_value
+    from app.services.fundamental_analysis_service import _is_financial_sector, _sector_cyclicality_dampener, get_financials
+    from app.services.historical_valuation_service import compute_historical_valuation
+    from app.services.relative_valuation_service import compute_relative_valuation
+
+    relative_valuation = None
+    historical_valuation = None
+
+    price = data.get("current_price")
+    shares_out = dcf.get("shares_outstanding")
+    total_debt = data.get("total_debt") or 0
+    cash = data.get("cash") or 0
+    sector = data.get("sector")
+    industry = next((u["industry"] for u in UNIVERSE if u["ticker"] == ticker), None)
+    thesis_scores = data.get("thesis_scores") or {}
+
+    fin = await asyncio.to_thread(get_financials, ticker, 10)
+    income = fin.get("incomeStatement", {}).get("annual", [])
+    balance = fin.get("balanceSheet", {}).get("annual", [])
+    cashflow = fin.get("cashFlow", {}).get("annual", [])
+    n = min(len(income), len(balance), len(cashflow))
+    income, balance, cashflow = income[-n:], balance[-n:], cashflow[-n:]
+    latest_income = income[-1] if income else {}
+    latest_eps = latest_income.get("Diluted EPS") or latest_income.get("Basic EPS")
+    latest_ebitda = latest_income.get("EBITDA")
+    fcf_trend_vals = [v for v in (data.get("fcf_trend") or []) if v is not None]
+    latest_fcf = fcf_trend_vals[-1] if fcf_trend_vals else None
+
+    if price and shares_out:
+        relative_valuation = await asyncio.to_thread(
+            compute_relative_valuation, ticker, price, shares_out, latest_eps, latest_ebitda, latest_fcf,
+            total_debt, cash, sector, industry,
+        )
+        if n >= 5:
+            historical_valuation = await asyncio.to_thread(
+                compute_historical_valuation, ticker, income, balance, cashflow, price, shares_out, total_debt, cash,
+                latest_eps, latest_ebitda, latest_fcf,
+            )
+
+    archetype = classify_archetype(
+        _is_financial_sector(sector), thesis_scores.get("business_quality"),
+        thesis_scores.get("predictability"), _sector_cyclicality_dampener(sector),
+    )
+    scenarios = dcf.get("scenarios") or {}
+    conservative_dcf_value = (scenarios.get("pessimistic") or {}).get("intrinsic_value_per_share")
+    professional_dcf_value = (scenarios.get("base") or {}).get("intrinsic_value_per_share")
+    consensus_valuation = compute_consensus_fair_value(archetype, conservative_dcf_value, professional_dcf_value, relative_valuation, historical_valuation)
+    return relative_valuation, historical_valuation, consensus_valuation
 
 
 _QUICK_ANALYSIS_CACHE_TTL = 24 * 3600  # 1 day — fundamentals don't change intraday; avoids re-billing Claude+FMP/Finnhub for repeat searches
 
 
-@router.get("/quick-analysis")
-async def quick_analysis(query: str, lang: str | None = None, user_id: str = Depends(get_current_user_id)):
-    """Ad-hoc single-ticker valuation search — the real DCF engine (same one
-    behind Mentor IA and the undervalued screener) plus a SHORT narrative
-    summary (see ai_service.generate_quick_valuation_summary), for any
-    ticker/company name, not just the curated screener universe.
-
-    Cached 24h per (ticker, lang) — this used to be fully live on every
-    request (both the Claude call AND the FMP/Finnhub fetches behind
-    get_fundamental_analysis re-ran every search), which meant a popular
-    ticker got re-billed on every single search with no cost tracking at
-    all. Fundamentals don't meaningfully change within a day, so caching
-    the whole response (numbers + AI text together, never just one or the
-    other) guarantees the narrative always matches the numbers shown next
-    to it, and the cached `generated_at` is disclosed to the user exactly
-    like the weekly undervalued-screener list already does.
-
-    `lang` is passed explicitly by the frontend (see /undervalued's
-    docstring for why this is preferred over profile.preferred_language)."""
-    import time
-
-    from app.api.routes.chat import _is_premium
-    profile = _get_user_profile(user_id)
-    if not _is_premium(profile):
-        raise HTTPException(status_code=403, detail="La búsqueda de valor intrínseco requiere Premium")
-
-    if not query or not query.strip():
-        raise HTTPException(status_code=400, detail="Escribe un ticker o nombre de empresa")
-
-    if lang not in ("es", "en"):
-        lang = getattr(profile, "preferred_language", None) or "es"
-
-    ticker = await asyncio.to_thread(_resolve_quick_ticker, query)
-    if not ticker:
-        raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
-
+def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
     # v2 — bumped so a stale English-requested cache entry generated before
     # the "summary"/"blurb" schema's hardcoded "español" instruction was
     # fixed (it silently overrode the top-level language directive) doesn't
     # keep serving Spanish text under an English UI for its remaining TTL.
-    cache_key = f"quick_analysis:v2:{lang}:{ticker}"
-    cached = cache_get(cache_key)
-    if cached:
-        _log_thesis_event(user_id, ticker, cached)
-        return cached
+    return f"quick_analysis:v2:{lang}:{ticker}"
+
+
+async def _build_quick_analysis(ticker: str, lang: str) -> dict:
+    """Computes the full quick-analysis payload for one ticker+lang — the
+    real DCF engine plus a short AI narrative. Pure compute: doesn't touch
+    cache or the per-user thesis-event log, so it can be called both by the
+    /quick-analysis route (cache miss path) and by worker.py's cache-warming
+    job for the screen's default ticker, without depending on a request or
+    user_id."""
+    import time
 
     from app.services.fundamental_analysis_service import get_fundamental_analysis
     try:
-        data = await asyncio.to_thread(get_fundamental_analysis, ticker)
+        # Bounded so a stalled FMP/Finnhub call can never hang this endpoint
+        # indefinitely — the frontend gets a fast, clear failure to retry
+        # instead of an infinite spinner on a screen that must always open.
+        data = await asyncio.wait_for(asyncio.to_thread(get_fundamental_analysis, ticker), timeout=20.0)
     except Exception as exc:
         # A real data-provider hiccup (FMP/Finnhub timeout, rate limit,
         # malformed response) must never surface as a raw 500 — this
@@ -456,7 +494,7 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
     # numbers already in `data` — a Claude timeout/error must degrade to a
     # plain-numbers card, never take down the whole request.
     try:
-        ai_result = await ai_service.generate_quick_valuation_summary(data, lang=lang)
+        ai_result = await asyncio.wait_for(ai_service.generate_quick_valuation_summary(data, lang=lang), timeout=20.0)
     except Exception as exc:
         logger.error("quick_analysis(%s): generate_quick_valuation_summary failed: %s", ticker, exc, exc_info=True)
         ai_result = {
@@ -480,50 +518,9 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
     historical_valuation = None
     consensus_valuation = None
     try:
-        from app.services.consensus_valuation_service import classify_archetype, compute_consensus_fair_value
-        from app.services.fundamental_analysis_service import _is_financial_sector, _sector_cyclicality_dampener, get_financials
-        from app.services.historical_valuation_service import compute_historical_valuation
-        from app.services.relative_valuation_service import compute_relative_valuation
-
-        price = data.get("current_price")
-        shares_out = dcf.get("shares_outstanding")
-        total_debt = data.get("total_debt") or 0
-        cash = data.get("cash") or 0
-        sector = data.get("sector")
-        industry = next((u["industry"] for u in UNIVERSE if u["ticker"] == ticker), None)
-        thesis_scores = data.get("thesis_scores") or {}
-
-        fin = await asyncio.to_thread(get_financials, ticker, 10)
-        income = fin.get("incomeStatement", {}).get("annual", [])
-        balance = fin.get("balanceSheet", {}).get("annual", [])
-        cashflow = fin.get("cashFlow", {}).get("annual", [])
-        n = min(len(income), len(balance), len(cashflow))
-        income, balance, cashflow = income[-n:], balance[-n:], cashflow[-n:]
-        latest_income = income[-1] if income else {}
-        latest_eps = latest_income.get("Diluted EPS") or latest_income.get("Basic EPS")
-        latest_ebitda = latest_income.get("EBITDA")
-        fcf_trend_vals = [v for v in (data.get("fcf_trend") or []) if v is not None]
-        latest_fcf = fcf_trend_vals[-1] if fcf_trend_vals else None
-
-        if price and shares_out:
-            relative_valuation = await asyncio.to_thread(
-                compute_relative_valuation, ticker, price, shares_out, latest_eps, latest_ebitda, latest_fcf,
-                total_debt, cash, sector, industry,
-            )
-            if n >= 5:
-                historical_valuation = await asyncio.to_thread(
-                    compute_historical_valuation, ticker, income, balance, cashflow, price, shares_out, total_debt, cash,
-                    latest_eps, latest_ebitda, latest_fcf,
-                )
-
-        archetype = classify_archetype(
-            _is_financial_sector(sector), thesis_scores.get("business_quality"),
-            thesis_scores.get("predictability"), _sector_cyclicality_dampener(sector),
+        relative_valuation, historical_valuation, consensus_valuation = await asyncio.wait_for(
+            _compute_extra_valuations(ticker, data, dcf), timeout=15.0,
         )
-        scenarios = dcf.get("scenarios") or {}
-        conservative_dcf_value = (scenarios.get("pessimistic") or {}).get("intrinsic_value_per_share")
-        professional_dcf_value = (scenarios.get("base") or {}).get("intrinsic_value_per_share")
-        consensus_valuation = compute_consensus_fair_value(archetype, conservative_dcf_value, professional_dcf_value, relative_valuation, historical_valuation)
     except Exception as exc:
         logger.warning("quick_analysis(%s): valuation engine (methods 3-5) failed: %s", ticker, exc)
 
@@ -547,9 +544,9 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
         checklist = None
 
     # DCF calculator inputs (frontend "Calculadora de Valor Intrínseco") —
-    # re-derived independently from `data`/`dcf` rather than reusing the
-    # locals from the try block above (lines 482-528), since those are only
-    # guaranteed to exist if that block ran to completion without raising.
+    # re-derived independently from `data`/`dcf` rather than reusing locals
+    # from _compute_extra_valuations, since that call may have timed out or
+    # raised before producing anything.
     _fcf_trend_vals = [v for v in (data.get("fcf_trend") or []) if v is not None]
     current_fcf = _fcf_trend_vals[-1] if _fcf_trend_vals else None
     net_cash = (data.get("cash") or 0) - (data.get("total_debt") or 0)
@@ -591,6 +588,50 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
         "liquidity_gate": data.get("liquidity_gate"),
         "generated_at": int(time.time()),
     }
+    return result
+
+
+@router.get("/quick-analysis")
+async def quick_analysis(query: str, lang: str | None = None, user_id: str = Depends(get_current_user_id)):
+    """Ad-hoc single-ticker valuation search — the real DCF engine (same one
+    behind Mentor IA and the undervalued screener) plus a SHORT narrative
+    summary (see ai_service.generate_quick_valuation_summary), for any
+    ticker/company name, not just the curated screener universe.
+
+    Cached 24h per (ticker, lang) — this used to be fully live on every
+    request (both the Claude call AND the FMP/Finnhub fetches behind
+    get_fundamental_analysis re-ran every search), which meant a popular
+    ticker got re-billed on every single search with no cost tracking at
+    all. Fundamentals don't meaningfully change within a day, so caching
+    the whole response (numbers + AI text together, never just one or the
+    other) guarantees the narrative always matches the numbers shown next
+    to it, and the cached `generated_at` is disclosed to the user exactly
+    like the weekly undervalued-screener list already does.
+
+    `lang` is passed explicitly by the frontend (see /undervalued's
+    docstring for why this is preferred over profile.preferred_language)."""
+    from app.api.routes.chat import _is_premium
+    profile = _get_user_profile(user_id)
+    if not _is_premium(profile):
+        raise HTTPException(status_code=403, detail="La búsqueda de valor intrínseco requiere Premium")
+
+    if not query or not query.strip():
+        raise HTTPException(status_code=400, detail="Escribe un ticker o nombre de empresa")
+
+    if lang not in ("es", "en"):
+        lang = getattr(profile, "preferred_language", None) or "es"
+
+    ticker = await asyncio.to_thread(_resolve_quick_ticker, query)
+    if not ticker:
+        raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
+
+    cache_key = _quick_analysis_cache_key(ticker, lang)
+    cached = cache_get(cache_key)
+    if cached:
+        _log_thesis_event(user_id, ticker, cached)
+        return cached
+
+    result = await _build_quick_analysis(ticker, lang)
     # Only successful, complete results are cached — never a 404/503, so a
     # transient provider hiccup doesn't get "stuck" wrong for 24h.
     cache_set(cache_key, result, _QUICK_ANALYSIS_CACHE_TTL)
