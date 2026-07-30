@@ -10,7 +10,7 @@ import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
 import StockAvatar from "@/components/StockAvatar";
-import DcfCalculator from "@/components/DcfCalculator";
+import ValorIntrinseco, { type RangeBounds, type YearlyDetailRow } from "@/components/ValorIntrinseco";
 import { screenerApi, watchlist } from "@/lib/api";
 import { useSubscriptionStore } from "@/lib/store";
 
@@ -62,6 +62,9 @@ export interface DcfAssumptions {
   suggested_g: number | null;
   suggested_r: number | null;
   suggested_gt: number | null;
+  g_range: RangeBounds | null;
+  r_range: RangeBounds | null;
+  gt_range: RangeBounds | null;
   historical_growth_pct: number | null;
   moat_adjustment_pct: number | null;
   avg_roic_pct: number | null;
@@ -69,6 +72,9 @@ export interface DcfAssumptions {
   market_implied_growth_pct: number | null;
   business_quality: number | null;
   predictability: number | null;
+  financial_strength: number | null;
+  growth_outlook: number | null;
+  management_capital_allocation: number | null;
 }
 
 interface UndervaluedResult {
@@ -92,6 +98,12 @@ interface UndervaluedResult {
   net_cash: number | null;
   shares_outstanding: number | null;
   dcf_assumptions: DcfAssumptions | null;
+  yearly_detail: YearlyDetailRow[] | null;
+  pv_of_fcf_sum: number | null;
+  pv_of_terminal_value: number | null;
+  enterprise_value: number | null;
+  total_debt: number | null;
+  cash: number | null;
 }
 
 interface LiquidityGate {
@@ -99,11 +111,13 @@ interface LiquidityGate {
   detalle: string;
 }
 
-interface QuickAnalysisResult {
+export interface QuickAnalysisResult {
   ticker: string;
   company_name: string | null;
   sector: string | null;
   price: number | null;
+  change_pct: number | null;
+  exchange: string | null;
   intrinsic_value_base: number | null;
   expected_value_per_share: number | null;
   margin_of_safety_pct: number | null;
@@ -122,6 +136,12 @@ interface QuickAnalysisResult {
   net_cash: number | null;
   shares_outstanding: number | null;
   dcf_assumptions: DcfAssumptions | null;
+  yearly_detail: YearlyDetailRow[] | null;
+  pv_of_fcf_sum: number | null;
+  pv_of_terminal_value: number | null;
+  enterprise_value: number | null;
+  total_debt: number | null;
+  cash: number | null;
 }
 
 function GeneratedAtNote({ generatedAt }: { generatedAt: number }) {
@@ -512,6 +532,10 @@ export default function SubvaluadasPage() {
     router.push(`/chat?msg=${encodeURIComponent(t("subvaluadas.analyze.prompt", { ticker }))}&autosend=1`);
   };
 
+  const handleAskMentor = (question: string) => {
+    router.push(`/chat?msg=${encodeURIComponent(question)}&autosend=1`);
+  };
+
   const handleSearch = async () => {
     if (!query.trim() || !isPremium) return;
     setSearching(true);
@@ -672,15 +696,23 @@ export default function SubvaluadasPage() {
 
                     <InsightBox>{quickResult.summary}</InsightBox>
 
-                    <DcfCalculator
+                    <ValorIntrinseco
                       ticker={quickResult.ticker}
+                      companyName={quickResult.company_name}
                       price={quickResult.price}
                       fcfRaw={quickResult.current_fcf}
                       netCashRaw={quickResult.net_cash}
                       sharesRaw={quickResult.shares_outstanding}
+                      totalDebtRaw={quickResult.total_debt}
+                      cashRaw={quickResult.cash}
                       assumptions={quickResult.dcf_assumptions}
+                      yearlyDetail={quickResult.yearly_detail}
+                      pvOfFcfSum={quickResult.pv_of_fcf_sum}
+                      pvOfTerminalValue={quickResult.pv_of_terminal_value}
+                      enterpriseValue={quickResult.enterprise_value}
                       isPremium={isPremium}
                       onUnlock={() => setPaywallOpen(true)}
+                      onAskMentor={handleAskMentor}
                     />
 
                     <div className="flex gap-2">
@@ -799,15 +831,23 @@ export default function SubvaluadasPage() {
                       {u.checklist && <ChecklistDisplay checklist={u.checklist} />}
                       {u.blurb && <InsightBox>{u.blurb}</InsightBox>}
 
-                      <DcfCalculator
+                      <ValorIntrinseco
                         ticker={u.ticker}
+                        companyName={u.company_name}
                         price={u.price}
                         fcfRaw={u.current_fcf}
                         netCashRaw={u.net_cash}
                         sharesRaw={u.shares_outstanding}
+                        totalDebtRaw={u.total_debt}
+                        cashRaw={u.cash}
                         assumptions={u.dcf_assumptions}
+                        yearlyDetail={u.yearly_detail}
+                        pvOfFcfSum={u.pv_of_fcf_sum}
+                        pvOfTerminalValue={u.pv_of_terminal_value}
+                        enterpriseValue={u.enterprise_value}
                         isPremium={isPremium}
                         onUnlock={() => setPaywallOpen(true)}
+                        onAskMentor={handleAskMentor}
                       />
 
                       <div className="flex gap-2">

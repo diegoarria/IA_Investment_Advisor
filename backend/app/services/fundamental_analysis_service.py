@@ -454,6 +454,8 @@ _COMPOSITE_SCORE_WEIGHTS: dict[str, float] = {
 def _confidence_meter(
     predictability_score: Optional[float], years_available: int,
     fair_value_range: dict, liquidity_ok: bool,
+    business_quality_score: Optional[float] = None,
+    financial_strength_score: Optional[float] = None,
 ) -> Optional[dict]:
     """How much to trust the Fair Value Range shown next to it — real inputs
     only, never a decoration next to the number. The "method agreement"
@@ -462,7 +464,14 @@ def _confidence_meter(
     Method 3 (Relative) and Method 4 (Historical) exist, this should
     incorporate the real cross-method spread instead, which is the richer
     signal the original design called for; this is the honest version
-    buildable today without waiting on that."""
+    buildable today without waiting on that.
+
+    business_quality/financial_strength were added so a fragile balance
+    sheet or a low-quality business can't hide behind high predictability
+    alone — a company can have very stable (predictable) but structurally
+    weak economics, and the original formula had no way to reflect that.
+    Both are optional (None-safe) so this stays backward compatible for the
+    one caller path that doesn't have them computed yet."""
     if predictability_score is None:
         return None
     completeness = min(100, round(years_available / 10 * 100))
@@ -470,12 +479,16 @@ def _confidence_meter(
     dispersion_pct = min(100, abs(high - low) / base * 100) if base and base > 0 else 50.0
     agreement = 100 - dispersion_pct
     liquidity_component = 100 if liquidity_ok else 40
+    bq = business_quality_score if business_quality_score is not None else predictability_score
+    fs = financial_strength_score if financial_strength_score is not None else predictability_score
 
     score = round(
-        0.35 * predictability_score
-        + 0.25 * completeness
-        + 0.25 * agreement
-        + 0.15 * liquidity_component
+        0.25 * predictability_score
+        + 0.15 * bq
+        + 0.10 * fs
+        + 0.20 * completeness
+        + 0.20 * agreement
+        + 0.10 * liquidity_component
     )
     if score >= 85: label = "Alta confianza"
     elif score >= 65: label = "Confianza moderada"
@@ -1331,6 +1344,23 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
             scenarios[name] = scenario
 
         base_scenario = scenarios["base"]
+
+        # Year-by-year audit table (Nivel 3 / "Ver modelo completo") — real
+        # numbers straight from the same _run_dcf the base scenario itself
+        # used, not a re-derivation that could drift from the headline value.
+        base_g1 = base_scenario["stage1_growth_pct"] / 100
+        base_dr_for_detail = base_scenario["discount_rate_pct"] / 100
+        base_run_detail = _run_dcf(base_fcf, base_g1, base_dr_for_detail, terminal_growth)
+        yearly_detail = [
+            {
+                "year": yr,
+                "fcf": round(cf, 0),
+                "discount_factor": round(1 / ((1 + base_dr_for_detail) ** yr), 4),
+                "present_value": round(cf / ((1 + base_dr_for_detail) ** yr), 0),
+            }
+            for yr, cf in enumerate(base_run_detail["fcf_path"], start=1)
+        ]
+
         # Sanity floor: a negative "intrinsic value per share" is never a
         # meaningful number to show a user — it means debt so overwhelms the
         # DCF-derived enterprise value that the model itself is unreliable
@@ -1555,6 +1585,10 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                 "expected_value_per_share": expected_value_per_share,
                 "value_drivers": value_drivers,
                 "sensitivity_matrix": sensitivity_matrix,
+                "yearly_detail": yearly_detail,
+                "pv_of_fcf_sum": round(base_run_detail["pv_of_fcf_sum"], 0),
+                "pv_of_terminal_value": round(base_run_detail["pv_of_terminal_value"], 0),
+                "enterprise_value": round(base_run_detail["enterprise_value"], 0),
                 "growth_buildup": {
                     "historical_growth_pct": round(base_historical_growth * 100, 1),
                     "moat_adjustment_pct": round(moat_adjustment * 100, 1),
@@ -1687,6 +1721,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         # the same "confidence_score"/"fair_value_range" keys).
         dcf["confidence_meter"] = _confidence_meter(
             dcf.get("confidence_score"), n, dcf.get("fair_value_range") or {}, liquidity_ok=liquidity_gate.get("paso", True),
+            business_quality_score=business_quality_score, financial_strength_score=financial_strength_score,
         )
         gb = dcf.get("growth_buildup") or {}
         qual_growth = gb.get("quality_adjusted_growth_pct")
@@ -1806,6 +1841,8 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         "segments": segments,
         "years": years,
         "current_price": price,
+        "change_pct": _num(quote.get("change_pct")),
+        "exchange": profile.get("exchange"),
         "revenue_trend": revenue_trend,
         "net_income_trend": net_income_trend,
         "fcf_trend": fcf_trend,

@@ -12,7 +12,7 @@ import { screenerWeeklyApi, watchlistServerApi } from "../../src/lib/api";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
 import StockAvatar from "../../src/components/StockAvatar";
-import MobileDcfCalculator from "../../src/components/MobileDcfCalculator";
+import ValorIntrinseco, { type RangeBounds, type YearlyDetailRow } from "../../src/components/ValorIntrinseco";
 
 interface ChecklistItem {
   key?: string;
@@ -67,6 +67,9 @@ export interface DcfAssumptions {
   suggested_g: number | null;
   suggested_r: number | null;
   suggested_gt: number | null;
+  g_range: RangeBounds | null;
+  r_range: RangeBounds | null;
+  gt_range: RangeBounds | null;
   historical_growth_pct: number | null;
   moat_adjustment_pct: number | null;
   avg_roic_pct: number | null;
@@ -74,6 +77,9 @@ export interface DcfAssumptions {
   market_implied_growth_pct: number | null;
   business_quality: number | null;
   predictability: number | null;
+  financial_strength: number | null;
+  growth_outlook: number | null;
+  management_capital_allocation: number | null;
 }
 
 interface UndervaluedResult {
@@ -97,6 +103,10 @@ interface UndervaluedResult {
   net_cash: number | null;
   shares_outstanding: number | null;
   dcf_assumptions: DcfAssumptions | null;
+  yearly_detail: YearlyDetailRow[] | null;
+  pv_of_fcf_sum: number | null;
+  pv_of_terminal_value: number | null;
+  enterprise_value: number | null;
 }
 
 interface QuickAnalysisResult {
@@ -121,6 +131,10 @@ interface QuickAnalysisResult {
   net_cash: number | null;
   shares_outstanding: number | null;
   dcf_assumptions: DcfAssumptions | null;
+  yearly_detail: YearlyDetailRow[] | null;
+  pv_of_fcf_sum: number | null;
+  pv_of_terminal_value: number | null;
+  enterprise_value: number | null;
 }
 
 function GeneratedAtNote({ generatedAt, colors }: { generatedAt: number; colors: any }) {
@@ -678,13 +692,18 @@ export default function SubvaluadasScreen() {
             <InsightBox text={quickResult.summary} colors={colors} />
 
             <View style={{ marginTop: 10 }}>
-              <MobileDcfCalculator
+              <ValorIntrinseco
                 ticker={quickResult.ticker}
+                companyName={quickResult.company_name}
                 price={quickResult.price}
                 fcfRaw={quickResult.current_fcf}
                 netCashRaw={quickResult.net_cash}
                 sharesRaw={quickResult.shares_outstanding}
                 assumptions={quickResult.dcf_assumptions}
+                yearlyDetail={quickResult.yearly_detail}
+                pvOfFcfSum={quickResult.pv_of_fcf_sum}
+                pvOfTerminalValue={quickResult.pv_of_terminal_value}
+                enterpriseValue={quickResult.enterprise_value}
                 isPremium={isPremium}
                 onUnlock={() => setPaywallOpen(true)}
               />
@@ -796,13 +815,18 @@ export default function SubvaluadasScreen() {
                   {u.blurb && <InsightBox text={u.blurb} colors={colors} />}
 
                   <View style={{ marginTop: 10 }}>
-                    <MobileDcfCalculator
+                    <ValorIntrinseco
                       ticker={u.ticker}
+                      companyName={u.company_name}
                       price={u.price}
                       fcfRaw={u.current_fcf}
                       netCashRaw={u.net_cash}
                       sharesRaw={u.shares_outstanding}
                       assumptions={u.dcf_assumptions}
+                      yearlyDetail={u.yearly_detail}
+                      pvOfFcfSum={u.pv_of_fcf_sum}
+                      pvOfTerminalValue={u.pv_of_terminal_value}
+                      enterpriseValue={u.enterprise_value}
                       isPremium={isPremium}
                       onUnlock={() => setPaywallOpen(true)}
                     />

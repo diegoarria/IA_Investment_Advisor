@@ -693,7 +693,64 @@
       "paywallReason": "Undervalued stocks screener"
     },
     "emptyState": "No weekly screener data yet — check back later.",
-    "sectorAll": "All"
+    "sectorAll": "All",
+    "dcf": {
+      "level2Toggle": "See how Nuvos built this valuation",
+      "level3Toggle": "See the full model",
+      "noData": "Nuvos doesn't have enough financial data to build the DCF model for this company.",
+      "financialSectorNote": "This company is valued with the Justified Price-to-Book model (typical for banks and insurers), not a free-cash-flow DCF — the assumption simulator doesn't apply here.",
+      "assumptions": {
+        "growth": "FCF growth",
+        "wacc": "Discount rate (WACC)",
+        "terminalGrowth": "Terminal growth",
+        "tooltips": {
+          "growth": "How fast Nuvos assumes the company's free cash flow will grow over the next years, based on its real track record and adjusted for business quality.",
+          "wacc": "The return an investor would require given this company's risk — the higher the risk, the higher the rate, and the lower the present value of its future cash flows.",
+          "terminalGrowth": "The perpetual growth Nuvos assumes after the explicit projection period — always conservative, close to the growth rate of the broader economy."
+        }
+      },
+      "stoplight": {
+        "green": "Very reasonable",
+        "yellow": "Optimistic — check the justification",
+        "red": "Unlikely for this company"
+      },
+      "reset": "Reset to Nuvos's estimate",
+      "marketImplied": "The market is paying a price that implies ~{{market}}% annual growth — Nuvos estimates {{nuvos}}%.",
+      "liveResult": {
+        "intrinsicValue": "Intrinsic value with your assumptions",
+        "marginOfSafety": "Margin of safety",
+        "noSolution": "These assumptions have no mathematical solution — adjust a slider."
+      },
+      "mentor": {
+        "title": "Ask Mentor IA",
+        "why": "Why does Nuvos estimate this value for {{ticker}}?",
+        "risk": "What are the main risks to {{ticker}}'s thesis?",
+        "sensitivity": "Which variable affects {{ticker}}'s valuation the most?",
+        "change": "What would have to happen for {{ticker}} to be worth more?"
+      },
+      "level3": {
+        "title": "Full DCF model — {{ticker}}",
+        "inputs": "Assumptions & inputs",
+        "yearlyTable": {
+          "title": "Year-by-year projection",
+          "year": "Year",
+          "fcf": "Projected FCF",
+          "discountFactor": "Discount factor",
+          "presentValue": "Present value"
+        },
+        "bridge": {
+          "title": "From enterprise value to value per share",
+          "pvFcf": "PV of explicit cash flows",
+          "pvTerminal": "PV of terminal value",
+          "enterpriseValue": "Enterprise value (EV)",
+          "netCash": "+ Net cash",
+          "equityValue": "Equity value",
+          "shares": "÷ Shares outstanding",
+          "perShare": "= Intrinsic value per share"
+        },
+        "export": "Export to Excel"
+      }
+    }
   },
   "patrimonio": {
     "header": {

@@ -661,37 +661,6 @@
       "paywallReason": "Análisis de earnings"
     }
   },
-  "dcfCalculator": {
-    "title": "Calculadora de Valor Intrínseco — {{ticker}}",
-    "currentPrice": "Precio actual",
-    "growthLabel": "Crecimiento anual",
-    "discountLabel": "Tasa de descuento",
-    "terminalGrowthLabel": "Crecimiento a perpetuidad",
-    "resetToSuggested": "Restablecer al supuesto sugerido",
-    "intrinsicValue": "Valor intrínseco por acción",
-    "vsCurrentPrice": "vs. precio actual ${{price}}",
-    "marginPositive": "+{{pct}}% de margen de seguridad",
-    "marginNegative": "{{pct}}% de margen de seguridad",
-    "noSolution": "Sin solución con estos supuestos — ajusta los sliders.",
-    "sensitivityTitle": "Mapa de sensibilidad",
-    "sensitivityNote": "La casilla con borde marcado es tu escenario actual. Si moverte un par de puntos en r o g cambia mucho el resultado, trata ese número con más cautela — no es una verdad fija, es un rango de posibilidades.",
-    "you": "TÚ",
-    "unlockTitle": "Desbloquea los supuestos personalizados con Premium",
-    "unlockCta": "Ver planes",
-    "disclaimer": "Herramienta educativa de modelaje financiero. No es asesoría de inversión ni recomendación de compra o venta. El resultado depende enteramente de los supuestos que elijas — Nuvos AI no garantiza que el precio de mercado converja hacia este número.",
-    "guidanceTitle": "Guía de supuestos — cómo lo calculó Nuvos",
-    "guidance": {
-      "growthBuildup": "Crecimiento histórico real: {{historical}}% → ajustado {{sign}}{{adjustment}}% según la calidad del negocio = {{g}} sugerido.",
-      "suggestedGOnly": "Crecimiento sugerido: {{g}}, basado en el desempeño real de la empresa.",
-      "suggestedR": "Tasa de descuento sugerida: {{r}} — el costo de capital real de esta empresa (CAPM/WACC), no un número genérico.",
-      "marketImplied": "El mercado hoy ya paga un precio que implica un crecimiento de {{pct}}% — compara tu supuesto contra esto.",
-      "financialIntro": "Es una empresa financiera (banco/aseguradora) — Nuvos usa Precio/Valor en Libros justificado en vez de FCF, porque el flujo de caja libre no refleja bien este sector.",
-      "financialRoe": "ROE promedio real: {{roe}}% · Costo de equity sugerido: {{r}}.",
-      "suggestedGt": "Crecimiento sostenible sugerido: {{gt}}, limitado a lo que el negocio puede sostener a largo plazo.",
-      "businessQuality": "Calidad de negocio: {{score}}/100",
-      "predictability": "Previsibilidad: {{score}}/100"
-    }
-  },
   "subvaluadas": {
     "title": "Mejores Oportunidades",
     "rankStrip": {
@@ -793,7 +762,64 @@
       "paywallReason": "Screener de acciones subvaluadas"
     },
     "emptyState": "Todavía no hay datos del screener semanal — vuelve más tarde.",
-    "sectorAll": "Todos"
+    "sectorAll": "Todos",
+    "dcf": {
+      "level2Toggle": "Ver cómo Nuvos hizo esta valoración",
+      "level3Toggle": "Ver modelo completo",
+      "noData": "Nuvos no tiene suficientes datos financieros para construir el modelo DCF de esta empresa.",
+      "financialSectorNote": "Esta empresa se valora con el modelo de Precio/Valor en libros justificado (típico de bancos y aseguradoras), no con un DCF de flujo de caja libre — el simulador de supuestos no aplica aquí.",
+      "assumptions": {
+        "growth": "Crecimiento del FCF",
+        "wacc": "Tasa de descuento (WACC)",
+        "terminalGrowth": "Crecimiento terminal",
+        "tooltips": {
+          "growth": "Qué tan rápido asume Nuvos que crecerá el flujo de caja libre de la empresa durante los próximos años, basado en su historial real y ajustado por la calidad del negocio.",
+          "wacc": "La tasa de retorno que un inversor exigiría por el riesgo de esta empresa — a mayor riesgo, mayor tasa, y menor el valor presente de sus flujos futuros.",
+          "terminalGrowth": "El crecimiento perpetuo que Nuvos asume después del periodo de proyección explícito — siempre conservador, cercano al crecimiento de la economía en general."
+        }
+      },
+      "stoplight": {
+        "green": "Muy razonable",
+        "yellow": "Optimista — revisa la justificación",
+        "red": "Poco probable para esta empresa"
+      },
+      "reset": "Restablecer estimación de Nuvos",
+      "marketImplied": "El mercado está pagando un precio que implica ~{{market}}% de crecimiento anual — Nuvos estima {{nuvos}}%.",
+      "liveResult": {
+        "intrinsicValue": "Valor intrínseco con tus supuestos",
+        "marginOfSafety": "Margen de seguridad",
+        "noSolution": "Estos supuestos no tienen solución matemática — ajusta un slider."
+      },
+      "mentor": {
+        "title": "Pregúntale a Mentor IA",
+        "why": "¿Por qué Nuvos estima este valor para {{ticker}}?",
+        "risk": "¿Cuáles son los principales riesgos de la tesis de {{ticker}}?",
+        "sensitivity": "¿Qué variable afecta más la valoración de {{ticker}}?",
+        "change": "¿Qué tendría que pasar para que {{ticker}} valga más?"
+      },
+      "level3": {
+        "title": "Modelo DCF completo — {{ticker}}",
+        "inputs": "Supuestos e inputs",
+        "yearlyTable": {
+          "title": "Proyección año por año",
+          "year": "Año",
+          "fcf": "FCF proyectado",
+          "discountFactor": "Factor de descuento",
+          "presentValue": "Valor presente"
+        },
+        "bridge": {
+          "title": "De valor de empresa a valor por acción",
+          "pvFcf": "VP de flujos explícitos",
+          "pvTerminal": "VP del valor terminal",
+          "enterpriseValue": "Valor de empresa (EV)",
+          "netCash": "+ Caja neta",
+          "equityValue": "Valor de capital (Equity)",
+          "shares": "÷ Acciones en circulación",
+          "perShare": "= Valor intrínseco por acción"
+        },
+        "export": "Exportar a Excel"
+      }
+    }
   },
   "patrimonio": {
     "common": {

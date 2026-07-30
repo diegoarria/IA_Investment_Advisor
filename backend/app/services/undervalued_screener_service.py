@@ -51,6 +51,12 @@ _WEAK_DIMENSIONS = [
 ]
 
 
+def _reasonable_range(center: Optional[float], spread_pp: float) -> Optional[dict]:
+    if center is None:
+        return None
+    return {"low": round(center - spread_pp, 1), "high": round(center + spread_pp, 1)}
+
+
 def build_dcf_guidance(dcf: Optional[dict], thesis_scores: Optional[dict]) -> Optional[dict]:
     """Grounds the DCF calculator's growth/discount/terminal-growth sliders
     in the SAME real numbers Nuvos's own valuation engine already computed
@@ -60,6 +66,24 @@ def build_dcf_guidance(dcf: Optional[dict], thesis_scores: Optional[dict]) -> Op
     banks/insurers vs. the standard two-stage FCF DCF for everyone else),
     normalized here into one shape so the frontend doesn't need to
     special-case which one ran.
+
+    Also computes a "reasonable range" (low/high, in percentage points) per
+    assumption — the basis for the assumption assistant's 🟢🟡🔴 stoplight,
+    which the frontend evaluates live as the user drags a slider (no
+    round-trip per drag):
+    - Growth: width scales INVERSELY with predictability — a highly
+      predictable business (100/100) gets a tight ±1.5pp band; an
+      unpredictable one gets up to ±5pp. Never a fixed number for every
+      company, per the "no reglas fijas" requirement.
+    - Discount rate: fixed ±1.5pp — WACC is already objectively computed
+      (real CAPM inputs), so it doesn't get less certain just because the
+      business quality is lower; a lower-quality company's higher risk is
+      already reflected IN the WACC itself (higher beta/leverage), not in
+      how wide a band we draw around it.
+    - Terminal growth: fixed ±0.5pp — perpetual growth above roughly 4-5%
+      (exceeding real long-run GDP forever) is a classic DCF modeling error
+      regardless of which company it is, so this band stays deliberately
+      narrow for everyone.
 
     Returns None only when `dcf` itself is missing — every field inside is
     already a real, previously-computed number (or None if that specific
@@ -72,18 +96,31 @@ def build_dcf_guidance(dcf: Optional[dict], thesis_scores: Optional[dict]) -> Op
     market_expectations = dcf.get("market_expectations") or {}
     thesis_scores = thesis_scores or {}
 
+    suggested_g = base.get("stage1_growth_pct")
+    suggested_r = base.get("discount_rate_pct") or dcf.get("base_discount_rate_pct")
+    suggested_gt = dcf.get("terminal_growth_pct")
+    predictability = thesis_scores.get("predictability")
+
+    g_spread = 1.5 + (100 - predictability) / 100 * 3.5 if predictability is not None else 3.0
+
     return {
         "methodology": dcf.get("methodology", "two_stage_fcf"),
-        "suggested_g": base.get("stage1_growth_pct"),
-        "suggested_r": base.get("discount_rate_pct") or dcf.get("base_discount_rate_pct"),
-        "suggested_gt": dcf.get("terminal_growth_pct"),
+        "suggested_g": suggested_g,
+        "suggested_r": suggested_r,
+        "suggested_gt": suggested_gt,
+        "g_range": _reasonable_range(suggested_g, g_spread),
+        "r_range": _reasonable_range(suggested_r, 1.5),
+        "gt_range": _reasonable_range(suggested_gt, 0.5),
         "historical_growth_pct": growth_buildup.get("historical_growth_pct"),
         "moat_adjustment_pct": growth_buildup.get("moat_adjustment_pct"),
         "avg_roic_pct": growth_buildup.get("avg_roic_pct"),
         "avg_roe_pct": dcf.get("avg_roe_pct"),
         "market_implied_growth_pct": market_expectations.get("market_implied_growth_pct"),
         "business_quality": thesis_scores.get("business_quality"),
-        "predictability": thesis_scores.get("predictability"),
+        "predictability": predictability,
+        "financial_strength": thesis_scores.get("financial_strength"),
+        "growth_outlook": thesis_scores.get("growth_outlook"),
+        "management_capital_allocation": thesis_scores.get("management_capital_allocation"),
     }
 
 
@@ -137,16 +174,31 @@ def _scan(tickers: list[dict], analysis_cache: Optional[dict[str, Optional[dict]
             mos = dcf.get("margin_of_safety_pct") if dcf else None
             if dcf and mos is not None and mos > 0:
                 thesis_scores = data.get("thesis_scores")
+                _fcf_trend_vals = [v for v in (data.get("fcf_trend") or []) if v is not None]
                 results.append({
                     "ticker": entry["ticker"],
                     "company_name": data.get("company_name"),
                     "sector": entry.get("sector"),
                     "price": data.get("current_price"),
+                    "change_pct": data.get("change_pct"),
+                    "exchange": data.get("exchange"),
                     "intrinsic_value_base": dcf["scenarios"]["base"]["intrinsic_value_per_share"],
                     "margin_of_safety_pct": mos,
                     "composite_score": data.get("composite_score"),
                     "fair_value_range": dcf.get("fair_value_range"),
                     "confidence_meter": dcf.get("confidence_meter"),
+                    "implied_growth_pct": dcf.get("implied_growth_pct"),
+                    "market_expectations": dcf.get("market_expectations"),
+                    "yearly_detail": dcf.get("yearly_detail"),
+                    "pv_of_fcf_sum": dcf.get("pv_of_fcf_sum"),
+                    "pv_of_terminal_value": dcf.get("pv_of_terminal_value"),
+                    "enterprise_value": dcf.get("enterprise_value"),
+                    "total_debt": dcf.get("total_debt"),
+                    "cash": dcf.get("cash"),
+                    "current_fcf": _fcf_trend_vals[-1] if _fcf_trend_vals else None,
+                    "net_cash": (dcf.get("cash") or 0) - (dcf.get("total_debt") or 0),
+                    "shares_outstanding": dcf.get("shares_outstanding"),
+                    "dcf_assumptions": build_dcf_guidance(dcf, thesis_scores),
                     "momentum": None,  # only computed in the full weekly refresh (see refresh_undervalued_screener) — real historical-price fetch, too costly for the bootstrap subset scan
                     "thesis_scores": thesis_scores,
                     "weak_dimension": _weak_dimension(thesis_scores),
