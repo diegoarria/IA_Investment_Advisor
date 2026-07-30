@@ -486,6 +486,33 @@ def get_beta(symbol: str) -> Optional[float]:
     return None
 
 
+def get_fmp_quote_price(symbol: str) -> Optional[float]:
+    """Real current price from FMP — fallback for get_fundamental_analysis
+    when Finnhub's quote hiccups (rate limit, timeout, or a transient gap
+    for that specific ticker). Finnhub was previously the ONLY price
+    source there: a single failed fh_quote() call took down the entire
+    valuation (no dcf at all, even though FCF/ROE/debt had all already
+    been fetched successfully from FMP moments earlier) — confirmed with
+    AXP, whose financial-sector valuation model is otherwise real and
+    tested (see _build_financial_sector_valuation). None if unavailable,
+    same as get_beta above — never fabricates a price."""
+    if not FMP_KEY:
+        return None
+    try:
+        r = requests.get(
+            f"{FMP_BASE}/quote",
+            params={"apikey": FMP_KEY, "symbol": symbol},
+            headers=_REQ_HEADERS,
+            timeout=14,
+        )
+        data = r.json()
+        if isinstance(data, list) and data:
+            return _num(data[0].get("price"))
+    except Exception as exc:
+        logger.debug("FMP quote request failed for %s: %s", symbol, exc)
+    return None
+
+
 def get_historical_prices_near_dates(symbol: str, dates: list[str]) -> dict[str, Optional[float]]:
     """Real historical closing prices as-of a list of target dates (fiscal
     year-end dates, "YYYY-MM-DD") — powers Historical Valuation (Method 4 of

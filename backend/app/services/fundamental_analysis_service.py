@@ -983,6 +983,17 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
     quote   = fh_quote(ticker) or {}
     profile = fh_profile(ticker) or {}
     price = _num(quote.get("price"))
+    if price is None:
+        # Finnhub quote hiccup (rate limit/timeout/transient gap) used to
+        # take down the ENTIRE valuation here — no dcf at all, even though
+        # FCF/ROE/debt above were already fetched successfully from FMP.
+        # Confirmed with AXP: its financial-sector model is real and
+        # tested, it just had no price to anchor to that moment.
+        try:
+            from app.services.financial_data_service import get_fmp_quote_price
+            price = get_fmp_quote_price(ticker)
+        except Exception as e:
+            logger.warning("get_fundamental_analysis(%s): FMP quote fallback failed: %s", ticker, e)
     shares_out_m = _num(profile.get("shareOutstanding"))  # Finnhub reports this in millions
     shares_out = shares_out_m * 1_000_000 if shares_out_m else None
 
