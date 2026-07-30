@@ -1,0 +1,323 @@
+import React, { useState } from "react";
+import { View, Text, TouchableOpacity } from "react-native";
+import Svg, { Circle } from "react-native-svg";
+import Markdown from "react-native-markdown-display";
+import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+
+export interface ChecklistItem {
+  key?: string;
+  name: string;
+  stars: number | null;
+  reason: string;
+}
+
+export interface Checklist {
+  items: ChecklistItem[];
+  avg_stars: number | null;
+}
+
+export interface LiquidityGate {
+  paso: boolean;
+  detalle: string;
+}
+
+export interface FairValueRangeData {
+  low: number;
+  high: number;
+  base: number;
+}
+
+export interface ConfidenceMeterData {
+  score: number;
+  label: string;
+  stars: number;
+}
+
+export interface MarketExpectationsData {
+  market_implied_growth_pct: number | null;
+  market_implied_fcf_margin_pct: number | null;
+  nuvos_growth_estimate_pct: number;
+  nuvos_fcf_margin_estimate_pct: number;
+}
+
+export interface ConsensusValuationData {
+  archetype: string;
+  methods_used: Record<string, { value: number; weight: number }>;
+  consensus_fair_value: number;
+}
+
+export interface MomentumData {
+  return_1m_pct: number;
+  return_6m_pct: number;
+  turn_score: number;
+}
+
+export interface RangeBounds {
+  low: number;
+  high: number;
+}
+
+export interface DcfAssumptions {
+  methodology: string;
+  suggested_g: number | null;
+  suggested_r: number | null;
+  suggested_gt: number | null;
+  g_range: RangeBounds | null;
+  r_range: RangeBounds | null;
+  gt_range: RangeBounds | null;
+  historical_growth_pct: number | null;
+  moat_adjustment_pct: number | null;
+  avg_roic_pct: number | null;
+  avg_roe_pct: number | null;
+  market_implied_growth_pct: number | null;
+  business_quality: number | null;
+  predictability: number | null;
+  financial_strength: number | null;
+  growth_outlook: number | null;
+  management_capital_allocation: number | null;
+}
+
+export interface YearlyDetailRow {
+  year: number;
+  fcf: number;
+  discount_factor: number;
+  present_value: number;
+}
+
+export function GeneratedAtNote({ generatedAt, colors }: { generatedAt: number; colors: any }) {
+  const { t, i18n } = useTranslation();
+  if (!generatedAt) return null;
+  const days = Math.floor((Date.now() / 1000 - generatedAt) / 86400);
+  const stale = days > 10;
+  const date = new Date(generatedAt * 1000).toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", { day: "numeric", month: "long" });
+  const updatedText = days <= 0
+    ? t("subvaluadas.footer.updatedToday", { date })
+    : t("subvaluadas.footer.updatedDaysAgo", { count: days, date });
+  return (
+    <Text style={{ fontSize: 10, color: stale ? "#f59e0b" : colors.textMuted, fontWeight: stale ? "700" : "400" }}>
+      {updatedText}{stale ? t("subvaluadas.footer.stale") : ""}
+    </Text>
+  );
+}
+
+export function StatChip({ label, value, colors }: { label: string; value: string; colors: any }) {
+  return (
+    <View style={{ flex: 1, minWidth: 0, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 6, backgroundColor: colors.bgRaised }}>
+      <Text style={{ fontSize: 8, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, color: colors.textMuted }} numberOfLines={1}>{label}</Text>
+      <Text style={{ fontSize: 12, fontWeight: "800", marginTop: 1, color: colors.text }} numberOfLines={1}>{value}</Text>
+    </View>
+  );
+}
+
+export function MosBadge({ pct }: { pct: number | null }) {
+  const positive = (pct ?? 0) >= 0;
+  return (
+    <View style={{ borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: positive ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.12)" }}>
+      <Text style={{ fontSize: 14, fontWeight: "900", color: positive ? "#22c55e" : "#ef4444" }}>
+        {positive ? "+" : ""}{pct}%
+      </Text>
+    </View>
+  );
+}
+
+export function ConfidenceMeter({ data, colors }: { data: ConfidenceMeterData; colors: any }) {
+  const { t } = useTranslation();
+  const color = data.score >= 85 ? "#22c55e" : data.score >= 65 ? "#eab308" : data.score >= 45 ? "#f59e0b" : "#ef4444";
+  const labelKey = data.score >= 85 ? "high" : data.score >= 65 ? "moderate" : data.score >= 45 ? "low" : "speculative";
+  const size = 36;
+  const strokeWidth = 3.5;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = circumference * (1 - data.score / 100);
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+        <Svg width={size} height={size} style={{ position: "absolute" }}>
+          <Circle cx={size / 2} cy={size / 2} r={radius} stroke={colors.border} strokeWidth={strokeWidth} fill="none" />
+          <Circle
+            cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth={strokeWidth} fill="none"
+            strokeDasharray={circumference} strokeDashoffset={progress} strokeLinecap="round"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        </Svg>
+        <Text style={{ fontSize: 9, fontWeight: "900", color }}>{data.score}</Text>
+      </View>
+      <View>
+        <Text style={{ fontSize: 10, fontWeight: "800", color: colors.text }}>{t(`subvaluadas.confidence.${labelKey}`)}</Text>
+        <View style={{ flexDirection: "row", gap: 1 }}>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Ionicons key={i} name={i <= data.stars ? "star" : "star-outline"} size={9} color={i <= data.stars ? "#f59e0b" : colors.border} />
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export function FairValueRangeDisplay({ range, consensus, colors }: { range: FairValueRangeData; consensus?: ConsensusValuationData | null; colors: any }) {
+  const { t } = useTranslation();
+  const lo = Math.min(range.low, range.high);
+  const hi = Math.max(range.low, range.high);
+  const baseValue = consensus?.consensus_fair_value ?? range.base;
+  return (
+    <View style={{ borderRadius: 12, padding: 12, gap: 2, backgroundColor: colors.bgRaised }}>
+      <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2, color: colors.textMuted }}>
+        {consensus ? t("subvaluadas.fairValueRange.consensus") : t("subvaluadas.fairValueRange.label")}
+      </Text>
+      <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text }}>
+        ${lo.toFixed(0)} – ${hi.toFixed(0)}
+      </Text>
+      <Text style={{ fontSize: 11, color: colors.textSub }}>
+        {t("subvaluadas.fairValueRange.base")}: <Text style={{ fontWeight: "800" }}>${baseValue.toFixed(0)}</Text>
+      </Text>
+      {consensus && (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
+          {Object.entries(consensus.methods_used).map(([key, m]) => (
+            <Text key={key} style={{ fontSize: 9, color: colors.textMuted }}>
+              {key.replace(/_/g, " ")}: <Text style={{ fontVariant: ["tabular-nums"] }}>${m.value.toFixed(0)}</Text>
+            </Text>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+export function MarketExpectationsPanel({ data, colors }: { data: MarketExpectationsData; colors: any }) {
+  const { t } = useTranslation();
+  if (data.market_implied_growth_pct === null) return null;
+  return (
+    <View style={{ borderWidth: 1, borderRadius: 12, padding: 12, borderColor: colors.border, backgroundColor: colors.bgRaised }}>
+      <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text, marginBottom: 8 }}>{t("subvaluadas.marketExpectations.label")}</Text>
+      <View style={{ flexDirection: "row", gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2, color: colors.textMuted }}>{t("subvaluadas.marketExpectations.marketAssumes")}</Text>
+          <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>
+            {t("subvaluadas.marketExpectations.growth")}: {data.market_implied_growth_pct}%
+          </Text>
+          {data.market_implied_fcf_margin_pct !== null && (
+            <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>
+              {t("subvaluadas.marketExpectations.margin")}: {data.market_implied_fcf_margin_pct}%
+            </Text>
+          )}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2, color: colors.textMuted }}>{t("subvaluadas.marketExpectations.nuvosBelieves")}</Text>
+          <Text style={{ fontSize: 11, fontWeight: "800", color: colors.accentLight }}>
+            {t("subvaluadas.marketExpectations.growth")}: {data.nuvos_growth_estimate_pct}%
+          </Text>
+          <Text style={{ fontSize: 11, fontWeight: "800", color: colors.accentLight }}>
+            {t("subvaluadas.marketExpectations.margin")}: {data.nuvos_fcf_margin_estimate_pct}%
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export function InsightBox({ text, colors }: { text: string; colors: any }) {
+  return (
+    <View style={{ flexDirection: "row", gap: 8, borderWidth: 1, borderRadius: 12, padding: 10, backgroundColor: "rgba(0,168,94,0.06)", borderColor: "rgba(0,168,94,0.18)" }}>
+      <Ionicons name="sparkles" size={13} color={colors.accentLight} style={{ marginTop: 2 }} />
+      <View style={{ flex: 1 }}>
+        <Markdown style={{ body: { color: colors.textSub, fontSize: 15, lineHeight: 21 }, strong: { color: colors.text, fontWeight: "800" } }}>
+          {text}
+        </Markdown>
+      </View>
+    </View>
+  );
+}
+
+export function LiquidityWarning({ gate }: { gate: LiquidityGate }) {
+  if (gate.paso) return null;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 10, padding: 8, backgroundColor: "rgba(239,68,68,0.1)", borderColor: "rgba(239,68,68,0.25)" }}>
+      <Ionicons name="alert-circle-outline" size={13} color="#ef4444" />
+      <Text style={{ fontSize: 11, color: "#ef4444", flex: 1 }}>{gate.detalle}</Text>
+    </View>
+  );
+}
+
+export function WarningBadge({ text }: { text: string }) {
+  const { t } = useTranslation();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(245,158,11,0.1)", borderWidth: 1, borderColor: "rgba(245,158,11,0.25)", borderRadius: 10, padding: 8 }}>
+      <Ionicons name="warning-outline" size={13} color="#f59e0b" />
+      <Text style={{ fontSize: 11, color: "#f59e0b", flex: 1 }}>{t("subvaluadas.weakDimensionWarning", { text })}</Text>
+    </View>
+  );
+}
+
+function StarRow({ stars, colors }: { stars: number | null; colors: any }) {
+  if (stars === null) {
+    return <Text style={{ fontSize: 10, fontWeight: "800", color: colors.textMuted }}>?</Text>;
+  }
+  return (
+    <View style={{ flexDirection: "row", gap: 1 }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Ionicons key={i} name={i <= stars ? "star" : "star-outline"} size={11} color={i <= stars ? "#f59e0b" : colors.border} />
+      ))}
+    </View>
+  );
+}
+
+export function ChecklistDisplay({ checklist, colors }: { checklist: Checklist; colors: any }) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  const avgStars = checklist.avg_stars;
+  const scoreColor = avgStars === null ? colors.textMuted : avgStars >= 4 ? "#22c55e" : avgStars >= 2.5 ? "#f59e0b" : "#ef4444";
+
+  return (
+    <View style={{ borderWidth: 1, borderRadius: 12, overflow: "hidden", borderColor: colors.border, backgroundColor: colors.bgRaised }}>
+      <TouchableOpacity onPress={() => setExpanded((e) => !e)} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Ionicons name="star" size={13} color={scoreColor} />
+          <Text style={{ fontSize: 14, fontWeight: "900", color: scoreColor }}>{avgStars !== null ? `${avgStars}/5` : "N/D"}</Text>
+          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textSub }}>{t("subvaluadas.checklist.label")}</Text>
+        </View>
+        <Text style={{ fontSize: 10, color: colors.textMuted }}>{expanded ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}</Text>
+      </TouchableOpacity>
+      {expanded && (
+        <View style={{ paddingHorizontal: 12, paddingBottom: 10, gap: 8 }}>
+          {checklist.items.map((item, i) => (
+            <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+              <View style={{ marginTop: 2 }}>
+                <StarRow stars={item.stars} colors={colors} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>
+                  {item.key ? t(`subvaluadas.checklist.items.${item.key}`, { defaultValue: item.name }) : item.name}
+                </Text>
+                <Text style={{ fontSize: 10, color: colors.textDim }}>{item.reason}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+export function ActionButtons({ watchlisted, onFollow, onAnalyze, colors }: {
+  watchlisted: boolean; onFollow: () => void; onAnalyze: () => void; colors: any;
+}) {
+  const { t } = useTranslation();
+  return (
+    <View style={{ flexDirection: "row", gap: 8 }}>
+      <TouchableOpacity onPress={onFollow} disabled={watchlisted}
+                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgRaised }}>
+        <Ionicons name={watchlisted ? "checkmark" : "star-outline"} size={13} color={watchlisted ? "#22c55e" : colors.textSub} />
+        <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textSub }}>
+          {watchlisted ? t("subvaluadas.follow.following") : t("subvaluadas.follow.button")}
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={onAnalyze} style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.accent }}>
+        <Ionicons name="chatbubble-ellipses-outline" size={13} color="#000" />
+        <Text style={{ fontSize: 11, fontWeight: "900", color: "#000" }}>
+          {t("subvaluadas.analyze.button")}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}

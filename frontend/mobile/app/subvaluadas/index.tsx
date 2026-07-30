@@ -3,8 +3,6 @@ import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, TextInput, Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import Svg, { Circle } from "react-native-svg";
-import Markdown from "react-native-markdown-display";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
@@ -12,75 +10,12 @@ import { screenerWeeklyApi, watchlistServerApi } from "../../src/lib/api";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
 import StockAvatar from "../../src/components/StockAvatar";
-import ValorIntrinseco, { type RangeBounds, type YearlyDetailRow } from "../../src/components/ValorIntrinseco";
-
-interface ChecklistItem {
-  key?: string;
-  name: string;
-  stars: number | null;
-  reason: string;
-}
-
-interface Checklist {
-  items: ChecklistItem[];
-  avg_stars: number | null;
-}
-
-interface LiquidityGate {
-  paso: boolean;
-  detalle: string;
-}
-
-interface FairValueRangeData {
-  low: number;
-  high: number;
-  base: number;
-}
-
-interface ConfidenceMeterData {
-  score: number;
-  label: string;
-  stars: number;
-}
-
-interface MarketExpectationsData {
-  market_implied_growth_pct: number | null;
-  market_implied_fcf_margin_pct: number | null;
-  nuvos_growth_estimate_pct: number;
-  nuvos_fcf_margin_estimate_pct: number;
-}
-
-interface ConsensusValuationData {
-  archetype: string;
-  methods_used: Record<string, { value: number; weight: number }>;
-  consensus_fair_value: number;
-}
-
-interface MomentumData {
-  return_1m_pct: number;
-  return_6m_pct: number;
-  turn_score: number;
-}
-
-export interface DcfAssumptions {
-  methodology: string;
-  suggested_g: number | null;
-  suggested_r: number | null;
-  suggested_gt: number | null;
-  g_range: RangeBounds | null;
-  r_range: RangeBounds | null;
-  gt_range: RangeBounds | null;
-  historical_growth_pct: number | null;
-  moat_adjustment_pct: number | null;
-  avg_roic_pct: number | null;
-  avg_roe_pct: number | null;
-  market_implied_growth_pct: number | null;
-  business_quality: number | null;
-  predictability: number | null;
-  financial_strength: number | null;
-  growth_outlook: number | null;
-  management_capital_allocation: number | null;
-}
+import {
+  type ChecklistItem, type Checklist, type LiquidityGate, type FairValueRangeData, type ConfidenceMeterData,
+  type MarketExpectationsData, type ConsensusValuationData, type MomentumData, type DcfAssumptions, type YearlyDetailRow,
+  GeneratedAtNote, StatChip, MosBadge, ConfidenceMeter, FairValueRangeDisplay, MarketExpectationsPanel, InsightBox,
+  LiquidityWarning, WarningBadge, ChecklistDisplay, ActionButtons,
+} from "../../src/components/subvaluadas/shared";
 
 interface UndervaluedResult {
   ticker: string;
@@ -135,42 +70,6 @@ interface QuickAnalysisResult {
   pv_of_fcf_sum: number | null;
   pv_of_terminal_value: number | null;
   enterprise_value: number | null;
-}
-
-function GeneratedAtNote({ generatedAt, colors }: { generatedAt: number; colors: any }) {
-  const { t, i18n } = useTranslation();
-  if (!generatedAt) return null;
-  const days = Math.floor((Date.now() / 1000 - generatedAt) / 86400);
-  const stale = days > 10;
-  const date = new Date(generatedAt * 1000).toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", { day: "numeric", month: "long" });
-  const updatedText = days <= 0
-    ? t("subvaluadas.footer.updatedToday", { date })
-    : t("subvaluadas.footer.updatedDaysAgo", { count: days, date });
-  return (
-    <Text style={{ fontSize: 10, color: stale ? "#f59e0b" : colors.textMuted, fontWeight: stale ? "700" : "400" }}>
-      {updatedText}{stale ? t("subvaluadas.footer.stale") : ""}
-    </Text>
-  );
-}
-
-function StatChip({ label, value, colors }: { label: string; value: string; colors: any }) {
-  return (
-    <View style={[s.statChip, { backgroundColor: colors.bgRaised }]}>
-      <Text style={[s.statLabel, { color: colors.textMuted }]} numberOfLines={1}>{label}</Text>
-      <Text style={[s.statValue, { color: colors.text }]} numberOfLines={1}>{value}</Text>
-    </View>
-  );
-}
-
-function MosBadge({ pct }: { pct: number | null }) {
-  const positive = (pct ?? 0) >= 0;
-  return (
-    <View style={[s.mosBadge, { backgroundColor: positive ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.12)" }]}>
-      <Text style={{ fontSize: 14, fontWeight: "900", color: positive ? "#22c55e" : "#ef4444" }}>
-        {positive ? "+" : ""}{pct}%
-      </Text>
-    </View>
-  );
 }
 
 type SortLens = "overall" | "discount" | "quality" | "momentum";
@@ -301,205 +200,20 @@ function CompareModal({ items, onClose, colors }: { items: UndervaluedResult[]; 
   );
 }
 
-function ConfidenceMeter({ data, colors }: { data: ConfidenceMeterData; colors: any }) {
-  const { t } = useTranslation();
-  const color = data.score >= 85 ? "#22c55e" : data.score >= 65 ? "#eab308" : data.score >= 45 ? "#f59e0b" : "#ef4444";
-  const labelKey = data.score >= 85 ? "high" : data.score >= 65 ? "moderate" : data.score >= 45 ? "low" : "speculative";
-  const size = 36;
-  const strokeWidth = 3.5;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const progress = circumference * (1 - data.score / 100);
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-      <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-        <Svg width={size} height={size} style={{ position: "absolute" }}>
-          <Circle cx={size / 2} cy={size / 2} r={radius} stroke={colors.border} strokeWidth={strokeWidth} fill="none" />
-          <Circle
-            cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth={strokeWidth} fill="none"
-            strokeDasharray={circumference} strokeDashoffset={progress} strokeLinecap="round"
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          />
-        </Svg>
-        <Text style={{ fontSize: 9, fontWeight: "900", color }}>{data.score}</Text>
-      </View>
-      <View>
-        <Text style={{ fontSize: 10, fontWeight: "800", color: colors.text }}>{t(`subvaluadas.confidence.${labelKey}`)}</Text>
-        <View style={{ flexDirection: "row", gap: 1 }}>
-          {[1, 2, 3, 4, 5].map((i) => (
-            <Ionicons key={i} name={i <= data.stars ? "star" : "star-outline"} size={9} color={i <= data.stars ? "#f59e0b" : colors.border} />
-          ))}
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function FairValueRangeDisplay({ range, consensus, colors }: { range: FairValueRangeData; consensus?: ConsensusValuationData | null; colors: any }) {
-  const { t } = useTranslation();
-  const lo = Math.min(range.low, range.high);
-  const hi = Math.max(range.low, range.high);
-  const baseValue = consensus?.consensus_fair_value ?? range.base;
-  return (
-    <View style={[s.fvrBox, { backgroundColor: colors.bgRaised }]}>
-      <Text style={[s.fvrLabel, { color: colors.textMuted }]}>
-        {consensus ? t("subvaluadas.fairValueRange.consensus") : t("subvaluadas.fairValueRange.label")}
-      </Text>
-      <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text }}>
-        ${lo.toFixed(0)} – ${hi.toFixed(0)}
-      </Text>
-      <Text style={{ fontSize: 11, color: colors.textSub }}>
-        {t("subvaluadas.fairValueRange.base")}: <Text style={{ fontWeight: "800" }}>${baseValue.toFixed(0)}</Text>
-      </Text>
-      {consensus && (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
-          {Object.entries(consensus.methods_used).map(([key, m]) => (
-            <Text key={key} style={{ fontSize: 9, color: colors.textMuted }}>
-              {key.replace(/_/g, " ")}: <Text style={{ fontVariant: ["tabular-nums"] }}>${m.value.toFixed(0)}</Text>
-            </Text>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-function MarketExpectationsPanel({ data, colors }: { data: MarketExpectationsData; colors: any }) {
-  const { t } = useTranslation();
-  if (data.market_implied_growth_pct === null) return null;
-  return (
-    <View style={[s.mktExpBox, { borderColor: colors.border, backgroundColor: colors.bgRaised }]}>
-      <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text, marginBottom: 8 }}>{t("subvaluadas.marketExpectations.label")}</Text>
-      <View style={{ flexDirection: "row", gap: 12 }}>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.mktExpHeading, { color: colors.textMuted }]}>{t("subvaluadas.marketExpectations.marketAssumes")}</Text>
-          <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>
-            {t("subvaluadas.marketExpectations.growth")}: {data.market_implied_growth_pct}%
-          </Text>
-          {data.market_implied_fcf_margin_pct !== null && (
-            <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>
-              {t("subvaluadas.marketExpectations.margin")}: {data.market_implied_fcf_margin_pct}%
-            </Text>
-          )}
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.mktExpHeading, { color: colors.textMuted }]}>{t("subvaluadas.marketExpectations.nuvosBelieves")}</Text>
-          <Text style={{ fontSize: 11, fontWeight: "800", color: colors.accentLight }}>
-            {t("subvaluadas.marketExpectations.growth")}: {data.nuvos_growth_estimate_pct}%
-          </Text>
-          <Text style={{ fontSize: 11, fontWeight: "800", color: colors.accentLight }}>
-            {t("subvaluadas.marketExpectations.margin")}: {data.nuvos_fcf_margin_estimate_pct}%
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function InsightBox({ text, colors }: { text: string; colors: any }) {
-  return (
-    <View style={[s.insightBox, { backgroundColor: "rgba(0,168,94,0.06)", borderColor: "rgba(0,168,94,0.18)" }]}>
-      <Ionicons name="sparkles" size={13} color={colors.accentLight} style={{ marginTop: 2 }} />
-      <View style={{ flex: 1 }}>
-        <Markdown style={{ body: { color: colors.textSub, fontSize: 15, lineHeight: 21 }, strong: { color: colors.text, fontWeight: "800" } }}>
-          {text}
-        </Markdown>
-      </View>
-    </View>
-  );
-}
-
-function LiquidityWarning({ gate }: { gate: LiquidityGate }) {
-  if (gate.paso) return null;
-  return (
-    <View style={[s.warningBadge, { backgroundColor: "rgba(239,68,68,0.1)", borderColor: "rgba(239,68,68,0.25)" }]}>
-      <Ionicons name="alert-circle-outline" size={13} color="#ef4444" />
-      <Text style={{ fontSize: 11, color: "#ef4444", flex: 1 }}>{gate.detalle}</Text>
-    </View>
-  );
-}
-
-function WarningBadge({ text }: { text: string }) {
+function ValorIntrinsecoLink({ ticker, colors }: { ticker: string; colors: any }) {
   const { t } = useTranslation();
   return (
-    <View style={s.warningBadge}>
-      <Ionicons name="warning-outline" size={13} color="#f59e0b" />
-      <Text style={{ fontSize: 11, color: "#f59e0b", flex: 1 }}>{t("subvaluadas.weakDimensionWarning", { text })}</Text>
-    </View>
-  );
-}
-
-function StarRow({ stars, colors }: { stars: number | null; colors: any }) {
-  if (stars === null) {
-    return <Text style={{ fontSize: 10, fontWeight: "800", color: colors.textMuted }}>?</Text>;
-  }
-  return (
-    <View style={{ flexDirection: "row", gap: 1 }}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Ionicons key={i} name={i <= stars ? "star" : "star-outline"} size={11} color={i <= stars ? "#f59e0b" : colors.border} />
-      ))}
-    </View>
-  );
-}
-
-function ChecklistDisplay({ checklist, colors }: { checklist: Checklist; colors: any }) {
-  const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
-  const avgStars = checklist.avg_stars;
-  const scoreColor = avgStars === null ? colors.textMuted : avgStars >= 4 ? "#22c55e" : avgStars >= 2.5 ? "#f59e0b" : "#ef4444";
-
-  return (
-    <View style={[s.checklistBox, { borderColor: colors.border, backgroundColor: colors.bgRaised }]}>
-      <TouchableOpacity onPress={() => setExpanded((e) => !e)} style={s.checklistHeader}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Ionicons name="star" size={13} color={scoreColor} />
-          <Text style={{ fontSize: 14, fontWeight: "900", color: scoreColor }}>{avgStars !== null ? `${avgStars}/5` : "N/D"}</Text>
-          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textSub }}>{t("subvaluadas.checklist.label")}</Text>
-        </View>
-        <Text style={{ fontSize: 10, color: colors.textMuted }}>{expanded ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}</Text>
-      </TouchableOpacity>
-      {expanded && (
-        <View style={{ paddingHorizontal: 12, paddingBottom: 10, gap: 8 }}>
-          {checklist.items.map((item, i) => (
-            <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-              <View style={{ marginTop: 2 }}>
-                <StarRow stars={item.stars} colors={colors} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>
-                  {item.key ? t(`subvaluadas.checklist.items.${item.key}`, { defaultValue: item.name }) : item.name}
-                </Text>
-                <Text style={{ fontSize: 10, color: colors.textDim }}>{item.reason}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-function ActionButtons({ ticker, companyName, watchlisted, onFollow, onAnalyze, colors }: {
-  ticker: string; companyName: string | null; watchlisted: boolean;
-  onFollow: () => void; onAnalyze: () => void; colors: any;
-}) {
-  const { t } = useTranslation();
-  return (
-    <View style={{ flexDirection: "row", gap: 8 }}>
-      <TouchableOpacity onPress={onFollow} disabled={watchlisted}
-                        style={[s.actionBtn, { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgRaised }]}>
-        <Ionicons name={watchlisted ? "checkmark" : "star-outline"} size={13} color={watchlisted ? "#22c55e" : colors.textSub} />
-        <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textSub }}>
-          {watchlisted ? t("subvaluadas.follow.following") : t("subvaluadas.follow.button")}
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={onAnalyze} style={[s.actionBtn, { backgroundColor: colors.accent }]}>
-        <Ionicons name="chatbubble-ellipses-outline" size={13} color="#000" />
-        <Text style={{ fontSize: 11, fontWeight: "900", color: "#000" }}>
-          {t("subvaluadas.analyze.button")}
-        </Text>
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity
+      onPress={() => router.push(`/subvaluadas/${ticker}` as any)}
+      style={{
+        flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+        paddingHorizontal: 12, paddingVertical: 11, borderRadius: 12, borderWidth: 1,
+        borderColor: colors.border, backgroundColor: colors.bgRaised,
+      }}
+    >
+      <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>{t("subvaluadas.detail.openCta")}</Text>
+      <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
+    </TouchableOpacity>
   );
 }
 
@@ -663,7 +377,7 @@ export default function SubvaluadasScreen() {
 
         {quickResult && (
           <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={s.cardHeader}>
+            <TouchableOpacity style={s.cardHeader} onPress={() => router.push(`/subvaluadas/${quickResult.ticker}` as any)}>
               <StockAvatar ticker={quickResult.ticker} size={40} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[s.ticker, { color: colors.text }]} numberOfLines={1}>{quickResult.ticker}</Text>
@@ -672,7 +386,7 @@ export default function SubvaluadasScreen() {
                 </Text>
               </View>
               <MosBadge pct={quickResult.margin_of_safety_pct} />
-            </View>
+            </TouchableOpacity>
 
             <GeneratedAtNote generatedAt={quickResult.generated_at} colors={colors} />
 
@@ -692,26 +406,11 @@ export default function SubvaluadasScreen() {
             <InsightBox text={quickResult.summary} colors={colors} />
 
             <View style={{ marginTop: 10 }}>
-              <ValorIntrinseco
-                ticker={quickResult.ticker}
-                companyName={quickResult.company_name}
-                price={quickResult.price}
-                fcfRaw={quickResult.current_fcf}
-                netCashRaw={quickResult.net_cash}
-                sharesRaw={quickResult.shares_outstanding}
-                assumptions={quickResult.dcf_assumptions}
-                yearlyDetail={quickResult.yearly_detail}
-                pvOfFcfSum={quickResult.pv_of_fcf_sum}
-                pvOfTerminalValue={quickResult.pv_of_terminal_value}
-                enterpriseValue={quickResult.enterprise_value}
-                isPremium={isPremium}
-                onUnlock={() => setPaywallOpen(true)}
-              />
+              <ValorIntrinsecoLink ticker={quickResult.ticker} colors={colors} />
             </View>
 
             <View style={{ marginTop: 10 }}>
-              <ActionButtons ticker={quickResult.ticker} companyName={quickResult.company_name}
-                             watchlisted={watchlisted.has(quickResult.ticker)}
+              <ActionButtons watchlisted={watchlisted.has(quickResult.ticker)}
                              onFollow={() => handleFollow(quickResult.ticker, quickResult.company_name)}
                              onAnalyze={() => handleAnalyze(quickResult.ticker)} colors={colors} />
             </View>
@@ -789,13 +488,15 @@ export default function SubvaluadasScreen() {
                                      disabled={compareSelection.length >= MAX_COMPARE}
                                      onToggle={() => toggleCompare(u.ticker)} colors={colors} />
                     )}
-                    <StockAvatar ticker={u.ticker} size={40} />
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={[s.ticker, { color: colors.text }]} numberOfLines={1}>{u.ticker}</Text>
-                      <Text style={{ fontSize: 11, color: colors.textMuted }} numberOfLines={1}>
-                        {u.company_name}{u.sector ? ` · ${u.sector}` : ""}
-                      </Text>
-                    </View>
+                    <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }} onPress={() => router.push(`/subvaluadas/${u.ticker}` as any)}>
+                      <StockAvatar ticker={u.ticker} size={40} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={[s.ticker, { color: colors.text }]} numberOfLines={1}>{u.ticker}</Text>
+                        <Text style={{ fontSize: 11, color: colors.textMuted }} numberOfLines={1}>
+                          {u.company_name}{u.sector ? ` · ${u.sector}` : ""}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
                     <MosBadge pct={u.margin_of_safety_pct} />
                   </View>
 
@@ -815,26 +516,11 @@ export default function SubvaluadasScreen() {
                   {u.blurb && <InsightBox text={u.blurb} colors={colors} />}
 
                   <View style={{ marginTop: 10 }}>
-                    <ValorIntrinseco
-                      ticker={u.ticker}
-                      companyName={u.company_name}
-                      price={u.price}
-                      fcfRaw={u.current_fcf}
-                      netCashRaw={u.net_cash}
-                      sharesRaw={u.shares_outstanding}
-                      assumptions={u.dcf_assumptions}
-                      yearlyDetail={u.yearly_detail}
-                      pvOfFcfSum={u.pv_of_fcf_sum}
-                      pvOfTerminalValue={u.pv_of_terminal_value}
-                      enterpriseValue={u.enterprise_value}
-                      isPremium={isPremium}
-                      onUnlock={() => setPaywallOpen(true)}
-                    />
+                    <ValorIntrinsecoLink ticker={u.ticker} colors={colors} />
                   </View>
 
                   <View style={{ marginTop: 10 }}>
-                    <ActionButtons ticker={u.ticker} companyName={u.company_name}
-                                   watchlisted={watchlisted.has(u.ticker)}
+                    <ActionButtons watchlisted={watchlisted.has(u.ticker)}
                                    onFollow={() => handleFollow(u.ticker, u.company_name)}
                                    onAnalyze={() => handleAnalyze(u.ticker)} colors={colors} />
                   </View>

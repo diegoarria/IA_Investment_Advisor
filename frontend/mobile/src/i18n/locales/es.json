@@ -819,6 +819,53 @@
         },
         "export": "Exportar a Excel"
       }
+    },
+    "detail": {
+      "openCta": "Ver calculadora de Valor Intrínseco",
+      "breadcrumb": "Valor intrínseco",
+      "today": "hoy",
+      "pageTitle": { "pre": "Calculadora de", "em": "Valor Intrínseco" },
+      "pageSubtitle": "Mueve los supuestos y observa cómo cambia el resultado en tiempo real. Ningún número aquí es una verdad fija — es matemática con supuestos que tú controlas.",
+      "chips": { "fcf": "FCF (TTM)", "netCash": "Deuda neta", "shares": "Acciones diluidas" },
+      "controls": {
+        "growth": "Crecimiento anual del FCF",
+        "growthSub": "Próximos 10 años (g)",
+        "wacc": "Tasa de descuento",
+        "waccSub": "Costo de capital / WACC aproximado (r)",
+        "terminalGrowth": "Crecimiento a perpetuidad",
+        "terminalGrowthSub": "Después del año 10 (g∞)"
+      },
+      "output": { "label": "Valor intrínseco por acción", "vs": "vs. precio actual ${{price}}" },
+      "marginOfSafety": "de margen de seguridad",
+      "heatmap": {
+        "title": "Mapa de sensibilidad",
+        "desc": "Qué tan frágil es este número. Cada celda recalcula el valor intrínseco completo para esa combinación de tasa de descuento y crecimiento.",
+        "lower": "Menor valor",
+        "higher": "Mayor valor",
+        "note": "La casilla con borde marcado es tu escenario actual. Si moverte un par de puntos en r o g cambia mucho el resultado, trata ese número con más cautela — no es una verdad fija, es un rango de posibilidades."
+      },
+      "level3Toggle": "Ver modelo completo",
+      "level3": {
+        "title": "Modelo DCF completo — {{ticker}}",
+        "inputs": "Supuestos e inputs",
+        "netCash": "Caja neta",
+        "shares": "Acciones en circulación",
+        "year": "Año",
+        "fcf": "FCF proyectado",
+        "discountFactor": "Factor de descuento",
+        "presentValue": "Valor presente",
+        "yearlyTable": "Proyección año por año",
+        "pvFcf": "VP de flujos explícitos",
+        "pvTerminal": "VP del valor terminal",
+        "enterpriseValue": "Valor de empresa (EV)",
+        "equityValue": "Valor de capital (Equity)",
+        "perShare": "Valor intrínseco por acción",
+        "export": "Exportar a Excel"
+      },
+      "disclaimer": {
+        "bold": "Herramienta educativa de modelaje financiero.",
+        "text": "No es asesoría de inversión ni recomendación de compra o venta. El resultado depende enteramente de los supuestos que elijas — Nuvos AI no garantiza que el precio de mercado converja hacia este número."
+      }
     }
   },
   "patrimonio": {

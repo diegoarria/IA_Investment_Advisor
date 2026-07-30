@@ -750,6 +750,59 @@
         },
         "export": "Export to Excel"
       }
+    },
+    "detail": {
+      "openCta": "See Intrinsic Value calculator",
+      "breadcrumb": "Intrinsic value",
+      "today": "today",
+      "pageTitle": { "pre": "Intrinsic Value", "em": "Calculator" },
+      "pageSubtitle": "Move the assumptions and watch the result change in real time. Nothing here is a fixed truth — it's math with assumptions you control.",
+      "autofillLabel": "Base data from Mentor IA",
+      "chips": { "fcf": "FCF (TTM)", "netCash": "Net debt", "shares": "Diluted shares" },
+      "controls": {
+        "growth": "Annual FCF growth",
+        "growthSub": "Next 10 years (g)",
+        "wacc": "Discount rate",
+        "waccSub": "Approximate cost of capital / WACC (r)",
+        "terminalGrowth": "Perpetuity growth",
+        "terminalGrowthSub": "After year 10 (g∞)"
+      },
+      "output": { "label": "Intrinsic value per share", "vs": "vs. current price ${{price}}" },
+      "marginOfSafety": "margin of safety",
+      "priceMarker": "Price",
+      "viMarker": "IV",
+      "heatmap": {
+        "title": "Sensitivity map",
+        "desc": "How fragile this number is. Each cell recalculates the full intrinsic value for that combination of discount rate and growth.",
+        "lower": "Lower value",
+        "higher": "Higher value",
+        "gAxis": "Annual growth (g) →",
+        "rAxis": "Discount rate (r) ↓",
+        "you": "YOU",
+        "note": "The outlined cell is your current scenario. If moving a couple of points on r or g changes the result a lot, treat that number with more caution — it's not a fixed truth, it's a range of possibilities."
+      },
+      "level3Toggle": "See the full model",
+      "level3": {
+        "title": "Full DCF model — {{ticker}}",
+        "inputs": "Assumptions & inputs",
+        "netCash": "Net cash",
+        "shares": "Shares outstanding",
+        "year": "Year",
+        "fcf": "Projected FCF",
+        "discountFactor": "Discount factor",
+        "presentValue": "Present value",
+        "yearlyTable": "Year-by-year projection",
+        "pvFcf": "PV of explicit cash flows",
+        "pvTerminal": "PV of terminal value",
+        "enterpriseValue": "Enterprise value (EV)",
+        "equityValue": "Equity value",
+        "perShare": "Intrinsic value per share",
+        "export": "Export to Excel"
+      },
+      "disclaimer": {
+        "bold": "Educational financial modeling tool.",
+        "text": "This is not investment advice or a buy/sell recommendation. The result depends entirely on the assumptions you choose — Nuvos AI does not guarantee the market price will converge toward this number."
+      }
     }
   },
   "patrimonio": {
