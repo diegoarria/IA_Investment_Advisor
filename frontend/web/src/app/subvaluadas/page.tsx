@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import {
-  Loader2, Lock, Search, X, Info, RotateCcw, FileSpreadsheet, MessageCircle, AlertTriangle, Sparkles,
+  Loader2, Lock, Search, X, Info, RotateCcw, FileSpreadsheet, MessageCircle, AlertTriangle, Sparkles, Bookmark, Check,
 } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
@@ -17,7 +17,7 @@ import {
   MarketExpectationsPanel, InsightBox, FollowButton, AnalyzeButton,
 } from "@/components/subvaluadas/shared";
 import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
-import { screenerApi, watchlist } from "@/lib/api";
+import { screenerApi, savedValuationsApi, watchlist } from "@/lib/api";
 import { useSubscriptionStore } from "@/lib/store";
 
 export interface QuickAnalysisResult {
@@ -350,8 +350,17 @@ function FullModelModal({ ticker, price, fcf0, netCash, shares, g, r, gt, yearly
 }
 
 export default function SubvaluadasPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center" style={{ background: "var(--bg)" }}><Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent-l)" }} /></div>}>
+      <SubvaluadasPageInner />
+    </Suspense>
+  );
+}
+
+function SubvaluadasPageInner() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium" || sub.isTrialPremium;
 
@@ -359,12 +368,13 @@ export default function SubvaluadasPage() {
   const [paywallOpen, setPaywallOpen] = useState(false);
 
   const [query, setQuery] = useState("");
-  const [ticker, setTicker] = useState(DEFAULT_TICKER);
+  const [ticker, setTicker] = useState(() => (searchParams.get("ticker") || DEFAULT_TICKER).toUpperCase());
   const [data, setData] = useState<QuickAnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [watchlisted, setWatchlisted] = useState(false);
   const [level3Open, setLevel3Open] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   useEffect(() => {
     if (!isPremium) { setLoading(false); return; }
@@ -382,6 +392,7 @@ export default function SubvaluadasPage() {
   const handleSearch = () => {
     if (!query.trim() || !isPremium) return;
     setWatchlisted(false);
+    setSaveState("idle");
     setTicker(query.trim().toUpperCase());
   };
 
@@ -402,6 +413,7 @@ export default function SubvaluadasPage() {
   const [gt, setGt] = useState(suggestedGt);
 
   useEffect(() => { setG(suggestedG); setR(suggestedR); setGt(suggestedGt); }, [suggestedG, suggestedR, suggestedGt]);
+  useEffect(() => { setSaveState("idle"); }, [g, r, gt, ticker]);
 
   const isDefault = g === suggestedG && r === suggestedR && gt === suggestedGt;
 
@@ -420,6 +432,17 @@ export default function SubvaluadasPage() {
   };
   const handleAnalyze = () => router.push(`/chat?msg=${encodeURIComponent(t("subvaluadas.analyze.prompt", { ticker }))}&autosend=1`);
   const askMentor = (question: string) => router.push(`/chat?msg=${encodeURIComponent(question)}&autosend=1`);
+
+  const handleSaveValuation = async () => {
+    if (!data) return;
+    setSaveState("saving");
+    try {
+      await savedValuationsApi.save(data.ticker, g, r, gt);
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+    }
+  };
 
   const name = data?.company_name || ticker;
   const mentorQuestions = [
@@ -589,13 +612,24 @@ export default function SubvaluadasPage() {
                                 </div>
                               );
                             })}
-                            {!isDefault && (
-                              <button onClick={() => { setG(suggestedG); setR(suggestedR); setGt(suggestedGt); }}
-                                      className="flex items-center gap-1.5 text-[11px] font-bold mt-1" style={{ color: GOLD }}>
-                                <RotateCcw className="w-3 h-3" />
-                                {t("subvaluadas.dcf.reset")}
+                            <div className="flex items-center gap-4 mt-1 flex-wrap">
+                              {!isDefault && (
+                                <button onClick={() => { setG(suggestedG); setR(suggestedR); setGt(suggestedGt); }}
+                                        className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: GOLD }}>
+                                  <RotateCcw className="w-3 h-3" />
+                                  {t("subvaluadas.dcf.reset")}
+                                </button>
+                              )}
+                              <button onClick={handleSaveValuation} disabled={saveState === "saving" || saveState === "saved"}
+                                      className="flex items-center gap-1.5 text-[11px] font-bold disabled:opacity-70"
+                                      style={{ color: saveState === "saved" ? TEAL : "var(--sub)" }}>
+                                {saveState === "saving" ? <Loader2 className="w-3 h-3 animate-spin" /> : saveState === "saved" ? <Check className="w-3 h-3" /> : <Bookmark className="w-3 h-3" />}
+                                {saveState === "saved" ? t("subvaluadas.detail.saveCta.saved") : t("subvaluadas.detail.saveCta.default")}
                               </button>
-                            )}
+                              {saveState === "error" && (
+                                <span className="text-[11px]" style={{ color: CORAL }}>{t("subvaluadas.detail.saveCta.error")}</span>
+                              )}
+                            </div>
                           </div>
 
                           <div className="pl-8 flex flex-col gap-4">

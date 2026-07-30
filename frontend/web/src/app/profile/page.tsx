@@ -17,6 +17,7 @@ import PaywallModal from "@/components/PaywallModal";
 import WrappedCard from "@/components/WrappedCard";
 import DiarioDecisionesCard from "@/components/DiarioDecisionesCard";
 import InvestmentGraphSection from "@/components/InvestmentGraphSection";
+import SavedValuationsSection from "@/components/SavedValuationsSection";
 import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
   Loader2, Copy, Check, Gift, Users, Share2, Trash2, Phone,
@@ -1147,6 +1148,9 @@ export default function ProfilePage() {
                     )}
                   </div>
                 )}
+
+                {/* Saved intrinsic valuations */}
+                <SavedValuationsSection />
 
                 {/* Referral program */}
                 <div>

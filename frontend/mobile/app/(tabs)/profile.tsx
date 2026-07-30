@@ -16,6 +16,7 @@ import TutorialModal from "../../src/components/TutorialModal";
 import MobileDecisionDiary from "../../src/components/MobileDecisionDiary";
 import MobileInvestmentGraph from "../../src/components/MobileInvestmentGraph";
 import PaywallModal from "../../src/components/PaywallModal";
+import SavedValuationsSection from "../../src/components/SavedValuationsSection";
 import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi, billingApi, voiceCallsApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -1465,6 +1466,8 @@ if (!profile) {
             )}
           </View>
         )}
+
+        <SavedValuationsSection />
 
         {/* ── BOTTOM ── */}
         <View style={{ marginTop: 16, gap: 10, paddingBottom: 12 }}>

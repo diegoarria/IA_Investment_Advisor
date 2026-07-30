@@ -350,6 +350,15 @@ export const screenerWeeklyApi = {
     api.get("/api/market/screener/quick-analysis", { params: { query, lang } }),
 };
 
+export const savedValuationsApi = {
+  list: () => api.get("/api/saved-valuations"),
+  save: (ticker: string, growthPct: number, discountRatePct: number, terminalGrowthPct: number) =>
+    api.post("/api/saved-valuations", {
+      ticker, growth_pct: growthPct, discount_rate_pct: discountRatePct, terminal_growth_pct: terminalGrowthPct,
+    }),
+  remove: (ticker: string) => api.delete(`/api/saved-valuations/${ticker}`),
+};
+
 export const feedApi = {
   getClips: (params: { cursor?: number; speaker?: string; tag?: string; sort?: string }) =>
     api.get("/api/feed/clips", { params }),

@@ -4,10 +4,10 @@ import {
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
-import { screenerWeeklyApi, watchlistServerApi } from "../../src/lib/api";
+import { screenerWeeklyApi, watchlistServerApi, savedValuationsApi } from "../../src/lib/api";
 import PaywallModal from "../../src/components/PaywallModal";
 import StockAvatar from "../../src/components/StockAvatar";
 import { calcularValorIntrinseco } from "../../src/lib/dcfCalculator";
@@ -170,15 +170,17 @@ export default function SubvaluadasScreen() {
   const { t, i18n } = useTranslation();
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
+  const params = useLocalSearchParams<{ ticker?: string }>();
 
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [ticker, setTicker] = useState(DEFAULT_TICKER);
+  const [ticker, setTicker] = useState(() => (params.ticker || DEFAULT_TICKER).toUpperCase());
   const [data, setData] = useState<QuickAnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [watchlisted, setWatchlisted] = useState(false);
   const [level3Open, setLevel3Open] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   useEffect(() => {
     if (!isPremium) { setLoading(false); return; }
@@ -193,6 +195,7 @@ export default function SubvaluadasScreen() {
   const handleSearch = () => {
     if (!query.trim() || !isPremium) return;
     setWatchlisted(false);
+    setSaveState("idle");
     setTicker(query.trim().toUpperCase());
   };
 
@@ -213,6 +216,7 @@ export default function SubvaluadasScreen() {
   const [gt, setGt] = useState(suggestedGt);
 
   useEffect(() => { setG(suggestedG); setR(suggestedR); setGt(suggestedGt); }, [suggestedG, suggestedR, suggestedGt]);
+  useEffect(() => { setSaveState("idle"); }, [g, r, gt, ticker]);
 
   const isDefault = g === suggestedG && r === suggestedR && gt === suggestedGt;
 
@@ -231,6 +235,17 @@ export default function SubvaluadasScreen() {
   };
   const handleAnalyze = () => router.push(`/chat?msg=${encodeURIComponent(t("subvaluadas.analyze.prompt", { ticker }))}&autosend=1` as any);
   const askMentor = (question: string) => router.push(`/chat?msg=${encodeURIComponent(question)}&autosend=1` as any);
+
+  const handleSaveValuation = async () => {
+    if (!data) return;
+    setSaveState("saving");
+    try {
+      await savedValuationsApi.save(data.ticker, g, r, gt);
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+    }
+  };
 
   const name = data?.company_name || ticker;
   const mentorQuestions = [
@@ -386,12 +401,24 @@ export default function SubvaluadasScreen() {
                   );
                 })}
 
-                {!isDefault && (
-                  <TouchableOpacity onPress={() => { setG(suggestedG); setR(suggestedR); setGt(suggestedGt); }} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <Ionicons name="refresh" size={12} color={GOLD} />
-                    <Text style={{ fontSize: 11, fontWeight: "700", color: GOLD }}>{t("subvaluadas.dcf.reset")}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                  {!isDefault && (
+                    <TouchableOpacity onPress={() => { setG(suggestedG); setR(suggestedR); setGt(suggestedGt); }} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Ionicons name="refresh" size={12} color={GOLD} />
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: GOLD }}>{t("subvaluadas.dcf.reset")}</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity onPress={handleSaveValuation} disabled={saveState === "saving" || saveState === "saved"}
+                                    style={{ flexDirection: "row", alignItems: "center", gap: 6, opacity: saveState === "saving" ? 0.6 : 1 }}>
+                    <Ionicons name={saveState === "saved" ? "checkmark" : "bookmark-outline"} size={12} color={saveState === "saved" ? TEAL : viColors.textSub} />
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: saveState === "saved" ? TEAL : viColors.textSub }}>
+                      {saveState === "saved" ? t("subvaluadas.detail.saveCta.saved") : t("subvaluadas.detail.saveCta.default")}
+                    </Text>
                   </TouchableOpacity>
-                )}
+                  {saveState === "error" && (
+                    <Text style={{ fontSize: 11, color: CORAL }}>{t("subvaluadas.detail.saveCta.error")}</Text>
+                  )}
+                </View>
 
                 <View style={{ height: 1, backgroundColor: viColors.border }} />
 
