@@ -1003,18 +1003,21 @@ async def job_market_close():
         web_uids  = {r["user_id"] for r in (web_res.data or [])}
         push_capable = (expo_uids | web_uids) - disabled
 
-        # ── 3. Profiles: name + email + tier + language in one query ─────────────
+        # ── 3. Profiles: name + tier + language in one query ─────────────────────
         # Covers portfolio users AND push-capable users without a portfolio (the
         # "generic push" branch below) — both need language for their push text.
+        # NOTE: email is NOT a user_profiles column (it lives on Supabase auth.users)
+        # — selecting it here used to 500 this entire job before it sent a single
+        # push, to anyone, every single day. It was also never actually read
+        # anywhere below, so it's just removed rather than fetched a different way.
         profiles_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,email,subscription_tier,trial_started_at,preferred_language")
+            .select("user_id,name,subscription_tier,trial_started_at,preferred_language")
             .in_("user_id", list(set(uids) | push_capable))
         )
         profile_map = {
             r["user_id"]: {
                 "first":      (r.get("name") or "Inversor").split()[0],
-                "email":      r.get("email") or "",
                 "is_premium": _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at")),
                 "language":   r.get("preferred_language") or "es",
             }
@@ -1041,61 +1044,69 @@ async def job_market_close():
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.1))
 
-            has_portfolio = uid in portfolio_map
-            p             = profile_map.get(uid, {})
-            first         = p.get("first", "Inversor")
-            is_premium    = p.get("is_premium", False)
-            is_en         = p.get("language", "es") == "en"
+            try:
+                has_portfolio = uid in portfolio_map
+                p             = profile_map.get(uid, {})
+                first         = p.get("first", "Inversor")
+                is_premium    = p.get("is_premium", False)
+                is_en         = p.get("language", "es") == "en"
 
-            if is_premium and has_portfolio:
-                # Premium: personalized push only (email goes out Fridays via job_daily_email)
-                user_pct, total_curr, total_prev, top_gainers, top_losers = _calc_portfolio_close_data(
-                    portfolio_map[uid], prices
-                )
-                if uid in push_capable:
-                    no_data = "n/a" if is_en else "s/d"
-                    sp_cl  = f"{sp500_pct:+.1f}%"  if sp500_pct  is not None else no_data
-                    nq_cl  = f"{nasdaq_pct:+.1f}%"  if nasdaq_pct is not None else no_data
-                    if user_pct is not None and total_curr is not None and total_prev is not None:
-                        dollar_gain = round(total_curr - total_prev, 2)
-                        is_up = dollar_gain >= 0
-                        # Leads with the dollar amount (what the user actually
-                        # feels), never alarmist framing on a down day — always
-                        # a brief, calm explanation of what drove it, using the
-                        # top 1-2 movers by % that already came out of
-                        # _calc_portfolio_close_data (no extra Claude call).
-                        movers_for_why = top_gainers if is_up else top_losers
-                        if is_en:
-                            push_title = f"📈 YOU GAINED ${abs(dollar_gain):,.2f} USD TODAY" if is_up else f"📉 YOU LOST ${abs(dollar_gain):,.2f} USD TODAY"
-                        else:
-                            push_title = f"📈 HOY GANASTE ${abs(dollar_gain):,.2f} USD" if is_up else f"📉 HOY PERDISTE ${abs(dollar_gain):,.2f} USD"
-                        if movers_for_why:
-                            names = [f"{m['ticker']} ({m['pct']:+.1f}%)" for m in movers_for_why[:2]]
-                            names_joined = f"{names[0]} y {names[1]}" if len(names) > 1 else names[0]
+                if is_premium and has_portfolio:
+                    # Premium: personalized push only (email goes out Fridays via job_daily_email)
+                    user_pct, total_curr, total_prev, top_gainers, top_losers = _calc_portfolio_close_data(
+                        portfolio_map[uid], prices
+                    )
+                    if uid in push_capable:
+                        no_data = "n/a" if is_en else "s/d"
+                        sp_cl  = f"{sp500_pct:+.1f}%"  if sp500_pct  is not None else no_data
+                        nq_cl  = f"{nasdaq_pct:+.1f}%"  if nasdaq_pct is not None else no_data
+                        if user_pct is not None and total_curr is not None and total_prev is not None:
+                            dollar_gain = round(total_curr - total_prev, 2)
+                            is_up = dollar_gain >= 0
+                            # Leads with the dollar amount (what the user actually
+                            # feels), never alarmist framing on a down day — always
+                            # a brief, calm explanation of what drove it, using the
+                            # top 1-2 movers by % that already came out of
+                            # _calc_portfolio_close_data (no extra Claude call).
+                            movers_for_why = top_gainers if is_up else top_losers
                             if is_en:
-                                verb = "growth" if is_up else "drop"
-                                push_body = f"Most of the {verb} came from {names_joined}."
+                                push_title = f"📈 YOU GAINED ${abs(dollar_gain):,.2f} USD TODAY" if is_up else f"📉 YOU LOST ${abs(dollar_gain):,.2f} USD TODAY"
                             else:
-                                verb = "crecimiento" if is_up else "caída"
-                                push_body = f"La mayor parte del {verb} vino por {names_joined}." if is_up else f"La caída estuvo impulsada principalmente por {names_joined}."
+                                push_title = f"📈 HOY GANASTE ${abs(dollar_gain):,.2f} USD" if is_up else f"📉 HOY PERDISTE ${abs(dollar_gain):,.2f} USD"
+                            if movers_for_why:
+                                names = [f"{m['ticker']} ({m['pct']:+.1f}%)" for m in movers_for_why[:2]]
+                                names_joined = f"{names[0]} y {names[1]}" if len(names) > 1 else names[0]
+                                if is_en:
+                                    verb = "growth" if is_up else "drop"
+                                    push_body = f"Most of the {verb} came from {names_joined}."
+                                else:
+                                    verb = "crecimiento" if is_up else "caída"
+                                    push_body = f"La mayor parte del {verb} vino por {names_joined}." if is_up else f"La caída estuvo impulsada principalmente por {names_joined}."
+                            else:
+                                your_word = "Your portfolio" if is_en else "Tu portafolio"
+                                push_body = f"{your_word} {user_pct:+.1f}% · S&P 500 {sp_cl} · Nasdaq {nq_cl}"
                         else:
-                            your_word = "Your portfolio" if is_en else "Tu portafolio"
-                            push_body = f"{your_word} {user_pct:+.1f}% · S&P 500 {sp_cl} · Nasdaq {nq_cl}"
-                    else:
-                        push_title = "📊 Market close" if is_en else "📊 Cierre de mercado"
-                        push_body  = f"S&P 500 {sp_cl} · Nasdaq {nq_cl}"
-                    await send_push(uid, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
-                    sent_push += 1
+                            push_title = "📊 Market close" if is_en else "📊 Cierre de mercado"
+                            push_body  = f"S&P 500 {sp_cl} · Nasdaq {nq_cl}"
+                        await send_push(uid, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
+                        sent_push += 1
 
-            elif uid in push_capable:
-                # Free: generic push only, no portfolio data, subtle upgrade nudge
-                if is_en:
-                    body = f"The market closed. {indices}. With Premium you can see your portfolio's exact performance. 📊"
-                    await send_push(uid, "market_close", "📊 The market has closed", body, {"screen": "portfolio"}, db)
-                else:
-                    body = f"El mercado cerró. {indices}. Con Premium puedes ver el rendimiento exacto de tu portafolio. 📊"
-                    await send_push(uid, "market_close", "📊 El mercado ha cerrado", body, {"screen": "portfolio"}, db)
-                sent_push += 1
+                elif uid in push_capable:
+                    # Free: generic push only, no portfolio data, subtle upgrade nudge
+                    if is_en:
+                        body = f"The market closed. {indices}. With Premium you can see your portfolio's exact performance. 📊"
+                        await send_push(uid, "market_close", "📊 The market has closed", body, {"screen": "portfolio"}, db)
+                    else:
+                        body = f"El mercado cerró. {indices}. Con Premium puedes ver el rendimiento exacto de tu portafolio. 📊"
+                        await send_push(uid, "market_close", "📊 El mercado ha cerrado", body, {"screen": "portfolio"}, db)
+                    sent_push += 1
+            except Exception as e:
+                # One user's bad/missing data must never take down everyone
+                # else's notification for the day — this loop previously had
+                # no per-user guard, so a single exception here aborted the
+                # whole run partway through, silently skipping every
+                # remaining user in `all_uids` for that entire day.
+                logger.error("job_market_close: failed for user %s: %s", uid, e)
 
         logger.info(
             "Market close: %d total | %d push | %d email | S&P %s | NQ %s",
@@ -1929,58 +1940,65 @@ async def job_portfolio_alerts():
             queue_index = 0
 
             for ticker in ranked:
-                pct          = movers[ticker]
-                price        = prices[ticker]["curr"]
-                title        = ticker_title[ticker]
-                is_portfolio = ticker in port_map
-                screen       = "portfolio" if is_portfolio else "watchlist"
+                try:
+                    pct          = movers[ticker]
+                    price        = prices[ticker]["curr"]
+                    title        = ticker_title[ticker]
+                    is_portfolio = ticker in port_map
+                    screen       = "portfolio" if is_portfolio else "watchlist"
 
-                why = ticker_why_en[ticker] if (is_en and ticker in ticker_why_en) else ticker_why[ticker]
-                emoji = _move_emoji(ticker, pct)
-                verb = ("rose" if is_en else "subió") if pct >= 0 else ("fell" if is_en else "bajó")
-                # Title carries the company name ("Micron Technology"); the body
-                # leads with the ticker instead — "MU subió +4.78%" — since the
-                # user reads tickers faster than full names once already looking
-                # at a specific stock's alert. Always 2 decimals for precision.
-                prefix = f"{emoji} {ticker} {verb} {pct:+.2f}%"
-                push_category = f"price_mover_{ticker}"
+                    why = ticker_why_en[ticker] if (is_en and ticker in ticker_why_en) else ticker_why[ticker]
+                    emoji = _move_emoji(ticker, pct)
+                    verb = ("rose" if is_en else "subió") if pct >= 0 else ("fell" if is_en else "bajó")
+                    # Title carries the company name ("Micron Technology"); the body
+                    # leads with the ticker instead — "MU subió +4.78%" — since the
+                    # user reads tickers faster than full names once already looking
+                    # at a specific stock's alert. Always 2 decimals for precision.
+                    prefix = f"{emoji} {ticker} {verb} {pct:+.2f}%"
+                    push_category = f"price_mover_{ticker}"
 
-                # Hard cap of one push per ticker per user per day — applies to
-                # free AND premium alike (this used to only gate premium users,
-                # so free users got re-pinged on every 5-min cycle a ticker
-                # stayed a mover, and premium users could still get a second
-                # "here's why" correction later the same day).
-                if not await should_send_price_alert(uid, ticker, db):
-                    continue
+                    # Hard cap of one push per ticker per user per day — applies to
+                    # free AND premium alike (this used to only gate premium users,
+                    # so free users got re-pinged on every 5-min cycle a ticker
+                    # stayed a mover, and premium users could still get a second
+                    # "here's why" correction later the same day).
+                    if not await should_send_price_alert(uid, ticker, db):
+                        continue
 
-                if is_prem:
-                    if why == NO_CATALYST:
-                        body = (
-                            f"{prefix} — no clear catalyst, possible market volatility."
-                            if is_en else
-                            f"{prefix} — sin catalizador claro, posible volatilidad de mercado."
-                        )
+                    if is_prem:
+                        if why == NO_CATALYST:
+                            body = (
+                                f"{prefix} — no clear catalyst, possible market volatility."
+                                if is_en else
+                                f"{prefix} — sin catalizador claro, posible volatilidad de mercado."
+                            )
+                        else:
+                            body = f"{prefix} {why}."
                     else:
-                        body = f"{prefix} {why}."
-                else:
-                    # Free tier — plain price alert, no WHY
-                    body = (
-                        f"{prefix}. Activate Premium to see why."
-                        if is_en else
-                        f"{prefix}. Activa Premium para ver por qué."
-                    )
+                        # Free tier — plain price alert, no WHY
+                        body = (
+                            f"{prefix}. Activate Premium to see why."
+                            if is_en else
+                            f"{prefix}. Activa Premium para ver por qué."
+                        )
 
-                await enqueue_push(
-                    uid,
-                    push_category,
-                    title, body,
-                    {"ticker": ticker, "change_pct": pct, "price": price, "screen": screen},
-                    delay_seconds=queue_index * 300,
-                    db=db,
-                )
-                queue_index += 1
-                sent += 1
-                await asyncio.sleep(random.uniform(0.05, 0.2))
+                    await enqueue_push(
+                        uid,
+                        push_category,
+                        title, body,
+                        {"ticker": ticker, "change_pct": pct, "price": price, "screen": screen},
+                        delay_seconds=queue_index * 300,
+                        db=db,
+                    )
+                    queue_index += 1
+                    sent += 1
+                    await asyncio.sleep(random.uniform(0.05, 0.2))
+                except Exception as e:
+                    # One ticker's bad data must never take down the rest of
+                    # this user's alerts, or every other user still to come
+                    # in this run — same class of bug as job_market_close's
+                    # missing per-user guard.
+                    logger.error("job_portfolio_alerts: failed for user %s ticker %s: %s", uid, ticker, e)
 
         logger.info("Portfolio alerts: %d movers, %d pushes sent", len(movers), sent)
     except Exception as e:
