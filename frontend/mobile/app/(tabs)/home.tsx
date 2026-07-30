@@ -28,6 +28,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../src/lib/supabase";
 import PricingModal from "../../src/components/PricingModal";
 import PersonalizedMessageBanner from "../../src/components/PersonalizedMessageBanner";
+import MorningBriefCard from "../../src/components/MorningBriefCard";
+import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
+import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore";
 
 // ── Sparkline helpers ─────────────────────────────────────────────────────────
 function sparkPath(prices: number[], w: number, h: number, close = false): string {
@@ -525,6 +528,8 @@ export default function HomeScreen() {
   }, [profile?.monthly_contribution, goalAmount, profile?.risk_tolerance]);
 
   const sym = CURRENCY_SYMBOL[portfolioCurrency] ?? "$";
+  const balanceHidden = useBalanceVisibilityStore((s) => s.hidden);
+  const mask = (s: string) => (balanceHidden ? "••••••" : s);
 
   // ── Computed portfolio totals ─────────────────────────────────────────────
   const { total, dayGain, dayGainPct, totalGain, totalGainPct } = React.useMemo(() => {
@@ -976,6 +981,7 @@ export default function HomeScreen() {
             tintColor={colors.accentLight} colors={[colors.accentLight]} />
         }
       >
+        <MorningBriefCard style={{ marginHorizontal: 16, marginBottom: 12 }} />
         <PersonalizedMessageBanner style={{ marginHorizontal: 16, marginBottom: 12 }} />
 
         {/* ── Onboarding checklist ─────────────────────────────────────────── */}
@@ -1006,6 +1012,7 @@ export default function HomeScreen() {
                 <View style={{ backgroundColor: colors.bgRaised ?? colors.card, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 }}>
                   <Text style={{ fontSize: 9, fontWeight: "900", color: colors.textMuted, letterSpacing: 0.8 }}>{portfolioCurrency}</Text>
                 </View>
+                <BalanceVisibilityToggle color={colors.textMuted} size={14} />
               </View>
               {loading
                 ? <Skeleton w={160} h={36} r={8} />
@@ -1015,7 +1022,7 @@ export default function HomeScreen() {
                     adjustsFontSizeToFit
                     minimumFontScale={0.5}
                   >
-                    {fmt(total * fxRate, portfolioCurrency)}
+                    {mask(fmt(total * fxRate, portfolioCurrency))}
                   </Text>
               }
             </View>
@@ -1045,7 +1052,7 @@ export default function HomeScreen() {
                   {fmtPct(dayGainPct)}
                 </Text>
                 <Text style={[ss.heroStatVal, { color: dayGain >= 0 ? colors.up : colors.down }]}>
-                  {dayGain >= 0 ? "+" : ""}{fmt(dayGain * fxRate, portfolioCurrency)}
+                  {mask(`${dayGain >= 0 ? "+" : ""}${fmt(dayGain * fxRate, portfolioCurrency)}`)}
                 </Text>
               </View>
               <View style={[ss.heroDivider, { backgroundColor: colors.border }]} />
@@ -1058,7 +1065,7 @@ export default function HomeScreen() {
                       {fmtPct(ytdPct ?? 0)}
                     </Text>
                     <Text style={[ss.heroStatVal, { color: (ytdGain ?? 0) >= 0 ? colors.up : colors.down }]}>
-                      {(ytdGain ?? 0) >= 0 ? "+" : ""}{fmt((ytdGain ?? 0) * fxRate, portfolioCurrency)}
+                      {mask(`${(ytdGain ?? 0) >= 0 ? "+" : ""}${fmt((ytdGain ?? 0) * fxRate, portfolioCurrency)}`)}
                     </Text>
                   </>
                 ) : (
@@ -1075,7 +1082,7 @@ export default function HomeScreen() {
                       {fmtPct(totalGainPct)}
                     </Text>
                     <Text style={[ss.heroStatVal, { color: totalGain >= 0 ? colors.up : colors.down }]}>
-                      {totalGain >= 0 ? "+" : ""}{fmt(totalGain * fxRate, portfolioCurrency)}
+                      {mask(`${totalGain >= 0 ? "+" : ""}${fmt(totalGain * fxRate, portfolioCurrency)}`)}
                     </Text>
                   </>
                 ) : shortGain !== null ? (
@@ -1084,7 +1091,7 @@ export default function HomeScreen() {
                       {fmtPct(shortPct ?? 0)}
                     </Text>
                     <Text style={[ss.heroStatVal, { color: (shortGain ?? 0) >= 0 ? colors.up : colors.down }]}>
-                      {(shortGain ?? 0) >= 0 ? "+" : ""}{fmt((shortGain ?? 0) * fxRate, portfolioCurrency)}
+                      {mask(`${(shortGain ?? 0) >= 0 ? "+" : ""}${fmt((shortGain ?? 0) * fxRate, portfolioCurrency)}`)}
                     </Text>
                   </>
                 ) : (

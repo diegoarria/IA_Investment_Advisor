@@ -5,7 +5,7 @@ Wraps existing push_service.send_push and email_service.send_email.
 import asyncio
 import logging
 import random
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from app.core.cache import acquire_lock
@@ -138,6 +138,27 @@ async def send_push(user_id: str, category: str, title: str, body: str, data: di
     log_id = await _log_notification(db, user_id, "push", category, title, body, data,
                                      status, dedup_key=dedup_key, error_text=error_text)
     await _track_analytics(db, "sent", category, user_id, log_id)
+
+
+# ─── Queued (delayed) push dispatch ───────────────────────────────────────────
+
+async def enqueue_push(user_id: str, category: str, title: str, body: str, data: dict, delay_seconds: int, db) -> None:
+    """Schedules a push for delivery `delay_seconds` from now instead of
+    sending it immediately — used to space out several notifications for the
+    same user (e.g. multiple simultaneous stock-price alerts) instead of
+    firing them all within the same second. job_dispatch_notification_queue
+    (worker.py) polls `notification_queue` and calls send_push() for each due
+    row, so quiet-hours/dedup/logging all still apply exactly as if send_push
+    had been called directly at that later time."""
+    from app.core.database import run_query
+    scheduled_for = (datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)).isoformat()
+    try:
+        await run_query(db.table("notification_queue").insert({
+            "user_id": user_id, "category": category, "title": title, "body": body,
+            "data": data, "scheduled_for": scheduled_for,
+        }))
+    except Exception as e:
+        logger.warning("Failed to enqueue push for %s (category=%s): %s", user_id, category, e)
 
 
 # ─── Email dispatch ───────────────────────────────────────────────────────────

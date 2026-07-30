@@ -293,7 +293,13 @@
       "send": "Enviar feedback"
     }
   },
+  "morningBrief": {
+    "read": "Leído",
+    "close": "Cerrar"
+  },
   "profile": {
+    "viewDetails": "Ver detalles",
+    "hideDetails": "Ocultar",
     "savedValuations": {
       "title": "Mis valores intrínsecos guardados",
       "stale": "datos no disponibles",

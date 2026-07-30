@@ -188,6 +188,8 @@
     },
     "portfolioHero": {
       "myPortfolio": "MI PORTAFOLIO",
+      "hideBalance": "Ocultar monto",
+      "showBalance": "Mostrar monto",
       "today": "Hoy",
       "todayReturn": "Rendimiento Hoy",
       "ytd": "Rendimiento YTD",
@@ -328,6 +330,8 @@
       "decisionPorPrecio": "decisión por precio",
       "horizonteCorto": "horizonte corto"
     },
+    "viewDetails": "Ver detalles",
+    "hideDetails": "Ocultar",
     "yourMentor": "Tu mentor",
     "letterOf": "Carta de {{name}}",
     "monthlyLetterDesc": "Tu carta mensual personalizada",
@@ -1944,6 +1948,10 @@
     "premiumActive": "Premium",
     "activatePremium": "Activar Premium",
     "activate": "✦ Activar"
+  },
+  "morningBrief": {
+    "read": "Leído",
+    "close": "Cerrar"
   },
   "premiumToolLocked": {
     "unlockCta": "Desbloquear con Premium"

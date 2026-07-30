@@ -202,6 +202,7 @@ export const notificationsApi = {
   getAll: () => api.get("/api/notifications"),
   markRead: (id: string) => api.post(`/api/notifications/${id}/read`),
   markAllRead: () => api.post("/api/notifications/mark-all-read"),
+  getMorningBrief: () => api.get("/api/notifications/morning-brief"),
 };
 
 export const billingApi = {

@@ -188,6 +188,8 @@
     },
     "portfolioHero": {
       "myPortfolio": "MY PORTFOLIO",
+      "hideBalance": "Hide amount",
+      "showBalance": "Show amount",
       "today": "Today",
       "todayReturn": "Today's return",
       "ytd": "YTD return",
@@ -328,6 +330,8 @@
       "decisionPorPrecio": "decides on price alone",
       "horizonteCorto": "short horizon"
     },
+    "viewDetails": "View details",
+    "hideDetails": "Hide",
     "yourMentor": "Your mentor",
     "letterOf": "Letter from {{name}}",
     "monthlyLetterDesc": "Your personalized monthly letter",
@@ -1944,6 +1948,10 @@
     "premiumActive": "Premium",
     "activatePremium": "Activate Premium",
     "activate": "✦ Activate"
+  },
+  "morningBrief": {
+    "read": "Got it",
+    "close": "Close"
   },
   "premiumToolLocked": {
     "unlockCta": "Unlock with Premium"

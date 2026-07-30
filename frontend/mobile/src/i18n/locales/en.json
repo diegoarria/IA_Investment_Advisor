@@ -293,7 +293,13 @@
       "send": "Send feedback"
     }
   },
+  "morningBrief": {
+    "read": "Got it",
+    "close": "Close"
+  },
   "profile": {
+    "viewDetails": "View details",
+    "hideDetails": "Hide",
     "savedValuations": {
       "title": "My saved intrinsic valuations",
       "stale": "data unavailable",

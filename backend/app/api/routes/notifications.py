@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.services import notification_service
@@ -165,6 +166,129 @@ async def trigger_market_close(
 
     background_tasks.add_task(_run)
     return {"triggered": "market_close"}
+
+
+@router.get("/morning-brief")
+async def get_morning_brief(user_id: str = Depends(get_current_user_id)):
+    """Data for the "Morning Brief" card shown on Home when the user opens
+    the app — NOT a push notification, NOT a full screen. Cached per user
+    per ET calendar day so opening the app twice in a day doesn't recompute.
+    Reuses saved_valuation_service.list_with_live_data (fair-value
+    proximity) and the same live-quote/goal math used elsewhere in the app —
+    no new external data source. Returns `{}` (empty) when there's nothing
+    genuinely worth telling the user, so the frontend renders no card
+    rather than a hollow one."""
+    import asyncio
+    import zoneinfo
+    from app.core.finnhub import fh_quote
+    from app.services.saved_valuation_service import list_with_live_data
+
+    today_et = datetime.now(zoneinfo.ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+    cache_key = f"morning_brief:{user_id}:{today_et}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    db = get_supabase()
+    profile_res = await run_query(db.table("user_profiles").select("*").eq("user_id", user_id))
+    profile = profile_res.data[0] if profile_res.data else {}
+    is_en = (profile.get("preferred_language") or "es") == "en"
+    first = (profile.get("name") or ("Investor" if is_en else "Inversor")).split()[0]
+
+    port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id))
+    positions: list = []
+    if port_res.data:
+        raw = port_res.data[0].get("positions") or {}
+        positions = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+
+    bullets: list[str] = []
+    total_curr = 0.0
+
+    if positions:
+        tickers = list({p["ticker"] for p in positions if p.get("ticker")})
+        quotes = dict(zip(tickers, await asyncio.gather(*[asyncio.to_thread(fh_quote, t) for t in tickers])))
+
+        total_prev = 0.0
+        for p in positions:
+            t, shares = p.get("ticker"), float(p.get("shares") or 0)
+            q = quotes.get(t)
+            if not t or not shares or not q or not q.get("price"):
+                continue
+            price = q["price"]
+            prev = q.get("prev_close") or price
+            total_curr += price * shares
+            total_prev += prev * shares
+
+        if total_prev > 0:
+            pct = round((total_curr - total_prev) / total_prev * 100, 2)
+            verb = ("rose" if pct >= 0 else "fell") if is_en else ("subió" if pct >= 0 else "bajó")
+            bullets.append(
+                f"Your portfolio {verb} {pct:+.2f}%" if is_en else f"Tu portafolio {verb} {pct:+.2f}%"
+            )
+
+        # Earnings reported by a holding since yesterday — cheap per-ticker
+        # Finnhub calendar check, capped so this never balloons into a wall
+        # of bullets (value over volume, same philosophy as everything else
+        # in this notification system).
+        try:
+            import os, httpx
+            key = os.getenv("FINNHUB_API_KEY", "")
+            if key:
+                from_d = (datetime.now(zoneinfo.ZoneInfo("America/New_York")) - timedelta(days=2)).strftime("%Y-%m-%d")
+                async def _check_earnings(ticker: str) -> str | None:
+                    try:
+                        r = await asyncio.to_thread(
+                            httpx.get, "https://finnhub.io/api/v1/calendar/earnings",
+                            params={"symbol": ticker, "from": from_d, "to": today_et, "token": key}, timeout=8,
+                        )
+                        items = (r.json() or {}).get("earningsCalendar") or []
+                        return ticker if any(i.get("epsActual") is not None for i in items) else None
+                    except Exception:
+                        return None
+                reported = [t for t in await asyncio.gather(*[_check_earnings(t) for t in tickers[:15]]) if t]
+                for t in reported[:1]:
+                    bullets.append(f"{t} reported earnings." if is_en else f"{t} publicó resultados.")
+        except Exception:
+            pass
+
+    # Saved valuations approaching (but not yet deep into) their fair-value
+    # range — reuses the exact live margin-of-safety math the Valor
+    # Intrínseco screen and its milestone alerts already use.
+    try:
+        saved = await list_with_live_data(user_id)
+        approaching = [
+            s for s in saved
+            if s.get("margin_of_safety_pct") is not None and 0 <= s["margin_of_safety_pct"] <= 15
+        ]
+        for s in approaching[:1]:
+            bullets.append(
+                f"{s['ticker']} is getting close to your target price." if is_en else
+                f"{s['ticker']} se acerca a tu precio objetivo."
+            )
+    except Exception:
+        pass
+
+    # Progress toward the user's annual/long-term goal
+    goal_amount = profile.get("investment_goal_amount")
+    try:
+        goal_amount = float(goal_amount) if goal_amount else 0.0
+    except (TypeError, ValueError):
+        goal_amount = 0.0
+    if goal_amount > 0 and total_curr > 0:
+        goal_pct = round(total_curr / goal_amount * 100)
+        bullets.append(
+            f"You're at {goal_pct}% of your goal." if is_en else
+            f"Tu patrimonio está al {goal_pct}% de tu meta."
+        )
+
+    if not bullets:
+        result = {}
+    else:
+        title = f"🌅 Good morning, {first}" if is_en else f"🌅 Buenos días, {first}"
+        result = {"title": title, "bullets": bullets[:4], "generated_at": int(datetime.now(timezone.utc).timestamp())}
+
+    cache_set(cache_key, result, ttl=86400)
+    return result
 
 
 @router.get("")

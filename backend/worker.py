@@ -134,8 +134,10 @@ def _calc_portfolio_pct(positions: list, prices: dict) -> float | None:
 
 def _calc_portfolio_close_data(
     positions: list, prices: dict
-) -> tuple[float | None, float | None, list, list]:
-    """Return (pct, total_curr, top_gainers, top_losers) for email building."""
+) -> tuple[float | None, float | None, float | None, list, list]:
+    """Return (pct, total_curr, total_prev, top_gainers, top_losers) for
+    email + push building. total_prev lets a caller compute the exact dollar
+    day-gain (total_curr - total_prev) without a second pass over positions."""
     total_curr = total_prev = 0.0
     movers = []
     for p in positions:
@@ -157,11 +159,11 @@ def _calc_portfolio_close_data(
                 "dollar_change": round(val - prv, 2),
             })
     if total_prev <= 0:
-        return None, None, [], []
+        return None, None, None, [], []
     port_pct    = round((total_curr - total_prev) / total_prev * 100, 2)
     gainers     = sorted([m for m in movers if m["pct"] >= 0], key=lambda x: x["pct"], reverse=True)
     losers      = sorted([m for m in movers if m["pct"] < 0],  key=lambda x: x["pct"])
-    return port_pct, round(total_curr, 2), gainers, losers
+    return port_pct, round(total_curr, 2), round(total_prev, 2), gainers, losers
 
 
 def _is_premium_user(tier: str, trial_started: str | None, streak_bonus_until: str | None = None) -> bool:
@@ -937,9 +939,12 @@ async def job_holiday_midday():
 
 
 async def job_market_close():
-    """4:00 PM ET weekdays — personalized market close push + email per user.
+    """4:05 PM ET weekdays — personalized market close push + email per user.
     Skips weekends and NYSE holidays via _is_market_open_today().
     Uses SPY/QQQ as S&P 500/Nasdaq proxies (^GSPC/^IXIC are IP-blocked on Railway).
+    Premium push leads with the dollar amount gained/lost and a brief, calm
+    explanation of what drove it (top 1-2 movers by %) — never alarmist
+    framing on a down day, always a short "why".
     """
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push, send_email_notification
@@ -1044,21 +1049,38 @@ async def job_market_close():
 
             if is_premium and has_portfolio:
                 # Premium: personalized push only (email goes out Fridays via job_daily_email)
-                user_pct, total_curr, top_gainers, top_losers = _calc_portfolio_close_data(
+                user_pct, total_curr, total_prev, top_gainers, top_losers = _calc_portfolio_close_data(
                     portfolio_map[uid], prices
                 )
                 if uid in push_capable:
                     no_data = "n/a" if is_en else "s/d"
                     sp_cl  = f"{sp500_pct:+.1f}%"  if sp500_pct  is not None else no_data
                     nq_cl  = f"{nasdaq_pct:+.1f}%"  if nasdaq_pct is not None else no_data
-                    if user_pct is not None:
-                        beating    = sp500_pct is not None and user_pct > sp500_pct
+                    if user_pct is not None and total_curr is not None and total_prev is not None:
+                        dollar_gain = round(total_curr - total_prev, 2)
+                        is_up = dollar_gain >= 0
+                        # Leads with the dollar amount (what the user actually
+                        # feels), never alarmist framing on a down day — always
+                        # a brief, calm explanation of what drove it, using the
+                        # top 1-2 movers by % that already came out of
+                        # _calc_portfolio_close_data (no extra Claude call).
+                        movers_for_why = top_gainers if is_up else top_losers
                         if is_en:
-                            push_title = "🏆 You beat the market today" if beating else "📊 Market close"
+                            push_title = f"📈 YOU GAINED ${abs(dollar_gain):,.2f} USD TODAY" if is_up else f"📉 YOU LOST ${abs(dollar_gain):,.2f} USD TODAY"
                         else:
-                            push_title = "🏆 Superaste al mercado hoy" if beating else "📊 Cierre de mercado"
-                        your_word  = "Your portfolio" if is_en else "Tu portafolio"
-                        push_body  = f"S&P 500 {sp_cl} · Nasdaq {nq_cl} · {your_word} {user_pct:+.1f}%"
+                            push_title = f"📈 HOY GANASTE ${abs(dollar_gain):,.2f} USD" if is_up else f"📉 HOY PERDISTE ${abs(dollar_gain):,.2f} USD"
+                        if movers_for_why:
+                            names = [f"{m['ticker']} ({m['pct']:+.1f}%)" for m in movers_for_why[:2]]
+                            names_joined = f"{names[0]} y {names[1]}" if len(names) > 1 else names[0]
+                            if is_en:
+                                verb = "growth" if is_up else "drop"
+                                push_body = f"Most of the {verb} came from {names_joined}."
+                            else:
+                                verb = "crecimiento" if is_up else "caída"
+                                push_body = f"La mayor parte del {verb} vino por {names_joined}." if is_up else f"La caída estuvo impulsada principalmente por {names_joined}."
+                        else:
+                            your_word = "Your portfolio" if is_en else "Tu portafolio"
+                            push_body = f"{your_word} {user_pct:+.1f}% · S&P 500 {sp_cl} · Nasdaq {nq_cl}"
                     else:
                         push_title = "📊 Market close" if is_en else "📊 Cierre de mercado"
                         push_body  = f"S&P 500 {sp_cl} · Nasdaq {nq_cl}"
@@ -1663,9 +1685,12 @@ async def get_price_alert_why_with_diagnostics(ticker: str, pct: float, price: f
 async def job_portfolio_alerts():
     """Every 30 min weekday market hours — push price movers (≥2%) for portfolio + watchlist.
     All users (no premium gate). Batch-fetches all tickers once, fans out per user.
-    Each ticker deduplicates per-user per-day via dedup key price_mover_{ticker}."""
+    Each ticker deduplicates per-user per-day via dedup key price_mover_{ticker}.
+    Never groups multiple tickers into one notification — each mover is its
+    own push, enqueued (not sent immediately) so that a user with several
+    simultaneous movers gets them ~5 minutes apart instead of all at once."""
     from app.core.database import get_supabase, run_query
-    from app.services.notification_engine import send_push
+    from app.services.notification_engine import enqueue_push
     import random
 
     db = get_supabase()
@@ -1897,6 +1922,11 @@ async def job_portfolio_alerts():
             watch_movers = sorted(sets["watch"] & movers.keys(),
                                   key=lambda t: abs(movers[t]), reverse=True)
             ranked = port_movers + watch_movers
+            # Spaces this user's own movers-this-run ~5 min apart (0, 300,
+            # 600s...) instead of firing them all within the same second —
+            # only counts tickers that actually get enqueued below, so a
+            # ticker skipped by should_send_price_alert doesn't waste a slot.
+            queue_index = 0
 
             for ticker in ranked:
                 pct          = movers[ticker]
@@ -1940,13 +1970,15 @@ async def job_portfolio_alerts():
                         f"{prefix}. Activa Premium para ver por qué."
                     )
 
-                await send_push(
+                await enqueue_push(
                     uid,
                     push_category,
                     title, body,
                     {"ticker": ticker, "change_pct": pct, "price": price, "screen": screen},
-                    db,
+                    delay_seconds=queue_index * 300,
+                    db=db,
                 )
+                queue_index += 1
                 sent += 1
                 await asyncio.sleep(random.uniform(0.05, 0.2))
 
@@ -1956,8 +1988,15 @@ async def job_portfolio_alerts():
 
 
 async def job_weekly_screener_push():
-    """11:00 AM ET Saturday — personalized weekly screener: 4 picks per user based on
-    risk profile, investment horizon, mentor, and existing portfolio (excluded).
+    """3:00 PM ET Wednesday + Saturday — "Oportunidades para ti". Picks 4
+    candidates per user based on risk profile, investment horizon, and
+    existing portfolio (excluded) to decide WHETHER there's something worth
+    telling this user about — the push itself is a teaser deep-linking to
+    Oportunidades (subvaluadas), it doesn't list tickers (the email does).
+    This is the single "Oportunidades" notification — it replaces what used
+    to be two separate pushes (this one on Sat 11am + a generic Sun 12:05pm
+    "picks rotated" push, see job_refresh_undervalued_screener) to avoid
+    sending 3 different opportunities pushes a week.
     Strategy: 1 Haiku call per risk group (~6 total) → cheap regardless of user count.
     Sends both push notification and email."""
     import anthropic
@@ -2087,29 +2126,23 @@ async def job_weekly_screener_push():
             if len(picks) < 2:
                 continue  # not enough picks after exclusions — skip silently
 
-            lines = "\n".join(f"{idx+1}. {pk['ticker']} ({pk['name']})" for idx, pk in enumerate(picks))
+            # Push is a teaser, not a listing — the Haiku picks above only
+            # decide WHETHER there's enough worth sending (>=2 picks survive
+            # the owned-tickers exclusion); the actual tickers are shown when
+            # the user opens Oportunidades (subvaluadas), not in-notification.
+            # The rich ticker-listing email below is unchanged.
             if is_en:
-                body = (
-                    f"Hi {name}! Based on your {risk_label} profile and {horizon} mindset "
-                    f"here are some positions worth a look this week:\n\n"
-                    f"{lines}\n\n"
-                    f"Talk to your mentor to analyze them! 💬"
-                )
-                push_title = "📊 Your 4 ideas for this week"
+                push_title = "💎 Opportunities for you"
+                body = "The AI found new companies worth studying for your portfolio."
             else:
-                body = (
-                    f"¡Hola {name}! Basado en tu perfil {risk_label} y mentalidad de {horizon} "
-                    f"quiero sugerirte algunas posiciones que deberías echarles un ojo:\n\n"
-                    f"{lines}\n\n"
-                    f"¡Habla con tu mentor para analizarlas! 💬"
-                )
-                push_title = "📊 Tus 4 ideas para esta semana"
+                push_title = "💎 Oportunidades para ti"
+                body = "La IA encontró nuevas empresas que vale la pena estudiar para tu portafolio."
 
             await send_push(
                 uid, "weekly_screener",
                 push_title,
                 body,
-                {"screen": "chat", "picks": [pk["ticker"] for pk in picks]},
+                {"screen": "subvaluadas"},
                 db,
             )
 
@@ -2205,19 +2238,16 @@ async def job_refresh_undervalued_screener():
     rotating which 5 candidates are featured first this week (see
     undervalued_screener_service._rotate_featured_order — the same real
     candidates, just a different 5 up front so it doesn't look identical
-    week after week), then pushes a "this week's picks just updated" notice
-    to premium users so they come back and see the new featured picks."""
+    week after week). This job ONLY refreshes the data the in-app
+    Oportunidades screen reads — it no longer sends its own notification
+    (that used to be a second, generic "picks rotated" push on top of
+    Saturday's personalized one); job_weekly_screener_push's Wed/Sat 3pm
+    push is now the single opportunities notification."""
     from app.services.undervalued_screener_service import refresh_undervalued_screener
     try:
         await refresh_undervalued_screener()
     except Exception as e:
         logger.error("job_refresh_undervalued_screener failed: %s", e)
-        return
-
-    try:
-        await _notify_undervalued_screener_updated()
-    except Exception as e:
-        logger.error("job_refresh_undervalued_screener: notification failed: %s", e)
 
 
 _QUICK_ANALYSIS_PREWARM_TICKER = "AAPL"
@@ -2250,45 +2280,6 @@ async def job_prewarm_quick_analysis_default():
             cache_set(cache_key, result, _QUICK_ANALYSIS_CACHE_TTL)
         except Exception as e:
             logger.error("job_prewarm_quick_analysis_default(%s) failed: %s", lang, e)
-
-
-async def _notify_undervalued_screener_updated():
-    """Generic (not personalized) push to premium users that this week's
-    featured Oportunidades picks just rotated — Oportunidades is
-    premium-gated, so free users wouldn't be able to open it anyway.
-    Deliberately separate from job_weekly_screener_push (Saturday's
-    per-risk-profile personalized picks) — this is just "come see what's
-    new," no per-user LLM call needed."""
-    from app.core.database import get_supabase, run_query
-    from app.services.notification_engine import send_push
-
-    db = get_supabase()
-    profiles_res = await run_query(
-        db.table("user_profiles").select("user_id,subscription_tier,trial_started_at,preferred_language,push_token")
-    )
-    web_res = await run_query(db.table("web_push_subscriptions").select("user_id"))
-    web_uids = {r["user_id"] for r in (web_res.data or [])}
-
-    sent = 0
-    for r in (profiles_res.data or []):
-        uid = r["user_id"]
-        if not _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at")):
-            continue
-        token = r.get("push_token") or ""
-        has_push = token.startswith("ExponentPushToken") or uid in web_uids
-        if not has_push:
-            continue
-        is_en = (r.get("preferred_language") or "es") == "en"
-        title = "🔄 Opportunities updated" if is_en else "🔄 Oportunidades actualizada"
-        body = (
-            "This week's 5 featured stocks just rotated — come see the new picks."
-            if is_en else
-            "Las 5 acciones destacadas de esta semana rotaron — ven a ver las nuevas."
-        )
-        await send_push(uid, "undervalued_screener_weekly", title, body, {"screen": "subvaluadas"}, db)
-        sent += 1
-        await asyncio.sleep(random.uniform(0, 0.05))
-    logger.info("job_refresh_undervalued_screener: notified %d premium users of the weekly rotation", sent)
 
 
 async def job_saved_valuation_alerts():
@@ -3255,6 +3246,229 @@ async def job_risk_mgmt_push():
         logger.info("Risk mgmt push: VIX=%.1f, %d users notified", vix, sent)
     except Exception as e:
         logger.error("job_risk_mgmt_push failed: %s", e)
+
+
+def _ai_insight_quota_remaining(profile: dict) -> bool:
+    """Read-only check — does NOT increment. Hard cap of 2/month per user,
+    resetting on a new calendar month. Checked BEFORE paying for the Haiku
+    quality-gate call below, so an already-exhausted user costs nothing."""
+    this_month = datetime.now(timezone.utc).strftime("%Y-%m")
+    count = profile.get("ai_insight_count") or 0
+    month = profile.get("ai_insight_month")
+    if month != this_month:
+        return True  # counter resets on a new month
+    return count < 2
+
+
+async def _increment_ai_insight_quota(user_id: str, profile: dict, db) -> None:
+    """Only called AFTER the quality gate approves sending — an insight
+    Claude judged not worth interrupting the user for must never cost a
+    month's quota slot."""
+    this_month = datetime.now(timezone.utc).strftime("%Y-%m")
+    count = profile.get("ai_insight_count") or 0
+    month = profile.get("ai_insight_month")
+    if month != this_month:
+        count = 0
+    await run_query(
+        db.table("user_profiles").update({
+            "ai_insight_count": count + 1,
+            "ai_insight_month": this_month,
+        }).eq("user_id", user_id)
+    )
+
+
+async def _ai_insight_quality_gate(fact: str, lang: str) -> dict | None:
+    """The "should I interrupt them?" check — exactly ONE Haiku call per
+    candidate found (never per user-tick; this only runs once a candidate
+    already exists, so volume is naturally tiny). Returns None if Claude
+    judges it's not worth sending — mirrors this codebase's NO_CATALYST
+    "never fabricate, say so if nothing concrete" discipline
+    (price_alert_service.py), just applied to "is this worth an
+    interruption" instead of "is there a real catalyst"."""
+    import anthropic
+    import json as _json
+    from app.core.config import settings as cfg
+
+    lang_instruction = "Responde en inglés." if lang == "en" else "Responde en español."
+    prompt = (
+        "Eres el analista personal de un usuario de una app de inversión (Nuvos AI). "
+        f"Se detectó este hecho real y específico sobre su portafolio:\n\n{fact}\n\n"
+        "Esta notificación ('La IA encontró algo') se envía como máximo ~2 veces al mes por "
+        "usuario — la gran mayoría de los hechos detectados NO ameritan interrumpir al usuario. "
+        "Sé honesto: decide si esto es lo suficientemente importante y accionable como para "
+        "justificar una notificación push ahora mismo, o si es mejor no enviar nada.\n\n"
+        f"{lang_instruction}\n"
+        "Responde SOLO con este JSON, sin texto adicional:\n"
+        '{"send": true, "title": "...", "body": "..."} o {"send": false}\n\n'
+        "Si send=true, el título debe ser uno de estos estilos (elige el que mejor encaje, "
+        "traducido si corresponde):\n"
+        "🤖 Encontré una oportunidad para ti / 👀 Detecté un cambio importante / "
+        "📈 Una empresa de tu watchlist acaba de destacar / ⚠️ Hay algo que deberías revisar hoy / "
+        "💡 Tengo una recomendación para tu portafolio\n"
+        "El body debe ser 1-2 oraciones concretas y personalizadas basadas SOLO en el hecho de "
+        "arriba, nunca genéricas ni inventadas."
+    )
+    try:
+        client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
+        resp = await asyncio.to_thread(
+            lambda: client.messages.create(
+                model="claude-haiku-4-5-20251001", max_tokens=200,
+                messages=[{"role": "user", "content": prompt}],
+            )
+        )
+        from app.services.llm_usage import log_llm_usage
+        asyncio.create_task(log_llm_usage(None, "job_ai_insight_scan", "claude-haiku-4-5-20251001", resp.usage))
+        raw = resp.content[0].text.strip() if resp.content else "{}"
+        parsed = _json.loads(raw)
+        if parsed.get("send") and parsed.get("title") and parsed.get("body"):
+            return {"title": parsed["title"], "body": parsed["body"]}
+        return None
+    except Exception as e:
+        logger.warning("_ai_insight_quality_gate failed: %s", e)
+        return None
+
+
+async def job_ai_insight_scan():
+    """Every ~2h during market hours — "La IA encontró algo": Premium-only,
+    quality-gated, never sent on a calendar/quota schedule — most runs find
+    nothing and send nothing. Checks two signals not already covered by
+    another job:
+      1. A portfolio holding's investment-thesis reversal — reuses
+         investment_graph_service.get_then_now (compares the user's
+         earliest vs. latest logged thesis for that ticker; already flags
+         a margin-of-safety sign-flip or an acted-without-a-new-thesis case).
+      2. Dangerous single-position concentration (>=40% of portfolio value).
+    (Deliberately NOT duplicated here: a watchlist ticker entering a saved
+    valuation's buy range is already covered by job_saved_valuation_alerts;
+    high-magnitude news hitting a followed ticker is already covered by
+    job_major_news_alert. Two channels alerting on the same underlying
+    event would violate "never send duplicates".)
+    Every candidate found goes through exactly one Haiku quality-gate call
+    (_ai_insight_quality_gate) asking "is this worth interrupting them
+    for?" before anything is sent, gated by a hard cap of 2/month per user
+    (_ai_insight_quota_remaining/_increment_ai_insight_quota) that's only
+    ever spent on an insight the gate actually approved."""
+    if not _is_market_open_today():
+        return
+    from app.core.database import get_supabase, run_query
+    from app.core.cache import acquire_lock
+    from app.core.finnhub import fh_quote
+    from app.services.notification_engine import send_push
+    from app.services import investment_graph_service
+
+    db = get_supabase()
+    try:
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id").eq("push_ai_recommendations", True)
+        )
+        pref_uids = {u["user_id"] for u in (prefs_res.data or [])}
+        if not pref_uids:
+            return
+
+        profiles_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,subscription_tier,trial_started_at,streak_bonus_premium_until,preferred_language,ai_insight_count,ai_insight_month")
+            .in_("user_id", list(pref_uids))
+        )
+        profile_map = {
+            r["user_id"]: r for r in (profiles_res.data or [])
+            if _is_premium_user(r.get("subscription_tier"), r.get("trial_started_at"), r.get("streak_bonus_premium_until"))
+            and _ai_insight_quota_remaining(r)
+        }
+        if not profile_map:
+            return
+
+        sent = 0
+        for uid, profile in profile_map.items():
+            is_en = (profile.get("preferred_language") or "es") == "en"
+            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
+            positions: list = []
+            if port_res.data:
+                raw = port_res.data[0].get("positions") or {}
+                positions = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+            if not positions:
+                continue
+            tickers = list({p["ticker"] for p in positions if p.get("ticker")})
+            if not tickers:
+                continue
+
+            candidate_fact: str | None = None
+            candidate_category: str | None = None
+
+            # 1. Thesis reversal on any holding — checked first, higher
+            # signal value than a static concentration ratio.
+            for ticker in tickers:
+                try:
+                    then_now = await investment_graph_service.get_then_now(uid, ticker)
+                except Exception:
+                    then_now = None
+                if not then_now or not then_now.get("reversal_detected"):
+                    continue
+                now_id = (then_now.get("now") or {}).get("id") or "unknown"
+                lock_key = f"ai_insight_reversal:{uid}:{ticker}:{now_id}"
+                if acquire_lock(lock_key, ttl=30 * 24 * 3600) is None:
+                    continue  # this exact reversal was already surfaced recently
+                if then_now.get("reversal_reason") == "sign_flip":
+                    then_mos = (then_now["then"].get("payload") or {}).get("margin_of_safety_pct")
+                    now_mos  = (then_now["now"].get("payload") or {}).get("margin_of_safety_pct")
+                    candidate_fact = (
+                        f"El usuario tiene {ticker} en su portafolio. Su tesis de inversión sobre {ticker} "
+                        f"cambió materialmente: el margen de seguridad pasó de {then_mos:+.1f}% a {now_mos:+.1f}% "
+                        f"entre su análisis más antiguo y el más reciente registrados en la app."
+                    )
+                else:
+                    candidate_fact = (
+                        f"El usuario compró o vendió {ticker} sin haber registrado una nueva tesis desde su "
+                        f"último análisis guardado sobre esta empresa — su razonamiento puede estar desactualizado."
+                    )
+                candidate_category = f"ai_insight_reversal_{ticker}"
+                break  # one candidate per user per scan — quality over quantity
+
+            # 2. Concentration risk — only checked if no reversal candidate.
+            if not candidate_fact:
+                values: dict[str, float] = {}
+                total = 0.0
+                for p in positions:
+                    t, shares = p.get("ticker"), float(p.get("shares") or 0)
+                    if not t or not shares:
+                        continue
+                    q = await asyncio.to_thread(fh_quote, t)
+                    price = (q or {}).get("price") or float(p.get("avgPrice") or 0)
+                    val = shares * price
+                    values[t] = values.get(t, 0) + val
+                    total += val
+                if total > 0:
+                    worst_ticker, worst_val = max(values.items(), key=lambda kv: kv[1])
+                    pct = worst_val / total * 100
+                    if pct >= 40:
+                        lock_key = f"ai_insight_concentration:{uid}:{worst_ticker}"
+                        if acquire_lock(lock_key, ttl=30 * 24 * 3600) is not None:
+                            candidate_fact = (
+                                f"El {pct:.0f}% del portafolio del usuario está concentrado en una sola posición: "
+                                f"{worst_ticker}. Esto representa un riesgo de concentración significativo."
+                            )
+                            candidate_category = f"ai_insight_concentration_{worst_ticker}"
+
+            if not candidate_fact:
+                continue
+
+            gate_result = await _ai_insight_quality_gate(candidate_fact, "en" if is_en else "es")
+            if not gate_result:
+                continue
+
+            await _increment_ai_insight_quota(uid, profile, db)
+            await send_push(
+                uid, candidate_category,
+                gate_result["title"], gate_result["body"],
+                {"screen": "chat", "msg": gate_result["body"]},
+                db,
+            )
+            sent += 1
+            await asyncio.sleep(random.uniform(0.1, 0.3))
+
+        logger.info("job_ai_insight_scan: %d insight notifications sent", sent)
+    except Exception as e:
+        logger.error("job_ai_insight_scan failed: %s", e)
 
 
 _MARKET_CRASH_THRESHOLD_PCT = -3.0  # S&P 500 single-day drop that triggers the alert
@@ -4336,6 +4550,42 @@ async def job_reap_stale_research_jobs():
         logger.error("job_reap_stale_research_jobs failed: %s", e)
 
 
+async def job_dispatch_notification_queue():
+    """Ticked every 60s — delivers any notification_queue row whose
+    scheduled_for has arrived. This is what actually makes
+    notification_engine.enqueue_push's delay real: enqueuing only writes a
+    row, this job is what calls send_push at the right time. Kept simple
+    (small batch, best-effort) since a delayed send arriving a minute late
+    is harmless — this is spacing/pacing, not a precision scheduler."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    db = get_supabase()
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        due_res = await run_query(
+            db.table("notification_queue").select("*")
+            .is_("sent_at", "null").lte("scheduled_for", now).limit(50)
+        )
+        due = due_res.data or []
+        for row in due:
+            try:
+                await send_push(row["user_id"], row["category"], row["title"], row["body"], row.get("data") or {}, db)
+            except Exception as e:
+                logger.warning("job_dispatch_notification_queue: send_push failed for row %s: %s", row["id"], e)
+            finally:
+                # Stamp sent_at regardless of send outcome — send_push already
+                # has its own retry-free best-effort semantics everywhere else
+                # in this codebase; re-attempting a failed send on the next
+                # tick would just repeat the same failure every 60s forever.
+                await run_query(
+                    db.table("notification_queue").update({"sent_at": datetime.now(timezone.utc).isoformat()}).eq("id", row["id"])
+                )
+        if due:
+            logger.info("job_dispatch_notification_queue: dispatched %d queued notifications", len(due))
+    except Exception as e:
+        logger.error("job_dispatch_notification_queue failed: %s", e)
+
+
 async def main():
     # misfire_grace_time: if Railway restarts the worker near a job's fire time,
     # APScheduler will still run the job if it missed by less than this window.
@@ -4360,20 +4610,26 @@ async def main():
     # the normal every-5-min cadence.
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour=9,       minute="30,35,40,45,50,55", timezone="America/New_York")
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="10-15", minute="*/5", timezone="America/New_York")
-    scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=0,     timezone="America/New_York")
+    scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=5,     timezone="America/New_York")
     scheduler.add_job(job_saved_valuation_alerts, "cron", day_of_week="mon-fri", hour=16,    minute=10,    timezone="America/New_York")
     scheduler.add_job(job_earnings_results,     "cron", day_of_week="mon-fri", hour=16,      minute=30,    timezone="America/New_York")
     scheduler.add_job(job_daily_email,          "cron", day_of_week="fri",     hour=18,      minute=0,     timezone="America/New_York")
 
-    # ── Saturday: weekly screener (premium only) ──────────────────────────────
-    scheduler.add_job(job_weekly_screener_push, "cron", day_of_week="sat",     hour=11,      minute=0,     timezone="America/New_York")
+    # ── Wed + Sat 3pm ET: "Oportunidades para ti" (premium only) — the single
+    # opportunities notification, see job_weekly_screener_push's docstring ──
+    scheduler.add_job(job_weekly_screener_push, "cron", day_of_week="wed,sat", hour=15,      minute=0,     timezone="America/New_York")
 
     # ── Sunday: undervalued-stocks screener cache refresh (real DCF engine) ───
+    # No notification here anymore — this just keeps the in-app Oportunidades
+    # screen's data current; the Wed/Sat push above is the only opportunities
+    # notification now.
     scheduler.add_job(job_refresh_undervalued_screener, "cron", day_of_week="sun", hour=12,  minute=5,     timezone="America/New_York")
 
     # ── AI Portfolio Manager — proactive alerts (written earlier, now scheduled) ──
     scheduler.add_job(job_risk_mgmt_push,        "cron", day_of_week="fri",     hour=15, minute=0, timezone="America/New_York")
     scheduler.add_job(job_market_crash_alert,    "cron", day_of_week="mon-fri", hour="9-15", minute="*/5", timezone="America/New_York")
+    # "La IA encontró algo" — roughly every 2h during market hours, never more
+    scheduler.add_job(job_ai_insight_scan,       "cron", day_of_week="mon-fri", hour="9,11,13,15", minute=30, timezone="America/New_York")
     scheduler.add_job(job_reengagement_push,     "cron",                        hour=11, minute=0, timezone="America/New_York")
 
     # ── Daily habit system ──────────────────────────────────────────────────────
@@ -4402,6 +4658,9 @@ async def main():
     # ── Deep Research job queue (see job_deep_research_worker's docstring) ────
     scheduler.add_job(job_deep_research_worker,          "interval", seconds=10)
     scheduler.add_job(job_reap_stale_research_jobs,      "interval", minutes=5)
+
+    # ── Notification delivery queue (spaces out multiple pushes per user) ────
+    scheduler.add_job(job_dispatch_notification_queue,   "interval", seconds=60)
 
     # Backfill notification_preferences for existing users who never opened settings.
     # Without this row the worker can't find them and push never fires.

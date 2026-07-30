@@ -6,16 +6,17 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import {
   TrendingUp, TrendingDown, Sparkles, BookOpen,
-  Bell, ChevronRight, GraduationCap, Newspaper, Target, Flame, X,
+  Bell, ChevronRight, GraduationCap, Newspaper, Target, Flame, X, Eye, EyeOff,
 } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import HomeMarketOverview from "@/components/HomeMarketOverview";
 import StockAvatar from "@/components/StockAvatar";
 import PersonalizedMessageBanner from "@/components/PersonalizedMessageBanner";
+import MorningBriefCard from "@/components/MorningBriefCard";
 import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, watchlist as watchlistApi, billing } from "@/lib/api";
 import PricingModal from "@/components/PricingModal";
-import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore } from "@/lib/store";
+import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore, useBalanceVisibilityStore } from "@/lib/store";
 import OnboardingChecklist, { type OnboardingStep } from "@/components/OnboardingChecklist";
 import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenPickerModal";
 import { usePortfolioStore } from "@/lib/portfolioStore";
@@ -101,6 +102,7 @@ export default function HomePage() {
   const router = useRouter();
   const { isAuthenticated, authRestoring } = useAuthStore();
   const { profile, setProfile } = useProfileStore();
+  const { hidden: balanceHidden, toggle: toggleBalanceHidden } = useBalanceVisibilityStore();
   const { positions, portfolioCurrency } = usePortfolioStore();
   // Distinct holdings, not purchase lots — buying more of a ticker you
   // already own shouldn't inflate this count.
@@ -659,6 +661,8 @@ export default function HomePage() {
 
           <div className="px-6 py-5 space-y-5 max-w-5xl mx-auto">
 
+            <MorningBriefCard />
+
             <PersonalizedMessageBanner />
 
             {/* ── Onboarding checklist (hidden once all done) ──────────────── */}
@@ -796,9 +800,14 @@ export default function HomePage() {
             {/* ── Main grid: Portfolio hero + Key stats ───────────────────── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-              {/* Portfolio hero (2/3) */}
-              <button onClick={() => router.push("/patrimonio")}
-                      className="lg:col-span-2 text-left rounded-2xl p-5 border transition-all hover:border-[var(--accent)] group relative overflow-hidden"
+              {/* Portfolio hero (2/3) — a <div role="button"> rather than a
+                  real <button>, since it now needs to contain the eye-toggle
+                  <button> as a real nested interactive element (invalid to
+                  nest a <button> inside a <button>). */}
+              <div role="button" tabIndex={0}
+                      onClick={() => router.push("/patrimonio")}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/patrimonio"); }}
+                      className="lg:col-span-2 text-left rounded-2xl p-5 border transition-all hover:border-[var(--accent)] group relative overflow-hidden cursor-pointer"
                       style={{ background: "var(--card)", borderColor: "var(--border)" }}>
 
                 {/* Top row: label + amount LEFT, avatar RIGHT */}
@@ -810,11 +819,20 @@ export default function HomePage() {
                             style={{ background: "var(--raised)", color: "var(--sub)" }}>
                         {portfolioCurrency}
                       </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleBalanceHidden(); }}
+                        className="p-0.5 rounded-md transition-opacity hover:opacity-70"
+                        style={{ color: "var(--muted)" }}
+                        aria-label={balanceHidden ? t("home.portfolioHero.showBalance") : t("home.portfolioHero.hideBalance")}
+                        title={balanceHidden ? t("home.portfolioHero.showBalance") : t("home.portfolioHero.hideBalance")}
+                      >
+                        {balanceHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
                     </p>
                     {loading ? (
                       <div className="h-10 w-44 rounded-lg animate-pulse" style={{ background: "var(--raised)" }} />
                     ) : (() => {
-                      const heroValueStr = fmt(total, portfolioCurrency);
+                      const heroValueStr = balanceHidden ? "••••••" : fmt(total, portfolioCurrency);
                       // Guards against very large portfolio values overflowing this
                       // card next to the avatar — shrinks proportionally to length
                       // instead of wrapping or clipping.
@@ -857,7 +875,7 @@ export default function HomePage() {
                       <p className="text-xl font-black tracking-tight leading-none" style={{ color: dayGain >= 0 ? "#22c55e" : "#ef4444" }}>
                         {fmtPct(dayGainPct)}
                         <span className="text-sm font-semibold ml-1">
-                          ({dayGain >= 0 ? "+" : ""}{fmt(dayGain, portfolioCurrency)})
+                          ({balanceHidden ? "••••" : `${dayGain >= 0 ? "+" : ""}${fmt(dayGain, portfolioCurrency)}`})
                         </span>
                       </p>
                       <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
@@ -874,7 +892,7 @@ export default function HomePage() {
                           <p className="text-xl font-black tracking-tight leading-none" style={{ color: (ytdPct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
                             {fmtPct(ytdPct ?? 0)}
                             <span className="text-sm font-semibold ml-1">
-                              ({ytdGain >= 0 ? "+" : ""}{fmt(ytdGain * fxRate, portfolioCurrency)})
+                              ({balanceHidden ? "••••" : `${ytdGain >= 0 ? "+" : ""}${fmt(ytdGain * fxRate, portfolioCurrency)}`})
                             </span>
                           </p>
                           <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
@@ -895,7 +913,7 @@ export default function HomePage() {
                           <p className="text-xl font-black tracking-tight leading-none" style={{ color: totalGain >= 0 ? "#22c55e" : "#ef4444" }}>
                             {fmtPct(totalGainPct)}
                             <span className="text-sm font-semibold ml-1">
-                              ({totalGain >= 0 ? "+" : ""}{fmt(totalGain, portfolioCurrency)})
+                              ({balanceHidden ? "••••" : `${totalGain >= 0 ? "+" : ""}${fmt(totalGain, portfolioCurrency)}`})
                             </span>
                           </p>
                           <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>{t("home.portfolioHero.total")}</p>
@@ -906,7 +924,7 @@ export default function HomePage() {
                             {fmtPct(shortPct ?? 0)}
                           </p>
                           <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
-                            {t("home.portfolioHero.lastMonth", { amount: `${shortGain >= 0 ? "+" : ""}${fmt(shortGain * fxRate, portfolioCurrency)}` })}
+                            {t("home.portfolioHero.lastMonth", { amount: balanceHidden ? "••••" : `${shortGain >= 0 ? "+" : ""}${fmt(shortGain * fxRate, portfolioCurrency)}` })}
                           </p>
                         </>
                       ) : (
@@ -941,7 +959,7 @@ export default function HomePage() {
 
                 <ChevronRight className="absolute right-4 top-5 w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
                               style={{ color: "var(--dim)" }} />
-              </button>
+              </div>
 
               {/* Right column: 3 key stat cards */}
               <div className="flex flex-col gap-3">
