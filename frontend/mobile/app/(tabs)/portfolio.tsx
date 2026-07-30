@@ -24,6 +24,8 @@ import MobileWeeklyScreener from "../../src/components/MobileWeeklyScreener";
 import PremiumToolCard from "../../src/components/PremiumToolCard";
 import { useAppStore, getAge, UserProfile } from "../../src/lib/profileStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
+import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
+import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore";
 import PaywallModal from "../../src/components/PaywallModal";
 import MobileBrokerConnectModal from "../../src/components/MobileBrokerConnectModal";
 
@@ -1598,6 +1600,9 @@ export default function PortfolioScreen() {
     });
   };
 
+  const balanceHidden = useBalanceVisibilityStore((s) => s.hidden);
+  const mask = (s: string) => (balanceHidden ? "••••••" : s);
+
   // ── Totals ─────────────────────────────────────────────────────────────
   const totals = useMemo(() => {
     let invested = 0, current = 0;
@@ -2267,6 +2272,7 @@ export default function PortfolioScreen() {
                             <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>{portfolioCurrency}</Text>
                             <Ionicons name="chevron-down" size={10} color={colors.textMuted} />
                           </TouchableOpacity>
+                          <BalanceVisibilityToggle color={colors.textMuted} size={16} />
                         </View>
                       </View>
                       <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 14, gap: 8 }}>
@@ -2276,7 +2282,7 @@ export default function PortfolioScreen() {
                           adjustsFontSizeToFit
                           minimumFontScale={0.5}
                         >
-                          {currencySymbol}{totals.current.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {mask(`${currencySymbol}${totals.current.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)}
                         </Text>
                         {histPct !== undefined ? (
                           <View style={{ alignItems: "flex-end", flexShrink: 0 }}>
@@ -2288,7 +2294,7 @@ export default function PortfolioScreen() {
                             </View>
                             {histAmt !== undefined && (
                               <Text style={{ fontSize: 12, fontWeight: "700", color, marginTop: 2, fontVariant: ["tabular-nums"] }}>
-                                {up ? "+" : "-"}{currencySymbol}{Math.abs(histAmt).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                                {mask(`${up ? "+" : "-"}${currencySymbol}${Math.abs(histAmt).toLocaleString("en-US", { minimumFractionDigits: 2 })}`)}
                               </Text>
                             )}
                           </View>
@@ -2304,7 +2310,7 @@ export default function PortfolioScreen() {
                       <View style={{ paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
                         <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
                           {t("portfolio.totals.invested")}{" "}
-                          <Text style={{ fontWeight: "700", color: colors.textMuted }}>{currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
+                          <Text style={{ fontWeight: "700", color: colors.textMuted }}>{mask(`${currencySymbol}${totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}`)}</Text>
                           {histDate ? `  ·  ${t("portfolio.totals.since", { date: histDate })}` : ""}
                         </Text>
                       </View>
@@ -2648,7 +2654,7 @@ export default function PortfolioScreen() {
                         {/* Value + P&L */}
                         <View style={{ alignItems: "flex-end", minWidth: 84 }}>
                           <Text style={{ fontSize: 14.5, fontFamily: "DMSans_700Bold", color: colors.text, fontVariant: ["tabular-nums"] }}>
-                            {currentVal != null ? fmtCompact(currentVal) : "—"}
+                            {currentVal != null ? mask(fmtCompact(currentVal)) : "—"}
                           </Text>
                           {pct !== null && diff !== null ? (
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 3 }}>

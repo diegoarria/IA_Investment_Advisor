@@ -11,7 +11,7 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { market as marketApi } from "@/lib/api";
-import { useAuthStore, useSubscriptionStore, useProfileStore } from "@/lib/store";
+import { useAuthStore, useSubscriptionStore, useProfileStore, useBalanceVisibilityStore } from "@/lib/store";
 import { getUserLevel, isAtLeast } from "@/lib/userLevel";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
@@ -22,6 +22,7 @@ import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
 import PaywallModal from "@/components/PaywallModal";
 import GuidedSteps from "@/components/GuidedSteps";
 import PremiumBadge from "@/components/PremiumBadge";
+import BalanceVisibilityToggle from "@/components/BalanceVisibilityToggle";
 import FirstStepsFlow from "@/components/FirstStepsFlow";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import BrokerConnectModal from "@/components/BrokerConnectModal";
@@ -823,6 +824,8 @@ export default function PortfolioPage() {
   const userLevel = getUserLevel(profile);
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium" || sub.isTrialPremium;
+  const { hidden: balanceHidden } = useBalanceVisibilityStore();
+  const mask = (s: string) => (balanceHidden ? "••••••" : s);
   const upsellTrigger = useUpsellStore((s) => s.trigger);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const {
@@ -1815,6 +1818,10 @@ export default function PortfolioPage() {
                 {t("portfolio.header.advanced")}
               </button>
             </div>
+            <BalanceVisibilityToggle
+              className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
+              style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
+            />
             <PremiumBadge />
             <button onClick={fetchPrices}
                     className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
@@ -2477,14 +2484,15 @@ export default function PortfolioPage() {
                               </span>
                               </p>
                               {(() => {
-                                const bigValueStr = `${currencySymbol}${(hovData?.value ?? totals.current).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                                const rawValueStr = `${currencySymbol}${(hovData?.value ?? totals.current).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                                const bigValueStr = mask(rawValueStr);
                                 // Large portfolios (7-8+ figures) can otherwise overflow this
                                 // card's width at the default size — shrink proportionally to
                                 // the digit count instead of letting it wrap or clip.
                                 const bigValueSize =
-                                  bigValueStr.length > 16 ? "1.5rem" :
-                                  bigValueStr.length > 13 ? "1.8rem" :
-                                  bigValueStr.length > 10 ? "2.1rem" : "2.4rem";
+                                  rawValueStr.length > 16 ? "1.5rem" :
+                                  rawValueStr.length > 13 ? "1.8rem" :
+                                  rawValueStr.length > 10 ? "2.1rem" : "2.4rem";
                                 return (
                                   <p
                                     className="font-black tracking-tight leading-none whitespace-nowrap"
@@ -2508,7 +2516,7 @@ export default function PortfolioPage() {
                                     {hovData.isUp ? "▲" : "▼"} {hovData.isUp ? "+" : ""}{hovData.chgP.toFixed(2)}%
                                   </div>
                                   <p className="text-xs font-bold" style={{ color: hovData.isUp ? "#22c55e" : "#ef4444" }}>
-                                    {hovData.isUp ? "+" : ""}{currencySymbol}{Math.abs(hovData.chgV).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                                    {mask(`${hovData.isUp ? "+" : ""}${currencySymbol}${Math.abs(hovData.chgV).toLocaleString("en-US", { minimumFractionDigits: 2 })}`)}
                                   </p>
                                 </>
                               ) : sp ? (
@@ -2519,7 +2527,7 @@ export default function PortfolioPage() {
                                   </div>
                                   {sp.amount !== undefined && (
                                     <p className="text-xs font-bold" style={{ color: heroColor }}>
-                                      {heroUp ? "+" : ""}{currencySymbol}{Math.abs(sp.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                                      {mask(`${heroUp ? "+" : ""}${currencySymbol}${Math.abs(sp.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`)}
                                     </p>
                                   )}
                                 </>
@@ -2537,7 +2545,7 @@ export default function PortfolioPage() {
                             <p className="text-xs" style={{ color: "var(--muted)" }}>
                               {t("portfolio.summary.invested")}{" "}
                               <span className="font-semibold" style={{ color: "var(--sub)" }}>
-                                {currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                                {mask(`${currencySymbol}${totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}`)}
                               </span>
                               {sp?.date && <span style={{ color: "var(--dim)" }}> · {t("portfolio.summary.since", { date: sp.date })}</span>}
                             </p>
@@ -2629,7 +2637,7 @@ export default function PortfolioPage() {
                           <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--dim)" }}>{t("portfolio.summary.kpi.gain")}</p>
                           {displayAmt !== undefined ? (
                             <p className="text-base font-black leading-none" style={{ color }}>
-                              {up ? "+" : ""}{currencySymbol}{Math.abs(displayAmt).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                              {mask(`${up ? "+" : ""}${currencySymbol}${Math.abs(displayAmt).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`)}
                             </p>
                           ) : (
                             <p className="text-base font-black leading-none" style={{ color: "var(--dim)" }}>—</p>

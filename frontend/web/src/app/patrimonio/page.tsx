@@ -7,12 +7,13 @@ import type { TFunction } from "i18next";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PremiumBadge from "@/components/PremiumBadge";
+import BalanceVisibilityToggle from "@/components/BalanceVisibilityToggle";
 import StockAvatar from "@/components/StockAvatar";
 import PersonalizedMessageBanner from "@/components/PersonalizedMessageBanner";
 import { market as marketApi } from "@/lib/api";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
-import { useWatchlistStore } from "@/lib/store";
+import { useWatchlistStore, useBalanceVisibilityStore } from "@/lib/store";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
 import { TrendingUp, TrendingDown, ArrowRight, Wallet, Eye, BarChart2 } from "lucide-react";
 
@@ -89,6 +90,8 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
   const router = useRouter();
   const { positions: rawPositions, portfolioCurrency } = usePortfolioStore();
   const fxRate = useFxRate(portfolioCurrency);
+  const { hidden: balanceHidden } = useBalanceVisibilityStore();
+  const mask = (s: string) => (balanceHidden ? "••••••" : s);
 
   // One row per ticker, combining every purchase lot — `rawPositions` keeps each
   // purchase as its own row internally (for the lots panel on /portfolio), but this
@@ -138,17 +141,17 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
       <div className="grid grid-cols-3 gap-3">
         <SummaryCard
           label={t("patrimonio.portfolio.totalValueLabel", { currency: portfolioCurrency })}
-          value={fmtMoney(totalValue, portfolioCurrency)}
+          value={mask(fmtMoney(totalValue, portfolioCurrency))}
         />
         <SummaryCard
           label={t("patrimonio.portfolio.dayGainLabel")}
-          value={fmtMoney(dayGain, portfolioCurrency)}
+          value={mask(fmtMoney(dayGain, portfolioCurrency))}
           sub={fmtPct(dayGainPctFinal)}
           positive={dayGain >= 0}
         />
         <SummaryCard
           label={t("patrimonio.portfolio.totalGainLabel")}
-          value={fmtMoney(totalGain, portfolioCurrency)}
+          value={mask(fmtMoney(totalGain, portfolioCurrency))}
           sub={fmtPct(totalGainPct)}
           positive={totalGain >= 0}
         />
@@ -196,7 +199,7 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-sm" style={{ color: "var(--text)" }}>
-                      {fmtMoney(currentValue, portfolioCurrency)}
+                      {mask(fmtMoney(currentValue, portfolioCurrency))}
                     </p>
                     <div className="flex items-center justify-end gap-1">
                       {positive ? (
@@ -487,6 +490,7 @@ function PatrimonioContent() {
             </h1>
           </div>
           <div className="flex items-center gap-2">
+            <BalanceVisibilityToggle />
             <PremiumBadge />
           </div>
         </div>

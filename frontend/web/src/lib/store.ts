@@ -959,3 +959,24 @@ export const useTutorialStore = create<TutorialState>()(
     { name: "tutorial-store", partialize: (s) => ({ hasSeenTutorial: s.hasSeenTutorial }) }
   )
 );
+
+// ─── Balance visibility (the "eye" toggle) ─────────────────────────────────────
+// One shared preference for Home/Patrimonio/Portfolio — toggling it on any one
+// of those screens hides/shows the invested amount on all of them, same as a
+// banking app's balance-privacy toggle. A device preference, not per-account
+// data, so it's fine in plain (non-user-scoped) localStorage like theme/tutorial.
+
+interface BalanceVisibilityState {
+  hidden: boolean;
+  toggle: () => void;
+}
+
+export const useBalanceVisibilityStore = create<BalanceVisibilityState>()(
+  persist(
+    (set, get) => ({
+      hidden: false,
+      toggle: () => set({ hidden: !get().hidden }),
+    }),
+    { name: "balance-visibility-store" }
+  )
+);
