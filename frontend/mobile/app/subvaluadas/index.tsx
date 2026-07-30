@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
+import { useTheme } from "../../src/lib/ThemeContext";
 import { screenerWeeklyApi, watchlistServerApi, savedValuationsApi } from "../../src/lib/api";
 import PaywallModal from "../../src/components/PaywallModal";
 import StockAvatar from "../../src/components/StockAvatar";
@@ -19,17 +20,29 @@ import {
   ChecklistDisplay, ActionButtons,
 } from "../../src/components/subvaluadas/shared";
 
-// Scoped dark navy/gold palette for this whole screen — RN has no CSS
-// custom properties, so this is passed explicitly as the `colors` prop to
-// the shared display components instead of useTheme()'s normal light/dark
-// colors, matching the mockup exactly regardless of the app's theme toggle.
-const viColors = {
+// Gold/teal/coral is this screen's fixed brand identity (Valor Intrínseco),
+// kept constant in both themes — RN has no CSS custom properties, so this
+// whole object is passed explicitly as the `colors` prop to the shared
+// display components. The neutrals, though, follow the app's own light/dark
+// palette (ThemeContext's `dark`/`light` exports) instead of being locked to
+// the dark "navy" look regardless of the user's theme toggle.
+const viColorsDark = {
   bg: "#0A0F1A", bgRaised: "#16223A", card: "#111A2B", cardElevated: "#16223A",
   border: "rgba(255,255,255,0.08)", borderStrong: "#1C2B47",
   text: "#EBEEF5", textSub: "#8C97AD", textMuted: "#5C6883", textDim: "#5C6883", placeholder: "#5C6883",
-  accent: "#D4A24C", accentLight: "#D4A24C", accentDark: "#A9793A",
-  up: "#4FA695", down: "#DD6E63", info: "#4FA695",
 };
+const viColorsLight = {
+  bg: "#F4F7FB", bgRaised: "#EAEFF7", card: "#FFFFFF", cardElevated: "#F8FAFD",
+  border: "#DCE5F0", borderStrong: "#C8D8EA",
+  text: "#0A1628", textSub: "#304660", textMuted: "#5B7A96", textDim: "#9AB4CC", placeholder: "#9AB4CC",
+};
+function useViColors(isDark: boolean) {
+  return useMemo(() => ({
+    ...(isDark ? viColorsDark : viColorsLight),
+    accent: "#D4A24C", accentLight: "#D4A24C", accentDark: "#A9793A",
+    up: "#4FA695", down: "#DD6E63", info: "#4FA695",
+  }), [isDark]);
+}
 
 const GOLD = "#D4A24C", TEAL = "#4FA695", CORAL = "#DD6E63";
 const DEFAULT_TICKER = "AAPL";
@@ -110,6 +123,8 @@ function SensitivityHeatmap({ fcf0, netCash, shares, g, r, gt, price }: {
   fcf0: number; netCash: number; shares: number; g: number; r: number; gt: number; price: number;
 }) {
   const { t } = useTranslation();
+  const { isDark } = useTheme();
+  const viColors = useViColors(isDark);
   const gVals = G_OFFSETS.map((o) => g + o);
   const rVals = R_OFFSETS.map((o) => r + o);
   const cellSize = 52;
@@ -172,6 +187,8 @@ export default function SubvaluadasScreen() {
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
   const params = useLocalSearchParams<{ ticker?: string }>();
+  const { isDark } = useTheme();
+  const viColors = useViColors(isDark);
 
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -555,6 +572,8 @@ function Level3Modal({ ticker, price, fcf0, netCash, shares, g, r, gt, yearlyDet
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const { isDark } = useTheme();
+  const viColors = useViColors(isDark);
   const equityValue = enterpriseValue !== null ? enterpriseValue + netCash * 1e6 : null;
   const perShare = equityValue !== null && shares > 0 ? equityValue / (shares * 1e6) : null;
   const mos = perShare !== null && price ? ((perShare - price) / price) * 100 : null;

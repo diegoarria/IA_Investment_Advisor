@@ -18,7 +18,7 @@ import {
 } from "@/components/subvaluadas/shared";
 import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
 import { screenerApi, savedValuationsApi, watchlist } from "@/lib/api";
-import { useSubscriptionStore } from "@/lib/store";
+import { useSubscriptionStore, useThemeStore } from "@/lib/store";
 
 export interface QuickAnalysisResult {
   ticker: string;
@@ -53,29 +53,36 @@ export interface QuickAnalysisResult {
   cash: number | null;
 }
 
-// Scoped dark navy/gold palette — overrides the app's semantic tokens
-// (--bg/--card/--raised/...) inside this wrapper so shared components
-// (StockAvatar, ChecklistDisplay, etc.) automatically pick up the new look
-// without any per-component styling, while the sidebar/nav outside this
-// wrapper keeps the user's normal light/dark preference.
-const VI_THEME: React.CSSProperties = {
-  ["--bg" as string]: "#0A0F1A",
-  ["--card" as string]: "#111A2B",
-  ["--raised" as string]: "#16223A",
-  ["--card-2" as string]: "#16223A",
-  ["--border" as string]: "rgba(255,255,255,0.08)",
-  ["--border-s" as string]: "#1C2B47",
-  ["--text" as string]: "#EBEEF5",
-  ["--sub" as string]: "#8C97AD",
-  ["--muted" as string]: "#5C6883",
-  ["--dim" as string]: "#5C6883",
-  ["--accent" as string]: "#D4A24C",
-  ["--accent-l" as string]: "#D4A24C",
-  ["--accent-d" as string]: "#A9793A",
-  ["--up" as string]: "#4FA695",
-  ["--down" as string]: "#DD6E63",
-  background: "#0A0F1A",
-};
+// Gold/teal/coral is this screen's fixed brand identity (Valor Intrínseco),
+// kept constant in both themes. The neutrals (--bg/--card/--raised/...),
+// however, only get a custom "navy" override in dark mode — in light mode
+// they're deliberately left unset so they fall through to the app's own
+// [data-theme="light"] tokens (globals.css), which already give the right
+// white/near-white palette. Scoped to this wrapper only — the sidebar/nav
+// outside it always follows the user's normal light/dark preference.
+function useViTheme(): React.CSSProperties {
+  const { theme } = useThemeStore();
+  return useMemo(() => ({
+    ["--accent" as string]: GOLD,
+    ["--accent-l" as string]: GOLD,
+    ["--accent-d" as string]: "#A9793A",
+    ["--up" as string]: TEAL,
+    ["--down" as string]: CORAL,
+    background: "var(--bg)",
+    ...(theme === "dark" ? {
+      ["--bg" as string]: "#0A0F1A",
+      ["--card" as string]: "#111A2B",
+      ["--raised" as string]: "#16223A",
+      ["--card-2" as string]: "#16223A",
+      ["--border" as string]: "rgba(255,255,255,0.08)",
+      ["--border-s" as string]: "#1C2B47",
+      ["--text" as string]: "#EBEEF5",
+      ["--sub" as string]: "#8C97AD",
+      ["--muted" as string]: "#5C6883",
+      ["--dim" as string]: "#5C6883",
+    } : {}),
+  }), [theme]);
+}
 
 const GOLD = "#D4A24C";
 const TEAL = "#4FA695";
@@ -363,6 +370,7 @@ function SubvaluadasPageInner() {
   const searchParams = useSearchParams();
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium" || sub.isTrialPremium;
+  const viTheme = useViTheme();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -510,7 +518,7 @@ function SubvaluadasPageInner() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto scrollbar-thin" style={VI_THEME}>
+          <div className="flex-1 overflow-y-auto scrollbar-thin" style={viTheme}>
             <div className="max-w-[1000px] mx-auto px-6 py-8 md:px-10">
 
               <div className="flex gap-2 mb-8">
