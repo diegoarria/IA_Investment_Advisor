@@ -1,53 +1,24 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useTranslation } from "react-i18next";
-import { Loader2, Lock, BookMarked, Search, X, Star, Check, ChevronRight } from "lucide-react";
+import {
+  Loader2, Lock, Search, X, Info, RotateCcw, FileSpreadsheet, MessageCircle, AlertTriangle, Sparkles,
+} from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
 import StockAvatar from "@/components/StockAvatar";
 import {
-  type Checklist, type FairValueRangeData, type ConfidenceMeterData, type MarketExpectationsData,
-  type ConsensusValuationData, type MomentumData, type LiquidityGate, type DcfAssumptions, type YearlyDetailRow,
-  GeneratedAtNote, LiquidityWarning, StatChip, InsightBox, WarningBadge, ChecklistDisplay, ConfidenceMeter,
-  FairValueRangeDisplay, MarketExpectationsPanel, FollowButton, AnalyzeButton,
+  type RangeBounds, type YearlyDetailRow, type Checklist, type FairValueRangeData, type ConfidenceMeterData,
+  type MarketExpectationsData, type ConsensusValuationData, type LiquidityGate, type DcfAssumptions,
+  GeneratedAtNote, LiquidityWarning, ChecklistDisplay, ConfidenceMeter, FairValueRangeDisplay,
+  MarketExpectationsPanel, InsightBox, FollowButton, AnalyzeButton,
 } from "@/components/subvaluadas/shared";
+import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
 import { screenerApi, watchlist } from "@/lib/api";
 import { useSubscriptionStore } from "@/lib/store";
-
-export type { DcfAssumptions, YearlyDetailRow };
-
-export interface UndervaluedResult {
-  ticker: string;
-  company_name: string | null;
-  sector: string | null;
-  price: number | null;
-  intrinsic_value_base: number | null;
-  margin_of_safety_pct: number | null;
-  composite_score: number | null;
-  fair_value_range: FairValueRangeData | null;
-  confidence_meter: ConfidenceMeterData | null;
-  consensus_valuation: ConsensusValuationData | null;
-  momentum: MomentumData | null;
-  thesis_scores: Record<string, number> | null;
-  weak_dimension_warning: string | null;
-  blurb: string | null;
-  checklist: Checklist | null;
-  liquidity_gate: { paso: boolean; detalle: string } | null;
-  current_fcf: number | null;
-  net_cash: number | null;
-  shares_outstanding: number | null;
-  dcf_assumptions: DcfAssumptions | null;
-  yearly_detail: YearlyDetailRow[] | null;
-  pv_of_fcf_sum: number | null;
-  pv_of_terminal_value: number | null;
-  enterprise_value: number | null;
-  total_debt: number | null;
-  cash: number | null;
-}
 
 export interface QuickAnalysisResult {
   ticker: string;
@@ -82,157 +53,299 @@ export interface QuickAnalysisResult {
   cash: number | null;
 }
 
-type SortLens = "overall" | "discount" | "quality" | "momentum";
+// Scoped dark navy/gold palette — overrides the app's semantic tokens
+// (--bg/--card/--raised/...) inside this wrapper so shared components
+// (StockAvatar, ChecklistDisplay, etc.) automatically pick up the new look
+// without any per-component styling, while the sidebar/nav outside this
+// wrapper keeps the user's normal light/dark preference.
+const VI_THEME: React.CSSProperties = {
+  ["--bg" as string]: "#0A0F1A",
+  ["--card" as string]: "#111A2B",
+  ["--raised" as string]: "#16223A",
+  ["--card-2" as string]: "#16223A",
+  ["--border" as string]: "rgba(255,255,255,0.08)",
+  ["--border-s" as string]: "#1C2B47",
+  ["--text" as string]: "#EBEEF5",
+  ["--sub" as string]: "#8C97AD",
+  ["--muted" as string]: "#5C6883",
+  ["--dim" as string]: "#5C6883",
+  ["--accent" as string]: "#D4A24C",
+  ["--accent-l" as string]: "#D4A24C",
+  ["--accent-d" as string]: "#A9793A",
+  ["--up" as string]: "#4FA695",
+  ["--down" as string]: "#DD6E63",
+  background: "#0A0F1A",
+};
 
-function RankStrip({ lens, onChange }: { lens: SortLens; onChange: (lens: SortLens) => void }) {
-  const { t } = useTranslation();
-  const lenses: SortLens[] = ["overall", "discount", "quality", "momentum"];
-  return (
-    <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-thin">
-      {lenses.map((l) => (
-        <button key={l} onClick={() => onChange(l)}
-                className="shrink-0 text-xs px-3 py-1.5 rounded-full border font-bold transition-colors"
-                style={{
-                  borderColor: lens === l ? "var(--accent)" : "var(--border)",
-                  background: lens === l ? "rgba(0,168,94,0.1)" : "var(--raised)",
-                  color: lens === l ? "var(--accent-l)" : "var(--sub)",
-                }}>
-          {t(`subvaluadas.rankStrip.${l}`)}
-        </button>
-      ))}
-    </div>
-  );
+const GOLD = "#D4A24C";
+const TEAL = "#4FA695";
+const CORAL = "#DD6E63";
+const DEFAULT_TICKER = "AAPL";
+
+function pct(v: number): string {
+  return `${v.toFixed(1)}%`;
 }
 
-function CompareToggle({ ticker, checked, disabled, onToggle }: { ticker: string; checked: boolean; disabled: boolean; onToggle: () => void }) {
-  return (
-    <button onClick={onToggle} disabled={disabled && !checked}
-            className="shrink-0 w-6 h-6 rounded-md border flex items-center justify-center transition-colors disabled:opacity-30"
-            style={{
-              borderColor: checked ? "var(--accent)" : "var(--border)",
-              background: checked ? "var(--accent)" : "transparent",
-            }}
-            aria-label={`compare ${ticker}`}>
-      {checked && <Check className="w-3.5 h-3.5 text-black" />}
-    </button>
-  );
+function fmtMoney(v: number | null | undefined): string {
+  if (v === null || v === undefined || !isFinite(v)) return "N/D";
+  const abs = Math.abs(v);
+  if (abs >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
+  return `$${v.toFixed(2)}`;
 }
 
-function CompareTray({ items, onRemove, onClear, onCompare }: {
-  items: UndervaluedResult[]; onRemove: (ticker: string) => void; onClear: () => void; onCompare: () => void;
-}) {
-  const { t } = useTranslation();
-  if (items.length === 0) return null;
+type Stoplight = "green" | "yellow" | "red";
+
+function stoplightFor(value: number, range: RangeBounds | null): Stoplight {
+  if (!range) return "yellow";
+  const spread = range.high - range.low;
+  if (value >= range.low && value <= range.high) return "green";
+  if (value >= range.low - spread && value <= range.high + spread) return "yellow";
+  return "red";
+}
+
+const STOPLIGHT_DOT: Record<Stoplight, string> = { green: "🟢", yellow: "🟡", red: "🔴" };
+const STOPLIGHT_COLOR: Record<Stoplight, string> = { green: "#22c55e", yellow: "#f59e0b", red: "#ef4444" };
+
+function colorForRatio(ratio: number): string {
+  const coral = [221, 110, 99], gold = [212, 162, 76], teal = [79, 166, 149];
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  let c: number[];
+  if (ratio <= 1.0) {
+    const t = clamp((ratio - 0.6) / 0.4, 0, 1);
+    c = coral.map((v, i) => Math.round(v + (gold[i] - v) * t));
+  } else {
+    const t = clamp((ratio - 1.0) / 0.5, 0, 1);
+    c = gold.map((v, i) => Math.round(v + (teal[i] - v) * t));
+  }
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+function Tooltip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 rounded-2xl border shadow-lg px-4 py-3 flex items-center gap-3 max-w-[calc(100vw-2rem)]"
-         style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-      <div className="flex gap-1.5 overflow-x-auto scrollbar-thin">
-        {items.map((it) => (
-          <span key={it.ticker} className="shrink-0 flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg"
-                style={{ background: "var(--raised)", color: "var(--text)" }}>
-            {it.ticker}
-            <button onClick={() => onRemove(it.ticker)}><X className="w-3 h-3" style={{ color: "var(--muted)" }} /></button>
-          </span>
-        ))}
-      </div>
-      <button onClick={onClear} className="shrink-0 text-xs font-semibold" style={{ color: "var(--muted)" }}>
-        {t("subvaluadas.compare.clear")}
+    <span className="relative inline-flex items-center">
+      <button type="button" onClick={() => setOpen((o) => !o)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+              className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full ml-1.5" style={{ color: "var(--muted)" }} aria-label="info">
+        <Info className="w-3.5 h-3.5" />
       </button>
-      <button onClick={onCompare} disabled={items.length < 2}
-              className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold text-black disabled:opacity-40"
-              style={{ background: "var(--accent)" }}>
-        {t("subvaluadas.compare.compareButton", { count: items.length })}
-      </button>
-    </div>
-  );
-}
-
-function CompareRow({ label, values, format }: { label: string; values: (number | string | null)[]; format?: (v: number) => string }) {
-  return (
-    <tr className="border-t" style={{ borderColor: "var(--border)" }}>
-      <td className="py-2 pr-3 text-[11px] font-bold whitespace-nowrap" style={{ color: "var(--muted)" }}>{label}</td>
-      {values.map((v, i) => (
-        <td key={i} className="py-2 px-3 text-xs font-bold tabular-nums text-center" style={{ color: "var(--text)" }}>
-          {v === null || v === undefined ? "N/D" : typeof v === "number" && format ? format(v) : v}
-        </td>
-      ))}
-    </tr>
-  );
-}
-
-function CompareModal({ items, onClose }: { items: UndervaluedResult[]; onClose: () => void }) {
-  const { t } = useTranslation();
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onClose}>
-      <div className="rounded-2xl border max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col"
-           style={{ background: "var(--card)", borderColor: "var(--border)" }} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
-          <h3 className="text-sm font-black" style={{ color: "var(--text)" }}>{t("subvaluadas.compare.title")}</h3>
-          <button onClick={onClose}><X className="w-4 h-4" style={{ color: "var(--muted)" }} /></button>
-        </div>
-        <div className="overflow-auto p-5">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <td></td>
-                {items.map((it) => (
-                  <th key={it.ticker} className="px-3 pb-2 text-center">
-                    <div className="flex flex-col items-center gap-1">
-                      <StockAvatar ticker={it.ticker} size="sm" />
-                      <span className="text-xs font-black" style={{ color: "var(--text)" }}>{it.ticker}</span>
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <CompareRow label={t("subvaluadas.compare.metric.price")} values={items.map((it) => it.price)} format={(v) => `$${v.toFixed(2)}`} />
-              <CompareRow label={t("subvaluadas.compare.metric.intrinsicValue")} values={items.map((it) => it.intrinsic_value_base)} format={(v) => `$${v.toFixed(2)}`} />
-              <CompareRow label={t("subvaluadas.compare.metric.marginOfSafety")} values={items.map((it) => it.margin_of_safety_pct)} format={(v) => `${v > 0 ? "+" : ""}${v}%`} />
-              <CompareRow label={t("subvaluadas.compare.metric.composite")} values={items.map((it) => it.composite_score)} format={(v) => `${v}/100`} />
-              <CompareRow label={t("subvaluadas.compare.metric.confidence")} values={items.map((it) => it.confidence_meter?.score ?? null)} format={(v) => `${v}/100`} />
-              <CompareRow label={t("subvaluadas.compare.metric.businessQuality")} values={items.map((it) => it.thesis_scores?.business_quality ?? null)} format={(v) => `${v}/100`} />
-              <CompareRow label={t("subvaluadas.compare.metric.financialStrength")} values={items.map((it) => it.thesis_scores?.financial_strength ?? null)} format={(v) => `${v}/100`} />
-              <CompareRow label={t("subvaluadas.compare.metric.predictability")} values={items.map((it) => it.thesis_scores?.predictability ?? null)} format={(v) => `${v}/100`} />
-              <CompareRow label={t("subvaluadas.compare.metric.growthOutlook")} values={items.map((it) => it.thesis_scores?.growth_outlook ?? null)} format={(v) => `${v}/100`} />
-              <CompareRow
-                label={t("subvaluadas.compare.metric.fairValueRange")}
-                values={items.map((it) => it.fair_value_range ? `$${Math.min(it.fair_value_range.low, it.fair_value_range.high).toFixed(0)}–${Math.max(it.fair_value_range.low, it.fair_value_range.high).toFixed(0)}` : null)}
-              />
-              <CompareRow label={t("subvaluadas.compare.metric.momentum1m")} values={items.map((it) => it.momentum?.return_1m_pct ?? null)} format={(v) => `${v > 0 ? "+" : ""}${v}%`} />
-              <CompareRow label={t("subvaluadas.compare.metric.momentum6m")} values={items.map((it) => it.momentum?.return_6m_pct ?? null)} format={(v) => `${v > 0 ? "+" : ""}${v}%`} />
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MosBadge({ pct }: { pct: number | null }) {
-  const positive = (pct ?? 0) >= 0;
-  return (
-    <span className="shrink-0 text-sm font-black px-2.5 py-1 rounded-xl"
-          style={{
-            background: positive ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.12)",
-            color: positive ? "#22c55e" : "#ef4444",
-          }}>
-      {positive ? "+" : ""}{pct}%
+      {open && (
+        <span className="absolute z-20 bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-60 rounded-lg p-2.5 text-[11px] leading-snug font-normal shadow-lg"
+              style={{ background: "var(--card-2)", border: "1px solid var(--border)", color: "var(--sub)" }}>
+          {text}
+        </span>
+      )}
     </span>
   );
 }
 
-function ValorIntrinsecoLink({ ticker }: { ticker: string }) {
+const G_OFFSETS = [-4, -2, 0, 2, 4];
+const R_OFFSETS = [-2, -1, 0, 1, 2];
+
+function SensitivityHeatmap({ fcf0, netCash, shares, g, r, gt, price }: {
+  fcf0: number; netCash: number; shares: number; g: number; r: number; gt: number; price: number;
+}) {
   const { t } = useTranslation();
+  const gVals = G_OFFSETS.map((o) => g + o);
+  const rVals = R_OFFSETS.map((o) => r + o);
+
   return (
-    <Link
-      href={`/subvaluadas/${ticker}`}
-      className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-colors"
-      style={{ borderColor: "var(--border)", color: "var(--text)", background: "var(--raised)" }}
-    >
-      {t("subvaluadas.detail.openCta")}
-      <ChevronRight className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />
-    </Link>
+    <div className="card" style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 24, marginTop: 20 }}>
+      <div className="flex items-start justify-between gap-4 flex-wrap mb-5">
+        <div>
+          <h2 style={{ fontSize: 19, fontWeight: 500, color: "var(--text)", margin: "0 0 6px" }}>
+            {t("subvaluadas.detail.heatmap.title")}
+          </h2>
+          <p className="text-[13px] max-w-[480px] leading-relaxed" style={{ color: "var(--sub)" }}>{t("subvaluadas.detail.heatmap.desc")}</p>
+        </div>
+        <div className="flex items-center gap-2.5 text-[11px]" style={{ color: "var(--muted)" }}>
+          {t("subvaluadas.detail.heatmap.lower")}
+          <div style={{ width: 110, height: 8, borderRadius: 4, background: `linear-gradient(90deg, ${CORAL}, ${GOLD}, ${TEAL})` }} />
+          {t("subvaluadas.detail.heatmap.higher")}
+        </div>
+      </div>
+
+      <p className="text-center text-[11px] mb-2" style={{ color: "var(--muted)" }}>
+        {t("subvaluadas.detail.heatmap.gAxis")}
+      </p>
+      <div className="grid" style={{ gridTemplateColumns: "60px 1fr" }}>
+        <div className="flex items-end justify-center text-center pb-2 text-[10px] leading-tight" style={{ color: "var(--muted)" }}>
+          {t("subvaluadas.detail.heatmap.rAxis")}
+        </div>
+        <div>
+          <div className="grid mb-2" style={{ gridTemplateColumns: "repeat(5,1fr)" }}>
+            {gVals.map((gv, i) => (
+              <div key={i} className="text-center text-[11px]" style={{ color: "var(--muted)" }}>{pct(gv)}</div>
+            ))}
+          </div>
+          <div className="flex">
+            <div className="flex flex-col justify-between">
+              {rVals.map((rv, i) => (
+                <div key={i} className="flex items-center justify-center text-[11px]" style={{ height: 60, color: "var(--muted)" }}>{pct(rv)}</div>
+              ))}
+            </div>
+            <div className="grid flex-1 gap-1" style={{ gridTemplateColumns: "repeat(5,1fr)", gridTemplateRows: "repeat(5,60px)" }}>
+              {rVals.map((rv, ri) => gVals.map((gv, gi) => {
+                const val = calcularValorIntrinseco({ fcf0, g: gv / 100, r: rv / 100, gt: gt / 100, netCash, shares });
+                const isCenter = ri === 2 && gi === 2;
+                const noSolution = val === null;
+                const ratio = val && price ? val.valorPorAccion / price : 1;
+                return (
+                  <div key={`${ri}-${gi}`}
+                       className="relative rounded-lg flex items-center justify-center text-[13px] font-bold"
+                       style={{
+                         background: noSolution ? "var(--border-s)" : colorForRatio(ratio),
+                         color: noSolution ? "var(--muted)" : "#0A0F1A",
+                         outline: isCenter ? "2px solid var(--text)" : "none",
+                         outlineOffset: -2,
+                         }}>
+                    {isCenter && <span className="absolute top-1 text-[8px] font-extrabold tracking-wide" style={{ color: "rgba(10,15,26,0.55)" }}>{t("subvaluadas.detail.heatmap.you")}</span>}
+                    {noSolution ? "N/D" : `$${val!.valorPorAccion.toFixed(0)}`}
+                  </div>
+                );
+              }))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-2.5 mt-4 p-3 rounded-xl text-[12.5px] leading-relaxed" style={{ background: "var(--raised)", color: "var(--sub)" }}>
+        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: GOLD }} />
+        {t("subvaluadas.detail.heatmap.note")}
+      </div>
+    </div>
+  );
+}
+
+function FullModelModal({ ticker, price, fcf0, netCash, shares, g, r, gt, yearlyDetail, pvOfFcfSum, pvOfTerminalValue, enterpriseValue, onClose }: {
+  ticker: string; price: number | null; fcf0: number; netCash: number; shares: number; g: number; r: number; gt: number;
+  yearlyDetail: YearlyDetailRow[] | null; pvOfFcfSum: number | null; pvOfTerminalValue: number | null; enterpriseValue: number | null;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const equityValue = enterpriseValue !== null ? enterpriseValue + netCash * 1e6 : null;
+  const perShare = equityValue !== null && shares > 0 ? equityValue / (shares * 1e6) : null;
+  const mos = perShare !== null && price ? ((perShare - price) / price) * 100 : null;
+
+  const handleExport = async () => {
+    const XLSX = await import("xlsx");
+    const wb = XLSX.utils.book_new();
+    const inputsSheet = XLSX.utils.aoa_to_sheet([
+      [t("subvaluadas.detail.level3.inputs")],
+      [t("subvaluadas.detail.controls.growth"), pct(g)],
+      [t("subvaluadas.detail.controls.wacc"), pct(r)],
+      [t("subvaluadas.detail.controls.terminalGrowth"), pct(gt)],
+      ["FCF (TTM, M)", fcf0.toFixed(1)],
+      [t("subvaluadas.detail.level3.netCash") + " (M)", netCash.toFixed(1)],
+      [t("subvaluadas.detail.level3.shares") + " (M)", shares.toFixed(1)],
+      [t("subvaluadas.stats.price"), price ?? "N/D"],
+    ]);
+    XLSX.utils.book_append_sheet(wb, inputsSheet, "Inputs");
+    if (yearlyDetail && yearlyDetail.length > 0) {
+      const rows = [
+        [t("subvaluadas.detail.level3.year"), t("subvaluadas.detail.level3.fcf"), t("subvaluadas.detail.level3.discountFactor"), t("subvaluadas.detail.level3.presentValue")],
+        ...yearlyDetail.map((row) => [row.year, row.fcf, row.discount_factor, row.present_value]),
+      ];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Proyeccion");
+    }
+    const bridgeSheet = XLSX.utils.aoa_to_sheet([
+      [t("subvaluadas.detail.level3.pvFcf"), pvOfFcfSum ?? "N/D"],
+      [t("subvaluadas.detail.level3.pvTerminal"), pvOfTerminalValue ?? "N/D"],
+      [t("subvaluadas.detail.level3.enterpriseValue"), enterpriseValue ?? "N/D"],
+      [t("subvaluadas.detail.level3.netCash"), netCash * 1e6],
+      [t("subvaluadas.detail.level3.equityValue"), equityValue ?? "N/D"],
+      [t("subvaluadas.detail.level3.shares"), shares * 1e6],
+      [t("subvaluadas.detail.level3.perShare"), perShare ?? "N/D"],
+    ]);
+    XLSX.utils.book_append_sheet(wb, bridgeSheet, "Valuacion");
+    XLSX.writeFile(wb, `${ticker}_dcf_nuvos.xlsx`);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.65)" }} onClick={onClose}>
+      <div className="rounded-2xl border max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+           style={{ background: "var(--card)", borderColor: "var(--border)" }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+          <h3 style={{ fontSize: 16, fontWeight: 500, color: "var(--text)" }}>
+            {t("subvaluadas.detail.level3.title", { ticker })}
+          </h3>
+          <button onClick={onClose}><X className="w-4 h-4" style={{ color: "var(--muted)" }} /></button>
+        </div>
+        <div className="overflow-auto p-5 space-y-4">
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: t("subvaluadas.detail.controls.growth"), value: pct(g) },
+              { label: t("subvaluadas.detail.controls.wacc"), value: pct(r) },
+              { label: t("subvaluadas.detail.controls.terminalGrowth"), value: pct(gt) },
+            ].map((s) => (
+              <div key={s.label} className="rounded-xl p-2.5" style={{ background: "var(--raised)" }}>
+                <p className="text-[9px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{s.label}</p>
+                <p className="text-sm font-black tabular-nums" style={{ color: "var(--text)" }}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {yearlyDetail && yearlyDetail.length > 0 && (
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--muted)" }}>{t("subvaluadas.detail.level3.yearlyTable")}</p>
+              <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr style={{ background: "var(--raised)" }}>
+                      <th className="text-left px-2.5 py-1.5 font-bold" style={{ color: "var(--muted)" }}>{t("subvaluadas.detail.level3.year")}</th>
+                      <th className="text-right px-2.5 py-1.5 font-bold" style={{ color: "var(--muted)" }}>{t("subvaluadas.detail.level3.fcf")}</th>
+                      <th className="text-right px-2.5 py-1.5 font-bold" style={{ color: "var(--muted)" }}>{t("subvaluadas.detail.level3.discountFactor")}</th>
+                      <th className="text-right px-2.5 py-1.5 font-bold" style={{ color: "var(--muted)" }}>{t("subvaluadas.detail.level3.presentValue")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {yearlyDetail.map((row) => (
+                      <tr key={row.year} className="border-t" style={{ borderColor: "var(--border)" }}>
+                        <td className="px-2.5 py-1.5 font-bold" style={{ color: "var(--text)" }}>{row.year}</td>
+                        <td className="px-2.5 py-1.5 text-right tabular-nums" style={{ color: "var(--sub)" }}>{fmtMoney(row.fcf)}</td>
+                        <td className="px-2.5 py-1.5 text-right tabular-nums" style={{ color: "var(--sub)" }}>{row.discount_factor.toFixed(3)}</td>
+                        <td className="px-2.5 py-1.5 text-right tabular-nums font-bold" style={{ color: "var(--text)" }}>{fmtMoney(row.present_value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-xl border p-3 space-y-1.5" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+            {[
+              [t("subvaluadas.detail.level3.pvFcf"), fmtMoney(pvOfFcfSum), false],
+              [t("subvaluadas.detail.level3.pvTerminal"), fmtMoney(pvOfTerminalValue), false],
+              [t("subvaluadas.detail.level3.enterpriseValue"), fmtMoney(enterpriseValue), true],
+              [t("subvaluadas.detail.level3.netCash"), fmtMoney(netCash * 1e6), false],
+              [t("subvaluadas.detail.level3.equityValue"), fmtMoney(equityValue), true],
+              [t("subvaluadas.detail.level3.shares"), `${shares.toFixed(1)}M`, false],
+            ].map(([label, value, bold], i) => (
+              <div key={i} className="flex items-center justify-between">
+                <span className="text-[11px]" style={{ color: "var(--sub)" }}>{label as string}</span>
+                <span className="text-[11px] tabular-nums" style={{ fontWeight: bold ? 700 : 400, color: "var(--text)" }}>{value as string}</span>
+              </div>
+            ))}
+            <div className="pt-1.5 mt-1 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
+              <span className="text-[11px] font-bold" style={{ color: "var(--sub)" }}>{t("subvaluadas.detail.level3.perShare")}</span>
+              <span className="text-[11px] font-bold tabular-nums" style={{ color: GOLD }}>{perShare !== null ? `$${perShare.toFixed(2)}` : "N/D"}</span>
+            </div>
+            {mos !== null && (
+              <p className="text-[11px] pt-1" style={{ color: mos >= 0 ? TEAL : CORAL }}>
+                {t("subvaluadas.detail.marginOfSafety")}: {mos >= 0 ? "+" : ""}{mos.toFixed(1)}%
+              </p>
+            )}
+          </div>
+
+          <button onClick={handleExport} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold border"
+                  style={{ borderColor: "var(--border)", color: "var(--text)", background: "var(--raised)" }}>
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            {t("subvaluadas.detail.level3.export")}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -243,343 +356,356 @@ export default function SubvaluadasPage() {
   const isPremium = sub.tier === "premium" || sub.isTrialPremium;
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [results, setResults] = useState<UndervaluedResult[]>([]);
-  const [generatedAt, setGeneratedAt] = useState(0);
-  const [loading, setLoading] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const [sectorFilter, setSectorFilter] = useState<string>("Todos");
-  const [watchlisted, setWatchlisted] = useState<Set<string>>(new Set());
-  const [sortLens, setSortLens] = useState<SortLens>("overall");
-  const [compareMode, setCompareMode] = useState(false);
-  const [compareSelection, setCompareSelection] = useState<string[]>([]);
-  const [compareOpen, setCompareOpen] = useState(false);
-  const MAX_COMPARE = 4;
 
   const [query, setQuery] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [quickResult, setQuickResult] = useState<QuickAnalysisResult | null>(null);
-
-  const handleFollow = async (ticker: string, companyName: string | null) => {
-    if (watchlisted.has(ticker)) return;
-    try {
-      await watchlist.add(ticker, companyName || undefined);
-      setWatchlisted((prev) => new Set(prev).add(ticker));
-    } catch {
-      // Silently ignore duplicates/errors — watchlist add is idempotent enough that
-      // the user retrying by clicking again is a fine fallback.
-    }
-  };
-
-  const handleAnalyze = (ticker: string) => {
-    router.push(`/chat?msg=${encodeURIComponent(t("subvaluadas.analyze.prompt", { ticker }))}&autosend=1`);
-  };
-
-  const handleSearch = async () => {
-    if (!query.trim() || !isPremium) return;
-    setSearching(true);
-    setSearchError(null);
-    setQuickResult(null);
-    try {
-      const res = await screenerApi.quickAnalysis(query.trim(), i18n.language);
-      setQuickResult(res.data);
-    } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setSearchError(detail || t("subvaluadas.search.error"));
-    } finally {
-      setSearching(false);
-    }
-  };
+  const [ticker, setTicker] = useState(DEFAULT_TICKER);
+  const [data, setData] = useState<QuickAnalysisResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [watchlisted, setWatchlisted] = useState(false);
+  const [level3Open, setLevel3Open] = useState(false);
 
   useEffect(() => {
-    if (!isPremium) return;
+    if (!isPremium) { setLoading(false); return; }
     setLoading(true);
-    screenerApi.getUndervalued(undefined, 60, i18n.language)
-      .then((res) => {
-        setResults(res.data?.results || []);
-        setGeneratedAt(res.data?.generated_at || 0);
+    setError(null);
+    screenerApi.quickAnalysis(ticker, i18n.language)
+      .then((res) => setData(res.data))
+      .catch((err: unknown) => {
+        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+        setError(detail || t("subvaluadas.search.error"));
       })
-      .catch(() => setResults([]))
       .finally(() => setLoading(false));
-  }, [isPremium, i18n.language]);
+  }, [ticker, isPremium, i18n.language, t]);
 
-  const sectors = useMemo(() => {
-    const unique = Array.from(new Set(results.map((r) => r.sector).filter(Boolean))) as string[];
-    return ["Todos", ...unique.sort()];
-  }, [results]);
-
-  const filtered = sectorFilter === "Todos" ? results : results.filter((r) => r.sector === sectorFilter);
-
-  const sortedFiltered = useMemo(() => {
-    const arr = [...filtered];
-    const byNullable = (v: number | null | undefined) => (v === null || v === undefined ? -Infinity : v);
-    switch (sortLens) {
-      case "discount":
-        arr.sort((a, b) => byNullable(b.margin_of_safety_pct) - byNullable(a.margin_of_safety_pct));
-        break;
-      case "quality":
-        arr.sort((a, b) => byNullable(b.thesis_scores?.business_quality) - byNullable(a.thesis_scores?.business_quality));
-        break;
-      case "momentum":
-        arr.sort((a, b) => byNullable(b.momentum?.turn_score) - byNullable(a.momentum?.turn_score));
-        break;
-      default:
-        // "Best Overall" — deliberately does NOT re-sort by composite_score
-        // here. The backend already orders this list by composite_score,
-        // then rotates which 5 candidates appear first each week (see
-        // undervalued_screener_service._rotate_featured_order) — re-sorting
-        // client-side would silently undo that rotation every time.
-        break;
-    }
-    return arr;
-  }, [filtered, sortLens]);
-
-  const toggleCompare = (ticker: string) => {
-    setCompareSelection((prev) => {
-      if (prev.includes(ticker)) return prev.filter((t) => t !== ticker);
-      if (prev.length >= MAX_COMPARE) return prev;
-      return [...prev, ticker];
-    });
+  const handleSearch = () => {
+    if (!query.trim() || !isPremium) return;
+    setWatchlisted(false);
+    setTicker(query.trim().toUpperCase());
   };
 
-  const compareItems = compareSelection
-    .map((t) => results.find((r) => r.ticker === t))
-    .filter((r): r is UndervaluedResult => !!r);
+  const hasData = data?.current_fcf != null && data?.net_cash != null && data?.shares_outstanding != null && data?.price != null;
+  const isFinancialSector = data?.dcf_assumptions?.methodology === "residual_income_justified_pb";
+
+  const fcf0 = hasData ? data!.current_fcf! / 1e6 : 0;
+  const netCash = hasData ? data!.net_cash! / 1e6 : 0;
+  const shares = hasData ? data!.shares_outstanding! / 1e6 : 0;
+  const horizon = data?.yearly_detail && data.yearly_detail.length > 0 ? data.yearly_detail.length : 10;
+
+  const suggestedG = data?.dcf_assumptions?.suggested_g ?? 7;
+  const suggestedR = data?.dcf_assumptions?.suggested_r ?? 9;
+  const suggestedGt = data?.dcf_assumptions?.suggested_gt ?? 3;
+
+  const [g, setG] = useState(suggestedG);
+  const [r, setR] = useState(suggestedR);
+  const [gt, setGt] = useState(suggestedGt);
+
+  useEffect(() => { setG(suggestedG); setR(suggestedR); setGt(suggestedGt); }, [suggestedG, suggestedR, suggestedGt]);
+
+  const isDefault = g === suggestedG && r === suggestedR && gt === suggestedGt;
+
+  const liveResult = useMemo(() => {
+    if (!hasData) return null;
+    return calcularValorIntrinseco({ fcf0, g: g / 100, r: r / 100, gt: gt / 100, n: horizon, netCash, shares });
+  }, [hasData, fcf0, g, r, gt, horizon, netCash, shares]);
+
+  const price = data?.price ?? 0;
+  const liveMos = liveResult && price ? ((liveResult.valorPorAccion - price) / price) * 100 : null;
+  const barMax = Math.max(price, liveResult?.valorPorAccion ?? 0) * 1.15 || 1;
+
+  const handleFollow = async () => {
+    if (!data || watchlisted) return;
+    try { await watchlist.add(data.ticker, data.company_name || undefined); setWatchlisted(true); } catch { /* idempotent */ }
+  };
+  const handleAnalyze = () => router.push(`/chat?msg=${encodeURIComponent(t("subvaluadas.analyze.prompt", { ticker }))}&autosend=1`);
+  const askMentor = (question: string) => router.push(`/chat?msg=${encodeURIComponent(question)}&autosend=1`);
+
+  const name = data?.company_name || ticker;
+  const mentorQuestions = [
+    { key: "why", text: t("subvaluadas.dcf.mentor.why", { ticker: name }) },
+    { key: "risk", text: t("subvaluadas.dcf.mentor.risk", { ticker: name }) },
+    { key: "sensitivity", text: t("subvaluadas.dcf.mentor.sensitivity", { ticker: name }) },
+    { key: "change", text: t("subvaluadas.dcf.mentor.change", { ticker: name }) },
+  ];
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
       <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <MarketTickerBar />
-        <div className="flex-1 overflow-y-auto scrollbar-thin p-6">
-          <div className="max-w-2xl mx-auto">
-            <div className="flex items-center gap-2 mb-1">
-              <BookMarked className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
-              <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>
-                {t("subvaluadas.title")}
-              </h1>
-            </div>
 
-            <div className="rounded-2xl border-2 p-4 mb-5 text-center"
-                 style={{ borderColor: "#ef4444", background: "rgba(239,68,68,0.08)" }}>
-              <p className="text-lg font-black tracking-tight" style={{ color: "#ef4444" }}>
-                {t("subvaluadas.disclaimer.title")}
-              </p>
-              <p className="text-xs mt-1" style={{ color: "var(--sub)" }}>
-                {t("subvaluadas.disclaimer.subtitle")}
-              </p>
-            </div>
-
-            {isPremium && (
-              <div className="mb-6">
-                <h2 className="text-sm font-bold mb-2" style={{ color: "var(--text)" }}>{t("subvaluadas.search.label")}</h2>
-                <div className="flex gap-2">
-                  <div className="flex-1 flex items-center gap-2 rounded-xl border px-3"
-                       style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                    <Search className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
-                    <input
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                      placeholder={t("subvaluadas.search.placeholder")}
-                      className="flex-1 py-2.5 text-sm bg-transparent outline-none"
-                      style={{ color: "var(--text)" }}
-                    />
-                    {query && (
-                      <button onClick={() => { setQuery(""); setQuickResult(null); setSearchError(null); }}>
-                        <X className="w-4 h-4" style={{ color: "var(--muted)" }} />
-                      </button>
-                    )}
-                  </div>
-                  <button onClick={handleSearch} disabled={searching || !query.trim()}
-                          className="px-4 py-2.5 rounded-xl text-sm font-bold text-black disabled:opacity-40"
-                          style={{ background: "var(--accent)" }}>
-                    {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : t("subvaluadas.search.button")}
-                  </button>
-                </div>
-
-                {searchError && <p className="text-xs mt-2" style={{ color: "#ef4444" }}>{searchError}</p>}
-
-                {quickResult && (
-                  <div className="mt-3 rounded-2xl border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                    <Link href={`/subvaluadas/${quickResult.ticker}`} className="flex items-center gap-3">
-                      <StockAvatar ticker={quickResult.ticker} size="md" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold truncate" style={{ color: "var(--text)" }}>{quickResult.ticker}</p>
-                        <p className="text-xs truncate" style={{ color: "var(--muted)" }}>
-                          {quickResult.company_name}{quickResult.sector ? ` · ${quickResult.sector}` : ""}
-                        </p>
-                      </div>
-                      <MosBadge pct={quickResult.margin_of_safety_pct} />
-                    </Link>
-
-                    <GeneratedAtNote generatedAt={quickResult.generated_at} />
-
-                    {quickResult.liquidity_gate && <LiquidityWarning gate={quickResult.liquidity_gate} />}
-
-                    {quickResult.fair_value_range && <FairValueRangeDisplay range={quickResult.fair_value_range} consensus={quickResult.consensus_valuation} />}
-                    {quickResult.confidence_meter && <ConfidenceMeter data={quickResult.confidence_meter} />}
-
-                    <div className="flex gap-2">
-                      <StatChip label={t("subvaluadas.stats.price")} value={`$${quickResult.price}`} />
-                      <StatChip label={t("subvaluadas.stats.intrinsicValue")} value={`$${quickResult.intrinsic_value_base}`} />
-                      <StatChip label={t("subvaluadas.stats.expectedValue")} value={`$${quickResult.expected_value_per_share}`} />
-                      {quickResult.implied_growth_pct !== null && (
-                        <StatChip label={t("subvaluadas.stats.impliedGrowth")} value={`${quickResult.implied_growth_pct}%`} />
-                      )}
-                    </div>
-
-                    {quickResult.market_expectations && <MarketExpectationsPanel data={quickResult.market_expectations} />}
-
-                    {quickResult.checklist && <ChecklistDisplay checklist={quickResult.checklist} />}
-
-                    <InsightBox>{quickResult.summary}</InsightBox>
-
-                    <ValorIntrinsecoLink ticker={quickResult.ticker} />
-
-                    <div className="flex gap-2">
-                      <FollowButton ticker={quickResult.ticker} watchlisted={watchlisted.has(quickResult.ticker)}
-                                    onFollow={() => handleFollow(quickResult.ticker, quickResult.company_name)} />
-                      <AnalyzeButton onAnalyze={() => handleAnalyze(quickResult.ticker)} />
-                    </div>
-                  </div>
-                )}
+        {!isPremium ? (
+          <div className="flex-1 overflow-y-auto scrollbar-thin p-6" style={{ background: "var(--bg)" }}>
+            <div className="max-w-2xl mx-auto rounded-2xl border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(0,168,94,0.1)" }}>
+                <Lock className="w-7 h-7" style={{ color: "var(--accent-l)" }} />
               </div>
-            )}
+              <h2 className="font-bold text-base mb-2" style={{ color: "var(--text)" }}>{t("subvaluadas.premiumGate.title")}</h2>
+              <p className="text-sm mb-5 max-w-sm mx-auto" style={{ color: "var(--muted)" }}>{t("subvaluadas.premiumGate.desc")}</p>
+              <button onClick={() => setPaywallOpen(true)} className="px-6 py-2.5 rounded-xl text-sm font-bold text-white"
+                      style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
+                {t("subvaluadas.premiumGate.cta")}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto scrollbar-thin" style={VI_THEME}>
+            <div className="max-w-[1000px] mx-auto px-6 py-8 md:px-10">
 
-            <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>
-              {t("subvaluadas.footer.description")}
-              {generatedAt > 0 && (() => {
-                const days = Math.floor((Date.now() / 1000 - generatedAt) / 86400);
-                const stale = days > 10;
-                const date = new Date(generatedAt * 1000).toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", { day: "numeric", month: "long" });
-                const updatedText = days <= 0
-                  ? t("subvaluadas.footer.updatedToday", { date })
-                  : t("subvaluadas.footer.updatedDaysAgo", { count: days, date });
-                return (
-                  <span style={stale ? { color: "#f59e0b", fontWeight: 700 } : undefined}>
-                    {" "}{updatedText}{stale ? t("subvaluadas.footer.stale") : ""}
-                  </span>
-                );
-              })()}
-            </p>
-
-            {!isPremium ? (
-              <div className="rounded-2xl border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(0,168,94,0.1)" }}>
-                  <Lock className="w-7 h-7" style={{ color: "var(--accent-l)" }} />
+              <div className="flex gap-2 mb-8">
+                <div className="flex-1 flex items-center gap-2 rounded-xl border px-3"
+                     style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                  <Search className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    placeholder={t("subvaluadas.search.placeholder")}
+                    className="flex-1 py-2.5 text-sm bg-transparent outline-none"
+                    style={{ color: "var(--text)" }}
+                  />
+                  {query && (
+                    <button onClick={() => setQuery("")}>
+                      <X className="w-4 h-4" style={{ color: "var(--muted)" }} />
+                    </button>
+                  )}
                 </div>
-                <h2 className="font-bold text-base mb-2" style={{ color: "var(--text)" }}>{t("subvaluadas.premiumGate.title")}</h2>
-                <p className="text-sm mb-5 max-w-sm mx-auto" style={{ color: "var(--muted)" }}>
-                  {t("subvaluadas.premiumGate.desc")}
-                </p>
-                <button onClick={() => setPaywallOpen(true)}
-                        className="px-6 py-2.5 rounded-xl text-sm font-bold text-white"
-                        style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-                  {t("subvaluadas.premiumGate.cta")}
+                <button onClick={handleSearch} disabled={!query.trim()}
+                        className="px-4 py-2.5 rounded-xl text-sm font-bold disabled:opacity-40"
+                        style={{ background: GOLD, color: "#0A0F1A" }}>
+                  {t("subvaluadas.search.button")}
                 </button>
               </div>
-            ) : loading ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent-l)" }} />
-              </div>
-            ) : results.length === 0 ? (
-              <div className="rounded-2xl border p-8 text-center" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                <p className="text-sm" style={{ color: "var(--muted)" }}>
-                  {t("subvaluadas.emptyState")}
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <RankStrip lens={sortLens} onChange={setSortLens} />
-                  <button
-                    onClick={() => { setCompareMode((v) => !v); if (compareMode) setCompareSelection([]); }}
-                    className="shrink-0 mb-4 text-xs px-3 py-1.5 rounded-full border font-bold transition-colors"
-                    style={{
-                      borderColor: compareMode ? "var(--accent)" : "var(--border)",
-                      background: compareMode ? "rgba(0,168,94,0.1)" : "var(--raised)",
-                      color: compareMode ? "var(--accent-l)" : "var(--sub)",
-                    }}>
-                    {compareMode ? t("subvaluadas.compare.disable") : t("subvaluadas.compare.enable")}
-                  </button>
+
+              {loading ? (
+                <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 animate-spin" style={{ color: GOLD }} /></div>
+              ) : error || !data ? (
+                <div className="rounded-2xl border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>{error || t("subvaluadas.search.error")}</p>
                 </div>
-                {sectors.length > 2 && (
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {sectors.map((s) => (
-                      <button key={s} onClick={() => setSectorFilter(s)}
-                              className="text-xs px-3 py-1.5 rounded-full border transition-colors"
-                              style={{
-                                borderColor: sectorFilter === s ? "var(--accent)" : "var(--border)",
-                                background: sectorFilter === s ? "rgba(0,168,94,0.1)" : "var(--raised)",
-                                color: sectorFilter === s ? "var(--accent-l)" : "var(--sub)",
-                              }}>
-                        {s === "Todos" ? t("subvaluadas.sectorAll") : s}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="space-y-3">
-                  {sortedFiltered.map((u) => (
-                    <div key={u.ticker} className="rounded-2xl border p-4 space-y-3"
-                         style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                      <div className="flex items-center gap-3">
-                        {compareMode && (
-                          <CompareToggle ticker={u.ticker} checked={compareSelection.includes(u.ticker)}
-                                         disabled={compareSelection.length >= MAX_COMPARE} onToggle={() => toggleCompare(u.ticker)} />
-                        )}
-                        <Link href={`/subvaluadas/${u.ticker}`} className="flex items-center gap-3 flex-1 min-w-0">
-                          <StockAvatar ticker={u.ticker} size="md" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold truncate" style={{ color: "var(--text)" }}>{u.ticker}</p>
-                            <p className="text-xs truncate" style={{ color: "var(--muted)" }}>
-                              {u.company_name}{u.sector ? ` · ${u.sector}` : ""}
-                            </p>
-                          </div>
-                        </Link>
-                        <MosBadge pct={u.margin_of_safety_pct} />
-                      </div>
-
-                      {u.liquidity_gate && <LiquidityWarning gate={u.liquidity_gate} />}
-
-                      {u.fair_value_range && <FairValueRangeDisplay range={u.fair_value_range} consensus={u.consensus_valuation} />}
-                      {u.confidence_meter && <ConfidenceMeter data={u.confidence_meter} />}
-
-                      <div className="flex gap-2">
-                        <StatChip label={t("subvaluadas.stats.price")} value={`$${u.price}`} />
-                        <StatChip label={t("subvaluadas.stats.intrinsicValue")} value={`$${u.intrinsic_value_base}`} />
-                        <StatChip label={t("subvaluadas.stats.businessQuality")} value={`${u.thesis_scores?.business_quality ?? "N/D"}/100`} />
-                      </div>
-
-                      {u.weak_dimension_warning && <WarningBadge text={u.weak_dimension_warning} />}
-                      {u.checklist && <ChecklistDisplay checklist={u.checklist} />}
-                      {u.blurb && <InsightBox>{u.blurb}</InsightBox>}
-
-                      <ValorIntrinsecoLink ticker={u.ticker} />
-
-                      <div className="flex gap-2">
-                        <FollowButton ticker={u.ticker} watchlisted={watchlisted.has(u.ticker)}
-                                      onFollow={() => handleFollow(u.ticker, u.company_name)} />
-                        <AnalyzeButton onAnalyze={() => handleAnalyze(u.ticker)} />
+              ) : (
+                <>
+                  <div className="flex items-end justify-between gap-5 flex-wrap mb-7">
+                    <div className="flex items-center gap-3.5">
+                      <div style={{ width: 46, height: 46 }}><StockAvatar ticker={data.ticker} size="lg" /></div>
+                      <div>
+                        <div className="text-lg font-semibold tracking-tight" style={{ color: "var(--text)" }}>{data.company_name}</div>
+                        <div className="text-[12.5px] mt-0.5" style={{ color: "var(--sub)" }}>
+                          {data.sector}{data.exchange ? ` · ${data.exchange}` : ""}
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </>
-            )}
+                    {data.price !== null && (
+                      <div className="text-right">
+                        <div className="text-[22px] font-medium tabular-nums" style={{ color: "var(--text)" }}>${data.price.toFixed(2)}</div>
+                        {data.change_pct !== null && (
+                          <div className="text-[12.5px] tabular-nums" style={{ color: data.change_pct >= 0 ? TEAL : CORAL }}>
+                            {data.change_pct >= 0 ? "+" : ""}{data.change_pct.toFixed(2)}% {t("subvaluadas.detail.today")}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ===== Nivel 1 summary — everything already known about this company ===== */}
+                  <div className="space-y-3 mb-8">
+                    <GeneratedAtNote generatedAt={data.generated_at} />
+                    {data.liquidity_gate && <LiquidityWarning gate={data.liquidity_gate} />}
+                    <div className="flex flex-wrap gap-3 items-start">
+                      {data.fair_value_range && <FairValueRangeDisplay range={data.fair_value_range} consensus={data.consensus_valuation} />}
+                      {data.confidence_meter && <ConfidenceMeter data={data.confidence_meter} />}
+                    </div>
+                    {data.market_expectations && <MarketExpectationsPanel data={data.market_expectations} />}
+                    {data.checklist && <ChecklistDisplay checklist={data.checklist} />}
+                    <InsightBox>{data.summary}</InsightBox>
+                  </div>
+
+                  <h1 style={{ fontSize: 28, fontWeight: 500, letterSpacing: "-0.3px", color: "var(--text)", margin: "0 0 6px" }}>
+                    {t("subvaluadas.detail.pageTitle.pre")} <em style={{ fontStyle: "italic", color: GOLD }}>{t("subvaluadas.detail.pageTitle.em")}</em>
+                  </h1>
+                  <p className="text-sm max-w-[620px] leading-relaxed mb-6" style={{ color: "var(--sub)" }}>{t("subvaluadas.detail.pageSubtitle")}</p>
+
+                  {hasData && (
+                    <div className="flex items-center gap-2.5 flex-wrap mb-6">
+                      <span className="text-[11.5px] flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
+                        <Sparkles className="w-3 h-3" style={{ color: GOLD }} />
+                        {t("subvaluadas.detail.autofillLabel")}
+                      </span>
+                      {[
+                        [t("subvaluadas.detail.chips.fcf"), fmtMoney(data.current_fcf)],
+                        [t("subvaluadas.detail.chips.netCash"), fmtMoney(data.net_cash)],
+                        [t("subvaluadas.detail.chips.shares"), `${(data.shares_outstanding! / 1e6).toFixed(0)}M`],
+                      ].map(([label, value]) => (
+                        <span key={label} className="rounded-full px-3 py-1.5 text-xs flex items-center gap-1.5" style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--sub)" }}>
+                          {label} <b style={{ color: "var(--text)", fontWeight: 500 }}>{value}</b>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {!hasData ? (
+                    <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                      <p className="text-[12px]" style={{ color: "var(--sub)" }}>{t("subvaluadas.dcf.noData")}</p>
+                    </div>
+                  ) : isFinancialSector ? (
+                    <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                      <p className="text-[12px]" style={{ color: "var(--sub)" }}>{t("subvaluadas.dcf.financialSectorNote")}</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* ===== HERO: sliders + output ===== */}
+                      <div className="rounded-[14px] p-7" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+                        <div className="grid gap-0" style={{ gridTemplateColumns: "1fr 320px" }}>
+                          <div className="pr-8 border-r" style={{ borderColor: "var(--border)" }}>
+                            {[
+                              { key: "growth", label: t("subvaluadas.detail.controls.growth"), sub: t("subvaluadas.detail.controls.growthSub"), tip: t("subvaluadas.dcf.assumptions.tooltips.growth"), value: g, set: setG, min: 0, max: 25, step: 0.5, range: data.dcf_assumptions?.g_range ?? null },
+                              { key: "wacc", label: t("subvaluadas.detail.controls.wacc"), sub: t("subvaluadas.detail.controls.waccSub"), tip: t("subvaluadas.dcf.assumptions.tooltips.wacc"), value: r, set: setR, min: 4, max: 18, step: 0.25, range: data.dcf_assumptions?.r_range ?? null },
+                              { key: "terminal", label: t("subvaluadas.detail.controls.terminalGrowth"), sub: t("subvaluadas.detail.controls.terminalGrowthSub"), tip: t("subvaluadas.dcf.assumptions.tooltips.terminalGrowth"), value: gt, set: setGt, min: 0, max: 5, step: 0.25, range: data.dcf_assumptions?.gt_range ?? null },
+                            ].map((ctrl, i, arr) => {
+                              const light = stoplightFor(ctrl.value, ctrl.range);
+                              return (
+                                <div key={ctrl.key} className={i < arr.length - 1 ? "mb-7" : ""}>
+                                  <div className="flex justify-between items-baseline mb-2.5">
+                                    <div>
+                                      <div className="text-[13.5px] font-semibold flex items-center" style={{ color: "var(--text)" }}>
+                                        {ctrl.label}
+                                        <Tooltip text={ctrl.tip} />
+                                      </div>
+                                      <span className="block text-[11px] font-normal mt-0.5" style={{ color: "var(--muted)" }}>{ctrl.sub}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[13px]">{STOPLIGHT_DOT[light]}</span>
+                                      <span className="text-base font-medium tabular-nums" style={{ color: GOLD }}>{pct(ctrl.value)}</span>
+                                    </div>
+                                  </div>
+                                  <input type="range" min={ctrl.min} max={ctrl.max} step={ctrl.step} value={ctrl.value}
+                                         onChange={(e) => ctrl.set(parseFloat(e.target.value))}
+                                         className="vi-range w-full" />
+                                  <div className="flex justify-between text-[10px] mt-1" style={{ color: "var(--muted)" }}>
+                                    <span>{ctrl.min}%</span><span>{ctrl.max}%</span>
+                                  </div>
+                                  <p className="text-[10px] mt-1" style={{ color: STOPLIGHT_COLOR[light] }}>{t(`subvaluadas.dcf.stoplight.${light}`)}</p>
+                                </div>
+                              );
+                            })}
+                            {!isDefault && (
+                              <button onClick={() => { setG(suggestedG); setR(suggestedR); setGt(suggestedGt); }}
+                                      className="flex items-center gap-1.5 text-[11px] font-bold mt-1" style={{ color: GOLD }}>
+                                <RotateCcw className="w-3 h-3" />
+                                {t("subvaluadas.dcf.reset")}
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="pl-8 flex flex-col gap-4">
+                            <div>
+                              <p className="text-[11.5px] uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.detail.output.label")}</p>
+                              {liveResult ? (
+                                <>
+                                  <p style={{ fontSize: 40, fontWeight: 500, letterSpacing: "-1px", lineHeight: 1, color: "var(--text)" }}>
+                                    ${liveResult.valorPorAccion.toFixed(2)}
+                                  </p>
+                                  <p className="text-[12.5px] tabular-nums" style={{ color: "var(--sub)" }}>
+                                    {t("subvaluadas.detail.output.vs", { price: price.toFixed(2) })}
+                                  </p>
+                                </>
+                              ) : (
+                                <p className="text-sm" style={{ color: "var(--muted)" }}>{t("subvaluadas.dcf.liveResult.noSolution")}</p>
+                              )}
+                            </div>
+
+                            {liveMos !== null && (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] font-bold tabular-nums w-fit"
+                                    style={{ background: liveMos >= 0 ? "rgba(79,166,149,0.14)" : "rgba(221,110,99,0.14)", color: liveMos >= 0 ? TEAL : CORAL }}>
+                                {liveMos >= 0 ? "+" : ""}{liveMos.toFixed(1)}% {t("subvaluadas.detail.marginOfSafety")}
+                              </span>
+                            )}
+
+                            {liveResult && (
+                              <div className="relative h-2.5 rounded-md mt-1" style={{ background: "var(--border-s)" }}>
+                                <div className="absolute inset-0 rounded-md opacity-35" style={{ background: `linear-gradient(90deg, ${CORAL}, ${GOLD}, ${TEAL})` }} />
+                                <div className="absolute -top-1.5 w-0.5 h-5" style={{ left: `${Math.max(0, Math.min(100, (price / barMax) * 100))}%`, background: "var(--text)" }}>
+                                  <span className="absolute -top-[19px] left-1/2 -translate-x-1/2 text-[9.5px] whitespace-nowrap" style={{ color: "var(--sub)" }}>{t("subvaluadas.detail.priceMarker")}</span>
+                                </div>
+                                <div className="absolute -top-1.5 w-0.5 h-5" style={{ left: `${Math.max(0, Math.min(100, (liveResult.valorPorAccion / barMax) * 100))}%`, background: GOLD }}>
+                                  <span className="absolute -top-[19px] left-1/2 -translate-x-1/2 text-[9.5px] font-bold whitespace-nowrap" style={{ color: GOLD }}>{t("subvaluadas.detail.viMarker")}</span>
+                                </div>
+                              </div>
+                            )}
+
+                            {data.dcf_assumptions?.market_implied_growth_pct != null && (
+                              <p className="text-[11px] leading-relaxed" style={{ color: "var(--muted)" }}>
+                                {t("subvaluadas.dcf.marketImplied", { market: data.dcf_assumptions.market_implied_growth_pct.toFixed(1), nuvos: suggestedG.toFixed(1) })}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <SensitivityHeatmap fcf0={fcf0} netCash={netCash} shares={shares} g={g} r={r} gt={gt} price={price} />
+
+                      <div className="mt-5 flex flex-wrap gap-3 items-center">
+                        <button onClick={() => setLevel3Open(true)} className="text-[12px] font-bold underline underline-offset-2" style={{ color: "var(--muted)" }}>
+                          {t("subvaluadas.detail.level3Toggle")}
+                        </button>
+                      </div>
+
+                      <div className="mt-6">
+                        <p className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "var(--muted)" }}>{t("subvaluadas.dcf.mentor.title")}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {mentorQuestions.map((q) => (
+                            <button key={q.key} onClick={() => askMentor(q.text)}
+                                    className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full border"
+                                    style={{ borderColor: "var(--border)", color: "var(--sub)", background: "var(--card)" }}>
+                              <MessageCircle className="w-3 h-3" />
+                              {q.text}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex gap-2 mt-6">
+                    <FollowButton ticker={data.ticker} watchlisted={watchlisted} onFollow={handleFollow} />
+                    <AnalyzeButton onAnalyze={handleAnalyze} />
+                  </div>
+
+                  <div className="flex items-start gap-2.5 mt-6 p-3.5 rounded-xl text-xs leading-relaxed" style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--muted)" }}>
+                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                    <span><b style={{ color: "var(--sub)" }}>{t("subvaluadas.detail.disclaimer.bold")}</b> {t("subvaluadas.detail.disclaimer.text")}</span>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
+
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={t("subvaluadas.premiumGate.paywallReason")} />
-      {compareMode && (
-        <CompareTray
-          items={compareItems}
-          onRemove={(ticker) => setCompareSelection((prev) => prev.filter((t) => t !== ticker))}
-          onClear={() => setCompareSelection([])}
-          onCompare={() => setCompareOpen(true)}
+
+      {level3Open && data && (
+        <FullModelModal
+          ticker={data.ticker}
+          price={data.price}
+          fcf0={fcf0}
+          netCash={netCash}
+          shares={shares}
+          g={g} r={r} gt={gt}
+          yearlyDetail={data.yearly_detail}
+          pvOfFcfSum={data.pv_of_fcf_sum}
+          pvOfTerminalValue={data.pv_of_terminal_value}
+          enterpriseValue={data.enterprise_value}
+          onClose={() => setLevel3Open(false)}
         />
       )}
-      {compareOpen && <CompareModal items={compareItems} onClose={() => setCompareOpen(false)} />}
+
+      <style jsx global>{`
+        .vi-range { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 3px; background: var(--border-s); outline: none; }
+        .vi-range::-webkit-slider-thumb { -webkit-appearance: none; width: 17px; height: 17px; border-radius: 50%; background: ${GOLD}; border: 3px solid #0A0F1A; box-shadow: 0 0 0 1px rgba(212,162,76,0.35); cursor: pointer; }
+        .vi-range::-moz-range-thumb { width: 17px; height: 17px; border-radius: 50%; background: ${GOLD}; border: 3px solid #0A0F1A; cursor: pointer; }
+      `}</style>
     </div>
   );
 }
