@@ -2224,19 +2224,30 @@ _QUICK_ANALYSIS_PREWARM_TICKER = "AAPL"
 
 
 async def job_prewarm_quick_analysis_default():
-    """Runs every few hours (well inside the 24h TTL — see
-    screener._QUICK_ANALYSIS_CACHE_TTL) to keep the Oportunidades screen's
-    default ticker (AAPL) always warm in cache, in both languages. Without
-    this, whichever user happens to open the screen right after the cache
-    entry expires pays the full live DCF+AI computation instead of an
-    instant cache hit — this job makes sure that user never exists."""
-    from app.api.routes.screener import _build_quick_analysis, _quick_analysis_cache_key, _QUICK_ANALYSIS_CACHE_TTL
-    from app.core.cache import cache_set
+    """Runs every few hours to guarantee the Oportunidades screen's default
+    ticker (AAPL) is NEVER cold in cache, in both languages — but the DCF+AI
+    analysis itself is only actually recomputed (re-billing Claude+FMP/
+    Finnhub) when AAPL has reported new earnings since the cached copy was
+    built, same check the /quick-analysis route itself does on every cache
+    hit (see screener._latest_reported_earnings_period). Most runs are a
+    cheap no-op: one lightweight earnings-period check per language, no
+    Claude call, no full recompute. Only a first-ever run (empty cache) or a
+    just-reported quarter actually pays the full cost."""
+    from app.api.routes.screener import (
+        _build_quick_analysis, _latest_reported_earnings_period, _quick_analysis_cache_key, _QUICK_ANALYSIS_CACHE_TTL,
+    )
+    from app.core.cache import cache_get, cache_set
 
     for lang in ("es", "en"):
         try:
+            cache_key = _quick_analysis_cache_key(_QUICK_ANALYSIS_PREWARM_TICKER, lang)
+            cached = cache_get(cache_key)
+            if cached:
+                current_period = await asyncio.to_thread(_latest_reported_earnings_period, _QUICK_ANALYSIS_PREWARM_TICKER)
+                if not current_period or current_period == cached.get("_earnings_period"):
+                    continue  # still the same reported quarter — nothing to do
             result = await _build_quick_analysis(_QUICK_ANALYSIS_PREWARM_TICKER, lang)
-            cache_set(_quick_analysis_cache_key(_QUICK_ANALYSIS_PREWARM_TICKER, lang), result, _QUICK_ANALYSIS_CACHE_TTL)
+            cache_set(cache_key, result, _QUICK_ANALYSIS_CACHE_TTL)
         except Exception as e:
             logger.error("job_prewarm_quick_analysis_default(%s) failed: %s", lang, e)
 

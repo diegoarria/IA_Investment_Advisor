@@ -373,6 +373,58 @@ async def undervalued(sector: str | None = None, limit: int = 60, lang: str | No
     return result
 
 
+def _latest_reported_earnings_period(ticker: str) -> str | None:
+    """Most recent fiscal period (e.g. '2026-06-30') this ticker has actually
+    reported earnings for, per Finnhub /stock/earnings. Used as the
+    invalidation signal for the quick-analysis cache: the DCF+AI analysis is
+    kept for up to _QUICK_ANALYSIS_CACHE_TTL (3 months), but gets recomputed
+    the moment this value changes — i.e. right after the company's next
+    earnings report — rather than on a dumb calendar timer. Cached 12h since
+    this is just a cheap metadata check, not the analysis itself; returns
+    None (never invented) on any failure, in which case the caller falls
+    back to serving the existing cache untouched."""
+    ck = f"fh:latest_earnings_period:{ticker}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached or None
+    try:
+        import os
+        import requests as _req
+        key = os.getenv("FINNHUB_API_KEY", "")
+        if not key:
+            return None
+        r = _req.get(
+            "https://finnhub.io/api/v1/stock/earnings",
+            params={"symbol": ticker, "token": key},
+            timeout=8,
+        )
+        items = r.json() if r.status_code == 200 else None
+        if not items or not isinstance(items, list):
+            cache_set(ck, "", ttl=3600 * 12)
+            return None
+        periods = [i.get("period") for i in items if i.get("period")]
+        latest = max(periods) if periods else None
+        cache_set(ck, latest or "", ttl=3600 * 12)
+        return latest
+    except Exception:
+        return None
+
+
+def _with_live_price(result: dict, ticker: str) -> dict:
+    """Overlays a live (≤60s-old, Finnhub-cached) quote onto an otherwise
+    long-cached quick-analysis payload — the DCF/AI narrative can safely sit
+    in cache for months, but the price and day-change shown next to it
+    should always track the market. Falls back to whatever price the cached
+    payload already has if the live quote is unavailable."""
+    quote = fh_quote(ticker)
+    if not quote or not quote.get("price"):
+        return result
+    result = dict(result)
+    result["price"] = quote["price"]
+    result["change_pct"] = quote.get("change_pct", result.get("change_pct"))
+    return result
+
+
 def _resolve_quick_ticker(query: str) -> str | None:
     """Resolves free-text (a ticker or a company name) to a real ticker
     symbol for the quick-analysis search below. Tries the input as a
@@ -455,7 +507,12 @@ async def _compute_extra_valuations(ticker: str, data: dict, dcf: dict):
     return relative_valuation, historical_valuation, consensus_valuation
 
 
-_QUICK_ANALYSIS_CACHE_TTL = 24 * 3600  # 1 day — fundamentals don't change intraday; avoids re-billing Claude+FMP/Finnhub for repeat searches
+_QUICK_ANALYSIS_CACHE_TTL = 90 * 24 * 3600  # 3 months — a ceiling, not the real invalidation trigger.
+# The DCF+AI analysis is only actually stale once the company reports new
+# earnings (see _latest_reported_earnings_period), which is checked on every
+# cache hit; this TTL just guarantees a hard refresh even for a ticker that
+# somehow never reports again. The live price is never subject to this at
+# all — see _with_live_price.
 
 
 def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
@@ -587,6 +644,10 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "checklist": checklist,
         "liquidity_gate": data.get("liquidity_gate"),
         "generated_at": int(time.time()),
+        # Internal bookkeeping field — not part of the documented response
+        # shape, only read by quick_analysis() to decide whether this cache
+        # entry is still valid (see _latest_reported_earnings_period).
+        "_earnings_period": await asyncio.to_thread(_latest_reported_earnings_period, ticker),
     }
     return result
 
@@ -598,15 +659,18 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
     summary (see ai_service.generate_quick_valuation_summary), for any
     ticker/company name, not just the curated screener universe.
 
-    Cached 24h per (ticker, lang) — this used to be fully live on every
-    request (both the Claude call AND the FMP/Finnhub fetches behind
-    get_fundamental_analysis re-ran every search), which meant a popular
-    ticker got re-billed on every single search with no cost tracking at
-    all. Fundamentals don't meaningfully change within a day, so caching
-    the whole response (numbers + AI text together, never just one or the
-    other) guarantees the narrative always matches the numbers shown next
-    to it, and the cached `generated_at` is disclosed to the user exactly
-    like the weekly undervalued-screener list already does.
+    The DCF+AI analysis is cached for up to 3 months per (ticker, lang) —
+    this used to be fully live on every request (both the Claude call AND
+    the FMP/Finnhub fetches behind get_fundamental_analysis re-ran every
+    search), which meant a popular ticker got re-billed on every single
+    search with no cost tracking at all. Fundamentals only meaningfully
+    change once the company reports new earnings, so on every cache hit we
+    cheaply check _latest_reported_earnings_period and recompute the whole
+    analysis (numbers + AI text together, never just one or the other) the
+    moment it changes — the 3-month TTL is just a safety-net ceiling, not
+    the real trigger. The price/change_pct shown, however, is NEVER served
+    stale: _with_live_price overlays a live (≤60s-old) quote on top of the
+    cached analysis on every request, cache hit or not.
 
     `lang` is passed explicitly by the frontend (see /undervalued's
     docstring for why this is preferred over profile.preferred_language)."""
@@ -628,15 +692,21 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
     cache_key = _quick_analysis_cache_key(ticker, lang)
     cached = cache_get(cache_key)
     if cached:
-        _log_thesis_event(user_id, ticker, cached)
-        return cached
+        current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
+        cached_period = cached.get("_earnings_period")
+        # Only recompute when we positively KNOW a new period was reported —
+        # if the live check fails (rate-limited, Finnhub hiccup) we fall back
+        # to the cache rather than pay for a full recompute on a false alarm.
+        if not current_period or current_period == cached_period:
+            _log_thesis_event(user_id, ticker, cached)
+            return _with_live_price(cached, ticker)
 
     result = await _build_quick_analysis(ticker, lang)
     # Only successful, complete results are cached — never a 404/503, so a
-    # transient provider hiccup doesn't get "stuck" wrong for 24h.
+    # transient provider hiccup doesn't get "stuck" wrong for 3 months.
     cache_set(cache_key, result, _QUICK_ANALYSIS_CACHE_TTL)
     _log_thesis_event(user_id, ticker, result)
-    return result
+    return _with_live_price(result, ticker)
 
 
 def _log_thesis_event(user_id: str, ticker: str, result: dict) -> None:
