@@ -13,6 +13,7 @@ import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
 import { profileApi, syncApi, billingApi, feedbackApi, learnApi } from "../../src/lib/api";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
+import { useFxRate } from "../../src/lib/useFxRate";
 import { useLearnStore, getUnclaimedMilestones, type StreakMilestone } from "../../src/lib/learnStore";
 import StreakMilestoneModal from "../../src/components/StreakMilestoneModal";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
@@ -344,6 +345,7 @@ export default function HomeScreen() {
   const [pendingMilestone, setPendingMilestone] = React.useState<StreakMilestone | null>(null);
   const [claimingMilestone, setClaimingMilestone] = React.useState(false);
   const { positions, portfolioCurrency } = usePortfolioStore();
+  const fxRate = useFxRate(portfolioCurrency);
   // Distinct holdings, not purchase lots — buying more of a ticker you
   // already own shouldn't inflate this count.
   const distinctPositionsCount = useMemo(() => new Set(positions.map((p) => p.ticker)).size, [positions]);
@@ -1013,7 +1015,7 @@ export default function HomeScreen() {
                     adjustsFontSizeToFit
                     minimumFontScale={0.5}
                   >
-                    {fmt(total, portfolioCurrency)}
+                    {fmt(total * fxRate, portfolioCurrency)}
                   </Text>
               }
             </View>
@@ -1043,7 +1045,7 @@ export default function HomeScreen() {
                   {fmtPct(dayGainPct)}
                 </Text>
                 <Text style={[ss.heroStatVal, { color: dayGain >= 0 ? colors.up : colors.down }]}>
-                  {dayGain >= 0 ? "+" : ""}{fmt(dayGain, portfolioCurrency)}
+                  {dayGain >= 0 ? "+" : ""}{fmt(dayGain * fxRate, portfolioCurrency)}
                 </Text>
               </View>
               <View style={[ss.heroDivider, { backgroundColor: colors.border }]} />
@@ -1056,7 +1058,7 @@ export default function HomeScreen() {
                       {fmtPct(ytdPct ?? 0)}
                     </Text>
                     <Text style={[ss.heroStatVal, { color: (ytdGain ?? 0) >= 0 ? colors.up : colors.down }]}>
-                      {(ytdGain ?? 0) >= 0 ? "+" : ""}{fmt(ytdGain ?? 0, portfolioCurrency)}
+                      {(ytdGain ?? 0) >= 0 ? "+" : ""}{fmt((ytdGain ?? 0) * fxRate, portfolioCurrency)}
                     </Text>
                   </>
                 ) : (
@@ -1073,7 +1075,7 @@ export default function HomeScreen() {
                       {fmtPct(totalGainPct)}
                     </Text>
                     <Text style={[ss.heroStatVal, { color: totalGain >= 0 ? colors.up : colors.down }]}>
-                      {totalGain >= 0 ? "+" : ""}{fmt(totalGain, portfolioCurrency)}
+                      {totalGain >= 0 ? "+" : ""}{fmt(totalGain * fxRate, portfolioCurrency)}
                     </Text>
                   </>
                 ) : shortGain !== null ? (
@@ -1082,7 +1084,7 @@ export default function HomeScreen() {
                       {fmtPct(shortPct ?? 0)}
                     </Text>
                     <Text style={[ss.heroStatVal, { color: (shortGain ?? 0) >= 0 ? colors.up : colors.down }]}>
-                      {(shortGain ?? 0) >= 0 ? "+" : ""}{fmt(shortGain ?? 0, portfolioCurrency)}
+                      {(shortGain ?? 0) >= 0 ? "+" : ""}{fmt((shortGain ?? 0) * fxRate, portfolioCurrency)}
                     </Text>
                   </>
                 ) : (
@@ -1399,7 +1401,7 @@ export default function HomeScreen() {
                           numberOfLines={1}>{m.name ?? m.ticker}</Text>
                       </View>
                       <View style={{ alignItems: "flex-end" }}>
-                        <Text style={[ss.moverPrice, { color: colors.text }]}>{sym}{m.curr.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                        <Text style={[ss.moverPrice, { color: colors.text }]}>{sym}{(m.curr * fxRate).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
                         <View style={[ss.moverBadge, { backgroundColor: m.chg >= 0 ? colors.up + "18" : colors.down + "18" }]}>
                           <Text style={[ss.moverBadgeText, { color: m.chg >= 0 ? colors.up : colors.down }]}>
                             {fmtPct(m.chg)}
@@ -1436,7 +1438,7 @@ export default function HomeScreen() {
                       numberOfLines={1}>{m.name ?? m.ticker}</Text>
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
-                    <Text style={[ss.moverPrice, { color: colors.text }]}>{sym}{m.curr.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                    <Text style={[ss.moverPrice, { color: colors.text }]}>{sym}{(m.curr * fxRate).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
                     <View style={[ss.moverBadge, { backgroundColor: colors.down + "18" }]}>
                       <Text style={[ss.moverBadgeText, { color: colors.down }]}>
                         {fmtPct(m.chg)}

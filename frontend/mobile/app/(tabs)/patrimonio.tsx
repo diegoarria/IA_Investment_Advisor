@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
+import { useFxRate } from "../../src/lib/useFxRate";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { usePaperStore, PAPER_INITIAL_CASH } from "../../src/lib/paperStore";
 import { marketApi } from "../../src/lib/api";
@@ -62,6 +63,7 @@ function tabLabel(tab: TabId, t: (k: string) => string): string {
 function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading: boolean; colors: any }) {
   const { t } = useTranslation();
   const { positions: rawPositions, portfolioCurrency } = usePortfolioStore();
+  const fxRate = useFxRate(portfolioCurrency);
 
   // One row per ticker, combining every purchase lot — `rawPositions` keeps each
   // purchase as its own row internally (for the lots panel on /portfolio), but this
@@ -114,7 +116,7 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
               <Text style={{ fontSize: 9, fontWeight: "900", color: colors.textMuted, letterSpacing: 0.5 }}>{portfolioCurrency}</Text>
             </View>
           </View>
-          <Text style={[ss.statValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{fmtMoney(totalValue, portfolioCurrency)}</Text>
+          <Text style={[ss.statValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{fmtMoney(totalValue * fxRate, portfolioCurrency)}</Text>
         </View>
         <View style={[ss.statCard, { flex: 1, backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[ss.statLabel, { color: colors.textMuted }]}>{t("patrimonio.portfolioTab.dayGain")}</Text>
@@ -124,7 +126,7 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
             adjustsFontSizeToFit
             minimumFontScale={0.5}
           >
-            {fmtMoney(dayGain, portfolioCurrency)}
+            {fmtMoney(dayGain * fxRate, portfolioCurrency)}
           </Text>
           <Text style={{ fontSize: 11, fontWeight: "600", color: dayGain >= 0 ? colors.up ?? "#10b981" : colors.down ?? "#ef4444", marginTop: 2 }}>
             {fmtPct(dayGainPct)}
@@ -140,7 +142,7 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
           adjustsFontSizeToFit
           minimumFontScale={0.5}
         >
-          {fmtMoney(totalGain, portfolioCurrency)}{" "}
+          {fmtMoney(totalGain * fxRate, portfolioCurrency)}{" "}
           <Text style={ss.statSubValue}>{fmtPct(totalGainPct)}</Text>
         </Text>
       </View>
@@ -180,11 +182,11 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
                 <View style={ss.rowInfo}>
                   <Text style={[ss.rowTicker, { color: colors.text }]}>{pos.ticker}</Text>
                   <Text style={[ss.rowSub, { color: colors.textMuted }]}>
-                    {t("patrimonio.portfolioTab.sharesAvgLabel", { shares: pos.shares, avgPrice: pos.avgPrice.toFixed(2) })}
+                    {t("patrimonio.portfolioTab.sharesAvgLabel", { shares: pos.shares, avgPrice: (pos.avgPrice * fxRate).toFixed(2) })}
                   </Text>
                 </View>
                 <View style={ss.rowRight}>
-                  <Text style={[ss.rowValue, { color: colors.text }]}>{fmtMoney(currentValue, portfolioCurrency)}</Text>
+                  <Text style={[ss.rowValue, { color: colors.text }]}>{fmtMoney(currentValue * fxRate, portfolioCurrency)}</Text>
                   <View style={ss.rowBadgeRow}>
                     <Text style={[ss.rowBadge, { color: positive ? colors.up ?? "#10b981" : colors.down ?? "#ef4444" }]}>
                       {fmtPct(gainPct)}
