@@ -554,6 +554,8 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
     current_fcf = _fcf_trend_vals[-1] if _fcf_trend_vals else None
     net_cash = (data.get("cash") or 0) - (data.get("total_debt") or 0)
     shares_outstanding = dcf.get("shares_outstanding")
+    from app.services.undervalued_screener_service import build_dcf_guidance
+    dcf_assumptions = build_dcf_guidance(dcf, data.get("thesis_scores"))
 
     result = {
         "ticker": data["ticker"],
@@ -563,6 +565,7 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
         "current_fcf": current_fcf,
         "net_cash": net_cash,
         "shares_outstanding": shares_outstanding,
+        "dcf_assumptions": dcf_assumptions,
         "intrinsic_value_base": dcf["scenarios"]["base"]["intrinsic_value_per_share"],
         "expected_value_per_share": dcf.get("expected_value_per_share"),
         "margin_of_safety_pct": dcf.get("margin_of_safety_pct"),

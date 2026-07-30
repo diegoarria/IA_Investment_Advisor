@@ -62,6 +62,20 @@ interface MomentumData {
   turn_score: number;
 }
 
+export interface DcfAssumptions {
+  methodology: string;
+  suggested_g: number | null;
+  suggested_r: number | null;
+  suggested_gt: number | null;
+  historical_growth_pct: number | null;
+  moat_adjustment_pct: number | null;
+  avg_roic_pct: number | null;
+  avg_roe_pct: number | null;
+  market_implied_growth_pct: number | null;
+  business_quality: number | null;
+  predictability: number | null;
+}
+
 interface UndervaluedResult {
   ticker: string;
   company_name: string | null;
@@ -82,6 +96,7 @@ interface UndervaluedResult {
   current_fcf: number | null;
   net_cash: number | null;
   shares_outstanding: number | null;
+  dcf_assumptions: DcfAssumptions | null;
 }
 
 interface QuickAnalysisResult {
@@ -105,6 +120,7 @@ interface QuickAnalysisResult {
   current_fcf: number | null;
   net_cash: number | null;
   shares_outstanding: number | null;
+  dcf_assumptions: DcfAssumptions | null;
 }
 
 function GeneratedAtNote({ generatedAt, colors }: { generatedAt: number; colors: any }) {
@@ -668,6 +684,7 @@ export default function SubvaluadasScreen() {
                 fcfRaw={quickResult.current_fcf}
                 netCashRaw={quickResult.net_cash}
                 sharesRaw={quickResult.shares_outstanding}
+                assumptions={quickResult.dcf_assumptions}
                 isPremium={isPremium}
                 onUnlock={() => setPaywallOpen(true)}
               />
@@ -785,6 +802,7 @@ export default function SubvaluadasScreen() {
                       fcfRaw={u.current_fcf}
                       netCashRaw={u.net_cash}
                       sharesRaw={u.shares_outstanding}
+                      assumptions={u.dcf_assumptions}
                       isPremium={isPremium}
                       onUnlock={() => setPaywallOpen(true)}
                     />

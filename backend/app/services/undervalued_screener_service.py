@@ -51,6 +51,42 @@ _WEAK_DIMENSIONS = [
 ]
 
 
+def build_dcf_guidance(dcf: Optional[dict], thesis_scores: Optional[dict]) -> Optional[dict]:
+    """Grounds the DCF calculator's growth/discount/terminal-growth sliders
+    in the SAME real numbers Nuvos's own valuation engine already computed
+    for this ticker — never a generic placeholder, never fabricated
+    "Buffett wisdom" text. Two methodologies exist (see
+    fundamental_analysis_service._build_financial_sector_valuation for
+    banks/insurers vs. the standard two-stage FCF DCF for everyone else),
+    normalized here into one shape so the frontend doesn't need to
+    special-case which one ran.
+
+    Returns None only when `dcf` itself is missing — every field inside is
+    already a real, previously-computed number (or None if that specific
+    sub-computation wasn't available), never guessed here."""
+    if not dcf:
+        return None
+    scenarios = dcf.get("scenarios") or {}
+    base = scenarios.get("base") or {}
+    growth_buildup = dcf.get("growth_buildup") or {}
+    market_expectations = dcf.get("market_expectations") or {}
+    thesis_scores = thesis_scores or {}
+
+    return {
+        "methodology": dcf.get("methodology", "two_stage_fcf"),
+        "suggested_g": base.get("stage1_growth_pct"),
+        "suggested_r": base.get("discount_rate_pct") or dcf.get("base_discount_rate_pct"),
+        "suggested_gt": dcf.get("terminal_growth_pct"),
+        "historical_growth_pct": growth_buildup.get("historical_growth_pct"),
+        "moat_adjustment_pct": growth_buildup.get("moat_adjustment_pct"),
+        "avg_roic_pct": growth_buildup.get("avg_roic_pct"),
+        "avg_roe_pct": dcf.get("avg_roe_pct"),
+        "market_implied_growth_pct": market_expectations.get("market_implied_growth_pct"),
+        "business_quality": thesis_scores.get("business_quality"),
+        "predictability": thesis_scores.get("predictability"),
+    }
+
+
 def _weak_dimension(thesis_scores: Optional[dict]) -> Optional[dict]:
     """Real signal (from the same Investment Thesis Scorecard already
     computed, not a new estimate) that a high margin of safety might be a
@@ -294,6 +330,7 @@ async def refresh_undervalued_screener() -> None:
             entry["current_fcf"] = latest_fcf
             entry["net_cash"] = cash - total_debt
             entry["shares_outstanding"] = shares_out
+            entry["dcf_assumptions"] = build_dcf_guidance(dcf, thesis_scores)
         except Exception as exc:
             logger.warning("undervalued_screener_service: valuation engine (methods 3-5) failed for %s: %s", entry["ticker"], exc)
             entry["relative_valuation"] = None
@@ -302,6 +339,7 @@ async def refresh_undervalued_screener() -> None:
             entry["current_fcf"] = None
             entry["net_cash"] = None
             entry["shares_outstanding"] = None
+            entry["dcf_assumptions"] = None
 
         try:
             entry["momentum"] = _compute_momentum(entry["ticker"], entry.get("price"))

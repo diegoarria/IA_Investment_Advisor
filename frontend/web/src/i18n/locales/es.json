@@ -563,16 +563,11 @@
   },
   "dcfCalculator": {
     "title": "Calculadora de Valor Intrínseco — {{ticker}}",
-    "fcf": "FCF (TTM)",
-    "netCash": "Caja neta",
-    "shares": "Acciones diluidas",
     "currentPrice": "Precio actual",
-    "notAvailable": "No disponible",
-    "enterManually": "Ingresar manual",
-    "missingDataHint": "Faltan datos para calcular — ingrésalos manualmente arriba.",
     "growthLabel": "Crecimiento anual",
     "discountLabel": "Tasa de descuento",
     "terminalGrowthLabel": "Crecimiento a perpetuidad",
+    "resetToSuggested": "Restablecer al supuesto sugerido",
     "intrinsicValue": "Valor intrínseco por acción",
     "vsCurrentPrice": "vs. precio actual ${{price}}",
     "marginPositive": "+{{pct}}% de margen de seguridad",
@@ -583,7 +578,19 @@
     "you": "TÚ",
     "unlockTitle": "Desbloquea los supuestos personalizados con Premium",
     "unlockCta": "Ver planes",
-    "disclaimer": "Herramienta educativa de modelaje financiero. No es asesoría de inversión ni recomendación de compra o venta. El resultado depende enteramente de los supuestos que elijas — Nuvos AI no garantiza que el precio de mercado converja hacia este número."
+    "disclaimer": "Herramienta educativa de modelaje financiero. No es asesoría de inversión ni recomendación de compra o venta. El resultado depende enteramente de los supuestos que elijas — Nuvos AI no garantiza que el precio de mercado converja hacia este número.",
+    "guidanceTitle": "Guía de supuestos — cómo lo calculó Nuvos",
+    "guidance": {
+      "growthBuildup": "Crecimiento histórico real: {{historical}}% → ajustado {{sign}}{{adjustment}}% según la calidad del negocio = {{g}} sugerido.",
+      "suggestedGOnly": "Crecimiento sugerido: {{g}}, basado en el desempeño real de la empresa.",
+      "suggestedR": "Tasa de descuento sugerida: {{r}} — el costo de capital real de esta empresa (CAPM/WACC), no un número genérico.",
+      "marketImplied": "El mercado hoy ya paga un precio que implica un crecimiento de {{pct}}% — compara tu supuesto contra esto.",
+      "financialIntro": "Es una empresa financiera (banco/aseguradora) — Nuvos usa Precio/Valor en Libros justificado en vez de FCF, porque el flujo de caja libre no refleja bien este sector.",
+      "financialRoe": "ROE promedio real: {{roe}}% · Costo de equity sugerido: {{r}}.",
+      "suggestedGt": "Crecimiento sostenible sugerido: {{gt}}, limitado a lo que el negocio puede sostener a largo plazo.",
+      "businessQuality": "Calidad de negocio: {{score}}/100",
+      "predictability": "Previsibilidad: {{score}}/100"
+    }
   },
   "subvaluadas": {
     "title": "Mejores Oportunidades",

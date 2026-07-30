@@ -563,16 +563,11 @@
   },
   "dcfCalculator": {
     "title": "Intrinsic Value Calculator — {{ticker}}",
-    "fcf": "FCF (TTM)",
-    "netCash": "Net cash",
-    "shares": "Diluted shares",
     "currentPrice": "Current price",
-    "notAvailable": "Not available",
-    "enterManually": "Enter manually",
-    "missingDataHint": "Missing data to calculate — enter it manually above.",
     "growthLabel": "Annual growth",
     "discountLabel": "Discount rate",
     "terminalGrowthLabel": "Terminal growth",
+    "resetToSuggested": "Reset to suggested assumption",
     "intrinsicValue": "Intrinsic value per share",
     "vsCurrentPrice": "vs. current price ${{price}}",
     "marginPositive": "+{{pct}}% margin of safety",
@@ -583,7 +578,19 @@
     "you": "YOU",
     "unlockTitle": "Unlock custom assumptions with Premium",
     "unlockCta": "See plans",
-    "disclaimer": "Educational financial modeling tool. Not investment advice or a buy/sell recommendation. The result depends entirely on the assumptions you choose — Nuvos AI does not guarantee the market price will converge toward this number."
+    "disclaimer": "Educational financial modeling tool. Not investment advice or a buy/sell recommendation. The result depends entirely on the assumptions you choose — Nuvos AI does not guarantee the market price will converge toward this number.",
+    "guidanceTitle": "Assumption guide — how Nuvos calculated this",
+    "guidance": {
+      "growthBuildup": "Real historical growth: {{historical}}% → adjusted {{sign}}{{adjustment}}% for business quality = {{g}} suggested.",
+      "suggestedGOnly": "Suggested growth: {{g}}, based on the company's real performance.",
+      "suggestedR": "Suggested discount rate: {{r}} — this company's real cost of capital (CAPM/WACC), not a generic number.",
+      "marketImplied": "The market is already pricing in a growth rate of {{pct}}% today — compare your assumption against this.",
+      "financialIntro": "This is a financial company (bank/insurer) — Nuvos uses a justified Price-to-Book model instead of FCF, since free cash flow doesn't reflect this sector well.",
+      "financialRoe": "Real average ROE: {{roe}}% · Suggested cost of equity: {{r}}.",
+      "suggestedGt": "Suggested sustainable growth: {{gt}}, capped at what the business can sustain long-term.",
+      "businessQuality": "Business quality: {{score}}/100",
+      "predictability": "Predictability: {{score}}/100"
+    }
   },
   "subvaluadas": {
     "title": "Top Opportunities",
