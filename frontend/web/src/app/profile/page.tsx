@@ -158,6 +158,11 @@ export default function ProfilePage() {
   const [psyEditField, setPsyEditField] = useState<string | null>(null);
   const [savingPsy, setSavingPsy] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  // Both sections default collapsed — they're dense (decision log, bias
+  // analysis, thesis history) and most visits to /profile don't need them
+  // open; a "Ver detalles" button reveals them on demand instead.
+  const [showDiario, setShowDiario] = useState(false);
+  const [showBitacora, setShowBitacora] = useState(false);
   const [letterOpen, setLetterOpen] = useState(false);
   const [letter, setLetter] = useState<string | null>(null);
   const [letterLoading, setLetterLoading] = useState(false);
@@ -678,23 +683,43 @@ export default function ProfilePage() {
                 {/* Fortalezas y Puntos Ciegos — Personal Investment Memory:
                     detección real de sesgos/fortalezas a partir del
                     historial de decisiones (auto-capturado en cada sync de
-                    portafolio, ver sync.py), no de una encuesta. */}
+                    portafolio, ver sync.py), no de una encuesta. Collapsed by
+                    default — dense content most profile visits don't need. */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>
-                    {t("diarioDecisiones.headerTitle")}
-                  </p>
-                  <DiarioDecisionesCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />
+                  <button
+                    onClick={() => setShowDiario((v) => !v)}
+                    className="w-full flex items-center justify-between mb-2"
+                  >
+                    <p className="text-[10px] font-bold uppercase tracking-widest ml-0.5" style={{ color: "var(--dim)" }}>
+                      {t("diarioDecisiones.headerTitle")}
+                    </p>
+                    <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--accent-l)" }}>
+                      {showDiario ? t("profile.hideDetails") : t("profile.viewDetails")}
+                      {showDiario ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </span>
+                  </button>
+                  {showDiario && <DiarioDecisionesCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />}
                 </div>
 
                 {/* Tu Bitácora — Investment Graph: distinto de Fortalezas y
                     Puntos Ciegos (eso es psicología); esto es el archivo
                     intelectual — tesis, preguntas, watchlist, eventos de
-                    mercado, cruzados por empresa y en el tiempo. */}
+                    mercado, cruzados por empresa y en el tiempo. Collapsed by
+                    default, same reasoning as above. */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>
-                    {t("investmentGraph.sectionTitle")}
-                  </p>
-                  <InvestmentGraphSection isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />
+                  <button
+                    onClick={() => setShowBitacora((v) => !v)}
+                    className="w-full flex items-center justify-between mb-2"
+                  >
+                    <p className="text-[10px] font-bold uppercase tracking-widest ml-0.5" style={{ color: "var(--dim)" }}>
+                      {t("investmentGraph.sectionTitle")}
+                    </p>
+                    <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--accent-l)" }}>
+                      {showBitacora ? t("profile.hideDetails") : t("profile.viewDetails")}
+                      {showBitacora ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </span>
+                  </button>
+                  {showBitacora && <InvestmentGraphSection isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />}
                 </div>
 
                 {/* Mentor card */}
