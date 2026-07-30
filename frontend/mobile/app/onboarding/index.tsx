@@ -1,14 +1,17 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Image,
+  StyleSheet, Image, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { profileApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useTranslation } from "react-i18next";
+import { useLanguage } from "../../src/lib/LanguageContext";
 import type { TFunction } from "i18next";
 import { useAppStore, RISK_CONFIG } from "../../src/lib/profileStore";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
@@ -159,6 +162,7 @@ export default function OnboardingScreen() {
   const QUIZ_Q4 = getQuizQ4(t);
   const setProfile    = useAppStore((state) => state.setProfile);
   const existingProfile = useAppStore((state) => state.profile);
+  const { language } = useLanguage();
 
   useEffect(() => {
     if (existingProfile?.name) { router.replace("/(tabs)/home"); return; }
@@ -180,8 +184,50 @@ export default function OnboardingScreen() {
     investment_horizon: "", investment_goal: "", q1: "", q4: "",
     has_broker: "", broker_name: "", has_investments: "", investing_knowledge: "",
   });
+
+  // ── Draft autosave ───────────────────────────────────────────────────────────
+  // A 10-step flow held only in memory loses everything the instant the app is
+  // backgrounded and killed by the OS, a phone call interrupts, or the device
+  // just restarts mid-onboarding. Persist every answer as it's typed and
+  // restore it on the next launch, so an interruption never means starting over.
+  const draftKeyRef = useRef<string | null>(null);
+  const [draftLoaded, setDraftLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const uid = (await SecureStore.getItemAsync("user_id").catch(() => null)) ?? "guest";
+      draftKeyRef.current = `onboarding_draft__${uid}`;
+      try {
+        const raw = await AsyncStorage.getItem(draftKeyRef.current);
+        if (raw) {
+          const draft = JSON.parse(raw);
+          if (draft.form) setForm((f) => ({ ...f, ...draft.form }));
+          if (typeof draft.step === "number") setStep(draft.step);
+          if (typeof draft.acceptedTerms === "boolean") setAcceptedTerms(draft.acceptedTerms);
+          if (typeof draft.acceptedDisclaimer === "boolean") setAcceptedDisclaimer(draft.acceptedDisclaimer);
+        }
+      } catch { /* corrupted/unreadable draft — just start fresh, never crash onboarding over it */ }
+      setDraftLoaded(true);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!draftLoaded || !draftKeyRef.current) return;
+    const id = setTimeout(() => {
+      AsyncStorage.setItem(draftKeyRef.current!, JSON.stringify({ form, step, acceptedTerms, acceptedDisclaimer })).catch(() => {});
+    }, 400);
+    return () => clearTimeout(id);
+  }, [form, step, acceptedTerms, acceptedDisclaimer, draftLoaded]);
+
   const phoneDigits = form.phone_local.replace(/\D/g, "");
-  const phoneValid  = !!form.phone_dial_code && phoneDigits.length >= 7 && phoneDigits.length <= 14;
+  // Mirrors the server's E.164 check (backend/app/models/user.py:
+  // ^\+[1-9]\d{6,14}$, i.e. 7-15 digits total INCLUDING the dial code) —
+  // this used to only cap the local part at 14 digits regardless of dial
+  // code length, so e.g. a 2-digit dial code + 14 local digits (16 total)
+  // passed every client check and only failed at the very last step, on
+  // the server, after all 10 steps were already filled in.
+  const dialDigits = form.phone_dial_code.replace(/\D/g, "").length;
+  const phoneValid  = !!form.phone_dial_code && phoneDigits.length >= 7 && (dialDigits + phoneDigits.length) <= 15;
   const firstName  = form.name.trim().split(" ")[0];
   const calculated = calculateRisk(form.q1, form.q4);
   const riskCfg    = RISK_CONFIG[calculated];
@@ -191,7 +237,11 @@ export default function OnboardingScreen() {
 
   const birthDateValid = (() => {
     const d = parseInt(form.birth_day), m = parseInt(form.birth_month), y = parseInt(form.birth_year);
-    if (!d || !m || !y || y < 1920 || y > 2006) return false;
+    // Upper bound is just a sanity check against typos (a year in the
+    // future) — the real 18+ enforcement is the elapsed-time check below.
+    // This used to be hardcoded to 2006, which permanently locks out anyone
+    // who turns 18 in a later year from ever completing onboarding.
+    if (!d || !m || !y || y < 1920 || y > new Date().getFullYear()) return false;
     const dt = new Date(y, m - 1, d);
     if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return false;
     return Date.now() - dt.getTime() >= 18 * 365.25 * 86_400_000;
@@ -402,7 +452,11 @@ export default function OnboardingScreen() {
       emoji: "💰",
       title: t("onboarding.step2.title"),
       sub: t("onboarding.step2.sub"),
-      isValid: () => pmt > 0 && parseFloat(form.investment_goal_amount) > 0 && horizonYrs >= 1,
+      // Checks the RAW field, not horizonYrs — horizonYrs defaults to 10
+      // when the field is empty (for the calculator preview elsewhere on
+      // this step), which used to make this validation pass even with an
+      // empty horizon field, silently saving an empty investment_horizon.
+      isValid: () => pmt > 0 && parseFloat(form.investment_goal_amount) > 0 && parseInt(form.investment_horizon) > 0,
       content: (
         <View style={{ gap: 20 }}>
           <View>
@@ -470,7 +524,7 @@ export default function OnboardingScreen() {
               <TextInput
                 style={[S.input, S.prefixInput, { flex: 1 }]}
                 value={form.investment_horizon}
-                onChangeText={(v) => setForm(f => ({ ...f, investment_horizon: v }))}
+                onChangeText={(v) => setForm(f => ({ ...f, investment_horizon: v.replace(/[^0-9]/g, "").slice(0, 3) }))}
                 placeholder="10" placeholderTextColor="#374151"
                 keyboardType="numeric"
               />
@@ -636,7 +690,7 @@ export default function OnboardingScreen() {
 
     // 7 — Perfil del inversor (reveal)
     {
-      emoji: riskCfg?.color ? "" : "🎉",
+      emoji: "🎉",
       title: t("onboarding.step7.title", { name: firstName || t("onboarding.step7.investorFallback") }),
       sub: t("onboarding.step7.sub"),
       isValid: () => true,
@@ -830,35 +884,61 @@ export default function OnboardingScreen() {
       return;
     }
     setLoading(true); setError("");
+    const profileData = {
+      phone_number:           form.phone_dial_code + phoneDigits,
+      name:                   form.name.trim(),
+      birth_date:             birthDateStr || undefined,
+      country:                form.country || undefined,
+      monthly_income:         form.monthly_income || undefined,
+      initial_capital:        form.initial_capital || undefined,
+      monthly_contribution:   form.monthly_contribution,
+      investment_goal:        form.investment_goal,
+      investment_goal_amount: form.investment_goal_amount,
+      investment_horizon:     form.investment_horizon,
+      knowledge_level:        form.knowledge_level,
+      risk_tolerance:         calculated,
+      quiz_answers:           { q1: form.q1, q4: form.q4, investing_knowledge: form.investing_knowledge.trim() || undefined },
+      has_broker:             form.has_broker === "yes",
+      broker_name:            form.has_broker === "yes" ? (form.broker_name || undefined) : undefined,
+      has_investments:        form.has_investments === "yes",
+      mentor:                 null,
+      language,
+      terms_accepted_at:      new Date().toISOString(),
+      terms_version:          "2026-06",
+    };
+
+    // This is the single most important write in the whole app — no row
+    // here means no trial, no personalization, nothing. Retry a couple of
+    // times with backoff on a transient failure before giving up, instead
+    // of letting one flaky request strand the user.
+    const attempt = async (n: number): Promise<void> => {
+      try {
+        await profileApi.create(profileData as Record<string, unknown>);
+      } catch (err: unknown) {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        const isDefinitive = status !== undefined && status !== 503 && status !== 429;
+        if (!isDefinitive && n < 2) {
+          await new Promise((r) => setTimeout(r, 800 * (n + 1)));
+          return attempt(n + 1);
+        }
+        throw err;
+      }
+    };
+
     try {
-      const profileData = {
-        phone_number:           form.phone_dial_code + phoneDigits,
-        name:                   form.name.trim(),
-        birth_date:             birthDateStr || undefined,
-        country:                form.country || undefined,
-        monthly_income:         form.monthly_income || undefined,
-        initial_capital:        form.initial_capital || undefined,
-        monthly_contribution:   form.monthly_contribution,
-        investment_goal:        form.investment_goal,
-        investment_goal_amount: form.investment_goal_amount,
-        investment_horizon:     form.investment_horizon,
-        knowledge_level:        form.knowledge_level,
-        risk_tolerance:         calculated,
-        quiz_answers:           { q1: form.q1, q4: form.q4, investing_knowledge: form.investing_knowledge.trim() || undefined },
-        has_broker:             form.has_broker === "yes",
-        broker_name:            form.has_broker === "yes" ? (form.broker_name || undefined) : undefined,
-        has_investments:        form.has_investments === "yes",
-        mentor:                 null,
-      };
+      await attempt(0);
+      // Only reflect success in local state / analytics / navigation once
+      // the server has actually confirmed the profile exists — this used
+      // to fire all of this immediately via a fire-and-forget call, so a
+      // failed save looked identical to a successful one to the user, who
+      // then had no profile, no trial, and no way to ever retry (the guard
+      // above already thought onboarding was done).
       setProfile(profileData as unknown as import("../../src/lib/profileStore").UserProfile);
+      if (draftKeyRef.current) AsyncStorage.removeItem(draftKeyRef.current).catch(() => {});
       // The trial starts server-side the instant this profile row is
-      // created (see backend profile.py) — refresh subscription status as
-      // soon as that resolves so the app already knows the user is in
-      // their 30-day trial without waiting on some other screen to
-      // happen to trigger a fetch.
-      profileApi.create(profileData as Record<string, unknown>)
-        .then(() => useSubscriptionStore.getState().fetchStatus())
-        .catch(() => {});
+      // created (see backend profile.py) — refresh subscription status now
+      // that it's actually confirmed created.
+      useSubscriptionStore.getState().fetchStatus().catch(() => {});
       posthog.capture("onboarding_completed", {
         risk_tolerance: calculated,
         knowledge_level: form.knowledge_level,
@@ -868,8 +948,12 @@ export default function OnboardingScreen() {
         country: form.country,
       });
       router.replace("/(tabs)/home");
-    } catch {
-      setError(t("onboarding.saveProfileError"));
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      const msg = Array.isArray(detail)
+        ? detail.map((d: { msg?: string }) => d?.msg ?? String(d)).join(", ")
+        : typeof detail === "string" ? detail : null;
+      setError(msg || t("onboarding.saveProfileError"));
     } finally {
       setLoading(false);
     }
@@ -881,6 +965,11 @@ export default function OnboardingScreen() {
     <View style={S.screen}>
       <View style={S.glowOrb} />
       <SafeAreaView style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
+      >
 
         {/* ── Top nav ── */}
         <View style={S.topNav}>
@@ -960,6 +1049,7 @@ export default function OnboardingScreen() {
           </TouchableOpacity>
         </View>
 
+      </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );

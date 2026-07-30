@@ -133,8 +133,6 @@ export default function AuthScreen() {
             mentor: p.mentor ?? null,
             avatarUri: p.avatar_url ?? existingAvatar ?? null,
           });
-        } else {
-          throw new Error("profile fetch failed");
         }
         if (syncRes.status === "fulfilled") {
           const d = syncRes.value.data;
@@ -162,10 +160,33 @@ export default function AuthScreen() {
         // device and has no guard against overwriting a pending local edit.
         usePortfolioStore.getState().loadFromServer().catch(() => {});
         useChatStore.getState().restoreFromServer().catch(() => {});
-        router.replace(await getStartRoute() as any);
+
+        if (profileRes.status === "fulfilled") {
+          router.replace(await getStartRoute() as any);
+        } else {
+          // A 404 here means a VALID session with no profile row yet — e.g.
+          // the app was killed mid-onboarding (very common: a phone call,
+          // OS memory pressure, or just switching apps). That user must be
+          // sent back to onboarding, never signed out — wiping their tokens
+          // here used to force a fresh login and destroy everything they'd
+          // already entered. Only a real 401 (expired/invalid token) is an
+          // actual reason to clear credentials.
+          const status = (profileRes as PromiseRejectedResult).reason?.response?.status;
+          if (status === 401) {
+            await SecureStore.deleteItemAsync("access_token").catch(() => {});
+            await SecureStore.deleteItemAsync("refresh_token").catch(() => {});
+            await _checkBiometricAvailability();
+            setChecking(false);
+            return;
+          }
+          const hasLocalProfile = !!useAppStore.getState().profile?.name;
+          router.replace(status === 404 && !hasLocalProfile ? "/onboarding" : await getStartRoute() as any);
+        }
       } catch {
-        await SecureStore.deleteItemAsync("access_token").catch(() => {});
-        await SecureStore.deleteItemAsync("refresh_token").catch(() => {});
+        // Promise.allSettled above never rejects, so only a genuine
+        // unexpected error (not a network/auth failure) reaches here —
+        // never wipe a possibly-valid session over that; just let the next
+        // launch try again instead of forcing a re-login.
         await _checkBiometricAvailability();
         setChecking(false);
       }

@@ -43,8 +43,27 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
         const { profile: profileApi } = await import("@/lib/api");
         const res = await profileApi.get();
         setAuth("", res.data.user_id);
-      } catch {
-        await useAuthStore.getState().clearAuth();
+      } catch (err: unknown) {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 404) {
+          // A 404 here means a VALID session with no profile row yet — the
+          // auth dependency on the backend already rejects an invalid/
+          // expired session with 401 before this endpoint can even run a
+          // query, so 404 can only happen mid-onboarding. Signing the user
+          // out here (the old behavior) was destroying an otherwise-valid
+          // session the instant a reload happened before onboarding
+          // finished, or whenever the persisted `isAuthenticated` flag
+          // wasn't readable (Safari Private Browsing, storage cleared).
+          const userId = (err as { response?: { headers?: Record<string, string> } })?.response?.headers?.["x-user-id"];
+          if (userId) setAuth("", userId);
+          return;
+        }
+        if (status === 401) {
+          await useAuthStore.getState().clearAuth();
+          return;
+        }
+        // Network error / 5xx / timeout — never sign the user out over a
+        // transient failure; just try again next load.
       }
     }
 

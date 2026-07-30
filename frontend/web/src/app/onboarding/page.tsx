@@ -138,7 +138,7 @@ export default function OnboardingPage() {
   const { t } = useTranslation();
   const router  = useRouter();
   const { setProfile }  = useProfileStore();
-  const { isAuthenticated, authRestoring, clearAuth } = useAuthStore();
+  const { isAuthenticated, authRestoring, clearAuth, userId } = useAuthStore();
   const { language } = useLanguageStore();
 
   const MONTHS = t("onboarding.months", { returnObjects: true }) as string[];
@@ -157,6 +157,36 @@ export default function OnboardingPage() {
     q1: "", q4: "", has_broker: "", broker_name: "", has_investments: "", investing_knowledge: "",
   });
 
+  // ── Draft autosave ───────────────────────────────────────────────────────────
+  // A 10-step flow held only in React state loses everything the instant the
+  // tab is closed, the browser crashes, or a reload happens — persist every
+  // answer as it's typed and restore it on the next load, so an interruption
+  // never means starting over.
+  const draftKey = `onboarding_draft__${userId || "guest"}`;
+  const [draftLoaded, setDraftLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft.form) setForm((f) => ({ ...f, ...draft.form }));
+        if (typeof draft.step === "number") setStep(draft.step);
+        if (typeof draft.acceptedTerms === "boolean") setAcceptedTerms(draft.acceptedTerms);
+        if (typeof draft.acceptedDisclaimer === "boolean") setAcceptedDisclaimer(draft.acceptedDisclaimer);
+      }
+    } catch { /* corrupted/unreadable draft — just start fresh, never crash onboarding over it */ }
+    setDraftLoaded(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!draftLoaded) return;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({ form, step, acceptedTerms, acceptedDisclaimer }));
+    } catch { /* Safari Private Browsing etc. — autosave is best-effort */ }
+  }, [form, step, acceptedTerms, acceptedDisclaimer, draftLoaded, draftKey]);
+
   useEffect(() => { if (!authRestoring && !isAuthenticated) router.push("/"); }, [isAuthenticated, authRestoring]);
 
   // Guard: if this account already has a profile, never show onboarding again.
@@ -164,10 +194,34 @@ export default function OnboardingPage() {
   // which stayed set from whichever account last onboarded on this device —
   // silently bouncing a genuinely new second account away from onboarding.
   // The profileApi.get() check below is the real, per-account source of truth.)
+  //
+  // On a slow connection this can resolve several steps into a genuinely new
+  // user's form-filling — only act on it if they haven't actually started
+  // typing anything yet, so a real answer never gets yanked away by a
+  // full-page navigation mid-flow.
   useEffect(() => {
-    profileApi.get().then(() => { window.location.href = "/home"; }).catch(() => {});
+    profileApi.get()
+      .then(() => {
+        if (step === 0 && !form.name.trim() && !form.phone_local.trim()) {
+          window.location.href = "/home";
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  if (!authRestoring && !isAuthenticated) return null;
+
+  // Never render the form until we actually know whether this session is
+  // valid — while restoring, the form used to be fully interactive, so a
+  // session that turned out invalid discarded all 10 steps at submit time
+  // instead of before the user ever typed anything.
+  if (authRestoring) {
+    return (
+      <div className="flex h-screen items-center justify-center" style={{ background: "var(--bg)" }}>
+        <div className="w-8 h-8 rounded-full border-2 animate-spin" style={{ borderColor: "var(--border)", borderTopColor: "var(--accent)" }} />
+      </div>
+    );
+  }
+  if (!isAuthenticated) return null;
 
   // ── Derived values ───────────────────────────────────────────────────────────
   const firstName  = form.name.trim().split(" ")[0];
@@ -241,7 +295,14 @@ export default function OnboardingPage() {
     : t("onboarding.step8.goalIncreaseContribution", { years: horizonYrs, amount: fmtMoney(fvHorizon) });
 
   const phoneDigits = form.phone_local.replace(/\D/g, "");
-  const phoneValid  = !!form.phone_dial_code && phoneDigits.length >= 7 && phoneDigits.length <= 14;
+  // Mirrors the server's E.164 check (backend/app/models/user.py:
+  // ^\+[1-9]\d{6,14}$, i.e. 7-15 digits total INCLUDING the dial code) —
+  // this used to only cap the local part at 14 digits regardless of dial
+  // code length, so e.g. a 2-digit dial code + 14 local digits (16 total)
+  // passed every client check and only failed at the very last step, on
+  // the server, after all other steps were already filled in.
+  const dialDigits = form.phone_dial_code.replace(/\D/g, "").length;
+  const phoneValid  = !!form.phone_dial_code && phoneDigits.length >= 7 && (dialDigits + phoneDigits.length) <= 15;
 
   const STEPS = [
     // 0 — Teléfono + nombre + fecha de nacimiento + país
@@ -324,7 +385,11 @@ export default function OnboardingPage() {
                       className="rounded-xl border px-3 py-3 text-sm outline-none appearance-none"
                       style={{ background: "var(--raised)", borderColor: "var(--border)", color: form.birth_year ? "var(--text)" : "var(--muted)" }}>
                 <option value="">{t("onboarding.step0.year")}</option>
-                {Array.from({ length: 73 }, (_, i) => 2006 - i).map(y => (
+                {/* Max year is "this year minus 18" so anyone who just turned 18
+                    can always select their birth year — this used to be
+                    hardcoded to 2006 and would permanently lock out newly-
+                    eligible adults year after year. */}
+                {Array.from({ length: 73 }, (_, i) => (new Date().getFullYear() - 18) - i).map(y => (
                   <option key={y} value={String(y)}>{y}</option>
                 ))}
               </select>
@@ -407,7 +472,11 @@ export default function OnboardingPage() {
     {
       subtitle: t("onboarding.step2.subtitle"),
       title: t("onboarding.step2.title"),
-      valid: () => pmt > 0 && parseFloat(form.investment_goal_amount) > 0 && horizonYrs >= 1,
+      // Checks the RAW field, not horizonYrs — horizonYrs defaults to 10 when
+      // the field is empty (for the calculator preview elsewhere on this
+      // step), which used to make this validation pass even with an empty
+      // horizon field, silently saving an empty investment_horizon.
+      valid: () => pmt > 0 && parseFloat(form.investment_goal_amount) > 0 && parseInt(form.investment_horizon) > 0,
       content: (
         <div className="space-y-5">
           <div>
@@ -492,7 +561,15 @@ export default function OnboardingPage() {
             <div className="relative">
               <input type="number" min={1} max={50}
                      value={form.investment_horizon}
-                     onChange={(e) => setForm(f => ({ ...f, investment_horizon: e.target.value }))}
+                     onChange={(e) => {
+                       // `min`/`max` on a native number input are display hints only —
+                       // they don't stop a typed/pasted out-of-range value from being
+                       // set on a controlled input. Clamp it here so it can't submit.
+                       const raw = e.target.value;
+                       if (raw === "") { setForm(f => ({ ...f, investment_horizon: "" })); return; }
+                       const n = Math.max(1, Math.min(50, parseInt(raw) || 0));
+                       setForm(f => ({ ...f, investment_horizon: String(n) }));
+                     }}
                      className="w-full rounded-xl border px-4 pr-16 py-3 text-sm outline-none"
                      placeholder="10"
                      style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
@@ -972,29 +1049,49 @@ export default function OnboardingPage() {
   const handleNext = async () => {
     if (!isLastStep) { setStep(step + 1); return; }
     setLoading(true); setError("");
+    const payload = {
+      phone_number:           form.phone_dial_code + phoneDigits,
+      name:                   form.name.trim(),
+      birth_date:             birthDateStr || undefined,
+      country:                form.country || undefined,
+      monthly_income:         form.monthly_income || undefined,
+      monthly_contribution:   form.monthly_contribution,
+      initial_capital:        form.initial_capital || undefined,
+      investment_goal:        form.investment_goal,
+      investment_goal_amount: form.investment_goal_amount,
+      investment_horizon:     form.investment_horizon,
+      knowledge_level:        form.knowledge_level,
+      risk_tolerance:         calculated,
+      quiz_answers:           { q1: form.q1, q4: form.q4, investing_knowledge: form.investing_knowledge.trim() || undefined },
+      has_broker:             form.has_broker === "yes",
+      broker_name:            form.has_broker === "yes" ? (form.broker_name || undefined) : undefined,
+      has_investments:        form.has_investments === "yes",
+      terms_accepted_at:      new Date().toISOString(),
+      terms_version:          "2026-06",
+      language,
+    };
+
+    // This is the single most important write in the whole app — no row
+    // here means no trial, no personalization, nothing. Retry a couple of
+    // times with backoff on a transient failure before giving up, instead
+    // of letting one flaky request (no timeout/retry existed before) strand
+    // the user on an indefinite spinner or a one-shot error.
+    const attempt = async (n: number): ReturnType<typeof profileApi.create> => {
+      try {
+        return await profileApi.create(payload);
+      } catch (err: unknown) {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        const isDefinitive = status !== undefined && status !== 503 && status !== 429;
+        if (!isDefinitive && n < 2) {
+          await new Promise((r) => setTimeout(r, 800 * (n + 1)));
+          return attempt(n + 1);
+        }
+        throw err;
+      }
+    };
+
     try {
-      const payload = {
-        phone_number:           form.phone_dial_code + phoneDigits,
-        name:                   form.name.trim(),
-        birth_date:             birthDateStr || undefined,
-        country:                form.country || undefined,
-        monthly_income:         form.monthly_income || undefined,
-        monthly_contribution:   form.monthly_contribution,
-        initial_capital:        form.initial_capital || undefined,
-        investment_goal:        form.investment_goal,
-        investment_goal_amount: form.investment_goal_amount,
-        investment_horizon:     form.investment_horizon,
-        knowledge_level:        form.knowledge_level,
-        risk_tolerance:         calculated,
-        quiz_answers:           { q1: form.q1, q4: form.q4, investing_knowledge: form.investing_knowledge.trim() || undefined },
-        has_broker:             form.has_broker === "yes",
-        broker_name:            form.has_broker === "yes" ? (form.broker_name || undefined) : undefined,
-        has_investments:        form.has_investments === "yes",
-        terms_accepted_at:      new Date().toISOString(),
-        terms_version:          "2026-06",
-        language,
-      };
-      const res = await profileApi.create(payload);
+      const res = await attempt(0);
       setProfile(res.data);
       // The trial starts server-side the instant this profile row is
       // created — refresh subscription status right away so the very next
@@ -1043,12 +1140,20 @@ export default function OnboardingPage() {
       _chat.createSession();
       _chat.addMessage({ role: "assistant", content: _welcomeMsg });
 
-      // Marcar onboarding como completado — bloquea re-entrada para siempre
-      localStorage.setItem("nuvos_ob", "1");
-      // Marcar tour guiado activo
-      localStorage.setItem("nuvos_guided_tour", "1");
-      localStorage.setItem("nuvos_guided_step", "1");
-      if (form.knowledge_level === "B") localStorage.setItem("nuvos_first_steps_active", "1");
+      // These are all nice-to-have UI flags (guided tour state, a legacy
+      // completion marker) — NOT guards on whether the profile save
+      // succeeded, which already happened above. They used to sit inside
+      // this same try block unguarded: Safari Private Browsing throws
+      // synchronously on setItem, which made a fully successful save show
+      // "no se pudo guardar" and never navigate anywhere, with no way out
+      // except retrying into the exact same failure forever.
+      try {
+        localStorage.setItem("nuvos_ob", "1");
+        localStorage.setItem("nuvos_guided_tour", "1");
+        localStorage.setItem("nuvos_guided_step", "1");
+        if (form.knowledge_level === "B") localStorage.setItem("nuvos_first_steps_active", "1");
+        localStorage.removeItem(draftKey);
+      } catch { /* ignore — these are cosmetic, the save already succeeded */ }
       router.push("/home");
     } catch (err: unknown) {
       const raw = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;

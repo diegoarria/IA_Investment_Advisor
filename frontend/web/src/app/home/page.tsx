@@ -201,6 +201,22 @@ export default function HomePage() {
     if (!authRestoring && !isAuthenticated && !localStorage.getItem("nuvos_guest")) { router.push("/"); return; }
   }, [isAuthenticated, authRestoring]);
 
+  // Landing on /home authenticated but with no profile loaded (a direct
+  // navigation/bookmark/restored tab, bypassing the landing page's own
+  // profile check) used to just render Home in a permanently
+  // half-initialized state — profile-dependent calls 404, no trial, no
+  // personalization, and nothing here ever pointed the user back to finish
+  // onboarding. This closes that gap regardless of how the user got here.
+  useEffect(() => {
+    if (authRestoring || !isAuthenticated || profile) return;
+    profileApi.get()
+      .then((res) => setProfile(res.data))
+      .catch((err: unknown) => {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 404) router.replace("/onboarding");
+      });
+  }, [authRestoring, isAuthenticated, profile]);
+
   useEffect(() => {
     if (!isAuthenticated) return;
     registerWebPush().catch(() => {});

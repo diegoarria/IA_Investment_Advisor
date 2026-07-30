@@ -78,22 +78,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // If the user was previously authenticated (Zustand persisted state), send them
-    // straight to /home without any network round-trip — they should never see the
-    // login page again once they've logged in.
-    try {
-      const stored = localStorage.getItem("auth-store");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed?.state?.isAuthenticated === true) {
-          router.replace("/home");
-          return;
-        }
-      }
-    } catch {}
-
-    // No token in localStorage anymore — the httpOnly auth cookie (if any) is
-    // sent automatically, so just ask the API whether it recognizes a session.
+    // Whether or not localStorage says this browser was previously
+    // authenticated, always confirm a profile actually exists before
+    // deciding where to send the user. The old code sent a previously-
+    // authenticated user straight to /home with NO profile check at all —
+    // so anyone who signed up, started onboarding, and closed the tab
+    // (network hiccup, distraction, anything) came back to a permanently
+    // half-initialized account: authenticated, no profile, and /home has no
+    // guard of its own to catch that and send them back to finish it.
     const fallback = setTimeout(() => setChecking(false), 4000);
     profileApi.get()
       .then((res) => {
@@ -103,8 +95,15 @@ export default function Home() {
         setExistingUserName(res.data.name || res.data.email || t("landing.yourAccount"));
         router.push("/home");
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         clearTimeout(fallback);
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 404) {
+          // Valid session (the auth dependency already rejects an invalid
+          // one with 401 before this can even 404), just no profile row yet.
+          router.replace("/onboarding");
+          return;
+        }
         setChecking(false);
       });
   }, []);

@@ -92,7 +92,7 @@ _DB_PROFILE_FIELDS = {
     "risk_tolerance", "quiz_answers", "mentor",
     "investment_goal", "investment_goal_amount", "investment_horizon", "knowledge_level",
     "country", "initial_capital", "has_broker", "broker_name", "has_investments", "phone_number",
-    # terms_accepted_at and terms_version require adding those columns in Supabase first
+    "terms_accepted_at", "terms_version",
 }
 
 @router.post("", response_model=UserProfile)
@@ -124,7 +124,20 @@ async def create_profile(
         # a brand-new user could see a paywall on their very first screen
         # after finishing onboarding, having never had their 30 days start.
         record = {"user_id": user_id, **db_data, "trial_started_at": now, "created_at": now, "updated_at": now}
-        result = await run_query(db.table("user_profiles").insert(record))
+        # upsert + ignore_duplicates instead of a plain insert: a double-tap
+        # on a slow connection (button wasn't debounced client-side either)
+        # or run_query's own transient-error retry (see database.py) could
+        # both re-issue this exact insert. A plain insert 500s on the
+        # duplicate-key violation even though the profile — and the trial —
+        # were created successfully by the first request. With
+        # ignore_duplicates, the losing request just gets an empty result
+        # here and re-fetches the row the winner already created below,
+        # instead of surfacing a scary error for a signup that actually worked.
+        result = await run_query(
+            db.table("user_profiles").upsert(record, on_conflict="user_id", ignore_duplicates=True)
+        )
+        if not result.data:
+            result = await run_query(db.table("user_profiles").select("*").eq("user_id", user_id))
         # Send welcome email to new users (fire-and-forget)
         try:
             from app.services.email_service import build_welcome_html, send_email
@@ -141,22 +154,30 @@ async def create_profile(
                 asyncio.create_task(send_email(email_addr, subject, html))
         except Exception:
             pass
-        # Create default notification preferences for new users
-        existing_prefs = await run_query(
-            db.table("notification_preferences").select("user_id").eq("user_id", user_id)
-        )
-        if not existing_prefs.data:
-            await run_query(db.table("notification_preferences").insert({
-                "user_id": user_id,
-                "push_market_open": True, "push_market_close": True,
-                "push_news_general": True, "push_portfolio_alerts": True,
-                "push_watchlist_alerts": True, "push_ai_recommendations": True,
-                "push_milestones": True, "push_volatility": True,
-                "email_daily_summary": True, "email_weekly_summary": True,
-                "max_push_per_day": 5, "max_push_per_week": 20,
-                "quiet_hours_start": 22, "quiet_hours_end": 8,
-                "consecutive_ignores": 0,
-            }))
+        # Create default notification preferences for new users. Guarded the
+        # same way as the welcome email above — this used to be unguarded,
+        # so a transient failure here (RLS hiccup, timeout) 500'd the whole
+        # request AFTER the profile row (and trial) had already committed,
+        # showing the user a scary error for a signup that had actually
+        # succeeded.
+        try:
+            existing_prefs = await run_query(
+                db.table("notification_preferences").select("user_id").eq("user_id", user_id)
+            )
+            if not existing_prefs.data:
+                await run_query(db.table("notification_preferences").insert({
+                    "user_id": user_id,
+                    "push_market_open": True, "push_market_close": True,
+                    "push_news_general": True, "push_portfolio_alerts": True,
+                    "push_watchlist_alerts": True, "push_ai_recommendations": True,
+                    "push_milestones": True, "push_volatility": True,
+                    "email_daily_summary": True, "email_weekly_summary": True,
+                    "max_push_per_day": 5, "max_push_per_week": 20,
+                    "quiet_hours_start": 22, "quiet_hours_end": 8,
+                    "consecutive_ignores": 0,
+                }))
+        except Exception:
+            pass
     cache_delete(f"profile:{user_id}")
     return UserProfile(**result.data[0])
 
@@ -178,9 +199,13 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
         # Google OAuth created a new user_id — try to find and migrate existing profile
         data = await _migrate_profile_by_email(db, user_id, email)
         if data is None:
-            raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
+            # x-user-id lets the frontend tell "valid session, no profile yet
+            # (mid-onboarding)" apart from "invalid session" without another
+            # round-trip — a 404 here must never be treated as a reason to
+            # sign the user out (see ThemeProvider.tsx's restoreSession).
+            raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.", headers={"X-User-Id": user_id})
     else:
-        raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
+        raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.", headers={"X-User-Id": user_id})
 
     if not data.get("avatar_url"):
         try:
