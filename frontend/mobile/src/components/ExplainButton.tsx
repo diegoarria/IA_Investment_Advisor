@@ -125,7 +125,7 @@ export default function ExplainButton({
     }
   };
 
-  const mentorColor = mentor?.color ?? colors.accentLight;
+  const brandGreen = colors.accentLight;
 
   if (dismissed) {
     return (
@@ -134,7 +134,7 @@ export default function ExplainButton({
         style={{
           position: "absolute", bottom: bottomOffset, right: 16, zIndex: 30,
           width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center",
-          backgroundColor: `${mentorColor}18`, borderWidth: 1, borderColor: `${mentorColor}40`,
+          backgroundColor: brandGreen,
           shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4,
         }}
       >
@@ -149,18 +149,18 @@ export default function ExplainButton({
         onPress={handlePress}
         style={{
           flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 12, paddingRight: 24, paddingVertical: 9, borderRadius: 20,
-          backgroundColor: `${mentorColor}18`, borderWidth: 1, borderColor: `${mentorColor}40`,
+          backgroundColor: brandGreen,
           shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4,
         }}
       >
         {state === "loading" ? (
-          <ActivityIndicator size="small" color={mentorColor} />
+          <ActivityIndicator size="small" color="#000" />
         ) : state === "playing" ? (
-          <Ionicons name="stop" size={14} color={mentorColor} />
+          <Ionicons name="stop" size={14} color="#000" />
         ) : (
           <Text style={{ fontSize: 13 }}>{mentor?.emoji ?? "🎙️"}</Text>
         )}
-        <Text style={{ fontSize: 12, fontWeight: "800", color: mentorColor }}>
+        <Text style={{ fontSize: 12, fontWeight: "800", color: "#000" }}>
           {state === "loading" ? t("explainButton.loading") : state === "playing" ? t("explainButton.stop") : t("explainButton.cta")}
         </Text>
       </TouchableOpacity>

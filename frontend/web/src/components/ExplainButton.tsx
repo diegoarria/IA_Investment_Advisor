@@ -114,15 +114,13 @@ export default function ExplainButton({
     }
   };
 
-  const mentorColor = mentor?.color ?? "var(--accent-l)";
-
   if (dismissed) {
     return (
       <button
         onClick={() => setDismissed(false)}
         aria-label={t("explainButton.cta") ?? undefined}
         className={`fixed bottom-6 right-6 z-30 w-11 h-11 rounded-full flex items-center justify-center text-lg shadow-lg transition-opacity hover:opacity-80 ${className}`}
-        style={{ background: `${mentorColor}18`, border: `1px solid ${mentorColor}40` }}
+        style={{ background: "var(--accent-l)" }}
       >
         {mentor?.emoji ?? "🎙️"}
       </button>
@@ -136,7 +134,7 @@ export default function ExplainButton({
           <button
             onClick={handleClick}
             className="flex items-center gap-1.5 pl-3 pr-8 py-2 rounded-full text-xs font-bold shadow-lg transition-opacity hover:opacity-80"
-            style={{ background: `${mentorColor}18`, color: mentorColor, border: `1px solid ${mentorColor}40` }}
+            style={{ background: "var(--accent-l)", color: "#000" }}
           >
             {state === "loading" ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
