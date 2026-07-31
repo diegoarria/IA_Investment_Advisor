@@ -308,7 +308,7 @@ export const useAuthStore = create<AuthState>()(
         // "guest mode" positions/watchlist data is stored under a shared,
         // un-namespaced "guest" bucket (see userStorage below) — clear the
         // flag so a real account logged into next doesn't inherit it.
-        localStorage.removeItem("nuvos_guest");
+        try { localStorage.removeItem("nuvos_guest"); } catch {}
         // Let the next login (even in this same tab) re-apply the user's
         // preferred start screen once — see home/page.tsx's one-shot guard.
         try { sessionStorage.removeItem("nuvos_start_screen_redirected"); } catch {}
@@ -606,6 +606,12 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         // flaky mobile network) must never be the reason a real trial/
         // premium user gets stuck looking free for the rest of the
         // session — retry a few times with backoff before giving up.
+        // 401/403 are the one exception: a logged-out/guest visitor gets
+        // one of these on every single page load, and it will never
+        // succeed no matter how many times we retry — burning through 3
+        // attempts for a guaranteed failure only wastes the shared rate
+        // limit (which then 429s this same call on the NEXT page) and
+        // spams the console with a misleading "error".
         const ATTEMPTS = 3;
         for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
           try {
@@ -623,8 +629,12 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             });
             return;
           } catch (err) {
-            if (attempt === ATTEMPTS) {
-              console.error("useSubscriptionStore.fetchStatus: giving up after", ATTEMPTS, "attempts", err);
+            const status = (err as { response?: { status?: number } })?.response?.status;
+            const authFailure = status === 401 || status === 403;
+            if (attempt === ATTEMPTS || authFailure) {
+              if (!authFailure) {
+                console.error("useSubscriptionStore.fetchStatus: giving up after", attempt, "attempts", err);
+              }
               set({ hasFetchedStatus: true });
               return;
             }

@@ -45,6 +45,11 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         // network) must never be the reason a real trial/premium user gets
         // stuck looking free for the rest of the session — retry a few
         // times with backoff before giving up.
+        // 401/403 are the one exception: a logged-out/guest user gets one
+        // of these every time, and it will never succeed no matter how many
+        // times we retry — burning through 3 attempts for a guaranteed
+        // failure only wastes the shared rate limit (which then 429s this
+        // same call on the NEXT screen) and spams the console.
         const ATTEMPTS = 3;
         for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
           try {
@@ -67,8 +72,12 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
             });
             return;
           } catch (err) {
-            if (attempt === ATTEMPTS) {
-              console.error("useSubscriptionStore.fetchStatus: giving up after", ATTEMPTS, "attempts", err);
+            const status = (err as { response?: { status?: number } })?.response?.status;
+            const authFailure = status === 401 || status === 403;
+            if (attempt === ATTEMPTS || authFailure) {
+              if (!authFailure) {
+                console.error("useSubscriptionStore.fetchStatus: giving up after", attempt, "attempts", err);
+              }
               set({ hasFetchedStatus: true });
               return;
             }

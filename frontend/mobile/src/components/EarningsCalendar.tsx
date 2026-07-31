@@ -175,7 +175,7 @@ export default function EarningsCalendar({ positions, isPremium, onUpgrade }: Pr
 
       {/* ── Section divider ── */}
       {past.length > 0 && (
-        <View style={{ paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.raised ?? "#0d0f14", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
+        <View style={{ paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.bgRaised, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
           <Text style={{ fontSize: 10, fontWeight: "800", color: colors.textDim, textTransform: "uppercase", letterSpacing: 1 }}>{t("earningsCalendar.recentReports")}</Text>
         </View>
       )}
@@ -188,7 +188,7 @@ export default function EarningsCalendar({ positions, isPremium, onUpgrade }: Pr
       {unknown.length > 0 && (
         <View>
           {(upcoming.length > 0 || past.length > 0) && (
-            <View style={{ paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.raised ?? "#0d0f14", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
+            <View style={{ paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.bgRaised, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
               <Text style={{ fontSize: 10, fontWeight: "800", color: colors.textDim, textTransform: "uppercase", letterSpacing: 1 }}>{t("earningsCalendar.dateTbd")}</Text>
             </View>
           )}
