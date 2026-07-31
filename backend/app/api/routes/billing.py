@@ -198,13 +198,29 @@ from app.core.subscription import TRIAL_DAYS as _PROMO_DAYS
 @router.get("/status")
 async def get_status(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
-    result = await run_query(
-        db.table("user_profiles").select(
+
+    def _query():
+        return db.table("user_profiles").select(
             "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id, broker_offer_seen_at, duo_plan_purchased_at, duo_secondary_email, streak_bonus_premium_until, claimed_streak_milestones"
         ).eq("user_id", user_id).maybe_single()
-    )
+
+    result = await run_query(_query())
+
+    # A transient PostgREST/replica hiccup can return an empty result for a
+    # user whose profile row genuinely exists — this used to fall straight
+    # through to "tier": "free" below, which is exactly how a real trial/
+    # premium user (and, under load, many users at once) would suddenly get
+    # downgraded to free for no real reason. Retry a couple of times before
+    # concluding the profile truly doesn't exist.
+    if not result or not result.data:
+        for _ in range(2):
+            await asyncio.sleep(0.3)
+            result = await run_query(_query())
+            if result and result.data:
+                break
 
     if not result or not result.data:
+        logger.warning("billing.get_status: no user_profiles row for user %s after retries — returning free", user_id)
         return {"tier": "free", "msg_count": 0, "msg_window_start": None}
 
     data            = result.data
