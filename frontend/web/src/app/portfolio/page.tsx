@@ -2928,7 +2928,19 @@ export default function PortfolioPage() {
                       const sectorPositions = positions.filter(
                         (p) => (TICKER_SECTOR[p.ticker] ?? "Otro") === selectedSector
                       );
-                      const sectorTotal = sectorPositions.reduce((sum, p) => {
+                      // Combine purchase lots of the same ticker into one row —
+                      // a second lot of a stock you already hold in this sector
+                      // is not a second position.
+                      const holdingsMap = new Map<string, { ticker: string; name?: string; shares: number; cost: number }>();
+                      for (const p of sectorPositions) {
+                        const existing = holdingsMap.get(p.ticker);
+                        if (existing) { existing.shares += p.shares; existing.cost += p.shares * p.avgPrice; }
+                        else holdingsMap.set(p.ticker, { ticker: p.ticker, name: p.name, shares: p.shares, cost: p.shares * p.avgPrice });
+                      }
+                      const aggSectorPositions = Array.from(holdingsMap.values()).map((h) => ({
+                        ticker: h.ticker, name: h.name, shares: h.shares, avgPrice: h.shares > 0 ? h.cost / h.shares : 0,
+                      }));
+                      const sectorTotal = aggSectorPositions.reduce((sum, p) => {
                         const price = (prices[p.ticker]?.price ?? p.avgPrice) * fxRate;
                         return sum + p.shares * price;
                       }, 0);
@@ -2948,12 +2960,12 @@ export default function PortfolioPage() {
                             </button>
                           </div>
                           <div className="space-y-1.5">
-                            {sectorPositions.map((pos) => {
+                            {aggSectorPositions.map((pos) => {
                               const price = (prices[pos.ticker]?.price ?? pos.avgPrice) * fxRate;
                               const val = pos.shares * price;
                               const pctOfSector = sectorTotal > 0 ? Math.round((val / sectorTotal) * 100) : 0;
                               return (
-                                <div key={pos.id}
+                                <div key={pos.ticker}
                                      className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg"
                                      style={{ background:"var(--bg)" }}>
                                   <div className="flex items-center gap-2 min-w-0">

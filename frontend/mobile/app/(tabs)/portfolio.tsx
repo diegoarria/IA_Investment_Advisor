@@ -2995,6 +2995,18 @@ export default function PortfolioScreen() {
                   {selectedSector && (() => {
                     const col = SECTOR_COLOR[selectedSector] ?? "#94a3b8";
                     const sectorPos = positions.filter((p) => (TICKER_SECTOR[p.ticker] ?? "Otro") === selectedSector);
+                    // Combine purchase lots of the same ticker into one row —
+                    // a second lot of a stock you already hold in this sector
+                    // is not a second position.
+                    const holdingsMap = new Map<string, { ticker: string; name?: string; shares: number; cost: number }>();
+                    for (const p of sectorPos) {
+                      const existing = holdingsMap.get(p.ticker);
+                      if (existing) { existing.shares += p.shares; existing.cost += p.shares * p.avgPrice; }
+                      else holdingsMap.set(p.ticker, { ticker: p.ticker, name: p.name, shares: p.shares, cost: p.shares * p.avgPrice });
+                    }
+                    const aggSectorPos = Array.from(holdingsMap.values()).map((h) => ({
+                      ticker: h.ticker, name: h.name, shares: h.shares, avgPrice: h.shares > 0 ? h.cost / h.shares : 0,
+                    }));
                     return (
                       <View style={[s.sectorDrillBox, { backgroundColor: col + "0e", borderColor: col + "40" }]}>
                         <View style={s.sectorDrillHeader}>
@@ -3003,13 +3015,13 @@ export default function PortfolioScreen() {
                             <Text style={[s.sectorDrillClose, { color: colors.textMuted }]}>{t("portfolio.riskDiagnosis.close")}</Text>
                           </TouchableOpacity>
                         </View>
-                        {sectorPos.map((p) => {
+                        {aggSectorPos.map((p) => {
                           const pr = prices[p.ticker];
                           const val = p.shares * ((pr?.price ?? p.avgPrice) * fxRate);
                           const cost = p.shares * p.avgPrice;
                           const gainPct = cost > 0 ? ((val - cost) / cost) * 100 : 0;
                           return (
-                            <View key={p.id} style={[s.sectorDrillRow, { backgroundColor: col + "12" }]}>
+                            <View key={p.ticker} style={[s.sectorDrillRow, { backgroundColor: col + "12" }]}>
                               <View style={s.sectorDrillLeft}>
                                 <Text style={[s.sectorDrillTicker, { color: colors.text }]}>{p.ticker}</Text>
                                 <Text style={[s.sectorDrillName, { color: colors.textMuted }]} numberOfLines={1}>{p.name}</Text>
