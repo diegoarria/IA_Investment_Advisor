@@ -10,6 +10,7 @@ import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
 import StockAvatar from "@/components/StockAvatar";
+import ExplainButton from "@/components/ExplainButton";
 import {
   type RangeBounds, type YearlyDetailRow, type Checklist, type FairValueRangeData, type ConfidenceMeterData,
   type MarketExpectationsData, type ConsensusValuationData, type LiquidityGate, type DcfAssumptions,
@@ -551,6 +552,17 @@ function SubvaluadasPageInner() {
                         style={{ background: GOLD, color: "#0A0F1A" }}>
                   {t("subvaluadas.search.button")}
                 </button>
+                <ExplainButton
+                  screen="oportunidades_intro"
+                  context={{
+                    screen_purpose:
+                      "This screen shows whether a stock is cheap or expensive by comparing its " +
+                      "current price to its real value, estimated from the company's expected " +
+                      "future cash flows (a method called DCF — discounted cash flow). It helps " +
+                      "the user decide whether now looks like a good time to buy, letting them " +
+                      "adjust their own assumptions for growth and risk (WACC).",
+                  }}
+                />
               </div>
 
               {!isPremium && !searchTriggered && !data ? (
@@ -603,6 +615,25 @@ function SubvaluadasPageInner() {
                         )}
                       </div>
                     )}
+                  </div>
+
+                  <div className="flex justify-end mb-3">
+                    <ExplainButton
+                      screen="oportunidades_resultado"
+                      context={{
+                        ticker: data.ticker,
+                        company_name: data.company_name,
+                        price: data.price,
+                        fair_value_low: data.fair_value_range?.low ?? null,
+                        fair_value_high: data.fair_value_range?.high ?? null,
+                        margin_of_safety_pct: liveMos,
+                        intrinsic_value_per_share: liveResult?.valorPorAccion ?? null,
+                        wacc_pct: r,
+                        growth_pct: g,
+                        terminal_growth_pct: gt,
+                        summary: data.summary,
+                      }}
+                    />
                   </div>
 
                   {/* ===== Nivel 1 summary — everything already known about this company ===== */}

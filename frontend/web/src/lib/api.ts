@@ -288,6 +288,11 @@ export const sync = {
   pushBehavioralRisk: (score: number) => api.post("/api/sync/behavioral-risk", { score }),
 };
 
+export const explain = {
+  explain: (screen: string, context: Record<string, unknown>, lang?: string) =>
+    api.post("/api/explain", { screen, context, lang }, { timeout: 25000 }),
+};
+
 export const notifications = {
   getAll: () => api.get("/api/notifications"),
   markRead: (id: string) => api.post(`/api/notifications/${id}/read`),

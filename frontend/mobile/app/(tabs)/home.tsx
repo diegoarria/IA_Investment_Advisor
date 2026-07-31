@@ -31,6 +31,7 @@ import PersonalizedMessageBanner from "../../src/components/PersonalizedMessageB
 import MorningBriefCard from "../../src/components/MorningBriefCard";
 import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
 import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore";
+import ExplainButton from "../../src/components/ExplainButton";
 
 // ── Sparkline helpers ─────────────────────────────────────────────────────────
 function sparkPath(prices: number[], w: number, h: number, close = false): string {
@@ -937,6 +938,16 @@ export default function HomeScreen() {
           </View>
         </View>
         <View style={ss.headerRight}>
+          <ExplainButton
+            screen="home"
+            context={{
+              portfolio_value: total,
+              day_gain_pct: dayGainPct,
+              day_gain_amount: dayGain,
+              total_gain_pct: totalGainPct,
+              goal_progress_pct: goalAmount > 0 ? (total / goalAmount) * 100 : null,
+            }}
+          />
           {/* Market open/closed dot */}
           <View style={ss.marketDotWrap}>
             <View style={[ss.marketDot, { backgroundColor: isMarketOpen ? "#22c55e" : colors.textDim }]} />

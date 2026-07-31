@@ -297,6 +297,12 @@
     "read": "Leído",
     "close": "Cerrar"
   },
+  "explainButton": {
+    "cta": "Explícame esto",
+    "loading": "Generando...",
+    "stop": "Detener",
+    "paywallReason": "Explícame esto"
+  },
   "profile": {
     "viewDetails": "Ver detalles",
     "hideDetails": "Ocultar",

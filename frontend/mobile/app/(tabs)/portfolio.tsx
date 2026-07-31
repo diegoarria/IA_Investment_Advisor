@@ -26,6 +26,7 @@ import { useAppStore, getAge, UserProfile } from "../../src/lib/profileStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
 import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore";
+import ExplainButton from "../../src/components/ExplainButton";
 import PaywallModal from "../../src/components/PaywallModal";
 import MobileBrokerConnectModal from "../../src/components/MobileBrokerConnectModal";
 
@@ -2272,6 +2273,15 @@ export default function PortfolioScreen() {
                             <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>{portfolioCurrency}</Text>
                             <Ionicons name="chevron-down" size={10} color={colors.textMuted} />
                           </TouchableOpacity>
+                          <ExplainButton
+                            screen="portfolio"
+                            context={{
+                              total_value: totals.current,
+                              total_gain_pct: totals.pct,
+                              position_count: positions.length,
+                              currency: portfolioCurrency,
+                            }}
+                          />
                           <BalanceVisibilityToggle color={colors.textMuted} size={16} />
                         </View>
                       </View>

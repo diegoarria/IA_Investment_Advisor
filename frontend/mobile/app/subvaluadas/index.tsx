@@ -12,6 +12,7 @@ import { useTheme } from "../../src/lib/ThemeContext";
 import { screenerWeeklyApi, watchlistServerApi, savedValuationsApi } from "../../src/lib/api";
 import PaywallModal from "../../src/components/PaywallModal";
 import StockAvatar from "../../src/components/StockAvatar";
+import ExplainButton from "../../src/components/ExplainButton";
 import { calcularValorIntrinseco } from "../../src/lib/dcfCalculator";
 import {
   type Checklist, type LiquidityGate, type FairValueRangeData, type ConfidenceMeterData, type MarketExpectationsData,
@@ -351,6 +352,20 @@ export default function SubvaluadasScreen() {
         </TouchableOpacity>
       </View>
 
+      <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, marginBottom: 10 }}>
+        <ExplainButton
+          screen="oportunidades_intro"
+          context={{
+            screen_purpose:
+              "This screen shows whether a stock is cheap or expensive by comparing its " +
+              "current price to its real value, estimated from the company's expected " +
+              "future cash flows (a method called DCF — discounted cash flow). It helps " +
+              "the user decide whether now looks like a good time to buy, letting them " +
+              "adjust their own assumptions for growth and risk (WACC).",
+          }}
+        />
+      </View>
+
       {!isPremium && (
         <TouchableOpacity onPress={() => setPaywallOpen(true)}
           style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 16, marginBottom: 12, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: "rgba(212,162,76,0.08)", borderWidth: 1, borderColor: "rgba(212,162,76,0.25)" }}>
@@ -411,6 +426,25 @@ export default function SubvaluadasScreen() {
                 )}
               </View>
             )}
+          </View>
+
+          <View style={{ flexDirection: "row", justifyContent: "flex-end", marginBottom: 10 }}>
+            <ExplainButton
+              screen="oportunidades_resultado"
+              context={{
+                ticker: data.ticker,
+                company_name: data.company_name,
+                price: data.price,
+                fair_value_low: data.fair_value_range?.low ?? null,
+                fair_value_high: data.fair_value_range?.high ?? null,
+                margin_of_safety_pct: liveMos,
+                intrinsic_value_per_share: liveResult?.valorPorAccion ?? null,
+                wacc_pct: r,
+                growth_pct: g,
+                terminal_growth_pct: gt,
+                summary: data.summary,
+              }}
+            />
           </View>
 
           <View style={{ gap: 10, marginBottom: 22 }}>

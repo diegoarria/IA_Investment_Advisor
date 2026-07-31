@@ -8,6 +8,7 @@ import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PremiumBadge from "@/components/PremiumBadge";
 import BalanceVisibilityToggle from "@/components/BalanceVisibilityToggle";
+import ExplainButton from "@/components/ExplainButton";
 import StockAvatar from "@/components/StockAvatar";
 import PersonalizedMessageBanner from "@/components/PersonalizedMessageBanner";
 import { market as marketApi } from "@/lib/api";
@@ -137,6 +138,18 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <ExplainButton
+          screen="patrimonio"
+          context={{
+            total_value: totalValue,
+            day_gain_pct: dayGainPctFinal,
+            total_gain_pct: totalGainPct,
+            position_count: positions.length,
+            currency: portfolioCurrency,
+          }}
+        />
+      </div>
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-3">
         <SummaryCard

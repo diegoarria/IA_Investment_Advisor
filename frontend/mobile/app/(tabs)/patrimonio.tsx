@@ -18,6 +18,7 @@ import StockAvatar from "../../src/components/StockAvatar";
 import PersonalizedMessageBanner from "../../src/components/PersonalizedMessageBanner";
 import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
 import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore";
+import ExplainButton from "../../src/components/ExplainButton";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -111,6 +112,18 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 12 }}>
+      <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+        <ExplainButton
+          screen="patrimonio"
+          context={{
+            total_value: totalValue,
+            day_gain_pct: dayGainPct,
+            total_gain_pct: totalGainPct,
+            position_count: positions.length,
+            currency: portfolioCurrency,
+          }}
+        />
+      </View>
       {/* Summary Row */}
       <View style={{ flexDirection: "row", gap: 8 }}>
         <View style={[ss.statCard, { flex: 1, backgroundColor: colors.card, borderColor: colors.border }]}>

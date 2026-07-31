@@ -198,6 +198,11 @@ export const marketApi = {
     api.get(`/api/stocks/${encodeURIComponent(symbol)}/financials`, { params: { limit } }),
 };
 
+export const explainApi = {
+  explain: (screen: string, context: Record<string, unknown>, lang?: string) =>
+    api.post("/api/explain", { screen, context, lang }, { timeout: 25000 }),
+};
+
 export const notificationsApi = {
   getAll: () => api.get("/api/notifications"),
   markRead: (id: string) => api.post(`/api/notifications/${id}/read`),

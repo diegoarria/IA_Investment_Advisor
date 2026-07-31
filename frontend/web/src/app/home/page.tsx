@@ -14,6 +14,7 @@ import HomeMarketOverview from "@/components/HomeMarketOverview";
 import StockAvatar from "@/components/StockAvatar";
 import PersonalizedMessageBanner from "@/components/PersonalizedMessageBanner";
 import MorningBriefCard from "@/components/MorningBriefCard";
+import ExplainButton from "@/components/ExplainButton";
 import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, watchlist as watchlistApi, billing } from "@/lib/api";
 import PricingModal from "@/components/PricingModal";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore, useBalanceVisibilityStore } from "@/lib/store";
@@ -637,6 +638,17 @@ export default function HomePage() {
                       style={{ background: marketOpen ? "#22c55e" : "var(--dim)" }} />
                 {marketOpen ? t("home.marketOpen") : t("home.marketClosed")}
               </div>
+              <ExplainButton
+                screen="home"
+                context={{
+                  portfolio_value: total,
+                  day_gain_pct: dayGainPct,
+                  day_gain_amount: dayGain,
+                  total_gain_pct: totalGainPct,
+                  goal_progress_pct: goalAmount > 0 ? Math.round((total / goalAmount) * 100) : null,
+                  currency: portfolioCurrency,
+                }}
+              />
               {isBeginnerMode && beginnerCardDismissed && (
                 <button onClick={reopenBeginnerCard}
                         title={t("home.showGuideTooltip")}

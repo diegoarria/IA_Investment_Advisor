@@ -1953,6 +1953,12 @@
     "read": "Got it",
     "close": "Close"
   },
+  "explainButton": {
+    "cta": "Explain this",
+    "loading": "Generating...",
+    "stop": "Stop",
+    "paywallReason": "Explain this"
+  },
   "premiumToolLocked": {
     "unlockCta": "Unlock with Premium"
   },

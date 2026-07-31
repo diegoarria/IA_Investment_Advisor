@@ -23,6 +23,7 @@ import PaywallModal from "@/components/PaywallModal";
 import GuidedSteps from "@/components/GuidedSteps";
 import PremiumBadge from "@/components/PremiumBadge";
 import BalanceVisibilityToggle from "@/components/BalanceVisibilityToggle";
+import ExplainButton from "@/components/ExplainButton";
 import FirstStepsFlow from "@/components/FirstStepsFlow";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import BrokerConnectModal from "@/components/BrokerConnectModal";
@@ -1818,6 +1819,15 @@ export default function PortfolioPage() {
                 {t("portfolio.header.advanced")}
               </button>
             </div>
+            <ExplainButton
+              screen="portfolio"
+              context={{
+                total_value: totals.current,
+                total_gain_pct: totals.pct,
+                position_count: positions.length,
+                currency: portfolioCurrency,
+              }}
+            />
             <BalanceVisibilityToggle
               className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
               style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
