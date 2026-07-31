@@ -33,7 +33,11 @@ _SCREEN_INSTRUCTIONS = {
         "usuario contra el S&P 500 explícitamente — dile si lo está superando o no y por cuánto "
         "(la diferencia en puntos porcentuales). Dale feedback personalizado y honesto en tono "
         "de mentor: si le está ganando al mercado, felicítalo sin exagerar; si va por detrás, "
-        "explícaselo sin alarmismo y anímalo a revisar su estrategia, nunca de forma genérica."
+        "explícaselo sin alarmismo y anímalo a revisar su estrategia, nunca de forma genérica. "
+        "`distinct_holdings` ya cuenta cada empresa UNA sola vez (comprar la misma acción en dos "
+        "fechas distintas sigue siendo una sola posición) — nunca digas que tiene más posiciones "
+        "que ese número. Si `risk_score` y `sector_allocation` están presentes, menciona el nivel "
+        "de riesgo (`risk_level`) y en qué sector(es) está más concentrado el portafolio."
     ),
     "oportunidades_intro": (
         "Explica siempre, en una frase MUY simple cada uno (sin que el usuario tenga que "
@@ -98,23 +102,32 @@ async def explain_screen(
             f"Estos son los datos REALES que tiene esa pantalla ahora mismo:\n{json.dumps(context, ensure_ascii=False)}\n\n"
             "Usa ÚNICAMENTE estos datos — nunca inventes una cifra, ticker o hecho que no esté "
             "arriba. Si algún dato relevante no está presente, simplemente no lo menciones.\n"
-            "Escribe 2-4 oraciones cortas, conversacionales, como si se lo estuvieras explicando "
-            "en voz alta a la persona en este momento — nunca genérico, siempre anclado a estos "
-            "números específicos. Si mencionas un término técnico financiero (WACC, DCF, flujo de "
-            "caja libre, margen de seguridad, valor intrínseco, etc.), explícalo de inmediato en "
+            "Sé conciso y conversacional, como si se lo estuvieras explicando en voz alta a la "
+            "persona en este momento — nunca genérico, siempre anclado a estos números "
+            "específicos. Si mencionas un término técnico financiero (WACC, DCF, flujo de caja "
+            "libre, margen de seguridad, valor intrínseco, etc.), explícalo de inmediato en "
             "lenguaje MUY simple y cotidiano, como si hablaras con alguien que nunca ha invertido — "
-            f"nunca uses jerga sin explicarla.{(' ' + screen_instruction) if screen_instruction else ''} "
+            "nunca uses jerga sin explicarla. Usa tantas oraciones cortas como necesites para "
+            "cubrir todo lo que se te pide abajo, sin relleno — pero es MÁS IMPORTANTE terminar "
+            "con una oración completa que ser breve: NUNCA cortes una idea a la mitad ni dejes la "
+            f"última oración incompleta.{(' ' + screen_instruction) if screen_instruction else ''} "
             f"{lang_instruction}\n"
             "Responde solo con el texto a narrar, sin comillas ni texto adicional."
         )
+        # Generous cap — this narration must never get cut off mid-sentence by
+        # hitting the token limit (screens like home/oportunidades ask it to
+        # cover several items, which can run long). Cheap model, short calls,
+        # so headroom costs nothing.
         resp = await client.messages.create(
-            model="claude-haiku-4-5-20251001", max_tokens=300,
+            model="claude-haiku-4-5-20251001", max_tokens=700,
             messages=[{"role": "user", "content": prompt}],
         )
         from app.services.llm_usage import log_llm_usage
         import asyncio
         asyncio.create_task(log_llm_usage(user_id, "explain_screen", "claude-haiku-4-5-20251001", resp.usage))
         text = resp.content[0].text.strip() if resp.content else ""
+        if resp.stop_reason == "max_tokens":
+            logger.warning("explain_screen(%s): hit max_tokens even at 700 — narration may be cut off", screen)
     except Exception as e:
         logger.error("explain_screen(%s): text generation failed: %s", screen, e)
         raise HTTPException(status_code=503, detail="No pudimos generar la explicación en este momento. Intenta de nuevo.")

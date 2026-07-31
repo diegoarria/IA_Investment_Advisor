@@ -3844,10 +3844,17 @@ export default function PortfolioScreen() {
         context={{
           total_value: totals.current,
           total_gain_pct: totals.pct,
-          position_count: positions.length,
+          // Distinct tickers held, not raw purchase lots — buying more
+          // GOOGL in a second lot must never look like a second holding.
+          distinct_holdings: aggregatedPositions.length,
           currency: portfolioCurrency,
           ytd_gain_pct: periodReturns.ytd?.pct ?? null,
           sp500_ytd_pct: periodReturns.ytd?.spy_pct ?? null,
+          risk_score: diagnosis?.score ?? null,
+          risk_level: diagnosis ? (PORTFOLIO_LEVELS[diagnosis.levelIdx]?.label ?? null) : null,
+          sector_allocation: diagnosis
+            ? Object.entries(diagnosis.sectorPcts).map(([sector, pct]) => ({ sector: SECTOR_LABELS[sector] ?? sector, pct }))
+            : null,
         }}
         bottomOffset={90}
       />

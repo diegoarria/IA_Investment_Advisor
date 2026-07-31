@@ -1824,10 +1824,17 @@ export default function PortfolioPage() {
               context={{
                 total_value: totals.current,
                 total_gain_pct: totals.pct,
-                position_count: positions.length,
+                // Distinct tickers held, not raw purchase lots — buying more
+                // GOOGL in a second lot must never look like a second holding.
+                distinct_holdings: aggregatedPositions.length,
                 currency: portfolioCurrency,
                 ytd_gain_pct: chartOverrides.ytd?.pct ?? null,
                 sp500_ytd_pct: chartOverrides.ytd?.spy_pct ?? null,
+                risk_score: diagnosis?.score ?? null,
+                risk_level: diagnosis ? (PORTFOLIO_LEVELS[diagnosis.levelIdx]?.label ?? null) : null,
+                sector_allocation: diagnosis
+                  ? Object.entries(diagnosis.sectorPcts).map(([sector, pct]) => ({ sector: sectorLabels[sector] ?? sector, pct }))
+                  : null,
               }}
             />
             <BalanceVisibilityToggle
