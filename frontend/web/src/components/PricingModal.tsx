@@ -54,10 +54,12 @@ export default function PricingModal({ visible, onClose }: Props) {
     }
   }
 
+  // Yearly billing is always shown as its monthly-equivalent price up top
+  // (what the user actually compares against the monthly plan), with the
+  // real annual charge + savings called out just below — never the annual
+  // total as the headline number.
   const monthlyPrice = plan === "monthly" ? "$14.99" : "$12.08";
-  const yearlyNote   = plan === "yearly" ? t("pricingModal.savings") : null;
-  const duoPrice     = plan === "monthly" ? "$23.99" : "$224.99";
-  const duoPeriod    = plan === "monthly" ? t("pricingModal.perMonthShort") : t("pricingModal.perYearShort");
+  const duoPrice     = plan === "monthly" ? "$23.99" : "$18.75";
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
@@ -132,14 +134,18 @@ export default function PricingModal({ visible, onClose }: Props) {
 
             <div className="flex items-baseline gap-2 mb-1 relative">
               <span className="text-3xl font-black text-white">{monthlyPrice}</span>
-              <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
-                {plan === "monthly" ? t("pricingModal.perMonthShort") : t("pricingModal.perYearShort")}
-              </span>
+              <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>{t("pricingModal.perMonthShort")}</span>
             </div>
-            {yearlyNote && (
-              <p className="text-[10px] mb-3 relative" style={{ color: "#00d47e" }}>{yearlyNote}</p>
+            {plan === "yearly" ? (
+              <>
+                <p className="text-[11px] relative" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  {t("pricingModal.billedAnnuallyAmount", { amount: "$144.99" })}
+                </p>
+                <p className="text-[10px] mb-3 relative" style={{ color: "#00d47e" }}>{t("pricingModal.premiumSavings")}</p>
+              </>
+            ) : (
+              <div className="mb-3" />
             )}
-            {!yearlyNote && <div className="mb-3" />}
 
             <button
               onClick={handleUpgrade}
@@ -172,11 +178,20 @@ export default function PricingModal({ visible, onClose }: Props) {
 
             <div className="flex items-baseline gap-1 mb-1 relative">
               <span className="text-3xl font-black text-white">{duoPrice}</span>
-              <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>USD {duoPeriod}</span>
+              <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>USD {t("pricingModal.perMonthShort")}</span>
             </div>
-            <p className="text-[10px] mb-3 relative" style={{ color: "rgba(255,255,255,0.4)" }}>
-              {plan === "monthly" ? t("pricingModal.billedMonthly") : t("pricingModal.duoYearlyNote")}
-            </p>
+            {plan === "yearly" ? (
+              <>
+                <p className="text-[11px] relative" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  {t("pricingModal.billedAnnuallyAmount", { amount: "$224.99" })}
+                </p>
+                <p className="text-[10px] mb-3 relative" style={{ color: "#818cf8" }}>{t("pricingModal.duoSavings")}</p>
+              </>
+            ) : (
+              <p className="text-[10px] mb-3 relative" style={{ color: "rgba(255,255,255,0.4)" }}>
+                {t("pricingModal.billedMonthly")}
+              </p>
+            )}
 
             <button
               onClick={handleDuoCheckout}

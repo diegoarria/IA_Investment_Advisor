@@ -2752,7 +2752,8 @@
     "perMonth": "USD / mes",
     "currentPlan": "Tu plan actual",
     "premium": "Premium",
-    "savings": "· Ahorra $34.89 vs mensual",
+    "premiumSavings": "Ahorra $34.89 vs mensual",
+    "billedAnnuallyAmount": "{{amount}} cobrado anualmente",
     "opening": "Abriendo...",
     "subscribeCta": "Suscribirme →",
     "duoPlan": "Duo Plan",
@@ -2761,7 +2762,7 @@
     "perMonthShort": "/mes",
     "perYearShort": "/año",
     "billedMonthly": "Facturado mensualmente",
-    "billedYearlyDuo": "$18.75/mes · Ahorra $62.89 vs mensual",
+    "duoSavings": "Ahorra $62.89 vs mensual",
     "hireDuoPlan": "Contratar Duo Plan",
     "footerNote": "Prueba gratis 30 días. Cancela antes de que termine y no se te cobra nada."
   },

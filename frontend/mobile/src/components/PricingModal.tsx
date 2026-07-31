@@ -68,9 +68,12 @@ export default function PricingModal({ visible, onClose }: Props) {
     setDuoLoading(false);
   }
 
+  // Yearly billing is always shown as its monthly-equivalent price up top
+  // (what the user actually compares against the monthly plan), with the
+  // real annual charge + savings called out just below — never the annual
+  // total as the headline number.
   const regularPrice = plan === "monthly" ? "$14.99" : "$12.08";
-  const duoPrice  = plan === "monthly" ? "$23.99" : "$224.99";
-  const duoPeriod = plan === "monthly" ? t("pricingModal.perMonthShort") : t("pricingModal.perYearShort");
+  const duoPrice  = plan === "monthly" ? "$23.99" : "$18.75";
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -142,13 +145,20 @@ export default function PricingModal({ visible, onClose }: Props) {
 
                 <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, marginBottom: 2 }}>
                   <Text style={{ fontSize: 28, fontWeight: "900", color: "#fff" }}>{regularPrice}</Text>
-                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
-                    {plan === "monthly" ? t("pricingModal.perMonthShort") : t("pricingModal.perYearShort")}
-                  </Text>
+                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{t("pricingModal.perMonthShort")}</Text>
                 </View>
-                <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>
-                  {plan === "yearly" ? t("pricingModal.savings") : t("pricingModal.billedMonthly")}
-                </Text>
+                {plan === "yearly" ? (
+                  <>
+                    <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.55)" }}>
+                      {t("pricingModal.billedAnnuallyAmount", { amount: "$144.99" })}
+                    </Text>
+                    <Text style={{ fontSize: 10, color: "#00d47e", marginBottom: 14 }}>{t("pricingModal.premiumSavings")}</Text>
+                  </>
+                ) : (
+                  <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>
+                    {t("pricingModal.billedMonthly")}
+                  </Text>
+                )}
 
                 <TouchableOpacity
                   onPress={handleUpgrade}
@@ -181,11 +191,20 @@ export default function PricingModal({ visible, onClose }: Props) {
 
                 <View style={{ flexDirection: "row", alignItems: "baseline", gap: 4, marginBottom: 2 }}>
                   <Text style={{ fontSize: 28, fontWeight: "900", color: "#fff" }}>{duoPrice}</Text>
-                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{t("pricingModal.usdPeriod", { period: duoPeriod })}</Text>
+                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{t("pricingModal.usdPeriod", { period: t("pricingModal.perMonthShort") })}</Text>
                 </View>
-                <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>
-                  {plan === "monthly" ? t("pricingModal.billedMonthly") : t("pricingModal.billedYearlyDuo")}
-                </Text>
+                {plan === "yearly" ? (
+                  <>
+                    <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.55)" }}>
+                      {t("pricingModal.billedAnnuallyAmount", { amount: "$224.99" })}
+                    </Text>
+                    <Text style={{ fontSize: 10, color: "#818cf8", marginBottom: 14 }}>{t("pricingModal.duoSavings")}</Text>
+                  </>
+                ) : (
+                  <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>
+                    {t("pricingModal.billedMonthly")}
+                  </Text>
+                )}
 
                 <TouchableOpacity
                   onPress={handleDuoCheckout}
