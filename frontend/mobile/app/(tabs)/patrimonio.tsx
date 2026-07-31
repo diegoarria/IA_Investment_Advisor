@@ -111,19 +111,8 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
   const dayGainPct = dayPrev > 0 ? (dayGain / dayPrev) * 100 : 0;
 
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 12 }}>
-      <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-        <ExplainButton
-          screen="patrimonio"
-          context={{
-            total_value: totalValue,
-            day_gain_pct: dayGainPct,
-            total_gain_pct: totalGainPct,
-            position_count: positions.length,
-            currency: portfolioCurrency,
-          }}
-        />
-      </View>
       {/* Summary Row */}
       <View style={{ flexDirection: "row", gap: 8 }}>
         <View style={[ss.statCard, { flex: 1, backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -231,6 +220,19 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
         <Text style={ss.btnText}>{t("patrimonio.portfolioTab.viewFull")}</Text>
       </TouchableOpacity>
     </ScrollView>
+
+    <ExplainButton
+      screen="patrimonio"
+      context={{
+        total_value: totalValue,
+        day_gain_pct: dayGainPct,
+        total_gain_pct: totalGainPct,
+        position_count: positions.length,
+        currency: portfolioCurrency,
+      }}
+      bottomOffset={90}
+    />
+    </View>
   );
 }
 

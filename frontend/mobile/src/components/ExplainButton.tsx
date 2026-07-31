@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleProp, ViewStyle } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
@@ -47,11 +47,13 @@ async function writeExplainCache(key: string, text: string, audio: string | null
 export default function ExplainButton({
   screen,
   context,
-  style,
+  bottomOffset = 24,
 }: {
   screen: string;
   context: Record<string, unknown>;
-  style?: StyleProp<ViewStyle>;
+  // Distance from the screen's bottom edge — tab screens need extra room to
+  // clear the bottom tab bar; stack screens (no tab bar) can sit lower.
+  bottomOffset?: number;
 }) {
   const { t, i18n } = useTranslation();
   const { colors } = useTheme();
@@ -63,6 +65,7 @@ export default function ExplainButton({
   const [state, setState] = useState<"idle" | "loading" | "playing">("idle");
   const [text, setText] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
 
   const stop = async () => {
@@ -72,6 +75,11 @@ export default function ExplainButton({
       soundRef.current = null;
     }
     setState("idle");
+  };
+
+  const handleDismiss = async () => {
+    if (state === "playing") await stop();
+    setDismissed(true);
   };
 
   const playAudio = async (b64: string) => {
@@ -119,14 +127,31 @@ export default function ExplainButton({
 
   const mentorColor = mentor?.color ?? colors.accentLight;
 
+  if (dismissed) {
+    return (
+      <TouchableOpacity
+        onPress={() => setDismissed(false)}
+        style={{
+          position: "absolute", bottom: bottomOffset, right: 16, zIndex: 30,
+          width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center",
+          backgroundColor: `${mentorColor}18`, borderWidth: 1, borderColor: `${mentorColor}40`,
+          shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4,
+        }}
+      >
+        <Text style={{ fontSize: 18 }}>{mentor?.emoji ?? "🎙️"}</Text>
+      </TouchableOpacity>
+    );
+  }
+
   return (
-    <View>
+    <View style={{ position: "absolute", bottom: bottomOffset, right: 16, zIndex: 30 }}>
       <TouchableOpacity
         onPress={handlePress}
-        style={[
-          { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: `${mentorColor}18` },
-          style,
-        ]}
+        style={{
+          flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 12, paddingRight: 24, paddingVertical: 9, borderRadius: 20,
+          backgroundColor: `${mentorColor}18`, borderWidth: 1, borderColor: `${mentorColor}40`,
+          shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4,
+        }}
       >
         {state === "loading" ? (
           <ActivityIndicator size="small" color={mentorColor} />
@@ -140,8 +165,19 @@ export default function ExplainButton({
         </Text>
       </TouchableOpacity>
 
+      <TouchableOpacity
+        onPress={handleDismiss}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        style={{
+          position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: 10,
+          alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
+        }}
+      >
+        <Ionicons name="close" size={12} color={colors.textMuted} />
+      </TouchableOpacity>
+
       {text && state !== "idle" && (
-        <View style={{ position: "absolute", top: "100%", right: 0, marginTop: 8, width: 240, padding: 10, borderRadius: 12, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, zIndex: 20 }}>
+        <View style={{ position: "absolute", bottom: "100%", right: 0, marginBottom: 8, width: 240, padding: 10, borderRadius: 12, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, zIndex: 20 }}>
           <Text style={{ fontSize: 12, lineHeight: 17, color: colors.textSub }}>{text}</Text>
         </View>
       )}

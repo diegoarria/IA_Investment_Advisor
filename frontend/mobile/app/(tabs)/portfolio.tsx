@@ -2273,15 +2273,6 @@ export default function PortfolioScreen() {
                             <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>{portfolioCurrency}</Text>
                             <Ionicons name="chevron-down" size={10} color={colors.textMuted} />
                           </TouchableOpacity>
-                          <ExplainButton
-                            screen="portfolio"
-                            context={{
-                              total_value: totals.current,
-                              total_gain_pct: totals.pct,
-                              position_count: positions.length,
-                              currency: portfolioCurrency,
-                            }}
-                          />
                           <BalanceVisibilityToggle color={colors.textMuted} size={16} />
                         </View>
                       </View>
@@ -3847,6 +3838,17 @@ export default function PortfolioScreen() {
           description={t("portfolio.tour.description")}
         />
       )}
+
+      <ExplainButton
+        screen="portfolio"
+        context={{
+          total_value: totals.current,
+          total_gain_pct: totals.pct,
+          position_count: positions.length,
+          currency: portfolioCurrency,
+        }}
+        bottomOffset={90}
+      />
     </SafeAreaView>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Square, Loader2 } from "lucide-react";
+import { Square, Loader2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { explain as explainApi } from "@/lib/api";
 import { useProfileStore, useSubscriptionStore } from "@/lib/store";
@@ -59,10 +59,16 @@ export default function ExplainButton({
   const [state, setState] = useState<"idle" | "loading" | "playing">("idle");
   const [text, setText] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   const stop = () => {
     getUnlockedAudioElement().pause();
     setState("idle");
+  };
+
+  const handleDismiss = () => {
+    if (state === "playing") stop();
+    setDismissed(true);
   };
 
   const handleClick = async () => {
@@ -108,32 +114,58 @@ export default function ExplainButton({
     }
   };
 
+  const mentorColor = mentor?.color ?? "var(--accent-l)";
+
+  if (dismissed) {
+    return (
+      <button
+        onClick={() => setDismissed(false)}
+        aria-label={t("explainButton.cta") ?? undefined}
+        className={`fixed bottom-6 right-6 z-30 w-11 h-11 rounded-full flex items-center justify-center text-lg shadow-lg transition-opacity hover:opacity-80 ${className}`}
+        style={{ background: `${mentorColor}18`, border: `1px solid ${mentorColor}40` }}
+      >
+        {mentor?.emoji ?? "🎙️"}
+      </button>
+    );
+  }
+
   return (
     <>
-      <div className="relative">
-        <button
-          onClick={handleClick}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-80 ${className}`}
-          style={{ background: `${mentor?.color ?? "#00a85e"}18`, color: mentor?.color ?? "var(--accent-l)" }}
-        >
-          {state === "loading" ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : state === "playing" ? (
-            <Square className="w-3 h-3" />
-          ) : (
-            <span>{mentor?.emoji ?? "🎙️"}</span>
-          )}
-          {state === "loading" ? t("explainButton.loading") : state === "playing" ? t("explainButton.stop") : t("explainButton.cta")}
-        </button>
-
-        {text && state !== "idle" && (
-          <div
-            className="absolute z-20 top-full right-0 mt-2 w-64 rounded-xl p-3 text-xs leading-relaxed shadow-lg"
-            style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--sub)" }}
+      <div className={`fixed bottom-6 right-6 z-30 ${className}`}>
+        <div className="relative">
+          <button
+            onClick={handleClick}
+            className="flex items-center gap-1.5 pl-3 pr-8 py-2 rounded-full text-xs font-bold shadow-lg transition-opacity hover:opacity-80"
+            style={{ background: `${mentorColor}18`, color: mentorColor, border: `1px solid ${mentorColor}40` }}
           >
-            {text}
-          </div>
-        )}
+            {state === "loading" ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : state === "playing" ? (
+              <Square className="w-3 h-3" />
+            ) : (
+              <span>{mentor?.emoji ?? "🎙️"}</span>
+            )}
+            {state === "loading" ? t("explainButton.loading") : state === "playing" ? t("explainButton.stop") : t("explainButton.cta")}
+          </button>
+
+          <button
+            onClick={handleDismiss}
+            aria-label={t("explainButton.dismiss") ?? undefined}
+            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center shadow"
+            style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}
+          >
+            <X className="w-3 h-3" />
+          </button>
+
+          {text && state !== "idle" && (
+            <div
+              className="absolute z-20 bottom-full right-0 mb-2 w-64 rounded-xl p-3 text-xs leading-relaxed shadow-lg"
+              style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--sub)" }}
+            >
+              {text}
+            </div>
+          )}
+        </div>
       </div>
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={t("explainButton.paywallReason")} />
     </>

@@ -301,7 +301,8 @@
     "cta": "Explícame esto",
     "loading": "Generando...",
     "stop": "Detener",
-    "paywallReason": "Explícame esto"
+    "paywallReason": "Explícame esto",
+    "dismiss": "Cerrar"
   },
   "profile": {
     "viewDetails": "Ver detalles",
