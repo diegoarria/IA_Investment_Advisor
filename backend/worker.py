@@ -987,6 +987,27 @@ async def job_market_close():
 
         uids = list(portfolio_map.keys())
 
+        # Each user's configured display currency (stored alongside positions on
+        # user_portfolio) — the $ gain/loss below is computed from prices in USD
+        # (Finnhub), so it must be converted before being shown to a user whose
+        # portfolio currency isn't USD.
+        currency_map: dict[str, str] = {}
+        for row in port_uid_res.data or []:
+            raw_c = row.get("positions") or {}
+            cur_c = raw_c.get("currency") if isinstance(raw_c, dict) else None
+            uid_c = row.get("user_id")
+            if uid_c and cur_c and cur_c.upper() != "USD":
+                currency_map[uid_c] = cur_c.upper()
+
+        fx_rates: dict[str, float] = {}
+        if currency_map:
+            from app.api.routes.market import get_fx_rate
+            for cur_c in set(currency_map.values()):
+                try:
+                    fx_rates[cur_c] = (await get_fx_rate(cur_c)).get("rate", 1.0)
+                except Exception:
+                    fx_rates[cur_c] = 1.0
+
         # Users who opted out of market_close notifications
         prefs_res = await run_query(
             db.table("notification_preferences").select("user_id,push_market_close")
@@ -1060,8 +1081,10 @@ async def job_market_close():
                         no_data = "n/a" if is_en else "s/d"
                         sp_cl  = f"{sp500_pct:+.1f}%"  if sp500_pct  is not None else no_data
                         nq_cl  = f"{nasdaq_pct:+.1f}%"  if nasdaq_pct is not None else no_data
+                        user_currency = currency_map.get(uid, "USD")
+                        user_fx_rate  = fx_rates.get(user_currency, 1.0) if user_currency != "USD" else 1.0
                         if user_pct is not None and total_curr is not None and total_prev is not None:
-                            dollar_gain = round(total_curr - total_prev, 2)
+                            dollar_gain = round((total_curr - total_prev) * user_fx_rate, 2)
                             is_up = dollar_gain >= 0
                             # Leads with the dollar amount (what the user actually
                             # feels), never alarmist framing on a down day — always
@@ -1070,9 +1093,9 @@ async def job_market_close():
                             # _calc_portfolio_close_data (no extra Claude call).
                             movers_for_why = top_gainers if is_up else top_losers
                             if is_en:
-                                push_title = f"📈 YOU GAINED ${abs(dollar_gain):,.2f} USD TODAY" if is_up else f"📉 YOU LOST ${abs(dollar_gain):,.2f} USD TODAY"
+                                push_title = f"📈 {first}, you gained ${abs(dollar_gain):,.2f} {user_currency} today" if is_up else f"📉 {first}, you lost ${abs(dollar_gain):,.2f} {user_currency} today"
                             else:
-                                push_title = f"📈 HOY GANASTE ${abs(dollar_gain):,.2f} USD" if is_up else f"📉 HOY PERDISTE ${abs(dollar_gain):,.2f} USD"
+                                push_title = f"📈 {first}, hoy ganaste ${abs(dollar_gain):,.2f} {user_currency}" if is_up else f"📉 {first}, hoy perdiste ${abs(dollar_gain):,.2f} {user_currency}"
                             if movers_for_why:
                                 names = [f"{m['ticker']} ({m['pct']:+.1f}%)" for m in movers_for_why[:2]]
                                 names_joined = f"{names[0]} y {names[1]}" if len(names) > 1 else names[0]
@@ -1086,7 +1109,7 @@ async def job_market_close():
                                 your_word = "Your portfolio" if is_en else "Tu portafolio"
                                 push_body = f"{your_word} {user_pct:+.1f}% · S&P 500 {sp_cl} · Nasdaq {nq_cl}"
                         else:
-                            push_title = "📊 Market close" if is_en else "📊 Cierre de mercado"
+                            push_title = f"📊 {first}, market close" if is_en else f"📊 {first}, cierre de mercado"
                             push_body  = f"S&P 500 {sp_cl} · Nasdaq {nq_cl}"
                         await send_push(uid, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
                         sent_push += 1
