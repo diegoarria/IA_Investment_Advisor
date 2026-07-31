@@ -1182,12 +1182,17 @@
       "labelPlaceholder": "Note (optional)",
       "cancel": "Cancel",
       "save": "Save",
+      "saveChanges": "Save changes",
       "saving": "Saving...",
-      "saveError": "Couldn't add the cash. Try again.",
+      "saveError": "Couldn't save the cash. Try again.",
       "instrumentCetes": "CETES",
       "instrumentBank": "Bank",
       "instrumentBonds": "Bonds",
-      "instrumentOther": "Other"
+      "instrumentOther": "Other",
+      "annual": "annual",
+      "ratePlaceholder": "Annual rate of your cash (optional)",
+      "rateAutoHint": "Leave it blank and we'll use today's real rate automatically.",
+      "rateManualHint": "Only if you know the annual rate it pays you (e.g. your bank)."
     },
     "preview": {
       "detected": "{{count}} positions detected",

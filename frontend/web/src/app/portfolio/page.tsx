@@ -874,10 +874,14 @@ export default function PortfolioPage() {
 
   // Cash held outside of stock positions (CETES, parked in a bank, bonds,
   // etc.) — counts toward the portfolio total alongside stock positions.
-  interface CashHolding { id: string; amount: number; currency: string; instrument: "cetes" | "bank" | "bonds" | "other"; label: string | null }
+  interface CashHolding {
+    id: string; amount: number; currency: string; instrument: "cetes" | "bank" | "bonds" | "other"; label: string | null;
+    accrued_amount?: number; rate_pct?: number | null;
+  }
   const [cashList, setCashList] = useState<CashHolding[]>([]);
   const [cashFormOpen, setCashFormOpen] = useState(false);
-  const [cashForm, setCashForm] = useState({ amount: "", instrument: "bank" as CashHolding["instrument"], label: "" });
+  const [cashEditingId, setCashEditingId] = useState<string | null>(null);
+  const [cashForm, setCashForm] = useState({ amount: "", instrument: "bank" as CashHolding["instrument"], label: "", rate: "" });
   const [cashSaving, setCashSaving] = useState(false);
 
   useEffect(() => {
@@ -902,28 +906,44 @@ export default function PortfolioPage() {
   }, [portfolioCurrency, fxRate]);
 
   const cashTotal = useMemo(
-    () => cashList.reduce((sum, c) => sum + convertCashToPortfolioCurrency(c.amount, c.currency), 0),
+    () => cashList.reduce((sum, c) => sum + convertCashToPortfolioCurrency(c.accrued_amount ?? c.amount, c.currency), 0),
     [cashList, convertCashToPortfolioCurrency]
   );
 
-  const handleAddCash = async () => {
+  const handleSaveCash = async () => {
     const amount = parseFloat(cashForm.amount);
     if (isNaN(amount) || amount <= 0) return;
+    const manualRate = cashForm.rate.trim() === "" ? null : parseFloat(cashForm.rate);
     setCashSaving(true);
     try {
-      const res = await cashHoldingsApi.add(amount, cashForm.instrument, portfolioCurrency, cashForm.label || undefined);
-      setCashList((prev) => [...prev, res.data.holding]);
-      setCashForm({ amount: "", instrument: "bank", label: "" });
+      if (cashEditingId) {
+        const res = await cashHoldingsApi.update(cashEditingId, {
+          amount, instrument: cashForm.instrument, label: cashForm.label || undefined, rate_pct: manualRate,
+        });
+        setCashList((prev) => prev.map((c) => (c.id === cashEditingId ? res.data.holding : c)));
+      } else {
+        const res = await cashHoldingsApi.add(amount, cashForm.instrument, portfolioCurrency, cashForm.label || undefined, manualRate);
+        setCashList((prev) => [...prev, res.data.holding]);
+      }
+      setCashForm({ amount: "", instrument: "bank", label: "", rate: "" });
+      setCashEditingId(null);
       setCashFormOpen(false);
     } catch {
-      showToast("No se pudo agregar el efectivo. Intenta de nuevo.");
+      showToast("No se pudo guardar el efectivo. Intenta de nuevo.");
     } finally {
       setCashSaving(false);
     }
   };
 
+  const handleEditCash = (c: CashHolding) => {
+    setCashEditingId(c.id);
+    setCashForm({ amount: String(c.amount), instrument: c.instrument, label: c.label ?? "", rate: c.rate_pct ? String(c.rate_pct) : "" });
+    setCashFormOpen(true);
+  };
+
   const handleRemoveCash = async (id: string) => {
     setCashList((prev) => prev.filter((c) => c.id !== id));
+    if (cashEditingId === id) { setCashEditingId(null); setCashFormOpen(false); setCashForm({ amount: "", instrument: "bank", label: "", rate: "" }); }
     try { await cashHoldingsApi.remove(id); } catch {}
   };
   const [pendingMerge, setPendingMerge] = useState<ExtractedPos[]>([]);
@@ -2144,15 +2164,20 @@ export default function PortfolioPage() {
               {cashList.length > 0 && (
                 <div className="space-y-1.5 mb-2">
                   {cashList.map((c) => (
-                    <div key={c.id} className="flex items-center justify-between text-xs rounded-lg px-2.5 py-1.5" style={{ background: "var(--raised)" }}>
+                    <div key={c.id} className="flex items-center justify-between text-xs rounded-lg px-2.5 py-1.5 cursor-pointer transition-opacity hover:opacity-80"
+                         style={{ background: "var(--raised)" }} onClick={() => handleEditCash(c)}>
                       <span style={{ color: "var(--sub)" }}>
                         {CASH_INSTRUMENT_LABEL[c.instrument]}{c.label ? ` · ${c.label}` : ""}
+                        {c.rate_pct ? (
+                          <span className="ml-1.5 font-bold" style={{ color: "#22c55e" }}>· {c.rate_pct.toFixed(2)}% anual</span>
+                        ) : null}
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold" style={{ color: "var(--text)" }}>
-                          {c.currency} {c.amount.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                          {c.currency} {(c.accrued_amount ?? c.amount).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                         </span>
-                        <button onClick={() => handleRemoveCash(c.id)} className="font-bold" style={{ color: "var(--dim)" }}>×</button>
+                        <Pencil className="w-3 h-3" style={{ color: "var(--dim)" }} />
+                        <button onClick={(e) => { e.stopPropagation(); handleRemoveCash(c.id); }} className="font-bold" style={{ color: "var(--dim)" }}>×</button>
                       </div>
                     </div>
                   ))}
@@ -2189,14 +2214,30 @@ export default function PortfolioPage() {
                     className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
                     style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
                   />
+                  <div>
+                    <input
+                      type="number" min="0" step="any"
+                      placeholder="Tasa anual de tu efectivo (opcional)"
+                      value={cashForm.rate}
+                      onChange={(e) => setCashForm((f) => ({ ...f, rate: e.target.value }))}
+                      className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
+                      style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+                    />
+                    <p className="text-[10px] mt-1" style={{ color: "var(--dim)" }}>
+                      {cashForm.instrument === "cetes" || cashForm.instrument === "bonds"
+                        ? "Si lo dejas vacío, usamos la tasa real de hoy automáticamente."
+                        : "Solo si sabes la tasa anual que te paga (ej. tu banco)."}
+                    </p>
+                  </div>
                   <div className="flex gap-2">
-                    <button onClick={() => setCashFormOpen(false)} className="flex-1 py-2 rounded-lg border text-xs font-semibold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                    <button onClick={() => { setCashFormOpen(false); setCashEditingId(null); setCashForm({ amount: "", instrument: "bank", label: "", rate: "" }); }}
+                            className="flex-1 py-2 rounded-lg border text-xs font-semibold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
                       Cancelar
                     </button>
-                    <button onClick={handleAddCash} disabled={cashSaving || !cashForm.amount}
+                    <button onClick={handleSaveCash} disabled={cashSaving || !cashForm.amount}
                             className="flex-[2] py-2 rounded-lg text-xs font-bold text-white disabled:opacity-40"
                             style={{ background: "var(--accent)" }}>
-                      {cashSaving ? "Guardando..." : "Guardar"}
+                      {cashSaving ? "Guardando..." : cashEditingId ? "Guardar cambios" : "Guardar"}
                     </button>
                   </div>
                 </div>

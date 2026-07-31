@@ -2934,6 +2934,91 @@ async def job_ipo_alerts():
         logger.exception("job_ipo_alerts failed: %s", e)
 
 
+def _build_user_ticker_shares_map(rows: list[dict]) -> dict[str, dict[str, float]]:
+    """{user_id: {ticker: total_shares}} — sums every lot of the same ticker
+    across all of a user's portfolios into one true share count (buying the
+    same stock twice is one holding, not two)."""
+    mapping: dict[str, dict[str, float]] = {}
+    for row in rows:
+        uid = row.get("user_id")
+        if not uid:
+            continue
+        raw = row.get("positions") or {}
+        pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        for p in pos:
+            ticker = p.get("ticker")
+            shares = float(p.get("shares") or 0)
+            if not ticker or shares <= 0:
+                continue
+            bucket = mapping.setdefault(uid, {})
+            bucket[ticker] = bucket.get(ticker, 0) + shares
+    return mapping
+
+
+async def job_dividend_income():
+    """9:00 AM ET every day — records dividend payments actually received
+    today for ANY user holding the paying stock, regardless of subscription
+    tier or push-notification preferences (those gate job_events_alerts'
+    notifications, not whether the payment counts toward the user's real
+    portfolio total). See migrations/054_dividend_income.sql."""
+    from app.core.database import get_supabase, run_query
+    from app.api.routes.earnings import _fetch_events_for_symbol
+
+    db = get_supabase()
+    today = str(datetime.now(timezone.utc).date())
+
+    try:
+        port_res = await run_query(db.table("user_portfolio").select("user_id, positions"))
+        if not port_res.data:
+            return
+        user_ticker_shares = _build_user_ticker_shares_map(port_res.data)
+
+        ticker_holders: dict[str, list[tuple[str, float]]] = {}
+        for uid, tickers in user_ticker_shares.items():
+            for ticker, shares in tickers.items():
+                ticker_holders.setdefault(ticker, []).append((uid, shares))
+
+        recorded = 0
+        for i, (ticker, holders) in enumerate(ticker_holders.items()):
+            if i % 50 == 0 and i > 0:
+                await asyncio.sleep(6)
+            try:
+                events = await asyncio.to_thread(_fetch_events_for_symbol, ticker)
+            except Exception:
+                continue
+            paying_today = any(
+                evt.get("event_type") == "dividend" and evt.get("event_date") == today
+                for evt in events
+            )
+            if not paying_today:
+                continue
+
+            amt = await asyncio.to_thread(_finnhub_dividend_amount, ticker)
+            if not amt:
+                continue
+
+            for uid, shares in holders:
+                try:
+                    await run_query(
+                        db.table("dividend_income").upsert({
+                            "user_id": uid,
+                            "ticker": ticker,
+                            "pay_date": today,
+                            "shares_at_payment": shares,
+                            "per_share_amount": amt,
+                            "amount": shares * amt,
+                            "currency": "USD",
+                        }, on_conflict="user_id,ticker,pay_date")
+                    )
+                    recorded += 1
+                except Exception as e:
+                    logger.warning("job_dividend_income: failed to record for %s/%s: %s", uid, ticker, e)
+
+        logger.info("job_dividend_income: recorded %d dividend payments across %d tickers", recorded, len(ticker_holders))
+    except Exception as e:
+        logger.exception("job_dividend_income failed: %s", e)
+
+
 async def job_events_alerts():
     """8:00 AM ET weekdays — push for today/tomorrow ex-div, dividend payment, and earnings dates.
     Skips weekends and NYSE holidays."""
@@ -3102,24 +3187,6 @@ async def job_events_alerts():
                                         f"Con tus {shares_held:.4f} acciones recibirás "
                                         f"${pago:.2f} USD (${amt:.4f}/acción)."
                                     )
-                                    # Only record the ledger entry on the actual payment day
-                                    # (not the "tomorrow" preview) — this is what makes the
-                                    # payment count toward the portfolio total.
-                                    if is_today:
-                                        try:
-                                            await run_query(
-                                                db.table("dividend_income").upsert({
-                                                    "user_id": uid,
-                                                    "ticker": ticker,
-                                                    "pay_date": evt["event_date"],
-                                                    "shares_at_payment": shares_held,
-                                                    "per_share_amount": amt,
-                                                    "amount": pago,
-                                                    "currency": "USD",
-                                                }, on_conflict="user_id,ticker,pay_date")
-                                            )
-                                        except Exception as e:
-                                            logger.warning("job_events_alerts: failed to record dividend_income for %s/%s: %s", uid, ticker, e)
                                 elif amt:
                                     body = (
                                         f"{ticker} pays dividend {when}. ${amt:.4f}/share."
@@ -4638,6 +4705,7 @@ async def main():
     # ── Mon-Fri: core daily jobs ──────────────────────────────────────────────
     scheduler.add_job(job_ipo_alerts,            "cron",                        hour=7,       minute=45,    timezone="America/New_York")
     scheduler.add_job(job_events_alerts,        "cron", day_of_week="mon-fri", hour=8,       minute=0,     timezone="America/New_York")
+    scheduler.add_job(job_dividend_income,      "cron", hour=9,       minute=0,     timezone="America/New_York")
     scheduler.add_job(job_earnings_bmo,         "cron", day_of_week="mon-fri", hour=9,       minute=15,    timezone="America/New_York")
     scheduler.add_job(job_market_open,          "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")
     scheduler.add_job(job_holiday_midday,       "cron", day_of_week="mon-fri", hour=12,      minute=0,     timezone="America/New_York")

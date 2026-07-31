@@ -970,10 +970,14 @@ export default function PortfolioScreen() {
 
   // Cash held outside of stock positions (CETES, parked in a bank, bonds,
   // etc.) — counts toward the portfolio total alongside stock positions.
-  interface CashHolding { id: string; amount: number; currency: string; instrument: "cetes" | "bank" | "bonds" | "other"; label: string | null }
+  interface CashHolding {
+    id: string; amount: number; currency: string; instrument: "cetes" | "bank" | "bonds" | "other"; label: string | null;
+    accrued_amount?: number; rate_pct?: number | null;
+  }
   const [cashList, setCashList] = useState<CashHolding[]>([]);
   const [cashFormOpen, setCashFormOpen] = useState(false);
-  const [cashForm, setCashForm] = useState<{ amount: string; instrument: CashHolding["instrument"]; label: string }>({ amount: "", instrument: "bank", label: "" });
+  const [cashEditingId, setCashEditingId] = useState<string | null>(null);
+  const [cashForm, setCashForm] = useState<{ amount: string; instrument: CashHolding["instrument"]; label: string; rate: string }>({ amount: "", instrument: "bank", label: "", rate: "" });
   const [cashSaving, setCashSaving] = useState(false);
 
   useEffect(() => {
@@ -997,19 +1001,28 @@ export default function PortfolioScreen() {
   }, [portfolioCurrency, fxRate]);
 
   const cashTotal = useMemo(
-    () => cashList.reduce((sum, c) => sum + convertCashToPortfolioCurrency(c.amount, c.currency), 0),
+    () => cashList.reduce((sum, c) => sum + convertCashToPortfolioCurrency(c.accrued_amount ?? c.amount, c.currency), 0),
     [cashList, convertCashToPortfolioCurrency]
   );
   const dividendTotal = portfolioCurrency === "USD" ? dividendTotalUSD : dividendTotalUSD * fxRate;
 
-  const handleAddCash = async () => {
+  const handleSaveCash = async () => {
     const amount = parseFloat(cashForm.amount);
     if (isNaN(amount) || amount <= 0) return;
+    const manualRate = cashForm.rate.trim() === "" ? null : parseFloat(cashForm.rate);
     setCashSaving(true);
     try {
-      const res: any = await cashHoldingsApi.add(amount, cashForm.instrument, portfolioCurrency, cashForm.label || undefined);
-      setCashList((prev) => [...prev, res.data.holding]);
-      setCashForm({ amount: "", instrument: "bank", label: "" });
+      if (cashEditingId) {
+        const res: any = await cashHoldingsApi.update(cashEditingId, {
+          amount, instrument: cashForm.instrument, label: cashForm.label || undefined, rate_pct: manualRate,
+        });
+        setCashList((prev) => prev.map((c) => (c.id === cashEditingId ? res.data.holding : c)));
+      } else {
+        const res: any = await cashHoldingsApi.add(amount, cashForm.instrument, portfolioCurrency, cashForm.label || undefined, manualRate);
+        setCashList((prev) => [...prev, res.data.holding]);
+      }
+      setCashForm({ amount: "", instrument: "bank", label: "", rate: "" });
+      setCashEditingId(null);
       setCashFormOpen(false);
     } catch {
       Alert.alert(t("common.error"), t("portfolio.cash.saveError"));
@@ -1018,8 +1031,15 @@ export default function PortfolioScreen() {
     }
   };
 
+  const handleEditCash = (c: CashHolding) => {
+    setCashEditingId(c.id);
+    setCashForm({ amount: String(c.amount), instrument: c.instrument, label: c.label ?? "", rate: c.rate_pct ? String(c.rate_pct) : "" });
+    setCashFormOpen(true);
+  };
+
   const handleRemoveCash = async (id: string) => {
     setCashList((prev) => prev.filter((c) => c.id !== id));
+    if (cashEditingId === id) { setCashEditingId(null); setCashFormOpen(false); setCashForm({ amount: "", instrument: "bank", label: "", rate: "" }); }
     try { await cashHoldingsApi.remove(id); } catch {}
   };
 
@@ -2084,19 +2104,26 @@ export default function PortfolioScreen() {
           {cashList.length > 0 && (
             <View style={{ gap: 6, marginBottom: 8 }}>
               {cashList.map((c) => (
-                <View key={c.id} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.bgRaised, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>
+                <TouchableOpacity
+                  key={c.id}
+                  onPress={() => handleEditCash(c)}
+                  activeOpacity={0.7}
+                  style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.bgRaised, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}
+                >
                   <Text style={{ fontSize: 12, color: colors.textSub }}>
                     {t(`portfolio.cash.instrument${c.instrument.charAt(0).toUpperCase()}${c.instrument.slice(1)}`)}{c.label ? ` · ${c.label}` : ""}
+                    {c.rate_pct ? <Text style={{ fontWeight: "700", color: "#22c55e" }}> · {c.rate_pct.toFixed(2)}% {t("portfolio.cash.annual")}</Text> : null}
                   </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                     <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-                      {c.currency} {c.amount.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                      {c.currency} {(c.accrued_amount ?? c.amount).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                     </Text>
+                    <Ionicons name="pencil" size={12} color={colors.textDim} />
                     <TouchableOpacity onPress={() => handleRemoveCash(c.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                       <Text style={{ color: colors.textDim, fontWeight: "700" }}>×</Text>
                     </TouchableOpacity>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           )}
@@ -2132,16 +2159,36 @@ export default function PortfolioScreen() {
                 value={cashForm.label}
                 onChangeText={(v) => setCashForm((f) => ({ ...f, label: v }))}
               />
+              <View>
+                <TextInput
+                  style={{ backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, color: colors.text, fontSize: 13 }}
+                  keyboardType="decimal-pad"
+                  placeholder={t("portfolio.cash.ratePlaceholder")}
+                  placeholderTextColor={colors.textDim}
+                  value={cashForm.rate}
+                  onChangeText={(v) => setCashForm((f) => ({ ...f, rate: v }))}
+                />
+                <Text style={{ fontSize: 10, color: colors.textDim, marginTop: 4 }}>
+                  {cashForm.instrument === "cetes" || cashForm.instrument === "bonds"
+                    ? t("portfolio.cash.rateAutoHint")
+                    : t("portfolio.cash.rateManualHint")}
+                </Text>
+              </View>
               <View style={{ flexDirection: "row", gap: 8 }}>
-                <TouchableOpacity onPress={() => setCashFormOpen(false)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: "center", borderWidth: 1, borderColor: colors.border }}>
+                <TouchableOpacity
+                  onPress={() => { setCashFormOpen(false); setCashEditingId(null); setCashForm({ amount: "", instrument: "bank", label: "", rate: "" }); }}
+                  style={{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: "center", borderWidth: 1, borderColor: colors.border }}
+                >
                   <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>{t("portfolio.cash.cancel")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={handleAddCash}
+                  onPress={handleSaveCash}
                   disabled={cashSaving || !cashForm.amount}
                   style={{ flex: 2, paddingVertical: 9, borderRadius: 10, alignItems: "center", backgroundColor: colors.accent, opacity: (cashSaving || !cashForm.amount) ? 0.5 : 1 }}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: "800", color: "#fff" }}>{cashSaving ? t("portfolio.cash.saving") : t("portfolio.cash.save")}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: "800", color: "#fff" }}>
+                    {cashSaving ? t("portfolio.cash.saving") : cashEditingId ? t("portfolio.cash.saveChanges") : t("portfolio.cash.save")}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>

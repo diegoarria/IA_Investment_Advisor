@@ -129,9 +129,10 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
   useEffect(() => {
     cashHoldingsApi.list().then((res) => {
       const holdings = res.data?.holdings ?? [];
-      const usd = holdings.reduce((sum: number, c: { amount: number; currency: string }) => {
-        if (c.currency === "USD") return sum + c.amount;
-        return sum + c.amount / (CASH_APPROX_TO_USD[c.currency] ?? 1);
+      const usd = holdings.reduce((sum: number, c: { amount: number; currency: string; accrued_amount?: number }) => {
+        const amt = c.accrued_amount ?? c.amount;
+        if (c.currency === "USD") return sum + amt;
+        return sum + amt / (CASH_APPROX_TO_USD[c.currency] ?? 1);
       }, 0);
       setCashTotalUSD(usd);
     }).catch(() => {});

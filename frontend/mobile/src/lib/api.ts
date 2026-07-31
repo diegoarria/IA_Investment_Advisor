@@ -314,9 +314,9 @@ export const referralApi = {
 
 export const cashHoldingsApi = {
   list:   () => api.get("/api/cash-holdings"),
-  add:    (amount: number, instrument: string, currency: string, label?: string) =>
-    api.post("/api/cash-holdings", { amount, instrument, currency, label }),
-  update: (id: string, body: { amount?: number; instrument?: string; currency?: string; label?: string }) =>
+  add:    (amount: number, instrument: string, currency: string, label?: string, ratePct?: number | null) =>
+    api.post("/api/cash-holdings", { amount, instrument, currency, label, rate_pct: ratePct ?? null }),
+  update: (id: string, body: { amount?: number; instrument?: string; currency?: string; label?: string; rate_pct?: number | null }) =>
     api.put(`/api/cash-holdings/${id}`, body),
   remove: (id: string) => api.delete(`/api/cash-holdings/${id}`),
 };

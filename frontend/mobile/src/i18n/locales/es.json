@@ -1182,12 +1182,17 @@
       "labelPlaceholder": "Nota (opcional)",
       "cancel": "Cancelar",
       "save": "Guardar",
+      "saveChanges": "Guardar cambios",
       "saving": "Guardando...",
-      "saveError": "No se pudo agregar el efectivo. Intenta de nuevo.",
+      "saveError": "No se pudo guardar el efectivo. Intenta de nuevo.",
       "instrumentCetes": "CETES",
       "instrumentBank": "Banco",
       "instrumentBonds": "Bonos",
-      "instrumentOther": "Otro"
+      "instrumentOther": "Otro",
+      "annual": "anual",
+      "ratePlaceholder": "Tasa anual de tu efectivo (opcional)",
+      "rateAutoHint": "Si lo dejas vacío, usamos la tasa real de hoy automáticamente.",
+      "rateManualHint": "Solo si sabes la tasa anual que te paga (ej. tu banco)."
     },
     "preview": {
       "detected": "{{count}} posiciones detectadas",

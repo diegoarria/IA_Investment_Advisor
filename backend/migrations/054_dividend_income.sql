@@ -1,9 +1,9 @@
 -- Migration 054: dividend income ledger
 --
 -- Records dividend payments the user actually received on positions they
--- held on the payment date — worker.py's existing dividend-notification job
--- (which already fetches per-share amounts and knows who holds what) writes
--- one row here the day a dividend is paid, computed as shares_held *
+-- held on the payment date — worker.py's job_dividend_income (a standalone
+-- daily job, independent of subscription tier or push-notification prefs)
+-- writes one row here the day a dividend is paid, computed as shares_held *
 -- per_share_amount. This is forward-tracking only: dividends paid before
 -- this feature shipped are never backfilled/guessed, since we have no
 -- reliable record of exactly how many shares the user held on past payment
