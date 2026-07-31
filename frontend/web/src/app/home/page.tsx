@@ -647,6 +647,9 @@ export default function HomePage() {
                   total_gain_pct: totalGainPct,
                   goal_progress_pct: goalAmount > 0 ? Math.round((total / goalAmount) * 100) : null,
                   currency: portfolioCurrency,
+                  market_indices: indices.map((idx) => ({ name: idx.name, change_pct: idx.change_pct })),
+                  top_gainers: movers.map((m) => ({ ticker: m.ticker, change_pct: m.chg })),
+                  top_losers: losers.map((m) => ({ ticker: m.ticker, change_pct: m.chg })),
                 }}
               />
               {isBeginnerMode && beginnerCardDismissed && (
@@ -819,7 +822,7 @@ export default function HomePage() {
               <div role="button" tabIndex={0}
                       onClick={() => router.push("/patrimonio")}
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/patrimonio"); }}
-                      className="lg:col-span-2 text-left rounded-2xl p-5 border transition-all hover:border-[var(--accent)] group relative overflow-hidden cursor-pointer"
+                      className="lg:col-span-2 flex flex-col justify-center text-left rounded-2xl p-5 border transition-all hover:border-[var(--accent)] group relative overflow-hidden cursor-pointer"
                       style={{ background: "var(--card)", borderColor: "var(--border)" }}>
 
                 {/* Top row: label + amount LEFT, avatar RIGHT */}

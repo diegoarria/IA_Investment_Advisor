@@ -243,9 +243,10 @@ export const mentorLetter = {
 };
 
 export const referral = {
-  getCode:    () => api.get("/api/referral/code"),
-  getStats:   () => api.get("/api/referral/stats"),
-  applyCode:  (code: string) => api.post("/api/referral/apply", { code }),
+  getCode:       () => api.get("/api/referral/code"),
+  getStats:      () => api.get("/api/referral/stats"),
+  applyCode:     (code: string) => api.post("/api/referral/apply", { code }),
+  redeemSession: () => api.post("/api/referral/redeem-session"),
 };
 
 export const support = {
@@ -289,8 +290,8 @@ export const sync = {
 };
 
 export const explain = {
-  explain: (screen: string, context: Record<string, unknown>, lang?: string) =>
-    api.post("/api/explain", { screen, context, lang }, { timeout: 25000 }),
+  explain: (screen: string, context: Record<string, unknown>, lang?: string, textOnly?: boolean) =>
+    api.post("/api/explain", { screen, context, lang, text_only: textOnly }, { timeout: 25000 }),
 };
 
 export const notifications = {
@@ -320,6 +321,7 @@ export const researchApi = {
     api.post("/api/research/plan", { request_text: requestText }),
   start: (jobId: string, stripeSessionId: string) =>
     api.post("/api/research/start", { job_id: jobId, stripe_session_id: stripeSessionId }),
+  startFree: (jobId: string) => api.post("/api/research/start-free", { job_id: jobId }),
   getJob: (jobId: string) => api.get(`/api/research/jobs/${jobId}`),
   getActiveJob: () => api.get("/api/research/jobs/active"),
   listReports: () => api.get("/api/research/reports"),

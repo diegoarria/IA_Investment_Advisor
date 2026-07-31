@@ -1826,6 +1826,8 @@ export default function PortfolioPage() {
                 total_gain_pct: totals.pct,
                 position_count: positions.length,
                 currency: portfolioCurrency,
+                ytd_gain_pct: chartOverrides.ytd?.pct ?? null,
+                sp500_ytd_pct: chartOverrides.ytd?.spy_pct ?? null,
               }}
             />
             <BalanceVisibilityToggle

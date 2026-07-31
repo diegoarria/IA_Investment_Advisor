@@ -183,7 +183,13 @@ export default function ProfileScreen() {
 
   const [insights, setInsights] = useState<{ ready: boolean; topics?: string[]; risk_behavior?: string; risk_match?: boolean; risk_note?: string; suggestion?: string; interests?: string[] } | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
-  const [referralStats, setReferralStats] = useState<{ referred_count: number; bonus_days: number } | null>(null);
+  const [referralStats, setReferralStats] = useState<{
+    referred_count: number;
+    reward_tier: number;
+    free_1on1_sessions: number;
+    free_deep_research_credits: number;
+  } | null>(null);
+  const [redeemingSession, setRedeemingSession] = useState(false);
   const [likedClips, setLikedClips] = useState<{ id: string; title: string; thumbnail_url: string; speaker: string; duration_sec: number }[]>([]);
 
   const subStore = useSubscriptionStore();
@@ -1120,18 +1126,73 @@ if (!profile) {
             </View>
 
             {referralStats && (
-              <View style={[s.referralStats, { borderBottomColor: colors.border }]}>
-                <View style={s.referralStat}>
-                  <Text style={[s.referralStatNum, { color: "#f59e0b" }]}>{referralStats.referred_count}</Text>
-                  <Text style={[s.referralStatLabel, { color: colors.textMuted }]}>{t("profile.referral.referredFriends")}</Text>
-                </View>
-                <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 4 }} />
-                <View style={s.referralStat}>
-                  <Text style={[s.referralStatNum, { color: "#22c55e" }]}>
-                    {referralStats.bonus_days ? t("profile.referral.pendingRewardValue", { days: referralStats.bonus_days }) : "—"}
-                  </Text>
-                  <Text style={[s.referralStatLabel, { color: colors.textMuted }]}>{t("profile.referral.pendingReward")}</Text>
-                </View>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
+                <Ionicons name="people" size={14} color="#f59e0b" />
+                <Text style={[s.referralStatNum, { color: "#f59e0b" }]}>{referralStats.referred_count}</Text>
+                <Text style={[s.referralStatLabel, { color: colors.textMuted }]}>{t("profile.referral.referredFriends")}</Text>
+              </View>
+            )}
+
+            <View style={{ padding: 14, gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
+              {[
+                { friends: 1, reward: t("profile.referral.tier1Reward"), icon: null as any },
+                { friends: 2, reward: t("profile.referral.tier2Reward"), icon: "videocam-outline" as any },
+                { friends: 3, reward: t("profile.referral.tier3Reward"), icon: "document-text-outline" as any },
+              ].map((tier) => {
+                const done = (referralStats?.referred_count ?? 0) >= tier.friends;
+                return (
+                  <View key={tier.friends} style={{ flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: done ? "#22c55e14" : colors.bgRaised }}>
+                    <View style={{ width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: done ? "#22c55e" : colors.border }}>
+                      <Ionicons name={done ? "checkmark" : "lock-closed"} size={done ? 14 : 11} color={done ? "#fff" : colors.textMuted} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+                        {t("profile.referral.tierN", { count: tier.friends })}
+                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        {tier.icon && <Ionicons name={tier.icon} size={11} color={colors.textMuted} />}
+                        <Text style={{ fontSize: 11, color: colors.textMuted }}>{tier.reward}</Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+
+            {referralStats && (referralStats.free_1on1_sessions > 0 || referralStats.free_deep_research_credits > 0) && (
+              <View style={{ padding: 14, gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
+                {referralStats.free_1on1_sessions > 0 && (
+                  <TouchableOpacity
+                    disabled={redeemingSession}
+                    onPress={async () => {
+                      setRedeemingSession(true);
+                      try {
+                        await referralApi.redeemSession();
+                        setReferralStats((prev) => prev && { ...prev, free_1on1_sessions: prev.free_1on1_sessions - 1 });
+                        router.push(`/chat?msg=${encodeURIComponent(t("profile.referral.redeemSessionMsg"))}&autosend=1` as any);
+                      } finally {
+                        setRedeemingSession(false);
+                      }
+                    }}
+                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 11, borderRadius: 12, backgroundColor: "#6366f11f", borderWidth: 1, borderColor: "#6366f14d", opacity: redeemingSession ? 0.6 : 1 }}
+                  >
+                    <Ionicons name="videocam-outline" size={15} color="#6366f1" />
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#6366f1" }}>
+                      {t("profile.referral.redeemSession", { count: referralStats.free_1on1_sessions })}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {referralStats.free_deep_research_credits > 0 && (
+                  <TouchableOpacity
+                    onPress={() => router.push("/research")}
+                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 11, borderRadius: 12, backgroundColor: "#22c55e1f", borderWidth: 1, borderColor: "#22c55e4d" }}
+                  >
+                    <Ionicons name="document-text-outline" size={15} color="#22c55e" />
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#22c55e" }}>
+                      {t("profile.referral.redeemResearch", { count: referralStats.free_deep_research_credits })}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
 

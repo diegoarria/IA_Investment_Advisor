@@ -199,8 +199,8 @@ export const marketApi = {
 };
 
 export const explainApi = {
-  explain: (screen: string, context: Record<string, unknown>, lang?: string) =>
-    api.post("/api/explain", { screen, context, lang }, { timeout: 25000 }),
+  explain: (screen: string, context: Record<string, unknown>, lang?: string, textOnly?: boolean) =>
+    api.post("/api/explain", { screen, context, lang, text_only: textOnly }, { timeout: 25000 }),
 };
 
 export const notificationsApi = {
@@ -227,6 +227,7 @@ export const upsellsApi = {
 export const researchApi = {
   createPlan: (requestText: string) =>
     api.post("/api/research/plan", { request_text: requestText }),
+  startFree: (jobId: string) => api.post("/api/research/start-free", { job_id: jobId }),
   getActiveJob: () => api.get("/api/research/jobs/active"),
   getJob: (jobId: string) => api.get(`/api/research/jobs/${jobId}`),
   listReports: () => api.get("/api/research/reports"),
@@ -305,9 +306,10 @@ export const syncApi = {
 };
 
 export const referralApi = {
-  getCode:   () => api.get("/api/referral/code"),
-  getStats:  () => api.get("/api/referral/stats"),
-  applyCode: (code: string) => api.post("/api/referral/apply", { code }),
+  getCode:       () => api.get("/api/referral/code"),
+  getStats:      () => api.get("/api/referral/stats"),
+  applyCode:     (code: string) => api.post("/api/referral/apply", { code }),
+  redeemSession: () => api.post("/api/referral/redeem-session"),
 };
 
 export const feedbackApi = {

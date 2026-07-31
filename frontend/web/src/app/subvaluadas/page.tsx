@@ -18,7 +18,7 @@ import {
   MarketExpectationsPanel, InsightBox, FollowButton, AnalyzeButton,
 } from "@/components/subvaluadas/shared";
 import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
-import { screenerApi, savedValuationsApi, watchlist } from "@/lib/api";
+import { screenerApi, savedValuationsApi, watchlist, explain as explainApi } from "@/lib/api";
 import { useSubscriptionStore, useThemeStore } from "@/lib/store";
 
 export interface QuickAnalysisResult {
@@ -482,6 +482,42 @@ function SubvaluadasPageInner() {
 
   const price = data?.price ?? 0;
   const liveMos = liveResult && price ? ((liveResult.valorPorAccion - price) / price) * 100 : null;
+
+  // Mentor feedback on the slider the user just moved — fires automatically
+  // (debounced, no button tap) whenever an assumption drifts from the
+  // suggested default, text-only (no TTS — this would fire far too often to
+  // synthesize audio every time).
+  const [mentorTip, setMentorTip] = useState<string | null>(null);
+  const [mentorTipLoading, setMentorTipLoading] = useState(false);
+  useEffect(() => {
+    if (isDefault || !hasData) { setMentorTip(null); return; }
+    const handle = setTimeout(async () => {
+      setMentorTipLoading(true);
+      try {
+        const res = await explainApi.explain("oportunidades_slider_feedback", {
+          ticker: data?.ticker,
+          wacc_pct: r,
+          growth_pct: g,
+          terminal_growth_pct: gt,
+          suggested_wacc_pct: suggestedR,
+          suggested_growth_pct: suggestedG,
+          suggested_terminal_growth_pct: suggestedGt,
+          wacc_range: data?.dcf_assumptions?.r_range ?? null,
+          growth_range: data?.dcf_assumptions?.g_range ?? null,
+          terminal_growth_range: data?.dcf_assumptions?.gt_range ?? null,
+          intrinsic_value_per_share: liveResult?.valorPorAccion ?? null,
+          price,
+        }, i18n.language, true);
+        setMentorTip(res.data?.text || null);
+      } catch {
+        setMentorTip(null);
+      } finally {
+        setMentorTipLoading(false);
+      }
+    }, 900);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [g, r, gt]);
   const barMax = Math.max(price, liveResult?.valorPorAccion ?? 0) * 1.15 || 1;
 
   const handleFollow = async () => {
@@ -705,6 +741,18 @@ function SubvaluadasPageInner() {
                                 <span className="text-[11px]" style={{ color: CORAL }}>{t("subvaluadas.detail.saveCta.error")}</span>
                               )}
                             </div>
+
+                            {(mentorTipLoading || mentorTip) && (
+                              <div className="flex items-start gap-2 mt-3 p-3 rounded-xl text-[12px] leading-relaxed"
+                                   style={{ background: "var(--raised)", border: "1px solid var(--border)", color: "var(--sub)" }}>
+                                <span className="shrink-0">🎓</span>
+                                {mentorTipLoading ? (
+                                  <span style={{ color: "var(--muted)" }}>{t("subvaluadas.dcf.mentorTip.loading")}</span>
+                                ) : (
+                                  <span>{mentorTip}</span>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           <div className="pl-8 flex flex-col gap-4">

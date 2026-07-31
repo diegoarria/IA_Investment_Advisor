@@ -94,6 +94,44 @@ async def start_research(request: Request, body: dict, user_id: str = Depends(ge
     return {"job_id": job_id, "status": "pending"}
 
 
+@router.post("/start-free")
+@limiter.limit("10/minute")
+async def start_research_free(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
+    """Redeem a free deep-research credit earned via the referral program —
+    same downstream pipeline as a paid job (the worker claims any 'pending'
+    job regardless of how it got there), just skips Stripe entirely. Leaves
+    stripe_session_id unset so _maybe_refund's "nothing to refund" no-op
+    still applies if this job later fails."""
+    job_id = body.get("job_id")
+    if not job_id:
+        raise HTTPException(status_code=400, detail="job_id es requerido")
+
+    db = get_supabase()
+    job_res = await run_query(
+        db.table("research_jobs").select("*").eq("id", job_id).eq("user_id", user_id).single()
+    )
+    if not job_res.data:
+        raise HTTPException(status_code=404, detail="Investigación no encontrada")
+    job = job_res.data
+    if job["status"] != "pending":
+        return {"job_id": job_id, "status": job["status"]}
+
+    profile_res = await run_query(
+        db.table("user_profiles").select("free_deep_research_credits").eq("user_id", user_id).maybe_single()
+    )
+    credits = int(((profile_res.data if profile_res else None) or {}).get("free_deep_research_credits") or 0)
+    if credits <= 0:
+        raise HTTPException(status_code=402, detail="No tienes reportes gratis disponibles")
+
+    await run_query(
+        db.table("user_profiles").update({"free_deep_research_credits": credits - 1}).eq("user_id", user_id)
+    )
+    await run_query(
+        db.table("research_jobs").update({"trigger_source": "referral_credit"}).eq("id", job_id)
+    )
+    return {"job_id": job_id, "status": "pending"}
+
+
 @router.post("/jobs/{job_id}/cancel")
 @limiter.limit("20/minute")
 async def cancel_job(request: Request, job_id: str, user_id: str = Depends(get_current_user_id)):

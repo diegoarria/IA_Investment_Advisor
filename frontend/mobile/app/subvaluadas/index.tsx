@@ -9,7 +9,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { useTheme } from "../../src/lib/ThemeContext";
-import { screenerWeeklyApi, watchlistServerApi, savedValuationsApi } from "../../src/lib/api";
+import { screenerWeeklyApi, watchlistServerApi, savedValuationsApi, explainApi } from "../../src/lib/api";
 import PaywallModal from "../../src/components/PaywallModal";
 import StockAvatar from "../../src/components/StockAvatar";
 import ExplainButton from "../../src/components/ExplainButton";
@@ -305,6 +305,42 @@ export default function SubvaluadasScreen() {
   const liveMos = liveResult && price ? ((liveResult.valorPorAccion - price) / price) * 100 : null;
   const barMax = Math.max(price, liveResult?.valorPorAccion ?? 0) * 1.15 || 1;
 
+  // Mentor feedback on the slider the user just moved — fires automatically
+  // (debounced, no button tap) whenever an assumption drifts from the
+  // suggested default, text-only (no TTS — this would fire far too often to
+  // synthesize audio every time).
+  const [mentorTip, setMentorTip] = useState<string | null>(null);
+  const [mentorTipLoading, setMentorTipLoading] = useState(false);
+  useEffect(() => {
+    if (isDefault || !hasData) { setMentorTip(null); return; }
+    const handle = setTimeout(async () => {
+      setMentorTipLoading(true);
+      try {
+        const res: any = await explainApi.explain("oportunidades_slider_feedback", {
+          ticker: data?.ticker,
+          wacc_pct: r,
+          growth_pct: g,
+          terminal_growth_pct: gt,
+          suggested_wacc_pct: suggestedR,
+          suggested_growth_pct: suggestedG,
+          suggested_terminal_growth_pct: suggestedGt,
+          wacc_range: data?.dcf_assumptions?.r_range ?? null,
+          growth_range: data?.dcf_assumptions?.g_range ?? null,
+          terminal_growth_range: data?.dcf_assumptions?.gt_range ?? null,
+          intrinsic_value_per_share: liveResult?.valorPorAccion ?? null,
+          price,
+        }, i18n.language, true);
+        setMentorTip(res.data?.text || null);
+      } catch {
+        setMentorTip(null);
+      } finally {
+        setMentorTipLoading(false);
+      }
+    }, 900);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [g, r, gt]);
+
   const handleFollow = async () => {
     if (!data || watchlisted) return;
     try { await watchlistServerApi.add(data.ticker, data.company_name || undefined); setWatchlisted(true); } catch { /* idempotent */ }
@@ -505,6 +541,17 @@ export default function SubvaluadasScreen() {
                     <Text style={{ fontSize: 11, color: CORAL }}>{t("subvaluadas.detail.saveCta.error")}</Text>
                   )}
                 </View>
+
+                {(mentorTipLoading || mentorTip) && (
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 12, backgroundColor: viColors.bgRaised }}>
+                    <Text>🎓</Text>
+                    {mentorTipLoading ? (
+                      <Text style={{ flex: 1, fontSize: 12, color: viColors.textMuted }}>{t("subvaluadas.dcf.mentorTip.loading")}</Text>
+                    ) : (
+                      <Text style={{ flex: 1, fontSize: 12, lineHeight: 17, color: viColors.textSub }}>{mentorTip}</Text>
+                    )}
+                  </View>
+                )}
 
                 <View style={{ height: 1, backgroundColor: viColors.border }} />
 

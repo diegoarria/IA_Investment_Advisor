@@ -513,13 +513,21 @@
     "referral": {
       "sectionTitle": "Invite friends",
       "title": "Invite friends, earn rewards",
-      "subtitle": "You and your friend both get 14 days of premium free",
+      "subtitle": "Your friend also gets 14 days of premium free when they sign up with your code",
       "referredFriends": "Referred friends",
-      "pendingReward": "Reward",
-      "pendingRewardValue": "{{days}} days free",
+      "tierN": "Invite {{count}} friend",
+      "tierN_other": "Invite {{count}} friends",
+      "tier1Reward": "14 days of premium",
+      "tier2Reward": "14 days of premium + 1 free 1:1 session",
+      "tier3Reward": "30 days of premium + 1 free 1:1 session + 1 free deep research",
+      "redeemSession": "Request my free 1:1 session ({{count}} available)",
+      "redeemSession_other": "Request my free 1:1 session ({{count}} available)",
+      "redeemSessionMsg": "I want to request the free 1:1 session I earned by inviting friends to Nuvos AI.",
+      "redeemResearch": "Use my free deep research ({{count}} available)",
+      "redeemResearch_other": "Use my free deep research reports ({{count}} available)",
       "loading": "Loading...",
       "share": "Share invite",
-      "note": "The 14 days activate automatically as soon as your friend signs up with your code.",
+      "note": "Rewards activate automatically as soon as your friends sign up with your code.",
       "shareMessage": "I'm using Nuvos AI — the best AI investment mentor. Join for free 👉 {{url}}"
     },
     "likedVideos": {
@@ -813,6 +821,9 @@
       },
       "reset": "Reset to Nuvos's estimate",
       "marketImplied": "The market is paying a price that implies ~{{market}}% annual growth — Nuvos estimates {{nuvos}}%.",
+      "mentorTip": {
+        "loading": "Thinking..."
+      },
       "liveResult": {
         "intrinsicValue": "Intrinsic value with your assumptions",
         "marginOfSafety": "Margin of safety",
@@ -3447,6 +3458,8 @@
     },
     "plan": {
       "title": "Here's what we'll research",
+      "useFreeCredit": "Use my free deep research ({{count}} available)",
+      "useFreeCredit_other": "Use my free deep research reports ({{count}} available)",
       "confirm": "Confirm and pay",
       "back": "Change my request",
       "checkoutError": "Couldn't start checkout. Try again.",

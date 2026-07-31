@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
-import { researchApi, upsellsApi } from "../../src/lib/api";
+import { researchApi, upsellsApi, referralApi } from "../../src/lib/api";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 
 type ViewState = "compose" | "plan" | "awaiting_checkout" | "progress" | "error";
@@ -42,11 +42,13 @@ export default function ResearchScreen() {
   const [currentStage, setCurrentStage] = useState("");
   const [elapsedSec, setElapsedSec] = useState(0);
   const [history, setHistory] = useState<{ id: string; title: string; companies: string[]; created_at: string }[]>([]);
+  const [freeCredits, setFreeCredits] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const s = makeStyles(colors);
 
   useEffect(() => {
     researchApi.listReports().then((res) => setHistory(res.data?.reports || [])).catch(() => {});
+    referralApi.getStats().then((res: any) => setFreeCredits(res.data?.free_deep_research_credits || 0)).catch(() => {});
   }, []);
 
   const stopPolling = useCallback(() => {
@@ -120,6 +122,19 @@ export default function ResearchScreen() {
       setError(t("research.plan.checkoutError"));
     }
     setLoading(false);
+  };
+
+  const handleUseFreeCredit = async () => {
+    if (!jobId) return;
+    setLoading(true); setError(null);
+    try {
+      await researchApi.startFree(jobId);
+      setFreeCredits((c) => Math.max(0, c - 1));
+      pollJob(jobId);
+    } catch {
+      setError(t("research.plan.checkoutError"));
+      setLoading(false);
+    }
   };
 
   return (
@@ -209,6 +224,13 @@ export default function ResearchScreen() {
             </View>
 
             {error && <Text style={s.errorText}>{error}</Text>}
+            {freeCredits > 0 && (
+              <TouchableOpacity onPress={handleUseFreeCredit} disabled={loading}
+                                style={[s.primaryBtn, { backgroundColor: colors.accentLight, opacity: loading ? 0.5 : 1, marginBottom: 8 }]}>
+                {loading ? <ActivityIndicator color="#000" /> : <Ionicons name="sparkles" size={16} color="#000" />}
+                <Text style={s.primaryBtnText}>{t("research.plan.useFreeCredit", { count: freeCredits })}</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={handleConfirmAndPay} disabled={loading}
                               style={[s.primaryBtn, { backgroundColor: colors.accent, opacity: loading ? 0.5 : 1 }]}>
               {loading ? <ActivityIndicator color="#000" /> : <Ionicons name="arrow-forward" size={16} color="#000" />}

@@ -3846,6 +3846,8 @@ export default function PortfolioScreen() {
           total_gain_pct: totals.pct,
           position_count: positions.length,
           currency: portfolioCurrency,
+          ytd_gain_pct: periodReturns.ytd?.pct ?? null,
+          sp500_ytd_pct: periodReturns.ytd?.spy_pct ?? null,
         }}
         bottomOffset={90}
       />

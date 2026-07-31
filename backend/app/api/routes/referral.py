@@ -1,9 +1,10 @@
 """
 Referral program endpoints.
 
-GET  /referral/code   — get (or auto-generate) the user's unique referral code
-GET  /referral/stats  — referred_count and pending reward
-POST /referral/apply  — called after signup to credit a referrer
+GET  /referral/code           — get (or auto-generate) the user's unique referral code
+GET  /referral/stats          — referred_count, tier progress, and reward credits
+POST /referral/apply          — called after signup to credit a referrer
+POST /referral/redeem-session — spend one earned free 1:1 session credit
 """
 
 import random
@@ -15,17 +16,26 @@ from app.core.database import get_supabase, run_query
 
 router = APIRouter(prefix="/referral", tags=["referral"])
 
-# Flat reward, both sides: referrer and the friend they referred each get
-# REFERRAL_BONUS_DAYS of bonus premium per successful referral (not tiered —
-# every referral pays out the same reward, stacking with any active streak
-# or prior referral bonus already on the account).
-REFERRAL_BONUS_DAYS = 14
+# One-time bonus for the new user who signs up with someone else's code —
+# flat, unrelated to the referrer's milestone tiers below.
+WELCOME_BONUS_DAYS = 14
+
+# The referrer's reward ladder: (referred_count threshold, premium days
+# granted at that tier, grants a free 1:1 session, grants a free deep
+# research report). Each tier pays out exactly once — see
+# referral_reward_tier, the highest tier already paid — even if
+# referred_count keeps climbing past 3.
+REFERRAL_TIERS = [
+    (1, 14, False, False),
+    (2, 14, True, False),
+    (3, 30, True, True),
+]
 
 
-async def _grant_referral_bonus(user_id: str, db) -> None:
-    """Extend the user's bonus-premium window by REFERRAL_BONUS_DAYS, stacking
-    on top of any streak/referral bonus that's still active. No-op for
-    already-paid premium users — they don't need it."""
+async def _extend_premium(user_id: str, days: int, db) -> None:
+    """Extend the user's bonus-premium window by `days`, stacking on top of
+    any streak/referral bonus that's still active. No-op for already-paid
+    premium users — they don't need it."""
     row = await run_query(
         db.table("user_profiles")
         .select("subscription_tier, streak_bonus_premium_until")
@@ -46,10 +56,45 @@ async def _grant_referral_bonus(user_id: str, db) -> None:
         except Exception:
             pass
 
-    new_until = (base + timedelta(days=REFERRAL_BONUS_DAYS)).isoformat()
+    new_until = (base + timedelta(days=days)).isoformat()
     await run_query(
         db.table("user_profiles").update({"streak_bonus_premium_until": new_until}).eq("user_id", user_id)
     )
+
+
+async def _grant_tier_rewards(referrer_id: str, new_count: int, db) -> None:
+    """Pay out every tier newly crossed by `new_count` that the referrer
+    hasn't already been paid for — additive (a referrer who reaches tier 3
+    has been paid tier 1 + tier 2 + tier 3's rewards, not just tier 3's)."""
+    row = await run_query(
+        db.table("user_profiles")
+        .select("referral_reward_tier, free_1on1_sessions, free_deep_research_credits")
+        .eq("user_id", referrer_id)
+        .maybe_single()
+    )
+    data = (row.data if row else None) or {}
+    current_tier = int(data.get("referral_reward_tier") or 0)
+    sessions = int(data.get("free_1on1_sessions") or 0)
+    research_credits = int(data.get("free_deep_research_credits") or 0)
+    highest = current_tier
+
+    for tier, days, grants_session, grants_research in REFERRAL_TIERS:
+        if new_count >= tier and current_tier < tier:
+            await _extend_premium(referrer_id, days, db)
+            if grants_session:
+                sessions += 1
+            if grants_research:
+                research_credits += 1
+            highest = tier
+
+    if highest > current_tier:
+        await run_query(
+            db.table("user_profiles").update({
+                "referral_reward_tier": highest,
+                "free_1on1_sessions": sessions,
+                "free_deep_research_credits": research_credits,
+            }).eq("user_id", referrer_id)
+        )
 
 
 def _generate_code() -> str:
@@ -87,7 +132,10 @@ async def get_code(user_id: str = Depends(get_current_user_id)):
 async def get_stats(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
     row = await run_query(
-        db.table("user_profiles").select("referral_code, referred_count").eq("user_id", user_id).maybe_single()
+        db.table("user_profiles")
+        .select("referral_code, referred_count, referral_reward_tier, free_1on1_sessions, free_deep_research_credits")
+        .eq("user_id", user_id)
+        .maybe_single()
     )
     data = (row.data if row else None) or {}
     code = data.get("referral_code") or await _ensure_code(user_id)
@@ -96,10 +144,13 @@ async def get_stats(user_id: str = Depends(get_current_user_id)):
         "code": code,
         "link": f"https://nuvosai.app/join?ref={code}",
         "referred_count": count,
-        # The frontend renders this via i18n (t("profile.pendingRewardValue",
-        # {days})) — a hardcoded Spanish string used to live here regardless
-        # of the user's language setting.
-        "bonus_days": REFERRAL_BONUS_DAYS,
+        "reward_tier": int(data.get("referral_reward_tier") or 0),
+        "free_1on1_sessions": int(data.get("free_1on1_sessions") or 0),
+        "free_deep_research_credits": int(data.get("free_deep_research_credits") or 0),
+        "tiers": [
+            {"friends": tier, "days": days, "session": grants_session, "research": grants_research}
+            for tier, days, grants_session, grants_research in REFERRAL_TIERS
+        ],
     }
 
 
@@ -141,9 +192,26 @@ async def apply_referral(body: dict, user_id: str = Depends(get_current_user_id)
         db.table("user_profiles").update({"referred_by": referrer_id}).eq("user_id", user_id)
     )
 
-    # Flat reward: both the referrer and the new friend get REFERRAL_BONUS_DAYS
-    # of bonus premium, right away — not gated on any milestone.
-    await _grant_referral_bonus(referrer_id, db)
-    await _grant_referral_bonus(user_id, db)
+    await _grant_tier_rewards(referrer_id, new_count, db)
+    await _extend_premium(user_id, WELCOME_BONUS_DAYS, db)
 
-    return {"ok": True, "referred_count": new_count, "bonus_days": REFERRAL_BONUS_DAYS}
+    return {"ok": True, "referred_count": new_count, "bonus_days": WELCOME_BONUS_DAYS}
+
+
+@router.post("/redeem-session")
+async def redeem_session(user_id: str = Depends(get_current_user_id)):
+    """Spend one earned free 1:1 session credit. Booking itself still happens
+    manually (same flow as the existing "request a session" chat message) —
+    this just marks the credit as used so it can't be redeemed twice."""
+    db = get_supabase()
+    row = await run_query(
+        db.table("user_profiles").select("free_1on1_sessions").eq("user_id", user_id).maybe_single()
+    )
+    count = int(((row.data if row else None) or {}).get("free_1on1_sessions") or 0)
+    if count <= 0:
+        raise HTTPException(status_code=400, detail="No tienes sesiones 1:1 gratis disponibles")
+
+    await run_query(
+        db.table("user_profiles").update({"free_1on1_sessions": count - 1}).eq("user_id", user_id)
+    )
+    return {"ok": True, "remaining": count - 1}

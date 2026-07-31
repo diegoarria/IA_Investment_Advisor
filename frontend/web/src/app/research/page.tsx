@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Sparkles, Loader2, ArrowRight, AlertTriangle } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
-import { researchApi, upsells } from "@/lib/api";
+import { researchApi, upsells, referral as referralApi } from "@/lib/api";
 import { useSubscriptionStore } from "@/lib/store";
 
 type View = "compose" | "plan" | "checking" | "progress" | "error";
@@ -47,11 +47,13 @@ function ResearchPageInner() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedResumeRef = useRef(false);
   const [history, setHistory] = useState<{ id: string; title: string; companies: string[]; created_at: string }[]>([]);
+  const [freeCredits, setFreeCredits] = useState(0);
 
   const price = isPremium ? 9.99 : 19.99;
 
   useEffect(() => {
     researchApi.listReports().then((res) => setHistory(res.data?.reports || [])).catch(() => {});
+    referralApi.getStats().then((res) => setFreeCredits(res.data?.free_deep_research_credits || 0)).catch(() => {});
   }, []);
 
   const stopPolling = useCallback(() => {
@@ -132,6 +134,19 @@ function ResearchPageInner() {
         setError(res.data?.error || t("research.plan.checkoutError"));
         setLoading(false);
       }
+    } catch {
+      setError(t("research.plan.checkoutError"));
+      setLoading(false);
+    }
+  };
+
+  const handleUseFreeCredit = async () => {
+    if (!jobId) return;
+    setLoading(true); setError(null);
+    try {
+      await researchApi.startFree(jobId);
+      setFreeCredits((c) => Math.max(0, c - 1));
+      pollJob(jobId);
     } catch {
       setError(t("research.plan.checkoutError"));
       setLoading(false);
@@ -247,6 +262,14 @@ function ResearchPageInner() {
                 </div>
 
                 {error && <p className="text-xs" style={{ color: "#ef4444" }}>{error}</p>}
+                {freeCredits > 0 && (
+                  <button onClick={handleUseFreeCredit} disabled={loading}
+                          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-black font-black text-sm disabled:opacity-40 transition-opacity"
+                          style={{ background: "var(--accent-l)" }}>
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    {t("research.plan.useFreeCredit", { count: freeCredits })}
+                  </button>
+                )}
                 <button onClick={handleConfirmAndPay} disabled={loading}
                         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-black font-black text-sm disabled:opacity-40 transition-opacity"
                         style={{ background: "var(--accent)" }}>

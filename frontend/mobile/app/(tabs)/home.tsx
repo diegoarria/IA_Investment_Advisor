@@ -1841,6 +1841,9 @@ export default function HomeScreen() {
           day_gain_amount: dayGain,
           total_gain_pct: totalGainPct,
           goal_progress_pct: goalAmount > 0 ? (total / goalAmount) * 100 : null,
+          market_indices: indices.map((idx: any) => ({ name: idx.name, change_pct: idx.change_pct })),
+          top_gainers: movers.map((m) => ({ ticker: m.ticker, change_pct: m.chg })),
+          top_losers: losers.map((m) => ({ ticker: m.ticker, change_pct: m.chg })),
         }}
         bottomOffset={90}
       />

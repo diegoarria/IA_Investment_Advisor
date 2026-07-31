@@ -20,7 +20,7 @@ import InvestmentGraphSection from "@/components/InvestmentGraphSection";
 import SavedValuationsSection from "@/components/SavedValuationsSection";
 import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
-  Loader2, Copy, Check, Gift, Users, Share2, Trash2, Phone,
+  Loader2, Copy, Check, Gift, Users, Share2, Trash2, Phone, Video, FileSearch, Lock,
 } from "lucide-react";
 import { getUserLevel, LEVEL_COLOR, getLevelLabel, LEVEL_EMOJI } from "@/lib/userLevel";
 
@@ -169,7 +169,13 @@ export default function ProfilePage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
-  const [referralStats, setReferralStats] = useState<{ referred_count: number; bonus_days: number } | null>(null);
+  const [referralStats, setReferralStats] = useState<{
+    referred_count: number;
+    reward_tier: number;
+    free_1on1_sessions: number;
+    free_deep_research_credits: number;
+  } | null>(null);
+  const [redeemingSession, setRedeemingSession] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [copiedProfile, setCopiedProfile] = useState(false);
@@ -1194,23 +1200,76 @@ export default function ProfilePage() {
                       </div>
                     </div>
 
-                    {/* Stats */}
+                    {/* Referred count */}
                     {referralStats && (
-                      <div className="flex border-b" style={{ borderColor: "var(--border)" }}>
-                        <div className="flex-1 flex flex-col items-center py-3">
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <Users className="w-3.5 h-3.5" style={{ color: "#f59e0b" }} />
-                            <span className="text-xl font-black" style={{ color: "#f59e0b" }}>{referralStats.referred_count}</span>
+                      <div className="flex items-center justify-center gap-1.5 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                        <Users className="w-3.5 h-3.5" style={{ color: "#f59e0b" }} />
+                        <span className="text-xl font-black" style={{ color: "#f59e0b" }}>{referralStats.referred_count}</span>
+                        <span className="text-[11px]" style={{ color: "var(--muted)" }}>{t("profile.referredFriends")}</span>
+                      </div>
+                    )}
+
+                    {/* Reward ladder */}
+                    <div className="p-4 space-y-2 border-b" style={{ borderColor: "var(--border)" }}>
+                      {[
+                        { friends: 1, reward: t("profile.referralTier1Reward"), icon: null },
+                        { friends: 2, reward: t("profile.referralTier2Reward"), icon: <Video className="w-3 h-3" /> },
+                        { friends: 3, reward: t("profile.referralTier3Reward"), icon: <FileSearch className="w-3 h-3" /> },
+                      ].map((tier) => {
+                        const done = (referralStats?.referred_count ?? 0) >= tier.friends;
+                        return (
+                          <div key={tier.friends} className="flex items-center gap-2.5 rounded-xl px-3 py-2"
+                               style={{ background: done ? "rgba(34,197,94,0.08)" : "var(--raised)" }}>
+                            <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+                                 style={{ background: done ? "#22c55e" : "var(--border)" }}>
+                              {done ? <Check className="w-3.5 h-3.5 text-white" /> : <Lock className="w-3 h-3" style={{ color: "var(--muted)" }} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-bold" style={{ color: "var(--text)" }}>
+                                {t("profile.referralTierN", { count: tier.friends })}
+                              </div>
+                              <div className="text-[11px] flex items-center gap-1" style={{ color: "var(--muted)" }}>
+                                {tier.icon}{tier.reward}
+                              </div>
+                            </div>
                           </div>
-                          <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("profile.referredFriends")}</span>
-                        </div>
-                        <div className="w-px" style={{ background: "var(--border)" }} />
-                        <div className="flex-1 flex flex-col items-center py-3">
-                          <span className="text-xl font-black" style={{ color: "#22c55e" }}>
-                            {referralStats.bonus_days ? t("profile.pendingRewardValue", { days: referralStats.bonus_days }) : "—"}
-                          </span>
-                          <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("profile.pendingReward")}</span>
-                        </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Redeem earned credits */}
+                    {referralStats && (referralStats.free_1on1_sessions > 0 || referralStats.free_deep_research_credits > 0) && (
+                      <div className="p-4 space-y-2 border-b" style={{ borderColor: "var(--border)" }}>
+                        {referralStats.free_1on1_sessions > 0 && (
+                          <button
+                            disabled={redeemingSession}
+                            onClick={async () => {
+                              setRedeemingSession(true);
+                              try {
+                                await referralApi.redeemSession();
+                                setReferralStats((s) => s && { ...s, free_1on1_sessions: s.free_1on1_sessions - 1 });
+                                router.push(`/chat?msg=${encodeURIComponent(t("profile.referralRedeemSessionMsg"))}&autosend=1`);
+                              } catch {
+                                setRedeemingSession(false);
+                              }
+                            }}
+                            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold disabled:opacity-50"
+                            style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.3)", color: "#6366f1" }}
+                          >
+                            {redeemingSession ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Video className="w-3.5 h-3.5" />}
+                            {t("profile.referralRedeemSession", { count: referralStats.free_1on1_sessions })}
+                          </button>
+                        )}
+                        {referralStats.free_deep_research_credits > 0 && (
+                          <button
+                            onClick={() => router.push("/research")}
+                            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold"
+                            style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)", color: "#22c55e" }}
+                          >
+                            <FileSearch className="w-3.5 h-3.5" />
+                            {t("profile.referralRedeemResearch", { count: referralStats.free_deep_research_credits })}
+                          </button>
+                        )}
                       </div>
                     )}
 

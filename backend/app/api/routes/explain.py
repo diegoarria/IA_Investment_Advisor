@@ -17,6 +17,50 @@ from app.core.config import settings
 router = APIRouter(prefix="/explain", tags=["explain"])
 logger = logging.getLogger(__name__)
 
+# Extra instructions layered onto the base prompt for specific screens —
+# things that must always be covered on that screen, not just "if mentioned".
+_SCREEN_INSTRUCTIONS = {
+    "home": (
+        "Esta pantalla es el resumen general del portafolio. Cubre, en este orden: "
+        "(1) cómo va el portafolio en total hoy, (2) cada índice de mercado presente en "
+        "`market_indices` — para CADA UNO di su nombre, explica en una frase muy simple qué "
+        "es ese índice (a qué empresas sigue), y menciona cuánto subió o bajó, (3) si hay "
+        "`top_gainers`/`top_losers`, menciona cuáles acciones del usuario más subieron y "
+        "cuáles más cayeron hoy y su porcentaje."
+    ),
+    "portfolio": (
+        "Si `ytd_gain_pct` y `sp500_ytd_pct` están presentes, compara el rendimiento YTD del "
+        "usuario contra el S&P 500 explícitamente — dile si lo está superando o no y por cuánto "
+        "(la diferencia en puntos porcentuales). Dale feedback personalizado y honesto en tono "
+        "de mentor: si le está ganando al mercado, felicítalo sin exagerar; si va por detrás, "
+        "explícaselo sin alarmismo y anímalo a revisar su estrategia, nunca de forma genérica."
+    ),
+    "oportunidades_intro": (
+        "Explica siempre, en una frase MUY simple cada uno (sin que el usuario tenga que "
+        "preguntar): qué es el margen de seguridad, qué es el WACC, y qué es un DCF "
+        "(flujo de caja descontado). Cierra invitando al usuario a intentar calcular él mismo "
+        "el valor intrínseco de una acción moviendo los controles de esta pantalla — dile que "
+        "con los pocos datos que ya ve (precio, crecimiento sugerido, WACC sugerido) puede "
+        "jugar con los números y ver cómo cambia el resultado."
+    ),
+    "oportunidades_resultado": (
+        "Explica siempre, en una frase MUY simple cada uno (sin que el usuario tenga que "
+        "preguntar): qué es el margen de seguridad, qué es el WACC, y qué es un DCF "
+        "(flujo de caja descontado) — usando los números reales de este resultado como "
+        "ejemplo. Cierra invitando al usuario a mover los controles (crecimiento, WACC) él "
+        "mismo para ver cómo cambia el valor intrínseco calculado."
+    ),
+    "oportunidades_slider_feedback": (
+        "El usuario ACABA de mover uno de los controles del modelo (crecimiento, WACC o "
+        "crecimiento terminal) a un nuevo valor — `context` trae el valor que eligió y el "
+        "rango/sugerencia razonable para esta empresa. Como mentor, dile en 2-3 oraciones "
+        "si ese número tiene sentido para esta empresa o si es demasiado optimista/pesimista, "
+        "y por qué, en lenguaje simple — no repitas toda la pantalla, solo comenta este ajuste "
+        "puntual, como si estuvieras mirando por encima del hombro mientras el usuario prueba "
+        "distintos escenarios."
+    ),
+}
+
 
 @router.post("")
 @limiter.limit("20/minute")
@@ -34,6 +78,7 @@ async def explain_screen(
 
     screen = (body.get("screen") or "").strip()
     context = body.get("context") or {}
+    text_only = bool(body.get("text_only"))
     lang = body.get("lang") if body.get("lang") in ("es", "en") else (getattr(profile, "preferred_language", None) or "es")
     if not screen or not isinstance(context, dict):
         raise HTTPException(status_code=422, detail="screen y context son requeridos")
@@ -46,6 +91,7 @@ async def explain_screen(
         import anthropic
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         lang_instruction = "Responde en inglés." if lang == "en" else "Responde en español."
+        screen_instruction = _SCREEN_INSTRUCTIONS.get(screen, "")
         prompt = (
             "Eres el mentor de inversión personal del usuario dentro de la app Nuvos AI, "
             f"narrando en voz alta lo que está viendo ahora mismo en la pantalla \"{screen}\".\n\n"
@@ -57,11 +103,12 @@ async def explain_screen(
             "números específicos. Si mencionas un término técnico financiero (WACC, DCF, flujo de "
             "caja libre, margen de seguridad, valor intrínseco, etc.), explícalo de inmediato en "
             "lenguaje MUY simple y cotidiano, como si hablaras con alguien que nunca ha invertido — "
-            f"nunca uses jerga sin explicarla. {lang_instruction}\n"
+            f"nunca uses jerga sin explicarla.{(' ' + screen_instruction) if screen_instruction else ''} "
+            f"{lang_instruction}\n"
             "Responde solo con el texto a narrar, sin comillas ni texto adicional."
         )
         resp = await client.messages.create(
-            model="claude-haiku-4-5-20251001", max_tokens=250,
+            model="claude-haiku-4-5-20251001", max_tokens=300,
             messages=[{"role": "user", "content": prompt}],
         )
         from app.services.llm_usage import log_llm_usage
@@ -74,6 +121,12 @@ async def explain_screen(
 
     if not text:
         raise HTTPException(status_code=503, detail="No pudimos generar la explicación en este momento. Intenta de nuevo.")
+
+    # text_only skips TTS entirely — used for the slider-feedback tip, which
+    # fires automatically (no user tap) every time an assumption changes, so
+    # synthesizing audio for it every time would be pure wasted cost/latency.
+    if text_only:
+        return {"text": text, "audio": None}
 
     # Voice is a nice-to-have layer on top of the real text above — a TTS
     # hiccup must degrade to text-only, never take down the whole request.

@@ -513,13 +513,21 @@
     "referral": {
       "sectionTitle": "Invita amigos",
       "title": "Invita amigos, gana recompensas",
-      "subtitle": "Tú y tu amigo obtienen 14 días de premium gratis",
+      "subtitle": "Tu amigo también obtiene 14 días de premium gratis al registrarse con tu código",
       "referredFriends": "Amigos referidos",
-      "pendingReward": "Recompensa",
-      "pendingRewardValue": "{{days}} días gratis",
+      "tierN": "Invita a {{count}} amigo",
+      "tierN_other": "Invita a {{count}} amigos",
+      "tier1Reward": "14 días de premium",
+      "tier2Reward": "14 días de premium + 1 sesión 1:1 gratis",
+      "tier3Reward": "30 días de premium + 1 sesión 1:1 + 1 deep research gratis",
+      "redeemSession": "Solicitar mi sesión 1:1 gratis ({{count}} disponible)",
+      "redeemSession_other": "Solicitar mi sesión 1:1 gratis ({{count}} disponibles)",
+      "redeemSessionMsg": "Quiero solicitar mi sesión 1:1 gratis que gané por invitar amigos a Nuvos AI.",
+      "redeemResearch": "Usar mi deep research gratis ({{count}} disponible)",
+      "redeemResearch_other": "Usar mis deep research gratis ({{count}} disponibles)",
       "loading": "Cargando...",
       "share": "Compartir invitación",
-      "note": "Los 14 días se activan automáticamente en cuanto tu amigo se registra con tu código.",
+      "note": "Las recompensas se activan automáticamente en cuanto tus amigos se registran con tu código.",
       "shareMessage": "Estoy usando Nuvos AI — el mejor mentor de inversiones con IA. Únete gratis 👉 {{url}}"
     },
     "likedVideos": {
@@ -813,6 +821,9 @@
       },
       "reset": "Restablecer estimación de Nuvos",
       "marketImplied": "El mercado está pagando un precio que implica ~{{market}}% de crecimiento anual — Nuvos estima {{nuvos}}%.",
+      "mentorTip": {
+        "loading": "Pensando..."
+      },
       "liveResult": {
         "intrinsicValue": "Valor intrínseco con tus supuestos",
         "marginOfSafety": "Margen de seguridad",
@@ -3447,6 +3458,8 @@
     },
     "plan": {
       "title": "Esto es lo que vamos a investigar",
+      "useFreeCredit": "Usar mi deep research gratis ({{count}} disponible)",
+      "useFreeCredit_other": "Usar mi deep research gratis ({{count}} disponibles)",
       "confirm": "Confirmar y pagar",
       "back": "Cambiar mi solicitud",
       "checkoutError": "No se pudo iniciar el pago. Intenta de nuevo.",
