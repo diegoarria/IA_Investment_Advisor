@@ -37,7 +37,9 @@ _SCREEN_INSTRUCTIONS = {
         "`distinct_holdings` ya cuenta cada empresa UNA sola vez (comprar la misma acción en dos "
         "fechas distintas sigue siendo una sola posición) — nunca digas que tiene más posiciones "
         "que ese número. Si `risk_score` y `sector_allocation` están presentes, menciona el nivel "
-        "de riesgo (`risk_level`) y en qué sector(es) está más concentrado el portafolio."
+        "de riesgo (`risk_level`) y en qué sector(es) está más concentrado el portafolio. Si "
+        "`cash_total` está presente, menciona que además de las acciones tiene ese efectivo "
+        "disponible, y que `total_value_with_cash` es su valor total real (acciones + efectivo)."
     ),
     "oportunidades_intro": (
         "Explica siempre, en una frase MUY simple cada uno (sin que el usuario tenga que "

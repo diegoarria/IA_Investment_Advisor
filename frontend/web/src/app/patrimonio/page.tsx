@@ -11,7 +11,7 @@ import BalanceVisibilityToggle from "@/components/BalanceVisibilityToggle";
 import ExplainButton from "@/components/ExplainButton";
 import StockAvatar from "@/components/StockAvatar";
 import PersonalizedMessageBanner from "@/components/PersonalizedMessageBanner";
-import { market as marketApi } from "@/lib/api";
+import { market as marketApi, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
 import { useWatchlistStore, useBalanceVisibilityStore } from "@/lib/store";
@@ -117,10 +117,31 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
     const p = prices[pos.ticker]?.price ?? pos.avgPrice;
     return sum + pos.shares * p;
   }, 0);
-  const totalValue = totalValueUSD * fxRate;
+  const stocksValue = totalValueUSD * fxRate;
+
+  // Cash held outside stock positions (CETES, bank, bonds, other) and
+  // dividends actually paid (forward-tracking only, recorded by worker.py
+  // the day they're paid — see migrations/054_dividend_income.sql) both
+  // count toward the total shown here, alongside stock positions.
+  const [cashTotalUSD, setCashTotalUSD] = useState(0);
+  const [dividendTotalUSD, setDividendTotalUSD] = useState(0);
+  const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };
+  useEffect(() => {
+    cashHoldingsApi.list().then((res) => {
+      const holdings = res.data?.holdings ?? [];
+      const usd = holdings.reduce((sum: number, c: { amount: number; currency: string }) => {
+        if (c.currency === "USD") return sum + c.amount;
+        return sum + c.amount / (CASH_APPROX_TO_USD[c.currency] ?? 1);
+      }, 0);
+      setCashTotalUSD(usd);
+    }).catch(() => {});
+    dividendsApi.getIncome().then((res) => setDividendTotalUSD(res.data?.total ?? 0)).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const totalValue = stocksValue + cashTotalUSD * fxRate + dividendTotalUSD * fxRate;
 
   const totalCost = positions.reduce((sum, pos) => sum + pos.shares * pos.avgPrice, 0) * fxRate;
-  const totalGain = totalValue - totalCost;
+  const totalGain = stocksValue - totalCost;
   const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
 
   const { dayGain: dayGainUSD, dayPrev } = positions.reduce((acc, pos) => {
@@ -146,6 +167,8 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
             day_gain_pct: dayGainPctFinal,
             total_gain_pct: totalGainPct,
             position_count: positions.length,
+            cash_total: cashTotalUSD > 0 ? cashTotalUSD * fxRate : null,
+            dividend_income_received: dividendTotalUSD > 0 ? dividendTotalUSD * fxRate : null,
             currency: portfolioCurrency,
           }}
         />

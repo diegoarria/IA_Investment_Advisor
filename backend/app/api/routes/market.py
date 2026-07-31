@@ -613,7 +613,7 @@ Responde ÚNICAMENTE con un JSON array con este formato exacto (sin texto adicio
 CAMPOS:
 - ticker: símbolo bursátil en MAYÚSCULAS (BTC-USD, ETH-USD para cripto)
 - name: nombre de la empresa/activo (usa ticker si no aparece)
-- shares: cantidad exacta de unidades (acepta decimales)
+- shares: cantidad exacta de unidades (acepta decimales). Si el número de acciones NO es legible o no aparece para esta posición, pon null — NUNCA inventes ni asumas 0.
 - avg_price: precio promedio de COMPRA por unidad (ver cálculo abajo)
 - current_price: precio actual por unidad (null si no visible)
 - gain_loss_pct: porcentaje de ganancia/pérdida (null si no visible)
@@ -703,10 +703,22 @@ NOTAS IMPORTANTES:
                     import re as _re
                     if _re.match(r"^\d{4}-\d{2}-\d{2}$", raw_date.strip()):
                         purchase_date = raw_date.strip()
+                # None (not 0) when the model couldn't read a share count —
+                # 0 would be indistinguishable from "this position really has
+                # zero shares," and the frontend needs to tell the user to
+                # fill it in themselves rather than silently importing a
+                # position worth $0.
+                raw_shares = p.get("shares")
+                shares = None
+                if raw_shares is not None:
+                    try:
+                        shares = float(raw_shares)
+                    except (TypeError, ValueError):
+                        shares = None
                 result.append({
                     "ticker": ticker,
                     "name": p.get("name") or ticker,
-                    "shares": float(p.get("shares") or 0),
+                    "shares": shares,
                     "avg_price": float(avg_price) if avg_price else 0,
                     "purchase_date": purchase_date,
                 })
@@ -755,7 +767,7 @@ Responde ÚNICAMENTE con un JSON array con este formato exacto (sin texto adicio
 CAMPOS:
 - ticker: símbolo bursátil en MAYÚSCULAS. Para la BMV usa el sufijo MX si es necesario (AMXL.MX).
 - name: nombre completo de la emisora, fondo o instrumento.
-- shares: número de títulos o unidades (acepta decimales).
+- shares: número de títulos o unidades (acepta decimales). Si no es legible o no aparece, pon null — NUNCA inventes ni asumas 0.
 - avg_price: precio promedio de compra por título (0 si no aparece en el documento).
 
 GUÍA POR BROKER:
@@ -808,10 +820,19 @@ Responde SOLO el JSON array, nada más."""
                 if not ticker:
                     continue
                 avg_price = p.get("avg_price")
+                # None (not 0) when the model couldn't read a share count —
+                # see the matching comment in portfolio_from_screenshot.
+                raw_shares = p.get("shares")
+                shares = None
+                if raw_shares is not None:
+                    try:
+                        shares = float(raw_shares)
+                    except (TypeError, ValueError):
+                        shares = None
                 result.append({
                     "ticker": ticker,
                     "name": p.get("name") or ticker,
-                    "shares": float(p.get("shares") or 0),
+                    "shares": shares,
                     "avg_price": float(avg_price) if avg_price else 0,
                 })
             return {"positions": result}

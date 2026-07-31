@@ -13,7 +13,7 @@ import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useFxRate } from "../../src/lib/useFxRate";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { usePaperStore, PAPER_INITIAL_CASH } from "../../src/lib/paperStore";
-import { marketApi } from "../../src/lib/api";
+import { marketApi, cashHoldingsApi, dividendsApi } from "../../src/lib/api";
 import StockAvatar from "../../src/components/StockAvatar";
 import PersonalizedMessageBanner from "../../src/components/PersonalizedMessageBanner";
 import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
@@ -94,6 +94,26 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
     return sum + pos.shares * p;
   }, 0);
 
+  // Cash held outside stock positions (CETES, bank, bonds, other) and
+  // dividends actually paid (forward-tracking only, recorded by worker.py
+  // the day they're paid — see migrations/054_dividend_income.sql) both
+  // count toward the total shown here, alongside stock positions.
+  const [cashTotalUSD, setCashTotalUSD] = useState(0);
+  const [dividendTotalUSD, setDividendTotalUSD] = useState(0);
+  const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };
+  useEffect(() => {
+    cashHoldingsApi.list().then((res: any) => {
+      const holdings = res.data?.holdings ?? [];
+      const usd = holdings.reduce((sum: number, c: { amount: number; currency: string }) => {
+        if (c.currency === "USD") return sum + c.amount;
+        return sum + c.amount / (CASH_APPROX_TO_USD[c.currency] ?? 1);
+      }, 0);
+      setCashTotalUSD(usd);
+    }).catch(() => {});
+    dividendsApi.getIncome().then((res: any) => setDividendTotalUSD(res.data?.total ?? 0)).catch(() => {});
+  }, []);
+  const totalValueWithExtras = totalValue + cashTotalUSD + dividendTotalUSD;
+
   const totalCost = positions.reduce((sum, pos) => sum + pos.shares * pos.avgPrice, 0);
   const totalGain = totalValue - totalCost;
   const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
@@ -123,7 +143,7 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
             </View>
             <BalanceVisibilityToggle color={colors.textMuted} size={13} />
           </View>
-          <Text style={[ss.statValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{mask(fmtMoney(totalValue * fxRate, portfolioCurrency))}</Text>
+          <Text style={[ss.statValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{mask(fmtMoney(totalValueWithExtras * fxRate, portfolioCurrency))}</Text>
         </View>
         <View style={[ss.statCard, { flex: 1, backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[ss.statLabel, { color: colors.textMuted }]}>{t("patrimonio.portfolioTab.dayGain")}</Text>
@@ -224,10 +244,12 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
     <ExplainButton
       screen="patrimonio"
       context={{
-        total_value: totalValue,
+        total_value: totalValueWithExtras,
         day_gain_pct: dayGainPct,
         total_gain_pct: totalGainPct,
         position_count: positions.length,
+        cash_total: cashTotalUSD > 0 ? cashTotalUSD : null,
+        dividend_income_received: dividendTotalUSD > 0 ? dividendTotalUSD : null,
         currency: portfolioCurrency,
       }}
       bottomOffset={90}

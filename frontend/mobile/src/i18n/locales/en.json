@@ -1175,11 +1175,27 @@
       "brokerBadgeConnected": "IBKR · IOL · Schwab",
       "premium": "Premium"
     },
+    "cash": {
+      "title": "💵 Available cash",
+      "addCta": "+ Add cash",
+      "amountPlaceholder": "Amount ({{currency}})",
+      "labelPlaceholder": "Note (optional)",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving...",
+      "saveError": "Couldn't add the cash. Try again.",
+      "instrumentCetes": "CETES",
+      "instrumentBank": "Bank",
+      "instrumentBonds": "Bonds",
+      "instrumentOther": "Other"
+    },
     "preview": {
       "detected": "{{count}} positions detected",
       "fromCaptures": "From {{count}} screenshots · ",
       "addPriceHint": "Add the purchase price for each position",
       "warning": "⚠ We don't use the price from the photo — it may be wrong for fractional shares. Look it up on your broker under \"average price\" or \"average cost.\"",
+      "sharesLabel": "Shares",
+      "missingSharesWarning": "We couldn't read how many shares you have — add them yourself below (fractions ok, e.g. 0.5).",
       "avgPriceLabel": "Average price ({{currency}})",
       "avgPricePlaceholderUSD": "e.g. 223.00",
       "avgPricePlaceholder": "e.g. {{value}}",
@@ -1454,7 +1470,9 @@
     },
     "screenshot": {
       "analyzingWithAI": "Analyzing with AI...",
-      "analyzingProgress": "Analyzing {{current}} of {{total}}..."
+      "analyzingProgress": "Analyzing {{current}} of {{total}}...",
+      "missingSharesTitle": "Missing shares",
+      "missingSharesMsg": "Add how many shares of {{ticker}} you have before continuing."
     },
     "editSave": {
       "title": "Save changes?",

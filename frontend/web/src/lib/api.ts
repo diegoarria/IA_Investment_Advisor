@@ -249,6 +249,19 @@ export const referral = {
   redeemSession: () => api.post("/api/referral/redeem-session"),
 };
 
+export const cashHoldings = {
+  list:   () => api.get("/api/cash-holdings"),
+  add:    (amount: number, instrument: string, currency: string, label?: string) =>
+    api.post("/api/cash-holdings", { amount, instrument, currency, label }),
+  update: (id: string, body: { amount?: number; instrument?: string; currency?: string; label?: string }) =>
+    api.put(`/api/cash-holdings/${id}`, body),
+  remove: (id: string) => api.delete(`/api/cash-holdings/${id}`),
+};
+
+export const dividends = {
+  getIncome: () => api.get("/api/dividends/income"),
+};
+
 export const support = {
   chat:         (message: string, history: {role:string;content:string}[]) =>
     fetch(`${BASE_URL}/api/support/chat`, {

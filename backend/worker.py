@@ -3102,6 +3102,24 @@ async def job_events_alerts():
                                         f"Con tus {shares_held:.4f} acciones recibirás "
                                         f"${pago:.2f} USD (${amt:.4f}/acción)."
                                     )
+                                    # Only record the ledger entry on the actual payment day
+                                    # (not the "tomorrow" preview) — this is what makes the
+                                    # payment count toward the portfolio total.
+                                    if is_today:
+                                        try:
+                                            await run_query(
+                                                db.table("dividend_income").upsert({
+                                                    "user_id": uid,
+                                                    "ticker": ticker,
+                                                    "pay_date": evt["event_date"],
+                                                    "shares_at_payment": shares_held,
+                                                    "per_share_amount": amt,
+                                                    "amount": pago,
+                                                    "currency": "USD",
+                                                }, on_conflict="user_id,ticker,pay_date")
+                                            )
+                                        except Exception as e:
+                                            logger.warning("job_events_alerts: failed to record dividend_income for %s/%s: %s", uid, ticker, e)
                                 elif amt:
                                     body = (
                                         f"{ticker} pays dividend {when}. ${amt:.4f}/share."

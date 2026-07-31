@@ -15,7 +15,7 @@ import Svg, { Path, Defs, Stop, LinearGradient, Circle, Line as SvgLine } from "
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { marketApi } from "../../src/lib/api";
+import { marketApi, cashHoldingsApi, dividendsApi } from "../../src/lib/api";
 import { useFxRate } from "../../src/lib/useFxRate";
 import { posthog } from "../../src/config/posthog";
 import { useTheme } from "../../src/lib/ThemeContext";
@@ -675,7 +675,7 @@ function formatWithCommas(raw: string): string {
 
 
 interface PriceData { price: number | null; currency: string; name: string }
-interface ExtractedPosition { id: string; ticker: string; name: string; shares: number; avg_price: number; purchase_date?: string | null }
+interface ExtractedPosition { id: string; ticker: string; name: string; shares: number | null; avg_price: number; purchase_date?: string | null }
 
 
 
@@ -965,8 +965,63 @@ export default function PortfolioScreen() {
   const [screenshotProgress, setScreenshotProgress] = useState("");
   const [screenshotPreview, setScreenshotPreview] = useState<ExtractedPosition[] | null>(null);
   const [screenshotUris, setScreenshotUris] = useState<string[]>([]);
-  const [screenshotPriceInputs, setScreenshotPriceInputs] = useState<Record<string, { avgPrice: string; purchaseDate: string }>>({});
+  const [screenshotPriceInputs, setScreenshotPriceInputs] = useState<Record<string, { shares: string; avgPrice: string; purchaseDate: string }>>({});
   const [brokerModalOpen, setBrokerModalOpen] = useState(false);
+
+  // Cash held outside of stock positions (CETES, parked in a bank, bonds,
+  // etc.) — counts toward the portfolio total alongside stock positions.
+  interface CashHolding { id: string; amount: number; currency: string; instrument: "cetes" | "bank" | "bonds" | "other"; label: string | null }
+  const [cashList, setCashList] = useState<CashHolding[]>([]);
+  const [cashFormOpen, setCashFormOpen] = useState(false);
+  const [cashForm, setCashForm] = useState<{ amount: string; instrument: CashHolding["instrument"]; label: string }>({ amount: "", instrument: "bank", label: "" });
+  const [cashSaving, setCashSaving] = useState(false);
+
+  useEffect(() => {
+    cashHoldingsApi.list().then((res: any) => setCashList(res.data?.holdings ?? [])).catch(() => {});
+  }, []);
+
+  // Dividends actually paid (worker.py records these the day they're paid,
+  // forward-tracking only — see migrations/054_dividend_income.sql) — real
+  // cash the user received, so it counts toward the total same as cash.
+  const [dividendTotalUSD, setDividendTotalUSD] = useState(0);
+  useEffect(() => {
+    dividendsApi.getIncome().then((res: any) => setDividendTotalUSD(res.data?.total ?? 0)).catch(() => {});
+  }, []);
+
+  const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };
+  const convertCashToPortfolioCurrency = useCallback((amount: number, currency: string) => {
+    if (currency === portfolioCurrency) return amount;
+    if (currency === "USD") return amount * fxRate;
+    const usd = amount / (CASH_APPROX_TO_USD[currency] ?? 1);
+    return portfolioCurrency === "USD" ? usd : usd * fxRate;
+  }, [portfolioCurrency, fxRate]);
+
+  const cashTotal = useMemo(
+    () => cashList.reduce((sum, c) => sum + convertCashToPortfolioCurrency(c.amount, c.currency), 0),
+    [cashList, convertCashToPortfolioCurrency]
+  );
+  const dividendTotal = portfolioCurrency === "USD" ? dividendTotalUSD : dividendTotalUSD * fxRate;
+
+  const handleAddCash = async () => {
+    const amount = parseFloat(cashForm.amount);
+    if (isNaN(amount) || amount <= 0) return;
+    setCashSaving(true);
+    try {
+      const res: any = await cashHoldingsApi.add(amount, cashForm.instrument, portfolioCurrency, cashForm.label || undefined);
+      setCashList((prev) => [...prev, res.data.holding]);
+      setCashForm({ amount: "", instrument: "bank", label: "" });
+      setCashFormOpen(false);
+    } catch {
+      Alert.alert(t("common.error"), t("portfolio.cash.saveError"));
+    } finally {
+      setCashSaving(false);
+    }
+  };
+
+  const handleRemoveCash = async (id: string) => {
+    setCashList((prev) => prev.filter((c) => c.id !== id));
+    try { await cashHoldingsApi.remove(id); } catch {}
+  };
 
   // Sort
   type SortField = "return" | "invested" | "price";
@@ -1247,8 +1302,9 @@ export default function PortfolioScreen() {
         setScreenshotUris([]);
       } else {
         setScreenshotPreview(final);
-        const inputs: Record<string, { avgPrice: string; purchaseDate: string }> = {};
+        const inputs: Record<string, { shares: string; avgPrice: string; purchaseDate: string }> = {};
         for (const p of final) inputs[p.id] = {
+          shares: p.shares != null ? String(p.shares) : "",
           avgPrice: p.avg_price > 0 ? String(portfolioCurrency === "USD" ? p.avg_price : parseFloat((p.avg_price * fxRate).toFixed(4))) : "",
           purchaseDate: p.purchase_date ?? "",
         };
@@ -1277,6 +1333,17 @@ export default function PortfolioScreen() {
       setPaywallOpen(true);
       return;
     }
+    // Block confirming while any row's shares are missing/invalid — silently
+    // importing a position with the AI's unreadable share count would
+    // misstate the user's real holdings.
+    const invalidRow = screenshotPreview.find((p) => {
+      const v = parseFloat(screenshotPriceInputs[p.id]?.shares ?? "");
+      return isNaN(v) || v <= 0;
+    });
+    if (invalidRow) {
+      Alert.alert(t("portfolio.screenshot.missingSharesTitle"), t("portfolio.screenshot.missingSharesMsg", { ticker: invalidRow.ticker }));
+      return;
+    }
 
     type ImportItem = { ticker: string; name: string; shares: number; avgPrice: number; purchaseDate?: string };
     const incoming: ImportItem[] = screenshotPreview.map((p) => {
@@ -1285,10 +1352,11 @@ export default function PortfolioScreen() {
       const avgPriceUSD = (!isNaN(typed) && typed > 0)
         ? (portfolioCurrency === "USD" ? typed : parseFloat((typed / fxRate).toFixed(6)))
         : p.avg_price;
+      const shares = parseFloat(screenshotPriceInputs[p.id]?.shares ?? String(p.shares ?? 0));
       return {
         ticker: p.ticker,
         name: p.name ?? "",
-        shares: p.shares,
+        shares,
         avgPrice: avgPriceUSD,
         ...(screenshotPriceInputs[p.id]?.purchaseDate ? { purchaseDate: screenshotPriceInputs[p.id].purchaseDate } : {}),
       };
@@ -2003,6 +2071,87 @@ export default function PortfolioScreen() {
           )}
         </TouchableOpacity>
 
+        {/* Efectivo disponible — CETES, banco, bonos, etc. — cuenta hacia el total */}
+        <View style={{ borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 14, marginBottom: 10 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>{t("portfolio.cash.title")}</Text>
+            {cashList.length > 0 && (
+              <Text style={{ fontSize: 13, fontWeight: "900", color: colors.accentLight }}>
+                {currencySymbol}{cashTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+              </Text>
+            )}
+          </View>
+          {cashList.length > 0 && (
+            <View style={{ gap: 6, marginBottom: 8 }}>
+              {cashList.map((c) => (
+                <View key={c.id} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.bgRaised, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>
+                  <Text style={{ fontSize: 12, color: colors.textSub }}>
+                    {t(`portfolio.cash.instrument${c.instrument.charAt(0).toUpperCase()}${c.instrument.slice(1)}`)}{c.label ? ` · ${c.label}` : ""}
+                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+                      {c.currency} {c.amount.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                    </Text>
+                    <TouchableOpacity onPress={() => handleRemoveCash(c.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Text style={{ color: colors.textDim, fontWeight: "700" }}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+          {cashFormOpen ? (
+            <View style={{ gap: 8 }}>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TextInput
+                  style={{ flex: 1, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, color: colors.text, fontSize: 13 }}
+                  keyboardType="decimal-pad"
+                  placeholder={t("portfolio.cash.amountPlaceholder", { currency: portfolioCurrency })}
+                  placeholderTextColor={colors.textDim}
+                  value={cashForm.amount}
+                  onChangeText={(v) => setCashForm((f) => ({ ...f, amount: v }))}
+                />
+              </View>
+              <View style={{ flexDirection: "row", gap: 6 }}>
+                {(["cetes", "bank", "bonds", "other"] as const).map((inst) => (
+                  <TouchableOpacity
+                    key={inst}
+                    onPress={() => setCashForm((f) => ({ ...f, instrument: inst }))}
+                    style={{ flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: "center", backgroundColor: cashForm.instrument === inst ? colors.accent : colors.bgRaised, borderWidth: 1, borderColor: cashForm.instrument === inst ? colors.accent : colors.border }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: cashForm.instrument === inst ? "#fff" : colors.textMuted }}>
+                      {t(`portfolio.cash.instrument${inst.charAt(0).toUpperCase()}${inst.slice(1)}`)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={{ backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, color: colors.text, fontSize: 13 }}
+                placeholder={t("portfolio.cash.labelPlaceholder")}
+                placeholderTextColor={colors.textDim}
+                value={cashForm.label}
+                onChangeText={(v) => setCashForm((f) => ({ ...f, label: v }))}
+              />
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TouchableOpacity onPress={() => setCashFormOpen(false)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: "center", borderWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>{t("portfolio.cash.cancel")}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleAddCash}
+                  disabled={cashSaving || !cashForm.amount}
+                  style={{ flex: 2, paddingVertical: 9, borderRadius: 10, alignItems: "center", backgroundColor: colors.accent, opacity: (cashSaving || !cashForm.amount) ? 0.5 : 1 }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "800", color: "#fff" }}>{cashSaving ? t("portfolio.cash.saving") : t("portfolio.cash.save")}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity onPress={() => setCashFormOpen(true)}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.accentLight }}>{t("portfolio.cash.addCta")}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         {/* ── PREVIEW DE CAPTURA ── */}
         {screenshotPreview && (
           <View style={[s.previewCard, { backgroundColor: colors.card, borderColor: "#22c55e" }]}>
@@ -2034,13 +2183,16 @@ export default function PortfolioScreen() {
                 {t("portfolio.preview.warning")}
               </Text>
             </View>
-            {screenshotPreview.map((p) => (
+            {screenshotPreview.map((p) => {
+              const sharesTyped = parseFloat(screenshotPriceInputs[p.id]?.shares ?? "");
+              const sharesInvalid = isNaN(sharesTyped) || sharesTyped <= 0;
+              return (
               <View key={p.id} style={[s.previewRow, { borderColor: colors.border, flexDirection: "column", alignItems: "stretch" }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                   <View>
                     <Text style={[s.previewTicker, { color: colors.text }]}>{p.ticker}</Text>
                     {p.name !== p.ticker && (
-                      <Text style={[s.previewName, { color: colors.textMuted }]}>{p.name} · {p.shares.toLocaleString("en-US")} {t("portfolio.preview.sharesAbbrev")}</Text>
+                      <Text style={[s.previewName, { color: colors.textMuted }]}>{p.name}</Text>
                     )}
                   </View>
                   <TouchableOpacity onPress={() => {
@@ -2050,7 +2202,25 @@ export default function PortfolioScreen() {
                     <Text style={{ color: "#ef4444", fontSize: 18, fontWeight: "600" }}>×</Text>
                   </TouchableOpacity>
                 </View>
+                {sharesInvalid && (
+                  <View style={{ backgroundColor: "#ef444415", borderRadius: 8, padding: 8, marginBottom: 8 }}>
+                    <Text style={{ color: "#ef4444", fontSize: 11, fontWeight: "600" }}>{t("portfolio.preview.missingSharesWarning")}</Text>
+                  </View>
+                )}
                 <View style={{ flexDirection: "row", gap: 8 }}>
+                  <View style={{ width: 84 }}>
+                    <Text style={{ color: sharesInvalid ? "#ef4444" : colors.textMuted, fontSize: 10, fontWeight: "700", textTransform: "uppercase", marginBottom: 4 }}>
+                      {t("portfolio.preview.sharesLabel")}
+                    </Text>
+                    <TextInput
+                      style={{ backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: sharesInvalid ? "#ef4444" : colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, color: colors.text, fontSize: 13 }}
+                      keyboardType="decimal-pad"
+                      placeholder="0.5"
+                      placeholderTextColor={colors.textDim}
+                      value={screenshotPriceInputs[p.id]?.shares ?? ""}
+                      onChangeText={(v) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], shares: v } }))}
+                    />
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: "700", textTransform: "uppercase", marginBottom: 4 }}>
                       {t("portfolio.preview.avgPriceLabel", { currency: portfolioCurrency })}
@@ -2064,21 +2234,22 @@ export default function PortfolioScreen() {
                       onChangeText={(v) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], avgPrice: v } }))}
                     />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: "700", textTransform: "uppercase", marginBottom: 4 }}>
-                      {t("portfolio.preview.purchaseDateLabel")} <Text style={{ fontWeight: "400" }}>{t("portfolio.preview.optional")}</Text>
-                    </Text>
-                    <TextInput
-                      style={{ backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, color: colors.text, fontSize: 13 }}
-                      placeholder={t("portfolio.preview.datePlaceholder")}
-                      placeholderTextColor={colors.textDim}
-                      value={screenshotPriceInputs[p.id]?.purchaseDate ?? ""}
-                      onChangeText={(v) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], purchaseDate: v } }))}
-                    />
-                  </View>
+                </View>
+                <View style={{ marginTop: 8 }}>
+                  <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: "700", textTransform: "uppercase", marginBottom: 4 }}>
+                    {t("portfolio.preview.purchaseDateLabel")} <Text style={{ fontWeight: "400" }}>{t("portfolio.preview.optional")}</Text>
+                  </Text>
+                  <TextInput
+                    style={{ backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, color: colors.text, fontSize: 13 }}
+                    placeholder={t("portfolio.preview.datePlaceholder")}
+                    placeholderTextColor={colors.textDim}
+                    value={screenshotPriceInputs[p.id]?.purchaseDate ?? ""}
+                    onChangeText={(v) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], purchaseDate: v } }))}
+                  />
                 </View>
               </View>
-            ))}
+              );
+            })}
 
             <View style={s.previewActions}>
               <TouchableOpacity
@@ -2087,7 +2258,11 @@ export default function PortfolioScreen() {
               >
                 <Text style={[s.previewCancelText, { color: colors.textMuted }]}>{t("common.cancel")}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.previewConfirm} onPress={confirmScreenshotImport}>
+              <TouchableOpacity
+                style={[s.previewConfirm, screenshotPreview.some((p) => { const v = parseFloat(screenshotPriceInputs[p.id]?.shares ?? ""); return isNaN(v) || v <= 0; }) && { opacity: 0.4 }]}
+                disabled={screenshotPreview.some((p) => { const v = parseFloat(screenshotPriceInputs[p.id]?.shares ?? ""); return isNaN(v) || v <= 0; })}
+                onPress={confirmScreenshotImport}
+              >
                 <Text style={s.previewConfirmText}>{t("portfolio.preview.confirmAdd", { count: screenshotPreview.length })}</Text>
               </TouchableOpacity>
             </View>
@@ -2283,7 +2458,7 @@ export default function PortfolioScreen() {
                           adjustsFontSizeToFit
                           minimumFontScale={0.5}
                         >
-                          {mask(`${currencySymbol}${totals.current.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)}
+                          {mask(`${currencySymbol}${(totals.current + cashTotal + dividendTotal).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)}
                         </Text>
                         {histPct !== undefined ? (
                           <View style={{ alignItems: "flex-end", flexShrink: 0 }}>
@@ -3859,6 +4034,9 @@ export default function PortfolioScreen() {
           // Distinct tickers held, not raw purchase lots — buying more
           // GOOGL in a second lot must never look like a second holding.
           distinct_holdings: aggregatedPositions.length,
+          cash_total: cashTotal > 0 ? cashTotal : null,
+          dividend_income_received: dividendTotal > 0 ? dividendTotal : null,
+          total_value_with_cash: (cashTotal > 0 || dividendTotal > 0) ? totals.current + cashTotal + dividendTotal : null,
           currency: portfolioCurrency,
           ytd_gain_pct: periodReturns.ytd?.pct ?? null,
           sp500_ytd_pct: periodReturns.ytd?.spy_pct ?? null,

@@ -10,7 +10,7 @@ import type { TFunction } from "i18next";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { market as marketApi } from "@/lib/api";
+import { market as marketApi, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
 import { useAuthStore, useSubscriptionStore, useProfileStore, useBalanceVisibilityStore } from "@/lib/store";
 import { getUserLevel, isAtLeast } from "@/lib/userLevel";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
@@ -514,6 +514,10 @@ const PORTFOLIO_LEVEL_BOUNDS = [
   { min:51, max:63 }, { min:63, max:75 }, { min:75, max:88 }, { min:88, max:101 },
 ];
 
+const CASH_INSTRUMENT_LABEL: Record<string, string> = {
+  cetes: "CETES", bank: "Banco", bonds: "Bonos", other: "Otro",
+};
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function fmtMoney(n: number): string {
@@ -858,15 +862,70 @@ export default function PortfolioPage() {
   const [screenshotAnalyzing, setScreenshotAnalyzing] = useState(false);
   const [screenshotProgress, setScreenshotProgress] = useState("");
   const [isDragOver, setIsDragOver] = useState(false);
-  type ExtractedPos = { id: string; ticker: string; name: string; shares: number; avg_price: number; purchase_date?: string | null };
+  type ExtractedPos = { id: string; ticker: string; name: string; shares: number | null; avg_price: number; purchase_date?: string | null };
   const [screenshotPreview, setScreenshotPreview] = useState<ExtractedPos[]|null>(null);
-  const [screenshotPriceInputs, setScreenshotPriceInputs] = useState<Record<string, { avgPrice: string; purchaseDate: string }>>({});
+  const [screenshotPriceInputs, setScreenshotPriceInputs] = useState<Record<string, { shares: string; avgPrice: string; purchaseDate: string }>>({});
   // Currency of prices shown in the screenshot/PDF (set by user before importing)
   const [screenshotCurrency, setScreenshotCurrency] = useState("USD");
   const screenshotCurrencyRef = useRef("USD");
   useEffect(() => { screenshotCurrencyRef.current = screenshotCurrency; }, [screenshotCurrency]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [brokerModalOpen, setBrokerModalOpen] = useState(false);
+
+  // Cash held outside of stock positions (CETES, parked in a bank, bonds,
+  // etc.) — counts toward the portfolio total alongside stock positions.
+  interface CashHolding { id: string; amount: number; currency: string; instrument: "cetes" | "bank" | "bonds" | "other"; label: string | null }
+  const [cashList, setCashList] = useState<CashHolding[]>([]);
+  const [cashFormOpen, setCashFormOpen] = useState(false);
+  const [cashForm, setCashForm] = useState({ amount: "", instrument: "bank" as CashHolding["instrument"], label: "" });
+  const [cashSaving, setCashSaving] = useState(false);
+
+  useEffect(() => {
+    cashHoldingsApi.list().then((res) => setCashList(res.data?.holdings ?? [])).catch(() => {});
+  }, []);
+
+  // Dividends actually paid (worker.py records these the day they're paid,
+  // forward-tracking only — see migrations/054_dividend_income.sql) — real
+  // cash the user received, so it counts toward the total same as cash.
+  const [dividendTotalUSD, setDividendTotalUSD] = useState(0);
+  useEffect(() => {
+    dividendsApi.getIncome().then((res) => setDividendTotalUSD(res.data?.total ?? 0)).catch(() => {});
+  }, []);
+  const dividendTotal = portfolioCurrency === "USD" ? dividendTotalUSD : dividendTotalUSD * fxRate;
+
+  const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };
+  const convertCashToPortfolioCurrency = useCallback((amount: number, currency: string) => {
+    if (currency === portfolioCurrency) return amount;
+    if (currency === "USD") return amount * fxRate;
+    const usd = amount / (CASH_APPROX_TO_USD[currency] ?? 1);
+    return portfolioCurrency === "USD" ? usd : usd * fxRate;
+  }, [portfolioCurrency, fxRate]);
+
+  const cashTotal = useMemo(
+    () => cashList.reduce((sum, c) => sum + convertCashToPortfolioCurrency(c.amount, c.currency), 0),
+    [cashList, convertCashToPortfolioCurrency]
+  );
+
+  const handleAddCash = async () => {
+    const amount = parseFloat(cashForm.amount);
+    if (isNaN(amount) || amount <= 0) return;
+    setCashSaving(true);
+    try {
+      const res = await cashHoldingsApi.add(amount, cashForm.instrument, portfolioCurrency, cashForm.label || undefined);
+      setCashList((prev) => [...prev, res.data.holding]);
+      setCashForm({ amount: "", instrument: "bank", label: "" });
+      setCashFormOpen(false);
+    } catch {
+      showToast("No se pudo agregar el efectivo. Intenta de nuevo.");
+    } finally {
+      setCashSaving(false);
+    }
+  };
+
+  const handleRemoveCash = async (id: string) => {
+    setCashList((prev) => prev.filter((c) => c.id !== id));
+    try { await cashHoldingsApi.remove(id); } catch {}
+  };
   const [pendingMerge, setPendingMerge] = useState<ExtractedPos[]>([]);
 
   // Sort
@@ -1292,7 +1351,7 @@ export default function PortfolioPage() {
         showToast("No se encontraron posiciones en el PDF. Verifica que sea un estado de cuenta con posiciones.");
       } else {
         setScreenshotPreview(extracted);
-        const inputs: Record<string, { avgPrice: string; purchaseDate: string }> = {};
+        const inputs: Record<string, { shares: string; avgPrice: string; purchaseDate: string }> = {};
         const rate = fxRateRef.current;
         const cur = portfolioCurrencyRef.current;
         const APPROX: Record<string, number> = { MXN:18.5, EUR:0.92, GBP:0.79, CAD:1.38, BRL:5.7, JPY:155, AUD:1.55, CHF:0.89 };
@@ -1309,6 +1368,7 @@ export default function PortfolioPage() {
             }
           }
           inputs[p.id] = {
+            shares: p.shares != null ? String(p.shares) : "",
             avgPrice: p.avg_price > 0 ? String(parseFloat(display.toFixed(4))) : "",
             purchaseDate: p.purchase_date ?? "",
           };
@@ -1354,7 +1414,7 @@ export default function PortfolioPage() {
         showToast("No se encontraron posiciones en las imágenes. Intenta con capturas más claras.");
       } else {
         setScreenshotPreview(final);
-        const inputs: Record<string, { avgPrice: string; purchaseDate: string }> = {};
+        const inputs: Record<string, { shares: string; avgPrice: string; purchaseDate: string }> = {};
         const shotCur = screenshotCurrencyRef.current;
         const rate = fxRateRef.current;
         const cur = portfolioCurrencyRef.current;
@@ -1372,6 +1432,7 @@ export default function PortfolioPage() {
             }
           }
           inputs[p.id] = {
+            shares: p.shares != null ? String(p.shares) : "",
             avgPrice: p.avg_price > 0 ? String(parseFloat(display.toFixed(4))) : "",
             purchaseDate: p.purchase_date ?? "",
           };
@@ -1412,6 +1473,17 @@ export default function PortfolioPage() {
 
   const confirmScreenshotImport = () => {
     if (!screenshotPreview?.length) return;
+    // Block confirming while any row's shares are missing/invalid — silently
+    // importing a position with the AI's unreadable/guessed share count
+    // would misstate the user's real holdings.
+    const invalidRow = screenshotPreview.find((p) => {
+      const typedShares = parseFloat(screenshotPriceInputs[p.id]?.shares ?? "");
+      return isNaN(typedShares) || typedShares <= 0;
+    });
+    if (invalidRow) {
+      showToast(`Agrega cuántas acciones de ${invalidRow.ticker} tienes antes de continuar.`);
+      return;
+    }
     // Inject user-entered prices — convert from user's display currency to USD for storage
     const shotCur = screenshotCurrencyRef.current;
     const APPROX: Record<string, number> = { MXN:18.5, EUR:0.92, GBP:0.79, CAD:1.38, BRL:5.7, JPY:155, AUD:1.55, CHF:0.89 };
@@ -1422,8 +1494,12 @@ export default function PortfolioPage() {
       const avg_price_usd = (!isNaN(typed) && typed > 0)
         ? (portfolioCurrency === "USD" ? typed : typed / fxRate)
         : fallbackUSD;
+      const finalShares: number = parseFloat(screenshotPriceInputs[p.id]?.shares ?? String(p.shares ?? 0));
       return {
-        ...p,
+        id: p.id,
+        ticker: p.ticker,
+        name: p.name,
+        shares: finalShares,
         avg_price: parseFloat(avg_price_usd.toFixed(6)),
         purchase_date: screenshotPriceInputs[p.id]?.purchaseDate || null,
       };
@@ -1447,7 +1523,7 @@ export default function PortfolioPage() {
 
   const applyMerge = (mode: "keep" | "replace") => {
     const incoming = pendingMerge.map((p) => ({
-      ticker: p.ticker, name: p.name, shares: p.shares, avgPrice: p.avg_price,
+      ticker: p.ticker, name: p.name, shares: p.shares ?? 0, avgPrice: p.avg_price,
       ...(p.purchase_date ? { purchaseDate: p.purchase_date } : {}),
     }));
     let toImport;
@@ -1827,6 +1903,9 @@ export default function PortfolioPage() {
                 // Distinct tickers held, not raw purchase lots — buying more
                 // GOOGL in a second lot must never look like a second holding.
                 distinct_holdings: aggregatedPositions.length,
+                cash_total: cashTotal > 0 ? cashTotal : null,
+                dividend_income_received: dividendTotal > 0 ? dividendTotal : null,
+                total_value_with_cash: (cashTotal > 0 || dividendTotal > 0) ? totals.current + cashTotal + dividendTotal : null,
                 currency: portfolioCurrency,
                 ytd_gain_pct: chartOverrides.ytd?.pct ?? null,
                 sp500_ytd_pct: chartOverrides.ytd?.spy_pct ?? null,
@@ -2050,6 +2129,84 @@ export default function PortfolioPage() {
               )}
             </button>
 
+            {/* Efectivo disponible — CETES, banco, bonos, etc. — cuenta hacia el total */}
+            <div className="rounded-2xl border p-3.5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}>
+                  💵 Efectivo disponible
+                </span>
+                {cashList.length > 0 && (
+                  <span className="text-xs font-black" style={{ color: "var(--accent-l)" }}>
+                    {currencySymbol}{cashTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                  </span>
+                )}
+              </div>
+              {cashList.length > 0 && (
+                <div className="space-y-1.5 mb-2">
+                  {cashList.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between text-xs rounded-lg px-2.5 py-1.5" style={{ background: "var(--raised)" }}>
+                      <span style={{ color: "var(--sub)" }}>
+                        {CASH_INSTRUMENT_LABEL[c.instrument]}{c.label ? ` · ${c.label}` : ""}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold" style={{ color: "var(--text)" }}>
+                          {c.currency} {c.amount.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                        </span>
+                        <button onClick={() => handleRemoveCash(c.id)} className="font-bold" style={{ color: "var(--dim)" }}>×</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {cashFormOpen ? (
+                <div className="space-y-2 mt-1">
+                  <div className="flex gap-2">
+                    <input
+                      type="number" min="0" step="any"
+                      placeholder={`Monto (${portfolioCurrency})`}
+                      value={cashForm.amount}
+                      onChange={(e) => setCashForm((f) => ({ ...f, amount: e.target.value }))}
+                      className="flex-1 rounded-lg border px-2.5 py-1.5 text-sm outline-none"
+                      style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+                    />
+                    <select
+                      value={cashForm.instrument}
+                      onChange={(e) => setCashForm((f) => ({ ...f, instrument: e.target.value as CashHolding["instrument"] }))}
+                      className="rounded-lg border px-2 py-1.5 text-sm outline-none"
+                      style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+                    >
+                      <option value="cetes">CETES</option>
+                      <option value="bank">Banco</option>
+                      <option value="bonds">Bonos</option>
+                      <option value="other">Otro</option>
+                    </select>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Nota (opcional)"
+                    value={cashForm.label}
+                    onChange={(e) => setCashForm((f) => ({ ...f, label: e.target.value }))}
+                    className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
+                    style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={() => setCashFormOpen(false)} className="flex-1 py-2 rounded-lg border text-xs font-semibold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                      Cancelar
+                    </button>
+                    <button onClick={handleAddCash} disabled={cashSaving || !cashForm.amount}
+                            className="flex-[2] py-2 rounded-lg text-xs font-bold text-white disabled:opacity-40"
+                            style={{ background: "var(--accent)" }}>
+                      {cashSaving ? "Guardando..." : "Guardar"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setCashFormOpen(true)} className="text-xs font-bold mt-1" style={{ color: "var(--accent-l)" }}>
+                  + Agregar efectivo
+                </button>
+              )}
+            </div>
+
             {/* Hint pegado / arrastrar — sutil */}
             {!screenshotAnalyzing && !screenshotPreview && !showForm && (
               <div className="flex items-center gap-2 text-[10px] px-1 mb-1"
@@ -2070,25 +2227,45 @@ export default function PortfolioPage() {
                   {screenshotPreview.length} posiciones detectadas
                 </p>
                 <p className="text-xs mb-1" style={{ color:"var(--muted)" }}>
-                  Agrega el precio promedio de compra de cada posición.
+                  Revisa las acciones detectadas y agrega el precio promedio de compra de cada posición.
                 </p>
                 <p className="text-[11px] mb-3 px-2.5 py-1.5 rounded-lg font-medium" style={{ color:"#f59e0b", background:"#f59e0b15" }}>
                   ⚠ No usamos el precio de la foto — puede ser incorrecto en acciones fraccionadas. Búscalo en tu broker bajo "precio promedio" o "average cost".
                 </p>
-                {screenshotPreview.map((p) => (
+                {screenshotPreview.map((p) => {
+                  const sharesTyped = parseFloat(screenshotPriceInputs[p.id]?.shares ?? "");
+                  const sharesInvalid = isNaN(sharesTyped) || sharesTyped <= 0;
+                  return (
                   <div key={p.id} className="py-3 border-b" style={{ borderColor:"var(--border)" }}>
                     <div className="flex items-center justify-between mb-2">
                       <div>
                         <span className="font-extrabold text-sm" style={{ color:"var(--text)" }}>{p.ticker}</span>
                         {p.name !== p.ticker && <span className="text-xs ml-2" style={{ color:"var(--muted)" }}>{p.name}</span>}
-                        <span className="text-xs ml-2 font-medium" style={{ color:"var(--sub)" }}>{p.shares} acc</span>
                       </div>
                       <button onClick={() => {
                         setScreenshotPreview((prev) => { const next=(prev??[]).filter((x)=>x.id!==p.id); return next.length?next:null; });
                         setScreenshotPriceInputs((prev) => { const n={...prev}; delete n[p.id]; return n; });
                       }} className="text-[#ef4444] text-xl font-bold leading-none ml-2">×</button>
                     </div>
+                    {sharesInvalid && (
+                      <p className="text-[11px] mb-2 px-2 py-1 rounded-lg font-medium" style={{ color:"#ef4444", background:"#ef444415" }}>
+                        No pudimos leer cuántas acciones tienes — agrégalas tú abajo (acepta fracciones, ej. 0.5).
+                      </p>
+                    )}
                     <div className="flex gap-2">
+                      <div className="w-24 shrink-0">
+                        <label className="text-[10px] font-bold uppercase block mb-1" style={{ color: sharesInvalid ? "#ef4444" : "var(--muted)" }}>
+                          Acciones
+                        </label>
+                        <input
+                          type="number" min="0" step="any"
+                          placeholder="ej. 0.5"
+                          value={screenshotPriceInputs[p.id]?.shares ?? ""}
+                          onChange={(e) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], shares: e.target.value } }))}
+                          className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
+                          style={{ background:"var(--raised)", borderColor: sharesInvalid ? "#ef4444" : "var(--border)", color:"var(--text)" }}
+                        />
+                      </div>
                       <div className="flex-1">
                         <label className="text-[10px] font-bold uppercase block mb-1" style={{ color:"var(--muted)" }}>
                           Precio promedio ({portfolioCurrency})
@@ -2117,7 +2294,8 @@ export default function PortfolioPage() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 <div className="flex gap-2 mt-3">
                   <button onClick={() => { setScreenshotPreview(null); setScreenshotPriceInputs({}); }}
                           className="flex-1 py-2.5 rounded-xl border text-sm font-semibold"
@@ -2125,7 +2303,8 @@ export default function PortfolioPage() {
                     Cancelar
                   </button>
                   <button onClick={confirmScreenshotImport}
-                          className="flex-[2] py-2.5 rounded-xl text-white text-sm font-bold"
+                          disabled={screenshotPreview.some((p) => { const v = parseFloat(screenshotPriceInputs[p.id]?.shares ?? ""); return isNaN(v) || v <= 0; })}
+                          className="flex-[2] py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-40"
                           style={{ background:"var(--accent)" }}>
                     ✓ Agregar {screenshotPreview.length} posiciones
                   </button>
@@ -2503,7 +2682,10 @@ export default function PortfolioPage() {
                               </span>
                               </p>
                               {(() => {
-                                const rawValueStr = `${currencySymbol}${(hovData?.value ?? totals.current).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                                // Hovering the chart shows a specific historical date (stock
+                                // positions only — we don't have historical cash balances), so
+                                // cash only folds into the resting-state total, never the hover value.
+                                const rawValueStr = `${currencySymbol}${(hovData?.value ?? (totals.current + cashTotal + dividendTotal)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                                 const bigValueStr = mask(rawValueStr);
                                 // Large portfolios (7-8+ figures) can otherwise overflow this
                                 // card's width at the default size — shrink proportionally to
@@ -2524,6 +2706,13 @@ export default function PortfolioPage() {
                               {hovData ? (
                                 <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
                                   {fmtChartDate(hovData.date, true)}
+                                </p>
+                              ) : (cashTotal > 0 || dividendTotal > 0) ? (
+                                <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
+                                  {[
+                                    cashTotal > 0 ? `${currencySymbol}${cashTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })} en efectivo` : null,
+                                    dividendTotal > 0 ? `${currencySymbol}${dividendTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })} en dividendos recibidos` : null,
+                                  ].filter(Boolean).join(" + ")}
                                 </p>
                               ) : null}
                             </div>

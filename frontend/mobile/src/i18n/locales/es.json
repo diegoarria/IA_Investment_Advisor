@@ -1175,11 +1175,27 @@
       "brokerBadgeConnected": "IBKR · IOL · Schwab",
       "premium": "Premium"
     },
+    "cash": {
+      "title": "💵 Efectivo disponible",
+      "addCta": "+ Agregar efectivo",
+      "amountPlaceholder": "Monto ({{currency}})",
+      "labelPlaceholder": "Nota (opcional)",
+      "cancel": "Cancelar",
+      "save": "Guardar",
+      "saving": "Guardando...",
+      "saveError": "No se pudo agregar el efectivo. Intenta de nuevo.",
+      "instrumentCetes": "CETES",
+      "instrumentBank": "Banco",
+      "instrumentBonds": "Bonos",
+      "instrumentOther": "Otro"
+    },
     "preview": {
       "detected": "{{count}} posiciones detectadas",
       "fromCaptures": "De {{count}} capturas · ",
       "addPriceHint": "Agrega el precio de compra de cada posición",
       "warning": "⚠ No usamos el precio de la foto — puede ser incorrecto en acciones fraccionadas. Búscalo en tu broker bajo \"precio promedio\" o \"average cost\".",
+      "sharesLabel": "Acciones",
+      "missingSharesWarning": "No pudimos leer cuántas acciones tienes — agrégalas tú abajo (acepta fracciones, ej. 0.5).",
       "avgPriceLabel": "Precio promedio ({{currency}})",
       "avgPricePlaceholderUSD": "ej. 223.00",
       "avgPricePlaceholder": "ej. {{value}}",
@@ -1454,7 +1470,9 @@
     },
     "screenshot": {
       "analyzingWithAI": "Analizando con IA...",
-      "analyzingProgress": "Analizando {{current}} de {{total}}..."
+      "analyzingProgress": "Analizando {{current}} de {{total}}...",
+      "missingSharesTitle": "Faltan acciones",
+      "missingSharesMsg": "Agrega cuántas acciones de {{ticker}} tienes antes de continuar."
     },
     "editSave": {
       "title": "¿Guardar cambios?",
