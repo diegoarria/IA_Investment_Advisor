@@ -2074,7 +2074,7 @@ export default function PortfolioScreen() {
 
         {/* Conectar broker — Premium */}
         <TouchableOpacity
-          style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 16, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, marginBottom: 10 }}
+          style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 16, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, marginBottom: 18 }}
           onPress={() => isPremiumAccess ? setBrokerModalOpen(true) : setPaywallOpen(true)}
           activeOpacity={0.8}
         >
@@ -2097,7 +2097,7 @@ export default function PortfolioScreen() {
             <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>{t("portfolio.cash.title")}</Text>
             {cashList.length > 0 && (
               <Text style={{ fontSize: 13, fontWeight: "900", color: colors.accentLight }}>
-                {currencySymbol}{cashTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                {currencySymbol}{cashTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Text>
             )}
           </View>
@@ -2116,7 +2116,7 @@ export default function PortfolioScreen() {
                   </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                     <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-                      {c.currency} {(c.accrued_amount ?? c.amount).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                      {c.currency} {(c.accrued_amount ?? c.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Text>
                     <Ionicons name="pencil" size={12} color={colors.textDim} />
                     <TouchableOpacity onPress={() => handleRemoveCash(c.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>

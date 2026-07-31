@@ -15,7 +15,7 @@ import StockAvatar from "@/components/StockAvatar";
 import PersonalizedMessageBanner from "@/components/PersonalizedMessageBanner";
 import MorningBriefCard from "@/components/MorningBriefCard";
 import ExplainButton from "@/components/ExplainButton";
-import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, watchlist as watchlistApi, billing } from "@/lib/api";
+import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, watchlist as watchlistApi, billing, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
 import PricingModal from "@/components/PricingModal";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore, useBalanceVisibilityStore } from "@/lib/store";
 import OnboardingChecklist, { type OnboardingStep } from "@/components/OnboardingChecklist";
@@ -109,6 +109,28 @@ export default function HomePage() {
   // already own shouldn't inflate this count.
   const distinctPositionsCount = useMemo(() => new Set(positions.map((p) => p.ticker)).size, [positions]);
   const fxRate = useFxRate(portfolioCurrency);
+
+  // Cash held outside stock positions (CETES, bank, bonds, other) and
+  // dividends actually paid (forward-tracking only) both count toward the
+  // total shown here, same as on /portfolio.
+  const [cashTotalUSD, setCashTotalUSD] = useState(0);
+  const [dividendTotalUSD, setDividendTotalUSD] = useState(0);
+  const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };
+  useEffect(() => {
+    cashHoldingsApi.list().then((res) => {
+      const holdings = res.data?.holdings ?? [];
+      const usd = holdings.reduce((sum: number, c: { amount: number; currency: string; accrued_amount?: number }) => {
+        const amt = c.accrued_amount ?? c.amount;
+        if (c.currency === "USD") return sum + amt;
+        return sum + amt / (CASH_APPROX_TO_USD[c.currency] ?? 1);
+      }, 0);
+      setCashTotalUSD(usd);
+    }).catch(() => {});
+    dividendsApi.getIncome().then((res) => setDividendTotalUSD(res.data?.total ?? 0)).catch(() => {});
+  }, []);
+  const cashTotal = portfolioCurrency === "USD" ? cashTotalUSD : cashTotalUSD * fxRate;
+  const dividendTotal = portfolioCurrency === "USD" ? dividendTotalUSD : dividendTotalUSD * fxRate;
+
   const streak = useLearnStore((s) => s.streak);
   const completedToday = useLearnStore((s) => s.completedToday);
   const { tier: subTier, isTrialPremium: subTrialPremium } = useSubscriptionStore();
@@ -646,6 +668,8 @@ export default function HomePage() {
                   day_gain_amount: dayGain,
                   total_gain_pct: totalGainPct,
                   goal_progress_pct: goalAmount > 0 ? Math.round((total / goalAmount) * 100) : null,
+                  cash_total: cashTotal > 0 ? cashTotal : null,
+                  dividend_income_received: dividendTotal > 0 ? dividendTotal : null,
                   currency: portfolioCurrency,
                   market_indices: indices.map((idx) => ({ name: idx.name, change_pct: idx.change_pct })),
                   top_gainers: movers.map((m) => ({ ticker: m.ticker, change_pct: m.chg })),
@@ -847,7 +871,8 @@ export default function HomePage() {
                     {loading ? (
                       <div className="h-10 w-44 rounded-lg animate-pulse" style={{ background: "var(--raised)" }} />
                     ) : (() => {
-                      const heroValueStr = balanceHidden ? "••••••" : fmt(total, portfolioCurrency);
+                      const heroTotal = total + cashTotal + dividendTotal;
+                      const heroValueStr = balanceHidden ? "••••••" : fmt(heroTotal, portfolioCurrency);
                       // Guards against very large portfolio values overflowing this
                       // card next to the avatar — shrinks proportionally to length
                       // instead of wrapping or clipping.
@@ -856,12 +881,22 @@ export default function HomePage() {
                         heroValueStr.length > 13 ? "1.8rem" :
                         heroValueStr.length > 10 ? "2.1rem" : undefined;
                       return (
-                        <p
-                          className="text-4xl font-black tracking-tight leading-none whitespace-nowrap"
-                          style={{ color: "var(--text)", fontSize: heroValueSize }}
-                        >
-                          {heroValueStr}
-                        </p>
+                        <>
+                          <p
+                            className="text-4xl font-black tracking-tight leading-none whitespace-nowrap"
+                            style={{ color: "var(--text)", fontSize: heroValueSize }}
+                          >
+                            {heroValueStr}
+                          </p>
+                          {!balanceHidden && (cashTotal > 0 || dividendTotal > 0) && (
+                            <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
+                              {[
+                                cashTotal > 0 ? `${fmt(cashTotal, portfolioCurrency)} en efectivo` : null,
+                                dividendTotal > 0 ? `${fmt(dividendTotal, portfolioCurrency)} en dividendos recibidos` : null,
+                              ].filter(Boolean).join(" + ")}
+                            </p>
+                          )}
+                        </>
                       );
                     })()}
                   </div>

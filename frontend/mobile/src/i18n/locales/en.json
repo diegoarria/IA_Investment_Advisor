@@ -1176,7 +1176,7 @@
       "premium": "Premium"
     },
     "cash": {
-      "title": "💵 Available cash",
+      "title": "💵 Available cash to invest",
       "addCta": "+ Add cash",
       "amountPlaceholder": "Amount ({{currency}})",
       "labelPlaceholder": "Note (optional)",

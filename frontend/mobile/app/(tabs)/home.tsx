@@ -18,7 +18,7 @@ import { useLearnStore, getUnclaimedMilestones, type StreakMilestone } from "../
 import StreakMilestoneModal from "../../src/components/StreakMilestoneModal";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import { hasPremiumAccess } from "../../src/lib/subscriptionStore";
-import { marketApi, notificationsApi } from "../../src/lib/api";
+import { marketApi, notificationsApi, cashHoldingsApi, dividendsApi } from "../../src/lib/api";
 import { useChatStore } from "../../src/lib/chatStore";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import StockAvatar from "../../src/components/StockAvatar";
@@ -350,6 +350,21 @@ export default function HomeScreen() {
   const [claimingMilestone, setClaimingMilestone] = React.useState(false);
   const { positions, portfolioCurrency } = usePortfolioStore();
   const fxRate = useFxRate(portfolioCurrency);
+  const [cashTotalUSD, setCashTotalUSD] = React.useState(0);
+  const [dividendTotalUSD, setDividendTotalUSD] = React.useState(0);
+  const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };
+  React.useEffect(() => {
+    cashHoldingsApi.list().then((res: any) => {
+      const holdings = res.data?.holdings ?? [];
+      const usd = holdings.reduce((sum: number, c: { amount: number; currency: string; accrued_amount?: number }) => {
+        const amt = c.accrued_amount ?? c.amount;
+        if (c.currency === "USD") return sum + amt;
+        return sum + amt / (CASH_APPROX_TO_USD[c.currency] ?? 1);
+      }, 0);
+      setCashTotalUSD(usd);
+    }).catch(() => {});
+    dividendsApi.getIncome().then((res: any) => setDividendTotalUSD(res.data?.total ?? 0)).catch(() => {});
+  }, []);
   // Distinct holdings, not purchase lots — buying more of a ticker you
   // already own shouldn't inflate this count.
   const distinctPositionsCount = useMemo(() => new Set(positions.map((p) => p.ticker)).size, [positions]);
@@ -1023,9 +1038,17 @@ export default function HomeScreen() {
                     adjustsFontSizeToFit
                     minimumFontScale={0.5}
                   >
-                    {mask(fmt(total * fxRate, portfolioCurrency))}
+                    {mask(fmt((total + cashTotalUSD + dividendTotalUSD) * fxRate, portfolioCurrency))}
                   </Text>
               }
+              {!balanceHidden && (cashTotalUSD > 0 || dividendTotalUSD > 0) && (
+                <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 2 }} numberOfLines={1}>
+                  {[
+                    cashTotalUSD > 0 ? `${fmt(cashTotalUSD * fxRate, portfolioCurrency)} en efectivo` : null,
+                    dividendTotalUSD > 0 ? `${fmt(dividendTotalUSD * fxRate, portfolioCurrency)} en dividendos recibidos` : null,
+                  ].filter(Boolean).join(" + ")}
+                </Text>
+              )}
             </View>
             <View style={[ss.heroGainBadge, {
               backgroundColor: dayGain >= 0 ? colors.up + "18" : colors.down + "18",
@@ -1841,6 +1864,8 @@ export default function HomeScreen() {
           day_gain_amount: dayGain,
           total_gain_pct: totalGainPct,
           goal_progress_pct: goalAmount > 0 ? (total / goalAmount) * 100 : null,
+          cash_total: cashTotalUSD > 0 ? cashTotalUSD : null,
+          dividend_income_received: dividendTotalUSD > 0 ? dividendTotalUSD : null,
           market_indices: indices.map((idx: any) => ({ name: idx.name, change_pct: idx.change_pct })),
           top_gainers: movers.map((m) => ({ ticker: m.ticker, change_pct: m.chg })),
           top_losers: losers.map((m) => ({ ticker: m.ticker, change_pct: m.chg })),

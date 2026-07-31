@@ -1176,7 +1176,7 @@
       "premium": "Premium"
     },
     "cash": {
-      "title": "💵 Efectivo disponible",
+      "title": "💵 Efectivo disponible para invertir",
       "addCta": "+ Agregar efectivo",
       "amountPlaceholder": "Monto ({{currency}})",
       "labelPlaceholder": "Nota (opcional)",

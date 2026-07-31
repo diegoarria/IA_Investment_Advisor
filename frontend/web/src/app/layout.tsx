@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { DM_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import ThemeProvider from "@/components/ThemeProvider";
-import NuvosGuide from "@/components/NuvosGuide";
 import UpsellProvider from "@/components/UpsellProvider";
 import SubscriptionStatusProvider from "@/components/SubscriptionStatusProvider";
 import FeedbackBanner from "@/components/FeedbackBanner";
@@ -42,7 +41,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ThemeProvider>
             {children}
             <SubscriptionStatusProvider />
-            <NuvosGuide />
             <UpsellProvider />
             <FeedbackBanner />
             <SessionExpiredBanner />

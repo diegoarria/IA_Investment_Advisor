@@ -2128,10 +2128,23 @@ export default function PortfolioPage() {
 
             <input ref={screenshotInputRef} type="file" accept="image/*,.pdf" multiple className="hidden" onChange={handleScreenshotChange} />
 
+            {/* Hint pegado / arrastrar — sutil */}
+            {!screenshotAnalyzing && !screenshotPreview && !showForm && (
+              <div className="flex items-center gap-2 text-[10px] px-1 mb-3"
+                   style={{ color: "var(--dim)" }}>
+                <span>📋</span>
+                <span>{t("portfolio.actions.pasteHintPre")}{" "}
+                  <kbd className="px-1 py-0.5 rounded font-mono text-[9px]"
+                       style={{ background: "var(--raised)", color: "var(--muted)" }}>⌘V</kbd>
+                  {" "}{t("portfolio.actions.pasteHintPost")}
+                </span>
+              </div>
+            )}
+
             {/* Conectar broker — Premium */}
             <button
               onClick={() => isPremium ? setBrokerModalOpen(true) : setPaywallOpen(true)}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all hover:opacity-80"
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all hover:opacity-80 mb-4"
               style={{ background: "var(--raised)", border: "1px solid var(--border)", color: "var(--sub)" }}
             >
               <span>🔗</span>
@@ -2153,11 +2166,11 @@ export default function PortfolioPage() {
             <div className="rounded-2xl border p-3.5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}>
-                  💵 Efectivo disponible
+                  💵 Efectivo disponible para invertir
                 </span>
                 {cashList.length > 0 && (
                   <span className="text-xs font-black" style={{ color: "var(--accent-l)" }}>
-                    {currencySymbol}{cashTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                    {currencySymbol}{cashTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 )}
               </div>
@@ -2174,7 +2187,7 @@ export default function PortfolioPage() {
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold" style={{ color: "var(--text)" }}>
-                          {c.currency} {(c.accrued_amount ?? c.amount).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                          {c.currency} {(c.accrued_amount ?? c.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                         <Pencil className="w-3 h-3" style={{ color: "var(--dim)" }} />
                         <button onClick={(e) => { e.stopPropagation(); handleRemoveCash(c.id); }} className="font-bold" style={{ color: "var(--dim)" }}>×</button>
@@ -2247,19 +2260,6 @@ export default function PortfolioPage() {
                 </button>
               )}
             </div>
-
-            {/* Hint pegado / arrastrar — sutil */}
-            {!screenshotAnalyzing && !screenshotPreview && !showForm && (
-              <div className="flex items-center gap-2 text-[10px] px-1 mb-1"
-                   style={{ color: "var(--dim)" }}>
-                <span>📋</span>
-                <span>{t("portfolio.actions.pasteHintPre")}{" "}
-                  <kbd className="px-1 py-0.5 rounded font-mono text-[9px]"
-                       style={{ background: "var(--raised)", color: "var(--muted)" }}>⌘V</kbd>
-                  {" "}{t("portfolio.actions.pasteHintPost")}
-                </span>
-              </div>
-            )}
 
             {/* Screenshot preview */}
             {screenshotPreview && (
@@ -2751,7 +2751,7 @@ export default function PortfolioPage() {
                               ) : (cashTotal > 0 || dividendTotal > 0) ? (
                                 <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
                                   {[
-                                    cashTotal > 0 ? `${currencySymbol}${cashTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })} en efectivo` : null,
+                                    cashTotal > 0 ? `${currencySymbol}${cashTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} en efectivo` : null,
                                     dividendTotal > 0 ? `${currencySymbol}${dividendTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })} en dividendos recibidos` : null,
                                   ].filter(Boolean).join(" + ")}
                                 </p>

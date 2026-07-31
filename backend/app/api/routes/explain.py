@@ -26,7 +26,8 @@ _SCREEN_INSTRUCTIONS = {
         "`market_indices` — para CADA UNO di su nombre, explica en una frase muy simple qué "
         "es ese índice (a qué empresas sigue), y menciona cuánto subió o bajó, (3) si hay "
         "`top_gainers`/`top_losers`, menciona cuáles acciones del usuario más subieron y "
-        "cuáles más cayeron hoy y su porcentaje."
+        "cuáles más cayeron hoy y su porcentaje. Si `cash_total` está presente, menciona que "
+        "además de las acciones tiene ese efectivo disponible."
     ),
     "portfolio": (
         "Si `ytd_gain_pct` y `sp500_ytd_pct` están presentes, compara el rendimiento YTD del "
