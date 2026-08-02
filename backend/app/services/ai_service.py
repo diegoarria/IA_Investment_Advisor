@@ -712,7 +712,7 @@ Si detectas especulación extrema (apalancamiento, all-in en un activo, recupera
 
 Si el usuario te pregunta qué eres, cómo te llamas, o qué función cumples, SIEMPRE responde con tu identidad correcta:
 
-✅ "Soy Nuvos, tu mentor y educador de inversiones."
+✅ "Soy Arthur, tu mentor y educador de inversiones."
 ✅ "Mi rol es el de mentor: te ayudo a entenderte como inversionista y a tomar decisiones más informadas."
 ✅ "No soy un asesor de inversiones — soy un educador financiero. La diferencia importa."
 
@@ -2976,7 +2976,7 @@ async def generate_quick_valuation_summary(data: dict, lang: str = "es") -> dict
     """Quick-search valuation summary — a SHORT (80-130 word) narrative around
     the real numbers already computed by fundamental_analysis_service, for
     the ad-hoc ticker search on the Acciones Subvaluadas screen. Deliberately
-    NOT the full 20-section Mentor IA report or Deep Research — just enough
+    NOT the full 20-section Arthur report or Deep Research — just enough
     narrative to make the real numbers make sense at a glance. Haiku-tier:
     this is a short, cheap call, not a full analysis.
 
@@ -3015,7 +3015,7 @@ Evidencia real por dimensión del checklist de inversión (para los ítems 2-7):
 
 Responde ÚNICAMENTE con un JSON válido (sin markdown fuera del JSON, sin texto antes o después) con esta estructura exacta:
 {{
-  "summary": "<resumen breve, 80-130 palabras EN EL IDIOMA INDICADO ARRIBA (no necesariamente español), para una tarjeta compacta de búsqueda rápida — NO un análisis completo. SI el bloque de arriba incluye una '⚠️ ALERTA DE LIQUIDEZ REAL', tu resumen DEBE empezar con esa advertencia (en tus propias palabras, sin inventar cifras) antes de cualquier otra cosa — nunca la omitas ni la entierres al final. Después de eso (o si no hay alerta), escríbelo de forma NARRATIVA, conectando los datos con la tesis de inversión (no una lista de cifras sueltas) — ej. combina qué hace la empresa y por qué eso importa (marcas/posición/demanda), qué está descontando el mercado hoy según el DCF inverso, y qué tendría que pasar (crecimiento, rentabilidad) para que exista apreciación bajo el escenario base. Usa EXACTAMENTE el valor intrínseco (escenario base) y el margen de seguridad reales del bloque de arriba, nunca inventados ni redondeados distinto; nunca digas Comprar/No comprar/Mantener; cierra recordando que esto no es un semáforo de compra y que hay un análisis completo pidiéndole a Mentor IA 'analiza {data.get('ticker')}'. Texto plano en párrafos cortos, sin encabezados markdown (nada de #), sin bullets — como mucho **negrita** para 2-3 cifras clave.>",
+  "summary": "<resumen breve, 80-130 palabras EN EL IDIOMA INDICADO ARRIBA (no necesariamente español), para una tarjeta compacta de búsqueda rápida — NO un análisis completo. SI el bloque de arriba incluye una '⚠️ ALERTA DE LIQUIDEZ REAL', tu resumen DEBE empezar con esa advertencia (en tus propias palabras, sin inventar cifras) antes de cualquier otra cosa — nunca la omitas ni la entierres al final. Después de eso (o si no hay alerta), escríbelo de forma NARRATIVA, conectando los datos con la tesis de inversión (no una lista de cifras sueltas) — ej. combina qué hace la empresa y por qué eso importa (marcas/posición/demanda), qué está descontando el mercado hoy según el DCF inverso, y qué tendría que pasar (crecimiento, rentabilidad) para que exista apreciación bajo el escenario base. Usa EXACTAMENTE el valor intrínseco (escenario base) y el margen de seguridad reales del bloque de arriba, nunca inventados ni redondeados distinto; nunca digas Comprar/No comprar/Mantener; cierra recordando que esto no es un semáforo de compra y que hay un análisis completo pidiéndole a Arthur 'analiza {data.get('ticker')}'. Texto plano en párrafos cortos, sin encabezados markdown (nada de #), sin bullets — como mucho **negrita** para 2-3 cifras clave.>",
   "business_understanding_stars": <entero 1-5 — ¿qué tan fácil es entender el modelo de negocio para un inversionista común (círculo de competencia de Buffett)? 5 = trivial de explicar, 1 = muy complejo/opaco. Tu juicio cualitativo, no un dato calculado>,
   "business_understanding_reason": "<explicación de máx 70 palabras: cómo gana dinero, qué podría destruir el negocio, si está dentro de un círculo de competencia razonable>",
   "checklist_reasons": {{

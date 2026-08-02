@@ -3637,7 +3637,7 @@ async def job_market_crash_alert():
         )
         free_title_es = "📉 El mercado está cayendo fuerte"
         free_body_es  = (
-            f"El S&P 500 cayó {abs(pct):.1f}% hoy. Activa Premium para que tu Mentor IA "
+            f"El S&P 500 cayó {abs(pct):.1f}% hoy. Activa Premium para que tu Arthur "
             f"te explique qué está pasando y qué hacer al respecto."
         )
         premium_title_en = "🚨 URGENT!"
@@ -4767,7 +4767,7 @@ async def main():
     # ── Specials ──────────────────────────────────────────────────────────────
     scheduler.add_job(send_birthday_emails,     "cron",                     hour=8,       minute=0,     timezone="America/New_York")
 
-    # ── Proactive Mentor IA ───────────────────────────────────────────────────
+    # ── Proactive Arthur ───────────────────────────────────────────────────
     scheduler.add_job(job_proactive_vs_market,        "cron", day_of_week="mon-fri", hour=16, minute=45, timezone="America/New_York")
     scheduler.add_job(job_proactive_earnings_preview, "cron", day_of_week="mon-fri", hour=8,  minute=30, timezone="America/New_York")
 

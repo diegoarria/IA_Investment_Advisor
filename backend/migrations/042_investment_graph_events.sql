@@ -1,6 +1,6 @@
 -- Migration 042: Investment Graph
 -- Append-only event log that ties everything a user does around a specific
--- ticker (questions to Mentor IA, valuation theses, watchlist changes,
+-- ticker (questions to Arthur, valuation theses, watchlist changes,
 -- market events like earnings) into one timeline per company and one global
 -- cross-company timeline. investment_decisions (migration 007) stays a
 -- separate table — the graph read endpoints merge both at query time rather

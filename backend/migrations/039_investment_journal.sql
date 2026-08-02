@@ -1,5 +1,5 @@
 -- Migration 039: Investment Journal
--- Append-only log of investment theses: every time Mentor IA generates a
+-- Append-only log of investment theses: every time Arthur generates a
 -- full Premium fundamental analysis ("Analízame X"), the real numbers
 -- (price, intrinsic value, scorecard) and the full narrative reply are
 -- saved so the user can revisit the thesis later and compare it against

@@ -1,7 +1,7 @@
 """'Explícame esto' — the AI mentor narrates, in voice, what's currently on
 the user's screen using ONLY the real data that screen already computed.
 Not an ambient always-on avatar (expensive, invasive) — a single on-demand
-button per screen. Reuses the same TTS pipeline as Mentor IA voice calls
+button per screen. Reuses the same TTS pipeline as Arthur voice calls
 (voice_service.synthesize_speech_b64) so it's the same voice/personality
 accompanying the user everywhere, not a new one.
 """

@@ -41,7 +41,7 @@ async function writeExplainCache(key: string, text: string, audio: string | null
   try { await AsyncStorage.setItem(key, JSON.stringify({ text, audio, ts: Date.now() } as CachedExplanation)); } catch { /* ignore */ }
 }
 
-// "Explícame esto" — the same mentor that narrates Mentor IA voice calls,
+// "Explícame esto" — the same mentor that narrates Arthur voice calls,
 // but on-demand per screen instead of an always-on ambient avatar. Each
 // screen just passes its own already-computed context; no new data fetch.
 export default function ExplainButton({

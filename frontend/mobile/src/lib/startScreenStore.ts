@@ -8,7 +8,7 @@ export type StartScreen = "home" | "patrimonio" | "chat" | "notifications" | "ac
 export const START_SCREEN_OPTIONS: { key: StartScreen; label: string; icon: string; color: string }[] = [
   { key: "home",          label: "Inicio",          icon: "home-outline",          color: "#00d47e" },
   { key: "patrimonio",    label: "Patrimonio",       icon: "wallet-outline",        color: "#3b82f6" },
-  { key: "chat",          label: "Mentor IA",        icon: "sparkles-outline",      color: "#8b5cf6" },
+  { key: "chat",          label: "Arthur",        icon: "sparkles-outline",      color: "#8b5cf6" },
   { key: "notifications", label: "Notificaciones",   icon: "notifications-outline", color: "#ef4444" },
   { key: "academy",       label: "Academy",          icon: "school-outline",        color: "#f59e0b" },
 ];

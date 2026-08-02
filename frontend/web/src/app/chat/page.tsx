@@ -441,7 +441,7 @@ export default function ChatPage() {
 
     // `positions` is one row per purchase lot (buying more of a ticker you
     // already hold adds a new lot, by design) — aggregate by ticker before
-    // describing the portfolio to Mentor IA, or a stock bought twice reads
+    // describing the portfolio to Arthur, or a stock bought twice reads
     // as two separate holdings.
     const holdingsMap = new Map<string, { ticker: string; name?: string; shares: number; cost: number }>();
     for (const p of positions) {
@@ -708,7 +708,7 @@ export default function ChatPage() {
   };
 
   // Auto-send the prefilled ?msg= when it arrives with &autosend=1 (used by
-  // the "Analizar con Mentor IA" button on Acciones Subvaluadas) — every
+  // the "Analizar con Arthur" button on Acciones Subvaluadas) — every
   // OTHER existing caller of ?msg= (guided tour, notification deep links)
   // only prefills the input via the effect above, unchanged. Strips both
   // params right after so a refresh never re-sends it.
@@ -1161,7 +1161,7 @@ export default function ChatPage() {
                         <button
                           onClick={() => {
                             if (action.type === "decision") {
-                              // Logs immediately using Mentor IA's own suggested
+                              // Logs immediately using Arthur's own suggested
                               // data — no confirmation modal. A manual "review
                               // and save" step here was exactly the kind of
                               // friction that meant decisions never actually

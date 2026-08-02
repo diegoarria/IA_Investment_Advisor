@@ -800,7 +800,7 @@ _ONBOARDING_WELCOME_COPY = {
         "intro": "Tu perfil ya está listo. Ahora tienes un mentor de inversiones con IA "
                  "personalizado para tu ritmo y tus metas.",
         "features": [
-            ("🤖", "Mentor IA personalizado", "Pregúntale cualquier cosa sobre inversiones. Conoce tu perfil y tu portafolio."),
+            ("🤖", "Arthur personalizado", "Pregúntale cualquier cosa sobre inversiones. Conoce tu perfil y tu portafolio."),
             ("📊", "Portafolio en tiempo real", "Registra tus posiciones y ve su rendimiento con precios actualizados."),
             ("📈", "Alertas inteligentes", "Notificaciones cuando tus acciones se muevan o haya eventos importantes."),
             ("📚", "Academia Nuvos", "Aprende un concepto nuevo cada día y construye tu racha de aprendizaje."),

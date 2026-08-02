@@ -124,7 +124,7 @@ async def delete_all_decisions(user_id: str = Depends(get_current_user_id)):
 
 
 async def get_bias_context_for_mentor(user_id: str) -> str | None:
-    """Compact bias/strength summary for injection into Mentor IA's dynamic
+    """Compact bias/strength summary for injection into Arthur's dynamic
     system prompt addendum. Reuses the exact same cache key/TTL as
     GET /decisions/biases (`biases:{user_id}`, 1h) so a chat message never
     triggers a second, redundant Claude call within the same hour — whichever

@@ -1942,7 +1942,7 @@ export default function PortfolioScreen() {
             </TouchableOpacity>
 
             {/* Acciones Subvaluadas (DCF) — todas las candidatas reales con
-                margen de seguridad positivo, mismo motor que Mentor IA. */}
+                margen de seguridad positivo, mismo motor que Arthur. */}
             <TouchableOpacity
               onPress={() => router.push("/subvaluadas")}
               activeOpacity={0.85}

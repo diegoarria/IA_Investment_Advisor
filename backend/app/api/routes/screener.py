@@ -754,7 +754,7 @@ async def _check_and_increment_vi_search_limit(user_id: str, profile) -> None:
 @router.get("/quick-analysis")
 async def quick_analysis(query: str, lang: str | None = None, user_id: str = Depends(get_current_user_id)):
     """Ad-hoc single-ticker valuation search — the real DCF engine (same one
-    behind Mentor IA and the undervalued screener) plus a SHORT narrative
+    behind Arthur and the undervalued screener) plus a SHORT narrative
     summary (see ai_service.generate_quick_valuation_summary), for any
     ticker/company name, not just the curated screener universe.
 

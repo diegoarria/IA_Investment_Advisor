@@ -1,7 +1,7 @@
 """
 Fundamental Analysis Service
 =============================
-Deterministic (non-LLM) fundamental-analysis engine for the Mentor IA
+Deterministic (non-LLM) fundamental-analysis engine for the Arthur
 "analyze this company" chat flow (Premium only — see chat.py's
 _DEEP_ANALYSIS_RE gate). Computes real multi-year financial trends, ROIC/
 ROE/ROA, and a genuine two-stage DCF from Fiscal.ai's 10-year statements

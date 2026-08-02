@@ -1,4 +1,4 @@
-"""Mentor IA — real-time voice call.
+"""Arthur — real-time voice call.
 
 A single WebSocket carries the whole conversation: the client streams mic
 audio while the user talks, tells the server when an utterance ends, and the
@@ -360,17 +360,17 @@ async def voice_call_ws(websocket: WebSocket, token: str = "", ticket: str = "",
         is_en = profile and getattr(profile, "preferred_language", None) == "en"
         if is_en:
             greeting = (
-                f"Hi {first_name}, I'm your financial mentor — great to have you here. "
+                f"Hi {first_name}, I'm Arthur, your financial mentor — great to have you here. "
                 f"What can I help you with?"
                 if first_name else
-                "Hi, I'm your financial mentor — great to have you here. What can I help you with?"
+                "Hi, I'm Arthur, your financial mentor — great to have you here. What can I help you with?"
             )
         else:
             greeting = (
-                f"Hola {first_name}, soy tu mentor financiero y es un placer atenderte y poder "
+                f"Hola {first_name}, soy Arthur, tu mentor financiero y es un placer atenderte y poder "
                 f"conversar contigo. Cuéntame, ¿cómo puedo ayudarte?"
                 if first_name else
-                "Hola, soy tu mentor financiero y es un placer atenderte y poder conversar contigo. "
+                "Hola, soy Arthur, tu mentor financiero y es un placer atenderte y poder conversar contigo. "
                 "Cuéntame, ¿cómo puedo ayudarte?"
             )
         try:

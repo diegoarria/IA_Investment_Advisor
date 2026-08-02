@@ -307,7 +307,7 @@ export default function ScreenerPage() {
             <div className="pt-2">
               <h2 className="text-sm font-bold mb-0.5" style={{ color: "var(--text)" }}>Acciones subvaluadas (DCF)</h2>
               <p className="text-[11px] mb-3" style={{ color: "var(--muted)" }}>
-                Candidatas con margen de seguridad positivo real, del mismo motor de valor intrínseco de Mentor IA.
+                Candidatas con margen de seguridad positivo real, del mismo motor de valor intrínseco de Arthur.
                 {undervaluedGeneratedAt > 0 && (
                   <> Actualizado: {new Date(undervaluedGeneratedAt * 1000).toLocaleDateString("es-MX", { day: "numeric", month: "long" })}.</>
                 )}

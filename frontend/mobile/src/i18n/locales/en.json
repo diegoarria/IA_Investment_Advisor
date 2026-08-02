@@ -830,7 +830,7 @@
         "noSolution": "These assumptions have no mathematical solution — adjust a slider."
       },
       "mentor": {
-        "title": "Ask Mentor IA",
+        "title": "Ask Arthur",
         "why": "Why does Nuvos estimate this value for {{ticker}}?",
         "risk": "What are the main risks to {{ticker}}'s thesis?",
         "sensitivity": "Which variable affects {{ticker}}'s valuation the most?",
@@ -3139,7 +3139,7 @@
       "thesisAccuracy": "Your thesis accuracy"
     },
     "event": {
-      "question": "You asked Mentor IA",
+      "question": "You asked Arthur",
       "thesis": "You viewed the valuation analysis",
       "thesisDetail": "Margin of safety: {{mos}}% · Score: {{score}}",
       "watchlistAdd": "Added to your watchlist",

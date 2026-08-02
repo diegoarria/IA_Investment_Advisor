@@ -633,7 +633,7 @@ Instrucciones críticas:
   };
 
   // Auto-send the prefilled ?msg= when it arrives with &autosend=1 (used by
-  // the "Analizar con Mentor IA" button on Acciones Subvaluadas) — every
+  // the "Analizar con Arthur" button on Acciones Subvaluadas) — every
   // other existing caller of ?msg= (notification deep links) keeps only
   // prefilling the input via the effect above, unchanged.
   useEffect(() => {
@@ -723,7 +723,7 @@ Instrucciones críticas:
                 <TouchableOpacity
                   onPress={() => {
                     if (action.type === "decision") {
-                      // Logs immediately with Mentor IA's own suggested data —
+                      // Logs immediately with Arthur's own suggested data —
                       // no confirmation modal, matching every other chip type
                       // here which all execute right away too.
                       const d = action.data as Record<string, string>;

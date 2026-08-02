@@ -11,7 +11,7 @@ that can't be computed from what actually exists is omitted from the result —
 never zero-filled, inferred, or exaggerated.
 
 Fase 2 adds: API routes (progress.py), milestone push notifications, and
-Mentor IA context wiring. This module stays the single source of truth for
+Arthur context wiring. This module stays the single source of truth for
 the computation — routes and the chat pipeline just call into it.
 """
 
@@ -704,7 +704,7 @@ async def get_personalized_message(user_id: str) -> str | None:
     return None
 
 
-# ── Mentor IA context (Fase 2: wired into ai_service.py's dynamic addendum) ──
+# ── Arthur context (Fase 2: wired into ai_service.py's dynamic addendum) ──
 
 _MENTOR_CONTEXT_TTL = 3600  # 1h — since_purchase computation is network-bound
 
@@ -712,7 +712,7 @@ _MENTOR_CONTEXT_TTL = 3600  # 1h — since_purchase computation is network-bound
 async def build_progress_context_for_mentor(user_id: str) -> str | None:
     """
     Short paragraph summarizing the user's real progress, injected into the
-    Mentor IA's dynamic system prompt addendum on every chat turn. Cached
+    Arthur's dynamic system prompt addendum on every chat turn. Cached
     because compute_progress_summary() calls into the same network-bound
     since-inception calculation used by /market/portfolio-returns — without
     caching, every single chat message would trigger a live market data fetch.

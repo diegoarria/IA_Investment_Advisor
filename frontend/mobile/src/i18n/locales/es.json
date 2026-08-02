@@ -34,7 +34,7 @@
     },
     "nav": {
       "home": "Inicio",
-      "mentor": "Mentor IA",
+      "mentor": "Arthur",
       "patrimonio": "Patrimonio",
       "academy": "Academy",
       "undervalued": "Oportunidades",
@@ -315,7 +315,7 @@
     },
     "language": "Idioma",
     "languagePickerTitle": "¿En qué idioma quieres usar Nuvos?",
-    "languagePickerSubtitle": "Cambia el idioma de toda la app, incluyendo al Mentor IA.",
+    "languagePickerSubtitle": "Cambia el idioma de toda la app, incluyendo a Arthur.",
     "noProfile": "No hay perfil activo",
     "header": "Mi Perfil",
     "removePhoto": "Quitar foto",
@@ -540,7 +540,7 @@
       "options": {
         "home": "Inicio",
         "patrimonio": "Patrimonio",
-        "chat": "Mentor IA",
+        "chat": "Arthur",
         "notifications": "Notificaciones",
         "academy": "Academy"
       }
@@ -737,7 +737,7 @@
     },
     "disclaimer": {
       "title": "ESTO NO ES RECOMENDACIÓN DE INVERSIÓN",
-      "subtitle": "Para un análisis más detallado, ve a Mentor IA."
+      "subtitle": "Para un análisis más detallado, ve a Arthur."
     },
     "search": {
       "label": "Buscar cualquier acción",
@@ -772,11 +772,11 @@
       "following": "En tu watchlist"
     },
     "analyze": {
-      "button": "Analizar con Mentor IA",
+      "button": "Analizar con Arthur",
       "prompt": "Analiza {{ticker}}"
     },
     "footer": {
-      "description": "Todas las candidatas con margen de seguridad positivo real, mismo motor de DCF que Mentor IA.",
+      "description": "Todas las candidatas con margen de seguridad positivo real, mismo motor de DCF que Arthur.",
       "updatedToday": "Actualizado hoy ({{date}}).",
       "updatedDaysAgo_one": "Actualizado hace {{count}} día ({{date}}).",
       "updatedDaysAgo_other": "Actualizado hace {{count}} días ({{date}}).",
@@ -830,7 +830,7 @@
         "noSolution": "Estos supuestos no tienen solución matemática — ajusta un slider."
       },
       "mentor": {
-        "title": "Pregúntale a Mentor IA",
+        "title": "Pregúntale a Arthur",
         "why": "¿Por qué Nuvos estima este valor para {{ticker}}?",
         "risk": "¿Cuáles son los principales riesgos de la tesis de {{ticker}}?",
         "sensitivity": "¿Qué variable afecta más la valoración de {{ticker}}?",
@@ -2013,7 +2013,7 @@
     },
     "newChat": "Nuevo",
     "helloName": "Hola, {{name}}",
-    "mentorAiFallback": "Mentor IA",
+    "mentorAiFallback": "Arthur",
     "nuvosAi": "Nuvos AI",
     "you": "Tú",
     "mentorSub": "Tu mentor de inversiones con IA",
@@ -2029,7 +2029,7 @@
     "unlimitedPremium": "Activa Premium para mensajes ilimitados",
     "unlimitedOrWait": "Activa Premium para chats ilimitados o espera {{time}}",
     "msgsLeftToday": "Te quedan {{count}} mensaje{{plural}} hoy · Activa Premium",
-    "voiceCallPremiumOnly": "La llamada de voz con el Mentor IA es exclusiva para Premium.",
+    "voiceCallPremiumOnly": "La llamada de voz con Arthur es exclusiva para Premium.",
     "inputPlaceholderWithImages": "Describe qué analizar (opcional)...",
     "inputPlaceholderDefault": "¿Cómo puedo ayudarte hoy?",
     "toolbarImage": "Imagen",
@@ -2671,7 +2671,7 @@
         "sub": "Tu patrimonio y portafolio"
       },
       "chat": {
-        "label": "Mentor IA",
+        "label": "Arthur",
         "sub": "Pregúntale lo que quieras"
       },
       "notifications": {
@@ -2833,7 +2833,7 @@
         "tip": "💡 La sección «Subiendo hoy» muestra las 4 posiciones de tu portafolio con mayor ganancia del día."
       },
       "chat": {
-        "title": "Chat con tu Mentor IA",
+        "title": "Chat con Arthur",
         "subtitle": "La herramienta principal de Nuvos",
         "desc": "Pregunta sobre cualquier empresa, ETF, concepto o estrategia. La IA conoce tu perfil de riesgo, tu portafolio real y tu nivel inversor, y detecta cuando tus decisiones los contradicen. Cada conversación actualiza tu madurez conductual.",
         "tip": "💡 Puedes editar cualquier mensaje tuyo tocando el ícono de lápiz que aparece al lado del texto."
@@ -3062,7 +3062,7 @@
     },
     "connecting": "Llamando...",
     "reconnecting": "Reconectando...",
-    "mentorName": "Mentor IA"
+    "mentorName": "Arthur"
   },
   "stockFinancials": {
     "noStatements": "Sin estados financieros",
@@ -3139,7 +3139,7 @@
       "thesisAccuracy": "Precisión de tus tesis"
     },
     "event": {
-      "question": "Le preguntaste a Mentor IA",
+      "question": "Le preguntaste a Arthur",
       "thesis": "Viste el análisis de valuación",
       "thesisDetail": "Margen de seguridad: {{mos}}% · Score: {{score}}",
       "watchlistAdd": "Agregaste a tu watchlist",
@@ -3456,7 +3456,7 @@
     "simulator": "Simulador",
     "tabs": {
       "academy": "Academy",
-      "chat": "Mentor IA",
+      "chat": "Arthur",
       "home": "Inicio",
       "investors": "Inversores",
       "learn": "Aprendizaje",
