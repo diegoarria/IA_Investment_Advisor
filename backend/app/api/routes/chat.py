@@ -156,47 +156,50 @@ async def _check_and_increment_msg_limit(user_id: str, profile: UserProfile) -> 
 
     db = get_supabase()
     now = datetime.now(timezone.utc)
-    window_start = None
-    if profile.msg_window_start:
-        try:
-            window_start = datetime.fromisoformat(profile.msg_window_start.replace("Z", "+00:00"))
-        except Exception:
-            pass
 
-    if window_start is None or (now - window_start) >= timedelta(hours=MSG_WINDOW_HOURS):
-        await run_query(
-            db.table("user_profiles").update({
-                "msg_count": 1,
-                "msg_window_start": now.isoformat(),
-            }).eq("user_id", user_id)
-        )
+    # A plain read-then-write (select msg_count, compare, update +1) let two
+    # concurrent requests both read the same count, both pass the limit
+    # check, and both write the same N+1 — silently losing an increment and
+    # letting a user exceed their daily limit indefinitely under concurrent
+    # bursts (double-submit, flaky-network retry). increment_msg_count_if_allowed
+    # does the window-reset/limit-check/increment as one atomic row-locked
+    # statement in Postgres, so concurrent callers serialize instead of racing.
+    rpc_res = await run_query(
+        db.rpc("increment_msg_count_if_allowed", {
+            "p_user_id": user_id,
+            "p_limit": limit,
+            "p_window_hours": MSG_WINDOW_HOURS,
+        })
+    )
+    row = rpc_res.data[0] if rpc_res.data else None
+    if not row or row.get("allowed"):
         return
 
-    if profile.msg_count >= limit:
-        reset_at = window_start + timedelta(hours=MSG_WINDOW_HOURS)
-        mins = max(1, int((reset_at - now).total_seconds() / 60))
-        if is_premium:
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "code": "msg_limit",
-                    "message": "Has alcanzado tu límite diario con el mentor. Tu acceso se renueva mañana.",
-                    "reset_in_minutes": mins,
-                },
-            )
-        else:
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "code": "msg_limit",
-                    "message": f"Alcanzaste el límite de {FREE_MSG_LIMIT} mensajes. Vuelve en {mins} min o activa Premium.",
-                    "reset_in_minutes": mins,
-                },
-            )
-
-    await run_query(
-        db.table("user_profiles").update({"msg_count": profile.msg_count + 1}).eq("user_id", user_id)
-    )
+    window_start = now
+    try:
+        window_start = datetime.fromisoformat(str(row["window_start"]).replace("Z", "+00:00"))
+    except Exception:
+        pass
+    reset_at = window_start + timedelta(hours=MSG_WINDOW_HOURS)
+    mins = max(1, int((reset_at - now).total_seconds() / 60))
+    if is_premium:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "msg_limit",
+                "message": "Has alcanzado tu límite diario con el mentor. Tu acceso se renueva mañana.",
+                "reset_in_minutes": mins,
+            },
+        )
+    else:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "msg_limit",
+                "message": f"Alcanzaste el límite de {FREE_MSG_LIMIT} mensajes. Vuelve en {mins} min o activa Premium.",
+                "reset_in_minutes": mins,
+            },
+        )
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 

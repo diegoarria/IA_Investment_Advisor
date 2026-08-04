@@ -119,9 +119,22 @@ async def stripe_webhook(request: Request):
             await _invalidate_profile_cache_by_customer(customer_id, db)
             await _revoke_duo_secondary(customer_id, db)
 
-    elif event["type"] == "invoice.payment_failed":
-        customer_id = event["data"]["object"].get("customer")
-        if customer_id:
+    elif event["type"] == "customer.subscription.updated":
+        # Stripe keeps a subscription "active" through several automatic
+        # Smart Retries (and through the brief window where a renewal is
+        # pending 3D Secure authentication) before it ever reaches a final
+        # unpaid/canceled state — that whole retry window used to be
+        # invisible here because we downgraded on the FIRST
+        # invoice.payment_failed instead (see below), which is exactly what
+        # made a still-paying subscriber's badge flip free/premium/free as
+        # each retry attempt failed then the next one (or the 3DS
+        # confirmation) succeeded. `status` is the one field Stripe considers
+        # authoritative for "is this subscription actually not paid for
+        # anymore" — only downgrade once it says so.
+        sub = event["data"]["object"]
+        customer_id = sub.get("customer")
+        status = sub.get("status")
+        if customer_id and status in ("unpaid", "canceled", "incomplete_expired"):
             await run_query(
                 db.table("user_profiles").update({
                     "subscription_tier": "free",
@@ -129,6 +142,29 @@ async def stripe_webhook(request: Request):
             )
             await _invalidate_profile_cache_by_customer(customer_id, db)
             await _revoke_duo_secondary(customer_id, db)
+        elif customer_id and status == "active":
+            # A subscription that climbed back to "active" after being
+            # past_due (a retry succeeded) needs premium restored the same
+            # way invoice.payment_succeeded does below — otherwise a user
+            # downgraded by a prior past_due window stays stuck on free
+            # until their next billing cycle's invoice.payment_succeeded.
+            await run_query(
+                db.table("user_profiles").update({
+                    "subscription_tier": "premium",
+                }).eq("stripe_customer_id", customer_id)
+            )
+            await _invalidate_profile_cache_by_customer(customer_id, db)
+
+    elif event["type"] == "invoice.payment_failed":
+        # Deliberately a no-op for subscription_tier: a failed invoice alone
+        # doesn't mean the subscription is lost — Stripe auto-retries for
+        # days (Smart Retries) and 3D Secure authentication can surface as a
+        # transient "failure" that resolves seconds later. Downgrading here
+        # was what caused premium users to flicker to free and back on every
+        # retry/auth cycle. The subscription's actual status (handled via
+        # customer.subscription.updated/deleted above) is the only thing
+        # allowed to change subscription_tier.
+        pass
 
     elif event["type"] == "invoice.payment_succeeded":
         # Restore premium if a previously failed payment recovered
@@ -368,7 +404,9 @@ async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
 
     # 1. Verify duo plan was purchased
     check = await run_query(
-        db.table("user_profiles").select("duo_plan_purchased_at").eq("user_id", user_id).maybe_single()
+        db.table("user_profiles")
+        .select("duo_plan_purchased_at, duo_secondary_user_id, duo_secondary_email")
+        .eq("user_id", user_id).maybe_single()
     )
     if not (check and check.data and check.data.get("duo_plan_purchased_at")):
         raise HTTPException(status_code=403, detail="No tienes un plan Dúo activo")
@@ -382,6 +420,23 @@ async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
         )
     if secondary_id == user_id:
         raise HTTPException(status_code=422, detail="No puedes agregar tu propia cuenta como segundo usuario")
+
+    # 2b. Re-running setup (typo fix, swapping partners) used to leave the
+    # PREVIOUS secondary permanently premium — this only ever revoked via the
+    # Stripe cancellation webhook, which looks up the secondary through the
+    # primary's CURRENT duo_secondary_email, so once it's overwritten below
+    # the old secondary becomes unreachable and un-revokable by any code
+    # path. Revoke the old secondary here, before linking the new one, so a
+    # duo plan can never grant premium to more than one secondary at a time.
+    old_secondary_id = check.data.get("duo_secondary_user_id")
+    if old_secondary_id and old_secondary_id != secondary_id:
+        await run_query(
+            db.table("user_profiles")
+            .update({"subscription_tier": "free", "duo_primary_user_id": None})
+            .eq("user_id", old_secondary_id)
+        )
+        cache_delete(f"profile:{old_secondary_id}")
+        logger.info("Duo setup: revoked stale secondary=%s for primary=%s (replaced by %s)", old_secondary_id, user_id, secondary_id)
 
     # 3. Grant premium to secondary account + link back to the primary, so the
     # secondary can look up its own partner instead of the link only working

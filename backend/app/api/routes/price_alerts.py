@@ -95,7 +95,21 @@ async def create_alert(
             .eq("ticker", data.ticker.upper())
         )
     else:
-        result = await run_query(db.table("price_alerts").insert(record))
+        # A double-submit (or two devices) between the `existing` check above
+        # and this insert can both see "no existing alert" and both try to
+        # insert — the table's UNIQUE(user_id, ticker) constraint then throws
+        # on whichever request loses the race, and unlike watchlist.py's
+        # add_to_watchlist (which catches this and returns a clean 409), this
+        # had no try/except at all: the exception propagated as a raw 500,
+        # which frontend retry logic treats as retryable even though the
+        # alert already exists.
+        try:
+            result = await run_query(db.table("price_alerts").insert(record))
+        except Exception as e:
+            err_str = str(e).lower()
+            if "unique" in err_str or "duplicate" in err_str or "23505" in err_str:
+                raise HTTPException(status_code=409, detail=f"Ya existe una alerta para {data.ticker.upper()}")
+            raise HTTPException(status_code=500, detail="No se pudo crear la alerta")
 
     cache_delete(f"price_alerts:{user_id}")
     return result.data[0] if result.data else record

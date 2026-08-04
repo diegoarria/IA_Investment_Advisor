@@ -403,7 +403,17 @@ if (!profile) {
                 {
                   text: t("profile.deleteAccountYes"), style: "destructive",
                   onPress: async () => {
-                    try { await authApi.deleteAccount(); } catch {}
+                    try {
+                      await authApi.deleteAccount();
+                    } catch {
+                      // The failure used to be swallowed and the user logged
+                      // out anyway — they'd believe the account (and any
+                      // Stripe subscription) was deleted while the server
+                      // row was still fully active, with no way to find out
+                      // since they were no longer even logged in to check.
+                      Alert.alert(t("common.error"), t("profile.deleteAccountError", "No se pudo eliminar tu cuenta. Revisa tu conexión e intenta de nuevo."));
+                      return;
+                    }
                     logout();
                     SecureStore.deleteItemAsync("access_token").catch(() => {});
                     SecureStore.deleteItemAsync("refresh_token").catch(() => {});

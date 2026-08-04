@@ -933,6 +933,8 @@ export default function PortfolioScreen() {
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renamingPortfolioId, setRenamingPortfolioId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [renameSaving, setRenameSaving] = useState(false);
+  const [deletingPortfolioId, setDeletingPortfolioId] = useState<string | null>(null);
   const profile = useAppStore((s) => s.profile);
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
@@ -1038,9 +1040,19 @@ export default function PortfolioScreen() {
   };
 
   const handleRemoveCash = async (id: string) => {
+    const removed = cashList.find((c) => c.id === id);
     setCashList((prev) => prev.filter((c) => c.id !== id));
     if (cashEditingId === id) { setCashEditingId(null); setCashFormOpen(false); setCashForm({ amount: "", instrument: "bank", label: "", rate: "" }); }
-    try { await cashHoldingsApi.remove(id); } catch {}
+    try {
+      await cashHoldingsApi.remove(id);
+    } catch {
+      // Used to swallow the failure and leave the row gone from the UI —
+      // it would only "resurrect" on the next reload (server never actually
+      // deleted it), which looks like the app randomly un-deleting data.
+      // Roll the optimistic removal back immediately instead, and say why.
+      if (removed) setCashList((prev) => [...prev, removed]);
+      Alert.alert(t("common.error"), t("portfolio.cash.removeError", "No se pudo eliminar. Revisa tu conexión e intenta de nuevo."));
+    }
   };
 
   // Sort
@@ -1291,21 +1303,25 @@ export default function PortfolioScreen() {
     setScreenshotProgress(assets.length > 1 ? t("portfolio.screenshot.analyzingProgress", { current: 1, total: assets.length }) : t("portfolio.screenshot.analyzingWithAI"));
 
     try {
-      const allExtracted: ExtractedPosition[] = [];
-
-      for (let i = 0; i < assets.length; i++) {
-        const asset = assets[i];
-        if (assets.length > 1) setScreenshotProgress(t("portfolio.screenshot.analyzingProgress", { current: i + 1, total: assets.length }));
+      // Each screenshot triggers its own independent AI-vision round trip —
+      // running them one at a time in a loop made total wait time the *sum*
+      // of every call instead of the max, and one slow/stalled image blocked
+      // every one queued after it. Same "sequential blocking external calls"
+      // anti-pattern already fixed on the backend for watchlist adds.
+      let completed = 0;
+      const perAsset = await Promise.all(assets.map(async (asset, i) => {
         const mimeType = asset.mimeType || "image/jpeg";
         const res = await marketApi.analyzeScreenshot(asset.base64!, mimeType);
-        const fromImage: ExtractedPosition[] = (res.data.positions || []).map(
+        completed++;
+        if (assets.length > 1) setScreenshotProgress(t("portfolio.screenshot.analyzingProgress", { current: completed, total: assets.length }));
+        return (res.data.positions || []).map(
           (p: Omit<ExtractedPosition, "id">, j: number) => ({
             ...p,
             id: `${p.ticker}-${i}-${j}-${Date.now()}`,
           })
         );
-        allExtracted.push(...fromImage);
-      }
+      }));
+      const allExtracted: ExtractedPosition[] = perAsset.flat();
 
       // Merge: deduplicate by ticker, prefer entry with avg_price > 0
       const merged = new Map<string, ExtractedPosition>();
@@ -1474,13 +1490,14 @@ export default function PortfolioScreen() {
     const shares = parseFloat((amount / enteredPrice).toFixed(6));
     // avgPrice always stored in USD
     const avgPrice = portfolioCurrency === "USD" ? enteredPrice : parseFloat((enteredPrice / fxRate).toFixed(6));
+    // addPosition itself is instant/local — the button used to stay in its
+    // loading state for the full round trip of a live price lookup just to
+    // fetch a display name, when the screen's own price-fetch effect (keyed
+    // off positions.length) already resolves that name moments later on its
+    // own. Same "blocking on a call whose result isn't actually needed to
+    // complete the write" shape as the watchlist-add fix on the backend.
     setAddingLoading(true);
-    try {
-      const res = await marketApi.getPrices([ticker]);
-      addPosition({ ticker, shares, avgPrice, name: res.data[ticker]?.name, purchaseDate: form.purchaseDate });
-    } catch {
-      addPosition({ ticker, shares, avgPrice, purchaseDate: form.purchaseDate });
-    }
+    addPosition({ ticker, shares, avgPrice, purchaseDate: form.purchaseDate });
     posthog.capture("portfolio_position_added", { ticker, shares, method: "manual", position_count: positions.length + 1 });
     setForm({ ticker: "", amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
     setShowForm(false);
@@ -1497,12 +1514,7 @@ export default function PortfolioScreen() {
     const shares = parseFloat((amount / enteredPrice).toFixed(6));
     const avgPrice = portfolioCurrency === "USD" ? enteredPrice : parseFloat((enteredPrice / fxRate).toFixed(6));
     setLotAddLoading(true);
-    try {
-      const res = await marketApi.getPrices([ticker]);
-      addPosition({ ticker, shares, avgPrice, name: res.data[ticker]?.name, purchaseDate: lotForm.purchaseDate });
-    } catch {
-      addPosition({ ticker, shares, avgPrice, purchaseDate: lotForm.purchaseDate });
-    }
+    addPosition({ ticker, shares, avgPrice, purchaseDate: lotForm.purchaseDate });
     posthog.capture("portfolio_position_added", { ticker, shares, method: "manual_lot", position_count: positions.length + 1 });
     setLotForm({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
     setAddingLot(false);
@@ -1534,10 +1546,17 @@ export default function PortfolioScreen() {
     try {
       await mergeTickerPosition(ticker, parseFloat(totalShares.toFixed(6)), parseFloat(newAvgPriceUSD.toFixed(6)));
       posthog.capture("portfolio_position_avg_adjusted", { ticker, new_shares: totalShares });
-    } finally {
-      setAdjustLoading(false);
       resetAdjustState();
       setLotsTicker(null);
+    } catch {
+      // mergeTickerPosition already rolled the local average/shares back to
+      // their pre-edit values on failure — keep the modal open (don't reset
+      // adjust state / close the lots panel) so the user sees their entered
+      // value is still there and can just retry instead of silently having
+      // "saved" a correction the server never received.
+      Alert.alert(t("common.error"), t("portfolio.adjustAverage.saveError", "No se pudo guardar el ajuste. Revisa tu conexión e intenta de nuevo."));
+    } finally {
+      setAdjustLoading(false);
     }
   };
 
@@ -1776,8 +1795,33 @@ export default function PortfolioScreen() {
                 </TouchableOpacity>
               )}
               {isPremiumAccess && p.id !== "default" && (
-                <TouchableOpacity onPress={() => Alert.alert(t("portfolio.switcher.deleteTitle", { name: p.name }), t("portfolio.switcher.deleteMessage"), [{ text: t("common.cancel"), style: "cancel" }, { text: t("common.delete"), style: "destructive", onPress: () => deletePortfolio(p.id) }])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={{ fontSize: 10, color: colors.textMuted }}>✕</Text>
+                <TouchableOpacity
+                  disabled={deletingPortfolioId === p.id}
+                  onPress={() => Alert.alert(
+                    t("portfolio.switcher.deleteTitle", { name: p.name }),
+                    t("portfolio.switcher.deleteMessage"),
+                    [
+                      { text: t("common.cancel"), style: "cancel" },
+                      {
+                        text: t("common.delete"), style: "destructive",
+                        onPress: async () => {
+                          // A confirmed destructive action that fails used to
+                          // give zero feedback — the portfolio just silently
+                          // stayed there, looking like the tap did nothing.
+                          setDeletingPortfolioId(p.id);
+                          try {
+                            await deletePortfolio(p.id);
+                          } catch {
+                            Alert.alert(t("common.error"), t("portfolio.switcher.deleteError", "No se pudo eliminar el portafolio. Intenta de nuevo."));
+                          } finally {
+                            setDeletingPortfolioId(null);
+                          }
+                        },
+                      },
+                    ]
+                  )}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={{ fontSize: 10, color: colors.textMuted, opacity: deletingPortfolioId === p.id ? 0.4 : 1 }}>✕</Text>
                 </TouchableOpacity>
               )}
             </TouchableOpacity>
@@ -1838,11 +1882,26 @@ export default function PortfolioScreen() {
                   <Text style={{ color: colors.textMuted, fontWeight: "700" }}>{t("common.cancel")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  disabled={!renameValue.trim()}
-                  onPress={async () => { if (!renameValue.trim() || !renamingPortfolioId) return; await renamePortfolio(renamingPortfolioId, renameValue.trim()); setShowRenameModal(false); }}
-                  style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#00d47e", alignItems: "center", opacity: !renameValue.trim() ? 0.5 : 1 }}
+                  disabled={renameSaving || !renameValue.trim()}
+                  onPress={async () => {
+                    if (!renameValue.trim() || !renamingPortfolioId) return;
+                    // No loading guard here before meant a fast double-tap
+                    // fired two concurrent renames, and no catch meant a
+                    // failure just left the button sitting there frozen
+                    // with the modal open and no explanation.
+                    setRenameSaving(true);
+                    try {
+                      await renamePortfolio(renamingPortfolioId, renameValue.trim());
+                      setShowRenameModal(false);
+                    } catch {
+                      Alert.alert(t("common.error"), t("portfolio.switcher.renameError", "No se pudo renombrar. Intenta de nuevo."));
+                    } finally {
+                      setRenameSaving(false);
+                    }
+                  }}
+                  style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#00d47e", alignItems: "center", opacity: renameSaving || !renameValue.trim() ? 0.5 : 1 }}
                 >
-                  <Text style={{ color: "#000", fontWeight: "800" }}>{t("common.save")}</Text>
+                  <Text style={{ color: "#000", fontWeight: "800" }}>{renameSaving ? t("portfolio.modals.newPortfolio.creating") : t("common.save")}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -3930,6 +3989,12 @@ export default function PortfolioScreen() {
                     try {
                       await removePosition(sellConfirm.id, parseFloat(closePriceUSD.toFixed(6)));
                       setSellConfirm(null);
+                    } catch {
+                      // removePosition already rolled the local state back to
+                      // "still holding the position" on failure — the modal
+                      // stays open (sellConfirm untouched) so the user can
+                      // just retry instead of being told nothing at all.
+                      Alert.alert(t("common.error"), t("portfolio.sell.saveError", "No se pudo registrar la venta. Revisa tu conexión e intenta de nuevo."));
                     } finally {
                       setSellSaving(false);
                     }

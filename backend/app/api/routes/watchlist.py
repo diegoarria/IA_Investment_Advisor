@@ -307,29 +307,20 @@ async def add_to_watchlist(body: dict, user_id: str = Depends(get_current_user_i
                         "message": f"Límite de {FREE_LIMIT} acciones en watchlist. Activa Premium para agregar más."}
             )
 
-    # Resolve name and logo via YF if not provided (these are blocking network calls)
-    resolved_name = name
-    resolved_logo: str | None = None
-    try:
-        price_data = await asyncio.to_thread(_fetch_extended_price, ticker)
-        if not resolved_name:
-            resolved_name = price_data.get("name") or ticker
-    except Exception:
-        pass
-    if not resolved_name:
-        resolved_name = ticker
-    try:
-        resolved_logo = await asyncio.to_thread(_fetch_logo_url, ticker)
-    except Exception:
-        pass
+    # Insert immediately with whatever name the client already had (search
+    # results always carry one) — resolving name/logo used to sit in front of
+    # this insert as two sequential blocking calls (Finnhub + Yahoo, up to
+    # ~10s each), so a slow/flaky quote provider made "add to watchlist" fail
+    # with a timeout even though the actual database write is instant. Name
+    # falls back to the ticker itself and gets backfilled below.
+    resolved_name = name or ticker
 
-    # Insert (will raise unique constraint if duplicate)
     try:
         await run_query(db.table("watchlist").insert({
             "user_id": user_id,
             "ticker": ticker,
             "name": resolved_name,
-            "logo_url": resolved_logo,
+            "logo_url": None,
         }))
     except Exception as e:
         err_str = str(e).lower()
@@ -340,7 +331,36 @@ async def add_to_watchlist(body: dict, user_id: str = Depends(get_current_user_i
     from app.services import investment_graph_service as graph_service
     asyncio.create_task(graph_service.log_event(user_id, ticker, "watchlist_add", payload={"name": resolved_name}))
 
+    if not name:
+        asyncio.create_task(_backfill_watchlist_name_and_logo(user_id, ticker))
+
     return {"ticker": ticker, "name": resolved_name}
+
+
+async def _backfill_watchlist_name_and_logo(user_id: str, ticker: str) -> None:
+    """Runs after the response is already sent — fills in the real company
+    name/logo (only reached when the client didn't already have a name to
+    pass) without making the user wait on Finnhub/Yahoo for the add itself."""
+    db = get_supabase()
+    update: dict = {}
+    try:
+        price_data = await asyncio.to_thread(_fetch_extended_price, ticker)
+        real_name = price_data.get("name")
+        if real_name and real_name != ticker:
+            update["name"] = real_name
+    except Exception:
+        pass
+    try:
+        logo = await asyncio.to_thread(_fetch_logo_url, ticker)
+        if logo:
+            update["logo_url"] = logo
+    except Exception:
+        pass
+    if update:
+        try:
+            await run_query(db.table("watchlist").update(update).eq("user_id", user_id).eq("ticker", ticker))
+        except Exception:
+            pass
 
 
 @router.delete("/{ticker}")

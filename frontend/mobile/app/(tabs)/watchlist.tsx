@@ -327,12 +327,24 @@ export default function WatchlistScreen() {
       posthog.capture("price_alert_created", { ticker: alertModal.ticker, condition: alertCondition, target_price: Number(alertPrice) });
       setAlerts((prev) => ({ ...prev, [alertModal.ticker]: res.data }));
       setAlertModal(null);
-    } catch { }
+    } catch {
+      // Used to swallow the failure and just stop spinning — indistinguishable
+      // from the UI freezing, with the modal staying open unexplained.
+      Alert.alert(t("common.error"), t("watchlist.alerts.saveError", "No se pudo guardar la alerta. Intenta de nuevo."));
+    }
     finally { setSavingAlert(false); }
   };
 
   const deleteAlert = async (ticker: string) => {
-    await priceAlertsApi.remove(ticker).catch(() => {});
+    try {
+      await priceAlertsApi.remove(ticker);
+    } catch {
+      // Used to discard the outcome and remove it locally regardless — if the
+      // DELETE actually failed server-side, the alert is still live there and
+      // fires later with no context, since the UI already said it was gone.
+      Alert.alert(t("common.error"), t("watchlist.alerts.deleteError", "No se pudo eliminar la alerta. Intenta de nuevo."));
+      return;
+    }
     setAlerts((prev) => { const n = { ...prev }; delete n[ticker]; return n; });
     setAlertModal(null);
   };

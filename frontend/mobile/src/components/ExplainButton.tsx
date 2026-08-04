@@ -64,6 +64,7 @@ export default function ExplainButton({
 
   const [state, setState] = useState<"idle" | "loading" | "playing">("idle");
   const [text, setText] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -102,8 +103,14 @@ export default function ExplainButton({
   const handlePress = async () => {
     if (!isPremium) { setPaywallOpen(true); return; }
     if (state === "playing") { await stop(); return; }
+    // Without this guard, a fast double-tap while the first request is still
+    // in flight re-enters here before `state` has re-rendered to "loading",
+    // re-checks the (still-empty) cache, and fires a second paid Haiku+TTS
+    // call — duplicating the exact spend the cache above exists to avoid.
+    if (state === "loading") return;
 
     const cacheKey = `nuvos_explain:${screen}:${i18n.language}:${hashContext(context)}`;
+    setErrorMsg(null);
     const cached = await readExplainCache(cacheKey);
     if (cached) {
       setText(cached.text);
@@ -121,7 +128,12 @@ export default function ExplainButton({
       if (!res.data?.audio) { setState("idle"); return; }
       await playAudio(res.data.audio);
     } catch {
+      // Used to just revert to the idle icon with zero feedback — a premium
+      // user tapping "Explícame esto" and getting nothing back couldn't tell
+      // "I tapped wrong" from "the paid feature just failed."
       setState("idle");
+      setErrorMsg(t("explainButton.error", "No se pudo generar la explicación. Intenta de nuevo."));
+      setTimeout(() => setErrorMsg((cur) => (cur === null ? cur : null)), 4000);
     }
   };
 
@@ -176,9 +188,9 @@ export default function ExplainButton({
         <Ionicons name="close" size={12} color={colors.textMuted} />
       </TouchableOpacity>
 
-      {text && state !== "idle" && (
-        <View style={{ position: "absolute", bottom: "100%", right: 0, marginBottom: 8, width: 240, padding: 10, borderRadius: 12, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, zIndex: 20 }}>
-          <Text style={{ fontSize: 12, lineHeight: 17, color: colors.textSub }}>{text}</Text>
+      {(errorMsg || (text && state !== "idle")) && (
+        <View style={{ position: "absolute", bottom: "100%", right: 0, marginBottom: 8, width: 240, padding: 10, borderRadius: 12, backgroundColor: colors.card, borderWidth: 1, borderColor: errorMsg ? "#ef4444" : colors.border, zIndex: 20 }}>
+          <Text style={{ fontSize: 12, lineHeight: 17, color: errorMsg ? "#ef4444" : colors.textSub }}>{errorMsg || text}</Text>
         </View>
       )}
 

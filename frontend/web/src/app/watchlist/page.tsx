@@ -420,7 +420,16 @@ export default function WatchlistPage() {
   };
 
   const deleteAlert = async (ticker: string) => {
-    await priceAlertsApi.remove(ticker).catch(() => {});
+    try {
+      await priceAlertsApi.remove(ticker);
+    } catch {
+      // Used to discard the outcome and tell the user "deleted" regardless —
+      // if the DELETE actually failed server-side, the alert is still live
+      // there and fires days later with no context, since the UI already
+      // told them it was gone.
+      showToast(t("watchlist.toast.alertDeleteError"));
+      return;
+    }
     setAlerts((prev) => { const n = { ...prev }; delete n[ticker]; return n; });
     showToast(t("watchlist.toast.alertDeleted"));
     setAlertModal(null);

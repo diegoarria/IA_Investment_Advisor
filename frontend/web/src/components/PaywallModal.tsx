@@ -81,8 +81,17 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
     setLoading(true);
     try {
       const res = await billing.createCheckout(selectedPlan);
-      window.location.href = res.data.url;
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+      } else {
+        window.alert(t("pricingModal.paymentError"));
+        setLoading(false);
+      }
     } catch {
+      // PricingModal/UpsellModal both alert on this exact failure — this was
+      // the outlier that just reverted the spinner with zero explanation,
+      // even though it's the app's primary premium upgrade CTA.
+      window.alert(t("pricingModal.paymentError"));
       setLoading(false);
     }
   };

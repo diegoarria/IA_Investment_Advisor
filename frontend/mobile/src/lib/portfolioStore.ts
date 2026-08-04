@@ -144,6 +144,37 @@ export const usePortfolioStore = create<PortfolioStore>()(
         return result;
       };
 
+      // removePosition/mergeTickerPosition mutate local state immediately
+      // (optimistic) and only *then* await the server push — a sell or an
+      // average-price correction used to look "saved" the instant the modal
+      // closed even if the push later failed, permanently diverging the
+      // client's portfolio from the server's with nothing telling the user.
+      // This snapshots the active portfolio's money-relevant fields before
+      // the optimistic mutation and restores them if the push rejects, so a
+      // failed sync always reverts back to "still holding the position"
+      // instead of silently keeping a phantom sale — and rethrows so the
+      // caller's button handler can show the user an actual error.
+      const withRollback = (activeId: string, run: () => Promise<void>): Promise<void> => {
+        const before = get().portfolios.find(p => p.id === activeId);
+        const snapshot = before
+          ? { positions: before.positions, closedPositions: before.closedPositions, inceptionDate: before.inceptionDate, currency: before.currency }
+          : null;
+        return run().catch((err) => {
+          if (snapshot) {
+            const reverted = get().portfolios.map(p => p.id === activeId ? { ...p, ...snapshot } : p);
+            const active = reverted.find(p => p.id === activeId) ?? reverted[0] ?? DEFAULT_PORTFOLIO;
+            set({
+              portfolios: reverted,
+              positions: active.positions,
+              closedPositions: active.closedPositions,
+              inceptionDate: active.inceptionDate,
+              portfolioCurrency: active.currency,
+            });
+          }
+          throw err;
+        });
+      };
+
       const getActive = (): Portfolio => {
         const { portfolios, activePortfolioId } = get();
         return portfolios.find(p => p.id === activePortfolioId) ?? portfolios[0] ?? DEFAULT_PORTFOLIO;
@@ -219,7 +250,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
             avgPrice,
             purchaseDate: purchaseDate ?? earliestDate ?? todayStr(),
           };
-          return updateActive([...others, merged]);
+          return withRollback(active.id, () => updateActive([...others, merged]));
         },
 
         removePosition: (id, closePrice) => {
@@ -231,7 +262,9 @@ export const usePortfolioStore = create<PortfolioStore>()(
             avgPrice: pos.avgPrice, purchaseDate: pos.purchaseDate,
             closePrice, closeDate: todayStr(),
           };
-          return updateActive(active.positions.filter(p => p.id !== id), { closedPositions: [...active.closedPositions, closedEntry] });
+          return withRollback(active.id, () =>
+            updateActive(active.positions.filter(p => p.id !== id), { closedPositions: [...active.closedPositions, closedEntry] })
+          );
         },
 
         updatePosition: (id, updates, saleInfo) => {

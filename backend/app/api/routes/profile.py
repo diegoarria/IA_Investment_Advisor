@@ -137,7 +137,20 @@ async def create_profile(
             db.table("user_profiles").upsert(record, on_conflict="user_id", ignore_duplicates=True)
         )
         if not result.data:
-            result = await run_query(db.table("user_profiles").select("*").eq("user_id", user_id))
+            # The losing side of a concurrent double-submit (or a request that
+            # raced a not-yet-committed insert from the winner) lands here —
+            # the row exists but isn't visible to this re-fetch yet. Without
+            # retrying, `result.data[0]` below throws an unhandled IndexError,
+            # which is exactly the "Internal server error, works on the
+            # second try" onboarding failure: the row IS there by the time
+            # the user retries, just not at this exact instant.
+            for _ in range(3):
+                result = await run_query(db.table("user_profiles").select("*").eq("user_id", user_id))
+                if result.data:
+                    break
+                await asyncio.sleep(0.3)
+            if not result.data:
+                raise HTTPException(status_code=503, detail="No se pudo crear tu perfil. Intenta de nuevo en unos segundos.")
         # Send welcome email to new users (fire-and-forget)
         try:
             from app.services.email_service import build_welcome_html, send_email

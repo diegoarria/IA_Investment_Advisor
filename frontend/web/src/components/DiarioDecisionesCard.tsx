@@ -121,7 +121,9 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
       await decisionsApi.deleteOne(id);
       setDecisions((prev) => prev.filter((d) => d.id !== id));
       setBiases(null);
-    } catch {} finally { setDeletingId(null); }
+    } catch {
+      window.alert(t("diarioDecisiones.deleteError", "No se pudo eliminar. Intenta de nuevo."));
+    } finally { setDeletingId(null); }
   };
 
   const handleClearAll = async () => {
@@ -131,7 +133,12 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
       await decisionsApi.deleteAll();
       setDecisions([]);
       setBiases(null);
-    } catch {} finally { setClearingAll(false); }
+    } catch {
+      // A user who explicitly confirmed "delete everything" and sees no
+      // visible change had no way to know whether it failed or the diary
+      // was already empty.
+      window.alert(t("diarioDecisiones.clearAllError", "No se pudo borrar el historial. Intenta de nuevo."));
+    } finally { setClearingAll(false); }
   };
 
   const actionIcon = (action: string) =>

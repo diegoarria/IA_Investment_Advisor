@@ -942,9 +942,19 @@ export default function PortfolioPage() {
   };
 
   const handleRemoveCash = async (id: string) => {
+    const removed = cashList.find((c) => c.id === id);
     setCashList((prev) => prev.filter((c) => c.id !== id));
     if (cashEditingId === id) { setCashEditingId(null); setCashFormOpen(false); setCashForm({ amount: "", instrument: "bank", label: "", rate: "" }); }
-    try { await cashHoldingsApi.remove(id); } catch {}
+    try {
+      await cashHoldingsApi.remove(id);
+    } catch {
+      // Used to swallow the failure and leave the row gone from the UI — it
+      // would only "resurrect" on the next reload (server never actually
+      // deleted it), which looks like the app randomly un-deleting data.
+      // Roll the optimistic removal back immediately instead, and say why.
+      if (removed) setCashList((prev) => [...prev, removed]);
+      showToast("No se pudo eliminar. Revisa tu conexión e intenta de nuevo.");
+    }
   };
   const [pendingMerge, setPendingMerge] = useState<ExtractedPos[]>([]);
 
@@ -1407,23 +1417,29 @@ export default function PortfolioPage() {
     if (!files.length) return;
     setScreenshotAnalyzing(true);
     setScreenshotPreview(null);
-    setScreenshotProgress(files.length > 1 ? `Analizando 1 de ${files.length}...` : "Analizando con IA...");
+    setScreenshotProgress(files.length > 1 ? `Analizando 0 de ${files.length}...` : "Analizando con IA...");
     const allExtracted: ExtractedPos[] = [];
     try {
-      for (let i = 0; i < files.length; i++) {
-        if (files.length > 1) setScreenshotProgress(`Analizando ${i+1} de ${files.length}...`);
-        const file = files[i];
+      // Each screenshot triggers its own independent AI-vision round trip —
+      // running them one at a time in a loop made total wait time the *sum*
+      // of every call instead of the max, and one slow/stalled image blocked
+      // every one queued after it. Same "sequential blocking external calls"
+      // anti-pattern already fixed on the backend for watchlist adds.
+      let completed = 0;
+      const perFile = await Promise.all(files.map(async (file, i) => {
         const base64 = await new Promise<string>((resolve) => {
           const reader = new FileReader();
           reader.onload = () => resolve((reader.result as string).split(",")[1]);
           reader.readAsDataURL(file);
         });
         const res = await marketApi.analyzeScreenshot(base64, file.type || "image/jpeg", screenshotCurrencyRef.current);
-        const fromImage: ExtractedPos[] = (res.data.positions || []).map(
+        completed++;
+        if (files.length > 1) setScreenshotProgress(`Analizando ${completed} de ${files.length}...`);
+        return (res.data.positions || []).map(
           (p: Omit<ExtractedPos,"id">, j: number) => ({ ...p, id:`${p.ticker}-${i}-${j}-${Date.now()}` })
         );
-        allExtracted.push(...fromImage);
-      }
+      }));
+      for (const fromImage of perFile) allExtracted.push(...fromImage);
       const merged = new Map<string,ExtractedPos>();
       for (const pos of allExtracted) {
         const existing = merged.get(pos.ticker);
@@ -4381,6 +4397,13 @@ export default function PortfolioPage() {
                       try {
                         await removePosition(sellConfirm.id, parseFloat(closePriceUSD.toFixed(6)));
                         setSellConfirm(null);
+                      } catch {
+                        // removePosition already rolled the local state back
+                        // to "still holding the position" on failure — leave
+                        // the dialog open (sellConfirm untouched) so the user
+                        // can just retry instead of the sale silently
+                        // "succeeding" client-side with nothing saved.
+                        showToast("No se pudo registrar la venta. Revisa tu conexión e intenta de nuevo.");
                       } finally {
                         setSellSaving(false);
                       }

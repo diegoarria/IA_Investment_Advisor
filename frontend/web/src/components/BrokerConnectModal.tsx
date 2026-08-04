@@ -204,7 +204,11 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
     try {
       await brokerageApi.deleteConnection(id);
       await loadConnections();
-    } catch {}
+    } catch {
+      // Used to give zero feedback on failure — the connection stays live
+      // server-side while the modal shows no error at all.
+      setError(t("brokerConnectModal.errors.disconnectFailed"));
+    }
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────

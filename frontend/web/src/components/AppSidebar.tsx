@@ -109,8 +109,15 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
       if (res.data?.url) {
         localStorage.setItem("nuvos_pending_session", "1");
         window.location.href = res.data.url;
+      } else {
+        window.alert(t("pricingModal.paymentError"));
       }
-    } catch {}
+    } catch {
+      // This is a real paid checkout (1:1 session) — silently reverting the
+      // button with no explanation is exactly the failure mode already
+      // fixed for the main premium upgrade CTA in PaywallModal.
+      window.alert(t("pricingModal.paymentError"));
+    }
     setSessionLoading(false);
   };
   const [desktopCollapsed, setDesktopCollapsed] = useState(() => {

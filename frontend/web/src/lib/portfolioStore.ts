@@ -184,6 +184,37 @@ export const usePortfolioStore = create<PortfolioStore>()(
         return result;
       };
 
+      // removePosition mutates local state immediately (optimistic) and only
+      // *then* awaits the server push — a sell used to look "saved" the
+      // instant the confirm dialog closed even if the push later failed
+      // (409 conflict from another device, network drop), permanently
+      // diverging the client's portfolio from the server's with nothing
+      // telling the user. This snapshots the active portfolio's
+      // money-relevant fields before the optimistic mutation and restores
+      // them if the push rejects, so a failed sync always reverts back to
+      // "still holding the position" instead of silently keeping a phantom
+      // sale — and rethrows so the caller can show the user an actual error.
+      const withRollback = (activeId: string, run: () => Promise<void>): Promise<void> => {
+        const before = get().portfolios.find(p => p.id === activeId);
+        const snapshot = before
+          ? { positions: before.positions, closedPositions: before.closedPositions, inceptionDate: before.inceptionDate, currency: before.currency }
+          : null;
+        return run().catch((err) => {
+          if (snapshot) {
+            const reverted = get().portfolios.map(p => p.id === activeId ? { ...p, ...snapshot } : p);
+            const active = reverted.find(p => p.id === activeId) ?? reverted[0] ?? DEFAULT_PORTFOLIO;
+            set({
+              portfolios: reverted,
+              positions: active.positions,
+              closedPositions: active.closedPositions,
+              inceptionDate: active.inceptionDate,
+              portfolioCurrency: active.currency,
+            });
+          }
+          throw err;
+        });
+      };
+
       /** Get the active portfolio object */
       const getActive = () => {
         const { portfolios, activePortfolioId } = get();
@@ -256,7 +287,9 @@ export const usePortfolioStore = create<PortfolioStore>()(
             closePrice, closeDate: todayStr(),
           };
           const newPositions = active.positions.filter(p => p.id !== id);
-          return updateActive(newPositions, { closedPositions: [...active.closedPositions, closedEntry] });
+          return withRollback(active.id, () =>
+            updateActive(newPositions, { closedPositions: [...active.closedPositions, closedEntry] })
+          );
         },
 
         updatePosition: (id, updates, saleInfo) => {

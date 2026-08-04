@@ -311,7 +311,12 @@ export default function ProfilePage() {
       const updated = { ...profile, quiz_answers: { ...profile.quiz_answers, q3: q3Key } };
       await profileApi.update({ quiz_answers: updated.quiz_answers });
       setProfile(updated);
-    } catch {}
+    } catch {
+      // Not optimistic (setProfile only runs after success) so nothing
+      // corrupts, but the user got zero confirmation the change actually
+      // persisted versus silently failing.
+      window.alert(t("profile.saveError", "No se pudo guardar. Intenta de nuevo."));
+    }
     setSavingLevel(false);
   };
 
@@ -334,7 +339,12 @@ export default function ProfilePage() {
           : profile.quiz_answers,
       });
       setPsyEditField(null);
-    } catch { /* ignore */ }
+    } catch {
+      // Not optimistic (setProfile only runs after success) so nothing
+      // corrupts, but the user got zero confirmation the change actually
+      // persisted versus silently failing.
+      window.alert(t("profile.saveError", "No se pudo guardar. Intenta de nuevo."));
+    }
     setSavingPsy(false);
   };
 

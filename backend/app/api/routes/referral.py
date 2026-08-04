@@ -176,20 +176,29 @@ async def apply_referral(body: dict, user_id: str = Depends(get_current_user_id)
     if referrer_id == user_id:
         raise HTTPException(status_code=400, detail="No puedes referirte a ti mismo")
 
-    # Check new user hasn't already been referred
-    my_row = await run_query(
-        db.table("user_profiles").select("referred_by").eq("user_id", user_id).maybe_single()
+    # Claim the "not yet referred" slot atomically: the old code separately
+    # SELECTed referred_by, checked it was null, then UPDATEd it — two
+    # concurrent /referral/apply calls (trivially scriptable: apply two
+    # different friends' codes at once) could both pass the SELECT check
+    # before either UPDATE landed, so both referrers got credited and paid
+    # out real rewards even though only one referred_by value survives.
+    # Scoping the UPDATE's WHERE clause to `referred_by IS NULL` makes
+    # Postgres itself the arbiter: only the request that actually flips the
+    # column from null wins, and it does so as a single atomic statement —
+    # the loser's UPDATE matches zero rows and comes back empty.
+    claim = await run_query(
+        db.table("user_profiles")
+        .update({"referred_by": referrer_id})
+        .eq("user_id", user_id)
+        .is_("referred_by", "null")
     )
-    if ((my_row.data if my_row else None) or {}).get("referred_by"):
+    if not claim.data:
         raise HTTPException(status_code=409, detail="Ya tienes un referido aplicado")
 
-    # Credit referrer and mark new user
+    # Credit referrer (only reached by whichever request won the claim above)
     new_count = int(referrer.get("referred_count") or 0) + 1
     await run_query(
         db.table("user_profiles").update({"referred_count": new_count}).eq("user_id", referrer_id)
-    )
-    await run_query(
-        db.table("user_profiles").update({"referred_by": referrer_id}).eq("user_id", user_id)
     )
 
     await _grant_tier_rewards(referrer_id, new_count, db)

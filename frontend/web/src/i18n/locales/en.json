@@ -935,6 +935,7 @@
     "toast": {
       "alertCreated": "Alert created for {{ticker}}",
       "alertSaveError": "Couldn't save the alert",
+      "alertDeleteError": "Couldn't delete the alert. Try again.",
       "alertDeleted": "Alert deleted",
       "alreadyInWatchlist": "{{ticker}} is already in your watchlist",
       "addError": "Couldn't add the ticker",
@@ -2497,7 +2498,8 @@
       "fetchPositionsFailed": "Error fetching positions. Try again.",
       "plaidStartFailed": "Could not start the Plaid connection.",
       "iolConnectFailed": "Error connecting to IOL. Check your credentials.",
-      "syncFailed": "Error syncing. Try again."
+      "syncFailed": "Error syncing. Try again.",
+      "disconnectFailed": "Couldn't disconnect. Try again."
     },
     "brokers": {
       "ibkr": "Stocks, options, global futures",

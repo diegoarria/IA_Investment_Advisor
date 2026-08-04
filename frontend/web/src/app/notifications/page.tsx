@@ -43,6 +43,7 @@ export default function NotificationsPage() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -123,8 +124,20 @@ export default function NotificationsPage() {
 
 
   const handleMarkAllRead = async () => {
-    await notifApi.markAllRead();
-    setNotifications(notifications.map((n) => ({ ...n, read: true })), 0);
+    if (markingAllRead) return;
+    setMarkingAllRead(true);
+    try {
+      await notifApi.markAllRead();
+      setNotifications(notifications.map((n) => ({ ...n, read: true })), 0);
+    } catch {
+      // Used to have no try/catch at all — a rejection here was an unhandled
+      // promise rejection, `setNotifications` never ran, and the user got no
+      // feedback that "mark all read" failed. No loading guard either, so
+      // rapid clicks fired multiple parallel requests.
+      window.alert(t("notifications.markAllReadError", "No se pudo marcar como leídas. Intenta de nuevo."));
+    } finally {
+      setMarkingAllRead(false);
+    }
   };
 
   const handleRefresh = async () => {
@@ -216,9 +229,9 @@ export default function NotificationsPage() {
 
             {/* Mark all read */}
             {unreadCount > 0 && (
-              <button onClick={handleMarkAllRead}
+              <button onClick={handleMarkAllRead} disabled={markingAllRead}
                       className="w-full py-2.5 rounded-xl border text-xs font-semibold text-center transition-colors hover:opacity-80"
-                      style={{ background: "var(--accent-l)" + "12", borderColor: "var(--accent-l)" + "40", color: "var(--accent-l)" }}>
+                      style={{ background: "var(--accent-l)" + "12", borderColor: "var(--accent-l)" + "40", color: "var(--accent-l)", opacity: markingAllRead ? 0.6 : 1 }}>
                 {t("notifications.markAllRead", { count: unreadCount })}
               </button>
             )}

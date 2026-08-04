@@ -93,7 +93,11 @@ export default function MobileBrokerConnectModal({ visible, onClose, onPositions
             try {
               await brokerageApi.deleteConnection(id);
               await loadConnections();
-            } catch {}
+            } catch {
+              // Used to give zero feedback on failure — the user has no way
+              // to tell whether their broker is actually disconnected.
+              Alert.alert(t("common.error"), t("mobileBrokerConnectModal.disconnectError", "No se pudo desconectar. Intenta de nuevo."));
+            }
           },
         },
       ]
@@ -105,7 +109,10 @@ export default function MobileBrokerConnectModal({ visible, onClose, onPositions
     try {
       await brokerageApi.syncAll();
       await loadConnections();
-    } catch {}
+    } catch {
+      // Used to just stop spinning with no message on failure.
+      Alert.alert(t("common.error"), t("mobileBrokerConnectModal.syncError", "No se pudo sincronizar. Intenta de nuevo."));
+    }
     setSyncing(false);
   };
 
