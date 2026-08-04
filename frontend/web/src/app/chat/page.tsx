@@ -157,7 +157,7 @@ export default function ChatPage() {
   const { hasSeenTutorial, openTutorial } = useTutorialStore();
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile, updateMaturity, updateBehavioralRisk } = useProfileStore();
-  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, currentId, resumeOrCreateSession, clearMessages, syncSessionMessages, loadFromServer } = useChatStore();
+  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, currentId, resumeOrCreateSession, createSession, syncSessionMessages, loadFromServer } = useChatStore();
   const { notifications, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
   const { language } = useLanguageStore();
@@ -790,7 +790,7 @@ export default function ChatPage() {
               {t("chat.msgCount", { count: remaining })}
             </span>
           )}
-          <button onClick={() => { clearMessages(); router.push("/chat"); }}
+          <button onClick={() => { createSession(); }}
                   className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold hover:bg-white/5 transition-colors"
                   style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
             <Plus className="w-3 h-3" />
