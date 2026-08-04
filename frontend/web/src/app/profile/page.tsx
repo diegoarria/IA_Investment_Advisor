@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import {
-  useAuthStore, useProfileStore, useSubscriptionStore,
+  useAuthStore, useProfileStore, useSubscriptionStore, useNotificationStore,
   useThemeStore, useLanguageStore, msgsRemaining, FREE_MSG_LIMIT, maturityLabel, maturitySignalI18nKey,
 } from "@/lib/store";
 import { auth as authApi, billing, feedApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi, voiceCallsApi } from "@/lib/api";
@@ -21,6 +21,7 @@ import SavedValuationsSection from "@/components/SavedValuationsSection";
 import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
   Loader2, Copy, Check, Gift, Users, Share2, Trash2, Phone, Video, FileSearch, Lock,
+  Bell, HeadphonesIcon, ChevronRight,
 } from "lucide-react";
 import { getUserLevel, LEVEL_COLOR, getLevelLabel, LEVEL_EMOJI } from "@/lib/userLevel";
 
@@ -150,6 +151,8 @@ export default function ProfilePage() {
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile, maturityScore, maturityHistory, setProfile } = useProfileStore();
   const subStore = useSubscriptionStore();
+  const { notifications } = useNotificationStore();
+  const unreadCount = notifications.filter((n) => !n.read).length;
   const { theme, toggleTheme } = useThemeStore();
   const { language, setLanguage } = useLanguageStore();
 
@@ -1386,6 +1389,27 @@ export default function ProfilePage() {
                   </div>
                   <p className="text-xs font-black shrink-0" style={{ color: "#00d47e" }}>{t("profile.view")}</p>
                 </button>
+
+                {/* Notificaciones y Soporte — movidos aquí desde el sidebar, ahora
+                    viven dentro de Perfil; el click abre la pantalla normal. */}
+                <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "var(--border)" }}>
+                  <button onClick={() => router.push("/notifications")}
+                          className="w-full flex items-center gap-3 p-3.5 text-left hover:opacity-80 transition-opacity border-b"
+                          style={{ borderColor: "var(--border)" }}>
+                    <Bell className="w-4 h-4 shrink-0" style={{ color: "var(--sub)" }} />
+                    <span className="flex-1 text-sm font-semibold" style={{ color: "var(--text)" }}>{t("common.nav.notifications")}</span>
+                    {unreadCount > 0 && (
+                      <span className="badge-green" style={{ fontSize: "10px" }}>{unreadCount}</span>
+                    )}
+                    <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--dim)" }} />
+                  </button>
+                  <button onClick={() => router.push("/support")}
+                          className="w-full flex items-center gap-3 p-3.5 text-left hover:opacity-80 transition-opacity">
+                    <HeadphonesIcon className="w-4 h-4 shrink-0" style={{ color: "var(--sub)" }} />
+                    <span className="flex-1 text-sm font-semibold" style={{ color: "var(--text)" }}>{t("common.nav.support")}</span>
+                    <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--dim)" }} />
+                  </button>
+                </div>
 
                 {/* Legal */}
                 <div className="flex justify-center gap-5 py-1">

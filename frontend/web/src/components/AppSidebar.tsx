@@ -5,8 +5,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import Image from "next/image";
 import {
-  BrainCircuit, Wallet, Bell, User, GraduationCap,
-  MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, ArrowRight, Lock, LogOut, Home, ShoppingBag, Menu, BookMarked,
+  BrainCircuit, Wallet, User, GraduationCap,
+  MessageSquare, ChevronLeft, ChevronRight, Plus, X, GripVertical, ArrowRight, Lock, LogOut, Home, ShoppingBag, Menu, BookMarked,
 } from "lucide-react";
 
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
@@ -20,7 +20,7 @@ const GOAL_MAP: Record<string, { key: string; emoji: string }> = {
   long_term_wealth:  { key: "longTermWealth",     emoji: "🏛️" },
 };
 import {
-  useProfileStore, useNotificationStore, useSubscriptionStore,
+  useProfileStore, useSubscriptionStore,
   useChatStore, useAuthStore, behavioralRiskColor, behavioralRiskLabel,
 } from "@/lib/store";
 import { getUserLevel, isAtLeast, getLevelLabel, LEVEL_COLOR, type UserLevel } from "@/lib/userLevel";
@@ -40,19 +40,24 @@ import api from "@/lib/api";
 
 type NavItem = { href: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; labelKey: string; minLevel: UserLevel };
 
+// Oportunidades sits right after Patrimonio in the default (and for any
+// user without a saved drag order, the ONLY) order — Diego wants it always
+// there for everyone by default. Academy moved out of the main block,
+// right after Profile in the secondary block — it's no longer one of the
+// four most-used items. Notificaciones/Soporte are no longer top-level nav
+// items at all — both now live as rows inside the Profile screen instead
+// (see app/profile/page.tsx).
 const MAIN_NAV: NavItem[] = [
-  { href: "/home",       icon: Home,           labelKey: "common.nav.home",     minLevel: "basico" },
-  { href: "/chat",       icon: BrainCircuit,   labelKey: "common.nav.mentor",   minLevel: "basico" },
-  { href: "/patrimonio", icon: Wallet,         labelKey: "common.nav.patrimonio", minLevel: "basico" },
-  { href: "/academy",    icon: GraduationCap,  labelKey: "common.nav.academy",  minLevel: "basico" },
+  { href: "/home",        icon: Home,          labelKey: "common.nav.home",       minLevel: "basico" },
+  { href: "/chat",        icon: BrainCircuit,  labelKey: "common.nav.mentor",     minLevel: "basico" },
+  { href: "/patrimonio",  icon: Wallet,        labelKey: "common.nav.patrimonio", minLevel: "basico" },
+  { href: "/subvaluadas", icon: BookMarked,    labelKey: "common.nav.undervalued", minLevel: "basico" },
 ];
 
 const SECONDARY_NAV: NavItem[] = [
-  { href: "/subvaluadas",   icon: BookMarked,     labelKey: "common.nav.undervalued",   minLevel: "basico" },
-  { href: "/notifications", icon: Bell,           labelKey: "common.nav.notifications", minLevel: "basico" },
-  { href: "/profile",       icon: User,           labelKey: "common.nav.profile",       minLevel: "basico" },
-  { href: "/products",      icon: ShoppingBag,    labelKey: "common.nav.products",      minLevel: "basico" },
-  { href: "/support",       icon: HeadphonesIcon, labelKey: "common.nav.support",       minLevel: "basico" },
+  { href: "/profile",  icon: User,          labelKey: "common.nav.profile", minLevel: "basico" },
+  { href: "/academy",  icon: GraduationCap, labelKey: "common.nav.academy", minLevel: "basico" },
+  { href: "/products", icon: ShoppingBag,   labelKey: "common.nav.products", minLevel: "basico" },
 ];
 
 
@@ -80,7 +85,6 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
     window.location.href = "/";
   };
   const { profile, behavioralRiskScore } = useProfileStore();
-  const { notifications } = useNotificationStore();
   const subStore = useSubscriptionStore();
   const { sessions, currentId, createSession, loadSession, deleteSession, loadFromServer } = useChatStore();
 
@@ -173,7 +177,6 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
   const orderedNav = navOrder.map((href) => MAIN_NAV.find((n) => n.href === href)!).filter(Boolean);
   const userLevel  = getUserLevel(profile);
   const isPremium      = subStore.tier === "premium";
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const navigate = (href: string) => { router.push(href); onClose(); };
 
@@ -441,7 +444,6 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
             {/* Secondary static nav */}
             {SECONDARY_NAV.map(({ href, icon: Icon, labelKey, minLevel }) => {
               const active  = pathname === href;
-              const badge   = href === "/notifications" && unreadCount > 0;
               const locked  = !isAtLeast(userLevel, minLevel);
               return (
                 <button
@@ -452,15 +454,13 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
                 >
                   <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: locked ? "var(--dim)" : undefined }} />
                   <span style={{ color: locked ? "var(--dim)" : undefined }}>{t(labelKey)}</span>
-                  {locked ? (
+                  {locked && (
                     <span className="ml-auto flex items-center gap-0.5 text-[8px] font-bold"
                           style={{ color: "var(--dim)" }}>
                       <Lock className="w-2.5 h-2.5" />
                       {getLevelLabel(t, minLevel)}
                     </span>
-                  ) : badge ? (
-                    <span className="ml-auto badge-green" style={{ fontSize: "10px" }}>{unreadCount}</span>
-                  ) : null}
+                  )}
                 </button>
               );
             })}

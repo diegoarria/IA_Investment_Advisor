@@ -1561,6 +1561,24 @@ if (!profile) {
 
         {/* ── BOTTOM ── */}
         <View style={{ marginTop: 16, gap: 10, paddingBottom: 12 }}>
+          {/* Notificaciones y Soporte — movidos aquí desde el drawer, ahora
+              viven dentro de Perfil; el tap abre la pantalla normal. */}
+          <TouchableOpacity
+            style={[s.actionBtn, { borderColor: colors.border + "70", backgroundColor: "transparent", marginHorizontal: 16 }]}
+            onPress={() => router.push("/(tabs)/notifications")}
+          >
+            <Ionicons name="notifications-outline" size={17} color={colors.textSub} />
+            <Text style={[s.actionBtnText, { color: colors.textSub }]}>{t("common.nav.notifications")}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[s.actionBtn, { borderColor: colors.border + "70", backgroundColor: "transparent", marginHorizontal: 16 }]}
+            onPress={() => router.push("/(tabs)/support")}
+          >
+            <Ionicons name="headset-outline" size={17} color={colors.textSub} />
+            <Text style={[s.actionBtnText, { color: colors.textSub }]}>{t("common.nav.support")}</Text>
+          </TouchableOpacity>
+
           <View style={{ flexDirection: "row", justifyContent: "center", gap: 20, paddingVertical: 4 }}>
             <TouchableOpacity onPress={() => Linking.openURL("https://nuvosai.app/privacy")}>
               <Text style={[s.legalLink, { color: colors.textDim }]}>{t("profile.bottom.privacyPolicy")}</Text>
