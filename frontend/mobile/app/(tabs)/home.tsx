@@ -20,7 +20,7 @@ import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import { hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { marketApi, notificationsApi, cashHoldingsApi, dividendsApi } from "../../src/lib/api";
 import { useChatStore } from "../../src/lib/chatStore";
-import { useWatchlistStore } from "../../src/lib/watchlistStore";
+import { usePaperStore } from "../../src/lib/paperStore";
 import StockAvatar from "../../src/components/StockAvatar";
 import MobileOnboardingChecklist, { type OnboardingStep } from "../../src/components/MobileOnboardingChecklist";
 import MobileHomeScreenPickerModal, { HOME_SCREEN_KEY } from "../../src/components/MobileHomeScreenPickerModal";
@@ -369,7 +369,6 @@ export default function HomeScreen() {
   // already own shouldn't inflate this count.
   const distinctPositionsCount = useMemo(() => new Set(positions.map((p) => p.ticker)).size, [positions]);
   const hasChatted = useChatStore((s) => s.sessions.some((sess) => sess.messages.length > 0));
-  const watchlistItems = useWatchlistStore((s) => s.items);
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
 
@@ -800,12 +799,34 @@ export default function HomeScreen() {
     } catch {}
   };
 
+  const { trades: paperTrades } = usePaperStore();
+  const hasPaperTraded = paperTrades.length > 0;
+
+  const [checklistPermanentlyDone, setChecklistPermanentlyDone] = useState(false);
+  const [opportunityViewed, setOpportunityViewed] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem("nuvos_checklist_done").then((v) => { if (v === "1") setChecklistPermanentlyDone(true); });
+    AsyncStorage.getItem("nuvos_opportunity_viewed").then((v) => { if (v === "1") setOpportunityViewed(true); });
+  }, []);
+  // Restore checklist_done from server so a fresh device/reinstall doesn't resurface it
+  useEffect(() => {
+    syncApi.getAll().then((res: any) => {
+      if (res.data?.checklist_done) {
+        AsyncStorage.setItem("nuvos_checklist_done", "1");
+        setChecklistPermanentlyDone(true);
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Step 1 branches on the user's declared investing status: someone who
+  // already invests should be pushed to add their real portfolio, while
+  // someone who hasn't should try the risk-free simulator first.
+  const showAddPortfolioStep = !!profile?.has_investments;
+
   const onboardingSteps: OnboardingStep[] = [
-    { emoji: "💼", title: t("home.onboarding.step1Title"), description: t("home.onboarding.step1Desc"), completed: positions.length > 0 },
-    { emoji: "🎯", title: t("home.onboarding.step2Title"), description: t("home.onboarding.step2Desc"), completed: !!goalName },
-    { emoji: "🤖", title: t("home.onboarding.step3Title"), description: t("home.onboarding.step3Desc"), completed: hasChatted },
-    { emoji: "📚", title: t("home.onboarding.step4Title"), description: t("home.onboarding.step4Desc"), completed: streak > 0 },
-    { emoji: "👀", title: t("home.onboarding.step5Title"), description: t("home.onboarding.step5Desc"), completed: watchlistItems.length > 0 },
+    showAddPortfolioStep
+      ? { emoji: "💼", title: t("home.onboarding.step1Title"), description: t("home.onboarding.step1Desc"), completed: positions.length > 0 }
+      : { emoji: "🎮", title: t("home.onboarding.stepSimTitle"), description: t("home.onboarding.stepSimDesc"), completed: hasPaperTraded },
     {
       emoji: "📞",
       title: t("home.onboarding.step6Title"),
@@ -816,8 +837,16 @@ export default function HomeScreen() {
       completed: !!profile?.has_broker,
       secondaryAction: { label: t("home.onboarding.step6AlreadyHave"), onPress: markBrokerConfigured },
     },
+    { emoji: "🤖", title: t("home.onboarding.step3Title"), description: t("home.onboarding.step3Desc"), completed: hasChatted },
+    { emoji: "👀", title: t("home.onboarding.stepOpportunityTitle"), description: t("home.onboarding.stepOpportunityDesc"), completed: opportunityViewed },
   ];
-  const allOnboardingDone = onboardingSteps.every((s) => s.completed);
+  const allOnboardingDone = checklistPermanentlyDone || onboardingSteps.every((s) => s.completed);
+
+  const persistChecklistDone = () => {
+    AsyncStorage.setItem("nuvos_checklist_done", "1");
+    syncApi.pushChecklistDone().catch(() => {});
+    setChecklistPermanentlyDone(true);
+  };
 
   // Redirect to saved start-screen preference on first focus (before data loads)
   const hasRedirected = useRef(false);
@@ -844,6 +873,7 @@ export default function HomeScreen() {
   // Show picker after onboarding is done (only if no preference saved yet)
   useEffect(() => {
     if (loading || !allOnboardingDone) return;
+    persistChecklistDone();
     AsyncStorage.getItem(HOME_SCREEN_KEY).then((saved) => {
       if (!saved) setShowScreenPicker(true);
     });
@@ -859,20 +889,10 @@ export default function HomeScreen() {
   }, [loading, allOnboardingDone]);
 
   const handleOnboardingStep = (index: number) => {
-    if (index === 1) { openGoalModal(); return; }
-    if (index === 5) {
-      handleBookBrokerCall();
-      return;
-    }
-    const routes: (string | null)[] = [
-      "/(tabs)/portfolio",
-      null,
-      "/(tabs)/chat",
-      "/(tabs)/academy",
-      "/(tabs)/watchlist",
-    ];
-    const route = routes[index];
-    if (route) router.push({ pathname: route as any, params: { tour: String(index + 1) } });
+    if (index === 1) { handleBookBrokerCall(); return; }
+    if (index === 2) { router.push({ pathname: "/(tabs)/chat" as any, params: { tour: "3" } }); return; }
+    if (index === 3) { router.push("/subvaluadas" as any); return; }
+    router.push({ pathname: (showAddPortfolioStep ? "/(tabs)/portfolio" : "/(tabs)/paper") as any, params: { tour: "1" } });
   };
 
   return (
@@ -1002,7 +1022,7 @@ export default function HomeScreen() {
 
         {/* ── Onboarding checklist ─────────────────────────────────────────── */}
         {!allOnboardingDone && (
-          <MobileOnboardingChecklist steps={onboardingSteps} onStepPress={handleOnboardingStep} />
+          <MobileOnboardingChecklist steps={onboardingSteps} onStepPress={handleOnboardingStep} onDismiss={persistChecklistDone} />
         )}
 
         {/* ── Hero cards row (portfolio + broker) ─────────────────────────── */}

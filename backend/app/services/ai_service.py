@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from typing import Optional
 from app.core.config import settings
 from app.core.finnhub import fh_quote, fh_candles
+from app.core.database import get_supabase, run_query
+from app.core.cache import cache_delete
 from app.services.llm_usage import log_llm_usage
 from app.models.user import UserProfile, ChatMessage
 
@@ -1103,7 +1105,16 @@ def build_profile_context(profile: UserProfile) -> str:
 - Broker: {broker_str}
 - Inversiones previas: {inv_str}{quiz_extra}
 
-ADAPTA TODO tu análisis a este perfil específico, incluyendo su estilo de inversión declarado. Si no tiene broker ni inversiones, guíalo hacia su primera inversión de forma simple y sin jerga técnica."""
+ADAPTA TODO tu análisis a este perfil específico, incluyendo su estilo de inversión declarado. Si no tiene broker ni inversiones, guíalo hacia su primera inversión de forma simple y sin jerga técnica.
+
+## CONOCIENDO AL USUARIO PROGRESIVAMENTE
+El onboarding inicial es corto a propósito — los campos marcados "No especificado" arriba
+todavía no se han preguntado. Tu trabajo es ir conociendo al usuario con el tiempo, como lo
+haría un asesor humano: cuando el usuario mencione naturalmente algo sobre su broker, si ya
+invierte, su meta, capital, ingresos, horizonte o tolerancia al riesgo, llama a la herramienta
+update_profile de inmediato para guardarlo — nunca lo preguntes como cuestionario ni lo repitas
+si ya te lo dijo. Como mucho, desliza UNA pregunta suave por conversación sobre algo que sigue
+sin especificar, y solo si viene a cuento con lo que el usuario ya está platicando."""
 
 
 def aggregate_positions_by_ticker(positions: list[dict]) -> list[dict]:
@@ -1711,6 +1722,43 @@ MENTOR_TOOLS = [
             },
             "required": ["ticker", "years_back"],
         },
+    },
+    {
+        "name": "update_profile",
+        "description": (
+            "Save something the user just told you about their financial situation, "
+            "investing experience or goals, so you remember it in every future "
+            "conversation instead of asking again. Call this THE MOMENT the user reveals "
+            "any of these — even in passing, never as a direct interrogation-style "
+            "question from you. Only pass the fields the user actually just revealed; "
+            "never guess or fill in fields they didn't mention. Fields whose current "
+            "value is 'No especificado' in your profile context are the ones worth "
+            "listening for naturally over time — at most weave in ONE soft follow-up "
+            "question per conversation, never a checklist."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "has_broker": {"type": "boolean", "description": "User has an account with a stock broker."},
+                "broker_name": {"type": "string", "description": "Name of the broker, e.g. GBM, Kuspit, Vanguard."},
+                "has_investments": {"type": "boolean", "description": "User already holds investments today."},
+                "investment_goal": {
+                    "type": "string",
+                    "enum": ["house", "car", "passive_income", "retirement", "financial_freedom", "long_term_wealth"],
+                },
+                "investment_goal_amount": {"type": "string", "description": "Target amount in USD as a plain number string."},
+                "risk_tolerance": {
+                    "type": "string",
+                    "enum": ["conservative", "conservative_moderate", "moderate", "moderate_growth", "growth", "aggressive", "aggressive_speculative", "speculative"],
+                },
+                "knowledge_level": {"type": "string", "enum": ["B", "C", "D"], "description": "B=basic, C=intermediate, D=advanced investing knowledge."},
+                "country": {"type": "string", "description": "ISO 3166-1 alpha-2 country code, e.g. MX, US, CO."},
+                "initial_capital": {"type": "string", "description": "Capital available to start investing, plain number string in USD."},
+                "monthly_income": {"type": "string", "description": "Monthly income, plain number string in USD."},
+                "monthly_contribution": {"type": "string", "description": "Amount the user can invest monthly, plain number string in USD."},
+                "investment_horizon": {"type": "string", "description": "Investing time horizon in years, as a plain number string."},
+            },
+        },
         # Tool definitions are identical on every single chat call — caching
         # them (breakpoint on the last tool) means every call after the first
         # pays ~10% cache-read price for this block instead of full price.
@@ -1718,12 +1766,35 @@ MENTOR_TOOLS = [
     },
 ]
 
+# Whitelist of columns update_profile is allowed to touch — deliberately the
+# same fields removed from the shortened onboarding, never anything sensitive
+# (email, terms acceptance, subscription) or anything the model could use to
+# grant itself access to something.
+_UPDATE_PROFILE_FIELDS = {
+    "has_broker", "broker_name", "has_investments", "investment_goal",
+    "investment_goal_amount", "risk_tolerance", "knowledge_level", "country",
+    "initial_capital", "monthly_income", "monthly_contribution", "investment_horizon",
+}
+
 _MAX_TOOL_ROUNDS = 2  # hard cap on worst-case Sonnet calls per user message — each round is a full new call
 
 
-async def _exec_mentor_tool(name: str, tool_input: dict) -> str:
+async def _exec_mentor_tool(name: str, tool_input: dict, user_id: str | None = None) -> str:
     """Execute one Mentor tool call. Never raises — errors become text the model can react to."""
     try:
+        if name == "update_profile":
+            if not user_id:
+                return "No se pudo guardar: sesión sin usuario."
+            updates = {k: v for k, v in tool_input.items() if k in _UPDATE_PROFILE_FIELDS and v not in (None, "")}
+            if not updates:
+                return "Nada que guardar."
+            db = get_supabase()
+            await run_query(
+                db.table("user_profiles").update(updates).eq("user_id", user_id)
+            )
+            cache_delete(f"profile:{user_id}")
+            return f"Guardado en el perfil: {', '.join(updates.keys())}."
+
         if name == "get_stock_quote":
             ticker = (tool_input.get("ticker") or "").upper().strip()
             q = await asyncio.to_thread(fh_quote, ticker)
@@ -1932,7 +2003,7 @@ async def chat_stream(
         messages.append({"role": "assistant", "content": final.content})
         tool_blocks = [b for b in final.content if b.type == "tool_use"]
         results = await asyncio.gather(
-            *(_exec_mentor_tool(b.name, b.input) for b in tool_blocks)
+            *(_exec_mentor_tool(b.name, b.input, user_id) for b in tool_blocks)
         )
         messages.append({
             "role": "user",

@@ -433,6 +433,10 @@ function SubvaluadasPageInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
 
+  // Marks the home checklist's "view 1 opportunity" step done — landing here
+  // at all counts, since this screen's whole purpose is showing an opportunity.
+  useEffect(() => { localStorage.setItem("nuvos_opportunity_viewed", "1"); }, []);
+
   const [query, setQuery] = useState("");
   const [ticker, setTicker] = useState(() => (searchParams.get("ticker") || DEFAULT_TICKER).toUpperCase());
   const [data, setData] = useState<QuickAnalysisResult | null>(null);

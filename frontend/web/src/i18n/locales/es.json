@@ -247,31 +247,29 @@
     "saveError": "Error al guardar",
     "onboarding": {
       "addFirstPosition": {
-        "title": "Agrega tu primera posición",
+        "title": "Agrega tu portafolio",
         "desc": "Registra tus acciones y activa el análisis IA"
       },
-      "configureGoal": {
-        "title": "Configura tu meta financiera",
-        "desc": "¿Para qué estás invirtiendo?"
+      "trySimulator": {
+        "title": "Prueba el Simulador",
+        "desc": "Practica con Paper Trading antes de invertir dinero real"
       },
       "talkToNuvos": {
         "title": "Habla con Nuvos por primera vez",
         "desc": "Pregunta cualquier cosa sobre inversiones"
       },
-      "firstLesson": {
-        "title": "Completa tu primera lección",
-        "desc": "Empieza tu racha de aprendizaje diario"
-      },
-      "addToWatchlist": {
-        "title": "Agrega una acción a tu watchlist",
-        "desc": "Monitorea empresas que te interesan"
+      "viewOpportunity": {
+        "title": "Ve 1 oportunidad",
+        "desc": "Descubre una acción subvaluada según nuestro análisis"
       },
       "bookCall": {
         "title": "Agenda una llamada y crea tu cuenta en un broker gratis",
         "descFree": "Gratis por {{time}} más — una sesión 1-a-1 para abrir tu cuenta con confianza",
         "descExpired": "El período gratis venció — $20 USD por la sesión 1-a-1",
         "alreadyHaveBroker": "Ya tengo cuenta en broker"
-      }
+      },
+      "skip": "Omitir",
+      "skipConfirm": "¿Omitir el checklist para siempre? No volverá a aparecer."
     }
   },
   "profile": {
@@ -3259,108 +3257,40 @@
     "step0": {
       "subtitle": "BIENVENIDO",
       "title": "¡Hola! Cuéntanos sobre ti",
-      "phoneLabel": "Tu número de teléfono",
-      "phoneCode": "Código",
-      "phonePlaceholder": "55 1234 5678",
-      "phoneHint": "Lo usaremos para funciones futuras como llamadas de tu mentor y avisos importantes.",
       "nameLabel": "Tu nombre completo",
       "namePlaceholder": "Ej. Diego Arria",
       "nameHint": "Así te llamaremos y la IA sabrá cómo dirigirse a ti.",
       "birthDateLabel": "Fecha de nacimiento",
       "day": "Día", "month": "Mes", "year": "Año",
-      "birthDateHint": "Debes tener al menos 18 años para usar Nuvos AI.",
-      "countryLabel": "¿Desde dónde inviertes?"
+      "birthDateHint": "Debes tener al menos 18 años para usar Nuvos AI."
     },
-    "step1": {
-      "subtitle": "TU PERFIL",
-      "title": "¿Cuál es tu nivel de conocimiento en inversiones?",
-      "titleNamed": "{{name}}, ¿cuál es tu nivel de conocimiento en inversiones?"
-    },
-    "step2": {
-      "subtitle": "METAS FINANCIERAS",
-      "title": "Cuéntanos sobre tu plan",
-      "incomeLabel": "¿Cuáles son tus ingresos mensuales?",
-      "incomeHint": "Nos ayuda a personalizar cuánto tiene sentido que inviertas.",
-      "capitalLabel": "¿Cuánto tienes disponible para empezar a invertir hoy?",
-      "capitalPlaceholder": "0 si todavía no tienes",
-      "capitalHint": "No te preocupes si es $0 — muchos empiezan de cero. Es solo para personalizar tu plan.",
-      "contributionLabel": "¿Cuánto quieres invertir mensualmente?",
-      "goalAmountLabel": "¿Cuánto patrimonio quieres tener?",
-      "goalAmountHint": "La app calculará cuándo llegarás a esta meta con tus aportaciones.",
-      "horizonLabel": "¿Por cuántos años quieres invertir?",
-      "perMonth": "/mes",
-      "years": "años"
+    "stepPhone": {
+      "subtitle": "OPCIONAL",
+      "title": "¿Cuál es tu número de teléfono?",
+      "titleNamed": "{{name}}, ¿cuál es tu número de teléfono?",
+      "phoneLabel": "Tu número de teléfono",
+      "phoneCode": "Código",
+      "phonePlaceholder": "55 1234 5678",
+      "phoneHint": "Lo usaremos para funciones futuras como llamadas de tu mentor y avisos importantes. Puedes dejarlo en blanco y seguir."
     },
     "step3": {
-      "subtitle": "OBJETIVO",
+      "subtitle": "OPCIONAL",
       "title": "¿Cuál es tu meta al invertir?"
     },
-    "step6": {
-      "subtitle": "TU PUNTO DE PARTIDA",
-      "title": "¿Ya tienes experiencia en el mercado?",
-      "titleNamed": "{{name}}, ¿ya tienes experiencia en el mercado?",
-      "brokerQuestion": "¿Tienes cuenta en algún broker?",
-      "brokerYes": "Sí, ya tengo",
-      "brokerNo": "No todavía",
-      "brokerNamePlaceholder": "Ej. Robinhood, GBM, Fidelity, Interactive Brokers...",
-      "brokerNameHint": "Así Nuvos sabrá qué plataforma usas y podrá guiarte mejor.",
-      "investmentsQuestion": "¿Ya tienes dinero invertido en el mercado?",
-      "investmentsYes": "Sí, ya invertí",
-      "investmentsNo": "Seré primerizo",
-      "firstTimeTitle": "¡Perfecto punto de partida!",
-      "firstTimeDesc": "Nuvos te va a acompañar paso a paso para que hagas tu primera inversión con confianza."
-    },
-    "step65": {
-      "subtitle": "CONOCIÉNDOTE MEJOR",
-      "title": "¿Qué has escuchado sobre las inversiones?",
-      "titleNamed": "{{name}}, ¿qué has escuchado sobre las inversiones?",
-      "prompt": "Cuéntanos lo que sepas, hayas leído o te hayan dicho — de amigos, redes, lo que sea. No hay respuesta incorrecta.",
-      "placeholder": "Ej. Que hay que diversificar, que el S&P 500 sube con el tiempo, que las criptomonedas son riesgosas...",
-      "hint": "Con tu respuesta la IA conocerá más detalles iniciales de ti. Es completamente opcional — puedes dejarlo en blanco y seguir."
-    },
-    "step7": {
-      "subtitle": "TU PERFIL DE INVERSIÓN",
-      "title": "Tu perfil, {{name}}",
-      "defaultName": "inversionista",
-      "investorOfType": "Inversionista {{type}}",
-      "lowRisk": "Bajo riesgo",
-      "highRisk": "Alto riesgo",
-      "summaryTitle": "Resumen de tu perfil",
-      "ageValue": "{{age}} años",
-      "yes": "Sí",
-      "noBrokerYet": "Sin broker aún",
-      "investedBefore": "Ya invertí antes",
-      "firstTime": "Primera vez 🌱",
-      "answersTitle": "Tus respuestas",
-      "q1Label": "Ante una caída del mercado",
-      "q4Label": "Escenario de riesgo preferido",
-      "rows": {
-        "name": "Nombre", "age": "Edad", "country": "País", "level": "Nivel", "goal": "Meta",
-        "initialCapital": "Capital inicial", "monthlyContribution": "Aportación mensual",
-        "targetWealth": "Patrimonio objetivo", "horizon": "Horizonte", "broker": "Broker",
-        "priorInvestments": "Inversiones previas"
-      }
-    },
-    "step8": {
-      "subtitle": "TU PROYECCIÓN",
-      "title": "Tu camino hacia {{amount}}",
-      "contributing": "Aportando ${{amount}}/mes",
-      "perYear": "/año",
-      "atYears": "A los {{years}} años (tu horizonte)",
-      "tenMoreYears": "Si lo dejas 10 años más ({{total}} total)",
-      "tenMoreYearsExtra": "10 años más: +{{extra}} extra (+{{pct}}%)",
-      "compoundNote": "El interés compuesto se acelera — los últimos años generan más que los primeros.",
-      "illustrativeNote": "* Ilustrativo. Basado en promedios históricos del mercado. No garantiza rendimientos futuros.",
-      "goalReached": "¡Alcanzas tu meta dentro de los {{years}} años!",
-      "goalNeedsYears": "Necesitas ~{{years}} años para alcanzar {{amount}}",
-      "goalIncreaseContribution": "En {{years}} años tendrías {{amount}} — aumenta tu aportación mensual",
-      "featuresTitle": "Nuvos AI trabaja contigo",
-      "features": {
-        "ai": { "title": "IA que conoce tu perfil", "sub": "Análisis personalizado según tu nivel y tolerancia al riesgo" },
-        "portfolio": { "title": "Portafolio en tiempo real", "sub": "Precios cada 30s con rendimientos Hoy / YTD / Total" },
-        "calendar": { "title": "Calendario de eventos", "sub": "Earnings, dividendos y ex-dividendos de tus posiciones" },
-        "paper": { "title": "Paper trading sin riesgo", "sub": "Practica con $10,000 virtuales a precios reales del mercado" }
-      }
+    "marketPerception": {
+      "subtitle": "CONOCIÉNDOTE MEJOR · OPCIONAL",
+      "title": "¿Qué has escuchado de la bolsa?",
+      "titleNamed": "{{name}}, ¿qué has escuchado de la bolsa?",
+      "prompt": "Elige todas las que apliquen — nos ayuda a saber por dónde empezar contigo. No hay respuesta incorrecta.",
+      "options": {
+        "casino": "La bolsa es como un casino",
+        "onlyRich": "Eso es solo para gente de dinero",
+        "needExpert": "Tienes que ser un experto en finanzas",
+        "hasBrokerInvests": "Tengo broker actualmente y ya invierto",
+        "other": "Otro"
+      },
+      "otherPlaceholder": "Cuéntanos qué has escuchado...",
+      "hint": "Completamente opcional — puedes dejarlo en blanco y seguir."
     },
     "legal": {
       "subtitle": "AVISO LEGAL",
@@ -3415,22 +3345,8 @@
         "retirement": "retiro y pensión", "financialFreedom": "libertad financiera",
         "longTermWealth": "construir patrimonio a largo plazo"
       },
-      "levelIntro": {
-        "basic": "Sin importar desde dónde empiezes, voy paso a paso contigo.",
-        "intermediate": "Con tu experiencia en ETFs y acciones, podemos ir directo a lo que importa.",
-        "advanced": "Con tu nivel avanzado, iremos a los análisis más sofisticados desde el inicio."
-      },
-      "yearsProjection": "\n\n📊 Con **${{amount}}/mes** y un retorno histórico promedio del **{{rate}}** anual, podrías alcanzar **{{goal}}** en aproximadamente **{{years}} años**.",
-      "brokerContext": {
-        "namedBroker": "Veo que ya usas **{{broker}}**",
-        "hasBroker": "Veo que ya tienes broker",
-        "noBroker": "Como todavía no tienes broker, uno de nuestros primeros pasos será ayudarte a abrir uno"
-      },
-      "investContext": {
-        "hasInvested": "y ya tienes experiencia en el mercado",
-        "firstTime": "y será tu primera vez invirtiendo — lo mejor que te puede pasar"
-      },
-      "message": "¡Bienvenido a Nuvos, **{{name}}**! 🎉\n\nYa revisé tu perfil completo. Eres un inversionista **{{riskType}}** con meta de **{{goal}}**.{{yearsProjection}}\n\n{{brokerContext}} {{investContext}}.\n\n{{levelIntro}}\n\n**¿Por dónde quieres empezar?**"
+      "messageWithGoal": "¡Bienvenido a Nuvos, **{{name}}**! 🎉\n\nVeo que tu meta es **{{goal}}** — vamos a trabajar juntos para lograrlo.\n\nConforme platiquemos te voy a ir conociendo mejor: tu experiencia, tu situación financiera, tus dudas. No hay prisa ni cuestionario — solo cuéntame lo que se te vaya ocurriendo.\n\n**¿Por dónde quieres empezar?**",
+      "messageNoGoal": "¡Bienvenido a Nuvos, **{{name}}**! 🎉\n\nConforme platiquemos te voy a ir conociendo mejor: tu experiencia, tu situación financiera, tus metas. No hay prisa ni cuestionario — solo cuéntame lo que se te vaya ocurriendo.\n\n**¿Por dónde quieres empezar?**"
     }
   }
 }

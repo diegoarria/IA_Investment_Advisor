@@ -208,16 +208,14 @@
       }
     },
     "onboarding": {
-      "step1Title": "Agrega tu primera posición",
+      "step1Title": "Agrega tu portafolio",
       "step1Desc": "Registra tus acciones y activa el análisis IA",
-      "step2Title": "Configura tu meta financiera",
-      "step2Desc": "¿Para qué estás invirtiendo?",
+      "stepSimTitle": "Prueba el Simulador",
+      "stepSimDesc": "Practica con Paper Trading antes de invertir dinero real",
       "step3Title": "Habla con Nuvos por primera vez",
       "step3Desc": "Pregunta cualquier cosa sobre inversiones",
-      "step4Title": "Completa tu primera lección",
-      "step4Desc": "Empieza tu racha de aprendizaje diario",
-      "step5Title": "Agrega una acción a tu watchlist",
-      "step5Desc": "Monitorea empresas que te interesan",
+      "stepOpportunityTitle": "Ve 1 oportunidad",
+      "stepOpportunityDesc": "Descubre una acción subvaluada según nuestro análisis",
       "step6Title": "Agenda una llamada y crea tu cuenta en un broker gratis",
       "step6DescFree": "Gratis por {{time}} más — una sesión 1-a-1 para abrir tu cuenta con confianza",
       "step6DescExpired": "El período gratis venció — $20 USD por la sesión 1-a-1",
@@ -2532,6 +2530,26 @@
       "title": "¿Cuál es tu nivel?",
       "titleWithName": "{{name}}, ¿cuál es tu nivel?"
     },
+    "stepPhone": {
+      "title": "¿Cuál es tu número de teléfono?",
+      "titleWithName": "{{name}}, ¿cuál es tu número de teléfono?",
+      "sub": "Opcional — puedes dejarlo en blanco y seguir.",
+      "phoneHint": "Lo usaremos para funciones futuras como llamadas de tu mentor y avisos importantes. Puedes dejarlo en blanco y seguir."
+    },
+    "marketPerception": {
+      "title": "¿Qué has escuchado de la bolsa?",
+      "titleWithName": "{{name}}, ¿qué has escuchado de la bolsa?",
+      "sub": "Elige todas las que apliquen — opcional, nos ayuda a saber por dónde empezar contigo.",
+      "options": {
+        "casino": "La bolsa es como un casino",
+        "onlyRich": "Eso es solo para gente de dinero",
+        "needExpert": "Tienes que ser un experto en finanzas",
+        "hasBrokerInvests": "Tengo broker actualmente y ya invierto",
+        "other": "Otro"
+      },
+      "otherPlaceholder": "Cuéntanos qué has escuchado...",
+      "helper": "Completamente opcional — puedes dejarlo en blanco y seguir."
+    },
     "step2": {
       "capitalHint": "Puedes poner 0 si aún no tienes capital inicial.",
       "currentCapital": "¿Con cuánto capital cuentas hoy para invertir?",
@@ -2714,7 +2732,9 @@
   },
   "mobileOnboardingChecklist": {
     "title": "Configura tu Nuvos",
-    "progress": "{{completed}} de {{total}} completados"
+    "progress": "{{completed}} de {{total}} completados",
+    "skip": "Omitir",
+    "skipConfirm": "¿Omitir el checklist para siempre? No volverá a aparecer."
   },
   "mobileEarningsPanel": {
     "heroTitle": "Calendario de Earnings",

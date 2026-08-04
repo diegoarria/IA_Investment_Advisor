@@ -15,12 +15,13 @@ import StockAvatar from "@/components/StockAvatar";
 import PersonalizedMessageBanner from "@/components/PersonalizedMessageBanner";
 import MorningBriefCard from "@/components/MorningBriefCard";
 import ExplainButton from "@/components/ExplainButton";
-import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, watchlist as watchlistApi, billing, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
+import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, billing, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
 import PricingModal from "@/components/PricingModal";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore, useBalanceVisibilityStore } from "@/lib/store";
 import OnboardingChecklist, { type OnboardingStep } from "@/components/OnboardingChecklist";
 import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenPickerModal";
 import { usePortfolioStore } from "@/lib/portfolioStore";
+import { usePaperStore } from "@/lib/paperStore";
 import { useFxRate } from "@/lib/useFxRate";
 import { isNYSEOpen } from "@/lib/marketHours";
 import { registerWebPush } from "@/lib/webPush";
@@ -151,7 +152,6 @@ export default function HomePage() {
   const [ytdPct,  setYtdPct]      = useState<number | null>(null);
   const [shortGain, setShortGain] = useState<number | null>(null);
   const [shortPct,  setShortPct]  = useState<number | null>(null);
-  const [watchlistCount, setWatchlistCount] = useState(0);
   const marketOpen = useMemo(() => isNYSEOpen(), []);
   const hasChatted = useChatStore((s) => s.sessions.some((sess) => sess.messages.length > 0));
 
@@ -286,9 +286,6 @@ export default function HomePage() {
         setTotalNotifs(items.length);
         setTopNotifs(items.slice(0, 2));
       }
-
-      const wlRes = await watchlistApi.get().catch(() => null);
-      setWatchlistCount((wlRes?.data as any[])?.length ?? 0);
 
       if (tickers.length) {
         const newsRes = await marketApi.getNews(tickers.slice(0, 6)).catch(() => null);
@@ -498,12 +495,29 @@ export default function HomePage() {
     } catch {}
   };
 
+  const { trades: paperTrades } = usePaperStore();
+  const hasPaperTraded = paperTrades.length > 0;
+  const [opportunityViewed, setOpportunityViewed] = useState(
+    () => typeof window !== "undefined" && localStorage.getItem("nuvos_opportunity_viewed") === "1"
+  );
+  useEffect(() => {
+    if (opportunityViewed) return;
+    const check = () => {
+      if (localStorage.getItem("nuvos_opportunity_viewed") === "1") setOpportunityViewed(true);
+    };
+    window.addEventListener("focus", check);
+    return () => window.removeEventListener("focus", check);
+  }, [opportunityViewed]);
+
+  // Step 1 branches on the user's declared investing status: someone who
+  // already invests should be pushed to add their real portfolio, while
+  // someone who hasn't should try the risk-free simulator first.
+  const showAddPortfolioStep = !!profile?.has_investments;
+
   const onboardingSteps: OnboardingStep[] = [
-    { emoji: "💼", title: t("home.onboarding.addFirstPosition.title"),  description: t("home.onboarding.addFirstPosition.desc"), completed: positions.length > 0 },
-    { emoji: "🎯", title: t("home.onboarding.configureGoal.title"),     description: t("home.onboarding.configureGoal.desc"),    completed: !!profile?.investment_goal },
-    { emoji: "🤖", title: t("home.onboarding.talkToNuvos.title"),       description: t("home.onboarding.talkToNuvos.desc"),      completed: hasChatted },
-    { emoji: "📚", title: t("home.onboarding.firstLesson.title"),       description: t("home.onboarding.firstLesson.desc"),      completed: streak > 0 },
-    { emoji: "👀", title: t("home.onboarding.addToWatchlist.title"),    description: t("home.onboarding.addToWatchlist.desc"),   completed: watchlistCount > 0 },
+    showAddPortfolioStep
+      ? { emoji: "💼", title: t("home.onboarding.addFirstPosition.title"), description: t("home.onboarding.addFirstPosition.desc"), completed: positions.length > 0 }
+      : { emoji: "🎮", title: t("home.onboarding.trySimulator.title"),     description: t("home.onboarding.trySimulator.desc"),     completed: hasPaperTraded },
     {
       emoji: "📞",
       title: t("home.onboarding.bookCall.title"),
@@ -514,15 +528,22 @@ export default function HomePage() {
       completed: !!profile?.has_broker,
       secondaryAction: { label: t("home.onboarding.bookCall.alreadyHaveBroker"), onClick: markBrokerConfigured },
     },
+    { emoji: "🤖", title: t("home.onboarding.talkToNuvos.title"),   description: t("home.onboarding.talkToNuvos.desc"),   completed: hasChatted },
+    { emoji: "👀", title: t("home.onboarding.viewOpportunity.title"), description: t("home.onboarding.viewOpportunity.desc"), completed: opportunityViewed },
   ];
   const allOnboardingDone = checklistPermanentlyDone || onboardingSteps.every((s) => s.completed);
+
+  const persistChecklistDone = () => {
+    localStorage.setItem("nuvos_checklist_done", "1");
+    import("@/lib/api").then(({ sync }) => sync.pushChecklistDone().catch(() => {}));
+    setChecklistPermanentlyDone(true);
+  };
 
   // Once onboarding is complete: persist the flag so it never shows again,
   // and prompt the user to pick their preferred start screen.
   useEffect(() => {
     if (loading || !allOnboardingDone) return;
-    localStorage.setItem("nuvos_checklist_done", "1");
-    import("@/lib/api").then(({ sync }) => sync.pushChecklistDone().catch(() => {}));
+    persistChecklistDone();
     const saved = localStorage.getItem(HOME_SCREEN_KEY);
     if (!saved) setShowScreenPicker(true);
     // Show pricing modal once after checklist completion (free users only)
@@ -533,14 +554,10 @@ export default function HomePage() {
   }, [loading, allOnboardingDone]);
 
   const handleOnboardingStep = (index: number) => {
-    if (index === 1) { openGoalModal(); return; }
-    if (index === 5) {
-      handleBookBrokerCall();
-      return;
-    }
-    const hrefs = ["/portfolio?tour=1", null, "/chat?tour=3", "/academy?tour=4", "/watchlist?tour=5"];
-    const href = hrefs[index];
-    if (href) router.push(href);
+    if (index === 1) { handleBookBrokerCall(); return; }
+    if (index === 2) { router.push("/chat?tour=3"); return; }
+    if (index === 3) { router.push("/subvaluadas"); return; }
+    router.push(showAddPortfolioStep ? "/portfolio?tour=1" : "/paper?tour=1");
   };
 
   const GOAL_OPTIONS = [
@@ -706,7 +723,7 @@ export default function HomePage() {
 
             {/* ── Onboarding checklist (hidden once all done) ──────────────── */}
             {!allOnboardingDone && (
-              <OnboardingChecklist steps={onboardingSteps} onStepClick={handleOnboardingStep} />
+              <OnboardingChecklist steps={onboardingSteps} onStepClick={handleOnboardingStep} onDismiss={persistChecklistDone} />
             )}
 
             {/* ── Guía para principiantes / modo guest ─────────────────── */}

@@ -208,16 +208,14 @@
       }
     },
     "onboarding": {
-      "step1Title": "Add your first position",
+      "step1Title": "Add your portfolio",
       "step1Desc": "Register your stocks and unlock AI analysis",
-      "step2Title": "Set your financial goal",
-      "step2Desc": "What are you investing for?",
+      "stepSimTitle": "Try the Simulator",
+      "stepSimDesc": "Practice with Paper Trading before investing real money",
       "step3Title": "Talk to Nuvos for the first time",
       "step3Desc": "Ask anything about investing",
-      "step4Title": "Complete your first lesson",
-      "step4Desc": "Start your daily learning streak",
-      "step5Title": "Add a stock to your watchlist",
-      "step5Desc": "Track companies you're interested in",
+      "stepOpportunityTitle": "View 1 opportunity",
+      "stepOpportunityDesc": "Discover an undervalued stock from our analysis",
       "step6Title": "Book a call and open a free broker account",
       "step6DescFree": "Free for {{time}} more — a 1-on-1 session to open your account with confidence",
       "step6DescExpired": "The free window expired — $20 USD for the 1-on-1 session",
@@ -2532,6 +2530,26 @@
       "title": "What's your level?",
       "titleWithName": "{{name}}, what's your level?"
     },
+    "stepPhone": {
+      "title": "What's your phone number?",
+      "titleWithName": "{{name}}, what's your phone number?",
+      "sub": "Optional — you can leave it blank and continue.",
+      "phoneHint": "We'll use it for future features like mentor calls and important alerts. You can leave it blank and continue."
+    },
+    "marketPerception": {
+      "title": "What have you heard about the stock market?",
+      "titleWithName": "{{name}}, what have you heard about the stock market?",
+      "sub": "Pick all that apply — optional, it helps us know where to start with you.",
+      "options": {
+        "casino": "The stock market is like a casino",
+        "onlyRich": "That's only for people with money",
+        "needExpert": "You have to be a finance expert",
+        "hasBrokerInvests": "I already have a broker and already invest",
+        "other": "Other"
+      },
+      "otherPlaceholder": "Tell us what you've heard...",
+      "helper": "Completely optional — you can leave it blank and continue."
+    },
     "step2": {
       "capitalHint": "You can put 0 if you don't have starting capital yet.",
       "currentCapital": "How much capital do you currently have to invest?",
@@ -2714,7 +2732,9 @@
   },
   "mobileOnboardingChecklist": {
     "title": "Set up your Nuvos",
-    "progress": "{{completed}} of {{total}} completed"
+    "progress": "{{completed}} of {{total}} completed",
+    "skip": "Skip",
+    "skipConfirm": "Skip the checklist forever? It won't appear again."
   },
   "mobileEarningsPanel": {
     "heroTitle": "Earnings Calendar",

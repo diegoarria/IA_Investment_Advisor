@@ -257,6 +257,7 @@ export const mentorLetterApi = {
 export const syncApi = {
   // Single call to restore everything after login
   getAll: () => api.get("/api/sync/all"),
+  pushChecklistDone: () => api.post("/api/sync/checklist-done"),
   // Individual push endpoints (fire-and-forget)
   pushPortfolio: (
     positions: unknown[],

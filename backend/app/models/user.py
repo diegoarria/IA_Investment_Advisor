@@ -7,8 +7,12 @@ _E164_RE = re.compile(r"^\+[1-9]\d{6,14}$")
 
 class UserProfileCreate(BaseModel):
     name: str
-    risk_tolerance: str
-    quiz_answers: dict
+    # Shortened onboarding (2026) only collects name + birth_date up front —
+    # risk_tolerance/quiz_answers used to be required (computed from a risk
+    # quiz that no longer exists at signup); now optional, and the DB column
+    # defaults ('moderate' / '{}') apply whenever they're omitted here.
+    risk_tolerance: Optional[str] = None
+    quiz_answers: Optional[dict] = None
     birth_date: Optional[str] = None
     monthly_income: Optional[str] = None
     monthly_contribution: Optional[str] = None
@@ -25,8 +29,12 @@ class UserProfileCreate(BaseModel):
     has_broker: Optional[bool] = None
     broker_name: Optional[str] = None
     has_investments: Optional[bool] = None
-    phone_number: Optional[str] = None  # E.164, e.g. "+525512345678" — required by the onboarding UI
+    phone_number: Optional[str] = None  # E.164, e.g. "+525512345678" — optional at signup
     language: Optional[str] = None  # UI language at signup ("es"/"en") — welcome email + preferred_language
+    # "¿Qué has escuchado de la bolsa?" — multi-select at onboarding, keys like
+    # "casino", "only_rich", "need_expert", "has_broker_invests", "other".
+    market_perception: Optional[list[str]] = None
+    market_perception_other: Optional[str] = None
 
     @field_validator("phone_number")
     @classmethod
@@ -57,6 +65,8 @@ class UserProfileUpdate(BaseModel):
     broker_name: Optional[str] = None
     has_investments: Optional[bool] = None
     phone_number: Optional[str] = None
+    market_perception: Optional[list[str]] = None
+    market_perception_other: Optional[str] = None
 
     @field_validator("phone_number")
     @classmethod
@@ -97,6 +107,8 @@ class UserProfile(BaseModel):
     broker_name: Optional[str] = None
     has_investments: Optional[bool] = None
     phone_number: Optional[str] = None
+    market_perception: Optional[list[str]] = None
+    market_perception_other: Optional[str] = None
     net_worth_usd: Optional[float] = None
     monthly_expenses_usd: Optional[float] = None
     currency: Optional[str] = None

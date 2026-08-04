@@ -247,31 +247,29 @@
     "saveError": "Error saving",
     "onboarding": {
       "addFirstPosition": {
-        "title": "Add your first position",
+        "title": "Add your portfolio",
         "desc": "Log your stocks and unlock AI analysis"
       },
-      "configureGoal": {
-        "title": "Set up your financial goal",
-        "desc": "What are you investing for?"
+      "trySimulator": {
+        "title": "Try the Simulator",
+        "desc": "Practice with Paper Trading before investing real money"
       },
       "talkToNuvos": {
         "title": "Talk to Nuvos for the first time",
         "desc": "Ask anything about investing"
       },
-      "firstLesson": {
-        "title": "Complete your first lesson",
-        "desc": "Start your daily learning streak"
-      },
-      "addToWatchlist": {
-        "title": "Add a stock to your watchlist",
-        "desc": "Track companies you're interested in"
+      "viewOpportunity": {
+        "title": "View 1 opportunity",
+        "desc": "Discover an undervalued stock from our analysis"
       },
       "bookCall": {
         "title": "Book a call and open a free broker account",
         "descFree": "Free for {{time}} more — a 1-on-1 session to open your account with confidence",
         "descExpired": "The free window expired — $20 USD for the 1-on-1 session",
         "alreadyHaveBroker": "I already have a broker account"
-      }
+      },
+      "skip": "Skip",
+      "skipConfirm": "Skip the checklist forever? It won't appear again."
     }
   },
   "profile": {
@@ -3259,108 +3257,40 @@
     "step0": {
       "subtitle": "WELCOME",
       "title": "Hi! Tell us about yourself",
-      "phoneLabel": "Your phone number",
-      "phoneCode": "Code",
-      "phonePlaceholder": "55 1234 5678",
-      "phoneHint": "We'll use it for future features like mentor calls and important alerts.",
       "nameLabel": "Your full name",
       "namePlaceholder": "E.g. Diego Arria",
       "nameHint": "This is how we'll address you and how the AI will know how to talk to you.",
       "birthDateLabel": "Date of birth",
       "day": "Day", "month": "Month", "year": "Year",
-      "birthDateHint": "You must be at least 18 years old to use Nuvos AI.",
-      "countryLabel": "Where do you invest from?"
+      "birthDateHint": "You must be at least 18 years old to use Nuvos AI."
     },
-    "step1": {
-      "subtitle": "YOUR PROFILE",
-      "title": "What's your investing knowledge level?",
-      "titleNamed": "{{name}}, what's your investing knowledge level?"
-    },
-    "step2": {
-      "subtitle": "FINANCIAL GOALS",
-      "title": "Tell us about your plan",
-      "incomeLabel": "What's your monthly income?",
-      "incomeHint": "This helps us personalize how much makes sense for you to invest.",
-      "capitalLabel": "How much do you have available to start investing today?",
-      "capitalPlaceholder": "0 if you don't have any yet",
-      "capitalHint": "Don't worry if it's $0 — many people start from zero. It's just to personalize your plan.",
-      "contributionLabel": "How much do you want to invest monthly?",
-      "goalAmountLabel": "How much wealth do you want to have?",
-      "goalAmountHint": "The app will calculate when you'll reach this goal with your contributions.",
-      "horizonLabel": "For how many years do you want to invest?",
-      "perMonth": "/mo",
-      "years": "years"
+    "stepPhone": {
+      "subtitle": "OPTIONAL",
+      "title": "What's your phone number?",
+      "titleNamed": "{{name}}, what's your phone number?",
+      "phoneLabel": "Your phone number",
+      "phoneCode": "Code",
+      "phonePlaceholder": "55 1234 5678",
+      "phoneHint": "We'll use it for future features like mentor calls and important alerts. You can leave it blank and continue."
     },
     "step3": {
-      "subtitle": "OBJECTIVE",
+      "subtitle": "OPTIONAL",
       "title": "What's your goal when investing?"
     },
-    "step6": {
-      "subtitle": "YOUR STARTING POINT",
-      "title": "Do you already have experience in the market?",
-      "titleNamed": "{{name}}, do you already have experience in the market?",
-      "brokerQuestion": "Do you have an account with a broker?",
-      "brokerYes": "Yes, I already have one",
-      "brokerNo": "Not yet",
-      "brokerNamePlaceholder": "E.g. Robinhood, GBM, Fidelity, Interactive Brokers...",
-      "brokerNameHint": "This lets Nuvos know which platform you use so it can guide you better.",
-      "investmentsQuestion": "Do you already have money invested in the market?",
-      "investmentsYes": "Yes, I've already invested",
-      "investmentsNo": "I'll be a first-timer",
-      "firstTimeTitle": "Perfect starting point!",
-      "firstTimeDesc": "Nuvos will guide you step by step so you make your first investment with confidence."
-    },
-    "step65": {
-      "subtitle": "GETTING TO KNOW YOU",
-      "title": "What have you heard about investing?",
-      "titleNamed": "{{name}}, what have you heard about investing?",
-      "prompt": "Tell us what you know, have read, or have been told — by friends, social media, anything. There's no wrong answer.",
-      "placeholder": "E.g. That you should diversify, that the S&P 500 goes up over time, that cryptocurrencies are risky...",
-      "hint": "Your answer helps the AI get to know you better from the start. It's completely optional — you can leave it blank and continue."
-    },
-    "step7": {
-      "subtitle": "YOUR INVESTOR PROFILE",
-      "title": "Your profile, {{name}}",
-      "defaultName": "investor",
-      "investorOfType": "{{type}} Investor",
-      "lowRisk": "Low risk",
-      "highRisk": "High risk",
-      "summaryTitle": "Your profile summary",
-      "ageValue": "{{age}} years old",
-      "yes": "Yes",
-      "noBrokerYet": "No broker yet",
-      "investedBefore": "Already invested before",
-      "firstTime": "First time 🌱",
-      "answersTitle": "Your answers",
-      "q1Label": "Facing a market crash",
-      "q4Label": "Preferred risk scenario",
-      "rows": {
-        "name": "Name", "age": "Age", "country": "Country", "level": "Level", "goal": "Goal",
-        "initialCapital": "Initial capital", "monthlyContribution": "Monthly contribution",
-        "targetWealth": "Target wealth", "horizon": "Horizon", "broker": "Broker",
-        "priorInvestments": "Prior investments"
-      }
-    },
-    "step8": {
-      "subtitle": "YOUR PROJECTION",
-      "title": "Your path to {{amount}}",
-      "contributing": "Contributing ${{amount}}/mo",
-      "perYear": "/yr",
-      "atYears": "At {{years}} years (your horizon)",
-      "tenMoreYears": "If you leave it 10 more years ({{total}} total)",
-      "tenMoreYearsExtra": "10 more years: +{{extra}} extra (+{{pct}}%)",
-      "compoundNote": "Compound interest accelerates — the last years generate more than the first ones.",
-      "illustrativeNote": "* Illustrative. Based on historical market averages. Doesn't guarantee future returns.",
-      "goalReached": "You'll reach your goal within {{years}} years!",
-      "goalNeedsYears": "You need ~{{years}} years to reach {{amount}}",
-      "goalIncreaseContribution": "In {{years}} years you'd have {{amount}} — increase your monthly contribution",
-      "featuresTitle": "Nuvos AI works with you",
-      "features": {
-        "ai": { "title": "AI that knows your profile", "sub": "Personalized analysis based on your level and risk tolerance" },
-        "portfolio": { "title": "Real-time portfolio", "sub": "Prices every 30s with Today / YTD / Total returns" },
-        "calendar": { "title": "Event calendar", "sub": "Earnings, dividends, and ex-dividend dates for your positions" },
-        "paper": { "title": "Risk-free paper trading", "sub": "Practice with $10,000 virtual at real market prices" }
-      }
+    "marketPerception": {
+      "subtitle": "GETTING TO KNOW YOU · OPTIONAL",
+      "title": "What have you heard about the stock market?",
+      "titleNamed": "{{name}}, what have you heard about the stock market?",
+      "prompt": "Pick all that apply — it helps us know where to start with you. There's no wrong answer.",
+      "options": {
+        "casino": "The stock market is like a casino",
+        "onlyRich": "That's only for people with money",
+        "needExpert": "You have to be a finance expert",
+        "hasBrokerInvests": "I already have a broker and already invest",
+        "other": "Other"
+      },
+      "otherPlaceholder": "Tell us what you've heard...",
+      "hint": "Completely optional — you can leave it blank and continue."
     },
     "legal": {
       "subtitle": "LEGAL NOTICE",
@@ -3415,22 +3345,8 @@
         "retirement": "retirement and pension", "financialFreedom": "financial freedom",
         "longTermWealth": "building long-term wealth"
       },
-      "levelIntro": {
-        "basic": "No matter where you're starting from, I'll go step by step with you.",
-        "intermediate": "With your experience in ETFs and stocks, we can go straight to what matters.",
-        "advanced": "With your advanced level, we'll dive into more sophisticated analysis from the start."
-      },
-      "yearsProjection": "\n\n📊 With **${{amount}}/mo** and a historical average return of **{{rate}}** annually, you could reach **{{goal}}** in about **{{years}} years**.",
-      "brokerContext": {
-        "namedBroker": "I see you already use **{{broker}}**",
-        "hasBroker": "I see you already have a broker",
-        "noBroker": "Since you don't have a broker yet, one of our first steps will be helping you open one"
-      },
-      "investContext": {
-        "hasInvested": "and you already have experience in the market",
-        "firstTime": "and this will be your first time investing — the best thing that could happen"
-      },
-      "message": "Welcome to Nuvos, **{{name}}**! 🎉\n\nI've reviewed your full profile. You're a **{{riskType}}** investor with a goal of **{{goal}}**.{{yearsProjection}}\n\n{{brokerContext}} {{investContext}}.\n\n{{levelIntro}}\n\n**Where would you like to start?**"
+      "messageWithGoal": "Welcome to Nuvos, **{{name}}**! 🎉\n\nI see your goal is **{{goal}}** — let's work together to get you there.\n\nAs we talk, I'll get to know you better: your experience, your financial situation, your questions. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**",
+      "messageNoGoal": "Welcome to Nuvos, **{{name}}**! 🎉\n\nAs we talk, I'll get to know you better: your experience, your financial situation, your goals. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**"
     }
   }
 }

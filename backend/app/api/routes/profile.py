@@ -92,7 +92,7 @@ _DB_PROFILE_FIELDS = {
     "risk_tolerance", "quiz_answers", "mentor",
     "investment_goal", "investment_goal_amount", "investment_horizon", "knowledge_level",
     "country", "initial_capital", "has_broker", "broker_name", "has_investments", "phone_number",
-    "terms_accepted_at", "terms_version",
+    "terms_accepted_at", "terms_version", "market_perception", "market_perception_other",
 }
 
 @router.post("", response_model=UserProfile)

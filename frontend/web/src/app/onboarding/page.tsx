@@ -8,10 +8,6 @@ import { profile as profileApi } from "@/lib/api";
 import { useProfileStore, useAuthStore, useChatStore, useLanguageStore, useSubscriptionStore } from "@/lib/store";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
-type QuizAnswer  = "A" | "B" | "C" | "D";
-type RiskTolerance = "conservative" | "moderate" | "aggressive";
-
 // ─── Static data (language-neutral metadata; labels resolved via t() at render) ─
 const GOALS = [
   { value: "house",             labelKey: "onboarding.goals.house",            emoji: "🏠" },
@@ -22,50 +18,7 @@ const GOALS = [
   { value: "long_term_wealth",  labelKey: "onboarding.goals.longTermWealth",  emoji: "🏛️" },
 ];
 
-const KNOWLEDGE_LEVELS = [
-  { value: "B" as QuizAnswer, labelKey: "onboarding.knowledge.basic.label",        descKey: "onboarding.knowledge.basic.desc",        emoji: "🌱", color: "#22c55e" },
-  { value: "C" as QuizAnswer, labelKey: "onboarding.knowledge.intermediate.label", descKey: "onboarding.knowledge.intermediate.desc", emoji: "📈", color: "#3b82f6" },
-  { value: "D" as QuizAnswer, labelKey: "onboarding.knowledge.advanced.label",     descKey: "onboarding.knowledge.advanced.desc",     emoji: "🎯", color: "#a855f7" },
-];
-
-const RISK_CONFIG: Record<RiskTolerance, { labelKey: string; descKey: string; emoji: string; color: string; pct: number }> = {
-  conservative: { labelKey: "onboarding.risk.conservative.label", descKey: "onboarding.risk.conservative.desc", emoji: "🛡️", color: "#3b82f6", pct: 33 },
-  moderate:     { labelKey: "onboarding.risk.moderate.label",     descKey: "onboarding.risk.moderate.desc",     emoji: "⚖️", color: "#f59e0b", pct: 66 },
-  aggressive:   { labelKey: "onboarding.risk.aggressive.label",   descKey: "onboarding.risk.aggressive.desc",   emoji: "🚀", color: "#ef4444", pct: 100 },
-};
-
-const QUIZ_Q1 = {
-  categoryKey: "onboarding.quiz.q1.category",
-  questionKey: "onboarding.quiz.q1.question",
-  optionKeys: { A: "onboarding.quiz.q1.options.A", B: "onboarding.quiz.q1.options.B", C: "onboarding.quiz.q1.options.C", D: "onboarding.quiz.q1.options.D" } as Record<QuizAnswer, string>,
-};
-
-const QUIZ_Q4 = {
-  categoryKey: "onboarding.quiz.q4.category",
-  questionKey: "onboarding.quiz.q4.question",
-  optionKeys: { A: "onboarding.quiz.q4.options.A", B: "onboarding.quiz.q4.options.B", C: "onboarding.quiz.q4.options.C", D: "onboarding.quiz.q4.options.D" } as Record<QuizAnswer, string>,
-};
-
-const QUIZ_LABEL_KEYS = {
-  q1: { A: "onboarding.quiz.q1.labels.A", B: "onboarding.quiz.q1.labels.B", C: "onboarding.quiz.q1.labels.C", D: "onboarding.quiz.q1.labels.D" } as Record<QuizAnswer, string>,
-  q4: { A: "onboarding.quiz.q4.labels.A", B: "onboarding.quiz.q4.labels.B", C: "onboarding.quiz.q4.labels.C", D: "onboarding.quiz.q4.labels.D" } as Record<QuizAnswer, string>,
-};
-
-const COUNTRIES = [
-  { value: "MX",    flag: "🇲🇽", labelKey: "onboarding.countries.mx" },
-  { value: "US",    flag: "🇺🇸", labelKey: "onboarding.countries.us" },
-  { value: "CO",    flag: "🇨🇴", labelKey: "onboarding.countries.co" },
-  { value: "AR",    flag: "🇦🇷", labelKey: "onboarding.countries.ar" },
-  { value: "VE",    flag: "🇻🇪", labelKey: "onboarding.countries.ve" },
-  { value: "PE",    flag: "🇵🇪", labelKey: "onboarding.countries.pe" },
-  { value: "CL",    flag: "🇨🇱", labelKey: "onboarding.countries.cl" },
-  { value: "ES",    flag: "🇪🇸", labelKey: "onboarding.countries.es" },
-  { value: "OTHER", flag: "🌎", labelKey: "onboarding.countries.other" },
-];
-
-// E.164 dial codes for the phone field's country selector — no "OTHER" entry
-// here since there's no single calling code for it (unlike COUNTRIES above,
-// which only needs a locale bucket, not a real dial code).
+// E.164 dial codes for the phone step's country selector.
 const DIAL_CODES = [
   { value: "MX", code: "+52", flag: "🇲🇽", labelKey: "onboarding.countries.mx" },
   { value: "US", code: "+1",  flag: "🇺🇸", labelKey: "onboarding.countries.us" },
@@ -77,60 +30,28 @@ const DIAL_CODES = [
   { value: "ES", code: "+34", flag: "🇪🇸", labelKey: "onboarding.countries.es" },
 ];
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-function calculateRisk(q1: string, q4: string): RiskTolerance {
-  const m: Record<QuizAnswer, number> = { A: 1, B: 2, C: 3, D: 4 };
-  const vals = [q1, q4].filter((v): v is QuizAnswer => "ABCD".includes(v));
-  if (!vals.length) return "moderate";
-  const avg = vals.reduce((s, v) => s + m[v], 0) / vals.length;
-  return avg <= 2 ? "conservative" : avg <= 3 ? "moderate" : "aggressive";
-}
-
-function fmtMoney(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000)     return `$${Math.round(n / 1_000)}K`;
-  return `$${Math.round(n).toLocaleString()}`;
-}
-
-// Adds thousand separators as the user types, while keeping the underlying
-// state a plain parseable numeric string (no commas).
-function formatWithCommas(raw: string): string {
-  if (!raw) return "";
-  const [intPart, decPart] = raw.split(".");
-  const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return decPart !== undefined ? `${withCommas}.${decPart}` : withCommas;
-}
-
-function yearsToGoal(pmt: number, goal: number, annualRate: number): number | null {
-  if (pmt <= 0 || goal <= 0) return null;
-  const r = annualRate / 12;
-  const n = Math.log(1 + (goal * r) / pmt) / Math.log(1 + r);
-  if (!isFinite(n) || n <= 0) return null;
-  return Math.ceil(n / 12);
-}
+// "¿Qué has escuchado de la bolsa?" — multi-select, fully optional. Picking
+// "hasBrokerInvests" doubles as an implicit has_broker/has_investments=true
+// signal, so we don't need to ask that as its own separate step anymore.
+const MARKET_PERCEPTION_OPTIONS = [
+  { value: "casino",             labelKey: "onboarding.marketPerception.options.casino",           emoji: "🎰" },
+  { value: "only_rich",          labelKey: "onboarding.marketPerception.options.onlyRich",          emoji: "💰" },
+  { value: "need_expert",        labelKey: "onboarding.marketPerception.options.needExpert",        emoji: "🎓" },
+  { value: "has_broker_invests", labelKey: "onboarding.marketPerception.options.hasBrokerInvests",  emoji: "📈" },
+  { value: "other",              labelKey: "onboarding.marketPerception.options.other",             emoji: "💬" },
+];
 
 // ─── Form State ────────────────────────────────────────────────────────────────
 type FormState = {
-  phone_dial_code: string;
-  phone_local: string;
   name: string;
   birth_day: string;
   birth_month: string;
   birth_year: string;
-  country: string;
-  knowledge_level: QuizAnswer | "";
-  monthly_income: string;
-  monthly_contribution: string;
-  initial_capital: string;
-  investment_goal_amount: string;
-  investment_horizon: string;
+  phone_dial_code: string;
+  phone_local: string;
   investment_goal: string;
-  q1: QuizAnswer | "";
-  q4: QuizAnswer | "";
-  has_broker: "yes" | "no" | "";
-  broker_name: string;
-  has_investments: "yes" | "no" | "";
-  investing_knowledge: string;
+  market_perception: string[];
+  market_perception_other: string;
 };
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -150,18 +71,16 @@ export default function OnboardingPage() {
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
 
   const [form, setForm] = useState<FormState>({
+    name: "", birth_day: "", birth_month: "", birth_year: "",
     phone_dial_code: "", phone_local: "",
-    name: "", birth_day: "", birth_month: "", birth_year: "", country: "",
-    knowledge_level: "", monthly_income: "", monthly_contribution: "", initial_capital: "",
-    investment_goal_amount: "", investment_horizon: "", investment_goal: "",
-    q1: "", q4: "", has_broker: "", broker_name: "", has_investments: "", investing_knowledge: "",
+    investment_goal: "", market_perception: [], market_perception_other: "",
   });
 
   // ── Draft autosave ───────────────────────────────────────────────────────────
-  // A 10-step flow held only in React state loses everything the instant the
-  // tab is closed, the browser crashes, or a reload happens — persist every
-  // answer as it's typed and restore it on the next load, so an interruption
-  // never means starting over.
+  // A multi-step flow held only in React state loses everything the instant
+  // the tab is closed, the browser crashes, or a reload happens — persist
+  // every answer as it's typed and restore it on the next load, so an
+  // interruption never means starting over.
   const draftKey = `onboarding_draft__${userId || "guest"}`;
   const [draftLoaded, setDraftLoaded] = useState(false);
 
@@ -190,19 +109,13 @@ export default function OnboardingPage() {
   useEffect(() => { if (!authRestoring && !isAuthenticated) router.push("/"); }, [isAuthenticated, authRestoring]);
 
   // Guard: if this account already has a profile, never show onboarding again.
-  // (This used to also short-circuit on a global "nuvos_ob" localStorage flag,
-  // which stayed set from whichever account last onboarded on this device —
-  // silently bouncing a genuinely new second account away from onboarding.
-  // The profileApi.get() check below is the real, per-account source of truth.)
-  //
-  // On a slow connection this can resolve several steps into a genuinely new
-  // user's form-filling — only act on it if they haven't actually started
-  // typing anything yet, so a real answer never gets yanked away by a
-  // full-page navigation mid-flow.
+  // On a slow connection this can resolve after the user has already started
+  // filling the form — only act on it if they haven't actually typed
+  // anything yet, so a real answer never gets yanked away mid-flow.
   useEffect(() => {
     profileApi.get()
       .then(() => {
-        if (step === 0 && !form.name.trim() && !form.phone_local.trim()) {
+        if (step === 0 && !form.name.trim()) {
           window.location.href = "/home";
         }
       })
@@ -212,7 +125,7 @@ export default function OnboardingPage() {
 
   // Never render the form until we actually know whether this session is
   // valid — while restoring, the form used to be fully interactive, so a
-  // session that turned out invalid discarded all 10 steps at submit time
+  // session that turned out invalid discarded all answers at submit time
   // instead of before the user ever typed anything.
   if (authRestoring) {
     return (
@@ -225,10 +138,6 @@ export default function OnboardingPage() {
 
   // ── Derived values ───────────────────────────────────────────────────────────
   const firstName  = form.name.trim().split(" ")[0];
-  const calculated = calculateRisk(form.q1, form.q4);
-  const riskCfg    = RISK_CONFIG[calculated];
-  const levelInfo  = KNOWLEDGE_LEVELS.find(l => l.value === form.knowledge_level);
-  const goalInfo   = GOALS.find(g => g.value === form.investment_goal);
 
   const birthDateValid = (() => {
     const d = parseInt(form.birth_day), m = parseInt(form.birth_month), y = parseInt(form.birth_year);
@@ -243,104 +152,38 @@ export default function OnboardingPage() {
     ? `${form.birth_year}-${form.birth_month.padStart(2,"0")}-${form.birth_day.padStart(2,"0")}`
     : "";
 
-  const userAge = birthDateStr
-    ? Math.floor((Date.now() - new Date(birthDateStr).getTime()) / (365.25 * 86_400_000))
-    : 0;
-
-  // ── Quiz option renderer ─────────────────────────────────────────────────────
-  const renderQuiz = (q: typeof QUIZ_Q1, field: "q1" | "q4") => (
-    <div className="space-y-2.5">
-      {(["A","B","C","D"] as QuizAnswer[]).map((letter) => {
-        const active = form[field] === letter;
-        return (
-          <button key={letter} onClick={() => setForm(f => ({ ...f, [field]: letter }))}
-                  className="w-full text-left p-4 rounded-2xl border-2 transition-all flex items-start gap-3"
-                  style={{
-                    borderColor: active ? "var(--accent)" : "var(--border)",
-                    background:  active ? "rgba(0,168,94,0.10)" : "var(--raised)",
-                  }}>
-            <span className="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black"
-                  style={{ background: active ? "var(--accent)" : "var(--border)", color: active ? "#fff" : "var(--muted)" }}>
-              {letter}
-            </span>
-            <span className="text-sm leading-snug pt-0.5" style={{ color: active ? "var(--text)" : "var(--sub)" }}>
-              {t(q.optionKeys[letter])}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-
-  // ── Steps ────────────────────────────────────────────────────────────────────
-  const pmt        = Math.max(parseFloat(form.monthly_contribution) || 0, 0);
-  const goalAmt    = Math.max(parseFloat(form.investment_goal_amount) || 0, 1);
-  const horizonYrs = Math.max(parseInt(form.investment_horizon) || 10, 1);
-  const annualRate = calculated === "conservative" ? 0.07 : calculated === "moderate" ? 0.10 : 0.12;
-  const rateLabel  = calculated === "conservative" ? "7%" : calculated === "moderate" ? "10%" : "12%";
-  const r          = annualRate / 12;
-  const fvAt       = (months: number) => pmt > 0 ? Math.round(pmt * ((Math.pow(1 + r, months) - 1) / r)) : 0;
-  const fvHorizon  = fvAt(horizonYrs * 12);
-  const fvPlus10   = fvAt((horizonYrs + 10) * 12);
-  const extraGain  = fvPlus10 - fvHorizon;
-  const extraPct   = fvHorizon > 0 ? Math.round((extraGain / fvHorizon) * 100) : 0;
-  const maxFV      = Math.max(fvPlus10, goalAmt);
-  const goalLinePct = Math.min((goalAmt / maxFV) * 100, 100);
-  const yrsNeeded  = yearsToGoal(pmt, goalAmt, annualRate);
-
-  const goalStatusLine = fvHorizon >= goalAmt
-    ? t("onboarding.step8.goalReached", { years: horizonYrs })
-    : yrsNeeded
-    ? t("onboarding.step8.goalNeedsYears", { years: yrsNeeded, amount: fmtMoney(goalAmt) })
-    : t("onboarding.step8.goalIncreaseContribution", { years: horizonYrs, amount: fmtMoney(fvHorizon) });
-
   const phoneDigits = form.phone_local.replace(/\D/g, "");
   // Mirrors the server's E.164 check (backend/app/models/user.py:
-  // ^\+[1-9]\d{6,14}$, i.e. 7-15 digits total INCLUDING the dial code) —
-  // this used to only cap the local part at 14 digits regardless of dial
-  // code length, so e.g. a 2-digit dial code + 14 local digits (16 total)
-  // passed every client check and only failed at the very last step, on
-  // the server, after all other steps were already filled in.
+  // ^\+[1-9]\d{6,14}$, i.e. 7-15 digits total INCLUDING the dial code).
   const dialDigits = form.phone_dial_code.replace(/\D/g, "").length;
   const phoneValid  = !!form.phone_dial_code && phoneDigits.length >= 7 && (dialDigits + phoneDigits.length) <= 15;
+  // Phone is optional — only block progress if they started filling it in
+  // but left it incomplete/invalid, never if they left it untouched.
+  const phoneStepValid = (!form.phone_dial_code && !form.phone_local) || phoneValid;
 
+  const toggleMarketPerception = (value: string) => {
+    setForm((f) => {
+      const has = f.market_perception.includes(value);
+      return {
+        ...f,
+        market_perception: has
+          ? f.market_perception.filter((v) => v !== value)
+          : [...f.market_perception, value],
+      };
+    });
+  };
+
+  const goalInfo = GOALS.find((g) => g.value === form.investment_goal);
+
+  // ── Steps ────────────────────────────────────────────────────────────────────
   const STEPS = [
-    // 0 — Teléfono + nombre + fecha de nacimiento + país
+    // 0 — Nombre + fecha de nacimiento (obligatorio)
     {
       subtitle: t("onboarding.step0.subtitle"),
       title: t("onboarding.step0.title"),
-      valid: () => phoneValid && form.name.trim().length >= 2 && birthDateValid && !!form.country,
+      valid: () => form.name.trim().length >= 2 && birthDateValid,
       content: (
         <div className="space-y-5">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
-              {t("onboarding.step0.phoneLabel")}
-            </label>
-            <div className="flex gap-2">
-              <select value={form.phone_dial_code}
-                      onChange={(e) => setForm(f => ({ ...f, phone_dial_code: e.target.value }))}
-                      className="rounded-xl border px-3 py-3 text-sm outline-none appearance-none shrink-0 w-[7.5rem]"
-                      style={{ background: "var(--raised)", borderColor: "var(--border)", color: form.phone_dial_code ? "var(--text)" : "var(--muted)" }}>
-                <option value="">{t("onboarding.step0.phoneCode")}</option>
-                {DIAL_CODES.map((d) => (
-                  <option key={d.value} value={d.code}>{d.flag} {d.code}</option>
-                ))}
-              </select>
-              <input
-                value={form.phone_local}
-                onChange={(e) => setForm(f => ({ ...f, phone_local: e.target.value }))}
-                type="tel" inputMode="tel"
-                className="flex-1 rounded-xl border px-4 py-3 text-sm outline-none"
-                placeholder={t("onboarding.step0.phonePlaceholder")}
-                autoFocus
-                style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-              />
-            </div>
-            <p className="text-xs mt-1.5" style={{ color: "var(--dim)" }}>
-              {t("onboarding.step0.phoneHint")}
-            </p>
-          </div>
-
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
               {t("onboarding.step0.nameLabel")}
@@ -350,6 +193,7 @@ export default function OnboardingPage() {
               onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
               className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
               placeholder={t("onboarding.step0.namePlaceholder")}
+              autoFocus
               style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
             />
             <p className="text-xs mt-1.5" style={{ color: "var(--dim)" }}>
@@ -386,9 +230,7 @@ export default function OnboardingPage() {
                       style={{ background: "var(--raised)", borderColor: "var(--border)", color: form.birth_year ? "var(--text)" : "var(--muted)" }}>
                 <option value="">{t("onboarding.step0.year")}</option>
                 {/* Max year is "this year minus 18" so anyone who just turned 18
-                    can always select their birth year — this used to be
-                    hardcoded to 2006 and would permanently lock out newly-
-                    eligible adults year after year. */}
+                    can always select their birth year. */}
                 {Array.from({ length: 73 }, (_, i) => (new Date().getFullYear() - 18) - i).map(y => (
                   <option key={y} value={String(y)}>{y}</option>
                 ))}
@@ -398,201 +240,59 @@ export default function OnboardingPage() {
               {t("onboarding.step0.birthDateHint")}
             </p>
           </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
-              {t("onboarding.step0.countryLabel")}
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {COUNTRIES.map((c) => {
-                const active = form.country === c.value;
-                return (
-                  <button key={c.value}
-                          onClick={() => setForm(f => ({ ...f, country: c.value }))}
-                          className="px-3 py-2.5 rounded-xl border-2 text-xs font-semibold text-left transition-all"
-                          style={{
-                            borderColor: active ? "var(--accent)" : "var(--border)",
-                            background: active ? "rgba(0,168,94,0.10)" : "var(--raised)",
-                            color: active ? "var(--accent-l)" : "var(--sub)",
-                          }}>
-                    {c.flag} {t(c.labelKey)}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </div>
       ),
     },
 
-    // 1 — Nivel de conocimiento
+    // 1 — Teléfono (opcional)
     {
-      subtitle: t("onboarding.step1.subtitle"),
-      title: firstName ? t("onboarding.step1.titleNamed", { name: firstName }) : t("onboarding.step1.title"),
-      valid: () => !!form.knowledge_level,
+      subtitle: t("onboarding.stepPhone.subtitle"),
+      title: firstName ? t("onboarding.stepPhone.titleNamed", { name: firstName }) : t("onboarding.stepPhone.title"),
+      valid: () => phoneStepValid,
       content: (
-        <div className="space-y-3">
-          {KNOWLEDGE_LEVELS.map((lvl) => {
-            const active = form.knowledge_level === lvl.value;
-            return (
-              <button key={lvl.value}
-                      onClick={() => setForm(f => ({ ...f, knowledge_level: lvl.value }))}
-                      className="w-full text-left p-4 rounded-2xl border-2 transition-all"
-                      style={{
-                        borderColor: active ? lvl.color : "var(--border)",
-                        background:  active ? lvl.color + "12" : "var(--raised)",
-                      }}>
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{lvl.emoji}</span>
-                  <div className="flex-1">
-                    <p className="text-sm font-black" style={{ color: active ? lvl.color : "var(--text)" }}>
-                      {t(lvl.labelKey)}
-                    </p>
-                    <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--sub)" }}>
-                      {t(lvl.descKey)}
-                    </p>
-                  </div>
-                  {active && (
-                    <span className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center"
-                          style={{ background: lvl.color }}>
-                      <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3">
-                        <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </span>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+        <div className="space-y-2">
+          <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+            {t("onboarding.stepPhone.phoneLabel")}
+          </label>
+          <div className="flex gap-2">
+            <select value={form.phone_dial_code}
+                    onChange={(e) => setForm(f => ({ ...f, phone_dial_code: e.target.value }))}
+                    className="rounded-xl border px-3 py-3 text-sm outline-none appearance-none shrink-0 w-[7.5rem]"
+                    style={{ background: "var(--raised)", borderColor: "var(--border)", color: form.phone_dial_code ? "var(--text)" : "var(--muted)" }}>
+              <option value="">{t("onboarding.stepPhone.phoneCode")}</option>
+              {DIAL_CODES.map((d) => (
+                <option key={d.value} value={d.code}>{d.flag} {d.code}</option>
+              ))}
+            </select>
+            <input
+              value={form.phone_local}
+              onChange={(e) => setForm(f => ({ ...f, phone_local: e.target.value }))}
+              type="tel" inputMode="tel"
+              className="flex-1 rounded-xl border px-4 py-3 text-sm outline-none"
+              placeholder={t("onboarding.stepPhone.phonePlaceholder")}
+              autoFocus
+              style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+            />
+          </div>
+          <p className="text-xs mt-1.5" style={{ color: "var(--dim)" }}>
+            {t("onboarding.stepPhone.phoneHint")}
+          </p>
         </div>
       ),
     },
 
-    // 2 — Metas financieras (números)
-    {
-      subtitle: t("onboarding.step2.subtitle"),
-      title: t("onboarding.step2.title"),
-      // Checks the RAW field, not horizonYrs — horizonYrs defaults to 10 when
-      // the field is empty (for the calculator preview elsewhere on this
-      // step), which used to make this validation pass even with an empty
-      // horizon field, silently saving an empty investment_horizon.
-      valid: () => pmt > 0 && parseFloat(form.investment_goal_amount) > 0 && parseInt(form.investment_horizon) > 0,
-      content: (
-        <div className="space-y-5">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
-              {t("onboarding.step2.incomeLabel")}
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "var(--muted)" }}>$</span>
-              <input type="text" inputMode="decimal"
-                     value={formatWithCommas(form.monthly_income)}
-                     onChange={(e) => { const raw = e.target.value.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setForm(f => ({ ...f, monthly_income: raw })); }}
-                     className="w-full rounded-xl border pl-8 pr-16 py-3 text-sm outline-none"
-                     placeholder="2,000"
-                     style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-              />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold" style={{ color: "var(--muted)" }}>{t("onboarding.step2.perMonth")}</span>
-            </div>
-            <p className="text-xs mt-1.5" style={{ color: "var(--dim)" }}>
-              {t("onboarding.step2.incomeHint")}
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
-              {t("onboarding.step2.capitalLabel")}
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "var(--muted)" }}>$</span>
-              <input type="text" inputMode="decimal"
-                     value={formatWithCommas(form.initial_capital)}
-                     onChange={(e) => { const raw = e.target.value.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setForm(f => ({ ...f, initial_capital: raw })); }}
-                     className="w-full rounded-xl border pl-8 pr-4 py-3 text-sm outline-none"
-                     placeholder={t("onboarding.step2.capitalPlaceholder")}
-                     style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-              />
-            </div>
-            <p className="text-xs mt-1.5" style={{ color: "var(--dim)" }}>
-              {t("onboarding.step2.capitalHint")}
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
-              {t("onboarding.step2.contributionLabel")}
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "var(--muted)" }}>$</span>
-              <input type="text" inputMode="decimal"
-                     value={formatWithCommas(form.monthly_contribution)}
-                     onChange={(e) => { const raw = e.target.value.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setForm(f => ({ ...f, monthly_contribution: raw })); }}
-                     className="w-full rounded-xl border pl-8 pr-16 py-3 text-sm outline-none"
-                     placeholder="500"
-                     style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-              />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold" style={{ color: "var(--muted)" }}>{t("onboarding.step2.perMonth")}</span>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
-              {t("onboarding.step2.goalAmountLabel")}
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "var(--muted)" }}>$</span>
-              <input type="text" inputMode="decimal"
-                     value={formatWithCommas(form.investment_goal_amount)}
-                     onChange={(e) => { const raw = e.target.value.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setForm(f => ({ ...f, investment_goal_amount: raw })); }}
-                     className="w-full rounded-xl border pl-8 pr-4 py-3 text-sm outline-none"
-                     placeholder="1,000,000"
-                     style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-              />
-            </div>
-            <p className="text-xs mt-1.5" style={{ color: "var(--dim)" }}>
-              {t("onboarding.step2.goalAmountHint")}
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
-              {t("onboarding.step2.horizonLabel")}
-            </label>
-            <div className="relative">
-              <input type="number" min={1} max={50}
-                     value={form.investment_horizon}
-                     onChange={(e) => {
-                       // `min`/`max` on a native number input are display hints only —
-                       // they don't stop a typed/pasted out-of-range value from being
-                       // set on a controlled input. Clamp it here so it can't submit.
-                       const raw = e.target.value;
-                       if (raw === "") { setForm(f => ({ ...f, investment_horizon: "" })); return; }
-                       const n = Math.max(1, Math.min(50, parseInt(raw) || 0));
-                       setForm(f => ({ ...f, investment_horizon: String(n) }));
-                     }}
-                     className="w-full rounded-xl border px-4 pr-16 py-3 text-sm outline-none"
-                     placeholder="10"
-                     style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-              />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold" style={{ color: "var(--muted)" }}>{t("onboarding.step2.years")}</span>
-            </div>
-          </div>
-        </div>
-      ),
-    },
-
-    // 3 — Meta al invertir (tipo)
+    // 2 — Meta financiera al invertir (opcional)
     {
       subtitle: t("onboarding.step3.subtitle"),
       title: t("onboarding.step3.title"),
-      valid: () => !!form.investment_goal,
+      valid: () => true,
       content: (
         <div className="grid grid-cols-2 gap-2.5">
           {GOALS.map((g) => {
             const active = form.investment_goal === g.value;
             return (
               <button key={g.value}
-                      onClick={() => setForm(f => ({ ...f, investment_goal: g.value }))}
+                      onClick={() => setForm(f => ({ ...f, investment_goal: f.investment_goal === g.value ? "" : g.value }))}
                       className="p-4 rounded-2xl border-2 text-left transition-all"
                       style={{
                         borderColor: active ? "var(--accent)" : "var(--border)",
@@ -620,317 +320,64 @@ export default function OnboardingPage() {
       ),
     },
 
-    // 4 — Quiz q1
+    // 3 — ¿Qué has escuchado de la bolsa? (opcional, selección múltiple)
     {
-      subtitle: t(QUIZ_Q1.categoryKey),
-      title: t(QUIZ_Q1.questionKey),
-      valid: () => !!form.q1,
-      content: renderQuiz(QUIZ_Q1, "q1"),
-    },
-
-    // 5 — Quiz q4
-    {
-      subtitle: t(QUIZ_Q4.categoryKey),
-      title: t(QUIZ_Q4.questionKey),
-      valid: () => !!form.q4,
-      content: renderQuiz(QUIZ_Q4, "q4"),
-    },
-
-    // 6 — Experiencia previa: broker + inversiones
-    {
-      subtitle: t("onboarding.step6.subtitle"),
-      title: firstName ? t("onboarding.step6.titleNamed", { name: firstName }) : t("onboarding.step6.title"),
-      valid: () => !!form.has_broker && !!form.has_investments,
-      content: (
-        <div className="space-y-6">
-          {/* Broker */}
-          <div>
-            <p className="text-sm font-bold mb-3" style={{ color: "var(--text)" }}>
-              {t("onboarding.step6.brokerQuestion")}
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {([
-                { val: "yes" as const, label: t("onboarding.step6.brokerYes"), emoji: "✅" },
-                { val: "no"  as const, label: t("onboarding.step6.brokerNo"),  emoji: "🚀" },
-              ]).map(({ val, label, emoji }) => {
-                const active = form.has_broker === val;
-                return (
-                  <button key={val}
-                          onClick={() => setForm(f => ({ ...f, has_broker: val, broker_name: val === "no" ? "" : f.broker_name }))}
-                          className="p-4 rounded-2xl border-2 text-center transition-all"
-                          style={{
-                            borderColor: active ? "var(--accent)" : "var(--border)",
-                            background: active ? "rgba(0,168,94,0.10)" : "var(--raised)",
-                          }}>
-                    <div className="text-2xl mb-1">{emoji}</div>
-                    <p className="text-sm font-bold" style={{ color: active ? "var(--accent-l)" : "var(--sub)" }}>{label}</p>
-                  </button>
-                );
-              })}
-            </div>
-            {form.has_broker === "yes" && (
-              <div className="mt-3">
-                <input
-                  value={form.broker_name}
-                  onChange={(e) => setForm(f => ({ ...f, broker_name: e.target.value }))}
-                  className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
-                  placeholder={t("onboarding.step6.brokerNamePlaceholder")}
-                  style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-                />
-                <p className="text-xs mt-1.5" style={{ color: "var(--dim)" }}>
-                  {t("onboarding.step6.brokerNameHint")}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Inversiones previas */}
-          <div>
-            <p className="text-sm font-bold mb-3" style={{ color: "var(--text)" }}>
-              {t("onboarding.step6.investmentsQuestion")}
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {([
-                { val: "yes" as const, label: t("onboarding.step6.investmentsYes"), emoji: "📈" },
-                { val: "no"  as const, label: t("onboarding.step6.investmentsNo"),  emoji: "🌱" },
-              ]).map(({ val, label, emoji }) => {
-                const active = form.has_investments === val;
-                return (
-                  <button key={val}
-                          onClick={() => setForm(f => ({ ...f, has_investments: val }))}
-                          className="p-4 rounded-2xl border-2 text-center transition-all"
-                          style={{
-                            borderColor: active ? "var(--accent)" : "var(--border)",
-                            background: active ? "rgba(0,168,94,0.10)" : "var(--raised)",
-                          }}>
-                    <div className="text-2xl mb-1">{emoji}</div>
-                    <p className="text-sm font-bold" style={{ color: active ? "var(--accent-l)" : "var(--sub)" }}>{label}</p>
-                  </button>
-                );
-              })}
-            </div>
-            {form.has_investments === "no" && (
-              <div className="mt-3 rounded-xl px-4 py-3 flex items-start gap-3"
-                   style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
-                <span className="text-xl shrink-0">🎯</span>
-                <p className="text-xs leading-relaxed" style={{ color: "#22c55e" }}>
-                  <strong>{t("onboarding.step6.firstTimeTitle")}</strong> {t("onboarding.step6.firstTimeDesc")}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      ),
-    },
-
-    // 6.5 — Qué ha escuchado sobre invertir (abierta, opcional)
-    {
-      subtitle: t("onboarding.step65.subtitle"),
-      title: firstName ? t("onboarding.step65.titleNamed", { name: firstName }) : t("onboarding.step65.title"),
+      subtitle: t("onboarding.marketPerception.subtitle"),
+      title: firstName ? t("onboarding.marketPerception.titleNamed", { name: firstName }) : t("onboarding.marketPerception.title"),
       valid: () => true,
       content: (
         <div className="space-y-3">
           <p className="text-sm" style={{ color: "var(--sub)" }}>
-            {t("onboarding.step65.prompt")}
+            {t("onboarding.marketPerception.prompt")}
           </p>
-          <textarea
-            value={form.investing_knowledge}
-            onChange={(e) => setForm(f => ({ ...f, investing_knowledge: e.target.value }))}
-            rows={5}
-            className="w-full rounded-xl border px-4 py-3 text-sm outline-none resize-none"
-            placeholder={t("onboarding.step65.placeholder")}
-            style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-          />
+          <div className="space-y-2.5">
+            {MARKET_PERCEPTION_OPTIONS.map((opt) => {
+              const active = form.market_perception.includes(opt.value);
+              return (
+                <button key={opt.value}
+                        onClick={() => toggleMarketPerception(opt.value)}
+                        className="w-full text-left p-3.5 rounded-2xl border-2 transition-all flex items-center gap-3"
+                        style={{
+                          borderColor: active ? "var(--accent)" : "var(--border)",
+                          background:  active ? "rgba(0,168,94,0.10)" : "var(--raised)",
+                        }}>
+                  <span className="text-lg shrink-0">{opt.emoji}</span>
+                  <span className="text-sm flex-1" style={{ color: active ? "var(--text)" : "var(--sub)" }}>
+                    {t(opt.labelKey)}
+                  </span>
+                  <span className="w-5 h-5 rounded-md border-2 shrink-0 flex items-center justify-center"
+                        style={{
+                          borderColor: active ? "var(--accent)" : "var(--border)",
+                          background:  active ? "var(--accent)" : "transparent",
+                        }}>
+                    {active && (
+                      <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3">
+                        <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {form.market_perception.includes("other") && (
+            <input
+              value={form.market_perception_other}
+              onChange={(e) => setForm(f => ({ ...f, market_perception_other: e.target.value }))}
+              className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
+              placeholder={t("onboarding.marketPerception.otherPlaceholder")}
+              autoFocus
+              style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+            />
+          )}
           <p className="text-xs" style={{ color: "var(--dim)" }}>
-            {t("onboarding.step65.hint")}
+            {t("onboarding.marketPerception.hint")}
           </p>
         </div>
       ),
     },
 
-    // 7 — Perfil del inversor (reveal)
-    {
-      subtitle: t("onboarding.step7.subtitle"),
-      title: t("onboarding.step7.title", { name: firstName || t("onboarding.step7.defaultName") }),
-      valid: () => true,
-      content: (
-        <div className="space-y-4">
-          {/* Risk card */}
-          <div className="rounded-2xl border p-5 text-center"
-               style={{ background: "var(--raised)", borderColor: riskCfg.color + "55" }}>
-            <div className="text-4xl mb-2">{riskCfg.emoji}</div>
-            <div className="text-base font-black mb-1" style={{ color: "var(--text)" }}>
-              {t("onboarding.step7.investorOfType", { type: t(riskCfg.labelKey) })}
-            </div>
-            <div className="text-xs mb-4" style={{ color: "var(--muted)" }}>{t(riskCfg.descKey)}</div>
-            <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-              <div className="h-full rounded-full transition-all"
-                   style={{ width: `${riskCfg.pct}%`, background: riskCfg.color }} />
-            </div>
-            <div className="flex justify-between mt-1">
-              <span className="text-[10px]" style={{ color: "var(--dim)" }}>{t("onboarding.step7.lowRisk")}</span>
-              <span className="text-[10px]" style={{ color: "var(--dim)" }}>{t("onboarding.step7.highRisk")}</span>
-            </div>
-          </div>
-
-          {/* Personal summary */}
-          <div className="rounded-xl border overflow-hidden"
-               style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-            <div className="px-4 py-2 border-b" style={{ borderColor: "var(--border)" }}>
-              <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
-                {t("onboarding.step7.summaryTitle")}
-              </p>
-            </div>
-            {[
-              { label: t("onboarding.step7.rows.name"),   value: form.name },
-              { label: t("onboarding.step7.rows.age"),    value: userAge ? t("onboarding.step7.ageValue", { age: userAge }) : "—" },
-              { label: t("onboarding.step7.rows.country"),value: form.country ? `${COUNTRIES.find(c => c.value === form.country)?.flag ?? ""} ${t(COUNTRIES.find(c => c.value === form.country)?.labelKey ?? "")}`.trim() : "—" },
-              { label: t("onboarding.step7.rows.level"),  value: levelInfo ? `${levelInfo.emoji} ${t(levelInfo.labelKey)}` : "—" },
-              { label: t("onboarding.step7.rows.goal"),   value: goalInfo  ? `${goalInfo.emoji} ${t(goalInfo.labelKey)}` : "—" },
-              { label: t("onboarding.step7.rows.initialCapital"), value: form.initial_capital ? `$${Number(form.initial_capital).toLocaleString()}` : "$0" },
-              { label: t("onboarding.step7.rows.monthlyContribution"), value: `$${Number(form.monthly_contribution).toLocaleString()}${t("onboarding.step2.perMonth")}` },
-              { label: t("onboarding.step7.rows.targetWealth"), value: `$${Number(form.investment_goal_amount).toLocaleString()}` },
-              { label: t("onboarding.step7.rows.horizon"), value: `${form.investment_horizon} ${t("onboarding.step2.years")}` },
-              { label: t("onboarding.step7.rows.broker"), value: form.has_broker === "yes" ? (form.broker_name || t("onboarding.step7.yes")) : t("onboarding.step7.noBrokerYet") },
-              { label: t("onboarding.step7.rows.priorInvestments"), value: form.has_investments === "yes" ? t("onboarding.step7.investedBefore") : t("onboarding.step7.firstTime") },
-            ].map((row) => (
-              <div key={row.label}
-                   className="flex items-center justify-between px-4 py-2.5 border-b last:border-0"
-                   style={{ borderColor: "var(--border)" }}>
-                <span className="text-xs" style={{ color: "var(--muted)" }}>{row.label}</span>
-                <span className="text-xs font-semibold" style={{ color: "var(--text)" }}>{row.value}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Quiz answers */}
-          <div className="rounded-xl border overflow-hidden"
-               style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-            <div className="px-4 py-2 border-b" style={{ borderColor: "var(--border)" }}>
-              <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>{t("onboarding.step7.answersTitle")}</p>
-            </div>
-            {([
-              { key: "q1" as const, label: t("onboarding.step7.q1Label") },
-              { key: "q4" as const, label: t("onboarding.step7.q4Label") },
-            ]).map(({ key, label }) => {
-              const ans = form[key] as QuizAnswer;
-              return (
-                <div key={key} className="flex items-center justify-between px-4 py-2.5 border-b last:border-0"
-                     style={{ borderColor: "var(--border)" }}>
-                  <span className="text-xs" style={{ color: "var(--muted)" }}>{label}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-black text-white"
-                          style={{ background: "var(--accent)" }}>{ans}</span>
-                    <span className="text-xs font-medium" style={{ color: "var(--text)" }}>
-                      {ans ? t(QUIZ_LABEL_KEYS[key][ans]) : "—"}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ),
-    },
-
-    // 7 — Proyección + Nuvos AI
-    {
-      subtitle: t("onboarding.step8.subtitle"),
-      title: t("onboarding.step8.title", { amount: fmtMoney(goalAmt) }),
-      valid: () => true,
-      content: (
-        <div className="space-y-5">
-          {/* Projection bars */}
-          <div className="rounded-xl border p-4 space-y-4"
-               style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-bold" style={{ color: "var(--muted)" }}>
-                {t("onboarding.step8.contributing", { amount: pmt.toLocaleString() })}
-              </p>
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                    style={{ background: riskCfg.color + "20", color: riskCfg.color }}>
-                ~{rateLabel}{t("onboarding.step8.perYear")}
-              </span>
-            </div>
-
-            {[
-              { years: horizonYrs,      fv: fvHorizon, label: t("onboarding.step8.atYears", { years: horizonYrs }) },
-              { years: horizonYrs + 10, fv: fvPlus10,  label: t("onboarding.step8.tenMoreYears", { total: horizonYrs + 10 }) },
-            ].map(({ years, fv, label }) => {
-              const barPct = Math.min((fv / maxFV) * 100, 100);
-              return (
-                <div key={years}>
-                  <div className="flex justify-between text-xs mb-1.5">
-                    <span style={{ color: "var(--sub)" }}>{label}</span>
-                    <span className="font-extrabold"
-                          style={{ color: fv >= goalAmt ? "#22c55e" : "var(--text)" }}>
-                      {fmtMoney(fv)}
-                    </span>
-                  </div>
-                  <div className="relative h-2.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                    <div className="absolute inset-y-0 w-0.5 z-10"
-                         style={{ left: `${goalLinePct}%`, background: "#22c55e", opacity: 0.8 }} />
-                    <div className="absolute inset-y-0 left-0 rounded-full"
-                         style={{ width: `${barPct}%`, background: fv >= goalAmt ? "#22c55e" : riskCfg.color }} />
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Years to goal */}
-            <div className="rounded-xl px-3 py-2.5 flex items-center gap-2"
-                 style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
-              <span className="text-lg">🎯</span>
-              <p className="text-xs font-semibold" style={{ color: "#22c55e" }}>{goalStatusLine}</p>
-            </div>
-
-            {/* Power of time */}
-            <div className="rounded-xl px-3 py-2.5"
-                 style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.25)" }}>
-              <div className="flex items-center gap-2">
-                <span className="text-base">⏳</span>
-                <p className="text-xs font-bold" style={{ color: "#818cf8" }}>
-                  {t("onboarding.step8.tenMoreYearsExtra", { extra: fmtMoney(extraGain), pct: extraPct })}
-                </p>
-              </div>
-              <p className="text-[10px] ml-6 mt-1" style={{ color: "var(--dim)" }}>
-                {t("onboarding.step8.compoundNote")}
-              </p>
-            </div>
-
-            <p className="text-[10px] italic" style={{ color: "var(--dim)" }}>
-              {t("onboarding.step8.illustrativeNote")}
-            </p>
-          </div>
-
-          {/* Nuvos AI features */}
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "var(--muted)" }}>
-              {t("onboarding.step8.featuresTitle")}
-            </p>
-            <div className="space-y-2">
-              {[
-                { icon: "🤖", title: t("onboarding.step8.features.ai.title"),        sub: t("onboarding.step8.features.ai.sub") },
-                { icon: "📊", title: t("onboarding.step8.features.portfolio.title"), sub: t("onboarding.step8.features.portfolio.sub") },
-                { icon: "📅", title: t("onboarding.step8.features.calendar.title"),  sub: t("onboarding.step8.features.calendar.sub") },
-                { icon: "🎮", title: t("onboarding.step8.features.paper.title"),     sub: t("onboarding.step8.features.paper.sub") },
-              ].map((f) => (
-                <div key={f.title} className="flex items-center gap-3 p-3 rounded-xl border"
-                     style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                  <span className="text-xl shrink-0">{f.icon}</span>
-                  <div>
-                    <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{f.title}</p>
-                    <p className="text-xs" style={{ color: "var(--muted)" }}>{f.sub}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ),
-    },
-
-    // 8 — Disclaimer legal
+    // 4 — Disclaimer legal (obligatorio)
     {
       subtitle: t("onboarding.legal.subtitle"),
       title: t("onboarding.legal.title"),
@@ -1049,27 +496,28 @@ export default function OnboardingPage() {
   const handleNext = async () => {
     if (!isLastStep) { setStep(step + 1); return; }
     setLoading(true); setError("");
-    const payload = {
-      phone_number:           form.phone_dial_code + phoneDigits,
-      name:                   form.name.trim(),
-      birth_date:             birthDateStr || undefined,
-      country:                form.country || undefined,
-      monthly_income:         form.monthly_income || undefined,
-      monthly_contribution:   form.monthly_contribution,
-      initial_capital:        form.initial_capital || undefined,
-      investment_goal:        form.investment_goal,
-      investment_goal_amount: form.investment_goal_amount,
-      investment_horizon:     form.investment_horizon,
-      knowledge_level:        form.knowledge_level,
-      risk_tolerance:         calculated,
-      quiz_answers:           { q1: form.q1, q4: form.q4, investing_knowledge: form.investing_knowledge.trim() || undefined },
-      has_broker:             form.has_broker === "yes",
-      broker_name:            form.has_broker === "yes" ? (form.broker_name || undefined) : undefined,
-      has_investments:        form.has_investments === "yes",
-      terms_accepted_at:      new Date().toISOString(),
-      terms_version:          "2026-06",
+
+    const payload: Record<string, unknown> = {
+      name: form.name.trim(),
+      birth_date: birthDateStr || undefined,
+      terms_accepted_at: new Date().toISOString(),
+      terms_version: "2026-06",
       language,
     };
+    if (form.phone_dial_code && phoneDigits.length >= 7) {
+      payload.phone_number = form.phone_dial_code + phoneDigits;
+    }
+    if (form.investment_goal) payload.investment_goal = form.investment_goal;
+    if (form.market_perception.length) payload.market_perception = form.market_perception;
+    if (form.market_perception.includes("other") && form.market_perception_other.trim()) {
+      payload.market_perception_other = form.market_perception_other.trim();
+    }
+    // Picking "ya tengo broker y ya invierto" answers has_broker/has_investments
+    // right away instead of asking those as their own separate step.
+    if (form.market_perception.includes("has_broker_invests")) {
+      payload.has_broker = true;
+      payload.has_investments = true;
+    }
 
     // This is the single most important write in the whole app — no row
     // here means no trial, no personalization, nothing. Retry a couple of
@@ -1100,6 +548,9 @@ export default function OnboardingPage() {
       useSubscriptionStore.getState().fetchStatus();
 
       // ── Inyectar mensaje de bienvenida del mentor en el chat ──────────────
+      // The onboarding is short on purpose now — Arthur doesn't know the
+      // user's risk profile, broker, or numbers yet. The welcome message
+      // says so explicitly instead of pretending to already know them.
       const _goalLabelKeys: Record<string, string> = {
         house:             "onboarding.welcome.goals.house",
         car:               "onboarding.welcome.goals.car",
@@ -1108,33 +559,10 @@ export default function OnboardingPage() {
         financial_freedom: "onboarding.welcome.goals.financialFreedom",
         long_term_wealth:  "onboarding.welcome.goals.longTermWealth",
       };
-      const _goalLabel = t(_goalLabelKeys[form.investment_goal] ?? "") || form.investment_goal;
-      const _rateLabel  = { conservative: "7%", moderate: "10%", aggressive: "12%" }[calculated] ?? "10%";
-      const _levelIntro = form.knowledge_level === "B"
-        ? t("onboarding.welcome.levelIntro.basic")
-        : form.knowledge_level === "C"
-        ? t("onboarding.welcome.levelIntro.intermediate")
-        : t("onboarding.welcome.levelIntro.advanced");
-      const _yrsPart = yrsNeeded && goalAmt > 0 && pmt > 0
-        ? t("onboarding.welcome.yearsProjection", { amount: pmt.toLocaleString(), rate: _rateLabel, goal: fmtMoney(goalAmt), years: yrsNeeded })
-        : "";
-      const _brokerContext = form.has_broker === "yes" && form.broker_name
-        ? t("onboarding.welcome.brokerContext.namedBroker", { broker: form.broker_name })
-        : form.has_broker === "yes"
-        ? t("onboarding.welcome.brokerContext.hasBroker")
-        : t("onboarding.welcome.brokerContext.noBroker");
-      const _invContext = form.has_investments === "yes"
-        ? t("onboarding.welcome.investContext.hasInvested")
-        : t("onboarding.welcome.investContext.firstTime");
-      const _welcomeMsg = t("onboarding.welcome.message", {
-        name: firstName,
-        riskType: t(riskCfg.labelKey),
-        goal: _goalLabel,
-        yearsProjection: _yrsPart,
-        brokerContext: _brokerContext,
-        investContext: _invContext,
-        levelIntro: _levelIntro,
-      });
+      const _goalLabel = form.investment_goal ? (t(_goalLabelKeys[form.investment_goal] ?? "") || form.investment_goal) : "";
+      const _welcomeMsg = _goalLabel
+        ? t("onboarding.welcome.messageWithGoal", { name: firstName, goal: _goalLabel })
+        : t("onboarding.welcome.messageNoGoal", { name: firstName });
 
       const _chat = useChatStore.getState();
       _chat.createSession();
@@ -1151,7 +579,6 @@ export default function OnboardingPage() {
         localStorage.setItem("nuvos_ob", "1");
         localStorage.setItem("nuvos_guided_tour", "1");
         localStorage.setItem("nuvos_guided_step", "1");
-        if (form.knowledge_level === "B") localStorage.setItem("nuvos_first_steps_active", "1");
         localStorage.removeItem(draftKey);
       } catch { /* ignore — these are cosmetic, the save already succeeded */ }
       router.push("/home");

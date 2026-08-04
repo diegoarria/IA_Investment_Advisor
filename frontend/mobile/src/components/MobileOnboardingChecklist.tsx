@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
@@ -18,14 +18,28 @@ export interface OnboardingStep {
 interface Props {
   steps: OnboardingStep[];
   onStepPress: (index: number) => void;
+  // Lets the user skip the checklist for good — the caller persists that
+  // choice so it doesn't resurface (see nuvos_checklist_done).
+  onDismiss: () => void;
 }
 
-export default function MobileOnboardingChecklist({ steps, onStepPress }: Props) {
+export default function MobileOnboardingChecklist({ steps, onStepPress, onDismiss }: Props) {
   const { colors } = useTheme();
   const { t } = useTranslation();
   const completedCount = steps.filter((s) => s.completed).length;
 
   if (completedCount === steps.length) return null;
+
+  const handleDismiss = () => {
+    Alert.alert(
+      t("mobileOnboardingChecklist.skip"),
+      t("mobileOnboardingChecklist.skipConfirm"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("mobileOnboardingChecklist.skip"), style: "destructive", onPress: onDismiss },
+      ]
+    );
+  };
 
   return (
     <View style={[s.card, { backgroundColor: colors.card, borderColor: "rgba(0,212,126,0.3)" }]}>
@@ -47,6 +61,9 @@ export default function MobileOnboardingChecklist({ steps, onStepPress }: Props)
               style={[s.dot, { backgroundColor: st.completed ? "#00d47e" : colors.bgRaised }]}
             />
           ))}
+          <TouchableOpacity onPress={handleDismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginLeft: 6 }}>
+            <Ionicons name="close" size={16} color={colors.textDim} />
+          </TouchableOpacity>
         </View>
       </View>
 

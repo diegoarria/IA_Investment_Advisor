@@ -1,5 +1,5 @@
 "use client";
-import { Check, ChevronRight } from "lucide-react";
+import { Check, ChevronRight, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 export interface OnboardingStep {
@@ -17,16 +17,25 @@ export interface OnboardingStep {
 interface Props {
   steps: OnboardingStep[];
   onStepClick: (index: number) => void;
+  // Lets the user skip the checklist for good — the caller is responsible
+  // for persisting that choice so it doesn't resurface (see nuvos_checklist_done).
+  onDismiss: () => void;
 }
 
-export default function OnboardingChecklist({ steps, onStepClick }: Props) {
+export default function OnboardingChecklist({ steps, onStepClick, onDismiss }: Props) {
   const { t } = useTranslation();
   const completedCount = steps.filter((s) => s.completed).length;
   if (completedCount === steps.length) return null;
 
+  const handleDismiss = () => {
+    if (window.confirm(t("home.onboarding.skipConfirm"))) {
+      onDismiss();
+    }
+  };
+
   return (
     <div
-      className="rounded-2xl border overflow-hidden"
+      className="rounded-2xl border overflow-hidden relative"
       style={{ background: "var(--card)", borderColor: "rgba(0,212,126,0.3)" }}
     >
       {/* Header */}
@@ -43,14 +52,24 @@ export default function OnboardingChecklist({ steps, onStepClick }: Props) {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1">
-            {steps.map((s, i) => (
-              <div
-                key={i}
-                className="w-2 h-2 rounded-full transition-all"
-                style={{ background: s.completed ? "#00d47e" : "var(--raised)" }}
-              />
-            ))}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              {steps.map((s, i) => (
+                <div
+                  key={i}
+                  className="w-2 h-2 rounded-full transition-all"
+                  style={{ background: s.completed ? "#00d47e" : "var(--raised)" }}
+                />
+              ))}
+            </div>
+            <button
+              onClick={handleDismiss}
+              aria-label={t("home.onboarding.skip")}
+              title={t("home.onboarding.skip")}
+              className="w-6 h-6 flex items-center justify-center rounded-lg transition-opacity hover:opacity-70"
+            >
+              <X className="w-3.5 h-3.5" style={{ color: "var(--dim)" }} />
+            </button>
           </div>
         </div>
         {/* Progress bar */}
