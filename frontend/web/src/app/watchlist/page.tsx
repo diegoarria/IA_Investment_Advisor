@@ -435,9 +435,13 @@ export default function WatchlistPage() {
     setAlertModal(null);
   };
 
+  // Default is "advanced" for everyone — Diego wants the dense table as the
+  // starting point for every user, never the simplified card view, with
+  // FinancialTip (i) icons carrying the explanatory burden for básico users
+  // instead of hiding the real data behind a dumbed-down default.
   const [viewMode, setViewMode] = useState<"basic" | "advanced">(() => {
-    if (typeof window === "undefined") return "basic";
-    return (localStorage.getItem("nuvos_watchlist_view") as "basic" | "advanced") ?? "basic";
+    if (typeof window === "undefined") return "advanced";
+    return (localStorage.getItem("nuvos_watchlist_view") as "basic" | "advanced") ?? "advanced";
   });
   // Restore from server so Safari localStorage clears don't reset the view mode
   useEffect(() => {

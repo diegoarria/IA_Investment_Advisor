@@ -962,9 +962,12 @@ export default function PortfolioPage() {
   type SortField = "return" | "invested" | "price";
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  // Default is "advanced" for everyone — same reasoning as watchlist's
+  // viewMode default: never start básico users on the dumbed-down view,
+  // lean on FinancialTip (i) icons to explain the real metrics instead.
   const [viewMode, setViewMode] = useState<"basic" | "advanced">(() => {
-    if (typeof window === "undefined") return "basic";
-    return (localStorage.getItem("nuvos_portfolio_view") as "basic" | "advanced") ?? "basic";
+    if (typeof window === "undefined") return "advanced";
+    return (localStorage.getItem("nuvos_portfolio_view") as "basic" | "advanced") ?? "advanced";
   });
   // Sync viewMode from server after load (survives Safari localStorage clears)
   useEffect(() => {

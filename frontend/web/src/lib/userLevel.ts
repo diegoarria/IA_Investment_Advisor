@@ -68,4 +68,9 @@ export const TOOLTIPS: Record<string, string> = {
   "Sharpe":      "Mide cuánto rendimiento obtienes por cada unidad de riesgo que tomas.",
   "Volatilidad": "Qué tan drásticamente sube y baja el precio. Alta = más riesgo.",
   "ROE":         "Return on Equity: qué tan bien usa la empresa el dinero de sus accionistas.",
+  "AH":          "After Hours: cómo se mueve el precio fuera del horario normal de mercado (antes de que abra o después de que cierre).",
+  "Volume":      "Cuántas acciones se compraron y vendieron hoy. Más volumen = más gente operando esa acción.",
+  "Earnings":    "Fecha en la que la empresa va a reportar sus resultados financieros más recientes.",
+  "Value":       "Cuánto vale hoy tu posición completa en esta acción (precio actual × acciones que tienes).",
+  "Gain/Loss %": "Cuánto has ganado o perdido en esta posición, en porcentaje, desde que la compraste.",
 };

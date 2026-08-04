@@ -277,7 +277,8 @@ export default function WatchlistScreen() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [viewMode, setViewMode] = useState<"basic" | "advanced">("basic");
+  // Default is "advanced" for everyone — never start on the simplified view.
+  const [viewMode, setViewMode] = useState<"basic" | "advanced">("advanced");
 
   const [clips, setClips]               = useState<any[]>([]);
   const [clipsLoading, setClipsLoading] = useState(false);

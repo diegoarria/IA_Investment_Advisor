@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { Info } from "lucide-react";
 import { TOOLTIPS } from "@/lib/userLevel";
 import type { UserLevel } from "@/lib/userLevel";
 
@@ -50,6 +51,9 @@ export default function FinancialTip({ term, userLevel, children, className }: P
           onMouseLeave={() => setOpen(false)}
           onClick={handleToggle}>
       {children}
+      {/* Explicit (i) icon — the underline alone wasn't obvious enough as
+          "there's an explanation here" for the users this is meant to help. */}
+      <Info className="w-3 h-3 shrink-0" style={{ color: "var(--accent-l)" }} />
       {/* Subtle underline indicator */}
       <span className="absolute bottom-0 left-0 right-0 h-px rounded-full"
             style={{ background: "var(--accent-l)", opacity: 0.5 }} />

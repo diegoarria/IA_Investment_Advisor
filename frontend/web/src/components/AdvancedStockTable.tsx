@@ -301,16 +301,16 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
               </th>
               <Th label={t("advancedStockTable.price")}      sortKey="price"        {...colProps} />
               <Th label={t("advancedStockTable.changePct")}  sortKey="changePct"    {...colProps} />
-              {showVol      && <Th label={t("advancedStockTable.volume")} sortKey="volume"       {...colProps} />}
+              {showVol      && <Th label={t("advancedStockTable.volume")} sortKey="volume"       {...colProps} tip={<FinancialTip term="Volume" userLevel={userLevel}>{t("advancedStockTable.volume")}</FinancialTip>} />}
               {showAH       && <Th label="AH"       sortKey="extPct"       {...colProps} tip={<FinancialTip term="AH" userLevel={userLevel}>AH</FinancialTip>} />}
               {showCap      && <Th label="Cap"      sortKey="marketCap"    {...colProps} tip={<FinancialTip term="Market Cap" userLevel={userLevel}>Cap</FinancialTip>} />}
               {showPE       && <Th label="P/E"      sortKey="pe"           {...colProps} tip={<FinancialTip term="P/E" userLevel={userLevel}>P/E</FinancialTip>} />}
-              {showEarnings && <Th label="Earnings" sortKey="earningsDate" {...colProps} />}
+              {showEarnings && <Th label="Earnings" sortKey="earningsDate" {...colProps} tip={<FinancialTip term="Earnings" userLevel={userLevel}>Earnings</FinancialTip>} />}
               {show52W      && <Th label="52W"      sortKey="week52High"   {...colProps} tip={<FinancialTip term="52W High" userLevel={userLevel}>52W</FinancialTip>} />}
               {mode === "portfolio" && (
                 <>
-                  <Th label={t("advancedStockTable.value")}       sortKey="positionValue" {...colProps} />
-                  <Th label={t("advancedStockTable.gainLossPct")} sortKey="gainLossPct"   {...colProps} />
+                  <Th label={t("advancedStockTable.value")}       sortKey="positionValue" {...colProps} tip={<FinancialTip term="Value" userLevel={userLevel}>{t("advancedStockTable.value")}</FinancialTip>} />
+                  <Th label={t("advancedStockTable.gainLossPct")} sortKey="gainLossPct"   {...colProps} tip={<FinancialTip term="Gain/Loss %" userLevel={userLevel}>{t("advancedStockTable.gainLossPct")}</FinancialTip>} />
                 </>
               )}
               {onEdit && (

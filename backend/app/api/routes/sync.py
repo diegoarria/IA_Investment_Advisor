@@ -661,8 +661,8 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
             "last_learn_date": profile_row.get("last_learn_date"),
         },
         "completed_topic_ids": profile_row.get("completed_topic_ids") or [],
-        "portfolio_view_mode":  profile_row.get("portfolio_view_mode", "basic"),
-        "watchlist_view_mode":  profile_row.get("watchlist_view_mode", "basic"),
+        "portfolio_view_mode":  profile_row.get("portfolio_view_mode", "advanced"),
+        "watchlist_view_mode":  profile_row.get("watchlist_view_mode", "advanced"),
         "checklist_done":       bool(profile_row.get("checklist_done", False)),
         "has_broker":           bool(profile_row.get("has_broker", False)),
     }
@@ -776,9 +776,9 @@ async def get_language(user_id: str = Depends(get_current_user_id)):
 @router.post("/portfolio-view-mode")
 async def sync_portfolio_view_mode(body: dict, user_id: str = Depends(get_current_user_id)):
     """Persist the user's portfolio view mode (basic/advanced) for cross-device sync."""
-    mode = body.get("mode", "basic")
+    mode = body.get("mode", "advanced")
     if mode not in ("basic", "advanced"):
-        mode = "basic"
+        mode = "advanced"
     db = get_supabase()
     await run_query(db.table("user_profiles").update({"portfolio_view_mode": mode}).eq("user_id", user_id))
     cache_delete(f"sync:all:{user_id}")
@@ -790,9 +790,9 @@ async def sync_portfolio_view_mode(body: dict, user_id: str = Depends(get_curren
 @router.post("/watchlist-view-mode")
 async def sync_watchlist_view_mode(body: dict, user_id: str = Depends(get_current_user_id)):
     """Persist the user's watchlist view mode (basic/advanced) for cross-device sync."""
-    mode = body.get("mode", "basic")
+    mode = body.get("mode", "advanced")
     if mode not in ("basic", "advanced"):
-        mode = "basic"
+        mode = "advanced"
     db = get_supabase()
     await run_query(db.table("user_profiles").update({"watchlist_view_mode": mode}).eq("user_id", user_id))
     cache_delete(f"sync:all:{user_id}")
