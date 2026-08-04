@@ -14,8 +14,10 @@ import ExplainButton from "@/components/ExplainButton";
 import {
   type RangeBounds, type YearlyDetailRow, type Checklist, type FairValueRangeData, type ConfidenceMeterData,
   type MarketExpectationsData, type ConsensusValuationData, type LiquidityGate, type DcfAssumptions,
+  type NifDashboardData, type NifRow,
   GeneratedAtNote, LiquidityWarning, ChecklistDisplay, ConfidenceMeter, FairValueRangeDisplay,
   MarketExpectationsPanel, InsightBox, FollowButton, AnalyzeButton,
+  NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
 } from "@/components/subvaluadas/shared";
 import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
 import { screenerApi, savedValuationsApi, watchlist, explain as explainApi } from "@/lib/api";
@@ -357,6 +359,61 @@ function FullModelModal({ ticker, price, fcf0, netCash, shares, g, r, gt, yearly
   );
 }
 
+// Turns a NIF pillar's raw data/nuvos_estimate dicts into the labeled rows
+// NifPillarCard renders — kept here (not inside the generic shared card)
+// since only the page knows each pillar's specific field names/units,
+// matching how every other shared display component in this file takes
+// already-formatted data rather than a raw API dict.
+function buildNifRows(pillarKey: string, d: Record<string, unknown>, isFinancialSector: boolean, t: (k: string, o?: Record<string, unknown>) => string): NifRow[] {
+  const num = (v: unknown): number | null => (typeof v === "number" && isFinite(v) ? v : null);
+  const label = (key: string) => t(`subvaluadas.nif.fields.${key}`);
+  const rows: NifRow[] = [];
+  const push = (key: string, value: string | null) => { if (value !== null) rows.push({ label: label(key), value }); };
+
+  if (pillarKey === "business_quality_data") {
+    push("roicPct", num(d.roic_pct) !== null ? pct(num(d.roic_pct)!) : null);
+    push("operatingMarginPct", num(d.operating_margin_pct) !== null ? pct(num(d.operating_margin_pct)!) : null);
+    push("netMarginPct", num(d.net_margin_pct) !== null ? pct(num(d.net_margin_pct)!) : null);
+    push("fcfMarginPct", num(d.fcf_margin_pct) !== null ? pct(num(d.fcf_margin_pct)!) : null);
+    push("revenueCagrPct", num(d.revenue_cagr_pct) !== null ? pct(num(d.revenue_cagr_pct)!) : null);
+  } else if (pillarKey === "business_quality_estimate") {
+    push("roicScore", num(d.roic_score)?.toString() ?? null);
+    push("marginScore", num(d.operating_margin_score)?.toString() ?? null);
+    push("growthScore", num(d.growth_score)?.toString() ?? null);
+  } else if (pillarKey === "financial_strength_data") {
+    push("totalDebt", fmtMoney(num(d.total_debt)));
+    push("cash", fmtMoney(num(d.cash)));
+    push("netCash", fmtMoney(num(d.net_cash)));
+  } else if (pillarKey === "financial_strength_estimate") {
+    push("interestCoverageScore", num(d.interest_coverage_score)?.toString() ?? null);
+    push("debtScore", num(d.net_debt_to_cash_score)?.toString() ?? null);
+  } else if (pillarKey === "management_quality_data") {
+    push("buybackRatePct", num(d.buyback_rate_pct) !== null ? pct(num(d.buyback_rate_pct)!) : null);
+    push("payoutRatioPct", num(d.payout_ratio_pct) !== null ? pct(num(d.payout_ratio_pct)!) : null);
+    const t12 = d.insider_trailing_12mo as { distinct_buyers?: number; distinct_sellers?: number } | null | undefined;
+    if (t12) {
+      push("insiderBuyers", String(t12.distinct_buyers ?? 0));
+      push("insiderSellers", String(t12.distinct_sellers ?? 0));
+    }
+    push("insiderSentiment", num(d.insider_sentiment_avg_mspr) !== null ? num(d.insider_sentiment_avg_mspr)!.toFixed(0) : null);
+  } else if (pillarKey === "valuation_data") {
+    push("currentPrice", num(d.current_price) !== null ? `$${num(d.current_price)!.toFixed(2)}` : null);
+    if (!isFinancialSector) {
+      push("peRatio", num(d.pe_ratio)?.toFixed(1) ?? null);
+      push("evEbitda", num(d.ev_ebitda)?.toFixed(1) ?? null);
+      push("pegRatio", num(d.peg_ratio)?.toFixed(2) ?? null);
+    }
+  } else if (pillarKey === "valuation_estimate") {
+    const fvr = d.fair_value_range as { low?: number; high?: number } | null | undefined;
+    if (fvr && num(fvr.low) !== null && num(fvr.high) !== null) {
+      push("fairValueRange", `$${num(fvr.low)!.toFixed(0)} - $${num(fvr.high)!.toFixed(0)}`);
+    }
+    push("marginOfSafetyPct", num(d.margin_of_safety_pct) !== null ? pct(num(d.margin_of_safety_pct)!) : null);
+    push("expectedValue", num(d.expected_value_per_share) !== null ? `$${num(d.expected_value_per_share)!.toFixed(2)}` : null);
+  }
+  return rows;
+}
+
 export default function SubvaluadasPage() {
   return (
     <Suspense fallback={<div className="flex h-screen items-center justify-center" style={{ background: "var(--bg)" }}><Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent-l)" }} /></div>}>
@@ -445,6 +502,31 @@ function SubvaluadasPageInner() {
     attempt(0).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [ticker, isPremium, searchTriggered, i18n.language, t]);
+
+  // Nuvos Investment Framework (NIF) dashboard — fired in parallel with the
+  // quick-analysis call above, as its own independent request/cache/failure
+  // domain (see backend/app/api/routes/screener.py's nif_dashboard route
+  // docstring for why). A NIF failure must never affect the existing
+  // Calculadora de Valor Intrínseco below it — it degrades to hiding the
+  // section, nothing else on the page is touched. Premium-only in this
+  // first phase, so it fetches whenever isPremium is true, same as
+  // quick-analysis already does for Premium users regardless of
+  // searchTriggered (only free users wait for an explicit search).
+  const [nifData, setNifData] = useState<NifDashboardData | null>(null);
+  const [nifLoading, setNifLoading] = useState(true);
+  const [nifError, setNifError] = useState(false);
+
+  useEffect(() => {
+    if (!isPremium) { setNifLoading(false); return; }
+    let cancelled = false;
+    setNifLoading(true);
+    setNifError(false);
+    screenerApi.nifDashboard(ticker, i18n.language)
+      .then((res) => { if (!cancelled) { setNifData(res.data); setNifError(false); } })
+      .catch(() => { if (!cancelled) { setNifData(null); setNifError(true); } })
+      .finally(() => { if (!cancelled) setNifLoading(false); });
+    return () => { cancelled = true; };
+  }, [ticker, isPremium, i18n.language]);
 
   const handleSearch = () => {
     if (!query.trim()) return;
@@ -641,6 +723,49 @@ function SubvaluadasPageInner() {
                       </div>
                     )}
                   </div>
+
+                  {/* ===== Nuvos Investment Framework (NIF) — automatic 4-pillar AI dashboard.
+                       Independent from the manual calculator below: its own loading/error
+                       state, never blocks or alters anything under it. ===== */}
+                  {isPremium && (
+                    nifLoading ? (
+                      <NifDashboardSkeleton />
+                    ) : nifData && !nifError ? (
+                      <div className="mb-8">
+                        <NifOverallScoreBanner overall={nifData.overall_nif_score} />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <NifPillarCard
+                            titleKey="business_quality"
+                            score={nifData.pillars.business_quality.score}
+                            dataRows={buildNifRows("business_quality_data", nifData.pillars.business_quality.data, isFinancialSector, t)}
+                            estimateRows={buildNifRows("business_quality_estimate", nifData.pillars.business_quality.nuvos_estimate, isFinancialSector, t)}
+                            explanation={nifData.pillars.business_quality.explanation}
+                          />
+                          <NifPillarCard
+                            titleKey="financial_strength"
+                            score={nifData.pillars.financial_strength.score}
+                            dataRows={buildNifRows("financial_strength_data", nifData.pillars.financial_strength.data, isFinancialSector, t)}
+                            estimateRows={buildNifRows("financial_strength_estimate", nifData.pillars.financial_strength.nuvos_estimate, isFinancialSector, t)}
+                            explanation={nifData.pillars.financial_strength.explanation}
+                          />
+                          <NifPillarCard
+                            titleKey="management_quality"
+                            score={nifData.pillars.management_quality.score}
+                            dataRows={buildNifRows("management_quality_data", nifData.pillars.management_quality.data, isFinancialSector, t)}
+                            estimateRows={buildNifRows("management_quality_estimate", nifData.pillars.management_quality.nuvos_estimate, isFinancialSector, t)}
+                            explanation={nifData.pillars.management_quality.explanation}
+                          />
+                          <NifPillarCard
+                            titleKey="valuation"
+                            score={nifData.pillars.valuation.score}
+                            dataRows={buildNifRows("valuation_data", nifData.pillars.valuation.data, isFinancialSector, t)}
+                            estimateRows={buildNifRows("valuation_estimate", nifData.pillars.valuation.nuvos_estimate, isFinancialSector, t)}
+                            explanation={nifData.pillars.valuation.explanation}
+                          />
+                        </div>
+                      </div>
+                    ) : null
+                  )}
 
                   {/* ===== Nivel 1 summary — everything already known about this company ===== */}
                   <div className="space-y-3 mb-8">

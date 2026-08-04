@@ -612,6 +612,58 @@
   },
   "subvaluadas": {
     "title": "Top Opportunities",
+    "nif": {
+      "overallScoreLabel": "Nuvos Investment Framework",
+      "weakestPillar": "Weakest pillar: {{pillar}} ({{score}}/100)",
+      "explanationUnavailable": "We couldn't generate the explanation right now.",
+      "pillars": {
+        "business_quality": { "title": "Business Quality" },
+        "financial_strength": { "title": "Financial Strength" },
+        "management_quality": { "title": "Management Quality" },
+        "valuation": { "title": "Valuation" }
+      },
+      "sections": {
+        "verifiedData": "Real data",
+        "nuvosEstimate": "Nuvos estimate",
+        "aiExplanation": "AI explanation"
+      },
+      "subFactors": {
+        "roic": "ROIC",
+        "margins": "Margins",
+        "growth": "Growth",
+        "moat_type": "Competitive advantage",
+        "capital_allocation": "Capital allocation",
+        "insider_activity": "Insider activity",
+        "overview": "Overview"
+      },
+      "fields": {
+        "roicPct": "ROIC",
+        "operatingMarginPct": "Operating margin",
+        "netMarginPct": "Net margin",
+        "fcfMarginPct": "FCF margin",
+        "revenueCagrPct": "Revenue CAGR",
+        "roicScore": "ROIC score",
+        "marginScore": "Margin score",
+        "growthScore": "Growth score",
+        "totalDebt": "Total debt",
+        "cash": "Cash",
+        "netCash": "Net cash",
+        "interestCoverageScore": "Interest coverage score",
+        "debtScore": "Debt score",
+        "buybackRatePct": "Buyback rate",
+        "payoutRatioPct": "Payout ratio",
+        "insiderBuyers": "Insiders bought",
+        "insiderSellers": "Insiders sold",
+        "insiderSentiment": "Insider sentiment (MSPR)",
+        "currentPrice": "Current price",
+        "peRatio": "P/E",
+        "evEbitda": "EV/EBITDA",
+        "pegRatio": "PEG",
+        "fairValueRange": "Fair value range",
+        "marginOfSafetyPct": "Margin of safety",
+        "expectedValue": "Expected value"
+      }
+    },
     "rankStrip": {
       "overall": "Best overall",
       "discount": "Deepest discount",

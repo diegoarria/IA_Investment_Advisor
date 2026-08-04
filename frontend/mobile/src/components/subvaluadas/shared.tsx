@@ -321,3 +321,187 @@ export function ActionButtons({ watchlisted, onFollow, onAnalyze, colors }: {
     </View>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Nuvos Investment Framework (NIF) — Phase 1 dashboard (mobile mirror of the
+// web version in frontend/web/src/components/subvaluadas/shared.tsx — keep
+// both in sync). Every pillar keeps data/nuvos_estimate/explanation visually
+// separate with a literal labeled chip, not just color, per Diego's explicit
+// transparency requirement.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface NifSubFactor {
+  key: string;
+  text: string;
+}
+
+export interface NifExplanation {
+  sub_factors: NifSubFactor[];
+}
+
+export interface NifPillarData {
+  pillar: string;
+  score: number | null;
+  data: Record<string, unknown>;
+  nuvos_estimate: Record<string, unknown>;
+  explanation: NifExplanation | null;
+}
+
+export interface NifOverallScore {
+  score: number;
+  weakest_pillar: string;
+  weakest_pillar_score: number;
+  pillar_breakdown: Record<string, { score: number | null; weight: number }>;
+}
+
+export interface NifDashboardData {
+  ticker: string;
+  company_name: string | null;
+  sector: string | null;
+  price: number | null;
+  change_pct: number | null;
+  overall_nif_score: NifOverallScore | null;
+  pillars: {
+    business_quality: NifPillarData;
+    financial_strength: NifPillarData;
+    management_quality: NifPillarData;
+    valuation: NifPillarData;
+  };
+}
+
+export interface NifRow {
+  label: string;
+  value: string;
+}
+
+function nifScoreColor(score: number | null): string {
+  if (score === null) return "#9ca3af";
+  if (score >= 80) return "#22c55e";
+  if (score >= 60) return "#eab308";
+  if (score >= 40) return "#f59e0b";
+  return "#ef4444";
+}
+
+export function NifOverallScoreBanner({ overall, colors }: { overall: NifOverallScore | null; colors: any }) {
+  const { t } = useTranslation();
+  if (!overall) return null;
+  const color = nifScoreColor(overall.score);
+  const size = 56;
+  const strokeWidth = 5;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = circumference * (1 - overall.score / 100);
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 12, borderColor: colors.border, backgroundColor: colors.card }}>
+      <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+        <Svg width={size} height={size} style={{ position: "absolute" }}>
+          <Circle cx={size / 2} cy={size / 2} r={radius} stroke={colors.border} strokeWidth={strokeWidth} fill="none" />
+          <Circle
+            cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth={strokeWidth} fill="none"
+            strokeDasharray={circumference} strokeDashoffset={progress} strokeLinecap="round"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        </Svg>
+        <Text style={{ fontSize: 16, fontWeight: "900", color }}>{overall.score}</Text>
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, color: colors.textMuted }}>{t("subvaluadas.nif.overallScoreLabel")}</Text>
+        <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }}>{overall.score}/100</Text>
+        <Text style={{ fontSize: 10, color: colors.textSub }}>
+          {t("subvaluadas.nif.weakestPillar", { pillar: t(`subvaluadas.nif.pillars.${overall.weakest_pillar}.title`), score: overall.weakest_pillar_score })}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+export function NifPillarCard({
+  titleKey, score, dataRows, estimateRows, explanation, colors,
+}: {
+  titleKey: string;
+  score: number | null;
+  dataRows: NifRow[];
+  estimateRows: NifRow[];
+  explanation: NifExplanation | null;
+  colors: any;
+}) {
+  const { t } = useTranslation();
+  const color = nifScoreColor(score);
+  return (
+    <View style={{ borderWidth: 1, borderRadius: 16, padding: 12, gap: 10, borderColor: colors.border, backgroundColor: colors.card }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <Text style={{ fontSize: 12, fontWeight: "800", color: colors.text, flex: 1 }} numberOfLines={2}>{t(`subvaluadas.nif.pillars.${titleKey}.title`)}</Text>
+        <Text style={{ fontSize: 16, fontWeight: "900", color }}>{score !== null ? score : "N/D"}</Text>
+      </View>
+
+      {dataRows.length > 0 && (
+        <View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 4 }}>
+            <Ionicons name="shield-checkmark-outline" size={11} color={colors.textMuted} />
+            <Text style={{ fontSize: 8, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, color: colors.textMuted }}>{t("subvaluadas.nif.sections.verifiedData")}</Text>
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {dataRows.map((row, i) => (
+              <View key={i} style={{ minWidth: "42%" }}>
+                <Text style={{ fontSize: 8, color: colors.textDim }} numberOfLines={1}>{row.label}</Text>
+                <Text style={{ fontSize: 10, fontWeight: "800", color: colors.text }} numberOfLines={1}>{row.value}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {estimateRows.length > 0 && (
+        <View style={{ borderRadius: 10, padding: 8, backgroundColor: "rgba(212,162,76,0.08)", borderWidth: 1, borderColor: "rgba(212,162,76,0.2)" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 4 }}>
+            <Ionicons name="sparkles-outline" size={11} color="#D4A24C" />
+            <Text style={{ fontSize: 8, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, color: "#D4A24C" }}>{t("subvaluadas.nif.sections.nuvosEstimate")}</Text>
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {estimateRows.map((row, i) => (
+              <View key={i} style={{ minWidth: "42%" }}>
+                <Text style={{ fontSize: 8, color: colors.textDim }} numberOfLines={1}>{row.label}</Text>
+                <Text style={{ fontSize: 10, fontWeight: "800", color: colors.text }} numberOfLines={1}>{row.value}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {explanation && explanation.sub_factors.length > 0 && (
+        <View style={{ borderRadius: 10, padding: 8, backgroundColor: "rgba(0,168,94,0.06)", borderWidth: 1, borderColor: "rgba(0,168,94,0.18)" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6 }}>
+            <Ionicons name="sparkles" size={11} color={colors.accentLight} />
+            <Text style={{ fontSize: 8, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, color: colors.accentLight }}>{t("subvaluadas.nif.sections.aiExplanation")}</Text>
+          </View>
+          <View style={{ gap: 6 }}>
+            {explanation.sub_factors.map((sf, i) => (
+              <View key={i}>
+                <Text style={{ fontSize: 9, fontWeight: "800", color: colors.textSub }}>
+                  {t(`subvaluadas.nif.subFactors.${sf.key}`, { defaultValue: sf.key })}
+                </Text>
+                <Text style={{ fontSize: 10, lineHeight: 14, color: colors.textDim }}>{sf.text}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+      {!explanation && (
+        <Text style={{ fontSize: 9, fontStyle: "italic", color: colors.textMuted }}>{t("subvaluadas.nif.explanationUnavailable")}</Text>
+      )}
+    </View>
+  );
+}
+
+export function NifDashboardSkeleton({ colors }: { colors: any }) {
+  return (
+    <View style={{ marginBottom: 12 }}>
+      <View style={{ borderWidth: 1, borderRadius: 16, marginBottom: 10, height: 84, borderColor: colors.border, backgroundColor: colors.card, opacity: 0.6 }} />
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+        {[0, 1, 2, 3].map((i) => (
+          <View key={i} style={{ width: "47%", borderWidth: 1, borderRadius: 16, height: 170, borderColor: colors.border, backgroundColor: colors.card, opacity: 0.6 }} />
+        ))}
+      </View>
+    </View>
+  );
+}

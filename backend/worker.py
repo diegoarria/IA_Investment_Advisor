@@ -2323,6 +2323,34 @@ async def job_prewarm_quick_analysis_default():
             logger.error("job_prewarm_quick_analysis_default(%s) failed: %s", lang, e)
 
 
+async def job_prewarm_nif_dashboard_default():
+    """Same reasoning as job_prewarm_quick_analysis_default, for the NIF
+    dashboard — the Oportunidades screen's default ticker must never be
+    cold for either card. Separate cache entry/TTL from quick-analysis (see
+    screener._nif_dashboard_cache_key), so this is its own job rather than
+    folded into the one above."""
+    from app.api.routes.screener import (
+        _latest_reported_earnings_period, _nif_dashboard_cache_key, _NIF_DASHBOARD_CACHE_TTL,
+    )
+    from app.services import nif_service
+    from app.core.cache import cache_get, cache_set
+
+    for lang in ("es", "en"):
+        try:
+            cache_key = _nif_dashboard_cache_key(_QUICK_ANALYSIS_PREWARM_TICKER, lang)
+            cached = cache_get(cache_key)
+            if cached:
+                current_period = await asyncio.to_thread(_latest_reported_earnings_period, _QUICK_ANALYSIS_PREWARM_TICKER)
+                if not current_period or current_period == cached.get("_earnings_period"):
+                    continue
+            result = await nif_service.build_nif_dashboard(_QUICK_ANALYSIS_PREWARM_TICKER, lang)
+            if result:
+                result["_earnings_period"] = await asyncio.to_thread(_latest_reported_earnings_period, _QUICK_ANALYSIS_PREWARM_TICKER)
+                cache_set(cache_key, result, _NIF_DASHBOARD_CACHE_TTL)
+        except Exception as e:
+            logger.error("job_prewarm_nif_dashboard_default(%s) failed: %s", lang, e)
+
+
 async def job_saved_valuation_alerts():
     """4:10 PM ET weekdays — checks every user's saved intrinsic valuations
     (their own frozen DCF assumptions from the Valor Intrínseco screen)
@@ -4778,6 +4806,7 @@ async def main():
     # next_run_time=now so a fresh deploy/restart warms the cache immediately
     # instead of waiting up to 6h for the first interval tick.
     scheduler.add_job(job_prewarm_quick_analysis_default, "interval", hours=6, next_run_time=datetime.now())
+    scheduler.add_job(job_prewarm_nif_dashboard_default,  "interval", hours=6, next_run_time=datetime.now())
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     scheduler.add_job(job_cleanup_analytics,    "interval", hours=1)

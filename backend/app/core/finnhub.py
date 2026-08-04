@@ -293,3 +293,101 @@ def fh_news(symbol: str, days: int = 7) -> list[dict]:
 
     cache_set(ck, result, ttl=1800)
     return result
+
+
+# ── Insider data (NIF — Management Quality pillar) ──────────────────────────────
+# NOTE: field mapping below follows Finnhub's publicly documented response shape
+# for these two endpoints, but was NOT spot-checked against a live response
+# (no FINNHUB_API_KEY was available in this environment while implementing —
+# verify against a real ticker before relying on this in production).
+
+def fh_insider_transactions(ticker: str) -> dict | None:
+    """
+    Trailing insider Form-4 transactions, normalized into a small summary
+    (not the raw per-filing list — the NIF Management Quality card needs a
+    trailing signal, not a feed). Only "P" (open-market purchase) and "S"
+    (open-market sale) transaction codes count toward the buy/sell signal —
+    codes like grants ("A"), option exercises ("M"), tax-withholding
+    dispositions ("F") and gifts ("G") are routine/non-discretionary and
+    would just add noise to "is management buying or selling."
+
+    Cached for 24h — Form 4 filings land at most daily, no need for
+    intraday freshness. Returns None on any failure (never raises), same
+    convention as every other helper in this file.
+    """
+    ck = f"fh:insider_txn:{ticker}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
+
+    d = _get("/stock/insider-transactions", {"symbol": ticker})
+    rows = (d or {}).get("data") if isinstance(d, dict) else None
+    if not rows:
+        return None
+
+    today = date.today()
+    cutoff_6mo  = (today - timedelta(days=182)).isoformat()
+    cutoff_12mo = (today - timedelta(days=365)).isoformat()
+
+    def _bucket(cutoff: str) -> dict:
+        net_shares = 0
+        buyers, sellers = set(), set()
+        for row in rows:
+            code = row.get("transactionCode")
+            tx_date = row.get("transactionDate") or ""
+            share = row.get("share")
+            name = row.get("name")
+            if code not in ("P", "S") or not tx_date or tx_date < cutoff or share is None:
+                continue
+            if code == "P":
+                net_shares += share
+                if name: buyers.add(name)
+            else:
+                net_shares -= share
+                if name: sellers.add(name)
+        return {
+            "net_shares": net_shares,
+            "distinct_buyers": len(buyers),
+            "distinct_sellers": len(sellers),
+        }
+
+    most_recent = max((row.get("transactionDate") for row in rows if row.get("transactionDate")), default=None)
+
+    result = {
+        "trailing_6mo": _bucket(cutoff_6mo),
+        "trailing_12mo": _bucket(cutoff_12mo),
+        "most_recent_transaction_date": most_recent,
+    }
+    cache_set(ck, result, ttl=86400)
+    return result
+
+
+def fh_insider_sentiment(ticker: str, months: int = 12) -> dict | None:
+    """
+    Finnhub's monthly MSPR (Monthly Share Purchase Ratio) aggregated into a
+    single trailing-N-month net sentiment score. MSPR ranges roughly -100
+    (heavy net selling) to +100 (heavy net buying). Cached 24h.
+    """
+    today = date.today()
+    from_date = (today.replace(day=1) - timedelta(days=months * 31)).strftime("%Y-%m-01")
+    to_date = today.strftime("%Y-%m-%d")
+    ck = f"fh:insider_sentiment:{ticker}:{from_date}:{to_date}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
+
+    d = _get("/stock/insider-sentiment", {"symbol": ticker, "from": from_date, "to": to_date})
+    rows = (d or {}).get("data") if isinstance(d, dict) else None
+    if not rows:
+        return None
+
+    msprs = [row.get("mspr") for row in rows if row.get("mspr") is not None]
+    if not msprs:
+        return None
+
+    result = {
+        "avg_mspr": sum(msprs) / len(msprs),
+        "months_covered": len(msprs),
+    }
+    cache_set(ck, result, ttl=86400)
+    return result

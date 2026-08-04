@@ -3058,6 +3058,125 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown fuera del JSON, sin texto
     }
 
 
+async def generate_business_quality_explanation(data: dict, lang: str = "es") -> Optional[dict]:
+    """NIF (Nuvos Investment Framework) — Business Quality pillar. Unlike
+    generate_quick_valuation_summary's single ~70-word moat/quality blob,
+    this returns a STRUCTURED per-sub-factor breakdown (one short
+    explanation each for ROIC, margins, growth, and the qualitative moat
+    type) — the NIF dashboard shows these as separate labeled rows, not one
+    paragraph. Same grounding discipline as every other narrative call here:
+    the real numbers come from fundamental_analysis_service, Claude only
+    explains them. Haiku-tier. Returns None (never fakes content) if the
+    model's JSON doesn't parse — the caller must degrade to "explicación no
+    disponible" rather than show empty/fabricated text.
+
+    Returns {"sub_factors": [{"key": str, "text": str}, ...]}."""
+    from app.services.fundamental_analysis_service import format_fundamental_analysis_for_prompt
+    data_block = format_fundamental_analysis_for_prompt(data)
+    evidence_block = _format_checklist_evidence_for_prompt(data.get("checklist_items_real") or [], data.get("sector"), data.get("dcf"))
+
+    prompt = f"""{_output_language_directive(lang)}Aquí tienes datos financieros REALES y ya calculados de {data.get('company_name', data.get('ticker'))} ({data.get('ticker')}), para el pilar "Business Quality" del Nuvos Investment Framework:
+
+{data_block}
+
+Evidencia real de calidad del negocio y moat:
+{evidence_block}
+
+{_CHECKLIST_INSTRUCTIONS}
+
+Escribe una explicación corta y específica para CADA uno de estos 4 sub-factores, citando las cifras reales de arriba (nunca inventes números). Nunca digas Comprar/No comprar/Mantener — esto explica qué tan bueno es el negocio, no si conviene comprarlo.
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después):
+{{
+  "sub_factors": [
+    {{"key": "roic", "text": "<máx 50 palabras: qué dice el ROIC/ROE real sobre la capacidad de reinvertir capital, citando la cifra exacta y su tendencia>"}},
+    {{"key": "margins", "text": "<máx 50 palabras: qué dicen los márgenes reales (operativo, neto, FCF) sobre el poder de precios y eficiencia del negocio>"}},
+    {{"key": "growth", "text": "<máx 50 palabras: qué tan sólido y sostenible es el crecimiento real de ingresos, citando el CAGR>"}},
+    {{"key": "moat_type", "text": "<máx 60 palabras: TU JUICIO CUALITATIVO (marca, efecto red, switching costs, escala, patentes, distribución) sobre qué tipo de ventaja competitiva tiene y qué tan defendible es — deja explícito que esto es una interpretación cualitativa, no un número derivado de los estados financieros>"}}
+  ]
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1200,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and isinstance(parsed.get("sub_factors"), list) and parsed["sub_factors"]:
+        return parsed
+    _log.warning("generate_business_quality_explanation: JSON parse failed for %s", data.get("ticker"))
+    return None
+
+
+async def generate_management_quality_explanation(
+    data: dict, insider_transactions: Optional[dict], insider_sentiment: Optional[dict], lang: str = "es"
+) -> Optional[dict]:
+    """NIF — Management Quality pillar. Structured per-sub-factor breakdown
+    (capital allocation, insider activity) grounded in real numbers —
+    buyback/payout data from fundamental_analysis_service, insider buying/
+    selling from Finnhub (app.core.finnhub.fh_insider_transactions/
+    fh_insider_sentiment). `insider_transactions`/`insider_sentiment` are
+    frequently None (Finnhub coverage gaps, small-caps, API hiccups) — the
+    prompt must degrade gracefully to 'no hay datos de insiders disponibles'
+    rather than let Claude invent buying/selling activity.
+
+    Insider commentary must NEVER be framed as a buy/sell signal — only as
+    one input for the user's own judgment (same non-prescriptive rule as
+    every other narrative call in this file).
+
+    Returns {"sub_factors": [{"key": str, "text": str}, ...]} or None."""
+    from app.services.fundamental_analysis_service import format_fundamental_analysis_for_prompt
+    data_block = format_fundamental_analysis_for_prompt(data)
+    evidence_block = _format_checklist_evidence_for_prompt(data.get("checklist_items_real") or [], data.get("sector"), data.get("dcf"))
+
+    if insider_transactions:
+        t12 = insider_transactions.get("trailing_12mo") or {}
+        insider_block = (
+            f"Transacciones de insiders (Form 4, últimos 12 meses, solo compras/ventas en mercado abierto): "
+            f"{t12.get('distinct_buyers', 0)} personas distintas compraron, {t12.get('distinct_sellers', 0)} vendieron, "
+            f"cambio neto de {t12.get('net_shares', 0):,} acciones. Última transacción: {insider_transactions.get('most_recent_transaction_date') or 'N/D'}."
+        )
+    else:
+        insider_block = "No hay datos de transacciones de insiders disponibles para esta empresa."
+    if insider_sentiment and insider_sentiment.get("avg_mspr") is not None:
+        insider_block += f" Sentimiento insider promedio (MSPR, últimos {insider_sentiment.get('months_covered')} meses): {insider_sentiment['avg_mspr']:.1f} (rango aprox. -100 a +100, positivo = compra neta)."
+
+    prompt = f"""{_output_language_directive(lang)}Aquí tienes datos financieros REALES y ya calculados de {data.get('company_name', data.get('ticker'))} ({data.get('ticker')}), para el pilar "Management Quality" del Nuvos Investment Framework:
+
+{data_block}
+
+Evidencia real de asignación de capital:
+{evidence_block}
+
+Datos reales de insiders (Finnhub):
+{insider_block}
+
+{_CHECKLIST_INSTRUCTIONS}
+
+Escribe una explicación corta para CADA uno de estos sub-factores, citando las cifras reales de arriba (nunca inventes números, y si no hay datos de insiders dilo explícitamente en vez de inventar actividad). Nunca digas Comprar/No comprar/Mantener, y nunca presentes la actividad de insiders como una señal de compra/venta — solo como un dato más para que el usuario saque sus propias conclusiones.
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después):
+{{
+  "sub_factors": [
+    {{"key": "capital_allocation", "text": "<máx 60 palabras: historial real de recompras, dividendos/payout, dilución — disciplina financiera de la administración>"}},
+    {{"key": "insider_activity", "text": "<máx 50 palabras: qué muestran los datos reales de insiders citados arriba, o que no hay datos disponibles — sin interpretarlo como señal de compra/venta>"}}
+  ]
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=900,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and isinstance(parsed.get("sub_factors"), list) and parsed["sub_factors"]:
+        return parsed
+    _log.warning("generate_management_quality_explanation: JSON parse failed for %s", data.get("ticker"))
+    return None
+
+
 async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
     """One-liner (~15-25 words) for a single undervalued-screener candidate —
     called once per real candidate PER LANGUAGE during the weekly refresh

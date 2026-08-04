@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Star, MessageCircle, AlertTriangle, Check, Sparkles } from "lucide-react";
+import { Star, MessageCircle, AlertTriangle, Check, Sparkles, ShieldCheck, Wand2 } from "lucide-react";
 
 export interface ChecklistItem {
   key?: string;
@@ -292,5 +292,184 @@ export function AnalyzeButton({ onAnalyze }: { onAnalyze: () => void }) {
       <MessageCircle className="w-3.5 h-3.5" />
       {t("subvaluadas.analyze.button")}
     </button>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Nuvos Investment Framework (NIF) — Phase 1 dashboard
+//
+// Every pillar response from the backend (backend/app/services/nif_service.py)
+// follows the same data/nuvos_estimate/explanation envelope. This file keeps
+// that separation visible in the UI on purpose (Diego's explicit ask): a
+// literal labeled chip on each block, not just color, so it's never ambiguous
+// which numbers are 100%-verifiable financial data vs. Nuvos's own derived
+// estimate vs. the AI's explanation of why.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface NifSubFactor {
+  key: string;
+  text: string;
+}
+
+export interface NifExplanation {
+  sub_factors: NifSubFactor[];
+}
+
+export interface NifPillarData {
+  pillar: string;
+  score: number | null;
+  data: Record<string, unknown>;
+  nuvos_estimate: Record<string, unknown>;
+  explanation: NifExplanation | null;
+}
+
+export interface NifOverallScore {
+  score: number;
+  weakest_pillar: string;
+  weakest_pillar_score: number;
+  pillar_breakdown: Record<string, { score: number | null; weight: number }>;
+}
+
+export interface NifDashboardData {
+  ticker: string;
+  company_name: string | null;
+  sector: string | null;
+  price: number | null;
+  change_pct: number | null;
+  overall_nif_score: NifOverallScore | null;
+  pillars: {
+    business_quality: NifPillarData;
+    financial_strength: NifPillarData;
+    management_quality: NifPillarData;
+    valuation: NifPillarData;
+  };
+}
+
+/** A single prepared row for the "Dato real" / "Estimación Nuvos" sections —
+ * built by the page (which knows each pillar's specific field names), not by
+ * this generic card, matching how every other component here takes
+ * already-formatted data rather than a raw API dict. */
+export interface NifRow {
+  label: string;
+  value: string;
+}
+
+function nifScoreColor(score: number | null): string {
+  if (score === null) return "var(--muted)";
+  if (score >= 80) return "#22c55e";
+  if (score >= 60) return "#eab308";
+  if (score >= 40) return "#f59e0b";
+  return "#ef4444";
+}
+
+export function NifOverallScoreBanner({ overall }: { overall: NifOverallScore | null }) {
+  const { t } = useTranslation();
+  if (!overall) return null;
+  const color = nifScoreColor(overall.score);
+  return (
+    <div className="rounded-2xl border p-4 flex items-center gap-4 mb-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+      <div className="relative w-16 h-16 rounded-full shrink-0" style={{ background: `conic-gradient(${color} ${overall.score}%, var(--raised) ${overall.score}%)` }}>
+        <div className="absolute inset-[4px] rounded-full flex items-center justify-center" style={{ background: "var(--card)" }}>
+          <span className="text-lg font-black tabular-nums" style={{ color }}>{overall.score}</span>
+        </div>
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.nif.overallScoreLabel")}</p>
+        <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{overall.score}/100</p>
+        <p className="text-[11px]" style={{ color: "var(--sub)" }}>
+          {t("subvaluadas.nif.weakestPillar", { pillar: t(`subvaluadas.nif.pillars.${overall.weakest_pillar}.title`), score: overall.weakest_pillar_score })}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export function NifPillarCard({
+  titleKey, score, dataRows, estimateRows, explanation,
+}: {
+  titleKey: string;
+  score: number | null;
+  dataRows: NifRow[];
+  estimateRows: NifRow[];
+  explanation: NifExplanation | null;
+}) {
+  const { t } = useTranslation();
+  const color = nifScoreColor(score);
+  return (
+    <div className="rounded-2xl border p-3.5 flex flex-col gap-3" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{t(`subvaluadas.nif.pillars.${titleKey}.title`)}</p>
+        <span className="text-base font-black tabular-nums" style={{ color }}>{score !== null ? score : "N/D"}</span>
+      </div>
+
+      {dataRows.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1 mb-1">
+            <ShieldCheck className="w-3 h-3" style={{ color: "var(--muted)" }} />
+            <span className="text-[9px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.nif.sections.verifiedData")}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+            {dataRows.map((row, i) => (
+              <div key={i} className="min-w-0">
+                <p className="text-[9px] truncate" style={{ color: "var(--dim)" }}>{row.label}</p>
+                <p className="text-[11px] font-bold tabular-nums truncate" style={{ color: "var(--text)" }}>{row.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {estimateRows.length > 0 && (
+        <div className="rounded-lg p-2" style={{ background: "rgba(212,162,76,0.08)", border: "1px solid rgba(212,162,76,0.2)" }}>
+          <div className="flex items-center gap-1 mb-1">
+            <Wand2 className="w-3 h-3" style={{ color: "#D4A24C" }} />
+            <span className="text-[9px] font-bold uppercase tracking-wide" style={{ color: "#D4A24C" }}>{t("subvaluadas.nif.sections.nuvosEstimate")}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+            {estimateRows.map((row, i) => (
+              <div key={i} className="min-w-0">
+                <p className="text-[9px] truncate" style={{ color: "var(--dim)" }}>{row.label}</p>
+                <p className="text-[11px] font-bold tabular-nums truncate" style={{ color: "var(--text)" }}>{row.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {explanation && explanation.sub_factors.length > 0 && (
+        <div className="rounded-lg p-2" style={{ background: "rgba(0,168,94,0.06)", border: "1px solid rgba(0,168,94,0.18)" }}>
+          <div className="flex items-center gap-1 mb-1.5">
+            <Sparkles className="w-3 h-3" style={{ color: "var(--accent-l)" }} />
+            <span className="text-[9px] font-bold uppercase tracking-wide" style={{ color: "var(--accent-l)" }}>{t("subvaluadas.nif.sections.aiExplanation")}</span>
+          </div>
+          <div className="space-y-1.5">
+            {explanation.sub_factors.map((sf, i) => (
+              <div key={i}>
+                <p className="text-[10px] font-bold" style={{ color: "var(--sub)" }}>
+                  {t(`subvaluadas.nif.subFactors.${sf.key}`, { defaultValue: sf.key })}
+                </p>
+                <p className="text-[11px] leading-relaxed" style={{ color: "var(--dim)" }}>{sf.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {!explanation && (
+        <p className="text-[10px] italic" style={{ color: "var(--muted)" }}>{t("subvaluadas.nif.explanationUnavailable")}</p>
+      )}
+    </div>
+  );
+}
+
+export function NifDashboardSkeleton() {
+  return (
+    <div className="mb-4">
+      <div className="rounded-2xl border p-4 mb-3 animate-pulse" style={{ borderColor: "var(--border)", background: "var(--card)", height: 88 }} />
+      <div className="grid grid-cols-2 gap-3">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="rounded-2xl border p-3.5 animate-pulse" style={{ borderColor: "var(--border)", background: "var(--card)", height: 180 }} />
+        ))}
+      </div>
+    </div>
   );
 }

@@ -690,6 +690,58 @@
   },
   "subvaluadas": {
     "title": "Mejores Oportunidades",
+    "nif": {
+      "overallScoreLabel": "Nuvos Investment Framework",
+      "weakestPillar": "Pilar más débil: {{pillar}} ({{score}}/100)",
+      "explanationUnavailable": "No pudimos generar la explicación en este momento.",
+      "pillars": {
+        "business_quality": { "title": "Calidad del Negocio" },
+        "financial_strength": { "title": "Fortaleza Financiera" },
+        "management_quality": { "title": "Calidad de la Administración" },
+        "valuation": { "title": "Valuación" }
+      },
+      "sections": {
+        "verifiedData": "Dato real",
+        "nuvosEstimate": "Estimación Nuvos",
+        "aiExplanation": "Explicación IA"
+      },
+      "subFactors": {
+        "roic": "ROIC",
+        "margins": "Márgenes",
+        "growth": "Crecimiento",
+        "moat_type": "Ventaja competitiva",
+        "capital_allocation": "Asignación de capital",
+        "insider_activity": "Actividad de insiders",
+        "overview": "Resumen"
+      },
+      "fields": {
+        "roicPct": "ROIC",
+        "operatingMarginPct": "Margen operativo",
+        "netMarginPct": "Margen neto",
+        "fcfMarginPct": "Margen FCF",
+        "revenueCagrPct": "CAGR de ingresos",
+        "roicScore": "Score ROIC",
+        "marginScore": "Score márgenes",
+        "growthScore": "Score crecimiento",
+        "totalDebt": "Deuda total",
+        "cash": "Efectivo",
+        "netCash": "Efectivo neto",
+        "interestCoverageScore": "Score cobertura de intereses",
+        "debtScore": "Score de deuda",
+        "buybackRatePct": "Tasa de recompras",
+        "payoutRatioPct": "Payout ratio",
+        "insiderBuyers": "Insiders compraron",
+        "insiderSellers": "Insiders vendieron",
+        "insiderSentiment": "Sentimiento insider (MSPR)",
+        "currentPrice": "Precio actual",
+        "peRatio": "P/E",
+        "evEbitda": "EV/EBITDA",
+        "pegRatio": "PEG",
+        "fairValueRange": "Rango de valor razonable",
+        "marginOfSafetyPct": "Margen de seguridad",
+        "expectedValue": "Valor esperado"
+      }
+    },
     "rankStrip": {
       "overall": "Mejor en general",
       "discount": "Mayor descuento",

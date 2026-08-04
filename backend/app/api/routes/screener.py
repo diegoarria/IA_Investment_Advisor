@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.services import ai_service
+from app.services import nif_service
 from app.api.routes.market import _get_user_profile
 from app.core.cache import cache_get, cache_set
 from app.core.database import get_supabase, run_query
@@ -810,6 +811,68 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
     # transient provider hiccup doesn't get "stuck" wrong for 3 months.
     cache_set(cache_key, result, _QUICK_ANALYSIS_CACHE_TTL)
     _log_thesis_event(user_id, ticker, result)
+    return _with_live_price(result, ticker)
+
+
+_NIF_DASHBOARD_CACHE_TTL = _QUICK_ANALYSIS_CACHE_TTL  # same ceiling philosophy as quick-analysis
+
+
+def _nif_dashboard_cache_key(ticker: str, lang: str) -> str:
+    return f"nif_dashboard:v1:{lang}:{ticker}"
+
+
+@router.get("/nif-dashboard")
+async def nif_dashboard(query: str, lang: str | None = None, user_id: str = Depends(get_current_user_id)):
+    """Nuvos Investment Framework (NIF) — the 4-pillar (Business Quality,
+    Financial Strength, Management Quality, Valuation) AI-driven dashboard
+    for a single ticker. Separate endpoint from /quick-analysis on purpose:
+    different cache lifetime/failure domain, and /quick-analysis's response
+    shape is load-bearing for the manual Intrinsic Value Calculator, which
+    must never change. The frontend calls both in parallel for the same
+    search — a NIF failure must never affect the calculator, and vice versa.
+
+    Premium-only in this first phase (unlike /quick-analysis, which gives
+    free users one search/week) — this avoids the free-tier weekly search
+    counter being decremented twice for what the user experiences as one
+    search action."""
+    from app.api.routes.chat import _is_premium
+    profile = await _get_user_profile_safe(user_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
+    if not _is_premium(profile):
+        raise HTTPException(status_code=403, detail={
+            "code": "premium_required",
+            "message": "El análisis Nuvos Investment Framework es exclusivo para Premium.",
+        })
+
+    if not query or not query.strip():
+        raise HTTPException(status_code=400, detail="Escribe un ticker o nombre de empresa")
+
+    if lang not in ("es", "en"):
+        lang = getattr(profile, "preferred_language", None) or "es"
+
+    ticker = await asyncio.to_thread(_resolve_quick_ticker, query)
+    if not ticker:
+        raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
+
+    cache_key = _nif_dashboard_cache_key(ticker, lang)
+    cached = cache_get(cache_key)
+    if cached:
+        current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
+        cached_period = cached.get("_earnings_period")
+        if not current_period or current_period == cached_period:
+            return _with_live_price(cached, ticker)
+
+    try:
+        result = await nif_service.build_nif_dashboard(ticker, lang)
+    except Exception as exc:
+        logger.error("nif_dashboard(%s): build_nif_dashboard failed: %s", ticker, exc, exc_info=True)
+        raise HTTPException(status_code=503, detail=f"No pudimos generar el análisis NIF de {ticker} en este momento. Intenta de nuevo en unos segundos.")
+    if not result:
+        raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para analizar {ticker}")
+
+    result["_earnings_period"] = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
+    cache_set(cache_key, result, _NIF_DASHBOARD_CACHE_TTL)
     return _with_live_price(result, ticker)
 
 
