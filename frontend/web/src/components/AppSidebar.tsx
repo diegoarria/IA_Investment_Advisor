@@ -38,7 +38,15 @@ function getAge(birthDate: string | null | undefined): number | null {
 import PaywallModal from "@/components/PaywallModal";
 import api from "@/lib/api";
 
-type NavItem = { href: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; labelKey: string; minLevel: UserLevel };
+type NavItem = { href: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; labelKey: string; minLevel: UserLevel; children?: { href: string; labelKey: string }[] };
+
+const PATRIMONIO_CHILDREN = [
+  { href: "/portfolio", labelKey: "common.nav.patrimonioSub.portfolio" },
+  { href: "/watchlist", labelKey: "common.nav.patrimonioSub.watchlist" },
+  { href: "/paper",     labelKey: "common.nav.patrimonioSub.paper" },
+  { href: "/screener",  labelKey: "common.nav.patrimonioSub.screener" },
+  { href: "/earnings",  labelKey: "common.nav.patrimonioSub.earnings" },
+];
 
 // Oportunidades sits right after Patrimonio in the default (and for any
 // user without a saved drag order, the ONLY) order — Diego wants it always
@@ -50,7 +58,7 @@ type NavItem = { href: string; icon: React.ComponentType<{ className?: string; s
 const MAIN_NAV: NavItem[] = [
   { href: "/home",        icon: Home,          labelKey: "common.nav.home",       minLevel: "basico" },
   { href: "/chat",        icon: BrainCircuit,  labelKey: "common.nav.mentor",     minLevel: "basico" },
-  { href: "/patrimonio",  icon: Wallet,        labelKey: "common.nav.patrimonio", minLevel: "basico" },
+  { href: "/patrimonio",  icon: Wallet,        labelKey: "common.nav.patrimonio", minLevel: "basico", children: PATRIMONIO_CHILDREN },
   { href: "/subvaluadas", icon: BookMarked,    labelKey: "common.nav.undervalued", minLevel: "basico" },
 ];
 
@@ -99,6 +107,9 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
   }, [isAuthenticated]);
 
   const [historyOpen, setHistoryOpen] = useState(true);
+  const [patrimonioOpen, setPatrimonioOpen] = useState(() =>
+    typeof window === "undefined" ? true : PATRIMONIO_CHILDREN.some((c) => window.location.pathname.startsWith(c.href))
+  );
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [sessionLoading, setSessionLoading] = useState(false);
 
@@ -398,43 +409,69 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           <nav className="px-2 py-1 space-y-0.5">
             {/* Main draggable nav */}
-            {orderedNav.map(({ href, icon: Icon, labelKey, minLevel }) => {
-              const active  = pathname === href;
+            {orderedNav.map(({ href, icon: Icon, labelKey, minLevel, children }) => {
+              const active  = children ? children.some((c) => pathname.startsWith(c.href)) : pathname === href;
               const locked  = !isAtLeast(userLevel, minLevel);
               return (
-                <button
-                  key={href}
-                  onDragOver={(e) => !locked && handleDragOver(e, href)}
-                  onDrop={(e) => !locked && handleDrop(e, href)}
-                  onClick={() => locked ? navigate("/profile") : navigate(href)}
-                  className={`nav-item ${active ? "active" : ""} group transition-opacity`}
-                  style={{
-                    opacity: locked ? 0.4 : dragging === href ? 0.35 : 1,
-                    borderTop: dragOver === href ? "2px solid var(--accent)" : undefined,
-                  }}
-                >
-                  {/* Safari fix: draggable on the whole button blocks its own click
-                      events (WebKit captures mousedown to watch for a drag gesture).
-                      Only the grip handle itself is draggable, so a plain tap on the
-                      button always reaches onClick. */}
-                  <span
-                    draggable={!locked}
-                    onDragStart={(e) => { e.stopPropagation(); if (!locked) handleDragStart(href); }}
-                    onDragEnd={(e) => { e.stopPropagation(); handleDragEnd(); }}
-                    className="shrink-0 opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing transition-opacity"
+                <div key={href}>
+                  <button
+                    onDragOver={(e) => !locked && handleDragOver(e, href)}
+                    onDrop={(e) => !locked && handleDrop(e, href)}
+                    onClick={() => {
+                      if (locked) { navigate("/profile"); return; }
+                      if (children) { setPatrimonioOpen((v) => !v); return; }
+                      navigate(href);
+                    }}
+                    className={`nav-item ${active ? "active" : ""} group transition-opacity`}
+                    style={{
+                      opacity: locked ? 0.4 : dragging === href ? 0.35 : 1,
+                      borderTop: dragOver === href ? "2px solid var(--accent)" : undefined,
+                    }}
                   >
-                    <GripVertical className="w-2.5 h-2.5" style={{ color: "var(--muted)" }} />
-                  </span>
-                  <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: locked ? "var(--dim)" : undefined }} />
-                  <span style={{ color: locked ? "var(--dim)" : undefined }}>{t(labelKey)}</span>
-                  {locked && (
-                    <span className="ml-auto flex items-center gap-0.5 text-[8px] font-bold"
-                          style={{ color: "var(--dim)" }}>
-                      <Lock className="w-2.5 h-2.5" />
-                      {getLevelLabel(t, minLevel)}
+                    {/* Safari fix: draggable on the whole button blocks its own click
+                        events (WebKit captures mousedown to watch for a drag gesture).
+                        Only the grip handle itself is draggable, so a plain tap on the
+                        button always reaches onClick. */}
+                    <span
+                      draggable={!locked}
+                      onDragStart={(e) => { e.stopPropagation(); if (!locked) handleDragStart(href); }}
+                      onDragEnd={(e) => { e.stopPropagation(); handleDragEnd(); }}
+                      className="shrink-0 opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing transition-opacity"
+                    >
+                      <GripVertical className="w-2.5 h-2.5" style={{ color: "var(--muted)" }} />
                     </span>
+                    <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: locked ? "var(--dim)" : undefined }} />
+                    <span style={{ color: locked ? "var(--dim)" : undefined }}>{t(labelKey)}</span>
+                    {children && !locked && (
+                      <ChevronRight className={`ml-auto w-3 h-3 shrink-0 transition-transform ${patrimonioOpen ? "rotate-90" : ""}`}
+                                    style={{ color: "var(--muted)" }} />
+                    )}
+                    {locked && (
+                      <span className="ml-auto flex items-center gap-0.5 text-[8px] font-bold"
+                            style={{ color: "var(--dim)" }}>
+                        <Lock className="w-2.5 h-2.5" />
+                        {getLevelLabel(t, minLevel)}
+                      </span>
+                    )}
+                  </button>
+
+                  {children && !locked && patrimonioOpen && (
+                    <div className="ml-4 mt-0.5 space-y-0.5 pl-2" style={{ borderLeft: "1px solid var(--border)" }}>
+                      {children.map((child) => {
+                        const childActive = pathname.startsWith(child.href);
+                        return (
+                          <button
+                            key={child.href}
+                            onClick={() => navigate(child.href)}
+                            className={`nav-item ${childActive ? "active" : ""} transition-opacity`}
+                          >
+                            <span className="text-[12px]">{t(child.labelKey)}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
-                </button>
+                </div>
               );
             })}
 

@@ -146,10 +146,18 @@ const goalStyles = StyleSheet.create({
 // Profile in the secondary block. Notificaciones/Soporte are no longer
 // top-level nav items — both now live as rows inside the Profile screen
 // instead (see app/(tabs)/profile.tsx).
+const PATRIMONIO_CHILDREN = [
+  { labelKey: "common.nav.patrimonioSub.portfolio", path: "/portfolio" },
+  { labelKey: "common.nav.patrimonioSub.watchlist", path: "/watchlist" },
+  { labelKey: "common.nav.patrimonioSub.paper",     path: "/paper" },
+  { labelKey: "common.nav.patrimonioSub.screener",  path: "/explore" },
+  { labelKey: "common.nav.patrimonioSub.earnings",  path: "/earnings" },
+];
+
 const MAIN_NAV = [
   { icon: "home-outline",     labelKey: "common.nav.home",        path: "/home",       minLevel: "basico" as const },
   { icon: "sparkles-outline", labelKey: "common.nav.mentor",      path: "/chat",       minLevel: "basico" as const },
-  { icon: "wallet-outline",   labelKey: "common.nav.patrimonio",  path: "/patrimonio", minLevel: "basico" as const },
+  { icon: "wallet-outline",   labelKey: "common.nav.patrimonio",  path: "/patrimonio", minLevel: "basico" as const, children: PATRIMONIO_CHILDREN },
   { icon: "bookmark-outline", labelKey: "common.nav.undervalued", path: "/subvaluadas", minLevel: "basico" as const },
 ];
 
@@ -170,6 +178,9 @@ function NavItems({
   const { t } = useTranslation();
   const userLevel = useUserLevel();
   const allItems = [...MAIN_NAV, ...SECONDARY_NAV];
+  const [patrimonioExpanded, setPatrimonioExpanded] = useState(() =>
+    PATRIMONIO_CHILDREN.some((c) => pathname.includes(c.path.replace("/", "")))
+  );
 
   if (collapsed) {
     return (
@@ -196,34 +207,64 @@ function NavItems({
   }
 
   const renderItem = (item: typeof MAIN_NAV[number]) => {
-    const isActive = pathname.includes(item.path.replace("/", ""));
+    const hasChildren = "children" in item && !!item.children;
+    const isActive = hasChildren
+      ? item.children!.some((c) => pathname.includes(c.path.replace("/", "")))
+      : pathname.includes(item.path.replace("/", ""));
     const locked = !isAtLeast(userLevel, item.minLevel);
     return (
-      <TouchableOpacity
-        key={item.path}
-        style={[
-          styles.navItem,
-          { borderRadius: 12 },
-          isActive && !locked && { backgroundColor: "rgba(34,197,94,0.1)" },
-          locked && { opacity: 0.45 },
-        ]}
-        onPress={() => locked ? onPress("/profile") : onPress(item.path)}
-      >
-        <Ionicons
-          name={(locked ? "lock-closed-outline" : item.icon) as IoniconName}
-          size={20}
-          color={isActive && !locked ? "#22c55e" : colors.textSub}
-        />
-        <Text style={[styles.navLabel, { color: isActive && !locked ? "#22c55e" : colors.textSub }]}>
-          {t(item.labelKey)}
-        </Text>
-        {locked && (
-          <Text style={[styles.lockLevelText, { color: colors.textDim }]}>
-            {getLevelLabel(t, item.minLevel)}
+      <React.Fragment key={item.path}>
+        <TouchableOpacity
+          style={[
+            styles.navItem,
+            { borderRadius: 12 },
+            isActive && !locked && { backgroundColor: "rgba(34,197,94,0.1)" },
+            locked && { opacity: 0.45 },
+          ]}
+          onPress={() => {
+            if (locked) { onPress("/profile"); return; }
+            if (hasChildren) { setPatrimonioExpanded((v) => !v); return; }
+            onPress(item.path);
+          }}
+        >
+          <Ionicons
+            name={(locked ? "lock-closed-outline" : item.icon) as IoniconName}
+            size={20}
+            color={isActive && !locked ? "#22c55e" : colors.textSub}
+          />
+          <Text style={[styles.navLabel, { color: isActive && !locked ? "#22c55e" : colors.textSub }]}>
+            {t(item.labelKey)}
           </Text>
-        )}
-        {isActive && !locked && <View style={styles.activeDot} />}
-      </TouchableOpacity>
+          {locked && (
+            <Text style={[styles.lockLevelText, { color: colors.textDim }]}>
+              {getLevelLabel(t, item.minLevel)}
+            </Text>
+          )}
+          {hasChildren && !locked && (
+            <Ionicons
+              name={patrimonioExpanded ? "chevron-down" : "chevron-forward"}
+              size={14}
+              color={colors.textDim}
+            />
+          )}
+          {isActive && !locked && !hasChildren && <View style={styles.activeDot} />}
+        </TouchableOpacity>
+
+        {hasChildren && !locked && patrimonioExpanded && item.children!.map((child) => {
+          const childActive = pathname.includes(child.path.replace("/", ""));
+          return (
+            <TouchableOpacity
+              key={child.path}
+              style={[styles.navSubItem, childActive && { backgroundColor: "rgba(34,197,94,0.1)" }]}
+              onPress={() => onPress(child.path)}
+            >
+              <Text style={[styles.navSubLabel, { color: childActive ? "#22c55e" : colors.textSub }]}>
+                {t(child.labelKey)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </React.Fragment>
     );
   };
 
@@ -614,6 +655,8 @@ const styles = StyleSheet.create({
     marginVertical: 1, alignSelf: "center",
   },
   navLabel: { fontSize: 13, fontFamily: "DMSans_500Medium", flex: 1 },
+  navSubItem: { paddingVertical: 8, paddingLeft: 40, paddingRight: 12, borderRadius: 10 },
+  navSubLabel: { fontSize: 12, fontFamily: "DMSans_500Medium" },
 
   activeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#22c55e" },
   footer: { paddingHorizontal: 12, borderTopWidth: 1 },

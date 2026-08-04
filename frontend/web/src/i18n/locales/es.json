@@ -4,6 +4,13 @@
       "home": "Inicio",
       "mentor": "Arthur",
       "patrimonio": "Patrimonio",
+      "patrimonioSub": {
+        "portfolio": "Portafolio",
+        "watchlist": "Watchlist",
+        "paper": "Simulador (Paper Trading)",
+        "screener": "Screener Semanal",
+        "earnings": "Análisis de Ganancias"
+      },
       "academy": "Academy",
       "notifications": "Notificaciones",
       "profile": "Perfil",

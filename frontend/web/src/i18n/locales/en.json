@@ -4,6 +4,13 @@
       "home": "Home",
       "mentor": "AI Mentor",
       "patrimonio": "Wealth",
+      "patrimonioSub": {
+        "portfolio": "Portfolio",
+        "watchlist": "Watchlist",
+        "paper": "Simulator (Paper Trading)",
+        "screener": "Weekly Screener",
+        "earnings": "Earnings Analysis"
+      },
       "academy": "Academy",
       "notifications": "Notifications",
       "profile": "Profile",

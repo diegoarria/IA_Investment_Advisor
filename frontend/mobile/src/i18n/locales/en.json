@@ -36,6 +36,13 @@
       "home": "Home",
       "mentor": "AI Mentor",
       "patrimonio": "Net Worth",
+      "patrimonioSub": {
+        "portfolio": "Portfolio",
+        "watchlist": "Watchlist",
+        "paper": "Simulator (Paper Trading)",
+        "screener": "Weekly Screener",
+        "earnings": "Earnings Analysis"
+      },
       "academy": "Academy",
       "undervalued": "Opportunities",
       "notifications": "Notifications",
