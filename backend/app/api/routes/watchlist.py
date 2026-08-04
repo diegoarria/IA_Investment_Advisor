@@ -12,6 +12,7 @@
 # CREATE POLICY "Users manage own watchlist" ON watchlist FOR ALL USING (auth.uid() = user_id);
 
 import asyncio
+import logging
 from concurrent.futures import ThreadPoolExecutor
 
 _PRICES_POOL = ThreadPoolExecutor(max_workers=10, thread_name_prefix="watchlist-prices")
@@ -285,27 +286,37 @@ async def add_to_watchlist(body: dict, user_id: str = Depends(get_current_user_i
 
     db = get_supabase()
 
-    # Check tier + active trial
-    tier_res = await run_query(
-        db.table("user_profiles")
-        .select("subscription_tier, trial_started_at, streak_bonus_premium_until")
-        .eq("user_id", user_id)
-    )
-    row = tier_res.data[0] if tier_res.data else {}
-    from app.core.subscription import is_premium_active
-    is_premium = is_premium_active(row.get("subscription_tier"), row.get("trial_started_at"), row.get("streak_bonus_premium_until"))
-
-    if not is_premium:
-        count_res = await run_query(
-            db.table("watchlist").select("id", count="exact").eq("user_id", user_id)
+    # Check tier + active trial + current count — wrapped so a hiccup on
+    # either query (anything run_query's own transient-error retry doesn't
+    # catch) fails OPEN rather than blocking the add entirely. Worst case a
+    # free user occasionally sneaks one item past the limit during an
+    # infra blip; that beats "add to watchlist" throwing a hard error over a
+    # check that has nothing to do with the actual write.
+    try:
+        tier_res = await run_query(
+            db.table("user_profiles")
+            .select("subscription_tier, trial_started_at, streak_bonus_premium_until")
+            .eq("user_id", user_id)
         )
-        count = count_res.count or 0
-        if count >= FREE_LIMIT:
-            raise HTTPException(
-                status_code=403,
-                detail={"code": "limit_reached", "limit": FREE_LIMIT,
-                        "message": f"Límite de {FREE_LIMIT} acciones en watchlist. Activa Premium para agregar más."}
+        row = tier_res.data[0] if tier_res.data else {}
+        from app.core.subscription import is_premium_active
+        is_premium = is_premium_active(row.get("subscription_tier"), row.get("trial_started_at"), row.get("streak_bonus_premium_until"))
+
+        if not is_premium:
+            count_res = await run_query(
+                db.table("watchlist").select("id", count="exact").eq("user_id", user_id)
             )
+            count = count_res.count or 0
+            if count >= FREE_LIMIT:
+                raise HTTPException(
+                    status_code=403,
+                    detail={"code": "limit_reached", "limit": FREE_LIMIT,
+                            "message": f"Límite de {FREE_LIMIT} acciones en watchlist. Activa Premium para agregar más."}
+                )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).warning("watchlist tier/limit check failed, allowing add through: %s", e)
 
     # Insert immediately with whatever name the client already had (search
     # results always carry one) — resolving name/logo used to sit in front of
@@ -365,14 +376,15 @@ async def _backfill_watchlist_name_and_logo(user_id: str, ticker: str) -> None:
 
 @router.delete("/{ticker}")
 async def remove_from_watchlist(ticker: str, user_id: str = Depends(get_current_user_id)):
-    """Remove a ticker from the user's watchlist."""
+    """Remove a ticker from the user's watchlist. Idempotent on purpose — a
+    ticker that's already gone (a double-tap, a retried request, a stale
+    client cache) is still "not in the watchlist" either way, so this never
+    404s just because there was nothing left to delete."""
     ticker = ticker.upper()
     db = get_supabase()
-    res = await run_query(
+    await run_query(
         db.table("watchlist").delete().eq("user_id", user_id).eq("ticker", ticker)
     )
-    if not res.data:
-        raise HTTPException(status_code=404, detail=f"{ticker} not found in watchlist")
 
     from app.services import investment_graph_service as graph_service
     asyncio.create_task(graph_service.log_event(user_id, ticker, "watchlist_remove"))

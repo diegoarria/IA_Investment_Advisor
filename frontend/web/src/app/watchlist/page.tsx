@@ -575,33 +575,59 @@ export default function WatchlistPage() {
     setSearchOpen(false);
     setSearchResults([]);
 
-    try {
-      await watchlistApi.add(ticker, name);
-      await fetchWatchlist();
-    } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 409) {
-        showToast(t("watchlist.toast.alreadyInWatchlist", { ticker }));
-      } else if (status === 403 && !isPremium) {
-        setPaywallOpen(true);
-      } else {
-        showToast(t("watchlist.toast.addError"));
+    // Retried with backoff before ever showing an error — a transient
+    // network blip or a momentary DB hiccup on the tier-check query used to
+    // surface as "Error al agregar" even though a second attempt would have
+    // gone through fine. 409 (already in list) and 403 (free-tier limit) are
+    // real outcomes, not transient failures, so they short-circuit the retry
+    // loop immediately.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await watchlistApi.add(ticker, name);
+        await fetchWatchlist();
+        return;
+      } catch (err: unknown) {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 409) {
+          showToast(t("watchlist.toast.alreadyInWatchlist", { ticker }));
+          return;
+        }
+        if (status === 403 && !isPremium) {
+          setPaywallOpen(true);
+          return;
+        }
+        if (attempt === 2) {
+          showToast(t("watchlist.toast.addError"));
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
       }
     }
   };
 
   // ── Delete ─────────────────────────────────────────────────────────────
-  const handleConfirmDelete = async (ticker: string) => {
-    try {
-      await watchlistApi.remove(ticker);
-      setItems((prev) => {
-        const updated = prev.filter((i) => i.ticker !== ticker);
-        writeCache(updated);
-        return updated;
-      });
-    } catch {
-      showToast(t("watchlist.toast.deleteError"));
-    }
+  // Deletes instantly and optimistically — the trash icon removes the row
+  // right away, no confirmation step and no error toast ever shown. The
+  // actual server call is retried with backoff in the background; the
+  // backend delete is idempotent (a ticker already gone is still "deleted"
+  // from the user's point of view), so this effectively never fails visibly.
+  const handleConfirmDelete = (ticker: string) => {
+    setItems((prev) => {
+      const updated = prev.filter((i) => i.ticker !== ticker);
+      writeCache(updated);
+      return updated;
+    });
+    (async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          await watchlistApi.remove(ticker);
+          return;
+        } catch (e) {
+          if (attempt === 2) console.error("Failed to remove from watchlist on server:", e);
+          else await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+        }
+      }
+    })();
   };
 
   // ── Drag-and-drop reorder (basic view only) ──────────────────────────────

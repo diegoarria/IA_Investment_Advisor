@@ -128,43 +128,19 @@ function LiveDot({ live }: { live: boolean }) {
   );
 }
 
-// ─── Delete button with 2-tap confirm ─────────────────────────────────────────
+// ─── Delete button ─────────────────────────────────────────────────────────
 
 function DeleteBtn({ ticker, onRemove }: { ticker: string; onRemove: (t: string) => void }) {
   const { t } = useTranslation();
-  const [confirming, setConfirming] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (confirming) {
-      if (timer.current) clearTimeout(timer.current);
-      onRemove(ticker);
-    } else {
-      setConfirming(true);
-      timer.current = setTimeout(() => setConfirming(false), 3000);
-    }
-  };
-
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   return (
     <button
-      onClick={handleClick}
+      onClick={(e) => { e.stopPropagation(); onRemove(ticker); }}
       className="flex items-center justify-center rounded-lg transition-all mx-auto"
-      style={{
-        width: confirming ? "auto" : "28px",
-        height: "28px",
-        padding: confirming ? "0 8px" : "0",
-        background: confirming ? "rgba(239,68,68,0.12)" : "transparent",
-        color: confirming ? "#ef4444" : "var(--dim)",
-        border: confirming ? "1px solid rgba(239,68,68,0.3)" : "1px solid transparent",
-      }}
-      title={confirming ? t("advancedStockTable.tapToConfirm") : t("advancedStockTable.delete")}
+      style={{ width: "28px", height: "28px", color: "var(--dim)" }}
+      title={t("advancedStockTable.delete")}
     >
-      {confirming
-        ? <span className="text-xs font-black whitespace-nowrap">{t("advancedStockTable.confirmOk")}</span>
-        : <Trash2 className="w-4 h-4 opacity-50 hover:opacity-100 transition-opacity" />}
+      <Trash2 className="w-4 h-4 opacity-50 hover:opacity-100 transition-opacity" />
     </button>
   );
 }
