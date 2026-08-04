@@ -405,7 +405,14 @@ export const useChatStore = create<ChatState>()(
       resumeOrCreateSession: () => {
         const { sessions, currentId } = get();
         const latest = sessions[0];
-        if (latest && latest.messages.length > 0 && Date.now() - latest.updatedAt < CHAT_SESSION_TTL_MS) {
+        // No `messages.length > 0` requirement here on purpose — a brand-new
+        // empty session (just created via "+ Nuevo") IS the latest session
+        // and is well within the TTL the instant it's created, so it must
+        // resume too. Requiring messages used to make every resume check
+        // after that (mount, tab visibility change, the periodic
+        // loadFromServer retries) treat it as "nothing to resume" and snap
+        // back to whatever the previous real conversation was instead.
+        if (latest && Date.now() - latest.updatedAt < CHAT_SESSION_TTL_MS) {
           if (currentId !== latest.id) set({ currentId: latest.id, messages: latest.messages });
           return latest.id;
         }
@@ -581,9 +588,19 @@ export const useChatStore = create<ChatState>()(
             })
             .sort((a, b) => b.updatedAt - a.updatedAt);
 
-          // Keep local sessions that have messages but are not yet on server (unsent)
+          // Keep local sessions that aren't on the server yet: either they
+          // have unsent messages, or — just as important — it's the session
+          // the user is actively sitting on right now (e.g. a brand-new,
+          // still-empty "+ Nuevo" chat). Without that second condition, this
+          // merge dropped a just-created empty session on every refresh
+          // (mount, tab focus, the periodic retries below) and fell back to
+          // whatever the most recent REAL conversation was — "+ Nuevo" would
+          // open a new chat that then silently snapped back to the old one.
+          const { currentId: activeId } = get();
           const serverIds = new Set(serverSessions.map((s) => s.id));
-          const localOnly = get().sessions.filter((s) => !serverIds.has(s.id) && s.messages.length > 0 && !allDeleted.has(s.id));
+          const localOnly = get().sessions.filter((s) =>
+            !serverIds.has(s.id) && !allDeleted.has(s.id) && (s.messages.length > 0 || s.id === activeId)
+          );
           const merged = [...localOnly, ...serverSessions].sort((a, b) => b.updatedAt - a.updatedAt);
 
           const { currentId } = get();
