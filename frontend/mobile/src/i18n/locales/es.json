@@ -43,7 +43,7 @@
         "screener": "Screener Semanal",
         "earnings": "Análisis de Ganancias"
       },
-      "academy": "Academy",
+      "academy": "Aprendizaje",
       "undervalued": "Oportunidades",
       "notifications": "Notificaciones",
       "profile": "Perfil",
@@ -544,7 +544,7 @@
         "patrimonio": "Patrimonio",
         "chat": "Arthur",
         "notifications": "Notificaciones",
-        "academy": "Academy"
+        "academy": "Aprendizaje"
       }
     },
     "products": {
@@ -1787,7 +1787,7 @@
     "exploreTopics": "Explorar temas",
     "seeAll": "Ver todos →",
     "headerSub": "Aprende e invierte",
-    "headerTitle": "Academy",
+    "headerTitle": "Aprendizaje",
     "tour": {
       "title": "Empieza tu primera lección",
       "description": "Cada día hay una lección nueva. Completa 3 seguidas y arranca tu racha — tu streak aparece en el home."
@@ -2689,7 +2689,7 @@
         "sub": "Lo más importante de tus activos"
       },
       "academy": {
-        "label": "Academy",
+        "label": "Aprendizaje",
         "sub": "Aprende a invertir cada día"
       }
     },
@@ -3467,7 +3467,7 @@
     "productsAndServices": "Productos y Servicios",
     "simulator": "Simulador",
     "tabs": {
-      "academy": "Academy",
+      "academy": "Aprendizaje",
       "chat": "Arthur",
       "home": "Inicio",
       "investors": "Inversores",

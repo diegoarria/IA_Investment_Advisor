@@ -43,7 +43,7 @@
         "screener": "Weekly Screener",
         "earnings": "Earnings Analysis"
       },
-      "academy": "Academy",
+      "academy": "Learning",
       "undervalued": "Opportunities",
       "notifications": "Notifications",
       "profile": "Profile",
@@ -544,7 +544,7 @@
         "patrimonio": "Net Worth",
         "chat": "AI Mentor",
         "notifications": "Notifications",
-        "academy": "Academy"
+        "academy": "Learning"
       }
     },
     "products": {
@@ -1787,7 +1787,7 @@
     "exploreTopics": "Explore topics",
     "seeAll": "See all →",
     "headerSub": "Learn and invest",
-    "headerTitle": "Academy",
+    "headerTitle": "Learning",
     "tour": {
       "title": "Start your first lesson",
       "description": "There's a new lesson every day. Complete 3 in a row to start your streak — it shows up on your home screen."
@@ -2689,7 +2689,7 @@
         "sub": "What matters most about your assets"
       },
       "academy": {
-        "label": "Academy",
+        "label": "Learning",
         "sub": "Learn to invest every day"
       }
     },
@@ -3467,7 +3467,7 @@
     "productsAndServices": "Products and Services",
     "simulator": "Simulator",
     "tabs": {
-      "academy": "Academy",
+      "academy": "Learning",
       "chat": "AI Mentor",
       "home": "Home",
       "investors": "Investors",
