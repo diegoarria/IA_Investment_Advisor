@@ -530,9 +530,6 @@
       "note": "Las recompensas se activan automáticamente en cuanto tus amigos se registran con tu código.",
       "shareMessage": "Estoy usando Nuvos AI — el mejor mentor de inversiones con IA. Únete gratis 👉 {{url}}"
     },
-    "likedVideos": {
-      "sectionTitle": "VIDEOS QUE TE GUSTARON"
-    },
     "startScreen": {
       "sectionTitle": "Pantalla de inicio",
       "modalTitle": "¿Qué pantalla ver primero?",
@@ -590,8 +587,7 @@
   },
   "watchlist": {
     "tabs": {
-      "watchlist": "Watchlist",
-      "videos": "Videos"
+      "watchlist": "Watchlist"
     },
     "marketState": {
       "live": "En vivo",
@@ -628,10 +624,6 @@
     "viewMode": {
       "basic": "Básico",
       "advanced": "Avanzado"
-    },
-    "videos": {
-      "recentTitle": "Videos recientes",
-      "empty": "No hay videos disponibles"
     },
     "alertModal": {
       "title": "Alerta de precio",
@@ -1773,10 +1765,6 @@
     }
   },
   "academy": {
-    "tabs": {
-      "learning": "Aprendizaje",
-      "videos": "Videos"
-    },
     "categories": {
       "basics": "Básicos",
       "instruments": "Instrumentos",
@@ -1793,10 +1781,6 @@
     "streakInactive": "Lee para mantener tu racha",
     "exploreTopics": "Explorar temas",
     "seeAll": "Ver todos →",
-    "videosTitle": "Videos de inversión",
-    "videosDesc": "Aprende con videos cortos sobre inversiones, estrategias y análisis de mercado. Contenido curado especialmente para inversores hispanohablantes.",
-    "seeVideos": "Ver videos",
-    "videosNote": "Los videos están optimizados para la experiencia móvil con gestos nativos.",
     "headerSub": "Aprende e invierte",
     "headerTitle": "Academy",
     "tour": {
@@ -2174,57 +2158,6 @@
     "paywall": {
       "reason": "El análisis IA del simulador es exclusivo de Premium."
     }
-  },
-  "videos": {
-    "aiAnalysis": "Análisis IA",
-    "aiIntro": "Introducción IA",
-    "all": "Todos",
-    "applyFilters": "Aplicar filtros",
-    "beFirstToComment": "Sé el primero en comentar",
-    "commentsCount": "Comentarios ({{count}})",
-    "download": "Descargar",
-    "downloadError": "No se pudo descargar el video. Intenta de nuevo.",
-    "downloadShort": "Bajar",
-    "downloadUnavailable": "Descarga no disponible",
-    "downloadUnavailableBody": "Este clip aún no tiene archivo MP4 descargable. Escríbenos a soporte para solicitarlo.",
-    "downloaded": "Descargado",
-    "downloadedAt": "Guardado en: {{uri}}",
-    "downloading": "Bajando...",
-    "error": "Error",
-    "genericDownloadError": "No se pudo descargar. Intenta de nuevo.",
-    "imagePrepError": "Error al preparar la imagen",
-    "imagePrepErrorBody": "Intenta de nuevo o verifica que el video esté cargado.",
-    "investor": "Inversor",
-    "loadingRandom": "Cargando aleatorio...",
-    "noSavedVideos": "Aún no guardaste videos",
-    "noVideosAvailable": "No hay videos disponibles",
-    "notAvailable": "No disponible",
-    "off": "Apagado",
-    "random": "Aleatorio",
-    "recent": "Recientes",
-    "remove": "Quitar",
-    "reply": "Responder",
-    "replyToPlaceholder": "Responder a {{name}}…",
-    "save": "Guardar",
-    "saveVideo": "Guardar video",
-    "saved": "Guardado",
-    "savedVideos": "Videos guardados",
-    "sendViaWhatsApp": "Enviar por WhatsApp",
-    "share": "Compartir",
-    "shareAsStory": "Compartir como Historia",
-    "shareFacebookStories": "Compartir en Facebook Stories",
-    "shareInstagramStories": "Compartir en Instagram Stories",
-    "skip": "Saltar",
-    "sortBy": "Ordenar",
-    "story": "Historia",
-    "streamingNotDownloadable": "Este video es streaming y no puede descargarse.",
-    "tapBookmarkIcon": "Toca el ícono de marcador en cualquier video",
-    "topic": "Tema",
-    "trending": "Trending",
-    "user": "Usuario",
-    "whatsappSub": "Tus contactos pueden abrir el clip aunque no tengan la app",
-    "writeComment": "Escribe un comentario...",
-    "you": "Tú"
   },
   "library": {
     "title": "Mi Biblioteca",
@@ -3519,7 +3452,6 @@
       "products": "Productos",
       "profile": "Perfil",
       "support": "Soporte",
-      "videos": "Videos",
       "watchlist": "Watchlist"
     }
   },

@@ -427,41 +427,6 @@ export const priceAlerts = {
   remove: (ticker: string) => api.delete(`/api/price-alerts/${encodeURIComponent(ticker)}`),
 };
 
-export const feedApi = {
-  getClips: (params: { cursor?: number; speaker?: string; tag?: string; sort?: string }) =>
-    api.get("/api/feed/clips", { params }),
-  getLiked: () => api.get("/api/feed/liked"),
-  like: (clipId: string) =>
-    api.post(`/api/feed/clips/${clipId}/like`),
-  save: (clipId: string) =>
-    api.post(`/api/feed/clips/${clipId}/save`),
-  view: (clipId: string, watchedPct: number) =>
-    api.post(`/api/feed/clips/${clipId}/view`, { watched_pct: watchedPct }),
-  getComments: (clipId: string) =>
-    api.get(`/api/feed/clips/${clipId}/comments`),
-  postComment: (clipId: string, text: string, parentId?: string) =>
-    api.post(`/api/feed/clips/${clipId}/comments`, { text, parent_id: parentId }),
-  deleteComment: (clipId: string, commentId: string) =>
-    api.delete(`/api/feed/clips/${clipId}/comments/${commentId}`),
-
-  getClip: (clipId: string) => api.get(`/api/feed/clips/${clipId}`),
-  getSaved: () => api.get("/api/feed/saved"),
-  downloadUrl: (clipId: string) => `${BASE_URL}/api/feed/clips/${clipId}/download`,
-
-  // Admin
-  adminList: (status = "draft") =>
-    api.get("/api/feed/admin/clips", { params: { status } }),
-  adminCreate: (clip: Record<string, unknown>) =>
-    api.post("/api/feed/admin/clips", clip),
-  adminUpdate: (clipId: string, updates: Record<string, unknown>) =>
-    api.patch(`/api/feed/admin/clips/${clipId}`, updates),
-  adminDelete: (clipId: string) =>
-    api.delete(`/api/feed/admin/clips/${clipId}`),
-  generateAudio: (clipId: string) =>
-    api.post(`/api/feed/admin/clips/${clipId}/generate-audio`),
-};
-
-
 export const brokerageApi = {
   // Plaid
   createLinkToken: () => api.post("/api/brokerage/plaid/link-token"),

@@ -17,7 +17,7 @@ import MobileDecisionDiary from "../../src/components/MobileDecisionDiary";
 import MobileInvestmentGraph from "../../src/components/MobileInvestmentGraph";
 import PaywallModal from "../../src/components/PaywallModal";
 import SavedValuationsSection from "../../src/components/SavedValuationsSection";
-import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi, billingApi, voiceCallsApi } from "../../src/lib/api";
+import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, billingApi, voiceCallsApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -190,15 +190,12 @@ export default function ProfileScreen() {
     free_deep_research_credits: number;
   } | null>(null);
   const [redeemingSession, setRedeemingSession] = useState(false);
-  const [likedClips, setLikedClips] = useState<{ id: string; title: string; thumbnail_url: string; speaker: string; duration_sec: number }[]>([]);
-
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
 
   useEffect(() => {
     insightsApi.get().then((r) => setInsights(r.data)).catch(() => {});
     referralApi.getCode().then((r) => setReferralCode(r.data.code ?? null)).catch(() => {});
-    feedApi.getLiked().then((r: any) => setLikedClips(r.data.clips || [])).catch(() => {});
     referralApi.getStats().then((r) => setReferralStats(r.data)).catch(() => {});
     billingApi.getStatus().then((res: any) => {
       setDuoPending(!!res?.data?.duo_setup_pending);
@@ -1243,54 +1240,6 @@ if (!profile) {
             </View>
           </View>
         </View>
-
-        {/* ── VIDEOS QUE TE GUSTARON ── */}
-        {likedClips.length > 0 && (
-          <View style={s.section}>
-            <View style={s.sectionHeader}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={{ fontSize: 14 }}>❤️</Text>
-                <Text style={[s.sectionTitle, { color: colors.text }]}>
-                  {t("profile.likedVideos.sectionTitle")}
-                </Text>
-                <View style={{ backgroundColor: colors.accent + "22", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
-                  <Text style={{ color: colors.accentLight, fontSize: 11, fontWeight: "700" }}>{likedClips.length}</Text>
-                </View>
-              </View>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 4 }}>
-              {likedClips.map((clip) => (
-                <TouchableOpacity
-                  key={clip.id}
-                  activeOpacity={0.8}
-                  onPress={() => router.push({ pathname: "/(tabs)/videos", params: { clipId: clip.id } })}
-                  style={{ width: 148, borderRadius: 16, borderWidth: 1, overflow: "hidden", backgroundColor: colors.card, borderColor: colors.border }}
-                >
-                  {/* Thumbnail */}
-                  <View style={{ width: "100%", height: 90, backgroundColor: colors.bgRaised, position: "relative" }}>
-                    {clip.thumbnail_url ? (
-                      <Image source={{ uri: clip.thumbnail_url }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-                    ) : (
-                      <View style={[StyleSheet.absoluteFillObject, { alignItems: "center", justifyContent: "center" }]}>
-                        <Text style={{ fontSize: 28 }}>🎬</Text>
-                      </View>
-                    )}
-                    <View style={{ position: "absolute", bottom: 6, right: 6, backgroundColor: "rgba(0,0,0,0.65)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                      <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>
-                        {clip.duration_sec >= 60 ? `${Math.floor(clip.duration_sec / 60)}m` : `${clip.duration_sec}s`}
-                      </Text>
-                    </View>
-                  </View>
-                  {/* Info */}
-                  <View style={{ padding: 10, gap: 3 }}>
-                    <Text style={{ fontSize: 12, fontWeight: "700", lineHeight: 16, color: colors.text }} numberOfLines={2}>{clip.title}</Text>
-                    <Text style={{ fontSize: 10, color: colors.textMuted }} numberOfLines={1}>{clip.speaker}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
 
         {/* ── PANTALLA DE INICIO ── */}
         <View style={s.section}>

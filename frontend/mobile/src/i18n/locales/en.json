@@ -530,9 +530,6 @@
       "note": "Rewards activate automatically as soon as your friends sign up with your code.",
       "shareMessage": "I'm using Nuvos AI — the best AI investment mentor. Join for free 👉 {{url}}"
     },
-    "likedVideos": {
-      "sectionTitle": "VIDEOS YOU LIKED"
-    },
     "startScreen": {
       "sectionTitle": "Start screen",
       "modalTitle": "Which screen do you want to see first?",
@@ -590,8 +587,7 @@
   },
   "watchlist": {
     "tabs": {
-      "watchlist": "Watchlist",
-      "videos": "Videos"
+      "watchlist": "Watchlist"
     },
     "marketState": {
       "live": "Live",
@@ -628,10 +624,6 @@
     "viewMode": {
       "basic": "Basic",
       "advanced": "Advanced"
-    },
-    "videos": {
-      "recentTitle": "Recent videos",
-      "empty": "No videos available"
     },
     "alertModal": {
       "title": "Price alert",
@@ -1773,10 +1765,6 @@
     }
   },
   "academy": {
-    "tabs": {
-      "learning": "Learning",
-      "videos": "Videos"
-    },
     "categories": {
       "basics": "Basics",
       "instruments": "Instruments",
@@ -1793,10 +1781,6 @@
     "streakInactive": "Read to start your streak",
     "exploreTopics": "Explore topics",
     "seeAll": "See all →",
-    "videosTitle": "Investing videos",
-    "videosDesc": "Learn with short videos about investing, strategies, and market analysis. Content curated especially for Spanish-speaking investors.",
-    "seeVideos": "Watch videos",
-    "videosNote": "Videos are optimized for the mobile experience with native gestures.",
     "headerSub": "Learn and invest",
     "headerTitle": "Academy",
     "tour": {
@@ -2174,57 +2158,6 @@
     "paywall": {
       "reason": "AI simulator analysis is a Premium-only feature."
     }
-  },
-  "videos": {
-    "aiAnalysis": "AI Analysis",
-    "aiIntro": "AI Intro",
-    "all": "All",
-    "applyFilters": "Apply filters",
-    "beFirstToComment": "Be the first to comment",
-    "commentsCount": "Comments ({{count}})",
-    "download": "Download",
-    "downloadError": "Couldn't download the video. Try again.",
-    "downloadShort": "Save",
-    "downloadUnavailable": "Download unavailable",
-    "downloadUnavailableBody": "This clip doesn't have a downloadable MP4 file yet. Message support to request it.",
-    "downloaded": "Downloaded",
-    "downloadedAt": "Saved to: {{uri}}",
-    "downloading": "Downloading...",
-    "error": "Error",
-    "genericDownloadError": "Couldn't download. Try again.",
-    "imagePrepError": "Error preparing the image",
-    "imagePrepErrorBody": "Try again or make sure the video has loaded.",
-    "investor": "Investor",
-    "loadingRandom": "Loading random...",
-    "noSavedVideos": "You haven't saved any videos yet",
-    "noVideosAvailable": "No videos available",
-    "notAvailable": "Not available",
-    "off": "Off",
-    "random": "Random",
-    "recent": "Recent",
-    "remove": "Remove",
-    "reply": "Reply",
-    "replyToPlaceholder": "Reply to {{name}}…",
-    "save": "Save",
-    "saveVideo": "Save video",
-    "saved": "Saved",
-    "savedVideos": "Saved videos",
-    "sendViaWhatsApp": "Send via WhatsApp",
-    "share": "Share",
-    "shareAsStory": "Share as a Story",
-    "shareFacebookStories": "Share to Facebook Stories",
-    "shareInstagramStories": "Share to Instagram Stories",
-    "skip": "Skip",
-    "sortBy": "Sort by",
-    "story": "Story",
-    "streamingNotDownloadable": "This video is streaming and can't be downloaded.",
-    "tapBookmarkIcon": "Tap the bookmark icon on any video",
-    "topic": "Topic",
-    "trending": "Trending",
-    "user": "User",
-    "whatsappSub": "Your contacts can open the clip even without the app",
-    "writeComment": "Write a comment...",
-    "you": "You"
   },
   "library": {
     "title": "My Library",
@@ -3519,7 +3452,6 @@
       "products": "Products",
       "profile": "Profile",
       "support": "Support",
-      "videos": "Videos",
       "watchlist": "Watchlist"
     }
   },

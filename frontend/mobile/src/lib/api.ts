@@ -382,23 +382,6 @@ export const savedValuationsApi = {
   remove: (ticker: string) => api.delete(`/api/saved-valuations/${ticker}`),
 };
 
-export const feedApi = {
-  getClips: (params: { cursor?: number; speaker?: string; tag?: string; sort?: string }) =>
-    api.get("/api/feed/clips", { params }),
-  likeClip:    (clipId: string) => api.post(`/api/feed/clips/${clipId}/like`),
-  saveClip:    (clipId: string) => api.post(`/api/feed/clips/${clipId}/save`),
-  viewClip:    (clipId: string, watchedPct: number) =>
-    api.post(`/api/feed/clips/${clipId}/view`, { watched_pct: watchedPct }),
-  getComments: (clipId: string) => api.get(`/api/feed/clips/${clipId}/comments`),
-  postComment: (clipId: string, text: string, parentId?: string) =>
-    api.post(`/api/feed/clips/${clipId}/comments`, { text, parent_id: parentId }),
-  deleteComment: (clipId: string, commentId: string) =>
-    api.delete(`/api/feed/clips/${clipId}/comments/${commentId}`),
-  getClip:   (clipId: string) => api.get(`/api/feed/clips/${clipId}`),
-  getSaved:  () => api.get("/api/feed/saved"),
-  getLiked:  () => api.get("/api/feed/liked"),
-  downloadClipUrl: (clipId: string) => `${BASE_URL}/api/feed/clips/${clipId}/download`,
-};
 
 export const simulateApi = {
   whatIf: (

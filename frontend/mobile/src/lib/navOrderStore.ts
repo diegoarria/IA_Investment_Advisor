@@ -21,7 +21,6 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { icon: "reader-outline",        iconFilled: "reader",        label: "Chat",          path: "/chat",          tabCapable: true,  minLevel: "basico" },
   { icon: "pie-chart-outline",     iconFilled: "pie-chart",     label: "Portafolio",    path: "/portfolio",     tabCapable: true,  minLevel: "basico" },
   { icon: "eye-outline",           iconFilled: "eye",           label: "Watchlist",     path: "/watchlist",     tabCapable: true,  minLevel: "basico" },
-  { icon: "play-outline",          iconFilled: "play",          label: "Videos",        path: "/videos",        tabCapable: true,  minLevel: "basico" },
   { icon: "school-outline",        iconFilled: "school",        label: "Aprendizaje",   path: "/learn",         tabCapable: true,  minLevel: "basico" },
   { icon: "notifications-outline", iconFilled: "notifications", label: "Notificaciones",path: "/notifications", tabCapable: true,  minLevel: "basico" },
   { icon: "headset-outline",       iconFilled: "headset",       label: "Soporte",       path: "/support",       tabCapable: false, minLevel: "basico" },
@@ -31,16 +30,15 @@ export const ALL_NAV_ITEMS: NavItem[] = [
 const ALL_PATHS = ALL_NAV_ITEMS.map((i) => i.path);
 const DEFAULT_ORDER = ALL_PATHS;
 
-// Web uses /feed for Videos; mobile uses /videos. Translate when syncing with server.
-const FROM_SERVER: Record<string, string> = { "/feed": "/videos" };
-const TO_SERVER:   Record<string, string> = { "/videos": "/feed" };
-
+// Was translating "/feed" (web) <-> "/videos" (mobile) for the now-removed
+// Videos feature — no path mismatch left to normalize, kept as identity
+// functions so call sites below don't need to change.
 function normalizeFromServer(paths: string[]): string[] {
-  return paths.map((p) => FROM_SERVER[p] ?? p);
+  return paths;
 }
 
 function normalizeToServer(paths: string[]): string[] {
-  return paths.map((p) => TO_SERVER[p] ?? p);
+  return paths;
 }
 
 interface NavOrderStore {

@@ -11,7 +11,7 @@ import {
   useAuthStore, useProfileStore, useSubscriptionStore, useNotificationStore,
   useThemeStore, useLanguageStore, msgsRemaining, FREE_MSG_LIMIT, maturityLabel, maturitySignalI18nKey,
 } from "@/lib/store";
-import { auth as authApi, billing, feedApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi, voiceCallsApi } from "@/lib/api";
+import { auth as authApi, billing, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi, voiceCallsApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
 import WrappedCard from "@/components/WrappedCard";
@@ -182,7 +182,6 @@ export default function ProfilePage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [copiedProfile, setCopiedProfile] = useState(false);
-  const [likedClips, setLikedClips] = useState<{ id: string; title: string; thumbnail_url: string; speaker: string; duration_sec: number }[]>([]);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [insights, setInsights] = useState<{
@@ -222,7 +221,6 @@ export default function ProfilePage() {
   useEffect(() => {
     insightsApi.get(i18n.language).then((r) => setInsights(r.data)).catch(() => {});
     notifApi.getAll().then(() => {}).catch(() => {});
-    feedApi.getLiked().then((r) => setLikedClips(r.data.clips || [])).catch(() => {});
     subStore.fetchStatus().catch(() => {});
     referralApi.getCode().then((r) => setReferralCode(r.data.code ?? null)).catch(() => {});
     referralApi.getStats().then((r) => setReferralStats(r.data)).catch(() => {});
@@ -1334,47 +1332,6 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 </div>
-
-                {/* Videos con like */}
-                {likedClips.length > 0 && (
-                  <div>
-                    <p className="text-xs font-bold mb-3 flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
-                      {t("profile.likedVideos")}
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full font-normal"
-                            style={{ background: "var(--raised)", color: "var(--dim)" }}>
-                        {likedClips.length}
-                      </span>
-                    </p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {likedClips.map((clip) => (
-                        <a key={clip.id} href={`/feed?clip=${clip.id}`}
-                           className="rounded-xl overflow-hidden block group"
-                           style={{ border: "1px solid var(--border)" }}>
-                          <div className="relative aspect-video flex items-center justify-center"
-                               style={{ background: "var(--raised)" }}>
-                            {clip.thumbnail_url
-                              ? <img src={clip.thumbnail_url} alt={clip.title}
-                                     className="w-full h-full object-cover" />
-                              : <span className="text-2xl">🎬</span>}
-                            {clip.duration_sec > 0 && (
-                              <span className="absolute bottom-1 right-1 text-[9px] font-bold px-1 rounded"
-                                    style={{ background: "rgba(0,0,0,0.7)", color: "white" }}>
-                                {clip.duration_sec}s
-                              </span>
-                            )}
-                          </div>
-                          <div className="p-1.5">
-                            <p className="text-[10px] font-semibold leading-tight line-clamp-2"
-                               style={{ color: "var(--text)" }}>{clip.title}</p>
-                            <p className="text-[9px] mt-0.5" style={{ color: "var(--muted)" }}>
-                              {clip.speaker.split(" ")[1] ?? clip.speaker}
-                            </p>
-                          </div>
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 {/* Nuvos Wrapped */}
                 <button

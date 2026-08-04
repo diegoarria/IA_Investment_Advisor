@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   View, Text, TouchableOpacity, ScrollView,
   StyleSheet,
@@ -12,15 +12,6 @@ import MobileTourBanner from "../../src/components/MobileTourBanner";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
 import { useLearnStore } from "../../src/lib/learnStore";
-
-// ─── Sub-tabs ────────────────────────────────────────────────────────────────
-
-const TABS = ["Aprendizaje", "Videos"] as const;
-type TabId = (typeof TABS)[number];
-
-function getTabLabel(t: TFunction, tab: TabId): string {
-  return tab === "Aprendizaje" ? t("academy.tabs.learning") : t("academy.tabs.videos");
-}
 
 // ─── Category data ───────────────────────────────────────────────────────────
 
@@ -115,51 +106,12 @@ function AprendizajeTab({ colors, isTour }: { colors: any; isTour?: boolean }) {
   );
 }
 
-// ─── Videos Tab ──────────────────────────────────────────────────────────────
-
-function VideosTab({ colors }: { colors: any }) {
-  const { t } = useTranslation();
-  return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 12 }}>
-      {/* Description Card */}
-      <View style={[ss.videoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[ss.videoIconWrap, { backgroundColor: colors.accent + "22" }]}>
-          <Ionicons name="play-circle-outline" size={28} color={colors.accentLight} />
-        </View>
-        <Text style={[ss.videoTitle, { color: colors.text }]}>{t("academy.videosTitle")}</Text>
-        <Text style={[ss.videoDesc, { color: colors.textMuted }]}>
-          {t("academy.videosDesc")}
-        </Text>
-      </View>
-
-      {/* Open Videos Button */}
-      <TouchableOpacity
-        onPress={() => router.push("/(tabs)/videos")}
-        activeOpacity={0.8}
-        style={[ss.btn, { backgroundColor: colors.accent }]}
-      >
-        <Ionicons name="play" size={16} color="#fff" />
-        <Text style={ss.btnText}>{t("academy.seeVideos")}</Text>
-      </TouchableOpacity>
-
-      {/* Info Note */}
-      <View style={[ss.noteCard, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
-        <Ionicons name="phone-portrait-outline" size={18} color={colors.textMuted} />
-        <Text style={[ss.noteText, { color: colors.textMuted }]}>
-          {t("academy.videosNote")}
-        </Text>
-      </View>
-    </ScrollView>
-  );
-}
-
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
 export default function AcademyScreen() {
   const { colors } = useTheme();
   const { t } = useTranslation();
   const openSidebar = useAppStore((s) => s.openSidebar);
-  const [activeTab, setActiveTab] = useState<TabId>("Aprendizaje");
   const { tour } = useLocalSearchParams<{ tour?: string }>();
   const isTour = tour === "4";
 
@@ -177,33 +129,8 @@ export default function AcademyScreen() {
         </View>
       </View>
 
-      {/* Sub-tab switcher */}
-      <View style={[ss.tabBar, { borderBottomColor: colors.border, backgroundColor: colors.bg }]}>
-        {TABS.map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            onPress={() => setActiveTab(tab)}
-            activeOpacity={0.8}
-            style={[
-              ss.tabBtn,
-              activeTab === tab && { backgroundColor: colors.accent },
-            ]}
-          >
-            <Text
-              style={[
-                ss.tabBtnText,
-                { color: activeTab === tab ? "#fff" : colors.textMuted },
-              ]}
-            >
-              {getTabLabel(t, tab)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
       {/* Content */}
-      {activeTab === "Aprendizaje" && <AprendizajeTab colors={colors} isTour={isTour} />}
-      {activeTab === "Videos" && <VideosTab colors={colors} />}
+      <AprendizajeTab colors={colors} isTour={isTour} />
 
       {isTour && (
         <MobileTourBanner
@@ -238,22 +165,6 @@ const ss = StyleSheet.create({
     fontSize: 26,
     fontWeight: "900",
     letterSpacing: -0.5,
-  },
-  tabBar: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 6,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  tabBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  tabBtnText: {
-    fontSize: 13,
-    fontWeight: "600",
   },
   // Streak
   streakCard: {
@@ -324,43 +235,6 @@ const ss = StyleSheet.create({
   categoryTitle: {
     fontSize: 12,
     fontWeight: "700",
-  },
-  // Videos
-  videoCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 20,
-    alignItems: "center",
-    gap: 12,
-  },
-  videoIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  videoTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  videoDesc: {
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: "center",
-  },
-  noteCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 14,
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "flex-start",
-  },
-  noteText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
   },
   // Button
   btn: {

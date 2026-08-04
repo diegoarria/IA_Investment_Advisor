@@ -11,9 +11,8 @@ import { useTheme, type Colors } from "../../src/lib/ThemeContext";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
-import { marketApi, watchlistExtApi, feedApi, priceAlertsApi } from "../../src/lib/api";
+import { marketApi, watchlistExtApi, priceAlertsApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
-import { Image } from "react-native";
 import StockAvatar from "../../src/components/StockAvatar";
 import PaywallModal from "../../src/components/PaywallModal";
 import MobileEarningsCalendar from "../../src/components/MobileEarningsCalendar";
@@ -263,7 +262,6 @@ export default function WatchlistScreen() {
   const isPremium = hasPremiumAccess(subStore);
   const { positions } = usePortfolioStore();
 
-  const [subTab, setSubTab] = useState<"watchlist" | "videos">("watchlist");
   const [prices, setPrices]               = useState<Record<string, ExtPrice>>({});
   const [pricesLoading, setPricesLoading] = useState(false);
   const [query, setQuery]                 = useState("");
@@ -279,9 +277,6 @@ export default function WatchlistScreen() {
 
   // Default is "advanced" for everyone — never start on the simplified view.
   const [viewMode, setViewMode] = useState<"basic" | "advanced">("advanced");
-
-  const [clips, setClips]               = useState<any[]>([]);
-  const [clipsLoading, setClipsLoading] = useState(false);
 
   type PriceAlert = { ticker: string; target_price: number; condition: string };
   const [alerts, setAlerts]                 = useState<Record<string, PriceAlert>>({});
@@ -349,16 +344,6 @@ export default function WatchlistScreen() {
     setAlerts((prev) => { const n = { ...prev }; delete n[ticker]; return n; });
     setAlertModal(null);
   };
-
-  const loadClips = useCallback(async () => {
-    if (clips.length) return;
-    setClipsLoading(true);
-    try {
-      const res = await feedApi.getClips({ sort: "recent" });
-      setClips((res.data?.clips ?? res.data ?? []).slice(0, 9));
-    } catch {}
-    setClipsLoading(false);
-  }, [clips.length]);
 
   const loadPrices = useCallback(async (silent = false) => {
     if (items.length === 0) return;
@@ -431,40 +416,8 @@ export default function WatchlistScreen() {
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
 
-      {/* Sub-tab bar */}
-      <View style={[s.subTabBar, { backgroundColor: colors.bg }]}>
-        <View style={[s.subTabInner, { backgroundColor: colors.bgRaised }]}>
-          {(["watchlist", "videos"] as const).map((tab) => {
-            const active = subTab === tab;
-            const icon: React.ComponentProps<typeof Ionicons>["name"] =
-              tab === "watchlist" ? "eye-outline" : "play-outline";
-            const iconFilled: React.ComponentProps<typeof Ionicons>["name"] =
-              tab === "watchlist" ? "eye" : "play";
-            const label = tab === "watchlist" ? t("watchlist.tabs.watchlist") : t("watchlist.tabs.videos");
-            return (
-              <TouchableOpacity
-                key={tab}
-                style={[s.subTab, active && { backgroundColor: colors.card }]}
-                onPress={() => { setSubTab(tab); if (tab === "videos") loadClips(); }}
-                activeOpacity={0.75}
-              >
-                <Ionicons
-                  name={active ? iconFilled : icon}
-                  size={14}
-                  color={active ? "#00d47e" : colors.textMuted}
-                />
-                <Text style={[s.subTabText, { color: active ? colors.text : colors.textMuted }]}>
-                  {label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-
       {/* Watchlist content */}
-      {subTab === "watchlist" && (
-        <ScrollView
+      <ScrollView
           contentContainerStyle={s.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -641,61 +594,6 @@ export default function WatchlistScreen() {
             onUpgrade={() => setPaywallOpen(true)}
           />
         </ScrollView>
-      )}
-
-      {/* Videos tab */}
-      {subTab === "videos" && (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-            <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text, letterSpacing: -0.3 }}>{t("watchlist.videos.recentTitle")}</Text>
-            <TouchableOpacity onPress={() => router.navigate("/(tabs)/videos")} activeOpacity={0.7}>
-              <Text style={{ fontSize: 13, fontWeight: "600", color: "#00d47e" }}>{t("common.seeAll")}</Text>
-            </TouchableOpacity>
-          </View>
-          {clipsLoading
-            ? <ActivityIndicator size="large" color="#00d47e" style={{ marginTop: 40 }} />
-            : clips.length === 0
-            ? (
-              <View style={{ alignItems: "center", padding: 40, gap: 12 }}>
-                <Ionicons name="play-circle-outline" size={48} color={colors.textDim} />
-                <Text style={{ color: colors.textMuted, fontSize: 14, textAlign: "center" }}>
-                  {t("watchlist.videos.empty")}
-                </Text>
-              </View>
-            )
-            : clips.map((clip) => (
-              <TouchableOpacity
-                key={clip.id}
-                activeOpacity={0.88}
-                onPress={() => router.navigate("/(tabs)/videos")}
-                style={[s.videoCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              >
-                {clip.thumbnail_url
-                  ? <Image source={{ uri: clip.thumbnail_url }} style={s.videoThumb} />
-                  : (
-                    <View style={[s.videoThumb, { backgroundColor: colors.bgRaised, alignItems: "center", justifyContent: "center" }]}>
-                      <Ionicons name="play-circle-outline" size={32} color={colors.textDim} />
-                    </View>
-                  )
-                }
-                <View style={s.videoInfo}>
-                  <Text style={[s.videoTitle, { color: colors.text }]} numberOfLines={2}>{clip.title}</Text>
-                  {clip.speaker ? (
-                    <Text style={[s.videoSpeaker, { color: colors.textMuted }]} numberOfLines={1}>{clip.speaker}</Text>
-                  ) : null}
-                  <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
-                    {(clip.tags ?? []).slice(0, 2).map((tag: string) => (
-                      <View key={tag} style={s.videoTag}>
-                        <Text style={s.videoTagText}>{tag}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))
-          }
-        </ScrollView>
-      )}
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
 
@@ -776,12 +674,6 @@ const s = StyleSheet.create({
   container: { flex: 1 },
   scroll: { padding: 16, gap: 12, paddingBottom: 40 },
 
-  // Sub-tab bar
-  subTabBar: { paddingHorizontal: 16, paddingVertical: 10 },
-  subTabInner: { flexDirection: "row", borderRadius: 14, padding: 3, gap: 2 },
-  subTab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 9, borderRadius: 11 },
-  subTabText: { fontSize: 13, fontWeight: "600" },
-
   // Search
   searchWrap: {
     flexDirection: "row", alignItems: "center", gap: 10,
@@ -820,13 +712,4 @@ const s = StyleSheet.create({
   sortRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   sortBtn: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
   sortBtnText: { fontSize: 10, fontWeight: "700" },
-
-  // Video cards
-  videoCard: { borderRadius: 16, borderWidth: 1, flexDirection: "row", overflow: "hidden" },
-  videoThumb: { width: 100, height: 80 },
-  videoInfo: { flex: 1, padding: 10, gap: 4 },
-  videoTitle: { fontSize: 13, fontWeight: "600", lineHeight: 18 },
-  videoSpeaker: { fontSize: 11, fontWeight: "400" },
-  videoTag: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: "rgba(0,212,126,0.1)" },
-  videoTagText: { fontSize: 10, fontWeight: "600", color: "#00d47e" },
 });

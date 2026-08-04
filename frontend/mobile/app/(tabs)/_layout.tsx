@@ -30,7 +30,6 @@ function getTabConfig(t: TFunction): Record<string, { icon: IoniconName; iconFil
     watchlist:     { icon: "pulse-outline",           iconFilled: "pulse",           label: t("tabsLayout.tabs.watchlist") },
     paper:         { icon: "bar-chart-outline",       iconFilled: "bar-chart",       label: t("tabsLayout.tabs.paper") },
     learn:         { icon: "book-outline",            iconFilled: "book",            label: t("tabsLayout.tabs.learn") },
-    videos:        { icon: "play-outline",            iconFilled: "play",            label: t("tabsLayout.tabs.videos") },
     investors:     { icon: "people-outline",          iconFilled: "people",          label: t("tabsLayout.tabs.investors") },
     notifications: { icon: "notifications-outline",   iconFilled: "notifications",   label: t("tabsLayout.tabs.notifications") },
     support:       { icon: "headset-outline",         iconFilled: "headset",         label: t("tabsLayout.tabs.support") },
@@ -393,7 +392,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="watchlist"     options={{ title: t("tabsLayout.tabs.watchlist"),     header: () => <MobileHeader title={t("tabsLayout.tabs.watchlist")} /> }} />
       <Tabs.Screen name="paper"         options={{ href: null, title: t("tabsLayout.simulator"), header: () => <MobileHeader title={t("tabsLayout.simulator")} /> }} />
       <Tabs.Screen name="learn"         options={{ title: t("tabsLayout.tabs.learn"),   header: () => <MobileHeader title={t("tabsLayout.tabs.learn")} /> }} />
-      <Tabs.Screen name="videos"        options={{ title: t("tabsLayout.tabs.videos"),        header: () => <MobileHeader title={t("tabsLayout.tabs.videos")} /> }} />
       <Tabs.Screen name="investors"     options={{ title: t("tabsLayout.tabs.investors"),    header: () => <MobileHeader title={t("tabsLayout.tabs.investors")} /> }} />
       <Tabs.Screen name="notifications" options={{ title: t("tabsLayout.tabs.notifications"), header: () => <MobileHeader title={t("tabsLayout.tabs.notifications")} /> }} />
       <Tabs.Screen name="profile"       options={{ title: t("tabsLayout.tabs.profile"),        header: () => <MobileHeader title={t("tabsLayout.myProfile")} /> }} />
