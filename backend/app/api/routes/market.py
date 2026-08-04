@@ -1956,7 +1956,16 @@ async def get_quote_details(
     user_id: str = Depends(get_current_user_id),
 ):
     """Extended quote data: volume, market cap, P/E, 52-week range, earnings date."""
-    tickers = [s.strip().upper() for s in symbols.split(",") if s.strip()][:30]
+    # Was hard-capped at 30 with no relation to any real constraint (no
+    # external batch-API limit here — each ticker is fetched individually
+    # via _MARKET_POOL) — tickers past position 30 in a watchlist/portfolio
+    # simply never got volume/market-cap/P-E/52-week data, silently, with no
+    # error. Premium watchlists have no size cap (see watchlist.py's
+    # FREE_LIMIT, premium-only), so this was cutting off exactly the users
+    # paying for a bigger watchlist. Raised to a generous ceiling that's
+    # still a real bound (protects _MARKET_POOL from a truly pathological
+    # request) rather than removing the cap outright.
+    tickers = [s.strip().upper() for s in symbols.split(",") if s.strip()][:150]
     if not tickers:
         return {}
     data = await asyncio.to_thread(_fetch_quote_details, tickers)
