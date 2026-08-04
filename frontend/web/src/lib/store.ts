@@ -254,6 +254,12 @@ interface ChatState {
   currentId: string | null;
   messages: ChatMessage[];
   isStreaming: boolean;
+  // Session ids the user has deleted — persisted so a deleted chat never
+  // resurfaces on this device again, even before the server confirms the
+  // delete (a concurrent loadFromServer/poll can't re-merge it back in
+  // while its id sits here) and even if the delete request itself fails
+  // (loadFromServer retries any id here the server hasn't confirmed yet).
+  deletedIds: string[];
   createSession: () => string;
   resumeOrCreateSession: () => string;
   loadSession: (id: string) => void;
@@ -381,6 +387,7 @@ export const useChatStore = create<ChatState>()(
       currentId: null,
       messages: [],
       isStreaming: false,
+      deletedIds: [],
 
       createSession: () => {
         const id = makeSessionId();
@@ -416,19 +423,36 @@ export const useChatStore = create<ChatState>()(
           const remaining = s.sessions.filter((session) => session.id !== id);
           const newCurrentId = s.currentId === id ? (remaining[0]?.id ?? null) : s.currentId;
           const newMessages = s.currentId === id ? (remaining[0]?.messages ?? []) : s.messages;
-          return { sessions: remaining, currentId: newCurrentId, messages: newMessages };
+          return {
+            sessions: remaining,
+            currentId: newCurrentId,
+            messages: newMessages,
+            // Recorded (and persisted) BEFORE the server call resolves —
+            // this is what stops a loadFromServer/poll that fires in the
+            // exact same instant from re-merging the session back in while
+            // the delete is still in flight.
+            deletedIds: s.deletedIds.includes(id) ? s.deletedIds : [...s.deletedIds, id],
+          };
         });
         // Removing it from local state alone used to be the whole
         // implementation — the messages stayed in chat_history server-side,
         // so the next loadFromServer() (on mount, or the periodic retries in
         // chat/page.tsx) silently rebuilt and re-inserted the "deleted"
-        // session. Deleting server-side too is what makes it stick.
+        // session. Deleting server-side too is what makes it stick — retried
+        // with backoff so a transient failure doesn't leave it un-deleted on
+        // the server forever (loadFromServer also retries any id still in
+        // deletedIds that the server hasn't confirmed yet, so even a delete
+        // that fails here entirely — e.g. offline — completes later).
         (async () => {
-          try {
-            const { chat } = await import("./api");
-            await chat.deleteHistory(id);
-          } catch (e) {
-            console.error("Failed to delete chat history on server:", e);
+          const { chat } = await import("./api");
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              await chat.deleteHistory(id);
+              return;
+            } catch (e) {
+              if (attempt === 2) console.error("Failed to delete chat history on server:", e);
+              else await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+            }
           }
         })();
       },
@@ -468,6 +492,11 @@ export const useChatStore = create<ChatState>()(
       })),
 
       syncSessionMessages: (sessionId: string, msgs: ChatMessage[]): void => {
+        // A poll response can carry a message for a session that was just
+        // deleted (it raced the delete server-side, or was purged there but
+        // this cursor still returned a cached page) — never let it recreate
+        // the session client-side.
+        if (get().deletedIds.includes(sessionId)) return;
         set((s): Partial<ChatState> => {
           const existing = s.sessions.find((sess) => sess.id === sessionId);
           if (existing) {
@@ -494,7 +523,38 @@ export const useChatStore = create<ChatState>()(
           const res = await chat.getHistory();
           const raw: { role: string; content: string; created_at?: string; session_id?: string | null }[] =
             res.data?.messages ?? [];
-          if (raw.length === 0) return;
+          const serverDeletedIds: string[] = res.data?.deleted_session_ids ?? [];
+
+          // Union of what THIS device knows it deleted with what the server
+          // confirms is deleted — a session tombstoned on another device
+          // must be pruned from this device's own persisted cache too, or
+          // it keeps re-surfacing here forever via the "unsynced local
+          // session" fallback below.
+          const allDeleted = new Set([...get().deletedIds, ...serverDeletedIds]);
+          set({ deletedIds: [...allDeleted] });
+
+          // Any id this device still thinks is deleted but the server
+          // hasn't confirmed yet (an earlier delete that failed outright —
+          // e.g. offline — or is still retrying) gets one more push here,
+          // so the deletion still eventually sticks without the user having
+          // to do anything.
+          const serverDeletedSet = new Set(serverDeletedIds);
+          for (const id of get().deletedIds) {
+            if (!serverDeletedSet.has(id)) chat.deleteHistory(id).catch(() => {});
+          }
+
+          if (raw.length === 0) {
+            // Nothing on the server (or everything left was tombstoned) —
+            // still prune any locally cached session that's now deleted.
+            if (allDeleted.size > 0) {
+              set((s) => {
+                const sessions = s.sessions.filter((sess) => !allDeleted.has(sess.id));
+                const currentId = s.currentId && sessions.find((sess) => sess.id === s.currentId) ? s.currentId : sessions[0]?.id ?? null;
+                return { sessions, currentId, messages: sessions.find((sess) => sess.id === currentId)?.messages ?? [] };
+              });
+            }
+            return;
+          }
 
           // Group by session_id — each unique id becomes a separate chat session
           const sessionMap = new Map<string, typeof raw>();
@@ -505,6 +565,7 @@ export const useChatStore = create<ChatState>()(
           }
 
           const serverSessions: ChatSession[] = [...sessionMap.entries()]
+            .filter(([sid]) => !allDeleted.has(sid))
             .map(([sid, msgs]) => {
               const chatMsgs: ChatMessage[] = msgs.map((m) => ({
                 role: m.role as "user" | "assistant",
@@ -522,7 +583,7 @@ export const useChatStore = create<ChatState>()(
 
           // Keep local sessions that have messages but are not yet on server (unsent)
           const serverIds = new Set(serverSessions.map((s) => s.id));
-          const localOnly = get().sessions.filter((s) => !serverIds.has(s.id) && s.messages.length > 0);
+          const localOnly = get().sessions.filter((s) => !serverIds.has(s.id) && s.messages.length > 0 && !allDeleted.has(s.id));
           const merged = [...localOnly, ...serverSessions].sort((a, b) => b.updatedAt - a.updatedAt);
 
           const { currentId } = get();
@@ -543,7 +604,7 @@ export const useChatStore = create<ChatState>()(
     {
       name: "chat-sessions",
       storage: userScopedChatStorage,
-      partialize: (state) => ({ sessions: state.sessions, currentId: state.currentId }),
+      partialize: (state) => ({ sessions: state.sessions, currentId: state.currentId, deletedIds: state.deletedIds }),
       onRehydrateStorage: () => (state) => {
         if (state?.currentId) {
           const session = state.sessions.find((s) => s.id === state.currentId);

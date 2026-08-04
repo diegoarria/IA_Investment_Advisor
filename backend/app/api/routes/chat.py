@@ -710,12 +710,24 @@ async def save_message(
     try:
         from datetime import datetime
         db = get_supabase()
+        session_id = request.get("session_id")
+        # A message send and a delete of that same session can race (the
+        # user sends, then deletes before the save-message POST resolves).
+        # Without this check, a save that lands AFTER the delete silently
+        # resurrects the "deleted" session with just this one message.
+        if session_id:
+            tombstoned = await run_query(
+                db.table("chat_deleted_sessions").select("session_id")
+                  .eq("user_id", user_id).eq("session_id", session_id)
+            )
+            if tombstoned.data:
+                return {"saved": False, "reason": "session_deleted"}
         record = {
             "user_id": user_id,
             "role": request.get("role"),
             "content": request.get("content"),
             "created_at": datetime.utcnow().isoformat(),
-            "session_id": request.get("session_id"),
+            "session_id": session_id,
         }
         await run_query(db.table("chat_history").insert(record))
     except Exception:
@@ -772,15 +784,23 @@ async def delete_history_session(
     user_id: str = Depends(get_current_user_id)
 ):
     """Deletes every chat_history row for one conversation (session_id),
-    scoped to the caller. Without this, the frontend's "delete" only removed
-    the session from local state — the messages stayed in the DB, so the
-    next history sync (on mount / periodic retries) silently rebuilt and
-    re-inserted the "deleted" conversation."""
+    scoped to the caller, AND records a tombstone so it can never resurrect —
+    a hard delete alone wasn't enough: a queued /save-message call that
+    races the delete, a cross-device sync poll, or a stale locally cached
+    copy of the session on another browser/device could all silently
+    re-insert or re-merge it back in. The tombstone is written first, before
+    the delete, so a save-message that's mid-flight at this exact instant
+    still sees it and refuses to re-insert."""
     db = get_supabase()
+    # "legacy" (client-side synthetic id for pre-session_id messages, which
+    # have session_id IS NULL) never had a real id to tombstone — nothing
+    # can ever re-target that bucket by session_id, so skip the tombstone.
+    if session_id != "legacy":
+        await run_query(
+            db.table("chat_deleted_sessions")
+              .upsert({"user_id": user_id, "session_id": session_id}, on_conflict="user_id,session_id")
+        )
     q = db.table("chat_history").delete().eq("user_id", user_id)
-    # Messages saved before session_id existed are grouped client-side under
-    # the synthetic id "legacy" (store.ts: `msg.session_id ?? "legacy"") —
-    # those rows have session_id IS NULL in the DB, not the string "legacy".
     q = q.is_("session_id", "null") if session_id == "legacy" else q.eq("session_id", session_id)
     await run_query(q)
     return {"deleted": True}
@@ -805,6 +825,25 @@ async def get_history(
             q = q.order("created_at", desc=True).limit(limit)
         result = await run_query(q)
         msgs = result.data if since else list(reversed(result.data))
-        return {"messages": msgs}
+
+        deleted_result = await run_query(
+            db.table("chat_deleted_sessions").select("session_id").eq("user_id", user_id)
+        )
+        deleted_ids = {row["session_id"] for row in (deleted_result.data or [])}
+
+        if deleted_ids:
+            # Self-heal: a message that raced a delete (see /save-message)
+            # can still have landed as a stray row before that fix existed,
+            # or before this deploy. Purge it here too, not just filter it
+            # out of this response, so it can't keep resurfacing forever.
+            stray = [m for m in msgs if m.get("session_id") in deleted_ids]
+            if stray:
+                stray_ids = {m["id"] for m in stray}
+                await run_query(
+                    db.table("chat_history").delete().eq("user_id", user_id).in_("id", list(stray_ids))
+                )
+            msgs = [m for m in msgs if m.get("session_id") not in deleted_ids]
+
+        return {"messages": msgs, "deleted_session_ids": list(deleted_ids)}
     except Exception:
-        return {"messages": []}
+        return {"messages": [], "deleted_session_ids": []}

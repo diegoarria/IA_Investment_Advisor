@@ -42,6 +42,11 @@ interface ChatStore {
   sessions: ChatSession[];
   currentId: string | null;
   behavioralTimeline: BehavioralSnapshot[];
+  // Session ids the user has deleted — persisted so a deleted chat never
+  // resurfaces on this device again, even before the server confirms the
+  // delete and even if the delete request itself fails (restoreFromServer
+  // retries any id here the server hasn't confirmed yet).
+  deletedIds: string[];
 
   currentMessages: () => Message[];
   currentDiagnosis: () => BehavioralDiagnosis | null;
@@ -77,6 +82,7 @@ export const useChatStore = create<ChatStore>()(
       sessions: [],
       currentId: null,
       behavioralTimeline: [],
+      deletedIds: [],
 
       currentMessages: () => {
         const { sessions, currentId } = get();
@@ -149,17 +155,29 @@ export const useChatStore = create<ChatStore>()(
           return {
             sessions: remaining,
             currentId: s.currentId === id ? (remaining[0]?.id ?? null) : s.currentId,
+            // Recorded (and persisted) BEFORE the server call resolves —
+            // this is what stops a restoreFromServer/poll that fires in the
+            // exact same instant from re-merging the session back in while
+            // the delete is still in flight.
+            deletedIds: s.deletedIds.includes(id) ? s.deletedIds : [...s.deletedIds, id],
           };
         });
         // Local-only removal used to be the whole implementation — the
         // messages stayed in chat_history server-side, so the next history
         // sync silently rebuilt and re-inserted the "deleted" session.
+        // Retried with backoff so a transient failure doesn't leave it
+        // un-deleted on the server forever (restoreFromServer also retries
+        // any id still in deletedIds that the server hasn't confirmed yet).
         (async () => {
-          try {
-            const { chatApi } = await import("./api");
-            await chatApi.deleteHistory(id);
-          } catch (e) {
-            console.error("Failed to delete chat history on server:", e);
+          const { chatApi } = await import("./api");
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              await chatApi.deleteHistory(id);
+              return;
+            } catch (e) {
+              if (attempt === 2) console.error("Failed to delete chat history on server:", e);
+              else await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+            }
           }
         })();
       },
@@ -167,6 +185,11 @@ export const useChatStore = create<ChatStore>()(
       clearAll: () => set({ sessions: [], currentId: null, behavioralTimeline: [] }),
 
       syncSessionMessages: (sessionId: string, msgs: Message[]): void => {
+        // A poll response can carry a message for a session that was just
+        // deleted (it raced the delete server-side, or was purged there but
+        // this cursor still returned a cached page) — never let it recreate
+        // the session client-side.
+        if (get().deletedIds.includes(sessionId)) return;
         set((s): Partial<ChatStore> => {
           const existing = s.sessions.find((sess) => sess.id === sessionId);
           if (existing) {
@@ -194,7 +217,36 @@ export const useChatStore = create<ChatStore>()(
           const res = await chatApi.getHistory();
           const raw: { role: string; content: string; created_at?: string; session_id?: string | null }[] =
             res.data?.messages ?? [];
-          if (raw.length === 0) return;
+          const serverDeletedIds: string[] = res.data?.deleted_session_ids ?? [];
+
+          // Union of what THIS device knows it deleted with what the server
+          // confirms is deleted — a session tombstoned on another device
+          // must be pruned from this device's own persisted cache too, or
+          // it keeps re-surfacing here forever via the "unsynced local
+          // session" fallback below.
+          const allDeleted = new Set([...get().deletedIds, ...serverDeletedIds]);
+          set({ deletedIds: [...allDeleted] });
+
+          // Any id this device still thinks is deleted but the server
+          // hasn't confirmed yet (an earlier delete that failed outright —
+          // e.g. offline — or is still retrying) gets one more push here,
+          // so the deletion still eventually sticks without the user having
+          // to do anything.
+          const serverDeletedSet = new Set(serverDeletedIds);
+          for (const id of get().deletedIds) {
+            if (!serverDeletedSet.has(id)) chatApi.deleteHistory(id).catch(() => {});
+          }
+
+          if (raw.length === 0) {
+            if (allDeleted.size > 0) {
+              set((s) => {
+                const sessions = s.sessions.filter((sess) => !allDeleted.has(sess.id));
+                const currentId = s.currentId && sessions.find((sess) => sess.id === s.currentId) ? s.currentId : sessions[0]?.id ?? null;
+                return { sessions, currentId };
+              });
+            }
+            return;
+          }
 
           // Group by session_id — each unique id becomes a separate chat session
           const sessionMap = new Map<string, typeof raw>();
@@ -205,6 +257,7 @@ export const useChatStore = create<ChatStore>()(
           }
 
           const serverSessions: ChatSession[] = [...sessionMap.entries()]
+            .filter(([sid]) => !allDeleted.has(sid))
             .map(([sid, msgs]) => {
               const chatMsgs: Message[] = msgs.map((m) => ({
                 role: m.role as "user" | "assistant",
@@ -223,7 +276,7 @@ export const useChatStore = create<ChatStore>()(
 
           // Keep local sessions that have messages but are not on server yet (unsent)
           const serverIds = new Set(serverSessions.map((s) => s.id));
-          const localOnly = get().sessions.filter((s) => !serverIds.has(s.id) && s.messages.length > 0);
+          const localOnly = get().sessions.filter((s) => !serverIds.has(s.id) && s.messages.length > 0 && !allDeleted.has(s.id));
           const merged = [...localOnly, ...serverSessions].sort((a, b) => b.updatedAt - a.updatedAt);
 
           const { currentId } = get();

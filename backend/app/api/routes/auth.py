@@ -464,7 +464,7 @@ async def logout(
 # Postgres function body means Postgres itself guarantees all-or-nothing.
 _USER_DATA_TABLES = [
     "user_profiles", "user_portfolio", "portfolio_positions", "user_paper_trading",
-    "user_daily_usage", "web_push_subscriptions", "chat_history",
+    "user_daily_usage", "web_push_subscriptions", "chat_history", "chat_deleted_sessions",
     "notifications", "watchlist", "notification_preferences",
     "notification_log", "notification_analytics", "investment_decisions",
     "support_tickets", "user_feedback", "price_alerts", "pending_actions",
