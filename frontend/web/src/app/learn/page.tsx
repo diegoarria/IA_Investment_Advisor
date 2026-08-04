@@ -8,9 +8,8 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { chat as chatApi, learn as learnApi, earningsApi } from "@/lib/api";
-import { useAuthStore, useLearnStore, useSubscriptionStore, useProfileStore, getNextMilestone, getUnclaimedMilestones, STREAK_MILESTONES, type StreakMilestone } from "@/lib/store";
-import { usePortfolioStore } from "@/lib/portfolioStore";
+import { chat as chatApi, learn as learnApi } from "@/lib/api";
+import { useAuthStore, useLearnStore, useSubscriptionStore, useProfileStore, getUnclaimedMilestones, type StreakMilestone } from "@/lib/store";
 import { getUserLevel, LEVEL_COLOR, getLevelLabel, type UserLevel } from "@/lib/userLevel";
 import { QUIZ_DATA } from "@/lib/quizData";
 import QuizModal from "@/components/QuizModal";
@@ -254,57 +253,20 @@ export default function LearnPage() {
   const { t } = useTranslation();
   const CATEGORIES = getCategories(t);
   const { isAuthenticated } = useAuthStore();
-  const { streak, completedToday, markTopicCompleted, markTopicId, completedTopicIds, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
-  const { fetchStatus: fetchSubStatus, tier: subTier, isTrialPremium: subTrialPremium } = useSubscriptionStore();
-  const isPremium = subTier === "premium" || subTrialPremium;
+  const { streak, markTopicCompleted, markTopicId, completedTopicIds, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
+  const { fetchStatus: fetchSubStatus } = useSubscriptionStore();
   const { profile } = useProfileStore();
-  const { positions } = usePortfolioStore();
-  const [portfolioLessons, setPortfolioLessons] = useState<{ ticker: string; date: string; topicId: string; topicTitle: string; topicEmoji: string; daysUntil: number }[]>([]);
   const [pendingMilestone, setPendingMilestone] = useState<StreakMilestone | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [claimSuccess, setClaimSuccess] = useState<string | null>(null);
-  const [streakModalOpen, setStreakModalOpen] = useState(false);
 
-  // Show celebration when a new milestone is reached
+  // Show celebration when a new milestone is reached — this still fires on
+  // its own (real premium-day/msg-reset rewards), independent of the streak
+  // banner UI that used to live on this page and has since been removed.
   useEffect(() => {
     const unclaimed = getUnclaimedMilestones(streak, claimedMilestones);
     if (unclaimed.length > 0 && !pendingMilestone) setPendingMilestone(unclaimed[0]);
   }, [streak, claimedMilestones]);
-
-  // Map portfolio earnings events → relevant lessons
-  const TICKER_TO_TOPIC: Record<string, string> = {
-    AAPL: "apple", MSFT: "microsoft", AMZN: "amazon", NVDA: "nvidia",
-    TSLA: "tesla", GOOGL: "alphabet", META: "meta_co",
-  };
-  useEffect(() => {
-    if (!positions.length) return;
-    const tickers = positions.map(p => p.ticker).filter(Boolean);
-    earningsApi.getCalendar(tickers).then((res: any) => {
-      const today = new Date();
-      const events: Array<{ ticker: string; event_date: string }> = (res.data?.earnings || [])
-        .filter((e: any) => e.event_type === "earnings" && e.event_date && e.status !== "past");
-
-      const suggestions = events
-        .map((ev) => {
-          const diff = Math.ceil((new Date(ev.event_date).getTime() - today.getTime()) / 86400000);
-          if (diff < 0 || diff > 14) return null;
-
-          // Find a relevant lesson: company-specific first, then earnings basics
-          const companyTopicId = TICKER_TO_TOPIC[ev.ticker];
-          const companyTopic = companyTopicId ? TOPICS.find(t => t.id === companyTopicId) : null;
-          const earningsTopic = TOPICS.find(t => t.id === "earnings");
-          const topic = companyTopic || earningsTopic;
-          if (!topic) return null;
-          const alreadyDone = completedTopicIds.includes(topic.id);
-          if (alreadyDone) return null;
-
-          return { ticker: ev.ticker, date: ev.event_date, topicId: topic.id, topicTitle: topic.title, topicEmoji: topic.emoji, daysUntil: diff };
-        })
-        .filter(Boolean) as typeof portfolioLessons;
-
-      setPortfolioLessons(suggestions.slice(0, 3));
-    }).catch(() => {});
-  }, [positions.length, completedTopicIds.length]);
 
   const handleClaimMilestone = async () => {
     if (!pendingMilestone) return;
@@ -338,7 +300,6 @@ export default function LearnPage() {
     }
   };
 
-  const nextMilestone = getNextMilestone(streak);
   const userLevel = getUserLevel(profile);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -359,19 +320,6 @@ export default function LearnPage() {
       return matchCat && matchQ;
     });
   }, [search, selectedCat]);
-
-  // Progress per category (excluding "all")
-  const categoryProgress = useMemo(() => {
-    return CATEGORIES.filter((c) => c.id !== "all").map((cat) => {
-      const total = TOPICS.filter((t) => t.category === cat.id).length;
-      const done = TOPICS.filter((t) => t.category === cat.id && completedTopicIds.includes(t.id)).length;
-      return { ...cat, total, done };
-    }).filter((c) => c.total > 0);
-  }, [completedTopicIds]);
-
-  const totalTopics = TOPICS.length;
-  const totalDone = completedTopicIds.filter((id) => TOPICS.some((t) => t.id === id)).length;
-  const [objectivesOpen, setObjectivesOpen] = useState(false);
 
   const openTopic = async (title: string, _prompt: string, emoji = "📚", topicId?: string) => {
     setModal({ title, emoji, topicId });
@@ -437,107 +385,6 @@ export default function LearnPage() {
         {/* Main */}
         <main className="flex-1 flex flex-col overflow-hidden">
           <GuidedSteps currentPage="learn" />
-          {/* Streak banner + milestone progress */}
-          <div className="px-4 pt-3 pb-1 shrink-0">
-            <button
-              onClick={() => setStreakModalOpen(true)}
-              className="w-full flex items-center justify-between rounded-xl border px-3 py-2.5 transition-all hover:border-amber-500/40"
-              style={{ background: "var(--card)", borderColor: completedToday ? "rgba(245,158,11,0.4)" : "var(--border)" }}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-xl">{completedToday ? "🔥" : "🌑"}</span>
-                <div className="text-left">
-                  <span className="text-sm font-bold" style={{ color: completedToday ? "#f59e0b" : "var(--muted)" }}>
-                    {t("learn.streakDays", { count: streak })}
-                  </span>
-                  <p className="text-[10px]" style={{ color: "var(--dim)" }}>
-                    {completedToday ? t("learn.streakActiveToday") : t("learn.streakInactive")}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                {nextMilestone ? (
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-[10px]" style={{ color: "var(--muted)" }}>
-                      {streak}/{nextMilestone.days}d → {nextMilestone.emoji} {nextMilestone.title}
-                    </span>
-                    <div className="w-24 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                      <div className="h-full rounded-full" style={{
-                        width: `${Math.min(100, (streak / nextMilestone.days) * 100)}%`,
-                        background: "#f59e0b",
-                      }} />
-                    </div>
-                  </div>
-                ) : streak > 0 ? (
-                  <span className="text-lg">👑</span>
-                ) : null}
-                <span className="text-[10px]" style={{ color: "var(--dim)" }}>›</span>
-              </div>
-            </button>
-          </div>
-
-          {/* Mis Objetivos */}
-          <div className="px-4 pt-2 pb-1 shrink-0">
-            <button
-              onClick={() => setObjectivesOpen((o) => !o)}
-              className="w-full flex items-center justify-between rounded-xl border px-3 py-2.5 transition-all"
-              style={{ background: "var(--card)", borderColor: totalDone > 0 ? "rgba(0,212,126,0.3)" : "var(--border)" }}
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm"
-                     style={{ background: "rgba(0,212,126,0.12)" }}>🎯</div>
-                <div className="text-left">
-                  <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{t("learn.myGoals")}</p>
-                  <p className="text-[10px]" style={{ color: "var(--muted)" }}>
-                    {t("learn.topicsCompleted", { done: totalDone, total: totalTopics })}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                  <div className="h-full rounded-full transition-all" style={{
-                    width: `${totalTopics > 0 ? Math.round((totalDone / totalTopics) * 100) : 0}%`,
-                    background: "#00d47e",
-                  }} />
-                </div>
-                <span className="text-[10px] font-bold" style={{ color: "#00d47e" }}>
-                  {totalTopics > 0 ? Math.round((totalDone / totalTopics) * 100) : 0}%
-                </span>
-                <span className="text-[10px]" style={{ color: "var(--muted)" }}>{objectivesOpen ? "▲" : "▼"}</span>
-              </div>
-            </button>
-
-            {objectivesOpen && (
-              <div className="mt-2 rounded-xl border p-3 grid grid-cols-2 gap-2"
-                   style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                {categoryProgress.map((cat) => (
-                  <button key={cat.id}
-                          onClick={() => { setSelectedCat(cat.id); setObjectivesOpen(false); }}
-                          className="flex items-center gap-2 p-2 rounded-lg transition-all hover:bg-[#00d47e]/5"
-                          style={{ background: cat.done === cat.total && cat.total > 0 ? "rgba(0,212,126,0.06)" : "transparent" }}>
-                    <span className="text-base">{cat.emoji}</span>
-                    <div className="flex-1 min-w-0 text-left">
-                      <p className="text-[11px] font-semibold truncate" style={{ color: cat.done === cat.total && cat.total > 0 ? "#00d47e" : "var(--text)" }}>
-                        {cat.title}
-                      </p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                          <div className="h-full rounded-full" style={{
-                            width: `${cat.total > 0 ? Math.round((cat.done / cat.total) * 100) : 0}%`,
-                            background: cat.done === cat.total && cat.total > 0 ? "#00d47e" : "rgba(0,212,126,0.5)",
-                          }} />
-                        </div>
-                        <span className="text-[9px] font-bold shrink-0" style={{ color: "var(--muted)" }}>
-                          {cat.done}/{cat.total}
-                        </span>
-                      </div>
-                    </div>
-                    {cat.done === cat.total && cat.total > 0 && <span className="text-xs">✅</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* Search bar */}
           <div className="px-4 pt-2 pb-2 shrink-0">
@@ -561,48 +408,6 @@ export default function LearnPage() {
               )}
             </div>
           </div>
-
-          {/* ── Aprende con tu portafolio — premium only ── */}
-          {isPremium && portfolioLessons.length > 0 && (
-            <div className="px-4 pb-3 shrink-0">
-              <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "rgba(0,212,126,0.25)", background: "rgba(0,212,126,0.04)" }}>
-                <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: "rgba(0,212,126,0.15)" }}>
-                  <span className="text-sm">🎓</span>
-                  <span className="text-xs font-black" style={{ color: "var(--accent-l)" }}>{t("learn.learnBeforeReport")}</span>
-                </div>
-                {portfolioLessons.map((s) => (
-                  <button
-                    key={s.topicId}
-                    onClick={() => {
-                      const topic = TOPICS.find(t => t.id === s.topicId);
-                      if (topic) {
-                        setSelectedCat("all");
-                        // scroll to and open the topic
-                        const el = document.getElementById(`topic-${s.topicId}`);
-                        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-                      }
-                    }}
-                    className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-white/5 transition-colors border-b last:border-b-0"
-                    style={{ borderColor: "rgba(0,212,126,0.1)" }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">{s.topicEmoji}</span>
-                      <div>
-                        <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{s.topicTitle}</p>
-                        <p className="text-[10px]" style={{ color: "var(--muted)" }}>
-                          {t("learn.reportsOn", {
-                            ticker: s.ticker,
-                            when: s.daysUntil === 0 ? t("learn.reportsToday") : s.daysUntil === 1 ? t("learn.reportsTomorrow") : t("learn.reportsInDays", { count: s.daysUntil }),
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(0,212,126,0.12)", color: "var(--accent-l)" }}>{t("learn.viewLesson")}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Category chips */}
           <div className="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-none shrink-0">
@@ -863,93 +668,6 @@ export default function LearnPage() {
         </div>
       )}
 
-      {/* Modal: todos los objetivos de racha */}
-      {streakModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-             style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)" }}
-             onClick={() => setStreakModalOpen(false)}>
-          <div className="w-full max-w-md rounded-t-3xl sm:rounded-3xl overflow-hidden"
-               style={{ background: "var(--card)", border: "1px solid var(--border)", maxHeight: "85vh", display: "flex", flexDirection: "column" }}
-               onClick={(e) => e.stopPropagation()}>
-
-            {/* Handle (mobile) */}
-            <div className="flex justify-center pt-3 pb-1 sm:hidden">
-              <div className="w-9 h-1 rounded-full" style={{ background: "var(--border)" }} />
-            </div>
-
-            {/* Header */}
-            <div className="flex items-start justify-between px-5 pt-4 pb-3 shrink-0">
-              <div>
-                <h2 className="text-lg font-black" style={{ color: "var(--text)" }}>{t("learn.streakGoalsTitle")}</h2>
-                <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                  {t("learn.consecutiveDaysClaimed", { count: streak, claimed: claimedMilestones.length, total: STREAK_MILESTONES.length })}
-                </p>
-              </div>
-              <button onClick={() => setStreakModalOpen(false)} className="text-xl leading-none p-1" style={{ color: "var(--muted)" }}>✕</button>
-            </div>
-
-            {/* Barra de progreso global */}
-            <div className="mx-5 mb-4 h-1.5 rounded-full overflow-hidden shrink-0" style={{ background: "var(--border)" }}>
-              <div className="h-full rounded-full transition-all" style={{
-                width: `${Math.min(100, (streak / STREAK_MILESTONES[STREAK_MILESTONES.length - 1].days) * 100)}%`,
-                background: "#f59e0b",
-              }} />
-            </div>
-
-            {/* Lista de hitos */}
-            <div className="overflow-y-auto px-4 pb-6 flex flex-col gap-2.5">
-              {STREAK_MILESTONES.map((m) => {
-                const reached = streak >= m.days;
-                const claimed = claimedMilestones.includes(m.days);
-                const canClaim = reached && !claimed;
-                return (
-                  <div key={m.days}
-                       className="flex items-center gap-3 p-3.5 rounded-2xl border transition-all"
-                       style={{
-                         background: claimed ? "rgba(0,212,126,0.05)" : canClaim ? "rgba(245,158,11,0.06)" : "var(--bg)",
-                         borderColor: claimed ? "rgba(0,212,126,0.3)" : canClaim ? "rgba(245,158,11,0.4)" : "var(--border)",
-                         opacity: reached ? 1 : 0.5,
-                       }}>
-                    <span className="text-3xl w-10 text-center shrink-0">{m.emoji}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-sm font-extrabold" style={{ color: claimed ? "#00d47e" : canClaim ? "#f59e0b" : "var(--text)" }}>
-                          {m.title}
-                        </span>
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md"
-                              style={{ background: claimed ? "rgba(0,212,126,0.15)" : canClaim ? "rgba(245,158,11,0.15)" : "var(--border)", color: claimed ? "#00d47e" : canClaim ? "#f59e0b" : "var(--muted)" }}>
-                          {m.days}d
-                        </span>
-                      </div>
-                      <p className="text-[11px]" style={{ color: "var(--muted)" }}>🎁 {m.reward}</p>
-                      {!reached && (
-                        <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
-                          {t("learn.daysRemaining", { count: m.days - streak })}
-                        </p>
-                      )}
-                    </div>
-                    {claimed && (
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(0,212,126,0.2)" }}>
-                        <span className="text-xs" style={{ color: "#00d47e" }}>✓</span>
-                      </div>
-                    )}
-                    {canClaim && (
-                      <button
-                        onClick={() => { setStreakModalOpen(false); setTimeout(() => setPendingMilestone(m), 300); }}
-                        className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-black"
-                        style={{ background: "#f59e0b", color: "#000" }}
-                      >
-                        {t("learn.claim")}
-                      </button>
-                    )}
-                    {!reached && <span className="text-sm shrink-0" style={{ color: "var(--dim)" }}>🔒</span>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

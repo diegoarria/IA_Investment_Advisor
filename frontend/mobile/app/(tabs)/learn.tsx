@@ -10,10 +10,9 @@ import { router, useLocalSearchParams } from "expo-router";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
-import { chatApi, learnApi, earningsApi } from "../../src/lib/api";
-import { useLearnStore, getNextMilestone, getUnclaimedMilestones, STREAK_MILESTONES } from "../../src/lib/learnStore";
-import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
-import { usePortfolioStore } from "../../src/lib/portfolioStore";
+import { chatApi, learnApi } from "../../src/lib/api";
+import { useLearnStore, getNextMilestone, getUnclaimedMilestones } from "../../src/lib/learnStore";
+import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import StreakMilestoneModal from "../../src/components/StreakMilestoneModal";
 import QuizModal from "../../src/components/QuizModal";
 import { QUIZ_DATA } from "../../src/lib/quizData";
@@ -256,43 +255,14 @@ export default function LearnScreen() {
   const CATEGORIES = useMemo(() => getCategories(t), [t]);
   const TOPICS = useMemo(() => getTopics(t), [t]);
 
-  const { streak, completedToday, markTopicCompleted, markTopicId, completedTopicIds, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
+  const { streak, markTopicCompleted, markTopicId, completedTopicIds, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
   const subStore = useSubscriptionStore();
   const { fetchStatus: fetchSubStatus } = subStore;
-  const isPremium = hasPremiumAccess(subStore);
-  const { positions } = usePortfolioStore();
   useEffect(() => { initStreak(); }, []);
 
   const [pendingMilestone, setPendingMilestone] = useState<ReturnType<typeof getNextMilestone>>(null);
-
-  const TICKER_TO_TOPIC: Record<string, string> = {
-    AAPL: "apple", MSFT: "microsoft", AMZN: "amazon", NVDA: "nvidia",
-    TSLA: "tesla", GOOGL: "alphabet", META: "meta_co",
-  };
-  const [portfolioLessons, setPortfolioLessons] = useState<{ ticker: string; date: string; topicId: string; topicTitle: string; topicIcon: string; daysUntil: number }[]>([]);
-  useEffect(() => {
-    if (!positions.length) return;
-    const tickers = positions.map((p: any) => p.ticker).filter(Boolean);
-    earningsApi.getCalendar(tickers).then((res: any) => {
-      const today = new Date();
-      const events: Array<{ ticker: string; event_date: string; event_type: string; status: string }> =
-        (res.data?.earnings || []).filter((e: any) => e.event_type === "earnings" && e.event_date && e.status !== "past");
-      const suggestions = events
-        .map((ev) => {
-          const diff = Math.ceil((new Date(ev.event_date).getTime() - today.getTime()) / 86400000);
-          if (diff < 0 || diff > 14) return null;
-          const companyTopicId = TICKER_TO_TOPIC[ev.ticker];
-          const topic = TOPICS.find(t => t.id === (companyTopicId || "earnings"));
-          if (!topic || completedTopicIds.includes(topic.id)) return null;
-          return { ticker: ev.ticker, date: ev.event_date, topicId: topic.id, topicTitle: topic.title, topicIcon: topic.icon as string, daysUntil: diff };
-        })
-        .filter(Boolean) as typeof portfolioLessons;
-      setPortfolioLessons(suggestions.slice(0, 3));
-    }).catch(() => {});
-  }, [positions.length, completedTopicIds.length]);
   const [claiming, setClaiming] = useState(false);
   const [claimSuccess, setClaimSuccess] = useState<string | null>(null);
-  const [streakModalOpen, setStreakModalOpen] = useState(false);
 
   // Check for newly reached milestones every time streak changes
   useEffect(() => {
@@ -334,8 +304,6 @@ export default function LearnScreen() {
     }
   };
 
-  const nextMilestone = getNextMilestone(streak);
-
 const { topicId } = useLocalSearchParams<{ topicId?: string }>();
 
   const [search, setSearch] = useState("");
@@ -354,20 +322,6 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
     });
   }, [search, selectedCat]);
 
-  const [objectivesOpen, setObjectivesOpen] = useState(false);
-  const totalTopics = TOPICS.length;
-  const totalDone = useMemo(
-    () => completedTopicIds.filter((id) => TOPICS.some((t) => t.id === id)).length,
-    [completedTopicIds]
-  );
-  const categoryProgress = useMemo(
-    () => CATEGORIES.filter((c) => c.id !== "all").map((cat) => {
-      const total = TOPICS.filter((t) => t.category === cat.id).length;
-      const done = TOPICS.filter((t) => t.category === cat.id && completedTopicIds.includes(t.id)).length;
-      return { ...cat, total, done };
-    }).filter((c) => c.total > 0),
-    [completedTopicIds]
-  );
 
   const openTopic = async (title: string, _topicContext: string, icon: IoniconName = "book-outline", topicId?: string) => {
     setModal({ title, icon, topicId });
@@ -416,102 +370,6 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
       {/* ── Aprender content ── */}
       <View style={{ flex: 1 }}>
 
-      {/* Streak banner + milestone progress */}
-      <TouchableOpacity
-        activeOpacity={0.75}
-        onPress={() => setStreakModalOpen(true)}
-        style={[s.streakBanner, { backgroundColor: colors.card, borderColor: completedToday ? "#f59e0b44" : colors.border }]}
-      >
-        <View style={s.streakLeft}>
-          <Text style={s.streakFire}>{completedToday ? "🔥" : "🌑"}</Text>
-          <View>
-            <Text style={[s.streakNum, { color: completedToday ? "#f59e0b" : colors.textMuted }]}>
-              {streak === 1 ? t("learn.streakDayOne", { count: streak }) : t("learn.streakDayOther", { count: streak })}
-            </Text>
-            <Text style={[s.streakSub, { color: colors.textDim }]}>
-              {completedToday ? t("learn.streakActiveToday") : t("learn.streakReadToKeep")}
-            </Text>
-          </View>
-        </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          {nextMilestone && (
-            <View style={{ alignItems: "flex-end", gap: 3 }}>
-              <Text style={{ fontSize: 11, color: colors.textMuted }}>
-                {streak}/{nextMilestone.days}d → {nextMilestone.emoji}
-              </Text>
-              <View style={{ width: 80, height: 5, borderRadius: 3, backgroundColor: colors.border, overflow: "hidden" }}>
-                <View style={{
-                  height: "100%",
-                  borderRadius: 3,
-                  backgroundColor: "#f59e0b",
-                  width: `${Math.min(100, (streak / nextMilestone.days) * 100)}%` as any,
-                }} />
-              </View>
-              <Text style={{ fontSize: 10, color: colors.textDim }}>{nextMilestone.title}</Text>
-            </View>
-          )}
-          {!nextMilestone && streak > 0 && (
-            <Text style={{ fontSize: 20 }}>👑</Text>
-          )}
-          <Ionicons name="chevron-forward-outline" size={14} color={colors.textDim} />
-        </View>
-      </TouchableOpacity>
-
-      {/* Mis Objetivos */}
-      <TouchableOpacity
-        style={[s.searchBar, { backgroundColor: colors.card, borderColor: totalDone > 0 ? "rgba(0,212,126,0.3)" : colors.border, marginBottom: 8 }]}
-        onPress={() => setObjectivesOpen((o) => !o)}
-        activeOpacity={0.75}
-      >
-        <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "rgba(0,212,126,0.12)", alignItems: "center", justifyContent: "center", marginRight: 10 }}>
-          <Text style={{ fontSize: 14 }}>🎯</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 12, fontWeight: "800", color: colors.text }}>{t("learn.myObjectives")}</Text>
-          <Text style={{ fontSize: 10, color: colors.textMuted }}>{t("learn.topicsCompleted", { done: totalDone, total: totalTopics })}</Text>
-        </View>
-        <View style={{ alignItems: "flex-end", gap: 2 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <View style={{ width: 56, height: 4, borderRadius: 2, backgroundColor: colors.border, overflow: "hidden" }}>
-              <View style={{ height: "100%", borderRadius: 2, backgroundColor: "#00d47e", width: `${totalTopics > 0 ? Math.round((totalDone / totalTopics) * 100) : 0}%` }} />
-            </View>
-            <Text style={{ fontSize: 10, fontWeight: "800", color: "#00d47e" }}>
-              {totalTopics > 0 ? Math.round((totalDone / totalTopics) * 100) : 0}%
-            </Text>
-          </View>
-          <Text style={{ fontSize: 10, color: colors.textMuted }}>{objectivesOpen ? "▲" : "▼"}</Text>
-        </View>
-      </TouchableOpacity>
-
-      {objectivesOpen && (
-        <View style={{ marginHorizontal: 16, marginBottom: 8, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-          {categoryProgress.map((cat) => {
-            const pct = cat.total > 0 ? Math.round((cat.done / cat.total) * 100) : 0;
-            const allDone = cat.done === cat.total && cat.total > 0;
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                onPress={() => { setSelectedCat(cat.id); setObjectivesOpen(false); }}
-                style={{ width: "47%", flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 10, backgroundColor: allDone ? "rgba(0,212,126,0.06)" : "transparent" }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name={cat.icon as any} size={16} color={allDone ? "#00d47e" : colors.textMuted} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 10, fontWeight: "700", color: allDone ? "#00d47e" : colors.text }} numberOfLines={1}>{cat.title}</Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                    <View style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: colors.border, overflow: "hidden" }}>
-                      <View style={{ height: "100%", borderRadius: 2, backgroundColor: allDone ? "#00d47e" : "rgba(0,212,126,0.5)", width: `${pct}%` }} />
-                    </View>
-                    <Text style={{ fontSize: 9, fontWeight: "700", color: colors.textMuted }}>{cat.done}/{cat.total}</Text>
-                  </View>
-                </View>
-                {allDone && <Text style={{ fontSize: 12 }}>✅</Text>}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      )}
-
       {/* Barra de búsqueda */}
       <View style={[s.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Ionicons name="search-outline" size={16} color={colors.textMuted} style={{ marginRight: 8 }} />
@@ -530,43 +388,6 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
           </TouchableOpacity>
         )}
       </View>
-
-      {/* Aprende con tu portafolio — premium only */}
-      {isPremium && portfolioLessons.length > 0 && (
-        <View style={{ marginHorizontal: 12, marginBottom: 10, borderRadius: 16, borderWidth: 1, borderColor: "rgba(0,212,126,0.25)", backgroundColor: "rgba(0,212,126,0.04)", overflow: "hidden" }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(0,212,126,0.15)" }}>
-            <Text style={{ fontSize: 14 }}>🎓</Text>
-            <Text style={{ fontSize: 11, fontWeight: "800", color: colors.accent }}>{t("learn.learnBeforeEarnings")}</Text>
-          </View>
-          {portfolioLessons.map((lesson, i) => (
-            <TouchableOpacity
-              key={lesson.topicId}
-              onPress={() => {
-                const topic = TOPICS.find(t => t.id === lesson.topicId);
-                if (topic) openTopic(topic.title, topic.prompt, topic.icon as IoniconName, topic.id);
-              }}
-              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: i < portfolioLessons.length - 1 ? 1 : 0, borderBottomColor: "rgba(0,212,126,0.1)" }}
-              activeOpacity={0.7}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-                <Ionicons name={lesson.topicIcon as any} size={18} color={colors.accent} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 12, fontWeight: "800", color: colors.text }}>{lesson.topicTitle}</Text>
-                  <Text style={{ fontSize: 10, color: colors.textMuted }}>
-                    {t("learn.reportsTicker", {
-                      ticker: lesson.ticker,
-                      when: lesson.daysUntil === 0 ? t("learn.reportsToday") : lesson.daysUntil === 1 ? t("learn.reportsTomorrow") : t("learn.reportsInDays", { count: lesson.daysUntil }),
-                    })}
-                  </Text>
-                </View>
-              </View>
-              <View style={{ backgroundColor: "rgba(0,212,126,0.12)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
-                <Text style={{ fontSize: 10, fontWeight: "700", color: colors.accent }}>{t("learn.viewArrow")}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
 
       {/* Categorías */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.catsScroll} contentContainerStyle={s.catsContent}>
@@ -767,98 +588,9 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
         />
       )}
 
-      {/* Modal: todos los objetivos de racha */}
-      <Modal visible={streakModalOpen} animationType="slide" transparent onRequestClose={() => setStreakModalOpen(false)}>
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 32 }}>
-            {/* Handle */}
-            <View style={{ alignItems: "center", paddingTop: 12, paddingBottom: 4 }}>
-              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
-            </View>
-            {/* Header */}
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12 }}>
-              <View>
-                <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text }}>{t("learn.streakGoalsTitle")}</Text>
-                <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
-                  {t("learn.streakConsecutiveDays", { count: streak, claimed: claimedMilestones.length, total: STREAK_MILESTONES.length })}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setStreakModalOpen(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="close-circle" size={26} color={colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Línea de progreso global */}
-            <View style={{ marginHorizontal: 20, marginBottom: 16, height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: "hidden" }}>
-              <View style={{
-                height: "100%", borderRadius: 3, backgroundColor: "#f59e0b",
-                width: `${STREAK_MILESTONES.length > 0 ? (streak / STREAK_MILESTONES[STREAK_MILESTONES.length - 1].days) * 100 : 0}%` as any,
-              }} />
-            </View>
-
-            {/* Lista de hitos */}
-            <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
-              {STREAK_MILESTONES.map((m) => {
-                const reached = streak >= m.days;
-                const claimed = claimedMilestones.includes(m.days);
-                const canClaim = reached && !claimed;
-                return (
-                  <View key={m.days} style={{
-                    flexDirection: "row", alignItems: "center", gap: 14,
-                    padding: 14, borderRadius: 18, borderWidth: 1,
-                    backgroundColor: claimed ? "rgba(0,212,126,0.05)" : canClaim ? "rgba(245,158,11,0.06)" : colors.bg,
-                    borderColor: claimed ? "rgba(0,212,126,0.3)" : canClaim ? "rgba(245,158,11,0.4)" : colors.border,
-                    opacity: reached ? 1 : 0.5,
-                  }}>
-                    {/* Emoji */}
-                    <Text style={{ fontSize: 32, width: 44, textAlign: "center" }}>{m.emoji}</Text>
-
-                    {/* Info */}
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                        <Text style={{ fontSize: 14, fontWeight: "800", color: claimed ? "#00d47e" : canClaim ? "#f59e0b" : colors.text }}>
-                          {m.title}
-                        </Text>
-                        <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: claimed ? "rgba(0,212,126,0.15)" : canClaim ? "rgba(245,158,11,0.15)" : colors.border }}>
-                          <Text style={{ fontSize: 9, fontWeight: "800", color: claimed ? "#00d47e" : canClaim ? "#f59e0b" : colors.textMuted }}>
-                            {m.days}d
-                          </Text>
-                        </View>
-                      </View>
-                      <Text style={{ fontSize: 11, color: colors.textMuted, marginBottom: 4 }}>🎁 {m.reward}</Text>
-                      {!reached && (
-                        <Text style={{ fontSize: 10, color: colors.textDim }}>
-                          {m.days - streak === 1 ? t("learn.daysLeftOne", { count: m.days - streak }) : t("learn.daysLeftOther", { count: m.days - streak })}
-                        </Text>
-                      )}
-                    </View>
-
-                    {/* Estado */}
-                    {claimed && (
-                      <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(0,212,126,0.2)", alignItems: "center", justifyContent: "center" }}>
-                        <Text style={{ fontSize: 14 }}>✓</Text>
-                      </View>
-                    )}
-                    {canClaim && (
-                      <TouchableOpacity
-                        onPress={() => { setStreakModalOpen(false); setTimeout(() => setPendingMilestone(m), 300); }}
-                        style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 12, backgroundColor: "#f59e0b" }}
-                      >
-                        <Text style={{ fontSize: 11, fontWeight: "900", color: "#000" }}>{t("learn.claim")}</Text>
-                      </TouchableOpacity>
-                    )}
-                    {!reached && (
-                      <Ionicons name="lock-closed-outline" size={18} color={colors.textDim} />
-                    )}
-                  </View>
-                );
-              })}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Milestone celebration */}
+      {/* Milestone celebration — still fires on its own (real premium-day/
+          msg-reset rewards), independent of the streak banner UI that used
+          to live on this screen and has since been removed. */}
       <StreakMilestoneModal
         milestone={pendingMilestone ?? null}
         onClaim={handleClaimMilestone}
