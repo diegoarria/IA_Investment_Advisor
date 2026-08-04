@@ -11,7 +11,7 @@
         "screener": "Weekly Screener",
         "earnings": "Earnings Analysis"
       },
-      "academy": "Academy",
+      "academy": "Learning",
       "notifications": "Notifications",
       "profile": "Profile",
       "products": "Products",
@@ -235,7 +235,7 @@
       "myMoney": "My money",
       "patrimonio": "Wealth",
       "learn": "Learn",
-      "academy": "Academy",
+      "academy": "Learning",
       "myProfile": "My profile",
       "stats": "Stats"
     },
@@ -1336,7 +1336,7 @@
     "exploreTopics": "Explore topics",
     "viewAllTopics": "See all topics",
     "eyebrow": "Learn and invest",
-    "title": "Academy",
+    "title": "Learning",
     "categories": {
       "basics": "Basics",
       "instruments": "Instruments",

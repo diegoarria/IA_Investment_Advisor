@@ -11,7 +11,7 @@
         "screener": "Screener Semanal",
         "earnings": "Análisis de Ganancias"
       },
-      "academy": "Academy",
+      "academy": "Aprendizaje",
       "notifications": "Notificaciones",
       "profile": "Perfil",
       "products": "Productos",
@@ -235,7 +235,7 @@
       "myMoney": "Mi dinero",
       "patrimonio": "Patrimonio",
       "learn": "Aprender",
-      "academy": "Academy",
+      "academy": "Aprendizaje",
       "myProfile": "Mi perfil",
       "stats": "Stats"
     },
@@ -1336,7 +1336,7 @@
     "exploreTopics": "Explorar temas",
     "viewAllTopics": "Ver todos los temas",
     "eyebrow": "Aprende e invierte",
-    "title": "Academy",
+    "title": "Aprendizaje",
     "categories": {
       "basics": "Básicos",
       "instruments": "Instrumentos",
