@@ -30,16 +30,12 @@ from typing import Optional
 
 
 def _format_segments_summary(segments: list[dict]) -> str:
-    """Renders the company's real revenue-segment breakdown (already
-    computed by `fundamental_analysis_service`, never re-fetched here)
-    into plain text for the AI prompt."""
-    if not segments:
-        return ""
-    lines = ["Segmentos de ingresos reales (último período fiscal disponible, fuente: reportes de la empresa):"]
-    for s in segments:
-        pct = f"{s['pct_of_total']}%" if s.get("pct_of_total") is not None else "N/D"
-        lines.append(f"- {s.get('name')}: ${s.get('revenue'):,.0f} ({pct} del total)")
-    return "\n".join(lines)
+    """Thin alias — the real implementation is `fundamental_analysis_
+    service.format_segments_summary` (promoted there in Fase 3, Incremento
+    3 so `research.business_understanding` reuses it too). Kept here under
+    the original name for backward compatibility with existing imports/tests."""
+    from app.services.fundamental_analysis_service import format_segments_summary
+    return format_segments_summary(segments)
 
 
 async def compute_catalysts(

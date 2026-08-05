@@ -1875,6 +1875,25 @@ def _fmt_yoy_trend(years: list[str], values: list[Optional[float]]) -> str:
     return ", ".join(pairs) if pairs else "N/D"
 
 
+def format_segments_summary(segments: list[dict]) -> str:
+    """Renders the company's real revenue-segment breakdown (`segments`,
+    already computed above from `financial_data_service.
+    get_revenue_segments` — never re-fetched here) into plain text for an
+    AI prompt. Promoted here (Fase 3, Incremento 3) from `quality.
+    catalysts_engine._format_segments_summary` (which becomes a thin
+    alias) so `research.business_understanding` reuses the exact same
+    formatter instead of a third near-identical copy — this module is
+    where `segments` itself is computed, so the formatter for it lives
+    here too."""
+    if not segments:
+        return ""
+    lines = ["Segmentos de ingresos reales (último período fiscal disponible, fuente: reportes de la empresa):"]
+    for s in segments:
+        pct = f"{s['pct_of_total']}%" if s.get("pct_of_total") is not None else "N/D"
+        lines.append(f"- {s.get('name')}: ${s.get('revenue'):,.0f} ({pct} del total)")
+    return "\n".join(lines)
+
+
 def format_fundamental_analysis_for_prompt(data: dict) -> str:
     """Renders the computed dict as a compact text block for injection into
     the chat system context. Every number here is REAL and COMPUTED — the

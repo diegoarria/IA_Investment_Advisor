@@ -3413,6 +3413,71 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
     return None
 
 
+async def generate_business_understanding(
+    ticker: str, company_name: str, segments_summary: str, filing_business_text: str,
+    prior_summary: Optional[str], lang: str = "es",
+) -> Optional[dict]:
+    """Business Understanding Engine (Fase 3, Incremento 3 — Parte B):
+    builds a company-SPECIFIC explanation of the business (how it makes
+    money, who pays, what limits/drives growth, which part is most/least
+    profitable), grounded in the company's own real revenue-segment
+    breakdown and, when available, the company's own real 10-K Business-
+    section text (`document_intelligence`, Incremento 2) — never a generic
+    template answer. The prompt explicitly forbids generic industry-level
+    filler ("vende productos y servicios a clientes") in favor of specifics
+    anchored in the real segments/filing text given.
+
+    `prior_summary`, when not None, is the `how_it_makes_money` field from
+    this ticker's own previous Business Understanding snapshot
+    (`knowledge_store.get_latest_snapshot`) — lets the model note a real
+    change (a new segment, a shifted revenue mix) instead of silently
+    repeating the same description forever. None on this ticker's first
+    ever run, in which case `business_change_since_last_review` must be
+    null, never invented.
+
+    Returns None (never fakes content) if the model's JSON doesn't parse."""
+    prompt = f"""{_output_language_directive(lang)}Explica específicamente cómo funciona el negocio de {company_name} ({ticker}) — nunca en términos genéricos, siempre anclado en los datos reales de abajo.
+
+{segments_summary if segments_summary else "No hay desglose de segmentos de ingresos disponible para esta empresa."}
+
+Texto real de la sección "Business" del 10-K más reciente:
+{filing_business_text if filing_business_text.strip() else "No se encontró texto real de la sección Business del 10-K — responde solo con lo que los segmentos de ingresos reales permitan inferir, y sé conservador/explícito sobre esa limitación."}
+
+{f"Descripción del negocio de la revisión anterior (para detectar cambios reales): {prior_summary}" if prior_summary else "Esta es la primera vez que se investiga esta empresa — no hay revisión anterior con la cual comparar."}
+
+Reglas:
+- Cada respuesta debe ser ESPECÍFICA de esta empresa — nunca una descripción genérica de la industria.
+- Usa los nombres reales de los segmentos y sus porcentajes reales cuando existan.
+- Si la evidencia no alcanza para responder algo con confianza, dilo explícitamente en vez de inventar.
+- business_change_since_last_review debe ser null si no hay revisión anterior — nunca inventes un cambio.
+- Nunca digas Comprar/No comprar/Mantener.
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después):
+{{
+  "how_it_makes_money": "<máx 60 palabras>",
+  "what_it_sells": "<máx 40 palabras>",
+  "who_pays": "<máx 40 palabras>",
+  "key_customers": "<máx 40 palabras, o 'sin evidencia pública específica'>",
+  "growth_drivers": "<máx 50 palabras>",
+  "growth_limiters": "<máx 50 palabras>",
+  "most_profitable_segment": "<máx 40 palabras, citando el segmento real si es posible>",
+  "value_destroying_segment": "<máx 40 palabras, o 'ninguno identificado con la evidencia disponible'>",
+  "business_change_since_last_review": "<máx 50 palabras, o null si no hay revisión anterior>"
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1400,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and parsed.get("how_it_makes_money"):
+        return parsed
+    _log.warning("generate_business_understanding: JSON parse failed for %s", ticker)
+    return None
+
+
 async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
     """One-liner (~15-25 words) for a single undervalued-screener candidate —
     called once per real candidate PER LANGUAGE during the weekly refresh
