@@ -1587,6 +1587,12 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
     latest_income = income[-1] if income else {}
     latest_eps = _num(latest_income.get("Diluted EPS")) or _num(latest_income.get("Basic EPS"))
     latest_ebitda = _num(latest_income.get("EBITDA"))
+    # Fase 2, Incremento 5 (Earnings Quality Engine): the raw SBC field has
+    # been fetched into every cashflow-statement row since before this
+    # project started (see financial_data_service.py) but nothing ever
+    # read it until now.
+    latest_cashflow_row = cashflow[-1] if cashflow else {}
+    sbc_latest = _num(latest_cashflow_row.get("Stock Based Compensation"))
     market_cap = price * shares_out if price and shares_out else None
     pe_ratio = round(price / latest_eps, 1) if price and latest_eps and latest_eps > 0 else None
     ev_ebitda = (
@@ -1824,6 +1830,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         "p_fcf": p_fcf,
         "dividend_yield_pct": dividend_yield_pct,
         "ebitda": round(latest_ebitda, 0) if latest_ebitda else None,
+        "sbc_latest": round(sbc_latest, 0) if sbc_latest is not None else None,
         "interest_coverage": round(interest_coverage, 2) if interest_coverage is not None else None,
         "latest_eps": round(latest_eps, 2) if latest_eps is not None else None,
         "analyst_target": analyst_target,

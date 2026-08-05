@@ -819,6 +819,38 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "acquisitions_note": capital_allocation_result_obj.acquisitions_note,
     }
 
+    # Fase 2, Incremento 5 (Earnings Quality Engine — Parte E). Reuses
+    # data_validation (Fase 1's accounting cross-check) and the margin/FCF/
+    # net-income trends already computed; sbc_latest is the one new field
+    # (added to fundamental_analysis_service.py's return dict this
+    # increment — the raw statement field was already fetched, just never
+    # read downstream).
+    from app.services.quality.earnings_quality_engine import compute_earnings_quality
+    fcf_trend_for_eq = data.get("fcf_trend") or []
+    revenue_trend_for_eq = data.get("revenue_trend") or []
+    earnings_quality_result_obj = compute_earnings_quality(
+        sbc_latest=data.get("sbc_latest"),
+        revenue_latest=(revenue_trend_for_eq[-1] if revenue_trend_for_eq else None),
+        fcf_latest=(fcf_trend_for_eq[-1] if fcf_trend_for_eq else None),
+        data_validation=data.get("data_validation"),
+        gross_margin_trend=data.get("gross_margin_trend") or [], operating_margin_trend=data.get("operating_margin_trend") or [],
+        net_margin_trend=data.get("net_margin_trend") or [],
+        fcf_trend=fcf_trend_for_eq, net_income_trend=data.get("net_income_trend") or [],
+        years=data.get("years") or [],
+        revenue_cagr_pct=data.get("revenue_cagr_pct"), fcf_cagr_pct=data.get("fcf_cagr_pct"),
+    )
+    earnings_quality_result = {
+        "alert_count": earnings_quality_result_obj.alert_count,
+        "highest_severity": earnings_quality_result_obj.highest_severity,
+        "sbc_to_revenue_pct": earnings_quality_result_obj.sbc_to_revenue_pct,
+        "sbc_to_fcf_pct": earnings_quality_result_obj.sbc_to_fcf_pct,
+        "alerts": [
+            {"key": a.key, "severity": a.severity, "description": a.description, "evidence": a.evidence}
+            for a in earnings_quality_result_obj.alerts
+        ],
+        "acquisitions_note": earnings_quality_result_obj.acquisitions_note,
+    }
+
     result = {
         "ticker": data["ticker"],
         "company_name": data.get("company_name"),
@@ -868,6 +900,7 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "industry_benchmarks": _asdict_or_none(industry_benchmarks),
         "quality_engine": quality_engine_result,
         "capital_allocation_engine": capital_allocation_result,
+        "earnings_quality_engine": earnings_quality_result,
         "relative_valuation": relative_valuation,
         "historical_valuation": historical_valuation,
         "consensus_valuation": consensus_valuation,
