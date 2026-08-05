@@ -3313,6 +3313,60 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
     return None
 
 
+async def generate_management_deep_dive(
+    ticker: str, company_name: str, management_score_summary: str, evidence_block: str, lang: str = "es",
+) -> Optional[dict]:
+    """Management Engine (Fase 2, Incremento 8 — Parte D) qualitative deep
+    dive: does management's own PAST guidance actually hold up against what
+    happened, and are there any real, cited governance red flags (related-
+    party deals, executive turnover, compensation controversies, etc.)?
+
+    Deliberately separate from `management_engine.compute_management_score`
+    (the real, deterministic capital-allocation + insider-alignment blend)
+    — this is the qualitative layer that explains and enriches that number,
+    never silently determines it. Grounded in REAL evidence
+    (`evidence_sources.gather_evidence_bundle`: real 10-K text, real cited
+    web search, real scraped excerpts) — the prompt instructs the model to
+    say "sin evidencia suficiente" per sub-factor rather than inventing a
+    track record it can't actually cite.
+
+    Returns None (never fakes content) if the model's JSON doesn't parse."""
+    prompt = f"""{_output_language_directive(lang)}Analiza el track record y la gobernanza del equipo directivo de {company_name} ({ticker}) usando SOLO la evidencia real de abajo — nunca inventes hechos, citas, promesas o cifras que no estén aquí.
+
+Señal cuantitativa real (ya calculada, no la recalcules — solo úsala de contexto):
+{management_score_summary}
+
+Evidencia real recopilada (10-K, búsqueda web con fuentes citadas, extractos de páginas públicas):
+{evidence_block if evidence_block.strip() else "No se encontró evidencia pública adicional para esta empresa — marca 'sin evidencia suficiente' en cada sub-factor en vez de inventar un track record."}
+
+Reglas:
+- Si la evidencia no permite evaluar un sub-factor para esta empresa, dilo explícitamente ("sin evidencia suficiente") — no lo rellenes con narrativa genérica.
+- guidance_track_record: solo afirma que el guidance se cumplió o no se cumplió si la evidencia cita cifras/fechas reales — de lo contrario, declara que no hay evidencia pública suficiente.
+- governance_flags: solo lista señales reales citadas en la evidencia (ej. transacciones con partes relacionadas, rotación de ejecutivos, controversias de compensación) — lista vacía si no hay ninguna.
+- Nunca digas Comprar/No comprar/Mantener.
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después):
+{{
+  "guidance_track_record": "<máx 60 palabras: ¿el guidance histórico de management se cumplió, según la evidencia real? o 'sin evidencia pública suficiente'>",
+  "governance_flags": [
+    {{"flag": "<breve>", "evidence": "<máx 30 palabras, citando la evidencia real>"}}
+  ],
+  "overall_assessment": "<máx 50 palabras: síntesis honesta de credibilidad de management basada solo en la evidencia dada>"
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1400,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and parsed.get("guidance_track_record"):
+        return parsed
+    _log.warning("generate_management_deep_dive: JSON parse failed for %s", ticker)
+    return None
+
+
 async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
     """One-liner (~15-25 words) for a single undervalued-screener candidate —
     called once per real candidate PER LANGUAGE during the weekly refresh

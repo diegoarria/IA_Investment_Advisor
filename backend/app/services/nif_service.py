@@ -28,6 +28,8 @@ from app.services.fundamental_analysis_service import get_fundamental_analysis
 from app.services.quality.quality_engine import build_quality_score_from_analysis
 from app.services.quality.industry_engine import compute_industry_benchmarks
 from app.services.quality.moat_engine import compute_moat_score, compute_moat_deep_dive
+from app.services.quality.capital_allocation_engine import compute_capital_allocation_score
+from app.services.quality.management_engine import compute_management_score, compute_management_deep_dive
 from app.services import ai_service
 from app.core.finnhub import fh_insider_transactions, fh_insider_sentiment
 
@@ -165,21 +167,54 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
         _safe(asyncio.to_thread(fh_insider_sentiment, ticker), None, ticker, "insider_sentiment", timeout=8),
     )
 
+    # Fase 2, Incremento 8 (Management Engine — Parte D): deepens the
+    # management_quality pillar with a real deterministic score, blending
+    # the Capital Allocation Engine's real score (Incremento 4 — reuses
+    # the exact same wiring already proven in screener.py's quick-analysis
+    # path) with the insider signals fetched just above. Only computed
+    # here (not in the fast quick-analysis path) since it needs the
+    # insider fetches that quick-analysis deliberately doesn't make.
+    mgmt_evidence_for_capital_allocation = evidence.get("management_capital_allocation") or {}
+    payout_ratio_pct = mgmt_evidence_for_capital_allocation.get("payout_ratio_pct")
+    capital_allocation_result_obj = await _safe(
+        asyncio.to_thread(
+            compute_capital_allocation_score,
+            ticker=ticker, current_price=data.get("current_price"),
+            implied_shares_trend=data.get("implied_shares_trend") or [],
+            fiscal_period_dates=data.get("fiscal_period_dates") or [],
+            dividends_paid_trend=data.get("dividends_paid_trend") or [],
+            reinvestment_rate_trend=data.get("reinvestment_rate_trend") or [],
+            buyback_rate_pct=mgmt_evidence_for_capital_allocation.get("buyback_rate_pct"),
+            payout_ratio=(payout_ratio_pct / 100) if payout_ratio_pct is not None else None,
+        ),
+        None, ticker, "capital_allocation", timeout=15,
+    )
+    management_score_result = compute_management_score(
+        capital_allocation_score=(capital_allocation_result_obj.capital_allocation_score if capital_allocation_result_obj else None),
+        insider_sentiment_avg_mspr=(insider_sentiment or {}).get("avg_mspr"),
+        insider_sentiment_months_covered=(insider_sentiment or {}).get("months_covered"),
+        insider_trailing_12mo=(insider_txn or {}).get("trailing_12mo"),
+    )
+
     # Two NEW structured explanations (business quality, management quality)
     # plus ONE call to the existing generate_quick_valuation_summary purely
     # to source financial_strength/valuation's explanation text (already
     # ~70-word narratives — no need for a 3rd/4th dedicated NIF call, keeps
-    # LLM cost down), plus the Moat Engine's qualitative deep dive
-    # (Incremento 7 — real evidence gathering + AI narration, the most
-    # expensive of the four, given its own generous timeout). All four run
-    # in parallel.
-    bq_explanation, mgmt_explanation, summary_result, moat_deep_dive = await asyncio.gather(
+    # LLM cost down), plus the Moat Engine's and Management Engine's
+    # qualitative deep dives (Incrementos 7-8 — real evidence gathering +
+    # AI narration, the most expensive of the five, each given its own
+    # generous timeout). All five run in parallel.
+    bq_explanation, mgmt_explanation, summary_result, moat_deep_dive, management_deep_dive = await asyncio.gather(
         _safe(ai_service.generate_business_quality_explanation(data, lang), None, ticker, "business_quality_explanation"),
         _safe(ai_service.generate_management_quality_explanation(data, insider_txn, insider_sentiment, lang), None, ticker, "management_quality_explanation"),
         _safe(ai_service.generate_quick_valuation_summary(data, lang), {"checklist_reasons": {}}, ticker, "quick_valuation_summary"),
         _safe(
             compute_moat_deep_dive(ticker, data.get("company_name") or ticker, moat_score_result, lang),
             None, ticker, "moat_deep_dive", timeout=30,
+        ),
+        _safe(
+            compute_management_deep_dive(ticker, data.get("company_name") or ticker, management_score_result, lang),
+            None, ticker, "management_deep_dive", timeout=30,
         ),
     )
     checklist_reasons = (summary_result or {}).get("checklist_reasons") or {}
@@ -244,7 +279,16 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
         },
         "management_quality": {
             "pillar": "management_quality",
-            "score": thesis.get("management_capital_allocation"),
+            # Fase 2, Incremento 8 (cutover — see
+            # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md):
+            # the SCORE now comes from the real, independent Management
+            # Engine (capital allocation + insider alignment) instead of
+            # fundamental_analysis_service's older
+            # thesis_scores["management_capital_allocation"] formula. Same
+            # has_any_signal guard as the business_quality cutover
+            # (Incremento 3) — a real 0 must never be silently treated as
+            # "no data".
+            "score": management_score_result.management_score if management_score_result.has_any_signal else None,
             "data": {
                 "buyback_rate_pct": management_evidence.get("buyback_rate_pct"),
                 "payout_ratio_pct": management_evidence.get("payout_ratio_pct"),
@@ -253,9 +297,23 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
                 "insider_sentiment_avg_mspr": (insider_sentiment or {}).get("avg_mspr"),
             },
             "nuvos_estimate": {
-                "composite_score": thesis.get("management_capital_allocation"),
+                # New, richer breakdown (Fase 2, Incremento 8) — additive,
+                # same pattern as business_quality's cutover.
+                "capital_allocation_score": management_score_result.capital_allocation_score,
+                "insider_sentiment_score": management_score_result.insider_sentiment_score,
+                "insider_activity_score": management_score_result.insider_activity_score,
+                "composite_score": management_score_result.management_score if management_score_result.has_any_signal else None,
+                "factors": [
+                    {"name": f.name, "value": f.value, "score": f.score, "reason": f.reason}
+                    for f in management_score_result.factors
+                ],
             },
             "explanation": mgmt_explanation,
+            # Qualitative guidance-track-record / governance read, grounded
+            # in real evidence (Incremento 6) — declares "sin evidencia
+            # suficiente" per sub-factor rather than inventing a track
+            # record, same honesty standard as the Moat deep dive.
+            "deep_dive": management_deep_dive,
         },
         "valuation": {
             "pillar": "valuation",

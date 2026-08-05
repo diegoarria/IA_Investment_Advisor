@@ -156,23 +156,13 @@ def _format_moat_score_summary(result: MoatScoreResult) -> str:
 
 
 def _format_evidence_bundle(bundle) -> str:
-    """Renders an `evidence_sources.EvidenceBundle` into plain text for the
-    AI deep-dive prompt — real filing excerpts, real search answer with
-    real citation URLs, real scraped excerpts. Truncated per-field so one
-    very long section can't blow out the prompt budget."""
-    lines: list[str] = []
-    filing = bundle.filing_evidence or {}
-    if filing.get("business"):
-        lines.append(f"[10-K, sección Business, real, fuente: {filing.get('source_url')}]\n{filing['business'][:2000]}")
-    if filing.get("risk_factors"):
-        lines.append(f"[10-K, sección Risk Factors, real]\n{filing['risk_factors'][:2000]}")
-    if filing.get("mda"):
-        lines.append(f"[10-K, sección MD&A, real]\n{filing['mda'][:1500]}")
-    if bundle.search_answer:
-        lines.append(f"[Búsqueda web real con fuentes citadas]\n{bundle.search_answer}")
-    for excerpt in bundle.scraped_excerpts:
-        lines.append(f"[Extracto real de {excerpt.url}{f' ({excerpt.title})' if excerpt.title else ''}]\n{excerpt.excerpt[:1000]}")
-    return "\n\n".join(lines)
+    """Thin alias — the real implementation is
+    `evidence_sources.format_evidence_bundle_for_prompt` (promoted there in
+    Incremento 8 so Management/Catalysts share it instead of each copying
+    this function). Kept here under the original name for backward
+    compatibility with existing imports/tests."""
+    from app.services.quality.evidence_sources import format_evidence_bundle_for_prompt
+    return format_evidence_bundle_for_prompt(bundle)
 
 
 async def compute_moat_deep_dive(

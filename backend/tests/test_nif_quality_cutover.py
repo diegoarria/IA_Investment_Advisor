@@ -1,6 +1,7 @@
 """
-Integration test — NIF business_quality pillar cutover (Fase 2, Incremento 3)
-and the Moat Engine sibling key (Fase 2, Incremento 7).
+Integration test — NIF business_quality pillar cutover (Fase 2, Incremento 3),
+the Moat Engine sibling key (Fase 2, Incremento 7), and the
+management_quality pillar cutover (Fase 2, Incremento 8).
 
 Context: verifies `nif_service.build_nif_dashboard`'s `business_quality`
 pillar now sources its `score` from the real, independent Quality Engine
@@ -9,19 +10,26 @@ pillar now sources its `score` from the real, independent Quality Engine
 formula, end-to-end, with the frontend-facing `nuvos_estimate` keys
 (`roic_score`, `operating_margin_score`, etc.) still populated for
 backward compatibility. Also verifies the dashboard's `moat` sibling key
-(deterministic score + AI deep dive) is wired in. Mocks every network
+(deterministic score + AI deep dive), and the `management_quality`
+pillar's cutover to the Management Engine (capital allocation + insider
+alignment blend + AI deep dive), are wired in. Mocks every network
 boundary (get_financials/fh_quote/fh_profile/check_liquidity_gate/get_beta/
 get_risk_free_rate/fh_price_target/get_revenue_segments — same as
 test_valuation_engine_integration.py — plus insider data, industry
-benchmarks, and the 4 parallel AI/evidence calls this function makes) so
-the whole async orchestration actually runs, with zero real network calls.
+benchmarks, capital allocation, and the 5 parallel AI/evidence calls this
+function makes) so the whole async orchestration actually runs, with zero
+real network calls.
 """
 from unittest.mock import patch
 
 import pytest
 
+from types import SimpleNamespace
+
 from app.services.nif_service import build_nif_dashboard
 from tests.test_quality_integration import _build_synthetic_financials_with_balance_sheet_detail
+
+_FAKE_CAPITAL_ALLOCATION_RESULT = SimpleNamespace(capital_allocation_score=65.0)
 
 
 @pytest.mark.asyncio
@@ -45,7 +53,9 @@ async def test_business_quality_pillar_uses_the_new_quality_engine_score():
          patch("app.services.nif_service.ai_service.generate_management_quality_explanation", return_value=None), \
          patch("app.services.nif_service.ai_service.generate_quick_valuation_summary", return_value={"checklist_reasons": {}}), \
          patch("app.services.nif_service.compute_industry_benchmarks", return_value=None), \
-         patch("app.services.nif_service.compute_moat_deep_dive", return_value=None):
+         patch("app.services.nif_service.compute_moat_deep_dive", return_value=None), \
+         patch("app.services.nif_service.compute_capital_allocation_score", return_value=_FAKE_CAPITAL_ALLOCATION_RESULT), \
+         patch("app.services.nif_service.compute_management_deep_dive", return_value=None):
         dashboard = await build_nif_dashboard("SYNNIF1")
 
     assert dashboard is not None
@@ -81,6 +91,16 @@ async def test_business_quality_pillar_uses_the_new_quality_engine_score():
     assert len(moat["factors"]) > 0
     assert moat["deep_dive"] is None  # mocked to None above — degrades cleanly, doesn't break the dashboard
 
+    # Fase 2, Incremento 8: management_quality's score is now the
+    # Management Engine's real, independent blend (capital allocation +
+    # insider alignment) instead of the old thesis formula.
+    mgmt_pillar = dashboard["pillars"]["management_quality"]
+    assert mgmt_pillar["score"] is not None
+    assert 0 <= mgmt_pillar["score"] <= 100
+    assert mgmt_pillar["nuvos_estimate"]["capital_allocation_score"] == 65.0
+    assert len(mgmt_pillar["nuvos_estimate"]["factors"]) == 3
+    assert mgmt_pillar["deep_dive"] is None  # mocked to None above — degrades cleanly
+
 
 @pytest.mark.asyncio
 async def test_moat_deep_dive_is_included_when_available():
@@ -104,7 +124,42 @@ async def test_moat_deep_dive_is_included_when_available():
          patch("app.services.nif_service.ai_service.generate_management_quality_explanation", return_value=None), \
          patch("app.services.nif_service.ai_service.generate_quick_valuation_summary", return_value={"checklist_reasons": {}}), \
          patch("app.services.nif_service.compute_industry_benchmarks", return_value=None), \
-         patch("app.services.nif_service.compute_moat_deep_dive", return_value=fake_deep_dive):
+         patch("app.services.nif_service.compute_moat_deep_dive", return_value=fake_deep_dive), \
+         patch("app.services.nif_service.compute_capital_allocation_score", return_value=_FAKE_CAPITAL_ALLOCATION_RESULT), \
+         patch("app.services.nif_service.compute_management_deep_dive", return_value=None):
         dashboard = await build_nif_dashboard("SYNNIF2")
 
     assert dashboard["moat"]["deep_dive"] == fake_deep_dive
+
+
+@pytest.mark.asyncio
+async def test_management_deep_dive_is_included_when_available():
+    fin = _build_synthetic_financials_with_balance_sheet_detail()
+    fake_deep_dive = {
+        "guidance_track_record": "Cumplió guidance en los últimos 4 trimestres según la evidencia citada.",
+        "governance_flags": [], "overall_assessment": "Track record consistente.",
+    }
+    with patch("app.services.fundamental_analysis_service.get_financials", return_value=fin), \
+         patch("app.services.fundamental_analysis_service.fh_quote", return_value={"price": 100.0}), \
+         patch("app.services.fundamental_analysis_service.fh_profile", return_value={
+             "finnhubIndustry": "Technology", "shareOutstanding": 100.0,
+         }), \
+         patch("app.services.fundamental_analysis_service.check_liquidity_gate", return_value={
+             "paso": True, "avg_volume_30d": 1_000_000, "free_float_pct": 80.0, "analyst_coverage": 10, "detalle": "OK",
+         }), \
+         patch("app.services.fundamental_analysis_service.get_beta", return_value=1.1), \
+         patch("app.services.fundamental_analysis_service.get_risk_free_rate", return_value=0.04), \
+         patch("app.services.fundamental_analysis_service.fh_price_target", return_value=None), \
+         patch("app.services.fundamental_analysis_service.get_revenue_segments", return_value=[]), \
+         patch("app.services.nif_service.fh_insider_transactions", return_value=None), \
+         patch("app.services.nif_service.fh_insider_sentiment", return_value=None), \
+         patch("app.services.nif_service.ai_service.generate_business_quality_explanation", return_value=None), \
+         patch("app.services.nif_service.ai_service.generate_management_quality_explanation", return_value=None), \
+         patch("app.services.nif_service.ai_service.generate_quick_valuation_summary", return_value={"checklist_reasons": {}}), \
+         patch("app.services.nif_service.compute_industry_benchmarks", return_value=None), \
+         patch("app.services.nif_service.compute_moat_deep_dive", return_value=None), \
+         patch("app.services.nif_service.compute_capital_allocation_score", return_value=_FAKE_CAPITAL_ALLOCATION_RESULT), \
+         patch("app.services.nif_service.compute_management_deep_dive", return_value=fake_deep_dive):
+        dashboard = await build_nif_dashboard("SYNNIF3")
+
+    assert dashboard["pillars"]["management_quality"]["deep_dive"] == fake_deep_dive

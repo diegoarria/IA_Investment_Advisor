@@ -113,6 +113,30 @@ def scrape_public_excerpt(url: str) -> Optional[str]:
         return None
 
 
+def format_evidence_bundle_for_prompt(bundle: "EvidenceBundle") -> str:
+    """Renders an `EvidenceBundle` into plain text for an AI deep-dive
+    prompt — real filing excerpts, real search answer with real citation
+    URLs, real scraped excerpts. Truncated per-field so one very long
+    section can't blow out the prompt budget. Shared by every Incremento
+    7-9 deep dive (Moat, Management, Catalysts) so the "how do we present
+    evidence to the model" logic lives in exactly one place — promoted
+    here (Incremento 8) from `moat_engine._format_evidence_bundle`, which
+    becomes a thin alias."""
+    lines: list[str] = []
+    filing = bundle.filing_evidence or {}
+    if filing.get("business"):
+        lines.append(f"[10-K, sección Business, real, fuente: {filing.get('source_url')}]\n{filing['business'][:2000]}")
+    if filing.get("risk_factors"):
+        lines.append(f"[10-K, sección Risk Factors, real]\n{filing['risk_factors'][:2000]}")
+    if filing.get("mda"):
+        lines.append(f"[10-K, sección MD&A, real]\n{filing['mda'][:1500]}")
+    if bundle.search_answer:
+        lines.append(f"[Búsqueda web real con fuentes citadas]\n{bundle.search_answer}")
+    for excerpt in bundle.scraped_excerpts:
+        lines.append(f"[Extracto real de {excerpt.url}{f' ({excerpt.title})' if excerpt.title else ''}]\n{excerpt.excerpt[:1000]}")
+    return "\n\n".join(lines)
+
+
 def gather_evidence_bundle(ticker: str, company_name: str, topic: str, lang: str = "es") -> EvidenceBundle:
     """The single entry point Incrementos 7-9 (Moat/Management/Catalysts)
     call: combines real 10-K text + a real cited web search + best-effort
