@@ -15,6 +15,8 @@ import { useTheme } from "../lib/ThemeContext";
 import MarketTicker from "./MarketTicker";
 import { getUserLevel, useUserLevel, isAtLeast, getLevelLabel, LEVEL_COLOR } from "../lib/userLevel";
 
+const ARTHUR_PHOTO = require("../../assets/images/mentors/arthur.jpg");
+
 const SIDEBAR_WIDTH = Math.min(Dimensions.get("window").width * 0.78, 300);
 const WEB_EXPANDED = 260;
 const WEB_COLLAPSED = 62;
@@ -198,7 +200,11 @@ function NavItems({
               ]}
               onPress={() => locked ? onPress("/profile") : onPress(item.path)}
             >
-              <Ionicons name={item.icon as IoniconName} size={20} color={isActive ? "#22c55e" : colors.textSub} />
+              {item.path === "/chat" && !locked ? (
+                <Image source={ARTHUR_PHOTO} style={{ width: 20, height: 20, borderRadius: 10 }} />
+              ) : (
+                <Ionicons name={item.icon as IoniconName} size={20} color={isActive ? "#22c55e" : colors.textSub} />
+              )}
             </TouchableOpacity>
           );
         })}
@@ -227,11 +233,15 @@ function NavItems({
             onPress(item.path);
           }}
         >
-          <Ionicons
-            name={(locked ? "lock-closed-outline" : item.icon) as IoniconName}
-            size={20}
-            color={isActive && !locked ? "#22c55e" : colors.textSub}
-          />
+          {item.path === "/chat" && !locked ? (
+            <Image source={ARTHUR_PHOTO} style={{ width: 20, height: 20, borderRadius: 10 }} />
+          ) : (
+            <Ionicons
+              name={(locked ? "lock-closed-outline" : item.icon) as IoniconName}
+              size={20}
+              color={isActive && !locked ? "#22c55e" : colors.textSub}
+            />
+          )}
           <Text style={[styles.navLabel, { color: isActive && !locked ? "#22c55e" : colors.textSub }]}>
             {t(item.labelKey)}
           </Text>

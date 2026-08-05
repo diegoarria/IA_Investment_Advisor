@@ -440,7 +440,14 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
                     >
                       <GripVertical className="w-2.5 h-2.5" style={{ color: "var(--muted)" }} />
                     </span>
-                    <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: locked ? "var(--dim)" : undefined }} />
+                    {href === "/chat" ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src="/mentors/arthur.jpg" alt="Arthur"
+                           className="w-4 h-4 rounded-full object-cover shrink-0"
+                           style={{ opacity: locked ? 0.4 : 1 }} />
+                    ) : (
+                      <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: locked ? "var(--dim)" : undefined }} />
+                    )}
                     <span style={{ color: locked ? "var(--dim)" : undefined }}>{t(labelKey)}</span>
                     {children && !locked && (
                       <ChevronRight className={`ml-auto w-3 h-3 shrink-0 transition-transform ${patrimonioOpen ? "rotate-90" : ""}`}
