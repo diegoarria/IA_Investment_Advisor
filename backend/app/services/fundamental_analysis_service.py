@@ -1793,6 +1793,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
     # resilience: a company can carry debt comfortably if operating income
     # covers interest many times over, even with modest net cash.
     interest_coverage_score = None
+    interest_coverage = None
     if latest_interest_expense and latest_interest_expense > 0 and latest_om is not None and latest_rev:
         operating_income_latest = latest_om / 100 * latest_rev
         interest_coverage = operating_income_latest / latest_interest_expense
@@ -2047,6 +2048,9 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         "ev_fcf": ev_fcf,
         "p_fcf": p_fcf,
         "dividend_yield_pct": dividend_yield_pct,
+        "ebitda": round(latest_ebitda, 0) if latest_ebitda else None,
+        "interest_coverage": round(interest_coverage, 2) if interest_coverage is not None else None,
+        "latest_eps": round(latest_eps, 2) if latest_eps is not None else None,
         "analyst_target": analyst_target,
         "data_years_available": n,
         "data_source": fin.get("provider"),
