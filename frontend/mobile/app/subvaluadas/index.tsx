@@ -19,10 +19,10 @@ import {
   type ConsensusValuationData, type DcfAssumptions, type RangeBounds, type YearlyDetailRow,
   type NifDashboardData, type NifRow,
   type ScenariosData, type ProbabilityWeights, type SensitivityMatrixData,
-  type ReverseDcfSanityCheckData, type ExpectationsInvestingData,
+  type ReverseDcfSanityCheckData, type ExpectationsInvestingData, type FairValueEngineData,
   GeneratedAtNote, LiquidityWarning, ConfidenceMeter, FairValueRangeDisplay, MarketExpectationsPanel, InsightBox,
   ChecklistDisplay, ActionButtons, NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
-  ScenarioWeightingPanel, ReverseDcfPanel,
+  ScenarioWeightingPanel, ReverseDcfPanel, FinalResultPanel,
 } from "../../src/components/subvaluadas/shared";
 
 // Gold/teal/coral is this screen's fixed brand identity (Valor Intrínseco),
@@ -87,6 +87,7 @@ interface QuickAnalysisResult {
   reverse_dcf_sanity_check: ReverseDcfSanityCheckData | null;
   expectations_investing: ExpectationsInvestingData | null;
   sector_model_note: { sector_type: string; detalle: string } | null;
+  fair_value_engine: FairValueEngineData | null;
 }
 
 function pct(v: number): string {
@@ -597,6 +598,13 @@ export default function SubvaluadasScreen() {
           <View style={{ gap: 10, marginBottom: 22 }}>
             <GeneratedAtNote generatedAt={data.generated_at} colors={viColors} />
             {data.liquidity_gate && <LiquidityWarning gate={data.liquidity_gate} />}
+            <FinalResultPanel
+              intrinsicValue={data.expected_value_per_share ?? data.intrinsic_value_base}
+              fairValue={data.fair_value_engine?.fair_value ?? null}
+              price={data.price}
+              confidence={data.confidence_meter}
+              colors={viColors}
+            />
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
               {data.fair_value_range && <FairValueRangeDisplay range={data.fair_value_range} consensus={data.consensus_valuation} colors={viColors} />}
               {data.confidence_meter && <ConfidenceMeter data={data.confidence_meter} colors={viColors} />}

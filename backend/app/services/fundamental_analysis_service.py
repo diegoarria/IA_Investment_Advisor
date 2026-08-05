@@ -18,8 +18,6 @@ import statistics
 from dataclasses import asdict
 from typing import Optional
 
-from scipy.optimize import brentq
-
 from app.services.financial_data_service import get_financials, get_revenue_segments, get_beta, get_risk_free_rate, get_shares_float
 from app.core.finnhub import fh_quote, fh_profile, fh_price_target, fh_metrics, fh_recommendation
 from app.services.valuation.dcf_engine import (
@@ -29,6 +27,19 @@ from app.services.valuation.robustness import UnstableGordonGrowthError
 from app.services.valuation.monte_carlo_engine import (
     DistributionInput, MonteCarloAssumptions, run_monte_carlo_dcf, build_distribution_from_trend,
 )
+# Fase 1, Incremento 7 (Parte I — modular reorganization): these used to be
+# private functions defined in this file. They're now real, independently
+# testable modules under valuation/, imported back here under their
+# original names so every internal call site below (`_run_dcf(...)`,
+# `_num(...)`, etc.) keeps working completely unchanged — see each new
+# module's docstring for the full rationale.
+from app.services.valuation.numeric_helpers import _num, _cagr, _score, _coefficient_of_variation
+from app.services.valuation.legacy_dcf_core import _project_path, _run_dcf, _run_dcf_constant_growth
+from app.services.valuation.reverse_dcf_engine import (
+    _implied_growth_rate, _implied_fcf_margin_at_fixed_growth, _implied_constant_growth_rate,
+    sanity_check_reverse_dcf,
+)
+from app.services.valuation.confidence_engine import _confidence_score, _confidence_meter
 
 logger = logging.getLogger(__name__)
 
@@ -345,69 +356,6 @@ def _calc_wacc(
     }
 
 
-def _num(v) -> Optional[float]:
-    if v is None:
-        return None
-    try:
-        n = float(v)
-        return n if n == n and abs(n) < 1e18 else None  # excludes NaN/overflow
-    except (TypeError, ValueError):
-        return None
-
-
-def _cagr(first: Optional[float], last: Optional[float], years: int) -> Optional[float]:
-    if first is None or last is None or first <= 0 or last <= 0 or years <= 0:
-        return None
-    return round(((last / first) ** (1 / years) - 1) * 100, 1)
-
-
-def _score(value: Optional[float], tiers: list[tuple[float, int]]) -> Optional[int]:
-    if value is None:
-        return None
-    for threshold, score in tiers:
-        if value <= threshold:
-            return score
-    return tiers[-1][1]
-
-
-def _coefficient_of_variation(values: list[Optional[float]]) -> Optional[float]:
-    """Real (not eyeballed) measure of how volatile a series is: stdev/|mean|.
-    Used so 'is this company's FCF stable or all over the place' is a
-    computed number, not a narrative guess — a low-volatility FCF series
-    (Coca-Cola-like) should genuinely produce a higher confidence than a
-    choppy one (early-stage/capex-supercycle company), and now it does."""
-    valid = [v for v in values if v is not None]
-    if len(valid) < 3:
-        return None
-    mean = statistics.mean(valid)
-    if mean == 0:
-        return None
-    return abs(statistics.pstdev(valid) / mean)
-
-
-def _confidence_score(
-    fcf_cv: Optional[float], roic_trend: list[Optional[float]], years_available: int,
-) -> int:
-    """0-100 confidence in the DCF/projection — how much should the user
-    trust the specific growth numbers, as opposed to just the direction.
-    Built from three real, computed signals: FCF volatility (coefficient of
-    variation), ROIC stability (stdev of the ROIC trend — a genuinely
-    predictable moat shows up as low ROIC variance), and how many years of
-    real data back the whole analysis. This is NOT the same as the Business
-    Quality Score — a company can be excellent (high quality) but still
-    unpredictable (low confidence), e.g. early in a capex supercycle."""
-    # FCF stability: CV of 0 -> 100, CV of 1.0+ (as volatile as the mean itself) -> ~10
-    fcf_stability_score = _score(fcf_cv, [(0.05, 95), (0.15, 80), (0.30, 60), (0.50, 40), (0.80, 20), (999, 10)]) if fcf_cv is not None else 50
-
-    roic_valid = [v for v in roic_trend if v is not None]
-    roic_stdev = statistics.pstdev(roic_valid) if len(roic_valid) >= 3 else None
-    roic_stability_score = _score(roic_stdev, [(3, 95), (8, 80), (15, 60), (25, 40), (999, 20)]) if roic_stdev is not None else 50
-
-    data_completeness_score = min(100, round(years_available / 10 * 100))
-
-    return round(fcf_stability_score * 0.4 + roic_stability_score * 0.4 + data_completeness_score * 0.2)
-
-
 def _stars_from_score(score: Optional[float]) -> Optional[int]:
     """Maps a real 0-100 score onto a 1-5 star rating — deliberately
     graduated instead of a single pass/fail threshold. Counting "X/7 passed"
@@ -457,53 +405,6 @@ _COMPOSITE_SCORE_WEIGHTS: dict[str, float] = {
     "growth_outlook": 0.15,
     "management_capital_allocation": 0.10,
 }
-
-
-def _confidence_meter(
-    predictability_score: Optional[float], years_available: int,
-    fair_value_range: dict, liquidity_ok: bool,
-    business_quality_score: Optional[float] = None,
-    financial_strength_score: Optional[float] = None,
-) -> Optional[dict]:
-    """How much to trust the Fair Value Range shown next to it — real inputs
-    only, never a decoration next to the number. The "method agreement"
-    component is currently a proxy: the real bear/bull scenario spread
-    already in `fair_value_range` (tighter spread = more agreement) — once
-    Method 3 (Relative) and Method 4 (Historical) exist, this should
-    incorporate the real cross-method spread instead, which is the richer
-    signal the original design called for; this is the honest version
-    buildable today without waiting on that.
-
-    business_quality/financial_strength were added so a fragile balance
-    sheet or a low-quality business can't hide behind high predictability
-    alone — a company can have very stable (predictable) but structurally
-    weak economics, and the original formula had no way to reflect that.
-    Both are optional (None-safe) so this stays backward compatible for the
-    one caller path that doesn't have them computed yet."""
-    if predictability_score is None:
-        return None
-    completeness = min(100, round(years_available / 10 * 100))
-    base, low, high = fair_value_range.get("base"), fair_value_range.get("low"), fair_value_range.get("high")
-    dispersion_pct = min(100, abs(high - low) / base * 100) if base and base > 0 else 50.0
-    agreement = 100 - dispersion_pct
-    liquidity_component = 100 if liquidity_ok else 40
-    bq = business_quality_score if business_quality_score is not None else predictability_score
-    fs = financial_strength_score if financial_strength_score is not None else predictability_score
-
-    score = round(
-        0.25 * predictability_score
-        + 0.15 * bq
-        + 0.10 * fs
-        + 0.20 * completeness
-        + 0.20 * agreement
-        + 0.10 * liquidity_component
-    )
-    if score >= 85: label = "Alta confianza"
-    elif score >= 65: label = "Confianza moderada"
-    elif score >= 45: label = "Confianza baja"
-    else: label = "Especulativo — rango amplio de incertidumbre"
-    stars = max(1, min(5, round(score / 20)))
-    return {"score": int(score), "label": label, "stars": stars}
 
 
 def _fair_value_range(scenarios: dict) -> dict:
@@ -626,174 +527,6 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[di
     return items
 
 
-def _project_path(base_value: float, growth_1: float, terminal_growth: float, years: int = _PROJECTION_YEARS) -> list[float]:
-    """Projects `base_value` forward `years` periods, with growth fading
-    linearly from `growth_1` (year 1) to `terminal_growth` by the final year —
-    the same two-stage curve used by the DCF, applied to any metric
-    (revenue, FCF, Owner Earnings)."""
-    v = base_value
-    path = []
-    for yr in range(1, years + 1):
-        g = growth_1 + (terminal_growth - growth_1) * (yr / years)
-        v *= (1 + g)
-        path.append(round(v, 0))
-    return path
-
-
-def _run_dcf(base_fcf: float, growth_1: float, discount_rate: float, terminal_growth: float) -> dict:
-    """Two-stage DCF: growth fades linearly from `growth_1` (year 1) to the
-    terminal growth rate by year _PROJECTION_YEARS, then a Gordon-growth
-    terminal value. Returns enterprise-value components only — caller adds
-    cash/debt to get equity value."""
-    path = _project_path(base_fcf, growth_1, terminal_growth)
-    pv_sum = sum(cf / ((1 + discount_rate) ** yr) for yr, cf in enumerate(path, start=1))
-    final_cf = path[-1]
-    terminal_value = final_cf * (1 + terminal_growth) / (discount_rate - terminal_growth)
-    pv_terminal = terminal_value / ((1 + discount_rate) ** _PROJECTION_YEARS)
-    return {
-        "fcf_path": path,
-        "pv_of_fcf_sum": pv_sum,
-        "terminal_value": terminal_value,
-        "pv_of_terminal_value": pv_terminal,
-        "enterprise_value": pv_sum + pv_terminal,
-    }
-
-
-def _implied_growth_rate(
-    base_fcf: float, discount_rate: float, terminal_growth: float,
-    total_debt: float, cash: float, shares_out: float, target_price: float,
-) -> Optional[float]:
-    """Reverse DCF: holding WACC and terminal growth fixed at the base
-    scenario's real values, solves algebraically (Brent's method — intrinsic
-    value is monotonic increasing in growth, so a bracketed root always
-    exists if one is in range) for the year-1 growth rate that would make
-    the DCF's intrinsic value equal today's actual market price. This
-    answers "what growth is the market actually pricing in?" with a real
-    computed number instead of a vague narrative guess — it's the concrete
-    answer to "what is the investor buying at this price." Returns None if
-    no growth rate in a wide, sane search range reconciles the two (e.g. the
-    market price implies a genuinely absurd/impossible growth rate)."""
-    def equity_at(g: float) -> float:
-        result = _run_dcf(base_fcf, g, discount_rate, terminal_growth)
-        return (result["enterprise_value"] - total_debt + cash) / shares_out
-
-    lo, hi = -0.30, 1.50
-    if equity_at(lo) > target_price or equity_at(hi) < target_price:
-        return None
-    g_implied = brentq(lambda g: equity_at(g) - target_price, lo, hi, xtol=1e-6)
-    return round(g_implied * 100, 1)
-
-
-def _implied_fcf_margin_at_fixed_growth(
-    revenue: float, growth_fixed: float, discount_rate: float, terminal_growth: float,
-    total_debt: float, cash: float, shares_out: float, target_price: float,
-) -> Optional[float]:
-    """The complementary reverse-DCF question — not "what growth is priced
-    in" (that's _implied_growth_rate, which holds margin fixed via base_fcf
-    and solves for growth), but "holding growth at what we actually believe
-    is realistic, what FCF margin would the market need to believe in for
-    this price to be fair?" Two free variables (growth, margin) and one
-    equation (price = DCF value) can't both be solved from price alone —
-    this is what makes it a genuinely different, complementary diagnostic
-    rather than redundant with the growth version: growth is pinned at
-    Nuvos's own real trend-based estimate, not backed out from price.
-    Returns None if no margin in a sane range [0%, 60%] reconciles the price
-    — this itself is a real signal (the price can't be justified by a
-    margin assumption alone; growth must also be doing real work)."""
-    def equity_at(margin: float) -> float:
-        result = _run_dcf(revenue * margin, growth_fixed, discount_rate, terminal_growth)
-        return (result["enterprise_value"] - total_debt + cash) / shares_out
-
-    lo, hi = 0.0, 0.60
-    if equity_at(lo) > target_price or equity_at(hi) < target_price:
-        return None
-    margin_implied = brentq(lambda m: equity_at(m) - target_price, lo, hi, xtol=1e-6)
-    return round(margin_implied * 100, 1)
-
-
-def _run_dcf_constant_growth(base_fcf: float, growth: float, discount_rate: float, terminal_growth: float, years: int = _PROJECTION_YEARS) -> dict:
-    """Same 2-stage structure as _run_dcf (explicit years + Gordon-growth
-    terminal value), but FCF grows at a CONSTANT rate every year instead of
-    fading linearly toward terminal growth. This is deliberate: Expectations
-    Investing (Rappaport) asks "what constant growth rate, held flat for the
-    whole explicit period, reconciles today's price" — a fading path would
-    answer a different, less standard question."""
-    v = base_fcf
-    path = []
-    for _ in range(years):
-        v *= (1 + growth)
-        path.append(v)
-    pv_sum = sum(cf / ((1 + discount_rate) ** yr) for yr, cf in enumerate(path, start=1))
-    final_cf = path[-1]
-    terminal_value = final_cf * (1 + terminal_growth) / (discount_rate - terminal_growth)
-    pv_terminal = terminal_value / ((1 + discount_rate) ** years)
-    return {
-        "fcf_path": path,
-        "pv_of_fcf_sum": pv_sum,
-        "terminal_value": terminal_value,
-        "pv_of_terminal_value": pv_terminal,
-        "enterprise_value": pv_sum + pv_terminal,
-    }
-
-
-def _implied_constant_growth_rate(
-    base_fcf: float, discount_rate: float, terminal_growth: float,
-    total_debt: float, cash: float, shares_out: float, target_price: float,
-) -> Optional[float]:
-    """Reverse DCF for Expectations Investing: same algebraic (Brent's
-    method) approach as _implied_growth_rate, but solving for a CONSTANT
-    annual growth rate (not a year-1 rate that fades to terminal) — the
-    standard formulation for "what growth rate, sustained flat for 10
-    years, justifies this price." Returns None if no rate in a sane range
-    reconciles the price."""
-    def equity_at(g: float) -> float:
-        result = _run_dcf_constant_growth(base_fcf, g, discount_rate, terminal_growth)
-        return (result["enterprise_value"] - total_debt + cash) / shares_out
-
-    lo, hi = -0.30, 1.50
-    if equity_at(lo) > target_price or equity_at(hi) < target_price:
-        return None
-    g_implied = brentq(lambda g: equity_at(g) - target_price, lo, hi, xtol=1e-6)
-    return round(g_implied * 100, 1)
-
-
-def sanity_check_reverse_dcf(
-    implied_growth_pct: Optional[float], fcf_base: float,
-    historical_fcf_cagr_pct: Optional[float], years: int = _PROJECTION_YEARS,
-) -> Optional[dict]:
-    """Automatic sanity check for the reverse-DCF's implied growth rate —
-    never let a raw percentage stand alone without context. Projects FCF
-    forward `years` at the implied rate and compares it explicitly against
-    the company's OWN real historical FCF CAGR (already computed elsewhere
-    in this module, never a peer/industry average) — flagging when the
-    market is pricing in more than 2x the historical pace, which signals
-    "the price requires a regime change, not just continuation" rather than
-    a simple extrapolation. Returns None if there isn't enough real data
-    (no implied growth solved, or no historical CAGR to compare against)."""
-    if implied_growth_pct is None or historical_fcf_cagr_pct is None or fcf_base is None:
-        return None
-    g = implied_growth_pct / 100
-    fcf_projected_year_n = round(fcf_base * (1 + g) ** years, 0)
-    hist_cagr = historical_fcf_cagr_pct / 100
-    if hist_cagr > 0:
-        ratio = g / hist_cagr
-        vs_historical = "mayor" if ratio > 1.15 else "menor" if ratio < 0.85 else "similar"
-    else:
-        vs_historical = "mayor" if g > 0 else "similar"
-    regime_change_flag = hist_cagr > 0 and g > 2 * hist_cagr
-    return {
-        "fcf_projected_year_n": fcf_projected_year_n,
-        "years": years,
-        "vs_cagr_historico_propio": vs_historical,
-        "regime_change_flag": regime_change_flag,
-        "detalle": (
-            f"El crecimiento implícito ({implied_growth_pct}%) es más del doble del CAGR histórico real de FCF de la "
-            f"propia empresa ({historical_fcf_cagr_pct}%) — el precio actual exige un cambio de régimen de crecimiento, "
-            f"no solo continuidad del historial."
-            if regime_change_flag else
-            f"Crecimiento implícito ({implied_growth_pct}%) {vs_historical} al CAGR histórico real de FCF de la empresa ({historical_fcf_cagr_pct}%)."
-        ),
-    }
 
 
 def _build_financial_sector_valuation(

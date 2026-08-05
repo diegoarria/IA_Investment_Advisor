@@ -26,6 +26,8 @@ from __future__ import annotations
 import statistics
 from typing import Optional
 
+from app.services.valuation.numeric_helpers import _score
+
 
 def compute_cross_method_spread_pct(values: list[Optional[float]]) -> Optional[float]:
     """(max - min) / median * 100 across the real, positive values in
@@ -94,3 +96,78 @@ def compute_confidence_meter_v2(
     else: label = "Especulativo — rango amplio de incertidumbre"
     stars = max(1, min(5, round(score / 20)))
     return {"score": int(score), "label": label, "stars": stars, "dispersion_source": dispersion_source}
+
+
+# ── v1 functions (Fase 1, Incremento 7 — Parte I: relocated verbatim from
+# fundamental_analysis_service.py, behavior unchanged, pinned by the
+# Incremento 1 regression suite in tests/test_valuation_dcf_core.py::
+# TestConfidenceScore). compute_confidence_meter_v2 above is the real
+# upgrade (real cross-method spread); these are the originals it degrades
+# to when fewer than 2 method values are available — kept here, not
+# deleted, since v2 explicitly falls back to this exact formula. ─────────
+
+def _confidence_score(
+    fcf_cv: Optional[float], roic_trend: list[Optional[float]], years_available: int,
+) -> int:
+    """0-100 confidence in the DCF/projection — how much should the user
+    trust the specific growth numbers, as opposed to just the direction.
+    Built from three real, computed signals: FCF volatility (coefficient of
+    variation), ROIC stability (stdev of the ROIC trend — a genuinely
+    predictable moat shows up as low ROIC variance), and how many years of
+    real data back the whole analysis. This is NOT the same as the Business
+    Quality Score — a company can be excellent (high quality) but still
+    unpredictable (low confidence), e.g. early in a capex supercycle."""
+    # FCF stability: CV of 0 -> 100, CV of 1.0+ (as volatile as the mean itself) -> ~10
+    fcf_stability_score = _score(fcf_cv, [(0.05, 95), (0.15, 80), (0.30, 60), (0.50, 40), (0.80, 20), (999, 10)]) if fcf_cv is not None else 50
+
+    roic_valid = [v for v in roic_trend if v is not None]
+    roic_stdev = statistics.pstdev(roic_valid) if len(roic_valid) >= 3 else None
+    roic_stability_score = _score(roic_stdev, [(3, 95), (8, 80), (15, 60), (25, 40), (999, 20)]) if roic_stdev is not None else 50
+
+    data_completeness_score = min(100, round(years_available / 10 * 100))
+
+    return round(fcf_stability_score * 0.4 + roic_stability_score * 0.4 + data_completeness_score * 0.2)
+
+
+def _confidence_meter(
+    predictability_score: Optional[float], years_available: int,
+    fair_value_range: dict, liquidity_ok: bool,
+    business_quality_score: Optional[float] = None,
+    financial_strength_score: Optional[float] = None,
+) -> Optional[dict]:
+    """How much to trust the Fair Value Range shown next to it — real inputs
+    only, never a decoration next to the number. The "method agreement"
+    component here is the scenario-range proxy — see
+    `compute_confidence_meter_v2` above for the real cross-method-spread
+    upgrade, used once Methods 3/4 (Relative/Historical) are available.
+
+    business_quality/financial_strength were added so a fragile balance
+    sheet or a low-quality business can't hide behind high predictability
+    alone — a company can have very stable (predictable) but structurally
+    weak economics, and the original formula had no way to reflect that.
+    Both are optional (None-safe) so this stays backward compatible for the
+    one caller path that doesn't have them computed yet."""
+    if predictability_score is None:
+        return None
+    completeness = min(100, round(years_available / 10 * 100))
+    base, low, high = fair_value_range.get("base"), fair_value_range.get("low"), fair_value_range.get("high")
+    dispersion_pct = min(100, abs(high - low) / base * 100) if base and base > 0 else 50.0
+    agreement = 100 - dispersion_pct
+    liquidity_component = 100 if liquidity_ok else 40
+    bq = business_quality_score if business_quality_score is not None else predictability_score
+    fs = financial_strength_score if financial_strength_score is not None else predictability_score
+
+    score = round(
+        0.25 * predictability_score
+        + 0.15 * bq
+        + 0.10 * fs
+        + 0.20 * completeness
+        + 0.20 * agreement
+        + 0.10 * liquidity_component
+    )
+    if score >= 85: label = "Alta confianza"
+    elif score >= 65: label = "Confianza moderada"
+    elif score >= 45: label = "Confianza baja"
+    else: label = "Especulativo — rango amplio de incertidumbre"
+    stars = max(1, min(5, round(score / 20)))
+    return {"score": int(score), "label": label, "stars": stars}

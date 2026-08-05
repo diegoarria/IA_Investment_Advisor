@@ -730,6 +730,16 @@
       "declineYears_one": "{{count}} year with an FCF decline in the company's real history.",
       "declineYears_other": "{{count}} years with an FCF decline in the company's real history."
     },
+    "finalResult": {
+      "label": "Final result",
+      "intrinsicValue": "Intrinsic value (DCF)",
+      "fairValue": "Fair value (multiple)",
+      "currentPrice": "Current price",
+      "average": "Average",
+      "range": "Range",
+      "methodsDiffer": "The two methods differ by {{pct}}% — the DCF measures what future cash flows are worth; the multiple measures whether the price is reasonable versus similar businesses. A difference doesn't mean either one is \"wrong\" — they answer different questions.",
+      "disclaimer": "This is a well-founded estimate, not an exact figure — treat it as a reference range, not the \"correct\" value."
+    },
     "disclaimer": {
       "title": "THIS IS NOT INVESTMENT ADVICE",
       "subtitle": "For a more detailed analysis, go to Mentor AI."

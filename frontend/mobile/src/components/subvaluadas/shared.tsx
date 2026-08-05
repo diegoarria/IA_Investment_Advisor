@@ -139,6 +139,23 @@ export interface ExpectationsInvestingData {
   years_available: number;
 }
 
+// Fase 1, Incremento 6 (Fair Value Engine — Parte G).
+export interface FairValueAdjustment {
+  factor: string;
+  points: number;
+  reason: string;
+}
+
+export interface FairValueEngineData {
+  sector: string | null;
+  base_multiple: number;
+  justified_multiple: number;
+  adjustments: FairValueAdjustment[];
+  eps: number | null;
+  fair_value: number | null;
+  margin_of_safety_pct: number | null;
+}
+
 export function GeneratedAtNote({ generatedAt, colors }: { generatedAt: number; colors: any }) {
   const { t, i18n } = useTranslation();
   if (!generatedAt) return null;
@@ -374,6 +391,67 @@ export function ReverseDcfPanel({
           )}
         </View>
       )}
+    </View>
+  );
+}
+
+// Fase 1, Incremento 7 (Parte H — Resultado Final). Mirror of the web
+// version — see its comment for the full rationale.
+export function FinalResultPanel({
+  intrinsicValue, fairValue, price, confidence, colors,
+}: {
+  intrinsicValue: number | null;
+  fairValue: number | null;
+  price: number | null;
+  confidence: ConfidenceMeterData | null;
+  colors: any;
+}) {
+  const { t } = useTranslation();
+  if (intrinsicValue === null && fairValue === null) return null;
+
+  const values = [intrinsicValue, fairValue].filter((v): v is number => v !== null);
+  const average = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
+  const low = values.length ? Math.min(...values) : null;
+  const high = values.length ? Math.max(...values) : null;
+  const diffPct = intrinsicValue !== null && fairValue !== null && average
+    ? Math.abs(intrinsicValue - fairValue) / average * 100
+    : null;
+
+  return (
+    <View style={{ borderWidth: 1, borderRadius: 16, padding: 14, borderColor: colors.border, backgroundColor: colors.card }}>
+      <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text, marginBottom: 10 }}>{t("subvaluadas.finalResult.label")}</Text>
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
+        {intrinsicValue !== null && (
+          <View style={{ flex: 1, borderRadius: 10, padding: 8, backgroundColor: colors.bgRaised }}>
+            <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }}>{t("subvaluadas.finalResult.intrinsicValue")}</Text>
+            <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text }}>${intrinsicValue.toFixed(0)}</Text>
+          </View>
+        )}
+        {fairValue !== null && (
+          <View style={{ flex: 1, borderRadius: 10, padding: 8, backgroundColor: colors.bgRaised }}>
+            <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }}>{t("subvaluadas.finalResult.fairValue")}</Text>
+            <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text }}>${fairValue.toFixed(0)}</Text>
+          </View>
+        )}
+      </View>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 8 }}>
+        {price !== null && (
+          <Text style={{ fontSize: 11, color: colors.textSub }}>{t("subvaluadas.finalResult.currentPrice")}: <Text style={{ fontWeight: "800", color: colors.text }}>${price.toFixed(2)}</Text></Text>
+        )}
+        {average !== null && (
+          <Text style={{ fontSize: 11, color: colors.textSub }}>{t("subvaluadas.finalResult.average")}: <Text style={{ fontWeight: "800", color: colors.text }}>${average.toFixed(0)}</Text></Text>
+        )}
+        {low !== null && high !== null && low !== high && (
+          <Text style={{ fontSize: 11, color: colors.textSub }}>{t("subvaluadas.finalResult.range")}: <Text style={{ fontWeight: "800", color: colors.text }}>${low.toFixed(0)} – ${high.toFixed(0)}</Text></Text>
+        )}
+      </View>
+      {confidence && <View style={{ marginBottom: 8 }}><ConfidenceMeter data={confidence} colors={colors} /></View>}
+      {diffPct !== null && diffPct > 15 && (
+        <Text style={{ fontSize: 11, lineHeight: 16, color: "#f59e0b", marginBottom: 4 }}>
+          {t("subvaluadas.finalResult.methodsDiffer", { pct: diffPct.toFixed(0) })}
+        </Text>
+      )}
+      <Text style={{ fontSize: 10, lineHeight: 14, color: colors.textDim }}>{t("subvaluadas.finalResult.disclaimer")}</Text>
     </View>
   );
 }

@@ -16,11 +16,11 @@ import {
   type MarketExpectationsData, type ConsensusValuationData, type LiquidityGate, type DcfAssumptions,
   type NifDashboardData, type NifRow,
   type ScenariosData, type ProbabilityWeights, type SensitivityMatrixData,
-  type ReverseDcfSanityCheckData, type ExpectationsInvestingData,
+  type ReverseDcfSanityCheckData, type ExpectationsInvestingData, type FairValueEngineData,
   GeneratedAtNote, LiquidityWarning, ChecklistDisplay, ConfidenceMeter, FairValueRangeDisplay,
   MarketExpectationsPanel, InsightBox, FollowButton, AnalyzeButton,
   NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
-  ScenarioWeightingPanel, ReverseDcfPanel,
+  ScenarioWeightingPanel, ReverseDcfPanel, FinalResultPanel,
 } from "@/components/subvaluadas/shared";
 import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
 import { screenerApi, savedValuationsApi, watchlist, explain as explainApi } from "@/lib/api";
@@ -66,6 +66,7 @@ export interface QuickAnalysisResult {
   reverse_dcf_sanity_check: ReverseDcfSanityCheckData | null;
   expectations_investing: ExpectationsInvestingData | null;
   sector_model_note: { sector_type: string; detalle: string } | null;
+  fair_value_engine: FairValueEngineData | null;
 }
 
 // Gold/teal/coral is this screen's fixed brand identity (Valor Intrínseco),
@@ -793,6 +794,12 @@ function SubvaluadasPageInner() {
                   <div className="space-y-3 mb-8">
                     <GeneratedAtNote generatedAt={data.generated_at} />
                     {data.liquidity_gate && <LiquidityWarning gate={data.liquidity_gate} />}
+                    <FinalResultPanel
+                      intrinsicValue={data.expected_value_per_share ?? data.intrinsic_value_base}
+                      fairValue={data.fair_value_engine?.fair_value ?? null}
+                      price={data.price}
+                      confidence={data.confidence_meter}
+                    />
                     <div className="flex flex-wrap gap-3 items-start">
                       {data.fair_value_range && <FairValueRangeDisplay range={data.fair_value_range} consensus={data.consensus_valuation} />}
                       {data.confidence_meter && <ConfidenceMeter data={data.confidence_meter} />}
