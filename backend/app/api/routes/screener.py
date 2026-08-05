@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.services import ai_service
@@ -507,6 +508,17 @@ def _resolve_quick_ticker(query: str) -> str | None:
     return None
 
 
+def _asdict_or_none(obj) -> Optional[dict]:
+    """Converts a dataclass instance (e.g. `IndustryBenchmarks`) to a plain
+    JSON-serializable dict, or passes None through — small local helper so
+    the quality-engine dataclasses don't need every caller to import
+    `dataclasses.asdict` separately."""
+    if obj is None:
+        return None
+    from dataclasses import asdict
+    return asdict(obj)
+
+
 async def _compute_extra_valuations(ticker: str, data: dict, dcf: dict):
     """Methods 3/4/5 of the valuation engine (Relative, Historical, Consensus)
     for quick_analysis's single-ticker live search. Split out from
@@ -560,7 +572,15 @@ async def _compute_extra_valuations(ticker: str, data: dict, dcf: dict):
     conservative_dcf_value = (scenarios.get("pessimistic") or {}).get("intrinsic_value_per_share")
     professional_dcf_value = (scenarios.get("base") or {}).get("intrinsic_value_per_share")
     consensus_valuation = compute_consensus_fair_value(archetype, conservative_dcf_value, professional_dcf_value, relative_valuation, historical_valuation)
-    return relative_valuation, historical_valuation, consensus_valuation
+
+    # Fase 2, Incremento 1 (Quality Engine — Industry Engine, see
+    # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md): real,
+    # live peer-derived benchmarks — same peer group this function already
+    # resolved above, no separate fetch.
+    from app.services.quality.industry_engine import compute_industry_benchmarks
+    industry_benchmarks = compute_industry_benchmarks(ticker, sector, industry)
+
+    return relative_valuation, historical_valuation, consensus_valuation, industry_benchmarks
 
 
 _QUICK_ANALYSIS_CACHE_TTL = 90 * 24 * 3600  # 3 months — a ceiling, not the real invalidation trigger.
@@ -630,8 +650,9 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
     relative_valuation = None
     historical_valuation = None
     consensus_valuation = None
+    industry_benchmarks = None
     try:
-        relative_valuation, historical_valuation, consensus_valuation = await asyncio.wait_for(
+        relative_valuation, historical_valuation, consensus_valuation, industry_benchmarks = await asyncio.wait_for(
             _compute_extra_valuations(ticker, data, dcf), timeout=15.0,
         )
     except Exception as exc:
@@ -740,6 +761,56 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
             ),
         }
 
+    # Fase 2, Incremento 2 (Quality Engine — "¿qué tan buena es esta
+    # empresa?", completely independent of the DCF/price above — see
+    # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md). Reuses
+    # trends `get_fundamental_analysis()` already computes; `fcf_margin_trend`
+    # is the one derived value not stored as its own array (cheap to build
+    # from two trends that already exist rather than adding a 5th margin
+    # trend to fundamental_analysis_service.py for a single caller).
+    from app.services.quality.quality_engine import compute_quality_score
+
+    def _latest_of(key: str) -> Optional[float]:
+        trend = data.get(key) or []
+        return next((v for v in reversed(trend) if v is not None), None)
+
+    fcf_trend_for_quality = data.get("fcf_trend") or []
+    revenue_trend_for_quality = data.get("revenue_trend") or []
+    fcf_margin_trend = [
+        round(f / r * 100, 1) if f is not None and r else None
+        for f, r in zip(fcf_trend_for_quality, revenue_trend_for_quality)
+    ]
+    latest_om = _latest_of("operating_margin_trend")
+    latest_rev = _latest_of("revenue_trend")
+    operating_income_latest = (latest_om / 100 * latest_rev) if latest_om is not None and latest_rev else None
+
+    quality_result = compute_quality_score(
+        roic_trend=data.get("roic_trend") or [], roe_trend=data.get("roe_trend") or [], roa_trend=data.get("roa_trend") or [],
+        nopat_trend=data.get("nopat_trend") or [], invested_capital_trend=data.get("invested_capital_trend") or [],
+        operating_income_latest=operating_income_latest,
+        total_assets_latest=_latest_of("total_assets_trend"),
+        current_liabilities_latest=_latest_of("current_liabilities_trend"),
+        current_assets_latest=_latest_of("current_assets_trend"),
+        inventory_latest=_latest_of("inventory_trend"),
+        gross_margin_trend=data.get("gross_margin_trend") or [], operating_margin_trend=data.get("operating_margin_trend") or [],
+        net_margin_trend=data.get("net_margin_trend") or [], fcf_margin_trend=fcf_margin_trend,
+        fcf_trend=fcf_trend_for_quality, net_income_trend=data.get("net_income_trend") or [],
+        revenue_trend=revenue_trend_for_quality, eps_trend=data.get("eps_trend") or [],
+        total_debt=dcf.get("total_debt"), cash=dcf.get("cash"), ebitda_latest=data.get("ebitda"),
+        interest_coverage=data.get("interest_coverage"),
+    )
+    quality_engine_result = {
+        "quality_score": quality_result.quality_score,
+        "profitability_score": quality_result.profitability_score,
+        "margins_score": quality_result.margins_score,
+        "cash_flow_score": quality_result.cash_flow_score,
+        "growth_score": quality_result.growth_score,
+        "balance_sheet_score": quality_result.balance_sheet_score,
+        "factors": [
+            {"name": f.name, "value": f.value, "score": f.score, "reason": f.reason} for f in quality_result.factors
+        ],
+    }
+
     result = {
         "ticker": data["ticker"],
         "company_name": data.get("company_name"),
@@ -786,6 +857,8 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "monte_carlo": dcf.get("monte_carlo"),
         "sector_model_note": data.get("sector_model_note"),
         "fair_value_engine": fair_value_engine_result,
+        "industry_benchmarks": _asdict_or_none(industry_benchmarks),
+        "quality_engine": quality_engine_result,
         "relative_valuation": relative_valuation,
         "historical_valuation": historical_valuation,
         "consensus_valuation": consensus_valuation,

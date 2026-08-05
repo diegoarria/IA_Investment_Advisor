@@ -801,6 +801,12 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
     owner_earnings_trend = []
     fcf_per_share_trend, implied_shares_trend = [], []
     reinvestment_rate_trend = []
+    # Fase 2, Incremento 2 (Quality Engine — see
+    # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md): these
+    # four are NEW trend arrays, additive, feeding ROCE/Incremental ROIC/
+    # Current Ratio/Quick Ratio — nothing existing reads or depends on them.
+    nopat_trend, invested_capital_trend = [], []
+    total_assets_trend, current_assets_trend, current_liabilities_trend, inventory_trend = [], [], [], []
     prev_working_capital: Optional[float] = None
 
     for i in range(n):
@@ -862,10 +868,22 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
             nopat = oi * (1 - tax_rate)
             inv_cap = equity + lt_debt + st_debt - cash
             roic_trend.append(round(nopat / inv_cap * 100, 1) if inv_cap > 0 else None)
+            nopat_trend.append(round(nopat, 0))
+            invested_capital_trend.append(round(inv_cap, 0) if inv_cap > 0 else None)
         else:
             roic_trend.append(None)
+            nopat_trend.append(None)
+            invested_capital_trend.append(None)
         roe_trend.append(round(ni / equity * 100, 1) if ni is not None and equity else None)
         roa_trend.append(round(ni / assets * 100, 1) if ni is not None and assets else None)
+
+        # Fase 2, Incremento 2 (Quality Engine): balance-sheet liquidity
+        # fields, real per-year (not derived) — feed Current Ratio, Quick
+        # Ratio, and ROCE (Total Assets - Current Liabilities).
+        total_assets_trend.append(assets)
+        current_assets_trend.append(_num(bal.get("Current Assets")))
+        current_liabilities_trend.append(_num(bal.get("Current Liabilities")))
+        inventory_trend.append(_num(bal.get("Inventory")))
 
         # Net reinvestment rate for this year — (CapEx + ΔWC − D&A) / NOPAT —
         # feeds the driver-based DCF's reinvestment-rate anchor (see
@@ -1761,6 +1779,15 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         "roic_trend": roic_trend,
         "roe_trend": roe_trend,
         "roa_trend": roa_trend,
+        "nopat_trend": nopat_trend,
+        "invested_capital_trend": invested_capital_trend,
+        "total_assets_trend": total_assets_trend,
+        "current_assets_trend": current_assets_trend,
+        "current_liabilities_trend": current_liabilities_trend,
+        "inventory_trend": inventory_trend,
+        "eps_trend": [
+            _num(row.get("Diluted EPS")) or _num(row.get("Basic EPS")) for row in income
+        ],
         "revenue_cagr_pct": rev_cagr,
         "fcf_cagr_pct": fcf_cagr,
         "net_income_cagr_pct": ni_cagr,
