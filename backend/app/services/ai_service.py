@@ -3478,6 +3478,131 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
     return None
 
 
+async def generate_competitive_intelligence(
+    ticker: str, company_name: str, peer_tickers_summary: str, peer_comparison_summary: str,
+    evidence_block: str, lang: str = "es",
+) -> Optional[dict]:
+    """Competitive Intelligence Engine (Fase 3, Incremento 4 — Parte C):
+    direct/indirect competitors, substitute products, new entrants,
+    barriers to entry, market share, competitive advantages vs. named real
+    peers, and structural changes in the competitive landscape.
+
+    `peer_tickers_summary`/`peer_comparison_summary` are real, already-
+    computed data (the curated universe's real peer tickers from
+    `relative_valuation_service._find_peers`, and each peer's own real
+    Quality Score/ROIC/margin from `peer_comparison_engine`, Fase 2) — the
+    model is told the REAL candidate competitor roster instead of being
+    asked to invent company names, and told exactly which peer
+    out-competes {company_name} on which real number so
+    "competitive_advantages_vs_peers" cites something concrete instead of
+    a vague "strong position."
+
+    Market share is explicitly the hardest field to ground in real
+    evidence (no data source in this codebase reports market share
+    directly) — the prompt requires an honest "sin datos precisos de
+    cuota de mercado" instead of a fabricated percentage when the evidence
+    doesn't support one.
+
+    Returns None (never fakes content) if the model's JSON doesn't parse."""
+    prompt = f"""{_output_language_directive(lang)}Analiza el panorama competitivo de {company_name} ({ticker}) usando SOLO los datos reales y la evidencia de abajo — nunca inventes nombres de empresas, cifras de cuota de mercado, o hechos que no estén aquí.
+
+Peers reales del mismo sector/industria (universo curado de Nuvos):
+{peer_tickers_summary if peer_tickers_summary else "No hay peers reales identificados en el universo curado para esta empresa."}
+
+Comparación cuantitativa real contra esos peers (Quality Score, ROIC, márgenes, crecimiento — ya calculados):
+{peer_comparison_summary if peer_comparison_summary else "No hay comparación cuantitativa de peers disponible."}
+
+Evidencia real recopilada (10-K, búsqueda web con fuentes citadas, extractos de páginas públicas):
+{evidence_block if evidence_block.strip() else "No se encontró evidencia pública adicional — basa el análisis únicamente en los peers y la comparación cuantitativa de arriba, y sé conservador."}
+
+Reglas:
+- direct_competitors debe anclarse en los peers reales listados arriba cuando sea posible — no inventes competidores que no estén ahí ni en la evidencia.
+- market_share_estimate: si no hay evidencia real que sustente una cifra, dilo explícitamente ("sin datos precisos de cuota de mercado") en vez de inventar un número.
+- competitive_advantages_vs_peers debe citar la comparación cuantitativa real dada arriba cuando sea posible.
+- Nunca digas Comprar/No comprar/Mantener.
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después):
+{{
+  "direct_competitors": "<máx 50 palabras, citando tickers/nombres reales>",
+  "indirect_competitors": "<máx 40 palabras>",
+  "substitute_products": "<máx 40 palabras>",
+  "new_entrants": "<máx 40 palabras>",
+  "barriers_to_entry": "<máx 50 palabras>",
+  "market_share_estimate": "<máx 40 palabras, honesto sobre la falta de datos precisos si aplica>",
+  "competitive_advantages_vs_peers": "<máx 50 palabras, citando la comparación cuantitativa real>",
+  "structural_industry_changes": "<máx 50 palabras>"
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1600,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and parsed.get("direct_competitors"):
+        return parsed
+    _log.warning("generate_competitive_intelligence: JSON parse failed for %s", ticker)
+    return None
+
+
+async def generate_industry_intelligence(
+    ticker: str, company_name: str, industry_category: str, industry_benchmarks_summary: str,
+    evidence_block: str, lang: str = "es",
+) -> Optional[dict]:
+    """Industry Intelligence Engine (Fase 3, Incremento 4 — Parte D):
+    market size, expected growth, trends, disruptive technologies,
+    industry leaders, how the industry looked 10 years ago / might look in
+    10 years, structural risks — for the industry {company_name} competes
+    in as a whole, not the company itself.
+
+    `industry_category` (from `industry_engine.classify_industry`, Fase 2)
+    and `industry_benchmarks_summary` (real median ROIC/margins/growth
+    across the company's real peers, from `industry_engine.
+    compute_industry_benchmarks`) are already-real, already-computed
+    inputs — grounds "expected growth" in a real number instead of an AI
+    guess wherever the peer group is large enough to support one.
+
+    Returns None (never fakes content) if the model's JSON doesn't parse."""
+    prompt = f"""{_output_language_directive(lang)}Analiza la industria en la que compite {company_name} ({ticker}) — la industria en su conjunto, no la empresa misma — usando SOLO los datos reales y la evidencia de abajo.
+
+Categoría de industria (clasificación real): {industry_category}
+
+Benchmarks reales de la industria (mediana real entre peers reales):
+{industry_benchmarks_summary if industry_benchmarks_summary else "No hay suficientes peers reales para calcular benchmarks de industria."}
+
+Evidencia real recopilada (búsqueda web con fuentes citadas, extractos de páginas públicas):
+{evidence_block if evidence_block.strip() else "No se encontró evidencia pública adicional — sé conservador y explícito sobre esta limitación."}
+
+Reglas:
+- Si la evidencia no sustenta una afirmación específica, dilo explícitamente en vez de inventar cifras de tamaño de mercado o crecimiento.
+- Usa los benchmarks reales de arriba cuando hables de crecimiento esperado, en vez de una cifra inventada.
+- Nunca digas Comprar/No comprar/Mantener.
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después):
+{{
+  "market_size_and_growth": "<máx 50 palabras>",
+  "trends": "<máx 50 palabras>",
+  "disruptive_technologies": "<máx 40 palabras>",
+  "industry_leaders": "<máx 40 palabras>",
+  "industry_10_years_ago": "<máx 40 palabras>",
+  "industry_in_10_years": "<máx 40 palabras, marcado como especulativo>",
+  "structural_risks": "<máx 50 palabras>"
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1400,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and parsed.get("market_size_and_growth"):
+        return parsed
+    _log.warning("generate_industry_intelligence: JSON parse failed for %s", ticker)
+    return None
+
+
 async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
     """One-liner (~15-25 words) for a single undervalued-screener candidate —
     called once per real candidate PER LANGUAGE during the weekly refresh
