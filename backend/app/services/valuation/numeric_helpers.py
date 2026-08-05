@@ -57,3 +57,27 @@ def _coefficient_of_variation(values: list[Optional[float]]) -> Optional[float]:
     if mean == 0:
         return None
     return abs(statistics.pstdev(valid) / mean)
+
+
+# Shared "lower coefficient of variation = higher stability score" tier
+# table — Fase 2, Incremento 7: was independently duplicated in
+# quality_engine.py and capital_allocation_engine.py (identical values);
+# consolidated here so moat_engine.py becomes the third real user without
+# a third copy, and any future recalibration only happens in one place.
+STABILITY_CV_TIERS = [(0.10, 95), (0.25, 80), (0.45, 60), (0.70, 35), (999, 15)]
+
+
+def weighted_mean(scored: list[tuple[Optional[float], float]]) -> Optional[float]:
+    """Mean of (score, weight) pairs, skipping any with score=None and
+    renormalizing by the weights actually used — so a missing component
+    never silently counts as zero and drags the blend down. Same
+    philosophy as `consensus_valuation_service.compute_consensus_fair_value`
+    (Fase 1). Fase 2, Incremento 7: promoted here from
+    `quality_engine._weighted_mean` (which becomes a thin alias) so
+    `moat_engine.py` and every future score-blending engine share one
+    implementation instead of each re-deriving it."""
+    present = [(s, w) for s, w in scored if s is not None]
+    if not present:
+        return None
+    total_weight = sum(w for _, w in present)
+    return sum(s * w for s, w in present) / total_weight

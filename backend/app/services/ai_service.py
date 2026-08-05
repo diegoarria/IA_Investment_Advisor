@@ -3248,6 +3248,71 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
     return None
 
 
+_MOAT_TYPES = [
+    "network_effects", "switching_costs", "brand", "economies_of_scale", "cost_advantage",
+    "patents", "technology", "distribution", "data_advantage", "regulatory_advantage", "ecosystem",
+]
+
+
+async def generate_moat_deep_dive(
+    ticker: str, company_name: str, moat_score_summary: str, evidence_block: str, lang: str = "es",
+) -> Optional[dict]:
+    """Moat Engine (Fase 2, Incremento 7 — Parte B) qualitative deep dive:
+    the 11 moat TYPES (network effects, switching costs, brand, economies
+    of scale, cost advantage, patents, technology, distribution, data
+    advantage, regulatory advantage, ecosystem), each with intensity/
+    evidence/explanation/risks, plus why the moat exists, what could
+    destroy it, and whether it's strengthening or weakening.
+
+    Deliberately separate from `moat_engine.compute_moat_score` (the real,
+    deterministic ROIC/margin-premium-vs-industry number) — this is the
+    qualitative layer that explains and enriches that number, never
+    silently determines it. Grounded in REAL evidence
+    (`evidence_sources.gather_evidence_bundle`: real 10-K text, real
+    cited web search, real scraped excerpts) — the prompt instructs the
+    model to say "sin evidencia suficiente" for any type it can't
+    support from the evidence given, rather than inventing intensity.
+
+    Returns None (never fakes content) if the model's JSON doesn't parse."""
+    prompt = f"""{_output_language_directive(lang)}Analiza el moat (ventaja competitiva) de {company_name} ({ticker}) usando SOLO la evidencia real de abajo — nunca inventes hechos, citas, o cifras que no estén aquí.
+
+Señal cuantitativa real (ya calculada, no la recalcules — solo úsala de contexto):
+{moat_score_summary}
+
+Evidencia real recopilada (10-K, búsqueda web con fuentes citadas, extractos de páginas públicas):
+{evidence_block if evidence_block.strip() else "No se encontró evidencia pública adicional para esta empresa — basa tu análisis únicamente en lo que sea de conocimiento general verificable sobre el modelo de negocio, y marca 'ninguna'/'sin evidencia suficiente' donde corresponda."}
+
+Para CADA uno de estos 11 tipos de moat, evalúa su intensidad real basándote en la evidencia: {", ".join(_MOAT_TYPES)}.
+
+Reglas:
+- intensity debe ser exactamente uno de: "alta", "media", "baja", "ninguna".
+- Si la evidencia no sustenta ese tipo de moat para esta empresa, usa intensity "ninguna" y dilo explícitamente — no fuerces los 11 tipos a sonar relevantes.
+- evidence debe citar algo concreto de la evidencia real dada (o decir "sin evidencia pública específica" si no hay).
+- Nunca digas Comprar/No comprar/Mantener.
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después):
+{{
+  "moat_types": [
+    {{"type": "<uno de los 11 tipos arriba>", "intensity": "alta|media|baja|ninguna", "evidence": "<máx 30 palabras>", "explanation": "<máx 40 palabras>", "risks": "<máx 30 palabras: qué podría erosionar este tipo específico de ventaja>"}}
+  ],
+  "why_it_exists": "<máx 50 palabras: por qué existe este moat, en conjunto>",
+  "what_could_destroy_it": "<máx 50 palabras: el riesgo más real y concreto para el moat>",
+  "trend": "fortaleciendo|debilitando|estable"
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=2200,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and isinstance(parsed.get("moat_types"), list) and parsed["moat_types"]:
+        return parsed
+    _log.warning("generate_moat_deep_dive: JSON parse failed for %s", ticker)
+    return None
+
+
 async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
     """One-liner (~15-25 words) for a single undervalued-screener candidate —
     called once per real candidate PER LANGUAGE during the weekly refresh

@@ -26,7 +26,7 @@ import statistics
 from dataclasses import dataclass, field
 from typing import Optional
 
-from app.services.valuation.numeric_helpers import _score, _coefficient_of_variation
+from app.services.valuation.numeric_helpers import _score, _coefficient_of_variation, STABILITY_CV_TIERS
 
 ACQUISITIONS_NOTE = (
     "El análisis de adquisiciones (¿crearon o destruyeron valor?) requiere datos de "
@@ -36,7 +36,7 @@ ACQUISITIONS_NOTE = (
 
 _BUYBACK_RATE_TIERS = [(0, 30), (1, 50), (2, 65), (3, 80), (5, 90), (999, 95)]
 _PAYOUT_SANITY_TIERS = [(0.6, 90), (0.8, 75), (1.0, 55), (1.2, 30), (999, 10)]  # fraction, not %
-_STABILITY_CV_TIERS = [(0.10, 95), (0.25, 80), (0.45, 60), (0.70, 35), (999, 15)]
+_STABILITY_CV_TIERS = STABILITY_CV_TIERS  # local alias — see numeric_helpers.py
 
 
 @dataclass

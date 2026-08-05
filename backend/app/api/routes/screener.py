@@ -781,6 +781,37 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         ],
     }
 
+    # Fase 2, Incremento 7 (Moat Engine — deterministic score only, Parte B).
+    # Reuses avg_roic_pct/growth_buildup already computed for the DCF and
+    # the industry_benchmarks computed above (same peer group, no second
+    # fetch). The AI-narrated 11-moat-type qualitative deep dive is
+    # deliberately NOT called here (real network + AI cost per request) —
+    # it's wired into nif_service.build_nif_dashboard instead, alongside
+    # that flow's existing parallel AI narration calls.
+    from app.services.quality.moat_engine import compute_moat_score
+    growth_buildup = dcf.get("growth_buildup") or {}
+    op_margin_trend_for_moat = data.get("operating_margin_trend") or []
+    op_margin_valid = [v for v in op_margin_trend_for_moat if v is not None]
+    avg_operating_margin_pct = round(sum(op_margin_valid) / len(op_margin_valid), 1) if op_margin_valid else None
+    gross_margin_trend_for_moat = data.get("gross_margin_trend") or []
+    gross_margin_latest_pct = next((v for v in reversed(gross_margin_trend_for_moat) if v is not None), None)
+    moat_result_obj = compute_moat_score(
+        avg_roic_pct=growth_buildup.get("avg_roic_pct"), roic_trend=data.get("roic_trend") or [],
+        avg_operating_margin_pct=avg_operating_margin_pct, operating_margin_trend=op_margin_trend_for_moat,
+        gross_margin_latest_pct=gross_margin_latest_pct,
+        industry_median_roic_pct=(industry_benchmarks.median_roic_pct if industry_benchmarks else None),
+        industry_median_operating_margin_pct=(industry_benchmarks.median_operating_margin_pct if industry_benchmarks else None),
+    )
+    moat_engine_result = {
+        "moat_score": moat_result_obj.moat_score,
+        "roic_premium_score": moat_result_obj.roic_premium_score,
+        "margin_premium_score": moat_result_obj.margin_premium_score,
+        "stability_score": moat_result_obj.stability_score,
+        "factors": [
+            {"name": f.name, "value": f.value, "score": f.score, "reason": f.reason} for f in moat_result_obj.factors
+        ],
+    }
+
     # Fase 2, Incremento 4 (Capital Allocation Engine — "¿cómo administra
     # el capital esta empresa?", Parte C). Reuses buyback_rate_pct/
     # payout_ratio_pct already computed for management_capital_allocation
@@ -899,6 +930,7 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "fair_value_engine": fair_value_engine_result,
         "industry_benchmarks": _asdict_or_none(industry_benchmarks),
         "quality_engine": quality_engine_result,
+        "moat_engine": moat_engine_result,
         "capital_allocation_engine": capital_allocation_result,
         "earnings_quality_engine": earnings_quality_result,
         "relative_valuation": relative_valuation,

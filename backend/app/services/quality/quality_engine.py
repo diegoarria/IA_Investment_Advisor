@@ -31,7 +31,7 @@ import statistics
 from dataclasses import dataclass, field
 from typing import Optional
 
-from app.services.valuation.numeric_helpers import _score, _cagr, _coefficient_of_variation
+from app.services.valuation.numeric_helpers import _score, _cagr, _coefficient_of_variation, weighted_mean, STABILITY_CV_TIERS
 from app.services.valuation.robustness import safe_divide
 
 
@@ -189,7 +189,7 @@ _GROWTH_TIERS = [(0, 15), (5, 40), (10, 60), (15, 75), (20, 88), (999, 95)]
 _CURRENT_RATIO_TIERS = [(0.8, 15), (1.0, 35), (1.5, 65), (2.5, 85), (999, 90)]
 _QUICK_RATIO_TIERS = [(0.5, 15), (0.8, 40), (1.0, 65), (1.5, 85), (999, 90)]
 _NET_DEBT_EBITDA_TIERS = [(0, 90), (1, 80), (2, 60), (4, 35), (999, 15)]  # lower leverage = higher score
-_STABILITY_CV_TIERS = [(0.10, 95), (0.25, 80), (0.45, 60), (0.70, 35), (999, 15)]  # lower CV = higher score
+_STABILITY_CV_TIERS = STABILITY_CV_TIERS  # local alias — see numeric_helpers.py
 
 
 def _factor(name: str, value: Optional[float], score: Optional[float], reason: str) -> QualityFactor:
@@ -197,15 +197,11 @@ def _factor(name: str, value: Optional[float], score: Optional[float], reason: s
 
 
 def _weighted_mean(scored: list[tuple[Optional[float], float]]) -> Optional[float]:
-    """Mean of (score, weight) pairs, skipping any with score=None and
-    renormalizing by the weights actually used — same "missing components
-    don't silently count as zero" philosophy as
-    consensus_valuation_service.compute_consensus_fair_value."""
-    present = [(s, w) for s, w in scored if s is not None]
-    if not present:
-        return None
-    total_weight = sum(w for _, w in present)
-    return sum(s * w for s, w in present) / total_weight
+    """Fase 2, Incremento 7: thin alias — the real implementation now
+    lives in `valuation.numeric_helpers.weighted_mean` (shared with
+    `moat_engine.py`). Kept as a local name so every call site below
+    stays unchanged."""
+    return weighted_mean(scored)
 
 
 def compute_quality_score(

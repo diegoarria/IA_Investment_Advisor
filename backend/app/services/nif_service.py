@@ -26,6 +26,8 @@ from typing import Optional
 
 from app.services.fundamental_analysis_service import get_fundamental_analysis
 from app.services.quality.quality_engine import build_quality_score_from_analysis
+from app.services.quality.industry_engine import compute_industry_benchmarks
+from app.services.quality.moat_engine import compute_moat_score, compute_moat_deep_dive
 from app.services import ai_service
 from app.core.finnhub import fh_insider_transactions, fh_insider_sentiment
 
@@ -135,6 +137,29 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
     quality_result = build_quality_score_from_analysis(data)
     business_quality_score = quality_result.quality_score if quality_result.has_any_signal else None
 
+    # Fase 2, Incremento 7 (Moat Engine — Parte B): the deterministic score
+    # (real ROIC/margin premium vs. real industry peers) is independent of
+    # every NIF pillar above and NOT folded into overall_nif_score's
+    # weighted blend — the whole point of Fase 2 is keeping "how good"
+    # dimensions separate rather than laundering them into one composite.
+    industry_benchmarks = await _safe(
+        asyncio.to_thread(compute_industry_benchmarks, ticker, data.get("sector"), None),
+        None, ticker, "industry_benchmarks", timeout=15,
+    )
+    growth_buildup = dcf.get("growth_buildup") or {}
+    op_margin_trend = data.get("operating_margin_trend") or []
+    op_margin_valid = [v for v in op_margin_trend if v is not None]
+    avg_operating_margin_pct = round(sum(op_margin_valid) / len(op_margin_valid), 1) if op_margin_valid else None
+    gross_margin_trend = data.get("gross_margin_trend") or []
+    gross_margin_latest_pct = next((v for v in reversed(gross_margin_trend) if v is not None), None)
+    moat_score_result = compute_moat_score(
+        avg_roic_pct=growth_buildup.get("avg_roic_pct"), roic_trend=data.get("roic_trend") or [],
+        avg_operating_margin_pct=avg_operating_margin_pct, operating_margin_trend=op_margin_trend,
+        gross_margin_latest_pct=gross_margin_latest_pct,
+        industry_median_roic_pct=(industry_benchmarks.median_roic_pct if industry_benchmarks else None),
+        industry_median_operating_margin_pct=(industry_benchmarks.median_operating_margin_pct if industry_benchmarks else None),
+    )
+
     insider_txn, insider_sentiment = await asyncio.gather(
         _safe(asyncio.to_thread(fh_insider_transactions, ticker), None, ticker, "insider_transactions", timeout=8),
         _safe(asyncio.to_thread(fh_insider_sentiment, ticker), None, ticker, "insider_sentiment", timeout=8),
@@ -144,11 +169,18 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
     # plus ONE call to the existing generate_quick_valuation_summary purely
     # to source financial_strength/valuation's explanation text (already
     # ~70-word narratives — no need for a 3rd/4th dedicated NIF call, keeps
-    # LLM cost down). All three run in parallel.
-    bq_explanation, mgmt_explanation, summary_result = await asyncio.gather(
+    # LLM cost down), plus the Moat Engine's qualitative deep dive
+    # (Incremento 7 — real evidence gathering + AI narration, the most
+    # expensive of the four, given its own generous timeout). All four run
+    # in parallel.
+    bq_explanation, mgmt_explanation, summary_result, moat_deep_dive = await asyncio.gather(
         _safe(ai_service.generate_business_quality_explanation(data, lang), None, ticker, "business_quality_explanation"),
         _safe(ai_service.generate_management_quality_explanation(data, insider_txn, insider_sentiment, lang), None, ticker, "management_quality_explanation"),
         _safe(ai_service.generate_quick_valuation_summary(data, lang), {"checklist_reasons": {}}, ticker, "quick_valuation_summary"),
+        _safe(
+            compute_moat_deep_dive(ticker, data.get("company_name") or ticker, moat_score_result, lang),
+            None, ticker, "moat_deep_dive", timeout=30,
+        ),
     )
     checklist_reasons = (summary_result or {}).get("checklist_reasons") or {}
 
@@ -258,4 +290,18 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
         "change_pct": data.get("change_pct"),
         "overall_nif_score": overall,
         "pillars": pillars,
+        # Fase 2, Incremento 7 (Moat Engine) — deliberately a SIBLING key,
+        # not a 5th pillar folded into overall_nif_score's weighted blend.
+        # See the comment above moat_score_result's computation for why.
+        "moat": {
+            "score": moat_score_result.moat_score,
+            "roic_premium_score": moat_score_result.roic_premium_score,
+            "margin_premium_score": moat_score_result.margin_premium_score,
+            "stability_score": moat_score_result.stability_score,
+            "factors": [
+                {"name": f.name, "value": f.value, "score": f.score, "reason": f.reason}
+                for f in moat_score_result.factors
+            ],
+            "deep_dive": moat_deep_dive,
+        },
     }
