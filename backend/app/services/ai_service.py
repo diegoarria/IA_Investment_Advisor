@@ -3833,6 +3833,70 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
     return None
 
 
+async def generate_thesis_review(
+    ticker: str, company_name: str,
+    prior_thesis_summary: str, prior_critical_variables: str, prior_key_risks: str, prior_invalidation_events: str,
+    timeline_summary: str, lang: str = "es",
+) -> Optional[dict]:
+    """Thesis Tracker (Fase 3, Incremento 8 — Parte H): compares a user's
+    PRIOR investment thesis against real events that happened since
+    (`timeline_summary`, from `timeline_engine.get_company_timeline` —
+    itself populated by Change Detection, Incremento 6) and produces both
+    a review (what changed, what was confirmed/broken, which risks grew/
+    shrank) and an UPDATED thesis reflecting that real evidence.
+
+    Never auto-decides the thesis changed just because time passed — if
+    `timeline_summary` is empty, the prompt requires the model to say so
+    honestly and return the updated_* fields as an unchanged mirror of the
+    prior thesis, never inventing a change to have something to report.
+
+    Returns None (never fakes content) if the model's JSON doesn't parse."""
+    prompt = f"""{_output_language_directive(lang)}Revisa la tesis de inversión anterior de {company_name} ({ticker}) contra eventos REALES ocurridos desde entonces — usa SOLO la evidencia de abajo, nunca inventes eventos o cambios. Esto es material de análisis, NUNCA una recomendación de compra o venta.
+
+Tesis anterior — resumen: {prior_thesis_summary}
+Tesis anterior — variables críticas: {prior_critical_variables if prior_critical_variables else "Ninguna registrada."}
+Tesis anterior — riesgos clave: {prior_key_risks if prior_key_risks else "Ninguno registrado."}
+Tesis anterior — eventos de invalidación: {prior_invalidation_events if prior_invalidation_events else "Ninguno registrado."}
+
+Eventos reales ocurridos desde la tesis anterior (línea de tiempo real de la empresa):
+{timeline_summary if timeline_summary else "No se detectaron eventos reales nuevos desde la tesis anterior."}
+
+Reglas:
+- Si no hay eventos reales nuevos, dilo explícitamente en what_changed y deja los campos updated_* como una copia fiel de la tesis anterior — no inventes un cambio para tener algo que reportar.
+- confirmed_variables/broken_variables deben citar el texto EXACTO (o casi exacto) de las variables críticas anteriores que están evaluando — nunca una paráfrasis irreconocible.
+- still_valid_risks/invalidated_risks deben citar el texto exacto de los riesgos anteriores que están evaluando.
+- thesis_change_explanation debe anclarse en los eventos reales de arriba — nunca una razón inventada.
+- Nunca digas Comprar/Vender/Mantener.
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después):
+{{
+  "what_changed": "<máx 60 palabras>",
+  "confirmed_variables": ["<texto exacto de la variable anterior>", "..."],
+  "broken_variables": ["<texto exacto de la variable anterior>", "..."],
+  "still_valid_risks": ["<texto exacto del riesgo anterior>", "..."],
+  "invalidated_risks": ["<texto exacto del riesgo anterior>", "..."],
+  "new_risks": ["<máx 25 palabras cada uno>", "..."],
+  "thesis_change_explanation": "<máx 60 palabras>",
+  "updated_thesis_summary": "<máx 80 palabras>",
+  "updated_strengths": ["<máx 25 palabras cada una>", "..."],
+  "updated_critical_variables": ["<máx 25 palabras cada una>", "..."],
+  "updated_key_risks": ["<máx 25 palabras cada una>", "..."],
+  "updated_invalidation_events": ["<máx 25 palabras cada una>", "..."]
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=2200,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and parsed.get("updated_thesis_summary") and parsed.get("what_changed"):
+        return parsed
+    _log.warning("generate_thesis_review: JSON parse failed for %s", ticker)
+    return None
+
+
 async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
     """One-liner (~15-25 words) for a single undervalued-screener candidate —
     called once per real candidate PER LANGUAGE during the weekly refresh
