@@ -576,11 +576,17 @@ async def _compute_extra_valuations(ticker: str, data: dict, dcf: dict):
     # Fase 2, Incremento 1 (Quality Engine — Industry Engine, see
     # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md): real,
     # live peer-derived benchmarks — same peer group this function already
-    # resolved above, no separate fetch.
+    # resolved above, no separate fetch. `peer_analysis_cache` is returned
+    # so the Peer Comparison Engine (Incremento 10, called later in
+    # _build_quick_analysis once the company's own Quality Score exists)
+    # can reuse the SAME warmed peer analyses instead of re-fetching them —
+    # both engines resolve the identical real peer group via
+    # `relative_valuation_service._find_peers`.
     from app.services.quality.industry_engine import compute_industry_benchmarks
-    industry_benchmarks = compute_industry_benchmarks(ticker, sector, industry)
+    peer_analysis_cache: dict = {}
+    industry_benchmarks = compute_industry_benchmarks(ticker, sector, industry, analysis_cache=peer_analysis_cache)
 
-    return relative_valuation, historical_valuation, consensus_valuation, industry_benchmarks
+    return relative_valuation, historical_valuation, consensus_valuation, industry_benchmarks, peer_analysis_cache
 
 
 _QUICK_ANALYSIS_CACHE_TTL = 90 * 24 * 3600  # 3 months — a ceiling, not the real invalidation trigger.
@@ -651,8 +657,9 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
     historical_valuation = None
     consensus_valuation = None
     industry_benchmarks = None
+    peer_analysis_cache: dict = {}
     try:
-        relative_valuation, historical_valuation, consensus_valuation, industry_benchmarks = await asyncio.wait_for(
+        relative_valuation, historical_valuation, consensus_valuation, industry_benchmarks, peer_analysis_cache = await asyncio.wait_for(
             _compute_extra_valuations(ticker, data, dcf), timeout=15.0,
         )
     except Exception as exc:
@@ -778,6 +785,64 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "balance_sheet_score": quality_result.balance_sheet_score,
         "factors": [
             {"name": f.name, "value": f.value, "score": f.score, "reason": f.reason} for f in quality_result.factors
+        ],
+    }
+
+    # Fase 2, Incremento 10 (Peer Comparison Engine — Parte J). Reuses the
+    # exact real peer group `industry_benchmarks` above already resolved
+    # (`peer_analysis_cache`, warmed by `_compute_extra_valuations`) — no
+    # second peer-finding pass, no re-fetched peer analyses.
+    from app.services.quality.peer_comparison_engine import compute_quality_peer_comparison
+    industry_for_peers = next((u["industry"] for u in UNIVERSE if u["ticker"] == ticker), None)
+    peer_comparison_result_obj = compute_quality_peer_comparison(
+        ticker, data.get("sector"), industry_for_peers,
+        company_quality_score=(quality_result.quality_score if quality_result.has_any_signal else None),
+        analysis_cache=peer_analysis_cache,
+    )
+    peer_comparison_result = (
+        {
+            "peer_count": peer_comparison_result_obj.peer_count,
+            "peers_used": peer_comparison_result_obj.peers_used,
+            "company_quality_score": peer_comparison_result_obj.company_quality_score,
+            "quality_score_percentile": peer_comparison_result_obj.quality_score_percentile,
+            "quality_score_rank": peer_comparison_result_obj.quality_score_rank,
+            "peer_quality_scores": [
+                {
+                    "ticker": s.ticker, "quality_score": s.quality_score, "roic_pct": s.roic_pct,
+                    "operating_margin_pct": s.operating_margin_pct, "revenue_cagr_pct": s.revenue_cagr_pct,
+                }
+                for s in peer_comparison_result_obj.peer_quality_scores
+            ],
+        }
+        if peer_comparison_result_obj is not None else None
+    )
+
+    # Fase 2, Incremento 10 (Deterioration Engine — Parte K). Mechanical
+    # first-half-vs-second-half trend DIRECTION on the same real multi-year
+    # arrays every other Fase 2 engine already reuses — complements (never
+    # duplicates) the Moat Engine's non-directional CV-based stability.
+    from app.services.quality.deterioration_engine import compute_deterioration_signals
+    fcf_trend_for_deterioration = data.get("fcf_trend") or []
+    revenue_trend_for_deterioration = data.get("revenue_trend") or []
+    fcf_margin_trend_for_deterioration = [
+        (f / r) * 100 if f is not None and r else None
+        for f, r in zip(fcf_trend_for_deterioration, revenue_trend_for_deterioration)
+    ]
+    deterioration_result_obj = compute_deterioration_signals(
+        roic_trend=data.get("roic_trend") or [],
+        operating_margin_trend=data.get("operating_margin_trend") or [],
+        net_margin_trend=data.get("net_margin_trend") or [],
+        fcf_margin_trend=fcf_margin_trend_for_deterioration,
+        revenue_trend=revenue_trend_for_deterioration,
+    )
+    deterioration_result = {
+        "deteriorating_count": deterioration_result_obj.deteriorating_count,
+        "improving_count": deterioration_result_obj.improving_count,
+        "stable_count": deterioration_result_obj.stable_count,
+        "highest_concern": deterioration_result_obj.highest_concern,
+        "factors": [
+            {"name": f.name, "direction": f.direction, "change_pct": f.change_pct, "reason": f.reason}
+            for f in deterioration_result_obj.factors
         ],
     }
 
@@ -955,6 +1020,8 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "quality_engine": quality_engine_result,
         "moat_engine": moat_engine_result,
         "conviction_engine": conviction_engine_result,
+        "peer_comparison_engine": peer_comparison_result,
+        "deterioration_engine": deterioration_result,
         "capital_allocation_engine": capital_allocation_result,
         "earnings_quality_engine": earnings_quality_result,
         "relative_valuation": relative_valuation,

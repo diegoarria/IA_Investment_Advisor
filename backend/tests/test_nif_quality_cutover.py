@@ -56,7 +56,8 @@ async def test_business_quality_pillar_uses_the_new_quality_engine_score():
          patch("app.services.nif_service.compute_moat_deep_dive", return_value=None), \
          patch("app.services.nif_service.compute_capital_allocation_score", return_value=_FAKE_CAPITAL_ALLOCATION_RESULT), \
          patch("app.services.nif_service.compute_management_deep_dive", return_value=None), \
-         patch("app.services.nif_service.compute_catalysts", return_value=None):
+         patch("app.services.nif_service.compute_catalysts", return_value=None), \
+         patch("app.services.nif_service.compute_quality_peer_comparison", return_value=None):
         dashboard = await build_nif_dashboard("SYNNIF1")
 
     assert dashboard is not None
@@ -113,6 +114,15 @@ async def test_business_quality_pillar_uses_the_new_quality_engine_score():
     # there's no real segment data or evidence (mocked to None above).
     assert dashboard["catalysts"] is None
 
+    # Fase 2, Incremento 10: Peer Comparison degrades to None (mocked
+    # above — no real UNIVERSE peers in this unit test's fake ticker) and
+    # Deterioration Engine still computes real trend-direction factors
+    # from this fixture's real multi-year data (no network involved).
+    assert dashboard["peer_comparison"] is None
+    deterioration = dashboard["deterioration"]
+    assert len(deterioration["factors"]) == 5
+    assert deterioration["deteriorating_count"] >= 0
+
 
 @pytest.mark.asyncio
 async def test_moat_deep_dive_is_included_when_available():
@@ -139,7 +149,8 @@ async def test_moat_deep_dive_is_included_when_available():
          patch("app.services.nif_service.compute_moat_deep_dive", return_value=fake_deep_dive), \
          patch("app.services.nif_service.compute_capital_allocation_score", return_value=_FAKE_CAPITAL_ALLOCATION_RESULT), \
          patch("app.services.nif_service.compute_management_deep_dive", return_value=None), \
-         patch("app.services.nif_service.compute_catalysts", return_value=None):
+         patch("app.services.nif_service.compute_catalysts", return_value=None), \
+         patch("app.services.nif_service.compute_quality_peer_comparison", return_value=None):
         dashboard = await build_nif_dashboard("SYNNIF2")
 
     assert dashboard["moat"]["deep_dive"] == fake_deep_dive
@@ -173,7 +184,8 @@ async def test_management_deep_dive_is_included_when_available():
          patch("app.services.nif_service.compute_moat_deep_dive", return_value=None), \
          patch("app.services.nif_service.compute_capital_allocation_score", return_value=_FAKE_CAPITAL_ALLOCATION_RESULT), \
          patch("app.services.nif_service.compute_management_deep_dive", return_value=fake_deep_dive), \
-         patch("app.services.nif_service.compute_catalysts", return_value=None):
+         patch("app.services.nif_service.compute_catalysts", return_value=None), \
+         patch("app.services.nif_service.compute_quality_peer_comparison", return_value=None):
         dashboard = await build_nif_dashboard("SYNNIF3")
 
     assert dashboard["pillars"]["management_quality"]["deep_dive"] == fake_deep_dive
@@ -206,7 +218,8 @@ async def test_catalysts_are_included_when_available():
          patch("app.services.nif_service.compute_moat_deep_dive", return_value=None), \
          patch("app.services.nif_service.compute_capital_allocation_score", return_value=_FAKE_CAPITAL_ALLOCATION_RESULT), \
          patch("app.services.nif_service.compute_management_deep_dive", return_value=None), \
-         patch("app.services.nif_service.compute_catalysts", return_value=fake_catalysts):
+         patch("app.services.nif_service.compute_catalysts", return_value=fake_catalysts), \
+         patch("app.services.nif_service.compute_quality_peer_comparison", return_value=None):
         dashboard = await build_nif_dashboard("SYNNIF4")
 
     assert dashboard["catalysts"] == fake_catalysts

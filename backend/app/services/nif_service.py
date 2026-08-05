@@ -32,6 +32,8 @@ from app.services.quality.capital_allocation_engine import compute_capital_alloc
 from app.services.quality.management_engine import compute_management_score, compute_management_deep_dive
 from app.services.quality.conviction_engine import compute_conviction_score
 from app.services.quality.catalysts_engine import compute_catalysts
+from app.services.quality.peer_comparison_engine import compute_quality_peer_comparison
+from app.services.quality.deterioration_engine import compute_deterioration_signals
 from app.services import ai_service
 from app.core.finnhub import fh_insider_transactions, fh_insider_sentiment
 
@@ -146,8 +148,9 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
     # every NIF pillar above and NOT folded into overall_nif_score's
     # weighted blend — the whole point of Fase 2 is keeping "how good"
     # dimensions separate rather than laundering them into one composite.
+    peer_analysis_cache: dict = {}
     industry_benchmarks = await _safe(
-        asyncio.to_thread(compute_industry_benchmarks, ticker, data.get("sector"), None),
+        asyncio.to_thread(compute_industry_benchmarks, ticker, data.get("sector"), None, peer_analysis_cache),
         None, ticker, "industry_benchmarks", timeout=15,
     )
     growth_buildup = dcf.get("growth_buildup") or {}
@@ -174,6 +177,35 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
         moat_score=moat_score_result.moat_score if moat_score_result.has_any_signal else None,
         stability_score=moat_score_result.stability_score,
         beta=(dcf.get("wacc_details") or {}).get("beta"),
+    )
+
+    # Fase 2, Incremento 10 (Peer Comparison Engine — Parte J): reuses the
+    # exact same real peer group already resolved for `industry_benchmarks`
+    # above (`peer_analysis_cache`, warmed by the call above) — no second
+    # peer-finding pass, no re-fetched peer analyses.
+    peer_comparison_result = await _safe(
+        asyncio.to_thread(
+            compute_quality_peer_comparison, ticker, data.get("sector"), None,
+            business_quality_score, peer_analysis_cache,
+        ),
+        None, ticker, "peer_comparison", timeout=15,
+    )
+
+    # Fase 2, Incremento 10 (Deterioration Engine — Parte K): mechanical
+    # first-half-vs-second-half trend DIRECTION on the same real multi-year
+    # arrays every other Fase 2 engine already reuses — no network, no AI.
+    fcf_trend_for_deterioration = data.get("fcf_trend") or []
+    revenue_trend_for_deterioration = data.get("revenue_trend") or []
+    fcf_margin_trend_for_deterioration = [
+        (f / r) * 100 if f is not None and r else None
+        for f, r in zip(fcf_trend_for_deterioration, revenue_trend_for_deterioration)
+    ]
+    deterioration_result = compute_deterioration_signals(
+        roic_trend=data.get("roic_trend") or [],
+        operating_margin_trend=data.get("operating_margin_trend") or [],
+        net_margin_trend=data.get("net_margin_trend") or [],
+        fcf_margin_trend=fcf_margin_trend_for_deterioration,
+        revenue_trend=revenue_trend_for_deterioration,
     )
 
     insider_txn, insider_sentiment = await asyncio.gather(
@@ -401,4 +433,35 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
         # or None if there was neither real segment data nor real evidence
         # to ground any catalyst in.
         "catalysts": catalysts_result,
+        # Fase 2, Incremento 10 (Peer Comparison Engine) — real peer group,
+        # None if the curated universe doesn't have enough real peers.
+        "peer_comparison": (
+            {
+                "peer_count": peer_comparison_result.peer_count,
+                "peers_used": peer_comparison_result.peers_used,
+                "company_quality_score": peer_comparison_result.company_quality_score,
+                "quality_score_percentile": peer_comparison_result.quality_score_percentile,
+                "quality_score_rank": peer_comparison_result.quality_score_rank,
+                "peer_quality_scores": [
+                    {
+                        "ticker": s.ticker, "quality_score": s.quality_score, "roic_pct": s.roic_pct,
+                        "operating_margin_pct": s.operating_margin_pct, "revenue_cagr_pct": s.revenue_cagr_pct,
+                    }
+                    for s in peer_comparison_result.peer_quality_scores
+                ],
+            }
+            if peer_comparison_result is not None else None
+        ),
+        # Fase 2, Incremento 10 (Deterioration Engine) — mechanical trend
+        # direction, complements (never duplicates) Moat's CV stability.
+        "deterioration": {
+            "deteriorating_count": deterioration_result.deteriorating_count,
+            "improving_count": deterioration_result.improving_count,
+            "stable_count": deterioration_result.stable_count,
+            "highest_concern": deterioration_result.highest_concern,
+            "factors": [
+                {"name": f.name, "direction": f.direction, "change_pct": f.change_pct, "reason": f.reason}
+                for f in deterioration_result.factors
+            ],
+        },
     }
