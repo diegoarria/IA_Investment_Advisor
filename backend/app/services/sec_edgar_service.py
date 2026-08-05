@@ -566,6 +566,31 @@ _SECTION_PATTERNS: dict[str, tuple[str, str]] = {
     ),
 }
 
+# Fase 3, Incremento 2 (Document Intelligence Engine, Parte A — see
+# /Users/diegoarria/.claude/plans/stateful-painting-flurry.md): a 10-Q uses
+# the SAME Item-numbering CONCEPT (Business/Risk Factors/MD&A) as a 10-K but
+# at DIFFERENT item numbers — MD&A is Item 2, not Item 7, and "Business" in a
+# 10-Q is financial-statement notes rather than a full business description
+# (10-Qs don't re-describe the business each quarter), so it's intentionally
+# omitted here rather than mislabeling financial-statement text as "business".
+_SECTION_PATTERNS_10Q: dict[str, tuple[str, str]] = {
+    "risk_factors": (r"item\s*1a\.\s*risk\s*factors", r"item\s*2\."),
+    "mda": (
+        r"item\s*2\.\s*management.?s\s*discussion\s*and\s*analysis",
+        r"item\s*3\.",
+    ),
+}
+
+# Which known form types get real Item-based section parsing — everything
+# else (DEF 14A/proxy, 8-K/press-release, etc.) has no consistent Item
+# numbering scheme reliable enough to segment honestly, so
+# fetch_filing_text_sections falls back to raw cleaned text for those
+# instead of guessing at section boundaries.
+_SECTION_PATTERNS_BY_FORM: dict[str, dict[str, tuple[str, str]]] = {
+    "10-K": _SECTION_PATTERNS,
+    "10-Q": _SECTION_PATTERNS_10Q,
+}
+
 
 def _extract_section(full_text: str, start_pattern: str, end_pattern: str, max_chars: int = 4000) -> str | None:
     lowered = full_text.lower()
@@ -586,14 +611,23 @@ def _extract_section(full_text: str, start_pattern: str, end_pattern: str, max_c
 
 def fetch_filing_text_sections(ticker: str, form_type: str = "10-K") -> dict | None:
     """Real primary-source text from the company's own most recent filing
-    — Business description, Risk Factors, MD&A — fetched directly from SEC
-    EDGAR. This is genuine evidence (the company's own filed words), never
-    an AI narrative pretending to have read the filing (see the explicit
-    guardrail this exact gap used to require in `research_service.py`
-    before this function existed). Returns None if the ticker has no real
-    CIK mapping, no filing of `form_type` is found, or the document
-    couldn't be fetched — never a fabricated/partial result presented as
-    complete."""
+    of `form_type` — fetched directly from SEC EDGAR. This is genuine
+    evidence (the company's own filed words), never an AI narrative
+    pretending to have read the filing (see the explicit guardrail this
+    exact gap used to require in `research_service.py` before this
+    function existed). Returns None if the ticker has no real CIK mapping,
+    no filing of `form_type` is found, or the document couldn't be fetched
+    — never a fabricated/partial result presented as complete.
+
+    For `form_type`s with a known, reliable Item-numbering scheme ("10-K",
+    "10-Q" — see `_SECTION_PATTERNS_BY_FORM`), returns real Item-segmented
+    sections (business/risk_factors/mda, whichever apply to that form).
+    For any other real form_type (e.g. "DEF 14A" proxy statements, "8-K"
+    current reports — Fase 3, Incremento 2, Document Intelligence Engine)
+    there is no Item-numbering scheme consistent enough to segment
+    honestly, so the result carries the real cleaned full text under
+    `raw_text` instead of guessing at section boundaries that don't apply
+    to that form type."""
     cik = get_cik(ticker)
     if not cik:
         return None
@@ -614,17 +648,21 @@ def fetch_filing_text_sections(ticker: str, form_type: str = "10-K") -> dict | N
     if not full_text:
         return None
 
-    sections = {
-        key: _extract_section(full_text, start, end)
-        for key, (start, end) in _SECTION_PATTERNS.items()
-    }
-    if not any(sections.values()):
-        return None
-
-    return {
+    base = {
         "ticker": ticker.upper(),
         "form_type": form_type,
         "filing_date": filing.get("filingDate"),
         "source_url": url,
-        **sections,
     }
+
+    patterns = _SECTION_PATTERNS_BY_FORM.get(form_type)
+    if patterns is None:
+        return {**base, "raw_text": full_text[:8000]}
+
+    sections = {
+        key: _extract_section(full_text, start, end)
+        for key, (start, end) in patterns.items()
+    }
+    if not any(sections.values()):
+        return None
+    return {**base, **sections}

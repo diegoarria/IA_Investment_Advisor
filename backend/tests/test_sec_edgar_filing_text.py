@@ -122,3 +122,49 @@ class TestFetchFilingTextSections:
         assert result["business"] and "Real business description" in result["business"]
         assert result["risk_factors"] and "Real risk factor content" in result["risk_factors"]
         assert result["mda"] and "Real MDA content" in result["mda"]
+
+    def test_10q_uses_item_2_for_mda_not_item_7(self):
+        """Fase 3, Incremento 2 (Document Intelligence Engine): a 10-Q's
+        MD&A is Item 2, not Item 7 like a 10-K's — and a 10-Q has no full
+        'business' section (financial-statement notes only), so that key
+        must be absent/None rather than mislabeled."""
+        submissions = {"filings": {"recent": {
+            "form": ["10-Q"], "accessionNumber": ["0000320193-24-000456"],
+            "primaryDocument": ["aapl-20240629.htm"], "filingDate": ["2024-07-15"],
+        }}}
+        fake_full_text = (
+            "Item 1A. Risk Factors " + ("Real quarterly risk content here. " * 10)
+            + "Item 2. Management's Discussion and Analysis " + ("Real quarterly MDA content here. " * 10)
+            + "Item 3."
+        )
+        with patch("app.services.sec_edgar_service.get_cik", return_value="0000320193"), \
+             patch("app.services.sec_edgar_service._fetch_submissions", return_value=submissions), \
+             patch("app.services.sec_edgar_service._fetch_filing_html", return_value="<html></html>"), \
+             patch("app.services.sec_edgar_service.extract_main_text", return_value=fake_full_text):
+            result = fetch_filing_text_sections("AAPL", form_type="10-Q")
+
+        assert result is not None
+        assert result["form_type"] == "10-Q"
+        assert result["mda"] and "Real quarterly MDA content" in result["mda"]
+        assert result["risk_factors"] and "Real quarterly risk content" in result["risk_factors"]
+        assert "business" not in result
+
+    def test_unknown_form_type_falls_back_to_raw_text(self):
+        """DEF 14A (proxy) and 8-K have no reliable Item-numbering scheme
+        to segment honestly — must return real cleaned text under
+        raw_text instead of guessing at section boundaries."""
+        submissions = {"filings": {"recent": {
+            "form": ["DEF 14A"], "accessionNumber": ["0000320193-24-000789"],
+            "primaryDocument": ["aapl-proxy.htm"], "filingDate": ["2024-01-10"],
+        }}}
+        fake_full_text = "Real proxy statement content about executive compensation and board elections."
+        with patch("app.services.sec_edgar_service.get_cik", return_value="0000320193"), \
+             patch("app.services.sec_edgar_service._fetch_submissions", return_value=submissions), \
+             patch("app.services.sec_edgar_service._fetch_filing_html", return_value="<html></html>"), \
+             patch("app.services.sec_edgar_service.extract_main_text", return_value=fake_full_text):
+            result = fetch_filing_text_sections("AAPL", form_type="DEF 14A")
+
+        assert result is not None
+        assert result["form_type"] == "DEF 14A"
+        assert result["raw_text"] == fake_full_text
+        assert "business" not in result and "mda" not in result
