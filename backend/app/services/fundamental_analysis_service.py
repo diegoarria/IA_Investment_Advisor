@@ -801,6 +801,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
     owner_earnings_trend = []
     fcf_per_share_trend, implied_shares_trend = [], []
     reinvestment_rate_trend = []
+    dividends_paid_trend: list[Optional[float]] = []  # Fase 2, Incremento 4 (Capital Allocation Engine)
     # Fase 2, Incremento 2 (Quality Engine — see
     # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md): these
     # four are NEW trend arrays, additive, feeding ROCE/Incremental ROIC/
@@ -826,6 +827,9 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         capex = _num(cf.get("Capital Expenditure"))
         fcf_i = ocf - abs(capex) if ocf is not None and capex is not None else None
         fcf_trend.append(fcf_i)
+
+        div_paid = _num(cf.get("Dividends Paid"))
+        dividends_paid_trend.append(abs(div_paid) if div_paid is not None else None)
 
         # Implied diluted share count for this year (Net Income / Diluted
         # EPS) — real per-year buybacks aren't a clean field on any
@@ -1788,6 +1792,17 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         "eps_trend": [
             _num(row.get("Diluted EPS")) or _num(row.get("Basic EPS")) for row in income
         ],
+        # Fase 2, Incremento 4 (Capital Allocation Engine): real per-year
+        # dividends paid and implied share count, plus the full fiscal
+        # period date strings (get_historical_prices_near_dates needs real
+        # "YYYY-MM-DD" dates, not the truncated 4-char `years` above) —
+        # feeds buyback-timing analysis (was a real historical price cheap
+        # or expensive vs. today) the same way historical_valuation_service
+        # already uses this exact function for its own multiples.
+        "dividends_paid_trend": dividends_paid_trend,
+        "implied_shares_trend": implied_shares_trend,
+        "reinvestment_rate_trend": reinvestment_rate_trend,
+        "fiscal_period_dates": [row.get("period") for row in income],
         "revenue_cagr_pct": rev_cagr,
         "fcf_cagr_pct": fcf_cagr,
         "net_income_cagr_pct": ni_cagr,

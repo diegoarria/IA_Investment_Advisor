@@ -781,6 +781,44 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         ],
     }
 
+    # Fase 2, Incremento 4 (Capital Allocation Engine — "¿cómo administra
+    # el capital esta empresa?", Parte C). Reuses buyback_rate_pct/
+    # payout_ratio_pct already computed for management_capital_allocation
+    # evidence, and the reinvestment_rate_trend the DCF engine already
+    # builds — the only NEW work here is checking real historical buyback
+    # timing against real prices.
+    from app.services.quality.capital_allocation_engine import compute_capital_allocation_score
+    mgmt_evidence = (data.get("checklist_evidence") or {}).get("management_capital_allocation") or {}
+    payout_ratio_pct = mgmt_evidence.get("payout_ratio_pct")
+    capital_allocation_result_obj = compute_capital_allocation_score(
+        ticker=ticker, current_price=data.get("current_price"),
+        implied_shares_trend=data.get("implied_shares_trend") or [],
+        fiscal_period_dates=data.get("fiscal_period_dates") or [],
+        dividends_paid_trend=data.get("dividends_paid_trend") or [],
+        reinvestment_rate_trend=data.get("reinvestment_rate_trend") or [],
+        buyback_rate_pct=mgmt_evidence.get("buyback_rate_pct"),
+        payout_ratio=(payout_ratio_pct / 100) if payout_ratio_pct is not None else None,
+    )
+    capital_allocation_result = {
+        "capital_allocation_score": capital_allocation_result_obj.capital_allocation_score,
+        "buyback_timing_score": capital_allocation_result_obj.buyback_timing_score,
+        "dividend_consistency_score": capital_allocation_result_obj.dividend_consistency_score,
+        "reinvestment_quality_score": capital_allocation_result_obj.reinvestment_quality_score,
+        "buyback_years": [
+            {
+                "fiscal_period": b.fiscal_period, "shares_reduced_pct": b.shares_reduced_pct,
+                "price_at_buyback": b.price_at_buyback, "current_price": b.current_price,
+                "looks_good_in_hindsight": b.looks_good_in_hindsight,
+            }
+            for b in capital_allocation_result_obj.buyback_years
+        ],
+        "factors": [
+            {"name": f.name, "value": f.value, "score": f.score, "reason": f.reason}
+            for f in capital_allocation_result_obj.factors
+        ],
+        "acquisitions_note": capital_allocation_result_obj.acquisitions_note,
+    }
+
     result = {
         "ticker": data["ticker"],
         "company_name": data.get("company_name"),
@@ -829,6 +867,7 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "fair_value_engine": fair_value_engine_result,
         "industry_benchmarks": _asdict_or_none(industry_benchmarks),
         "quality_engine": quality_engine_result,
+        "capital_allocation_engine": capital_allocation_result,
         "relative_valuation": relative_valuation,
         "historical_valuation": historical_valuation,
         "consensus_valuation": consensus_valuation,
