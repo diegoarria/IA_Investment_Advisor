@@ -3603,6 +3603,71 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
     return None
 
 
+_STRATEGY_CHANGE_CLASSIFICATIONS = ("no_prior_data", "no_change", "tone_shift", "priority_reorder", "strategy_change")
+
+
+async def generate_management_intelligence(
+    ticker: str, company_name: str, evidence_block: str, prior_summary: Optional[str], lang: str = "es",
+) -> Optional[dict]:
+    """Management Intelligence Engine (Fase 3, Incremento 5 — Parte E):
+    strategic priorities, capital allocation commentary, guidance track
+    record, consistency, and — the module's key new capability beyond
+    Fase 2's stateless `quality.management_engine.compute_management_
+    deep_dive` — automatic detection of a real change in management's
+    strategy or tone, by comparing the NEW evidence against the PRIOR
+    review's own `strategic_priorities` text (`prior_summary`, from
+    `knowledge_store.get_latest_snapshot`).
+
+    `prior_summary=None` means this ticker has never been reviewed before
+    — the prompt requires `strategy_change_classification="no_prior_data"`
+    in that case (never "no_change", which would falsely imply a real
+    comparison was made and nothing changed). The caller
+    (`management_intelligence.compute_management_intelligence`) also
+    enforces this defensively in code, not just via the prompt, so a
+    model mistake here can never fabricate a change (or the absence of
+    one) with nothing real to compare against.
+
+    Returns None (never fakes content) if the model's JSON doesn't parse."""
+    prompt = f"""{_output_language_directive(lang)}Analiza las prioridades estratégicas y la comunicación del equipo directivo de {company_name} ({ticker}) usando SOLO la evidencia real de abajo — nunca inventes hechos, cifras o declaraciones que no estén aquí.
+
+Evidencia real recopilada (10-K, búsqueda web con fuentes citadas, extractos de páginas públicas — cartas a accionistas, earnings calls, investor day, entrevistas cuando existan):
+{evidence_block if evidence_block.strip() else "No se encontró evidencia pública adicional para esta empresa — sé conservador y dilo explícitamente en cada campo."}
+
+{f"Prioridades estratégicas descritas en la revisión anterior (para detectar un cambio real): {prior_summary}" if prior_summary else "Esta es la primera vez que se revisa el management de esta empresa — no hay revisión anterior con la cual comparar."}
+
+Reglas:
+- guidance_track_record_note: solo afirma cumplimiento/incumplimiento de guidance si la evidencia cita cifras/fechas reales — si no, di explícitamente que no hay evidencia pública suficiente.
+- strategy_change_classification debe ser exactamente uno de: {", ".join(_STRATEGY_CHANGE_CLASSIFICATIONS)}.
+  - Usa "no_prior_data" SIEMPRE que no haya revisión anterior arriba — nunca "no_change" en ese caso (eso implicaría una comparación real que no ocurrió).
+  - "tone_shift": el discurso cambia de tono (más cauteloso/optimista) sin cambiar prioridades reales.
+  - "priority_reorder": las mismas prioridades, pero reordenadas en importancia.
+  - "strategy_change": una prioridad estratégica real y nueva reemplaza o se agrega a las anteriores.
+- strategy_change_explanation debe ser null si classification es "no_prior_data" o "no_change".
+- Nunca digas Comprar/No comprar/Mantener.
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después):
+{{
+  "strategic_priorities": "<máx 50 palabras>",
+  "capital_allocation_notes": "<máx 40 palabras>",
+  "guidance_track_record_note": "<máx 50 palabras>",
+  "consistency_assessment": "<máx 40 palabras>",
+  "strategy_change_classification": "no_prior_data|no_change|tone_shift|priority_reorder|strategy_change",
+  "strategy_change_explanation": "<máx 50 palabras, o null>"
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1400,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and parsed.get("strategic_priorities") and parsed.get("strategy_change_classification") in _STRATEGY_CHANGE_CLASSIFICATIONS:
+        return parsed
+    _log.warning("generate_management_intelligence: JSON parse failed for %s", ticker)
+    return None
+
+
 async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
     """One-liner (~15-25 words) for a single undervalued-screener candidate —
     called once per real candidate PER LANGUAGE during the weekly refresh
