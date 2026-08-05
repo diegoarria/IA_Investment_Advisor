@@ -33,6 +33,8 @@ export interface ConfidenceMeterData {
   score: number;
   label: string;
   stars: number;
+  // Fase 1, Incremento 5: mirror of the web type — see its comment.
+  dispersion_source?: "cross_method" | "scenario_range_proxy";
 }
 
 export interface MarketExpectationsData {

@@ -667,6 +667,30 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
     from app.services.undervalued_screener_service import build_dcf_guidance
     dcf_assumptions = build_dcf_guidance(dcf, data.get("thesis_scores"))
 
+    # Confidence Meter v2 (Fase 1, Incremento 5 — Parte F): upgrades the
+    # "method agreement" component from the scenario-range proxy to the
+    # REAL spread across DCF/Relative/Historical, now that Methods 3/4 are
+    # available at this point in the request (they aren't yet inside
+    # get_fundamental_analysis() itself — see confidence_engine.py's
+    # docstring). Degrades to the exact v1 score when fewer than 2 of the
+    # three method values are real, so this never worsens the number for
+    # any ticker — only improves it when there's real independent evidence.
+    from app.services.valuation.confidence_engine import compute_confidence_meter_v2
+    thesis_scores = data.get("thesis_scores") or {}
+    confidence_meter_v2 = compute_confidence_meter_v2(
+        predictability_score=dcf.get("confidence_score"),
+        years_available=data.get("data_years_available", 0),
+        fair_value_range=dcf.get("fair_value_range") or {},
+        liquidity_ok=(data.get("liquidity_gate") or {}).get("paso", True),
+        business_quality_score=thesis_scores.get("business_quality"),
+        financial_strength_score=thesis_scores.get("financial_strength"),
+        method_values=[
+            dcf["scenarios"]["base"]["intrinsic_value_per_share"],
+            relative_valuation.get("intrinsic_value_per_share") if relative_valuation else None,
+            historical_valuation.get("intrinsic_value_per_share") if historical_valuation else None,
+        ],
+    )
+
     result = {
         "ticker": data["ticker"],
         "company_name": data.get("company_name"),
@@ -691,7 +715,7 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "thesis_scores": data.get("thesis_scores"),
         "composite_score": data.get("composite_score"),
         "fair_value_range": dcf.get("fair_value_range"),
-        "confidence_meter": dcf.get("confidence_meter"),
+        "confidence_meter": confidence_meter_v2 or dcf.get("confidence_meter"),
         "market_expectations": dcf.get("market_expectations"),
         # Fase 1, Incremento 4 (see /Users/diegoarria/.claude/plans/stateful-painting-flurry.md):
         # these were already computed by fundamental_analysis_service but

@@ -28,6 +28,12 @@ export interface ConfidenceMeterData {
   score: number;
   label: string;
   stars: number;
+  // Fase 1, Incremento 5: "cross_method" when the score's method-agreement
+  // component used the real DCF/Relative/Historical spread, or
+  // "scenario_range_proxy" when fewer than 2 methods were computable and it
+  // fell back to the original scenario-range proxy. Optional/informational
+  // — not required for the meter to render.
+  dispersion_source?: "cross_method" | "scenario_range_proxy";
 }
 
 export interface MarketExpectationsData {
