@@ -4,7 +4,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Star, MessageCircle, AlertTriangle, Check, Sparkles, ShieldCheck, Wand2 } from "lucide-react";
+import {
+  Star, MessageCircle, AlertTriangle, Check, Sparkles, ShieldCheck, Wand2,
+  ChevronDown, ChevronUp, Shield, Target, Users, Rocket, TrendingDown, TrendingUp, Minus,
+} from "lucide-react";
 
 export interface ChecklistItem {
   key?: string;
@@ -557,12 +560,22 @@ export interface NifExplanation {
   sub_factors: NifSubFactor[];
 }
 
+// Fase 2, Incremento 8: management_quality's deep dive (guidance track
+// record + governance flags), grounded in real evidence — declares
+// "sin evidencia suficiente" rather than inventing a track record.
+export interface NifManagementDeepDive {
+  guidance_track_record: string;
+  governance_flags: { flag: string; evidence: string }[];
+  overall_assessment: string;
+}
+
 export interface NifPillarData {
   pillar: string;
   score: number | null;
   data: Record<string, unknown>;
   nuvos_estimate: Record<string, unknown>;
   explanation: NifExplanation | null;
+  deep_dive?: NifManagementDeepDive | null;
 }
 
 export interface NifOverallScore {
@@ -572,6 +585,102 @@ export interface NifOverallScore {
   pillar_breakdown: Record<string, { score: number | null; weight: number }>;
 }
 
+/** Shared shape for every "real score + explainable factor list"
+ * engine (Moat, Conviction) — see backend/app/services/quality/*_engine.py. */
+export interface NifScoreFactor {
+  name: string;
+  value: number | null;
+  score: number | null;
+  reason: string;
+}
+
+// Fase 2, Incremento 7 (Moat Engine) — sibling key, never folded into
+// overall_nif_score.
+export interface NifMoatDeepDiveType {
+  type: string;
+  intensity: "alta" | "media" | "baja" | "ninguna";
+  evidence: string;
+  explanation: string;
+  risks: string;
+}
+
+export interface NifMoatDeepDive {
+  moat_types: NifMoatDeepDiveType[];
+  why_it_exists: string;
+  what_could_destroy_it: string;
+  trend: "fortaleciendo" | "debilitando" | "estable";
+}
+
+export interface NifMoatData {
+  score: number;
+  roic_premium_score: number | null;
+  margin_premium_score: number | null;
+  stability_score: number | null;
+  factors: NifScoreFactor[];
+  deep_dive: NifMoatDeepDive | null;
+}
+
+// Fase 2, Incremento 9 (Conviction Engine) — pure synthesis, never touches
+// price/valuation.
+export interface NifConvictionData {
+  score: number;
+  quality_score: number | null;
+  moat_score: number | null;
+  stability_score: number | null;
+  beta_score: number | null;
+  factors: NifScoreFactor[];
+}
+
+// Fase 2, Incremento 9 (Catalysts Engine) — no deterministic score, purely
+// evidence-grounded AI narration.
+export interface NifCatalyst {
+  catalyst: string;
+  type: string;
+  evidence: string;
+  time_horizon: "corto_plazo" | "mediano_plazo" | "largo_plazo";
+  impact_if_realized: string;
+}
+
+export interface NifCatalystsData {
+  catalysts: NifCatalyst[];
+}
+
+// Fase 2, Incremento 10 (Peer Comparison Engine) — real peer group's own
+// Quality Scores, never a fabricated ranking.
+export interface NifPeerQualitySnapshot {
+  ticker: string;
+  quality_score: number | null;
+  roic_pct: number | null;
+  operating_margin_pct: number | null;
+  revenue_cagr_pct: number | null;
+}
+
+export interface NifPeerComparisonData {
+  peer_count: number;
+  peers_used: string[];
+  company_quality_score: number | null;
+  quality_score_percentile: number | null;
+  quality_score_rank: number | null;
+  peer_quality_scores: NifPeerQualitySnapshot[];
+}
+
+// Fase 2, Incremento 10 (Deterioration Engine) — mechanical trend
+// direction, complements (never duplicates) Moat's CV-based stability.
+export interface NifDeteriorationFactor {
+  name: string;
+  direction: "mejorando" | "deteriorando" | "estable" | null;
+  change_pct: number | null;
+  reason: string;
+}
+
+export interface NifDeteriorationData {
+  deteriorating_count: number;
+  improving_count: number;
+  stable_count: number;
+  highest_concern: string | null;
+  factors: NifDeteriorationFactor[];
+}
+
 export interface NifDashboardData {
   ticker: string;
   company_name: string | null;
@@ -579,6 +688,11 @@ export interface NifDashboardData {
   price: number | null;
   change_pct: number | null;
   overall_nif_score: NifOverallScore | null;
+  moat: NifMoatData;
+  conviction: NifConvictionData;
+  catalysts: NifCatalystsData | null;
+  peer_comparison: NifPeerComparisonData | null;
+  deterioration: NifDeteriorationData;
   pillars: {
     business_quality: NifPillarData;
     financial_strength: NifPillarData;
@@ -698,6 +812,262 @@ export function NifPillarCard({
       )}
       {!explanation && (
         <p className="text-[10px] italic" style={{ color: "var(--muted)" }}>{t("subvaluadas.nif.explanationUnavailable")}</p>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Fase 2 — Quality Engines (Moat, Conviction, Catalysts, Peer Comparison,
+// Deterioration) — see backend/app/services/quality/*_engine.py and
+// /Users/diegoarria/.claude/plans/stateful-painting-flurry.md. Every card
+// here follows the same principle as the pillars above: real numbers
+// first, collapsed by default, expandable to the full factor-by-factor
+// breakdown so nothing is ever a black box. Deliberately rendered as
+// SIBLINGS of the 4-pillar grid, never blended into overall_nif_score —
+// "how good/durable is this business" must stay visibly separate from
+// "is it cheap."
+// ═══════════════════════════════════════════════════════════════════════════
+
+function DirectionIcon({ direction }: { direction: "mejorando" | "deteriorando" | "estable" | null }) {
+  if (direction === "mejorando") return <TrendingUp className="w-3.5 h-3.5" style={{ color: "#22c55e" }} />;
+  if (direction === "deteriorando") return <TrendingDown className="w-3.5 h-3.5" style={{ color: "#ef4444" }} />;
+  if (direction === "estable") return <Minus className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />;
+  return null;
+}
+
+/** Generic expandable card for a "real score + explainable factor list"
+ * engine (Moat, Conviction) — collapsed to just the headline score and
+ * icon by default. */
+export function NifScoreEngineCard({
+  titleKey, icon, score, factors, footer,
+}: {
+  titleKey: string;
+  icon: React.ReactNode;
+  score: number | null;
+  factors: NifScoreFactor[];
+  footer?: React.ReactNode;
+}) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  const color = nifScoreColor(score);
+  return (
+    <div className="rounded-2xl border" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+      <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center justify-between gap-2 p-3.5">
+        <div className="flex items-center gap-2 min-w-0">
+          {icon}
+          <span className="text-xs font-bold truncate" style={{ color: "var(--text)" }}>{t(`subvaluadas.nif.engines.${titleKey}.title`)}</span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-base font-black tabular-nums" style={{ color }}>{score !== null ? score : "N/D"}</span>
+          {expanded ? <ChevronUp className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />}
+        </div>
+      </button>
+      {expanded && (
+        <div className="px-3.5 pb-3.5 space-y-2">
+          <p className="text-[10.5px] leading-relaxed" style={{ color: "var(--muted)" }}>{t(`subvaluadas.nif.engines.${titleKey}.description`)}</p>
+          {factors.map((f, i) => (
+            <div key={i} className="rounded-lg p-2" style={{ background: "var(--raised)" }}>
+              <div className="flex items-center justify-between gap-2 mb-0.5">
+                <span className="text-[10.5px] font-bold" style={{ color: "var(--sub)" }}>
+                  {t(`subvaluadas.nif.factors.${f.name}`, { defaultValue: f.name })}
+                </span>
+                {f.score !== null && (
+                  <span className="text-[10.5px] font-black tabular-nums shrink-0" style={{ color: nifScoreColor(f.score) }}>{f.score}</span>
+                )}
+              </div>
+              <p className="text-[10.5px] leading-relaxed" style={{ color: "var(--dim)" }}>{f.reason}</p>
+            </div>
+          ))}
+          {footer}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Fase 2, Incremento 7 — Moat Engine's 11-moat-type AI deep dive, shown
+ * as an optional expandable footer inside NifScoreEngineCard's Moat card
+ * (only rendered when the deep dive was actually available). */
+export function NifMoatDeepDiveBlock({ deepDive }: { deepDive: NifMoatDeepDive }) {
+  const { t } = useTranslation();
+  const relevantTypes = deepDive.moat_types.filter((mt) => mt.intensity !== "ninguna");
+  return (
+    <div className="rounded-lg p-2 space-y-2" style={{ background: "rgba(0,168,94,0.06)", border: "1px solid rgba(0,168,94,0.18)" }}>
+      <div className="flex items-center gap-1">
+        <Sparkles className="w-3 h-3" style={{ color: "var(--accent-l)" }} />
+        <span className="text-[9px] font-bold uppercase tracking-wide" style={{ color: "var(--accent-l)" }}>{t("subvaluadas.nif.sections.aiExplanation")}</span>
+      </div>
+      {relevantTypes.length === 0 ? (
+        <p className="text-[10.5px] italic" style={{ color: "var(--muted)" }}>{t("subvaluadas.nif.engines.moat.noTypesFound")}</p>
+      ) : (
+        <div className="space-y-1.5">
+          {relevantTypes.map((mt, i) => (
+            <div key={i}>
+              <p className="text-[10.5px] font-bold" style={{ color: "var(--text)" }}>
+                {t(`subvaluadas.nif.moatTypes.${mt.type}`, { defaultValue: mt.type })}
+                <span className="ml-1.5 font-normal" style={{ color: "var(--muted)" }}>({t(`subvaluadas.nif.intensity.${mt.intensity}`)})</span>
+              </p>
+              <p className="text-[10.5px] leading-relaxed" style={{ color: "var(--dim)" }}>{mt.explanation}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="pt-1 border-t" style={{ borderColor: "var(--border)" }}>
+        <p className="text-[10.5px] leading-relaxed" style={{ color: "var(--dim)" }}><strong style={{ color: "var(--sub)" }}>{t("subvaluadas.nif.engines.moat.whyItExists")}:</strong> {deepDive.why_it_exists}</p>
+        <p className="text-[10.5px] leading-relaxed mt-1" style={{ color: "var(--dim)" }}><strong style={{ color: "var(--sub)" }}>{t("subvaluadas.nif.engines.moat.whatCouldDestroyIt")}:</strong> {deepDive.what_could_destroy_it}</p>
+      </div>
+    </div>
+  );
+}
+
+/** Fase 2, Incremento 8 — Management Engine's guidance-track-record /
+ * governance deep dive, rendered alongside the management_quality pillar
+ * card. */
+export function NifManagementDeepDiveCard({ deepDive }: { deepDive: NifManagementDeepDive | null | undefined }) {
+  const { t } = useTranslation();
+  if (!deepDive) return null;
+  return (
+    <div className="rounded-2xl border p-3.5 space-y-2" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+      <div className="flex items-center gap-2">
+        <Users className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
+        <span className="text-xs font-bold" style={{ color: "var(--text)" }}>{t("subvaluadas.nif.engines.managementDeepDive.title")}</span>
+      </div>
+      <p className="text-[10.5px] leading-relaxed" style={{ color: "var(--dim)" }}>{deepDive.guidance_track_record}</p>
+      {deepDive.governance_flags.length > 0 && (
+        <div className="space-y-1">
+          {deepDive.governance_flags.map((flag, i) => (
+            <div key={i} className="flex items-start gap-1.5 rounded-lg p-1.5" style={{ background: "rgba(239,68,68,0.06)" }}>
+              <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "#ef4444" }} />
+              <div>
+                <p className="text-[10.5px] font-bold" style={{ color: "var(--text)" }}>{flag.flag}</p>
+                <p className="text-[10px]" style={{ color: "var(--dim)" }}>{flag.evidence}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="text-[10.5px] italic leading-relaxed" style={{ color: "var(--muted)" }}>{deepDive.overall_assessment}</p>
+    </div>
+  );
+}
+
+/** Fase 2, Incremento 9 — Catalysts Engine: real catalysts grounded in
+ * revenue segments + cited evidence, or an honest empty state. */
+export function NifCatalystsCard({ data }: { data: NifCatalystsData | null }) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  const catalysts = data?.catalysts ?? [];
+  return (
+    <div className="rounded-2xl border" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+      <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center justify-between gap-2 p-3.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <Rocket className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
+          <span className="text-xs font-bold truncate" style={{ color: "var(--text)" }}>{t("subvaluadas.nif.engines.catalysts.title")}</span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[11px] font-bold tabular-nums" style={{ color: "var(--muted)" }}>{catalysts.length}</span>
+          {expanded ? <ChevronUp className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />}
+        </div>
+      </button>
+      {expanded && (
+        <div className="px-3.5 pb-3.5 space-y-2">
+          {catalysts.length === 0 ? (
+            <p className="text-[10.5px] italic" style={{ color: "var(--muted)" }}>{t("subvaluadas.nif.engines.catalysts.none")}</p>
+          ) : catalysts.map((c, i) => (
+            <div key={i} className="rounded-lg p-2" style={{ background: "var(--raised)" }}>
+              <div className="flex items-center justify-between gap-2 mb-0.5">
+                <span className="text-[10.5px] font-bold" style={{ color: "var(--text)" }}>{c.catalyst}</span>
+                <span className="text-[9px] font-bold uppercase tracking-wide shrink-0" style={{ color: "var(--muted)" }}>
+                  {t(`subvaluadas.nif.timeHorizon.${c.time_horizon}`)}
+                </span>
+              </div>
+              <p className="text-[10.5px] leading-relaxed" style={{ color: "var(--dim)" }}>{c.evidence}</p>
+              <p className="text-[10.5px] leading-relaxed mt-1" style={{ color: "var(--muted)" }}>{c.impact_if_realized}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Fase 2, Incremento 10 — Peer Comparison Engine: ranks the company's
+ * real Quality Score against its real peers' own Quality Scores. */
+export function NifPeerComparisonCard({ data }: { data: NifPeerComparisonData | null }) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  if (!data || data.quality_score_percentile === null) return null;
+  return (
+    <div className="rounded-2xl border" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+      <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center justify-between gap-2 p-3.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <Target className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
+          <span className="text-xs font-bold truncate" style={{ color: "var(--text)" }}>{t("subvaluadas.nif.engines.peerComparison.title")}</span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[11px] font-bold tabular-nums" style={{ color: nifScoreColor(data.quality_score_percentile) }}>
+            {t("subvaluadas.nif.engines.peerComparison.percentile", { pct: data.quality_score_percentile })}
+          </span>
+          {expanded ? <ChevronUp className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />}
+        </div>
+      </button>
+      {expanded && (
+        <div className="px-3.5 pb-3.5 space-y-2">
+          <p className="text-[10.5px] leading-relaxed" style={{ color: "var(--muted)" }}>
+            {t("subvaluadas.nif.engines.peerComparison.rankSummary", { rank: data.quality_score_rank, count: data.peer_count + 1 })}
+          </p>
+          <div className="space-y-1">
+            {[...data.peer_quality_scores]
+              .sort((a, b) => (b.quality_score ?? -1) - (a.quality_score ?? -1))
+              .map((s, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1" style={{ background: "var(--raised)" }}>
+                  <span className="text-[10.5px] font-bold" style={{ color: "var(--text)" }}>{s.ticker}</span>
+                  <span className="text-[10.5px] font-black tabular-nums" style={{ color: nifScoreColor(s.quality_score) }}>{s.quality_score ?? "N/D"}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Fase 2, Incremento 10 — Deterioration Engine: mechanical trend
+ * direction per metric, complements Moat's non-directional stability. */
+export function NifDeteriorationCard({ data }: { data: NifDeteriorationData }) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="rounded-2xl border" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+      <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center justify-between gap-2 p-3.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <Shield className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
+          <span className="text-xs font-bold truncate" style={{ color: "var(--text)" }}>{t("subvaluadas.nif.engines.deterioration.title")}</span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {data.deteriorating_count > 0 ? (
+            <span className="text-[10.5px] font-bold" style={{ color: "#ef4444" }}>{t("subvaluadas.nif.engines.deterioration.countBadge", { count: data.deteriorating_count })}</span>
+          ) : (
+            <span className="text-[10.5px] font-bold" style={{ color: "#22c55e" }}>{t("subvaluadas.nif.engines.deterioration.noneBadge")}</span>
+          )}
+          {expanded ? <ChevronUp className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />}
+        </div>
+      </button>
+      {expanded && (
+        <div className="px-3.5 pb-3.5 space-y-1.5">
+          {data.factors.map((f, i) => (
+            <div key={i} className="flex items-start gap-2 rounded-lg p-2" style={{ background: "var(--raised)" }}>
+              <div className="mt-0.5"><DirectionIcon direction={f.direction} /></div>
+              <div className="min-w-0">
+                <p className="text-[10.5px] font-bold" style={{ color: "var(--text)" }}>
+                  {t(`subvaluadas.nif.factors.${f.name}`, { defaultValue: f.name })}
+                </p>
+                <p className="text-[10.5px] leading-relaxed" style={{ color: "var(--dim)" }}>{f.reason}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

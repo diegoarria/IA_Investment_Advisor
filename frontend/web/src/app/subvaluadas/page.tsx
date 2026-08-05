@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import {
   Loader2, Lock, Search, X, Info, RotateCcw, FileSpreadsheet, MessageCircle, AlertTriangle, Sparkles, Bookmark, Check,
+  Shield, Target,
 } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
@@ -20,6 +21,8 @@ import {
   GeneratedAtNote, LiquidityWarning, ChecklistDisplay, ConfidenceMeter, FairValueRangeDisplay,
   MarketExpectationsPanel, InsightBox, FollowButton, AnalyzeButton,
   NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
+  NifScoreEngineCard, NifMoatDeepDiveBlock, NifManagementDeepDiveCard,
+  NifCatalystsCard, NifPeerComparisonCard, NifDeteriorationCard,
   ScenarioWeightingPanel, ReverseDcfPanel, FinalResultPanel,
 } from "@/components/subvaluadas/shared";
 import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
@@ -785,6 +788,30 @@ function SubvaluadasPageInner() {
                             estimateRows={buildNifRows("valuation_estimate", nifData.pillars.valuation.nuvos_estimate, isFinancialSector, t)}
                             explanation={nifData.pillars.valuation.explanation}
                           />
+                        </div>
+
+                        {/* ===== Fase 2 — Motores de Calidad: Moat, Conviction, Management
+                             deep dive, Catalysts, Peer Comparison, Deterioration. Deliberately
+                             SIBLINGS of the 4-pillar grid above, never blended into
+                             overall_nif_score — see shared.tsx's section header comment. ===== */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                          <NifScoreEngineCard
+                            titleKey="moat"
+                            icon={<Shield className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
+                            score={nifData.moat.score}
+                            factors={nifData.moat.factors}
+                            footer={nifData.moat.deep_dive ? <NifMoatDeepDiveBlock deepDive={nifData.moat.deep_dive} /> : null}
+                          />
+                          <NifScoreEngineCard
+                            titleKey="conviction"
+                            icon={<Target className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
+                            score={nifData.conviction.score}
+                            factors={nifData.conviction.factors}
+                          />
+                          <NifManagementDeepDiveCard deepDive={nifData.pillars.management_quality.deep_dive} />
+                          <NifCatalystsCard data={nifData.catalysts} />
+                          <NifPeerComparisonCard data={nifData.peer_comparison} />
+                          <NifDeteriorationCard data={nifData.deterioration} />
                         </div>
                       </div>
                     ) : null

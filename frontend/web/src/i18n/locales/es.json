@@ -624,10 +624,18 @@
       "weakestPillar": "Pilar más débil: {{pillar}} ({{score}}/100)",
       "explanationUnavailable": "No pudimos generar la explicación en este momento.",
       "pillars": {
-        "business_quality": { "title": "Calidad del Negocio" },
-        "financial_strength": { "title": "Fortaleza Financiera" },
-        "management_quality": { "title": "Calidad de la Administración" },
-        "valuation": { "title": "Valuación" }
+        "business_quality": {
+          "title": "Calidad del Negocio"
+        },
+        "financial_strength": {
+          "title": "Fortaleza Financiera"
+        },
+        "management_quality": {
+          "title": "Calidad de la Administración"
+        },
+        "valuation": {
+          "title": "Valuación"
+        }
       },
       "sections": {
         "verifiedData": "Dato real",
@@ -669,6 +677,76 @@
         "fairValueRange": "Rango de valor razonable",
         "marginOfSafetyPct": "Margen de seguridad",
         "expectedValue": "Valor esperado"
+      },
+      "engines": {
+        "moat": {
+          "title": "Moat (Ventaja Competitiva)",
+          "description": "Premium real de ROIC/margen vs. la mediana de peers reales de la industria, y qué tan estable es ese premium en el tiempo.",
+          "whyItExists": "Por qué existe",
+          "whatCouldDestroyIt": "Qué podría destruirlo",
+          "noTypesFound": "No se encontró evidencia pública suficiente para identificar tipos específicos de moat."
+        },
+        "conviction": {
+          "title": "Convicción",
+          "description": "Síntesis de calidad del negocio, fortaleza del moat, estabilidad y volatilidad de mercado (beta) — nunca toca precio ni valuación."
+        },
+        "managementDeepDive": {
+          "title": "Track Record de Management"
+        },
+        "catalysts": {
+          "title": "Catalizadores",
+          "none": "No se encontró evidencia suficiente para identificar catalizadores concretos en este momento."
+        },
+        "peerComparison": {
+          "title": "Comparación con Peers",
+          "percentile": "Percentil {{pct}}",
+          "rankSummary": "Posición #{{rank}} de {{count}} (empresa + peers reales de la industria), por Quality Score."
+        },
+        "deterioration": {
+          "title": "Deterioro",
+          "countBadge": "{{count}} en deterioro",
+          "noneBadge": "Sin deterioro detectado"
+        }
+      },
+      "factors": {
+        "roic_premium_vs_industry": "Premium de ROIC vs. industria",
+        "margin_premium_vs_industry": "Premium de margen vs. industria",
+        "roic_stability": "Estabilidad del ROIC",
+        "margin_stability": "Estabilidad del margen",
+        "gross_margin_level": "Nivel de margen bruto",
+        "quality_level": "Nivel de calidad",
+        "moat_strength": "Fuerza del moat",
+        "durability": "Durabilidad",
+        "market_perceived_volatility": "Volatilidad percibida por el mercado (beta)",
+        "roic": "ROIC",
+        "operating_margin": "Margen operativo",
+        "net_margin": "Margen neto",
+        "fcf_margin": "Margen de FCF",
+        "revenue": "Ingresos"
+      },
+      "moatTypes": {
+        "network_effects": "Efectos de red",
+        "switching_costs": "Costos de cambio",
+        "brand": "Marca",
+        "economies_of_scale": "Economías de escala",
+        "cost_advantage": "Ventaja de costos",
+        "patents": "Patentes",
+        "technology": "Tecnología",
+        "distribution": "Distribución",
+        "data_advantage": "Ventaja de datos",
+        "regulatory_advantage": "Ventaja regulatoria",
+        "ecosystem": "Ecosistema"
+      },
+      "intensity": {
+        "alta": "alta",
+        "media": "media",
+        "baja": "baja",
+        "ninguna": "ninguna"
+      },
+      "timeHorizon": {
+        "corto_plazo": "Corto plazo",
+        "mediano_plazo": "Mediano plazo",
+        "largo_plazo": "Largo plazo"
       }
     },
     "rankStrip": {
@@ -868,10 +946,17 @@
       "openCta": "Ver calculadora de Valor Intrínseco",
       "breadcrumb": "Valor intrínseco",
       "today": "hoy",
-      "pageTitle": { "pre": "Calculadora de", "em": "Valor Intrínseco" },
+      "pageTitle": {
+        "pre": "Calculadora de",
+        "em": "Valor Intrínseco"
+      },
       "pageSubtitle": "Mueve los supuestos y observa cómo cambia el resultado en tiempo real. Ningún número aquí es una verdad fija — es matemática con supuestos que tú controlas.",
       "autofillLabel": "Datos base desde Arthur",
-      "chips": { "fcf": "FCF (TTM)", "netCash": "Deuda neta", "shares": "Acciones diluidas" },
+      "chips": {
+        "fcf": "FCF (TTM)",
+        "netCash": "Deuda neta",
+        "shares": "Acciones diluidas"
+      },
       "saveCta": {
         "default": "Guardar este valor intrínseco",
         "saved": "Guardado — te avisamos si cambia",
@@ -885,7 +970,10 @@
         "terminalGrowth": "Crecimiento a perpetuidad",
         "terminalGrowthSub": "Después del año 10 (g∞)"
       },
-      "output": { "label": "Valor intrínseco por acción", "vs": "vs. precio actual ${{price}}" },
+      "output": {
+        "label": "Valor intrínseco por acción",
+        "vs": "vs. precio actual ${{price}}"
+      },
       "marginOfSafety": "de margen de seguridad",
       "priceMarker": "Precio",
       "viMarker": "VI",
@@ -3234,7 +3322,20 @@
     }
   },
   "onboarding": {
-    "months": ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"],
+    "months": [
+      "Enero",
+      "Febrero",
+      "Marzo",
+      "Abril",
+      "Mayo",
+      "Junio",
+      "Julio",
+      "Agosto",
+      "Septiembre",
+      "Octubre",
+      "Noviembre",
+      "Diciembre"
+    ],
     "goals": {
       "house": "Comprar una casa",
       "car": "Comprar un carro",
@@ -3244,14 +3345,32 @@
       "longTermWealth": "Patrimonio de largo plazo"
     },
     "knowledge": {
-      "basic": { "label": "Básico", "desc": "Sin experiencia o apenas inicio. Conozco ahorro, CETES o fondos básicos." },
-      "intermediate": { "label": "Intermedio", "desc": "Tengo experiencia con ETFs y acciones. Entiendo diversificación y rendimiento." },
-      "advanced": { "label": "Avanzado", "desc": "Manejo análisis fundamental, derivados, ciclos de mercado y estrategias complejas." }
+      "basic": {
+        "label": "Básico",
+        "desc": "Sin experiencia o apenas inicio. Conozco ahorro, CETES o fondos básicos."
+      },
+      "intermediate": {
+        "label": "Intermedio",
+        "desc": "Tengo experiencia con ETFs y acciones. Entiendo diversificación y rendimiento."
+      },
+      "advanced": {
+        "label": "Avanzado",
+        "desc": "Manejo análisis fundamental, derivados, ciclos de mercado y estrategias complejas."
+      }
     },
     "risk": {
-      "conservative": { "label": "Conservador", "desc": "Priorizas la seguridad y la preservación de tu capital. Prefieres rendimientos estables." },
-      "moderate": { "label": "Moderado", "desc": "Buscas equilibrio entre crecimiento y protección. Aceptas cierta volatilidad." },
-      "aggressive": { "label": "Agresivo", "desc": "Buscas máximo crecimiento. Toleras alta volatilidad a cambio de retornos superiores." }
+      "conservative": {
+        "label": "Conservador",
+        "desc": "Priorizas la seguridad y la preservación de tu capital. Prefieres rendimientos estables."
+      },
+      "moderate": {
+        "label": "Moderado",
+        "desc": "Buscas equilibrio entre crecimiento y protección. Aceptas cierta volatilidad."
+      },
+      "aggressive": {
+        "label": "Agresivo",
+        "desc": "Buscas máximo crecimiento. Toleras alta volatilidad a cambio de retornos superiores."
+      }
     },
     "quiz": {
       "q1": {
@@ -3263,7 +3382,12 @@
           "C": "Mantengo mi posición — los fundamentos no cambiaron",
           "D": "Compro más — es la oportunidad que estaba esperando"
         },
-        "labels": { "A": "Vende todo", "B": "Espera pasivo", "C": "Mantiene posición", "D": "Compra más" }
+        "labels": {
+          "A": "Vende todo",
+          "B": "Espera pasivo",
+          "C": "Mantiene posición",
+          "D": "Compra más"
+        }
       },
       "q4": {
         "category": "02 · RIESGO",
@@ -3274,12 +3398,24 @@
           "C": "Ganar $40K posible, con riesgo de perder $20K",
           "D": "Ganar $120K posible, con riesgo de perder todo"
         },
-        "labels": { "A": "$5K seguro", "B": "$15K / riesgo $5K", "C": "$40K / riesgo $20K", "D": "$120K / riesgo total" }
+        "labels": {
+          "A": "$5K seguro",
+          "B": "$15K / riesgo $5K",
+          "C": "$40K / riesgo $20K",
+          "D": "$120K / riesgo total"
+        }
       }
     },
     "countries": {
-      "mx": "México", "us": "Estados Unidos", "co": "Colombia", "ar": "Argentina",
-      "ve": "Venezuela", "pe": "Perú", "cl": "Chile", "es": "España", "other": "Otro país"
+      "mx": "México",
+      "us": "Estados Unidos",
+      "co": "Colombia",
+      "ar": "Argentina",
+      "ve": "Venezuela",
+      "pe": "Perú",
+      "cl": "Chile",
+      "es": "España",
+      "other": "Otro país"
     },
     "step0": {
       "subtitle": "BIENVENIDO",
@@ -3288,7 +3424,9 @@
       "namePlaceholder": "Ej. Diego Arria",
       "nameHint": "Así te llamaremos y la IA sabrá cómo dirigirse a ti.",
       "birthDateLabel": "Fecha de nacimiento",
-      "day": "Día", "month": "Mes", "year": "Año",
+      "day": "Día",
+      "month": "Mes",
+      "year": "Año",
       "birthDateHint": "Debes tener al menos 18 años para usar Nuvos AI."
     },
     "stepPhone": {
@@ -3360,7 +3498,11 @@
       "understandSuffix": ", y que cualquier decisión financiera que tome es de mi exclusiva responsabilidad."
     },
     "buttons": {
-      "back": "Atrás", "exit": "Salir", "next": "Siguiente", "start": "¡Comenzar!", "saving": "Guardando..."
+      "back": "Atrás",
+      "exit": "Salir",
+      "next": "Siguiente",
+      "start": "¡Comenzar!",
+      "saving": "Guardando..."
     },
     "stepCounter": "Paso {{current}} de {{total}}",
     "errors": {
@@ -3368,8 +3510,11 @@
     },
     "welcome": {
       "goals": {
-        "house": "comprar una casa", "car": "comprar un carro", "passiveIncome": "vivir de tus inversiones",
-        "retirement": "retiro y pensión", "financialFreedom": "libertad financiera",
+        "house": "comprar una casa",
+        "car": "comprar un carro",
+        "passiveIncome": "vivir de tus inversiones",
+        "retirement": "retiro y pensión",
+        "financialFreedom": "libertad financiera",
         "longTermWealth": "construir patrimonio a largo plazo"
       },
       "messageWithGoal": "¡Bienvenido a Nuvos, **{{name}}**! 🎉\n\nVeo que tu meta es **{{goal}}** — vamos a trabajar juntos para lograrlo.\n\nConforme platiquemos te voy a ir conociendo mejor: tu experiencia, tu situación financiera, tus dudas. No hay prisa ni cuestionario — solo cuéntame lo que se te vaya ocurriendo.\n\n**¿Por dónde quieres empezar?**",

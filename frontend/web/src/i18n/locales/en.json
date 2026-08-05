@@ -624,10 +624,18 @@
       "weakestPillar": "Weakest pillar: {{pillar}} ({{score}}/100)",
       "explanationUnavailable": "We couldn't generate the explanation right now.",
       "pillars": {
-        "business_quality": { "title": "Business Quality" },
-        "financial_strength": { "title": "Financial Strength" },
-        "management_quality": { "title": "Management Quality" },
-        "valuation": { "title": "Valuation" }
+        "business_quality": {
+          "title": "Business Quality"
+        },
+        "financial_strength": {
+          "title": "Financial Strength"
+        },
+        "management_quality": {
+          "title": "Management Quality"
+        },
+        "valuation": {
+          "title": "Valuation"
+        }
       },
       "sections": {
         "verifiedData": "Real data",
@@ -669,6 +677,76 @@
         "fairValueRange": "Fair value range",
         "marginOfSafetyPct": "Margin of safety",
         "expectedValue": "Expected value"
+      },
+      "engines": {
+        "moat": {
+          "title": "Moat (Competitive Advantage)",
+          "description": "Real ROIC/margin premium vs. the median of real industry peers, and how stable that premium has been over time.",
+          "whyItExists": "Why it exists",
+          "whatCouldDestroyIt": "What could destroy it",
+          "noTypesFound": "Not enough public evidence was found to identify specific moat types."
+        },
+        "conviction": {
+          "title": "Conviction",
+          "description": "Synthesis of business quality, moat strength, stability, and market-perceived volatility (beta) — never touches price or valuation."
+        },
+        "managementDeepDive": {
+          "title": "Management Track Record"
+        },
+        "catalysts": {
+          "title": "Catalysts",
+          "none": "Not enough evidence was found to identify concrete catalysts right now."
+        },
+        "peerComparison": {
+          "title": "Peer Comparison",
+          "percentile": "Percentile {{pct}}",
+          "rankSummary": "Rank #{{rank}} of {{count}} (company + real industry peers), by Quality Score."
+        },
+        "deterioration": {
+          "title": "Deterioration",
+          "countBadge": "{{count}} deteriorating",
+          "noneBadge": "No deterioration detected"
+        }
+      },
+      "factors": {
+        "roic_premium_vs_industry": "ROIC premium vs. industry",
+        "margin_premium_vs_industry": "Margin premium vs. industry",
+        "roic_stability": "ROIC stability",
+        "margin_stability": "Margin stability",
+        "gross_margin_level": "Gross margin level",
+        "quality_level": "Quality level",
+        "moat_strength": "Moat strength",
+        "durability": "Durability",
+        "market_perceived_volatility": "Market-perceived volatility (beta)",
+        "roic": "ROIC",
+        "operating_margin": "Operating margin",
+        "net_margin": "Net margin",
+        "fcf_margin": "FCF margin",
+        "revenue": "Revenue"
+      },
+      "moatTypes": {
+        "network_effects": "Network effects",
+        "switching_costs": "Switching costs",
+        "brand": "Brand",
+        "economies_of_scale": "Economies of scale",
+        "cost_advantage": "Cost advantage",
+        "patents": "Patents",
+        "technology": "Technology",
+        "distribution": "Distribution",
+        "data_advantage": "Data advantage",
+        "regulatory_advantage": "Regulatory advantage",
+        "ecosystem": "Ecosystem"
+      },
+      "intensity": {
+        "alta": "high",
+        "media": "medium",
+        "baja": "low",
+        "ninguna": "none"
+      },
+      "timeHorizon": {
+        "corto_plazo": "Short term",
+        "mediano_plazo": "Medium term",
+        "largo_plazo": "Long term"
       }
     },
     "rankStrip": {
@@ -868,10 +946,17 @@
       "openCta": "See Intrinsic Value calculator",
       "breadcrumb": "Intrinsic value",
       "today": "today",
-      "pageTitle": { "pre": "Intrinsic Value", "em": "Calculator" },
+      "pageTitle": {
+        "pre": "Intrinsic Value",
+        "em": "Calculator"
+      },
       "pageSubtitle": "Move the assumptions and watch the result change in real time. Nothing here is a fixed truth — it's math with assumptions you control.",
       "autofillLabel": "Base data from Arthur",
-      "chips": { "fcf": "FCF (TTM)", "netCash": "Net debt", "shares": "Diluted shares" },
+      "chips": {
+        "fcf": "FCF (TTM)",
+        "netCash": "Net debt",
+        "shares": "Diluted shares"
+      },
       "saveCta": {
         "default": "Save this intrinsic value",
         "saved": "Saved — we'll alert you if it changes",
@@ -885,7 +970,10 @@
         "terminalGrowth": "Perpetuity growth",
         "terminalGrowthSub": "After year 10 (g∞)"
       },
-      "output": { "label": "Intrinsic value per share", "vs": "vs. current price ${{price}}" },
+      "output": {
+        "label": "Intrinsic value per share",
+        "vs": "vs. current price ${{price}}"
+      },
       "marginOfSafety": "margin of safety",
       "priceMarker": "Price",
       "viMarker": "IV",
@@ -3234,7 +3322,20 @@
     }
   },
   "onboarding": {
-    "months": ["January","February","March","April","May","June","July","August","September","October","November","December"],
+    "months": [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ],
     "goals": {
       "house": "Buy a house",
       "car": "Buy a car",
@@ -3244,14 +3345,32 @@
       "longTermWealth": "Long-term wealth"
     },
     "knowledge": {
-      "basic": { "label": "Basic", "desc": "No experience or just starting out. I know about savings, CDs, or basic funds." },
-      "intermediate": { "label": "Intermediate", "desc": "I have experience with ETFs and stocks. I understand diversification and returns." },
-      "advanced": { "label": "Advanced", "desc": "I handle fundamental analysis, derivatives, market cycles, and complex strategies." }
+      "basic": {
+        "label": "Basic",
+        "desc": "No experience or just starting out. I know about savings, CDs, or basic funds."
+      },
+      "intermediate": {
+        "label": "Intermediate",
+        "desc": "I have experience with ETFs and stocks. I understand diversification and returns."
+      },
+      "advanced": {
+        "label": "Advanced",
+        "desc": "I handle fundamental analysis, derivatives, market cycles, and complex strategies."
+      }
     },
     "risk": {
-      "conservative": { "label": "Conservative", "desc": "You prioritize safety and capital preservation. You prefer stable returns." },
-      "moderate": { "label": "Moderate", "desc": "You look for balance between growth and protection. You accept some volatility." },
-      "aggressive": { "label": "Aggressive", "desc": "You seek maximum growth. You tolerate high volatility in exchange for higher returns." }
+      "conservative": {
+        "label": "Conservative",
+        "desc": "You prioritize safety and capital preservation. You prefer stable returns."
+      },
+      "moderate": {
+        "label": "Moderate",
+        "desc": "You look for balance between growth and protection. You accept some volatility."
+      },
+      "aggressive": {
+        "label": "Aggressive",
+        "desc": "You seek maximum growth. You tolerate high volatility in exchange for higher returns."
+      }
     },
     "quiz": {
       "q1": {
@@ -3263,7 +3382,12 @@
           "C": "Hold my position — the fundamentals haven't changed",
           "D": "Buy more — this is the opportunity I was waiting for"
         },
-        "labels": { "A": "Sells everything", "B": "Waits passively", "C": "Holds position", "D": "Buys more" }
+        "labels": {
+          "A": "Sells everything",
+          "B": "Waits passively",
+          "C": "Holds position",
+          "D": "Buys more"
+        }
       },
       "q4": {
         "category": "02 · RISK",
@@ -3274,12 +3398,24 @@
           "C": "Possibly earn $40K, with risk of losing $20K",
           "D": "Possibly earn $120K, with risk of losing it all"
         },
-        "labels": { "A": "$5K guaranteed", "B": "$15K / risk $5K", "C": "$40K / risk $20K", "D": "$120K / total risk" }
+        "labels": {
+          "A": "$5K guaranteed",
+          "B": "$15K / risk $5K",
+          "C": "$40K / risk $20K",
+          "D": "$120K / total risk"
+        }
       }
     },
     "countries": {
-      "mx": "Mexico", "us": "United States", "co": "Colombia", "ar": "Argentina",
-      "ve": "Venezuela", "pe": "Peru", "cl": "Chile", "es": "Spain", "other": "Other country"
+      "mx": "Mexico",
+      "us": "United States",
+      "co": "Colombia",
+      "ar": "Argentina",
+      "ve": "Venezuela",
+      "pe": "Peru",
+      "cl": "Chile",
+      "es": "Spain",
+      "other": "Other country"
     },
     "step0": {
       "subtitle": "WELCOME",
@@ -3288,7 +3424,9 @@
       "namePlaceholder": "E.g. Diego Arria",
       "nameHint": "This is how we'll address you and how the AI will know how to talk to you.",
       "birthDateLabel": "Date of birth",
-      "day": "Day", "month": "Month", "year": "Year",
+      "day": "Day",
+      "month": "Month",
+      "year": "Year",
       "birthDateHint": "You must be at least 18 years old to use Nuvos AI."
     },
     "stepPhone": {
@@ -3360,7 +3498,11 @@
       "understandSuffix": ", and that any financial decision I make is my sole responsibility."
     },
     "buttons": {
-      "back": "Back", "exit": "Exit", "next": "Next", "start": "Get started!", "saving": "Saving..."
+      "back": "Back",
+      "exit": "Exit",
+      "next": "Next",
+      "start": "Get started!",
+      "saving": "Saving..."
     },
     "stepCounter": "Step {{current}} of {{total}}",
     "errors": {
@@ -3368,8 +3510,11 @@
     },
     "welcome": {
       "goals": {
-        "house": "buying a house", "car": "buying a car", "passiveIncome": "living off your investments",
-        "retirement": "retirement and pension", "financialFreedom": "financial freedom",
+        "house": "buying a house",
+        "car": "buying a car",
+        "passiveIncome": "living off your investments",
+        "retirement": "retirement and pension",
+        "financialFreedom": "financial freedom",
         "longTermWealth": "building long-term wealth"
       },
       "messageWithGoal": "Welcome to Nuvos, **{{name}}**! 🎉\n\nI see your goal is **{{goal}}** — let's work together to get you there.\n\nAs we talk, I'll get to know you better: your experience, your financial situation, your questions. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**",
