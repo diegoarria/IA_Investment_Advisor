@@ -21,7 +21,7 @@ import SavedValuationsSection from "@/components/SavedValuationsSection";
 import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
   Loader2, Copy, Check, Gift, Users, Share2, Trash2, Phone, Video, FileSearch, Lock,
-  Bell, HeadphonesIcon, ChevronRight,
+  Bell, HeadphonesIcon,
 } from "lucide-react";
 import { getUserLevel, LEVEL_COLOR, getLevelLabel, LEVEL_EMOJI } from "@/lib/userLevel";
 
@@ -1349,22 +1349,34 @@ export default function ProfilePage() {
 
                 {/* Notificaciones y Soporte — movidos aquí desde el sidebar, ahora
                     viven dentro de Perfil; el click abre la pantalla normal. */}
-                <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "var(--border)" }}>
+                <div className="grid grid-cols-2 gap-3">
                   <button onClick={() => router.push("/notifications")}
-                          className="w-full flex items-center gap-3 p-3.5 text-left hover:opacity-80 transition-opacity border-b"
-                          style={{ borderColor: "var(--border)" }}>
-                    <Bell className="w-4 h-4 shrink-0" style={{ color: "var(--sub)" }} />
-                    <span className="flex-1 text-sm font-semibold" style={{ color: "var(--text)" }}>{t("common.nav.notifications")}</span>
+                          className="relative flex flex-col items-start gap-2.5 p-4 rounded-2xl text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
+                          style={{ background: "linear-gradient(135deg, #00d47e18, #00d47e0a)", border: "1px solid #00d47e30" }}>
                     {unreadCount > 0 && (
-                      <span className="badge-green" style={{ fontSize: "10px" }}>{unreadCount}</span>
+                      <span className="absolute top-3 right-3 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-black text-white"
+                            style={{ background: "#00d47e" }}>
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
                     )}
-                    <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--dim)" }} />
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#00d47e18" }}>
+                      <Bell className="w-5 h-5" style={{ color: "#00d47e" }} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black" style={{ color: "var(--text)" }}>{t("profile.marketNews")}</p>
+                      <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{t("profile.notificationsSubtitle")}</p>
+                    </div>
                   </button>
                   <button onClick={() => router.push("/support")}
-                          className="w-full flex items-center gap-3 p-3.5 text-left hover:opacity-80 transition-opacity">
-                    <HeadphonesIcon className="w-4 h-4 shrink-0" style={{ color: "var(--sub)" }} />
-                    <span className="flex-1 text-sm font-semibold" style={{ color: "var(--text)" }}>{t("common.nav.support")}</span>
-                    <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--dim)" }} />
+                          className="flex flex-col items-start gap-2.5 p-4 rounded-2xl text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
+                          style={{ background: "linear-gradient(135deg, #3b82f618, #3b82f60a)", border: "1px solid #3b82f630" }}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#3b82f618" }}>
+                      <HeadphonesIcon className="w-5 h-5" style={{ color: "#3b82f6" }} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black" style={{ color: "var(--text)" }}>{t("common.nav.support")}</p>
+                      <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{t("profile.supportSubtitle")}</p>
+                    </div>
                   </button>
                 </div>
 

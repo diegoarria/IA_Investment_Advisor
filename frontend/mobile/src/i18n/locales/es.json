@@ -312,6 +312,9 @@
   "profile": {
     "viewDetails": "Ver detalles",
     "hideDetails": "Ocultar",
+    "marketNews": "Noticias del mercado",
+    "notificationsSubtitle": "Alertas de precio y actividad",
+    "supportSubtitle": "Ayuda y contacto directo",
     "savedValuations": {
       "title": "Mis valores intrínsecos guardados",
       "stale": "datos no disponibles",

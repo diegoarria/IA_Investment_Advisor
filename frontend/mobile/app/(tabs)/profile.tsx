@@ -1512,21 +1512,31 @@ if (!profile) {
         <View style={{ marginTop: 16, gap: 10, paddingBottom: 12 }}>
           {/* Notificaciones y Soporte — movidos aquí desde el drawer, ahora
               viven dentro de Perfil; el tap abre la pantalla normal. */}
-          <TouchableOpacity
-            style={[s.actionBtn, { borderColor: colors.border + "70", backgroundColor: "transparent", marginHorizontal: 16 }]}
-            onPress={() => router.push("/(tabs)/notifications")}
-          >
-            <Ionicons name="notifications-outline" size={17} color={colors.textSub} />
-            <Text style={[s.actionBtnText, { color: colors.textSub }]}>{t("common.nav.notifications")}</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", gap: 10, marginHorizontal: 16 }}>
+            <TouchableOpacity
+              onPress={() => router.push("/(tabs)/notifications")}
+              activeOpacity={0.85}
+              style={{ flex: 1, padding: 14, borderRadius: 18, backgroundColor: "rgba(0,212,126,0.08)", borderWidth: 1, borderColor: "rgba(0,212,126,0.25)" }}
+            >
+              <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: "rgba(0,212,126,0.15)", alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name="notifications-outline" size={18} color="#00d47e" />
+              </View>
+              <Text style={{ fontSize: 14, fontWeight: "900", color: colors.text, marginTop: 10 }}>{t("profile.marketNews")}</Text>
+              <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>{t("profile.notificationsSubtitle")}</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[s.actionBtn, { borderColor: colors.border + "70", backgroundColor: "transparent", marginHorizontal: 16 }]}
-            onPress={() => router.push("/(tabs)/support")}
-          >
-            <Ionicons name="headset-outline" size={17} color={colors.textSub} />
-            <Text style={[s.actionBtnText, { color: colors.textSub }]}>{t("common.nav.support")}</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push("/(tabs)/support")}
+              activeOpacity={0.85}
+              style={{ flex: 1, padding: 14, borderRadius: 18, backgroundColor: "rgba(59,130,246,0.08)", borderWidth: 1, borderColor: "rgba(59,130,246,0.25)" }}
+            >
+              <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: "rgba(59,130,246,0.15)", alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name="headset-outline" size={18} color="#3b82f6" />
+              </View>
+              <Text style={{ fontSize: 14, fontWeight: "900", color: colors.text, marginTop: 10 }}>{t("common.nav.support")}</Text>
+              <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>{t("profile.supportSubtitle")}</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={{ flexDirection: "row", justifyContent: "center", gap: 20, paddingVertical: 4 }}>
             <TouchableOpacity onPress={() => Linking.openURL("https://nuvosai.app/privacy")}>

@@ -312,6 +312,9 @@
   "profile": {
     "viewDetails": "View details",
     "hideDetails": "Hide",
+    "marketNews": "Market news",
+    "notificationsSubtitle": "Price alerts and activity",
+    "supportSubtitle": "Help and direct contact",
     "savedValuations": {
       "title": "My saved intrinsic valuations",
       "stale": "data unavailable",
