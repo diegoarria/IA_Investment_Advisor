@@ -3736,6 +3736,103 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
     return None
 
 
+_THESIS_CONFIDENCE_LEVELS = ("low", "medium", "high")
+
+
+async def generate_thesis_draft(ticker: str, company_name: str, real_inputs_summary: str, lang: str = "es") -> Optional[dict]:
+    """Thesis Engine (Fase 3, Incremento 7 — Parte F): synthesizes every
+    real signal already computed elsewhere (Quality/Moat/Conviction
+    scores, valuation, and the Business/Competitive/Industry/Management
+    Intelligence snapshots + real timeline — all folded into
+    `real_inputs_summary` by `thesis_engine.py`, never re-derived here)
+    into a structured investment thesis: why this could be a good
+    long-term investment, what has to hold true, the main risks, and what
+    would fully invalidate the thesis.
+
+    Never a buy/sell signal — the prompt explicitly forbids
+    Comprar/Vender/Mantener language and any price-direction prediction,
+    matching the "analyst preparing material for a portfolio manager,
+    never a financial advisor" framing from the Fase 3 brief.
+
+    Returns None (never fakes content) if the model's JSON doesn't parse."""
+    prompt = f"""{_output_language_directive(lang)}Construye una tesis de inversión de largo plazo para {company_name} ({ticker}) usando SOLO las señales reales de abajo — nunca inventes cifras, eventos o hechos que no estén aquí. Esto es material de análisis para un gestor de inversiones, NUNCA una recomendación de compra o venta.
+
+{real_inputs_summary if real_inputs_summary.strip() else "No hay señales reales suficientes disponibles para esta empresa todavía."}
+
+Reglas:
+- Nunca digas Comprar/Vender/Mantener, ni predigas si el precio subirá o bajará.
+- critical_variables debe listar variables ESPECÍFICAS y verificables en el futuro (ej. "el margen de Services debe mantenerse sobre 25%"), nunca vagas.
+- invalidation_events debe listar eventos CONCRETOS que invalidarían la tesis (ej. "pérdida del cliente X", "ROIC cae por debajo del costo de capital por 2 años"), nunca genéricos.
+- Cada punto debe estar anclado en las señales reales dadas arriba.
+- confidence debe reflejar honestamente cuánta señal real hay disponible — "low" si las señales son escasas.
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después):
+{{
+  "thesis_summary": "<máx 80 palabras>",
+  "strengths": ["<máx 25 palabras cada una>", "..."],
+  "critical_variables": ["<máx 25 palabras cada una>", "..."],
+  "key_risks": ["<máx 25 palabras cada una>", "..."],
+  "invalidation_events": ["<máx 25 palabras cada una>", "..."],
+  "confidence": "low|medium|high"
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1800,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and parsed.get("thesis_summary") and parsed.get("confidence") in _THESIS_CONFIDENCE_LEVELS:
+        return parsed
+    _log.warning("generate_thesis_draft: JSON parse failed for %s", ticker)
+    return None
+
+
+async def generate_bull_bear_case(ticker: str, company_name: str, real_inputs_summary: str, lang: str = "es") -> Optional[dict]:
+    """Bull vs Bear Engine (Fase 3, Incremento 7 — Parte G): two
+    INDEPENDENT, SOLID cases from the SAME real evidence
+    (`real_inputs_summary`, built by `bull_bear_engine.py` from real
+    catalysts, real deterioration signals, and the same
+    Quality/Moat/Conviction/valuation/snapshot inputs the Thesis Engine
+    uses) — the brief is explicit this must not be a superficial summary.
+
+    Deliberately returns a STRUCTURED list of points per side (never a
+    single prose paragraph) so a future Debate Engine (explicitly out of
+    scope for this phase) can iterate bull_points[i] vs bear_points[j] as
+    turns without this function needing to change shape later.
+
+    Returns None (never fakes content) if the model's JSON doesn't parse."""
+    prompt = f"""{_output_language_directive(lang)}Construye el caso alcista Y el caso bajista para {company_name} ({ticker}), usando SOLO las señales reales de abajo — la MISMA evidencia para ambos lados. Nunca inventes hechos. Esto es material de análisis, NUNCA una recomendación de compra o venta.
+
+{real_inputs_summary if real_inputs_summary.strip() else "No hay señales reales suficientes disponibles para esta empresa todavía."}
+
+Reglas:
+- Cada caso debe tener argumentos SÓLIDOS y específicos de esta empresa, nunca genéricos ("la empresa podría crecer" no es un argumento sólido).
+- Ambos casos deben usar la evidencia real dada — el caso bajista no es "opcional" ni un relleno, debe ser tan riguroso como el alcista.
+- category (alcista) debe ser uno de: catalizador|fortaleza|valuación|otro.
+- category (bajista) debe ser uno de: riesgo|deterioro|competencia|valuación|management|otro.
+- Nunca digas Comprar/Vender/Mantener.
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después):
+{{
+  "bull_points": [{{"text": "<máx 30 palabras>", "category": "catalizador|fortaleza|valuación|otro"}}],
+  "bear_points": [{{"text": "<máx 30 palabras>", "category": "riesgo|deterioro|competencia|valuación|management|otro"}}]
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1800,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and isinstance(parsed.get("bull_points"), list) and isinstance(parsed.get("bear_points"), list):
+        return parsed
+    _log.warning("generate_bull_bear_case: JSON parse failed for %s", ticker)
+    return None
+
+
 async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
     """One-liner (~15-25 words) for a single undervalued-screener candidate —
     called once per real candidate PER LANGUAGE during the weekly refresh
