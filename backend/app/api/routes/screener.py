@@ -812,6 +812,29 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         ],
     }
 
+    # Fase 2, Incremento 9 (Conviction Engine — Parte H). Pure synthesis of
+    # three already-computed real scores above (quality_score, moat_score,
+    # moat's own stability_score) plus the real CAPM beta the DCF engine
+    # already computed for WACC (dcf["wacc_details"]["beta"]) — zero new
+    # fetches, zero AI.
+    from app.services.quality.conviction_engine import compute_conviction_score
+    conviction_result_obj = compute_conviction_score(
+        quality_score=quality_result.quality_score if quality_result.has_any_signal else None,
+        moat_score=moat_result_obj.moat_score if moat_result_obj.has_any_signal else None,
+        stability_score=moat_result_obj.stability_score,
+        beta=(dcf.get("wacc_details") or {}).get("beta"),
+    )
+    conviction_engine_result = {
+        "conviction_score": conviction_result_obj.conviction_score,
+        "quality_score": conviction_result_obj.quality_score,
+        "moat_score": conviction_result_obj.moat_score,
+        "stability_score": conviction_result_obj.stability_score,
+        "beta_score": conviction_result_obj.beta_score,
+        "factors": [
+            {"name": f.name, "value": f.value, "score": f.score, "reason": f.reason} for f in conviction_result_obj.factors
+        ],
+    }
+
     # Fase 2, Incremento 4 (Capital Allocation Engine — "¿cómo administra
     # el capital esta empresa?", Parte C). Reuses buyback_rate_pct/
     # payout_ratio_pct already computed for management_capital_allocation
@@ -931,6 +954,7 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "industry_benchmarks": _asdict_or_none(industry_benchmarks),
         "quality_engine": quality_engine_result,
         "moat_engine": moat_engine_result,
+        "conviction_engine": conviction_engine_result,
         "capital_allocation_engine": capital_allocation_result,
         "earnings_quality_engine": earnings_quality_result,
         "relative_valuation": relative_valuation,

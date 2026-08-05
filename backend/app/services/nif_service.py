@@ -30,6 +30,8 @@ from app.services.quality.industry_engine import compute_industry_benchmarks
 from app.services.quality.moat_engine import compute_moat_score, compute_moat_deep_dive
 from app.services.quality.capital_allocation_engine import compute_capital_allocation_score
 from app.services.quality.management_engine import compute_management_score, compute_management_deep_dive
+from app.services.quality.conviction_engine import compute_conviction_score
+from app.services.quality.catalysts_engine import compute_catalysts
 from app.services import ai_service
 from app.core.finnhub import fh_insider_transactions, fh_insider_sentiment
 
@@ -162,6 +164,18 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
         industry_median_operating_margin_pct=(industry_benchmarks.median_operating_margin_pct if industry_benchmarks else None),
     )
 
+    # Fase 2, Incremento 9 (Conviction Engine — Parte H): pure synthesis of
+    # already-real signals above (quality_score, moat_score, moat's own
+    # stability_score) plus the real CAPM beta the DCF engine already
+    # computed for WACC — zero new fetches, zero AI, same sibling-key
+    # placement as Moat (never folded into overall_nif_score).
+    conviction_result = compute_conviction_score(
+        quality_score=business_quality_score,
+        moat_score=moat_score_result.moat_score if moat_score_result.has_any_signal else None,
+        stability_score=moat_score_result.stability_score,
+        beta=(dcf.get("wacc_details") or {}).get("beta"),
+    )
+
     insider_txn, insider_sentiment = await asyncio.gather(
         _safe(asyncio.to_thread(fh_insider_transactions, ticker), None, ticker, "insider_transactions", timeout=8),
         _safe(asyncio.to_thread(fh_insider_sentiment, ticker), None, ticker, "insider_sentiment", timeout=8),
@@ -200,11 +214,12 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
     # plus ONE call to the existing generate_quick_valuation_summary purely
     # to source financial_strength/valuation's explanation text (already
     # ~70-word narratives — no need for a 3rd/4th dedicated NIF call, keeps
-    # LLM cost down), plus the Moat Engine's and Management Engine's
-    # qualitative deep dives (Incrementos 7-8 — real evidence gathering +
-    # AI narration, the most expensive of the five, each given its own
-    # generous timeout). All five run in parallel.
-    bq_explanation, mgmt_explanation, summary_result, moat_deep_dive, management_deep_dive = await asyncio.gather(
+    # LLM cost down), plus the Moat/Management Engines' qualitative deep
+    # dives and the Catalysts Engine's real, evidence-grounded catalyst
+    # list (Incrementos 7-9 — real evidence gathering + AI narration, the
+    # most expensive of the six, each given its own generous timeout). All
+    # six run in parallel.
+    bq_explanation, mgmt_explanation, summary_result, moat_deep_dive, management_deep_dive, catalysts_result = await asyncio.gather(
         _safe(ai_service.generate_business_quality_explanation(data, lang), None, ticker, "business_quality_explanation"),
         _safe(ai_service.generate_management_quality_explanation(data, insider_txn, insider_sentiment, lang), None, ticker, "management_quality_explanation"),
         _safe(ai_service.generate_quick_valuation_summary(data, lang), {"checklist_reasons": {}}, ticker, "quick_valuation_summary"),
@@ -215,6 +230,10 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
         _safe(
             compute_management_deep_dive(ticker, data.get("company_name") or ticker, management_score_result, lang),
             None, ticker, "management_deep_dive", timeout=30,
+        ),
+        _safe(
+            compute_catalysts(ticker, data.get("company_name") or ticker, data.get("segments") or [], lang),
+            None, ticker, "catalysts", timeout=30,
         ),
     )
     checklist_reasons = (summary_result or {}).get("checklist_reasons") or {}
@@ -362,4 +381,24 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
             ],
             "deep_dive": moat_deep_dive,
         },
+        # Fase 2, Incremento 9 (Conviction Engine) — same sibling-key
+        # placement as Moat: a pure synthesis of "how good/durable is this
+        # business" signals, never folded into overall_nif_score (which
+        # mixes in valuation).
+        "conviction": {
+            "score": conviction_result.conviction_score,
+            "quality_score": conviction_result.quality_score,
+            "moat_score": conviction_result.moat_score,
+            "stability_score": conviction_result.stability_score,
+            "beta_score": conviction_result.beta_score,
+            "factors": [
+                {"name": f.name, "value": f.value, "score": f.score, "reason": f.reason}
+                for f in conviction_result.factors
+            ],
+        },
+        # Fase 2, Incremento 9 (Catalysts Engine) — no deterministic score
+        # (a catalyst list is inherently qualitative); {"catalysts": [...]}
+        # or None if there was neither real segment data nor real evidence
+        # to ground any catalyst in.
+        "catalysts": catalysts_result,
     }

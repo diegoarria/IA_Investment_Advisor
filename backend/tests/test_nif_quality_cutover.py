@@ -55,7 +55,8 @@ async def test_business_quality_pillar_uses_the_new_quality_engine_score():
          patch("app.services.nif_service.compute_industry_benchmarks", return_value=None), \
          patch("app.services.nif_service.compute_moat_deep_dive", return_value=None), \
          patch("app.services.nif_service.compute_capital_allocation_score", return_value=_FAKE_CAPITAL_ALLOCATION_RESULT), \
-         patch("app.services.nif_service.compute_management_deep_dive", return_value=None):
+         patch("app.services.nif_service.compute_management_deep_dive", return_value=None), \
+         patch("app.services.nif_service.compute_catalysts", return_value=None):
         dashboard = await build_nif_dashboard("SYNNIF1")
 
     assert dashboard is not None
@@ -101,6 +102,17 @@ async def test_business_quality_pillar_uses_the_new_quality_engine_score():
     assert len(mgmt_pillar["nuvos_estimate"]["factors"]) == 3
     assert mgmt_pillar["deep_dive"] is None  # mocked to None above — degrades cleanly
 
+    # Fase 2, Incremento 9: Conviction Engine's deterministic score is a
+    # SIBLING key (same placement as Moat), synthesizing quality/moat/
+    # stability/beta — never touches price/valuation.
+    conviction = dashboard["conviction"]
+    assert 0 <= conviction["score"] <= 100
+    assert len(conviction["factors"]) == 4
+
+    # Fase 2, Incremento 9: Catalysts Engine degrades cleanly to None when
+    # there's no real segment data or evidence (mocked to None above).
+    assert dashboard["catalysts"] is None
+
 
 @pytest.mark.asyncio
 async def test_moat_deep_dive_is_included_when_available():
@@ -126,7 +138,8 @@ async def test_moat_deep_dive_is_included_when_available():
          patch("app.services.nif_service.compute_industry_benchmarks", return_value=None), \
          patch("app.services.nif_service.compute_moat_deep_dive", return_value=fake_deep_dive), \
          patch("app.services.nif_service.compute_capital_allocation_score", return_value=_FAKE_CAPITAL_ALLOCATION_RESULT), \
-         patch("app.services.nif_service.compute_management_deep_dive", return_value=None):
+         patch("app.services.nif_service.compute_management_deep_dive", return_value=None), \
+         patch("app.services.nif_service.compute_catalysts", return_value=None):
         dashboard = await build_nif_dashboard("SYNNIF2")
 
     assert dashboard["moat"]["deep_dive"] == fake_deep_dive
@@ -159,7 +172,41 @@ async def test_management_deep_dive_is_included_when_available():
          patch("app.services.nif_service.compute_industry_benchmarks", return_value=None), \
          patch("app.services.nif_service.compute_moat_deep_dive", return_value=None), \
          patch("app.services.nif_service.compute_capital_allocation_score", return_value=_FAKE_CAPITAL_ALLOCATION_RESULT), \
-         patch("app.services.nif_service.compute_management_deep_dive", return_value=fake_deep_dive):
+         patch("app.services.nif_service.compute_management_deep_dive", return_value=fake_deep_dive), \
+         patch("app.services.nif_service.compute_catalysts", return_value=None):
         dashboard = await build_nif_dashboard("SYNNIF3")
 
     assert dashboard["pillars"]["management_quality"]["deep_dive"] == fake_deep_dive
+
+
+@pytest.mark.asyncio
+async def test_catalysts_are_included_when_available():
+    fin = _build_synthetic_financials_with_balance_sheet_detail()
+    fake_catalysts = {"catalysts": [
+        {"catalyst": "c", "type": "producto", "evidence": "e", "time_horizon": "corto_plazo", "impact_if_realized": "i"},
+    ]}
+    with patch("app.services.fundamental_analysis_service.get_financials", return_value=fin), \
+         patch("app.services.fundamental_analysis_service.fh_quote", return_value={"price": 100.0}), \
+         patch("app.services.fundamental_analysis_service.fh_profile", return_value={
+             "finnhubIndustry": "Technology", "shareOutstanding": 100.0,
+         }), \
+         patch("app.services.fundamental_analysis_service.check_liquidity_gate", return_value={
+             "paso": True, "avg_volume_30d": 1_000_000, "free_float_pct": 80.0, "analyst_coverage": 10, "detalle": "OK",
+         }), \
+         patch("app.services.fundamental_analysis_service.get_beta", return_value=1.1), \
+         patch("app.services.fundamental_analysis_service.get_risk_free_rate", return_value=0.04), \
+         patch("app.services.fundamental_analysis_service.fh_price_target", return_value=None), \
+         patch("app.services.fundamental_analysis_service.get_revenue_segments", return_value=[]), \
+         patch("app.services.nif_service.fh_insider_transactions", return_value=None), \
+         patch("app.services.nif_service.fh_insider_sentiment", return_value=None), \
+         patch("app.services.nif_service.ai_service.generate_business_quality_explanation", return_value=None), \
+         patch("app.services.nif_service.ai_service.generate_management_quality_explanation", return_value=None), \
+         patch("app.services.nif_service.ai_service.generate_quick_valuation_summary", return_value={"checklist_reasons": {}}), \
+         patch("app.services.nif_service.compute_industry_benchmarks", return_value=None), \
+         patch("app.services.nif_service.compute_moat_deep_dive", return_value=None), \
+         patch("app.services.nif_service.compute_capital_allocation_score", return_value=_FAKE_CAPITAL_ALLOCATION_RESULT), \
+         patch("app.services.nif_service.compute_management_deep_dive", return_value=None), \
+         patch("app.services.nif_service.compute_catalysts", return_value=fake_catalysts):
+        dashboard = await build_nif_dashboard("SYNNIF4")
+
+    assert dashboard["catalysts"] == fake_catalysts

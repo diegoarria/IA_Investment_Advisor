@@ -3367,6 +3367,52 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
     return None
 
 
+async def generate_catalysts(
+    ticker: str, company_name: str, segments_summary: str, evidence_block: str, lang: str = "es",
+) -> Optional[dict]:
+    """Catalysts Engine (Fase 2, Incremento 9 — Parte G) qualitative
+    near-term catalyst list: concrete, cited drivers (new products,
+    geographic expansion, upcoming launches, relevant regulatory changes)
+    grounded in the company's REAL revenue-segment breakdown and REAL
+    evidence (`evidence_sources.gather_evidence_bundle`), never a price/
+    valuation signal — a catalyst list is about what could change the
+    BUSINESS, not whether the stock is cheap.
+
+    Returns None (never fakes content) if the model's JSON doesn't parse."""
+    prompt = f"""{_output_language_directive(lang)}Identifica catalizadores de crecimiento reales y concretos para {company_name} ({ticker}) usando SOLO la evidencia y los datos reales de abajo — nunca inventes lanzamientos, cifras o fechas que no estén aquí.
+
+{segments_summary if segments_summary else "No hay desglose de segmentos de ingresos disponible para esta empresa."}
+
+Evidencia real recopilada (10-K, búsqueda web con fuentes citadas, extractos de páginas públicas):
+{evidence_block if evidence_block.strip() else "No se encontró evidencia pública adicional para esta empresa — basa los catalizadores únicamente en los segmentos de ingresos reales de arriba, y sé conservador."}
+
+Reglas:
+- Cada catalizador debe estar respaldado por algo concreto de la evidencia o los segmentos dados arriba — si no puedes justificarlo con eso, no lo incluyas.
+- No listes catalizadores genéricos ("crecimiento del mercado en general") sin un ancla específica en la evidencia.
+- time_horizon debe ser exactamente uno de: "corto_plazo" (0-12 meses), "mediano_plazo" (1-3 años), "largo_plazo" (3+ años).
+- Si no hay evidencia suficiente para identificar NINGÚN catalizador concreto, responde con una lista vacía — no la rellenes.
+- Nunca digas Comprar/No comprar/Mantener.
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después):
+{{
+  "catalysts": [
+    {{"catalyst": "<máx 20 palabras>", "type": "producto|expansion_geografica|regulatorio|segmento|otro", "evidence": "<máx 30 palabras, citando la evidencia o el segmento real>", "time_horizon": "corto_plazo|mediano_plazo|largo_plazo", "impact_if_realized": "<máx 30 palabras>"}}
+  ]
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1600,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and isinstance(parsed.get("catalysts"), list):
+        return parsed
+    _log.warning("generate_catalysts: JSON parse failed for %s", ticker)
+    return None
+
+
 async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
     """One-liner (~15-25 words) for a single undervalued-screener candidate —
     called once per real candidate PER LANGUAGE during the weekly refresh
