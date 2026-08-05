@@ -199,3 +199,20 @@ class TestComputeQualityScore:
             total_debt=None, cash=None, ebitda_latest=None,
         )
         assert result.quality_score == 0
+
+
+class TestHasAnySignal:
+    def test_true_when_at_least_one_sub_score_present(self):
+        result = compute_quality_score(**TestComputeQualityScore()._strong_inputs())
+        assert result.has_any_signal is True
+
+    def test_false_when_every_sub_score_is_none(self):
+        result = compute_quality_score(
+            roic_trend=[], roe_trend=[], roa_trend=[], nopat_trend=[], invested_capital_trend=[],
+            operating_income_latest=None, total_assets_latest=None, current_liabilities_latest=None,
+            current_assets_latest=None, inventory_latest=None,
+            gross_margin_trend=[], operating_margin_trend=[], net_margin_trend=[], fcf_margin_trend=[],
+            fcf_trend=[], net_income_trend=[], revenue_trend=[], eps_trend=[],
+            total_debt=None, cash=None, ebitda_latest=None,
+        )
+        assert result.has_any_signal is False

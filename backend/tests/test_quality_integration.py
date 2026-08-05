@@ -1,24 +1,22 @@
 """
-Integration test — Quality Engine wiring (Fase 2, Incremento 2).
+Integration test — Quality Engine wiring (Fase 2, Incrementos 2-3).
 
-Context: verifies the exact field-extraction logic used in
-`screener.py::_build_quick_analysis` (roic_trend, nopat_trend,
-invested_capital_trend, total_assets_trend, etc. — all real keys on
-`get_fundamental_analysis()`'s return dict) actually lines up, by running
-`get_fundamental_analysis()` end-to-end against synthetic-but-internally-
-consistent financials (same technique as
-test_valuation_engine_integration.py) and then replicating the screener's
-own extraction + `compute_quality_score` call. A full mock of
-`_build_quick_analysis` itself (async, pulls in ai_service,
-undervalued_screener_service, UNIVERSE-based peer lookups) is out of scope
-here — this targets exactly the risk that matters: did every dict key the
-Quality Engine wiring reads actually get produced by
-`fundamental_analysis_service.py`.
+Context: verifies `quality_engine.build_quality_score_from_analysis` (the
+shared field-extraction helper both `screener.py::_build_quick_analysis`
+and `nif_service.py::build_nif_dashboard` call — see Incremento 3) actually
+lines up against real keys on `get_fundamental_analysis()`'s return dict,
+by running it end-to-end against synthetic-but-internally-consistent
+financials (same technique as test_valuation_engine_integration.py). A
+full mock of `_build_quick_analysis`/`build_nif_dashboard` themselves
+(async, pull in ai_service, undervalued_screener_service, UNIVERSE-based
+peer lookups) is out of scope here — this targets exactly the risk that
+matters: did every dict key the Quality Engine wiring reads actually get
+produced by `fundamental_analysis_service.py`.
 """
 from unittest.mock import patch
 
 from app.services.fundamental_analysis_service import get_fundamental_analysis
-from app.services.quality.quality_engine import compute_quality_score
+from app.services.quality.quality_engine import build_quality_score_from_analysis
 
 
 def _build_synthetic_financials_with_balance_sheet_detail(years: int = 10, revenue_0: float = 10_000_000_000.0, growth: float = 0.10):
@@ -84,37 +82,10 @@ def test_quality_engine_wiring_extracts_real_fields_and_produces_a_sane_score():
         data = get_fundamental_analysis("SYNQ1")
 
     assert data is not None
-    dcf = data["dcf"]
 
-    # Exact same extraction logic as screener.py::_build_quick_analysis
-    def latest_of(key):
-        trend = data.get(key) or []
-        return next((v for v in reversed(trend) if v is not None), None)
-
-    fcf_trend = data.get("fcf_trend") or []
-    revenue_trend = data.get("revenue_trend") or []
-    fcf_margin_trend = [
-        round(f / r * 100, 1) if f is not None and r else None for f, r in zip(fcf_trend, revenue_trend)
-    ]
-    latest_om = latest_of("operating_margin_trend")
-    latest_rev = latest_of("revenue_trend")
-    operating_income_latest = (latest_om / 100 * latest_rev) if latest_om is not None and latest_rev else None
-
-    result = compute_quality_score(
-        roic_trend=data.get("roic_trend") or [], roe_trend=data.get("roe_trend") or [], roa_trend=data.get("roa_trend") or [],
-        nopat_trend=data.get("nopat_trend") or [], invested_capital_trend=data.get("invested_capital_trend") or [],
-        operating_income_latest=operating_income_latest,
-        total_assets_latest=latest_of("total_assets_trend"),
-        current_liabilities_latest=latest_of("current_liabilities_trend"),
-        current_assets_latest=latest_of("current_assets_trend"),
-        inventory_latest=latest_of("inventory_trend"),
-        gross_margin_trend=data.get("gross_margin_trend") or [], operating_margin_trend=data.get("operating_margin_trend") or [],
-        net_margin_trend=data.get("net_margin_trend") or [], fcf_margin_trend=fcf_margin_trend,
-        fcf_trend=fcf_trend, net_income_trend=data.get("net_income_trend") or [],
-        revenue_trend=revenue_trend, eps_trend=data.get("eps_trend") or [],
-        total_debt=dcf.get("total_debt"), cash=dcf.get("cash"), ebitda_latest=data.get("ebitda"),
-        interest_coverage=data.get("interest_coverage"),
-    )
+    # Fase 2, Incremento 3: both screener.py and nif_service.py now call
+    # this exact shared helper — no more duplicated field-extraction logic.
+    result = build_quality_score_from_analysis(data)
 
     # This synthetic company is real (25% operating margin, low leverage,
     # steady 10% growth, positive FCF) — every pillar should be computable,

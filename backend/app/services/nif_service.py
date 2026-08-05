@@ -25,6 +25,7 @@ import logging
 from typing import Optional
 
 from app.services.fundamental_analysis_service import get_fundamental_analysis
+from app.services.quality.quality_engine import build_quality_score_from_analysis
 from app.services import ai_service
 from app.core.finnhub import fh_insider_transactions, fh_insider_sentiment
 
@@ -86,6 +87,16 @@ async def _safe(coro, fallback, ticker: str, label: str, timeout: float = 20.0):
         return fallback
 
 
+def _factor_score(factors: list, name: str) -> Optional[float]:
+    """Looks up one named factor's sub-score from a
+    `quality_engine.QualityScoreResult.factors` list — used to keep
+    business_quality's `nuvos_estimate` key names
+    (`roic_score`/`operating_margin_score`/etc.) backward-compatible with
+    the frontend's existing `buildNifRows` (which reads those exact keys),
+    now sourced from the new Quality Engine instead of the old formula."""
+    return next((f.score for f in factors if f.name == name), None)
+
+
 def _text_explanation(text: Optional[str]) -> Optional[dict]:
     """Wraps a single already-written narrative string (reused from
     generate_quick_valuation_summary's checklist_reasons) into the same
@@ -114,6 +125,16 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
     evidence = data.get("checklist_evidence") or {}
     dcf = data.get("dcf") or {}
 
+    # Fase 2, Incremento 3 (cutover — see
+    # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md): the
+    # business_quality pillar's SCORE now comes from the real, independent
+    # Quality Engine (never touches price/DCF/multiples) instead of
+    # fundamental_analysis_service's older thesis_scores["business_quality"]
+    # formula. `has_any_signal` guards against a real 0 masquerading as "no
+    # data" — see QualityScoreResult's docstring.
+    quality_result = build_quality_score_from_analysis(data)
+    business_quality_score = quality_result.quality_score if quality_result.has_any_signal else None
+
     insider_txn, insider_sentiment = await asyncio.gather(
         _safe(asyncio.to_thread(fh_insider_transactions, ticker), None, ticker, "insider_transactions", timeout=8),
         _safe(asyncio.to_thread(fh_insider_sentiment, ticker), None, ticker, "insider_sentiment", timeout=8),
@@ -139,7 +160,7 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
     pillars = {
         "business_quality": {
             "pillar": "business_quality",
-            "score": thesis.get("business_quality"),
+            "score": business_quality_score,
             "data": {
                 "roic_pct": moat_evidence.get("avg_roic_pct"),
                 "roic_trend_pct": moat_evidence.get("roic_trend_pct"),
@@ -150,12 +171,27 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
                 "revenue_cagr_pct": business_quality_evidence.get("revenue_cagr_pct"),
             },
             "nuvos_estimate": {
-                "roic_score": business_quality_evidence.get("roic_score"),
-                "operating_margin_score": business_quality_evidence.get("operating_margin_score"),
-                "net_margin_score": business_quality_evidence.get("net_margin_score"),
-                "fcf_margin_score": business_quality_evidence.get("fcf_margin_score"),
-                "growth_score": business_quality_evidence.get("growth_score"),
-                "composite_score": thesis.get("business_quality"),
+                # Backward-compatible key names (the frontend's buildNifRows
+                # already reads these exact keys) — now sourced from the
+                # Quality Engine's own named factors instead of the old
+                # formula, not recomputed a second time.
+                "roic_score": _factor_score(quality_result.factors, "roic"),
+                "operating_margin_score": _factor_score(quality_result.factors, "operating_margin_level"),
+                "net_margin_score": _factor_score(quality_result.factors, "net_margin_level"),
+                "fcf_margin_score": _factor_score(quality_result.factors, "fcf_margin_level"),
+                "growth_score": quality_result.growth_score,
+                "composite_score": business_quality_score,
+                # New, richer breakdown (Fase 2) — additive, for the
+                # Dashboard (Incremento 11) to consume without another
+                # backend round-trip.
+                "profitability_score": quality_result.profitability_score,
+                "margins_score": quality_result.margins_score,
+                "cash_flow_score": quality_result.cash_flow_score,
+                "balance_sheet_score": quality_result.balance_sheet_score,
+                "factors": [
+                    {"name": f.name, "value": f.value, "score": f.score, "reason": f.reason}
+                    for f in quality_result.factors
+                ],
             },
             "explanation": bq_explanation,
         },

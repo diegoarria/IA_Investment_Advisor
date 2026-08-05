@@ -763,42 +763,12 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
 
     # Fase 2, Incremento 2 (Quality Engine — "¿qué tan buena es esta
     # empresa?", completely independent of the DCF/price above — see
-    # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md). Reuses
-    # trends `get_fundamental_analysis()` already computes; `fcf_margin_trend`
-    # is the one derived value not stored as its own array (cheap to build
-    # from two trends that already exist rather than adding a 5th margin
-    # trend to fundamental_analysis_service.py for a single caller).
-    from app.services.quality.quality_engine import compute_quality_score
-
-    def _latest_of(key: str) -> Optional[float]:
-        trend = data.get(key) or []
-        return next((v for v in reversed(trend) if v is not None), None)
-
-    fcf_trend_for_quality = data.get("fcf_trend") or []
-    revenue_trend_for_quality = data.get("revenue_trend") or []
-    fcf_margin_trend = [
-        round(f / r * 100, 1) if f is not None and r else None
-        for f, r in zip(fcf_trend_for_quality, revenue_trend_for_quality)
-    ]
-    latest_om = _latest_of("operating_margin_trend")
-    latest_rev = _latest_of("revenue_trend")
-    operating_income_latest = (latest_om / 100 * latest_rev) if latest_om is not None and latest_rev else None
-
-    quality_result = compute_quality_score(
-        roic_trend=data.get("roic_trend") or [], roe_trend=data.get("roe_trend") or [], roa_trend=data.get("roa_trend") or [],
-        nopat_trend=data.get("nopat_trend") or [], invested_capital_trend=data.get("invested_capital_trend") or [],
-        operating_income_latest=operating_income_latest,
-        total_assets_latest=_latest_of("total_assets_trend"),
-        current_liabilities_latest=_latest_of("current_liabilities_trend"),
-        current_assets_latest=_latest_of("current_assets_trend"),
-        inventory_latest=_latest_of("inventory_trend"),
-        gross_margin_trend=data.get("gross_margin_trend") or [], operating_margin_trend=data.get("operating_margin_trend") or [],
-        net_margin_trend=data.get("net_margin_trend") or [], fcf_margin_trend=fcf_margin_trend,
-        fcf_trend=fcf_trend_for_quality, net_income_trend=data.get("net_income_trend") or [],
-        revenue_trend=revenue_trend_for_quality, eps_trend=data.get("eps_trend") or [],
-        total_debt=dcf.get("total_debt"), cash=dcf.get("cash"), ebitda_latest=data.get("ebitda"),
-        interest_coverage=data.get("interest_coverage"),
-    )
+    # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md).
+    # Extraction logic lives once in quality_engine.py (also used by
+    # nif_service.py's business_quality pillar, Incremento 3) — never
+    # duplicated across callers.
+    from app.services.quality.quality_engine import build_quality_score_from_analysis
+    quality_result = build_quality_score_from_analysis(data)
     quality_engine_result = {
         "quality_score": quality_result.quality_score,
         "profitability_score": quality_result.profitability_score,

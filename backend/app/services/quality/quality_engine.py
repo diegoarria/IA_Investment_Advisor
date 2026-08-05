@@ -162,6 +162,20 @@ class QualityScoreResult:
     balance_sheet_score: Optional[float]
     factors: list[QualityFactor] = field(default_factory=list)
 
+    @property
+    def has_any_signal(self) -> bool:
+        """False only when EVERY sub-pillar was uncomputable (no real data
+        at all) — lets a caller distinguish "genuinely nothing to show"
+        from "computed a real (possibly low) score of 0." Callers that
+        blend this into a further weighted average (e.g. the NIF overall
+        score) should treat `has_any_signal=False` as None, not as a real
+        0 — a real 0 unfairly drags a blend down; genuinely missing data
+        should just be excluded and the remaining weights renormalized."""
+        return any(s is not None for s in (
+            self.profitability_score, self.margins_score, self.cash_flow_score,
+            self.growth_score, self.balance_sheet_score,
+        ))
+
 
 # Same-shaped tiers as the existing ROIC-based scores elsewhere in this
 # codebase (fundamental_analysis_service.py's roic_score) — reused for
@@ -334,4 +348,50 @@ def compute_quality_score(
         growth_score=round(growth_score, 1) if growth_score is not None else None,
         balance_sheet_score=round(balance_sheet_score, 1) if balance_sheet_score is not None else None,
         factors=factors,
+    )
+
+
+def build_quality_score_from_analysis(data: dict) -> QualityScoreResult:
+    """Extracts every input `compute_quality_score` needs directly from
+    `get_fundamental_analysis()`'s full return dict, and calls it. This is
+    the ONE place that extraction logic lives — both
+    `screener.py::_build_quick_analysis` (Fase 2 Incremento 2) and
+    `nif_service.py::build_nif_dashboard` (Incremento 3, replacing the
+    NIF's own `business_quality` formula) call this instead of each
+    re-deriving the same field lookups, per the brief's explicit
+    "no dupliques lógica" rule.
+
+    `fcf_margin_trend` is derived here (fcf_trend / revenue_trend per
+    year) since it isn't stored as its own array on `data` — cheaper than
+    adding a 5th margin trend to fundamental_analysis_service.py for two
+    callers that can trivially derive it from two trends that already
+    exist there."""
+    def latest_of(key: str) -> Optional[float]:
+        trend = data.get(key) or []
+        return next((v for v in reversed(trend) if v is not None), None)
+
+    fcf_trend = data.get("fcf_trend") or []
+    revenue_trend = data.get("revenue_trend") or []
+    fcf_margin_trend = [
+        round(f / r * 100, 1) if f is not None and r else None for f, r in zip(fcf_trend, revenue_trend)
+    ]
+    latest_om = latest_of("operating_margin_trend")
+    latest_rev = latest_of("revenue_trend")
+    operating_income_latest = (latest_om / 100 * latest_rev) if latest_om is not None and latest_rev else None
+
+    dcf = data.get("dcf") or {}
+    return compute_quality_score(
+        roic_trend=data.get("roic_trend") or [], roe_trend=data.get("roe_trend") or [], roa_trend=data.get("roa_trend") or [],
+        nopat_trend=data.get("nopat_trend") or [], invested_capital_trend=data.get("invested_capital_trend") or [],
+        operating_income_latest=operating_income_latest,
+        total_assets_latest=latest_of("total_assets_trend"),
+        current_liabilities_latest=latest_of("current_liabilities_trend"),
+        current_assets_latest=latest_of("current_assets_trend"),
+        inventory_latest=latest_of("inventory_trend"),
+        gross_margin_trend=data.get("gross_margin_trend") or [], operating_margin_trend=data.get("operating_margin_trend") or [],
+        net_margin_trend=data.get("net_margin_trend") or [], fcf_margin_trend=fcf_margin_trend,
+        fcf_trend=fcf_trend, net_income_trend=data.get("net_income_trend") or [],
+        revenue_trend=revenue_trend, eps_trend=data.get("eps_trend") or [],
+        total_debt=dcf.get("total_debt"), cash=dcf.get("cash"), ebitda_latest=data.get("ebitda"),
+        interest_coverage=data.get("interest_coverage"),
     )
