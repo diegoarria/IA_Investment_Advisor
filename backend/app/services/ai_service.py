@@ -3668,6 +3668,74 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
     return None
 
 
+_TIMELINE_EVENT_TYPES = (
+    "ceo_change", "ma", "spinoff", "product_launch", "new_segment", "regulatory",
+    "guidance_change", "margin_shift", "revenue_shift", "strategy_change", "other",
+)
+
+
+async def generate_change_interpretation(
+    ticker: str, company_name: str,
+    deterioration_summary: str, business_change_note: str, management_change_note: str,
+    lang: str = "es",
+) -> Optional[dict]:
+    """Change Detection Engine (Fase 3, Incremento 6 — Parte K): turns real
+    per-metric trend-DIRECTION facts (`quality.deterioration_engine`, Fase
+    2) plus two already-real qualitative change signals (Business
+    Understanding's `business_change_since_last_review`, Management
+    Intelligence's `strategy_change_classification`/`_explanation` —
+    Incrementos 3 and 5) into a short list of concrete, INTERPRETED
+    events, never a mechanical re-statement of the numbers.
+
+    "Juicio nuevo #2" from the plan: understanding WHY something changed
+    is genuine interpretation, with real hallucination risk (the model
+    could invent a causal story). Mitigated by requiring every event's
+    `why_inference` to explicitly reference the real input
+    (`what_changed_fact`) it's interpreting — never a free-floating claim
+    with no traceable anchor among the three real inputs given.
+
+    Returns `{"events": []}` (not None) when none of the three inputs
+    carry a real signal — an empty events list is itself a valid, honest
+    result ("nothing material changed"), unlike a parse failure.
+    Returns None only if the model's JSON genuinely doesn't parse."""
+    prompt = f"""{_output_language_directive(lang)}Interpreta qué cambió REALMENTE para {company_name} ({ticker}) en su período más reciente, usando SOLO las tres señales reales de abajo — nunca inventes eventos que no estén respaldados por ellas.
+
+1. Cambios numéricos reales detectados (dirección de tendencia, primera mitad vs. segunda mitad del historial):
+{deterioration_summary if deterioration_summary else "Sin cambios numéricos materiales detectados."}
+
+2. Cambio real en la descripción del negocio (Business Understanding, comparado contra la revisión anterior):
+{business_change_note if business_change_note else "Sin cambio detectado en la descripción del negocio."}
+
+3. Cambio real en la estrategia/tono del management (Management Intelligence, comparado contra la revisión anterior):
+{management_change_note if management_change_note else "Sin cambio detectado en la estrategia o tono del management."}
+
+Reglas:
+- Cada evento debe estar anclado en AL MENOS UNA de las tres señales de arriba — cita cuál (what_changed_fact) antes de interpretar por qué (why_inference).
+- why_inference debe referenciar explícitamente el what_changed_fact del que depende — nunca una afirmación causal sin ese anclaje.
+- Si ninguna de las tres señales indica un cambio real, responde con una lista de eventos VACÍA — no inventes un evento para tener algo que reportar.
+- event_type debe ser exactamente uno de: {", ".join(_TIMELINE_EVENT_TYPES)}.
+- Nunca digas Comprar/No comprar/Mantener.
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después):
+{{
+  "events": [
+    {{"event_type": "{'|'.join(_TIMELINE_EVENT_TYPES)}", "headline": "<máx 15 palabras>", "what_changed_fact": "<máx 30 palabras, citando la señal real de origen>", "why_inference": "<máx 40 palabras, interpretando el what_changed_fact citado>"}}
+  ]
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1400,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and isinstance(parsed.get("events"), list):
+        return parsed
+    _log.warning("generate_change_interpretation: JSON parse failed for %s", ticker)
+    return None
+
+
 async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
     """One-liner (~15-25 words) for a single undervalued-screener candidate —
     called once per real candidate PER LANGUAGE during the weekly refresh
