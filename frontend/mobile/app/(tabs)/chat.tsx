@@ -75,6 +75,7 @@ const MENTOR_PHOTOS: Record<string, number> = {
   "Ray Dalio":      require("../../assets/images/mentors/ray_dalio.jpg"),
   "Bill Ackman":    require("../../assets/images/mentors/bill_ackman.jpg"),
 };
+const ARTHUR_PHOTO = require("../../assets/images/mentors/arthur.jpg");
 
 function getSuggestionsDefault(t: TFunction): string[] {
   return t("chat.suggestionsDefault", { returnObjects: true }) as string[];
@@ -683,7 +684,7 @@ Instrucciones críticas:
 
     return (
       <View style={styles.aiRow}>
-        <Text style={[styles.senderName, { color: mentor?.color ?? colors.accentLight }]}>{mentor?.name ?? t("chat.nuvosAi")}</Text>
+        <Text style={[styles.senderName, { color: mentor?.color ?? colors.accentLight }]}>{mentor?.name ?? t("chat.mentorAiFallback")}</Text>
         <View style={styles.aiBubble}>
           <Markdown style={markdownStyles} rules={markdownRules}>{item.content || ""}</Markdown>
           {streaming && isLastAssistant && item.content === "" && (
@@ -805,7 +806,11 @@ Instrucciones críticas:
           backgroundColor: mentor ? mentor.color + "12" : colors.card,
           borderColor: mentor ? mentor.color + "30" : colors.border,
         }]}>
-          <Text style={{ fontSize: 20, lineHeight: 24 }}>{mentor ? mentor.emoji : "🤖"}</Text>
+          {mentor ? (
+            <Text style={{ fontSize: 20, lineHeight: 24 }}>{mentor.emoji}</Text>
+          ) : (
+            <Image source={ARTHUR_PHOTO} style={{ width: 24, height: 24, borderRadius: 12 }} />
+          )}
           <View style={{ gap: 1, flexShrink: 1 }}>
             <Text numberOfLines={1} style={[styles.mentorPillName, { color: colors.text }]}>
               {mentor ? mentor.name : profile?.name ? t("chat.helloName", { name: profile.name.split(" ")[0] }) : t("chat.mentorAiFallback")}
@@ -857,19 +862,19 @@ Instrucciones críticas:
                   {/* Avatar */}
                   {mentor && mentorPhoto ? (
                     <Image source={mentorPhoto} style={styles.heroAvatar} />
+                  ) : !mentor ? (
+                    <Image source={ARTHUR_PHOTO} style={styles.heroAvatar} />
                   ) : (
                     <View style={[styles.heroAvatarBox, {
-                      backgroundColor: mentor ? mentor.color + "18" : colors.accentGlow,
-                      borderColor: mentor ? mentor.color + "35" : "rgba(0,185,109,0.25)",
+                      backgroundColor: mentor.color + "18",
+                      borderColor: mentor.color + "35",
                     }]}>
-                      {mentor
-                        ? <Text style={{ fontSize: 40 }}>{mentor.emoji}</Text>
-                        : <Ionicons name="trending-up" size={38} color={colors.accentLight} />}
+                      <Text style={{ fontSize: 40 }}>{mentor.emoji}</Text>
                     </View>
                   )}
 
                   <Text style={[styles.heroTitle, { color: colors.text }]}>
-                    {mentor ? mentor.name : profile?.name ? t("chat.helloName", { name: profile.name.split(" ")[0] }) : t("chat.nuvosAi")}
+                    {mentor ? mentor.name : profile?.name ? t("chat.helloName", { name: profile.name.split(" ")[0] }) : t("chat.mentorAiFallback")}
                   </Text>
                   <Text style={[styles.heroSub, { color: mentor ? mentor.color : colors.accentLight }]}>
                     {mentor ? mentor.title : t("chat.mentorSub")}

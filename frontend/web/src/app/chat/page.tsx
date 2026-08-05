@@ -24,7 +24,7 @@ import VoiceCallModal from "@/components/VoiceCallModal";
 import { unlockAudioPlayback, getUnlockedAudioElement } from "@/lib/audioUnlock";
 import { useTutorialStore } from "@/lib/store";
 import {
-  Send, TrendingUp, Bell, LogOut, Menu, X,
+  Send, Bell, LogOut, Menu, X,
   ChevronRight, Sun, Moon, Square, Pencil, ImagePlus, Plus, Mic, Play, Copy, Phone,
 } from "lucide-react";
 import { getUserLevel, getLevelLabel, LEVEL_COLOR } from "@/lib/userLevel";
@@ -759,7 +759,12 @@ export default function ChatPage() {
                  background: mentor ? mentor.color + "0d" : "var(--raised)",
                  borderColor: mentor ? mentor.color + "30" : "var(--border)",
                }}>
-            <span className="text-lg leading-none">{mentor ? mentor.emoji : "🤖"}</span>
+            {mentor ? (
+              <span className="text-lg leading-none">{mentor.emoji}</span>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src="/mentors/arthur.jpg" alt="Arthur" className="w-6 h-6 rounded-full object-cover" />
+            )}
             <div className="hidden sm:block">
               <p className="text-xs font-black leading-none" style={{ color: "var(--text)" }}>
                 {mentor ? mentor.name : profile?.name ? t("chat.greeting", { name: profile.name.split(" ")[0] }) : t("chat.mentorFallbackName")}
@@ -885,17 +890,21 @@ export default function ChatPage() {
 
                   <div className="p-6 text-center">
                     {/* Avatar */}
-                    <div className="mx-auto mb-4 w-20 h-20 rounded-2xl flex items-center justify-center text-4xl"
-                         style={{
-                           background: mentor ? mentor.color + "18" : "rgba(0,212,126,0.1)",
-                           border: `2px solid ${mentor ? mentor.color + "35" : "rgba(0,212,126,0.25)"}`,
-                         }}>
-                      {mentor ? mentor.emoji : <TrendingUp className="w-9 h-9" style={{ color: "var(--accent-l)" }} />}
-                    </div>
+                    {mentor ? (
+                      <div className="mx-auto mb-4 w-20 h-20 rounded-2xl flex items-center justify-center text-4xl"
+                           style={{ background: mentor.color + "18", border: `2px solid ${mentor.color}35` }}>
+                        {mentor.emoji}
+                      </div>
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src="/mentors/arthur.jpg" alt="Arthur"
+                           className="mx-auto mb-4 w-20 h-20 rounded-2xl object-cover"
+                           style={{ border: "2px solid rgba(0,212,126,0.35)" }} />
+                    )}
 
                     <h2 className="text-2xl font-black tracking-tight mb-1"
                         style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                      {mentor ? mentor.name : profile?.name ? t("chat.greeting", { name: profile.name.split(" ")[0] }) : "Nuvos AI"}
+                      {mentor ? mentor.name : profile?.name ? t("chat.greeting", { name: profile.name.split(" ")[0] }) : t("chat.mentorFallbackName")}
                     </h2>
                     <p className="text-sm font-semibold mb-4"
                        style={{ color: mentor ? mentor.color : "var(--accent-l)" }}>
@@ -1009,13 +1018,17 @@ export default function ChatPage() {
 
                   {/* AI avatar */}
                   {msg.role === "assistant" && (
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 text-sm overflow-hidden"
-                         style={{
-                           background: mentor ? mentor.color + "20" : "rgba(0,185,109,0.15)",
-                           border: `1px solid ${mentor ? mentor.color + "35" : "rgba(0,185,109,0.25)"}`,
-                         }}>
-                      {mentor ? mentor.emoji : <TrendingUp className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
-                    </div>
+                    mentor ? (
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 text-sm overflow-hidden"
+                           style={{ background: mentor.color + "20", border: `1px solid ${mentor.color}35` }}>
+                        {mentor.emoji}
+                      </div>
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src="/mentors/arthur.jpg" alt="Arthur"
+                           className="w-8 h-8 rounded-xl object-cover shrink-0 mt-0.5"
+                           style={{ border: "1px solid rgba(0,185,109,0.25)" }} />
+                    )
                   )}
 
                   {/* Bubble */}
