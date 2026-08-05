@@ -103,3 +103,77 @@ def search_web(query: str, label: bool = True) -> str:
     except Exception as e:
         logger.warning("Perplexity API call raised an exception for query %s: %s", query[:200], e)
         return ""
+
+
+# ── Fase 2, Incremento 6 ─────────────────────────────────────────────────
+# search_web() above only ever returned the synthesized answer text — the
+# `citations`/`search_results` arrays the "sonar" model's API response
+# already includes were fetched over the wire and then simply discarded.
+# This is a real, honest "search result + real link" evidence source for
+# the Moat/Management/Catalysts engines (Incrementos 7-9): every citation
+# is a real URL Perplexity's own web search actually found, not a link the
+# LLM invented. New function, not a change to search_web()'s existing
+# behavior/callers — zero risk to anything already using it.
+
+_CITED_SEARCH_CACHE_TTL = 3600  # 1h — longer than search_web's 5min: this
+# feeds evidence gathering for scores that don't need to react to the
+# newest headline the way a chat "what happened today" answer does.
+
+
+def search_web_with_citations(query: str, system_prompt: str | None = None, max_tokens: int = 600) -> dict:
+    """Same Perplexity "sonar" call as `search_web`, but returns the real
+    citation URLs alongside the answer instead of discarding them:
+    `{"answer": str, "citations": list[{"url": str, "title": str | None}]}`.
+    Returns `{"answer": "", "citations": []}` (never a fabricated citation)
+    on any failure — same fail-empty philosophy as `search_web`."""
+    from app.core.config import settings
+    api_key = getattr(settings, "perplexity_api_key", "") or os.getenv("PERPLEXITY_API_KEY", "")
+    empty: dict = {"answer": "", "citations": []}
+    if not api_key:
+        logger.warning("perplexity_service.search_web_with_citations called with no API key configured — query was: %s", query[:200])
+        return empty
+
+    cache_key = "perp:cited:" + hashlib.md5(f"{query}|{system_prompt}".encode()).hexdigest()[:16]
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
+    try:
+        r = requests.post(
+            "https://api.perplexity.ai/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "sonar",
+                "messages": [
+                    {"role": "system", "content": system_prompt or (
+                        "Eres un asistente de búsqueda financiera. Responde en español, de forma "
+                        "concisa y factual. Máximo 350 palabras."
+                    )},
+                    {"role": "user", "content": query},
+                ],
+                "max_tokens": max_tokens,
+            },
+            timeout=30,
+        )
+        if r.status_code != 200:
+            logger.warning("Perplexity API (cited) returned status %s for query: %s", r.status_code, query[:200])
+            return empty
+        body = r.json()
+        content = (body.get("choices") or [{}])[0].get("message", {}).get("content", "")
+        # "search_results" (richer: title+url+date) is preferred when
+        # present; falls back to the plainer "citations" (URL-only) array
+        # — both are real fields the sonar model's API response includes,
+        # never previously read by this codebase.
+        raw_results = body.get("search_results") or []
+        citations = [
+            {"url": item.get("url"), "title": item.get("title")}
+            for item in raw_results if item.get("url")
+        ]
+        if not citations:
+            citations = [{"url": u, "title": None} for u in (body.get("citations") or []) if u]
+        result = {"answer": content.strip(), "citations": citations}
+        cache_set(cache_key, result, ttl=_CITED_SEARCH_CACHE_TTL)
+        return result
+    except Exception as e:
+        logger.warning("Perplexity API (cited) call raised an exception for query %s: %s", query[:200], e)
+        return empty

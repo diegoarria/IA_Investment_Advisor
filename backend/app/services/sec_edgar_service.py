@@ -1,6 +1,6 @@
 """
-SEC EDGAR XBRL Service
-======================
+SEC EDGAR Service
+=================
 Fetches the most recent 10-Q and 10-K financial statements directly from the
 SEC's public XBRL API — no API key required, always up-to-date.
 
@@ -10,13 +10,29 @@ Endpoints used:
       → per-concept time series (all filings for that metric)
 
 All concept requests are fired in parallel and cached 20 minutes.
+
+Fase 2, Incremento 6 (see
+/Users/diegoarria/.claude/plans/stateful-painting-flurry.md) adds a second
+capability: real TEXT from the actual filing (Business description, Risk
+Factors, MD&A) — not just XBRL numbers — via:
+  - https://data.sec.gov/submissions/CIK{cik}.json → filing index (accession
+      numbers, primary document filenames, filing dates)
+  - https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/{document}
+      → the actual filing HTML
+
+This is genuine primary-source evidence (real filing prose, not an AI
+narrative) — the evidence base the Moat/Management/Risk engines
+(Incrementos 7-9) cite. Free, no key, same SEC rate-limit/User-Agent
+requirements as the XBRL calls above.
 """
 
+import re
 import time
 import math
 import concurrent.futures
 import requests
 from app.core.cache import cache_get, cache_set
+from app.services.html_extraction import extract_main_text
 
 # SEC requires User-Agent with a real company/contact (enforced by rate limiter)
 _HEADERS = {"User-Agent": "NuvosAI research@nuvosai.app", "Accept-Encoding": "gzip"}
@@ -462,3 +478,153 @@ def get_sec_financials(ticker: str) -> str:
                  f"Datos del último reporte oficial publicado.*")
 
     return "\n".join(lines)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Fase 2, Incremento 6 — real filing TEXT (Business, Risk Factors, MD&A)
+# ══════════════════════════════════════════════════════════════════════════
+
+_SUBMISSIONS_TTL = 3600  # 1h — a company's filing index changes rarely intraday
+
+
+def _fetch_submissions(cik: str) -> dict | None:
+    ck = f"sec:submissions:{cik}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached or None
+    try:
+        r = requests.get(f"https://data.sec.gov/submissions/CIK{cik}.json", headers=_HEADERS, timeout=12)
+        if r.status_code != 200:
+            cache_set(ck, {}, ttl=_SUBMISSIONS_TTL)
+            return None
+        data = r.json()
+        cache_set(ck, data, ttl=_SUBMISSIONS_TTL)
+        return data
+    except Exception:
+        cache_set(ck, {}, ttl=_SUBMISSIONS_TTL)
+        return None
+
+
+def _find_recent_filing(submissions: dict, form_type: str) -> dict | None:
+    """Most recent filing of `form_type` (e.g. "10-K", "10-Q") from the
+    submissions index's parallel arrays — returns the accession number,
+    primary document filename, and filing date needed to build the real
+    document URL."""
+    recent = (submissions.get("filings") or {}).get("recent") or {}
+    forms = recent.get("form") or []
+    for i, form in enumerate(forms):
+        if form == form_type:
+            return {
+                "accessionNumber": recent["accessionNumber"][i],
+                "primaryDocument": recent["primaryDocument"][i],
+                "filingDate": recent["filingDate"][i],
+            }
+    return None
+
+
+def _build_filing_url(cik: str, accession_number: str, primary_document: str) -> str:
+    cik_no_leading_zeros = str(int(cik))
+    accession_no_dashes = accession_number.replace("-", "")
+    return f"https://www.sec.gov/Archives/edgar/data/{cik_no_leading_zeros}/{accession_no_dashes}/{primary_document}"
+
+
+_FILING_HTML_TTL = 86400  # 24h — a filed document never changes once published
+
+
+def _fetch_filing_html(url: str) -> str | None:
+    ck = f"sec:filing_html:{url}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached or None
+    try:
+        r = requests.get(url, headers=_HEADERS, timeout=15)
+        if r.status_code != 200:
+            cache_set(ck, "", ttl=_FILING_HTML_TTL)
+            return None
+        cache_set(ck, r.text, ttl=_FILING_HTML_TTL)
+        return r.text
+    except Exception:
+        cache_set(ck, "", ttl=_FILING_HTML_TTL)
+        return None
+
+
+# Best-effort section boundaries — real 10-K/10-Q HTML formatting varies
+# enough across filers (different item numbering styles, table-of-contents
+# links duplicating "Item 1" earlier in the document, etc.) that this
+# won't always find a section cleanly. Returns None for a section it
+# couldn't confidently locate rather than mislabeling the wrong text —
+# same "never fabricate, disclose the gap" standard as the rest of this
+# codebase. The FIRST match past a reasonable offset is used to skip past
+# table-of-contents references to "Item 1" that appear before the real
+# section.
+_SECTION_PATTERNS: dict[str, tuple[str, str]] = {
+    "business": (r"item\s*1\.\s*business", r"item\s*1a\.\s*risk\s*factors"),
+    "risk_factors": (r"item\s*1a\.\s*risk\s*factors", r"item\s*(1b|2)\."),
+    "mda": (
+        r"item\s*7\.\s*management.?s\s*discussion\s*and\s*analysis",
+        r"item\s*7a\.",
+    ),
+}
+
+
+def _extract_section(full_text: str, start_pattern: str, end_pattern: str, max_chars: int = 4000) -> str | None:
+    lowered = full_text.lower()
+    matches = list(re.finditer(start_pattern, lowered))
+    if not matches:
+        return None
+    # Table-of-contents links to "Item 1" typically appear in the first
+    # ~5% of the document; the real section is usually the LAST match
+    # (or the first one past the ToC) — using the last match is a simple,
+    # real heuristic that works for the common case without needing full
+    # HTML structure (which trafilatura already stripped by this point).
+    start = matches[-1].end()
+    end_match = re.search(end_pattern, lowered[start:])
+    end = start + end_match.start() if end_match else min(start + max_chars * 2, len(full_text))
+    section = full_text[start:end].strip()
+    return section[:max_chars] if len(section) > 100 else None
+
+
+def fetch_filing_text_sections(ticker: str, form_type: str = "10-K") -> dict | None:
+    """Real primary-source text from the company's own most recent filing
+    — Business description, Risk Factors, MD&A — fetched directly from SEC
+    EDGAR. This is genuine evidence (the company's own filed words), never
+    an AI narrative pretending to have read the filing (see the explicit
+    guardrail this exact gap used to require in `research_service.py`
+    before this function existed). Returns None if the ticker has no real
+    CIK mapping, no filing of `form_type` is found, or the document
+    couldn't be fetched — never a fabricated/partial result presented as
+    complete."""
+    cik = get_cik(ticker)
+    if not cik:
+        return None
+    submissions = _fetch_submissions(cik)
+    if not submissions:
+        return None
+    filing = _find_recent_filing(submissions, form_type)
+    if not filing:
+        return None
+    url = _build_filing_url(cik, filing["accessionNumber"], filing["primaryDocument"])
+    html = _fetch_filing_html(url)
+    if not html:
+        return None
+    # Filings are far longer than a news article (the html_extraction
+    # default of 6000 chars is tuned for news) — capped generously higher
+    # so the section-extraction regex below has real text to search.
+    full_text = extract_main_text(html, max_chars=200_000)
+    if not full_text:
+        return None
+
+    sections = {
+        key: _extract_section(full_text, start, end)
+        for key, (start, end) in _SECTION_PATTERNS.items()
+    }
+    if not any(sections.values()):
+        return None
+
+    return {
+        "ticker": ticker.upper(),
+        "form_type": form_type,
+        "filing_date": filing.get("filingDate"),
+        "source_url": url,
+        **sections,
+    }

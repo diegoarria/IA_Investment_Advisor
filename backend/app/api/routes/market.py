@@ -937,39 +937,12 @@ async def get_portfolio_news(
     return all_articles
 
 
-_BOT_BLOCK_MARKERS = (
-    "enable javascript", "please enable js", "verify you are human",
-    "access denied", "are you a robot", "checking your browser",
-    "attention required", "cloudflare", "subscribe to continue",
-    "subscribe now to read", "sign in to continue",
-)
-
-
-def _extract_article_text(html: str) -> str:
-    """Extract the main article body from raw HTML, filtering out bot-block/paywall shells."""
-    import re as _re
-    import trafilatura
-
-    extracted = trafilatura.extract(
-        html, include_comments=False, include_tables=False, favor_precision=True
-    )
-    text = (extracted or "").strip()
-
-    # Fall back to meta description if trafilatura found nothing usable
-    if len(text) < 80:
-        m = _re.search(r'(?:og:description|name="description")[^>]*content="([^"]{40,})"', html, _re.IGNORECASE)
-        if not m:
-            m = _re.search(r'content="([^"]{40,})"[^>]*(?:og:description|name="description")', html, _re.IGNORECASE)
-        if m:
-            text = m.group(1).strip()
-
-    # A bot-block/paywall interstitial often masquerades as "content" — reject it
-    # rather than let the AI treat it as the real article.
-    lowered = text.lower()
-    if len(text) < 80 or any(marker in lowered for marker in _BOT_BLOCK_MARKERS):
-        return ""
-
-    return _re.sub(r"\s+", " ", text).strip()[:6000]
+# Fase 2, Incremento 6: this extraction logic is now shared with the
+# Quality Engine's real-evidence sources (SEC filing text, transcript
+# scraping) — see app/services/html_extraction.py, which this used to
+# define privately. Kept as a thin alias so every existing call site in
+# this file keeps working unchanged.
+from app.services.html_extraction import extract_main_text as _extract_article_text
 
 
 _NEWS_SUMMARY_TTL = 6 * 3600  # article content/summary don't change once written
