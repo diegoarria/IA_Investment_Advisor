@@ -15,9 +15,12 @@ import {
   type RangeBounds, type YearlyDetailRow, type Checklist, type FairValueRangeData, type ConfidenceMeterData,
   type MarketExpectationsData, type ConsensusValuationData, type LiquidityGate, type DcfAssumptions,
   type NifDashboardData, type NifRow,
+  type ScenariosData, type ProbabilityWeights, type SensitivityMatrixData,
+  type ReverseDcfSanityCheckData, type ExpectationsInvestingData,
   GeneratedAtNote, LiquidityWarning, ChecklistDisplay, ConfidenceMeter, FairValueRangeDisplay,
   MarketExpectationsPanel, InsightBox, FollowButton, AnalyzeButton,
   NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
+  ScenarioWeightingPanel, ReverseDcfPanel,
 } from "@/components/subvaluadas/shared";
 import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
 import { screenerApi, savedValuationsApi, watchlist, explain as explainApi } from "@/lib/api";
@@ -54,6 +57,15 @@ export interface QuickAnalysisResult {
   enterprise_value: number | null;
   total_debt: number | null;
   cash: number | null;
+  // Fase 1, Incremento 4 — see /Users/diegoarria/.claude/plans/stateful-painting-flurry.md.
+  // All optional/nullable: absent for financial-sector companies and REITs,
+  // which don't run the standard FCF-DCF (see `sector_model_note`).
+  scenarios: ScenariosData | null;
+  probability_weights: ProbabilityWeights | null;
+  sensitivity_matrix: SensitivityMatrixData | null;
+  reverse_dcf_sanity_check: ReverseDcfSanityCheckData | null;
+  expectations_investing: ExpectationsInvestingData | null;
+  sector_model_note: { sector_type: string; detalle: string } | null;
 }
 
 // Gold/teal/coral is this screen's fixed brand identity (Valor Intrínseco),
@@ -149,15 +161,21 @@ function Tooltip({ text }: { text: string }) {
   );
 }
 
-const G_OFFSETS = [-4, -2, 0, 2, 4];
-const R_OFFSETS = [-2, -1, 0, 1, 2];
-
-function SensitivityHeatmap({ fcf0, netCash, shares, g, r, gt, price }: {
-  fcf0: number; netCash: number; shares: number; g: number; r: number; gt: number; price: number;
-}) {
+// Fase 1, Incremento 4: this used to recompute its own 5x5 grid client-side
+// with `calcularValorIntrinseco` (a simpler constant-growth model than the
+// backend's real fading-growth DCF), re-centered live on whatever the g/r/gt
+// sliders were at that moment. It now renders the REAL matrix the backend
+// already computes (`dcf.sensitivity_matrix` — 3 WACC rows x 4 growth
+// columns, every cell a real driver-based DCF run) — fixed to the base
+// scenario's assumptions rather than following the sliders live, since
+// there's now exactly one DCF implementation instead of two that could
+// silently drift apart.
+function SensitivityHeatmap({ matrix, price }: { matrix: SensitivityMatrixData; price: number }) {
   const { t } = useTranslation();
-  const gVals = G_OFFSETS.map((o) => g + o);
-  const rVals = R_OFFSETS.map((o) => r + o);
+  const gVals = matrix.growth_cols_pct;
+  const rVals = matrix.wacc_rows_pct;
+  const centerRi = Math.floor(rVals.length / 2);
+  const centerGi = Math.floor(gVals.length / 2);
 
   return (
     <div className="card" style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 24, marginTop: 20 }}>
@@ -183,7 +201,7 @@ function SensitivityHeatmap({ fcf0, netCash, shares, g, r, gt, price }: {
           {t("subvaluadas.detail.heatmap.rAxis")}
         </div>
         <div>
-          <div className="grid mb-2" style={{ gridTemplateColumns: "repeat(5,1fr)" }}>
+          <div className="grid mb-2" style={{ gridTemplateColumns: `repeat(${gVals.length},1fr)` }}>
             {gVals.map((gv, i) => (
               <div key={i} className="text-center text-[11px]" style={{ color: "var(--muted)" }}>{pct(gv)}</div>
             ))}
@@ -194,12 +212,12 @@ function SensitivityHeatmap({ fcf0, netCash, shares, g, r, gt, price }: {
                 <div key={i} className="flex items-center justify-center text-[11px]" style={{ height: 60, color: "var(--muted)" }}>{pct(rv)}</div>
               ))}
             </div>
-            <div className="grid flex-1 gap-1" style={{ gridTemplateColumns: "repeat(5,1fr)", gridTemplateRows: "repeat(5,60px)" }}>
+            <div className="grid flex-1 gap-1" style={{ gridTemplateColumns: `repeat(${gVals.length},1fr)`, gridTemplateRows: `repeat(${rVals.length},60px)` }}>
               {rVals.map((rv, ri) => gVals.map((gv, gi) => {
-                const val = calcularValorIntrinseco({ fcf0, g: gv / 100, r: rv / 100, gt: gt / 100, netCash, shares });
-                const isCenter = ri === 2 && gi === 2;
+                const val = matrix.values[ri][gi];
+                const isCenter = ri === centerRi && gi === centerGi;
                 const noSolution = val === null;
-                const ratio = val && price ? val.valorPorAccion / price : 1;
+                const ratio = val !== null && price ? val / price : 1;
                 return (
                   <div key={`${ri}-${gi}`}
                        className="relative rounded-lg flex items-center justify-center text-[13px] font-bold"
@@ -210,7 +228,7 @@ function SensitivityHeatmap({ fcf0, netCash, shares, g, r, gt, price }: {
                          outlineOffset: -2,
                          }}>
                     {isCenter && <span className="absolute top-1 text-[8px] font-extrabold tracking-wide" style={{ color: "rgba(10,15,26,0.55)" }}>{t("subvaluadas.detail.heatmap.you")}</span>}
-                    {noSolution ? "N/D" : `$${val!.valorPorAccion.toFixed(0)}`}
+                    {noSolution ? "N/D" : `$${val!.toFixed(0)}`}
                   </div>
                 );
               }))}
@@ -929,7 +947,24 @@ function SubvaluadasPageInner() {
                         </div>
                       </div>
 
-                      <SensitivityHeatmap fcf0={fcf0} netCash={netCash} shares={shares} g={g} r={r} gt={gt} price={price} />
+                      {data.sensitivity_matrix && price !== null && (
+                        <SensitivityHeatmap matrix={data.sensitivity_matrix} price={price} />
+                      )}
+
+                      {data.scenarios && data.probability_weights && (
+                        <div className="mt-5">
+                          <ScenarioWeightingPanel scenarios={data.scenarios} defaultWeights={data.probability_weights} />
+                        </div>
+                      )}
+
+                      {(data.reverse_dcf_sanity_check || data.expectations_investing) && (
+                        <div className="mt-5">
+                          <ReverseDcfPanel
+                            sanityCheck={data.reverse_dcf_sanity_check}
+                            expectationsInvesting={data.expectations_investing}
+                          />
+                        </div>
+                      )}
 
                       <div className="mt-5 flex flex-wrap gap-3 items-center">
                         <button onClick={() => setLevel3Open(true)} className="text-[12px] font-bold underline underline-offset-2" style={{ color: "var(--muted)" }}>

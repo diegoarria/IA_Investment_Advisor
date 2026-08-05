@@ -86,6 +86,56 @@ export interface YearlyDetailRow {
   present_value: number;
 }
 
+// ── Fase 1, Incremento 4 (escenarios configurables + sensibilidad real +
+// reverse DCF) — see /Users/diegoarria/.claude/plans/stateful-painting-flurry.md.
+export interface ScenarioValues {
+  intrinsic_value_per_share: number;
+  stage1_growth_pct: number;
+  discount_rate_pct: number;
+}
+
+export interface ScenariosData {
+  pessimistic: ScenarioValues;
+  base: ScenarioValues;
+  optimistic: ScenarioValues;
+}
+
+export interface ProbabilityWeights {
+  pessimistic: number;
+  base: number;
+  optimistic: number;
+}
+
+export interface SensitivityMatrixData {
+  wacc_rows_pct: number[];
+  growth_cols_pct: number[];
+  values: (number | null)[][];
+}
+
+export interface ReverseDcfSanityCheckData {
+  fcf_projected_year_n: number;
+  years: number;
+  vs_cagr_historico_propio: string;
+  regime_change_flag: boolean;
+  detalle: string;
+}
+
+export interface ExpectationsInvestingGrowthByRate {
+  scenario: string;
+  discount_rate_pct: number;
+  implied_growth_pct: number | null;
+}
+
+export interface ExpectationsInvestingData {
+  fcf0: number;
+  fcf0_source: string;
+  implied_multiple_pfcf: number;
+  growth_by_rate: ExpectationsInvestingGrowthByRate[];
+  fcf_year10_base_scenario: number | null;
+  historical_fcf_decline_years: number;
+  years_available: number;
+}
+
 export function GeneratedAtNote({ generatedAt }: { generatedAt: number }) {
   const { t, i18n } = useTranslation();
   if (!generatedAt) return null;
@@ -267,6 +317,113 @@ export function MarketExpectationsPanel({ data }: { data: MarketExpectationsData
           <p className="text-[11px] font-bold tabular-nums" style={{ color: "var(--accent-l)" }}>{t("subvaluadas.marketExpectations.margin")}: {data.nuvos_fcf_margin_estimate_pct}%</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Lets the user override the confidence-derived pessimistic/base/optimistic
+// probability weighting (Parte C) — the backend still computes a smarter,
+// confidence-tiered default (`defaultWeights`, e.g. 15/70/15 for a
+// high-confidence company) rather than a flat 20/60/20, since that default
+// is already real signal; this panel starts FROM that default and lets the
+// user reweight it, recomputing the expected value client-side from the
+// three real per-share scenario values already in the response — no new
+// backend call needed for every slider drag.
+export function ScenarioWeightingPanel({ scenarios, defaultWeights }: { scenarios: ScenariosData; defaultWeights: ProbabilityWeights }) {
+  const { t } = useTranslation();
+  const [weights, setWeights] = useState(defaultWeights);
+
+  const total = weights.pessimistic + weights.base + weights.optimistic;
+  const norm = (w: number) => (total > 0 ? w / total : 0);
+  const expectedValue =
+    scenarios.pessimistic.intrinsic_value_per_share * norm(weights.pessimistic) +
+    scenarios.base.intrinsic_value_per_share * norm(weights.base) +
+    scenarios.optimistic.intrinsic_value_per_share * norm(weights.optimistic);
+
+  const rows: { key: keyof ProbabilityWeights; labelKey: string; color: string }[] = [
+    { key: "pessimistic", labelKey: "subvaluadas.scenarios.pessimistic", color: "#ef4444" },
+    { key: "base", labelKey: "subvaluadas.scenarios.base", color: "var(--accent-l)" },
+    { key: "optimistic", labelKey: "subvaluadas.scenarios.optimistic", color: "#22c55e" },
+  ];
+
+  return (
+    <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[11px] font-bold" style={{ color: "var(--text)" }}>{t("subvaluadas.scenarios.label")}</p>
+        <button onClick={() => setWeights(defaultWeights)} className="text-[10px] font-semibold hover:opacity-80" style={{ color: "var(--muted)" }}>
+          {t("subvaluadas.scenarios.reset")}
+        </button>
+      </div>
+      <div className="space-y-2.5">
+        {rows.map(({ key, labelKey, color }) => (
+          <div key={key}>
+            <div className="flex items-center justify-between text-[10px] mb-0.5">
+              <span style={{ color: "var(--sub)" }}>
+                {t(labelKey)} · <span className="tabular-nums font-bold" style={{ color: "var(--text)" }}>${scenarios[key].intrinsic_value_per_share.toFixed(0)}</span>
+              </span>
+              <span className="tabular-nums font-bold" style={{ color }}>{Math.round(norm(weights[key]) * 100)}%</span>
+            </div>
+            <input
+              type="range" min={0} max={100} value={weights[key]}
+              onChange={(e) => setWeights((w) => ({ ...w, [key]: Number(e.target.value) }))}
+              className="w-full" style={{ accentColor: color }}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="pt-2 mt-2 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
+        <span className="text-[11px] font-bold" style={{ color: "var(--sub)" }}>{t("subvaluadas.scenarios.expectedValue")}</span>
+        <span className="text-[13px] font-black tabular-nums" style={{ color: "var(--text)" }}>${expectedValue.toFixed(0)}</span>
+      </div>
+    </div>
+  );
+}
+
+// Reverse DCF (Parte E) — already fully solved by the backend (Brent's
+// method) in 3 flavors, never previously shown anywhere in the frontend.
+// This surfaces the regime-change sanity check and the Expectations
+// Investing (Rappaport) constant-growth table.
+export function ReverseDcfPanel({
+  sanityCheck, expectationsInvesting,
+}: {
+  sanityCheck: ReverseDcfSanityCheckData | null;
+  expectationsInvesting: ExpectationsInvestingData | null;
+}) {
+  const { t } = useTranslation();
+  if (!sanityCheck && !expectationsInvesting) return null;
+  return (
+    <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+      <p className="text-[11px] font-bold mb-2" style={{ color: "var(--text)" }}>{t("subvaluadas.reverseDcf.label")}</p>
+      {sanityCheck && (
+        <div className="flex items-start gap-2 mb-2">
+          {sanityCheck.regime_change_flag && <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "#f59e0b" }} />}
+          <p className="text-[11px] leading-relaxed" style={{ color: sanityCheck.regime_change_flag ? "#f59e0b" : "var(--sub)" }}>
+            {sanityCheck.detalle}
+          </p>
+        </div>
+      )}
+      {expectationsInvesting && (
+        <div className="pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+          <p className="text-[9px] uppercase tracking-wide mb-1.5" style={{ color: "var(--muted)" }}>
+            {t("subvaluadas.reverseDcf.expectationsInvesting")}
+          </p>
+          <div className="grid grid-cols-3 gap-1.5">
+            {expectationsInvesting.growth_by_rate.map((row) => (
+              <div key={row.scenario} className="rounded-lg p-1.5 text-center" style={{ background: "var(--card)" }}>
+                <p className="text-[8px] uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t(`subvaluadas.scenarios.${row.scenario}`)}</p>
+                <p className="text-[11px] font-black tabular-nums" style={{ color: "var(--text)" }}>
+                  {row.implied_growth_pct !== null ? `${row.implied_growth_pct}%` : "N/D"}
+                </p>
+              </div>
+            ))}
+          </div>
+          {expectationsInvesting.historical_fcf_decline_years > 0 && (
+            <p className="text-[10px] mt-1.5" style={{ color: "var(--muted)" }}>
+              {t("subvaluadas.reverseDcf.declineYears", { count: expectationsInvesting.historical_fcf_decline_years })}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

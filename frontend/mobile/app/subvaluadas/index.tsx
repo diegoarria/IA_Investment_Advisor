@@ -18,8 +18,11 @@ import {
   type Checklist, type LiquidityGate, type FairValueRangeData, type ConfidenceMeterData, type MarketExpectationsData,
   type ConsensusValuationData, type DcfAssumptions, type RangeBounds, type YearlyDetailRow,
   type NifDashboardData, type NifRow,
+  type ScenariosData, type ProbabilityWeights, type SensitivityMatrixData,
+  type ReverseDcfSanityCheckData, type ExpectationsInvestingData,
   GeneratedAtNote, LiquidityWarning, ConfidenceMeter, FairValueRangeDisplay, MarketExpectationsPanel, InsightBox,
   ChecklistDisplay, ActionButtons, NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
+  ScenarioWeightingPanel, ReverseDcfPanel,
 } from "../../src/components/subvaluadas/shared";
 
 // Gold/teal/coral is this screen's fixed brand identity (Valor Intrínseco),
@@ -77,6 +80,13 @@ interface QuickAnalysisResult {
   pv_of_fcf_sum: number | null;
   pv_of_terminal_value: number | null;
   enterprise_value: number | null;
+  // Fase 1, Incremento 4 — mirror of the web QuickAnalysisResult additions.
+  scenarios: ScenariosData | null;
+  probability_weights: ProbabilityWeights | null;
+  sensitivity_matrix: SensitivityMatrixData | null;
+  reverse_dcf_sanity_check: ReverseDcfSanityCheckData | null;
+  expectations_investing: ExpectationsInvestingData | null;
+  sector_model_note: { sector_type: string; detalle: string } | null;
 }
 
 function pct(v: number): string {
@@ -118,17 +128,20 @@ function colorForRatio(ratio: number): string {
   return `rgb(${c[0]},${c[1]},${c[2]})`;
 }
 
-const G_OFFSETS = [-4, -2, 0, 2, 4];
-const R_OFFSETS = [-2, -1, 0, 1, 2];
-
-function SensitivityHeatmap({ fcf0, netCash, shares, g, r, gt, price }: {
-  fcf0: number; netCash: number; shares: number; g: number; r: number; gt: number; price: number;
-}) {
+// Fase 1, Incremento 4: renders the REAL matrix the backend computes
+// (`dcf.sensitivity_matrix`, 3 WACC rows x 4 growth columns, every cell a
+// real driver-based DCF run) instead of reimplementing its own 5x5 grid
+// client-side with the simpler `calcularValorIntrinseco`. See the web
+// version's identical comment for the full rationale — one DCF
+// implementation now, not two that could silently drift apart.
+function SensitivityHeatmap({ matrix, price }: { matrix: SensitivityMatrixData; price: number }) {
   const { t } = useTranslation();
   const { isDark } = useTheme();
   const viColors = useViColors(isDark);
-  const gVals = G_OFFSETS.map((o) => g + o);
-  const rVals = R_OFFSETS.map((o) => r + o);
+  const gVals = matrix.growth_cols_pct;
+  const rVals = matrix.wacc_rows_pct;
+  const centerRi = Math.floor(rVals.length / 2);
+  const centerGi = Math.floor(gVals.length / 2);
   const cellSize = 52;
 
   return (
@@ -156,10 +169,10 @@ function SensitivityHeatmap({ fcf0, netCash, shares, g, r, gt, price }: {
             <Text style={{ fontSize: 9, color: viColors.textMuted, textAlign: "right", paddingRight: 4 }}>{pct(rv)}</Text>
           </View>
           {gVals.map((gv, gi) => {
-            const val = calcularValorIntrinseco({ fcf0, g: gv / 100, r: rv / 100, gt: gt / 100, netCash, shares });
-            const isCenter = ri === 2 && gi === 2;
+            const val = matrix.values[ri][gi];
+            const isCenter = ri === centerRi && gi === centerGi;
             const noSolution = val === null;
-            const ratio = val && price ? val.valorPorAccion / price : 1;
+            const ratio = val !== null && price ? val / price : 1;
             return (
               <View key={gi} style={{
                 width: cellSize, height: cellSize, marginHorizontal: 1.5, borderRadius: 8,
@@ -168,7 +181,7 @@ function SensitivityHeatmap({ fcf0, netCash, shares, g, r, gt, price }: {
                 borderWidth: isCenter ? 2 : 0, borderColor: "#EBEEF5",
               }}>
                 <Text style={{ fontSize: 11, fontWeight: "800", color: noSolution ? viColors.textDim : "#0A0F1A" }}>
-                  {noSolution ? "N/D" : `$${val!.valorPorAccion.toFixed(0)}`}
+                  {noSolution ? "N/D" : `$${val!.toFixed(0)}`}
                 </Text>
               </View>
             );
@@ -719,7 +732,25 @@ export default function SubvaluadasScreen() {
                 )}
               </View>
 
-              <SensitivityHeatmap fcf0={fcf0} netCash={netCash} shares={shares} g={g} r={r} gt={gt} price={price} />
+              {data.sensitivity_matrix && price !== null && (
+                <SensitivityHeatmap matrix={data.sensitivity_matrix} price={price} />
+              )}
+
+              {data.scenarios && data.probability_weights && (
+                <View style={{ marginTop: 16 }}>
+                  <ScenarioWeightingPanel scenarios={data.scenarios} defaultWeights={data.probability_weights} colors={viColors} />
+                </View>
+              )}
+
+              {(data.reverse_dcf_sanity_check || data.expectations_investing) && (
+                <View style={{ marginTop: 16 }}>
+                  <ReverseDcfPanel
+                    sanityCheck={data.reverse_dcf_sanity_check}
+                    expectationsInvesting={data.expectations_investing}
+                    colors={viColors}
+                  />
+                </View>
+              )}
 
               <TouchableOpacity onPress={() => setLevel3Open(true)} style={{ marginTop: 14 }}>
                 <Text style={{ fontSize: 12, fontWeight: "700", textDecorationLine: "underline", color: viColors.textMuted }}>{t("subvaluadas.detail.level3Toggle")}</Text>

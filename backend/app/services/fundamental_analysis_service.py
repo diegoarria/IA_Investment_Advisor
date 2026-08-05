@@ -15,12 +15,20 @@ from __future__ import annotations
 
 import logging
 import statistics
+from dataclasses import asdict
 from typing import Optional
 
 from scipy.optimize import brentq
 
 from app.services.financial_data_service import get_financials, get_revenue_segments, get_beta, get_risk_free_rate, get_shares_float
 from app.core.finnhub import fh_quote, fh_profile, fh_price_target, fh_metrics, fh_recommendation
+from app.services.valuation.dcf_engine import (
+    project_driver_based_dcf, recency_weighted_average, compute_reinvestment_rate_anchor, is_reit_sector,
+)
+from app.services.valuation.robustness import UnstableGordonGrowthError
+from app.services.valuation.monte_carlo_engine import (
+    DistributionInput, MonteCarloAssumptions, run_monte_carlo_dcf, build_distribution_from_trend,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1059,6 +1067,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
     roic_trend, roe_trend, roa_trend = [], [], []
     owner_earnings_trend = []
     fcf_per_share_trend, implied_shares_trend = [], []
+    reinvestment_rate_trend = []
     prev_working_capital: Optional[float] = None
 
     for i in range(n):
@@ -1125,6 +1134,21 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         roe_trend.append(round(ni / equity * 100, 1) if ni is not None and equity else None)
         roa_trend.append(round(ni / assets * 100, 1) if ni is not None and assets else None)
 
+        # Net reinvestment rate for this year — (CapEx + ΔWC − D&A) / NOPAT —
+        # feeds the driver-based DCF's reinvestment-rate anchor (see
+        # valuation.dcf_engine.project_driver_based_dcf). Computed
+        # independently of the ROIC branch above since it only needs
+        # Operating Income and the tax rate, not Stockholders Equity.
+        if oi is not None:
+            nopat_i = oi * (1 - tax_rate)
+            if nopat_i > 0 and da is not None and capex is not None:
+                reinvestment_i = abs(capex) + (delta_wc or 0) - da
+                reinvestment_rate_trend.append(reinvestment_i / nopat_i)
+            else:
+                reinvestment_rate_trend.append(None)
+        else:
+            reinvestment_rate_trend.append(None)
+
     rev_valid = [v for v in revenue_trend if v is not None]
     fcf_valid = [v for v in fcf_trend if v is not None]
     ni_valid  = [v for v in net_income_trend if v is not None]
@@ -1170,6 +1194,14 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
     else:
         avg_fcf_margin = None
 
+    # Driver-based DCF anchors (Fase 1, Incremento 2 — valuation.dcf_engine):
+    # same recency-weighting technique as avg_fcf_margin above, applied to
+    # operating margin and net reinvestment rate instead of FCF margin.
+    om_pairs = [(i, m / 100) for i, m in enumerate(operating_margin_trend) if m is not None]
+    operating_margin_anchor = recency_weighted_average(om_pairs)
+    reinvestment_pairs = [(i, v) for i, v in enumerate(reinvestment_rate_trend) if v is not None]
+    reinvestment_rate_anchor = compute_reinvestment_rate_anchor(reinvestment_pairs)
+
     latest_bal  = balance[-1]
     total_debt  = (_num(latest_bal.get("Long Term Debt")) or 0) + (_num(latest_bal.get("Short Term Debt")) or 0)
     cash_latest = _num(latest_bal.get("Cash And Short Term Investments")) or _num(latest_bal.get("Cash And Cash Equivalents")) or 0
@@ -1202,6 +1234,8 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         beta, risk_free_rate, market_cap, total_debt, latest_interest_expense, tax_rate, sector,
     )
 
+    sector_model_note = None
+
     if _is_financial_sector(sector):
         # Banks/insurers/brokers: the FCF-based DCF below is unreliable for
         # this sector (confirmed with Progressive Corp) — use the real
@@ -1218,6 +1252,29 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
             roe_trend, latest_equity, shares_out, price, cost_of_equity,
             latest_dividends_paid_fin, latest_net_income, total_debt, cash_latest, sector, wacc_details,
         )
+
+    elif is_reit_sector(sector):
+        # REITs don't generate a normal operating-company FCF the way the
+        # standard DCF below assumes — GAAP depreciation on real property is
+        # a real economic distortion (buildings typically appreciate, not
+        # depreciate, over a REIT's holding period), so NOPAT/reinvestment
+        # built on GAAP D&A systematically understates cash-generating
+        # power. FFO/AFFO is the standard REIT-specific metric — not built
+        # yet (future-phase work, see the Fase 1 plan's "fuera de alcance"),
+        # so this shows a clear message instead of silently misapplying the
+        # FCF-DCF, per the brief's explicit rule for DCF-inappropriate
+        # companies. `dcf` stays None — same downstream handling already in
+        # place for "insufficient data" (see format_fundamental_analysis_
+        # for_prompt's `dcf is None` branch).
+        sector_model_note = {
+            "sector_type": "reit",
+            "detalle": (
+                "Este es un REIT (fideicomiso de inversión inmobiliaria) — su flujo de caja real se mide con "
+                "FFO/AFFO, no con el DCF estándar de flujo de caja libre, que distorsiona su valor por cómo la "
+                "depreciación contable trata las propiedades. Nuvos AI todavía no tiene un modelo FFO/AFFO "
+                "dedicado; el valor intrínseco no se muestra para evitar un número engañoso."
+            ),
+        }
 
     elif avg_fcf_margin and avg_fcf_margin > 0 and latest_rev and shares_out and price:
         base_fcf = avg_fcf_margin * latest_rev
@@ -1555,6 +1612,121 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                 ],
             }
 
+            # ── Driver-based DCF (Revenue -> Operating Margin -> EBIT ->
+            # NOPAT -> Reinvestment -> FCF) — Fase 1, Incremento 2 of the
+            # valuation-engine redesign (see
+            # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md).
+            # Computed IN ADDITION to (never replacing) the FCF-fade model
+            # above: the existing scenarios/sensitivity/reverse-DCF/scores
+            # keep using the proven model above completely untouched. This
+            # is surfaced as a second, more granular figure the frontend
+            # can start showing once reviewed — a failure here must never
+            # affect the primary valuation, hence the broad guard.
+            driver_based_valuation = None
+            if (
+                operating_margin_anchor is not None and reinvestment_rate_anchor is not None
+                and avg_roic is not None and avg_roic > 0
+            ):
+                try:
+                    driver_result = project_driver_based_dcf(
+                        revenue_0=latest_rev,
+                        revenue_growth_1=base_g1_fcf,
+                        terminal_growth=terminal_growth,
+                        operating_margin_anchor_pct=operating_margin_anchor,
+                        terminal_operating_margin_pct=operating_margin_anchor,
+                        tax_rate=tax_rate,
+                        reinvestment_rate_anchor_pct=reinvestment_rate_anchor,
+                        terminal_roic_pct=avg_roic / 100,
+                        discount_rate=base_discount_rate,
+                        net_cash=net_cash,
+                        shares_out=projected_shares,
+                    )
+                    driver_based_valuation = {
+                        "value_per_share": driver_result.value_per_share,
+                        "enterprise_value": driver_result.enterprise_value,
+                        "assumptions": driver_result.assumptions,
+                        "yearly": [asdict(row) for row in driver_result.yearly],
+                    }
+                except (UnstableGordonGrowthError, ValueError) as e:
+                    logger.info("get_fundamental_analysis(%s): driver-based DCF not computable: %s", ticker, e)
+
+            # ── Monte Carlo simulation — Fase 1, Incremento 3 (Parte B).
+            # Reuses the exact same driver-based engine as
+            # driver_based_valuation above, run 2,000 times with each input
+            # sampled from a distribution centered on the SAME real anchor
+            # values, with stdev derived from the company's own real
+            # historical volatility where a historical series exists
+            # (revenue growth, operating margin, reinvestment rate) — see
+            # valuation.monte_carlo_engine.build_distribution_from_trend.
+            # Discount rate and terminal growth have no per-year company
+            # trend to measure (they're market/sector-level, not observed
+            # annual company data), so they fall back to the module's
+            # documented realism floors rather than a fabricated trend.
+            # Broad except: a Monte Carlo failure must never take down the
+            # primary valuation above it.
+            monte_carlo = None
+            if (
+                operating_margin_anchor is not None and reinvestment_rate_anchor is not None
+                and avg_roic is not None and avg_roic > 0
+            ):
+                try:
+                    revenue_yoy_trend = [
+                        (revenue_trend[i] / revenue_trend[i - 1] - 1)
+                        if revenue_trend[i - 1] and revenue_trend[i] is not None else None
+                        for i in range(1, len(revenue_trend))
+                    ]
+                    operating_margin_decimal_trend = [
+                        m / 100 if m is not None else None for m in operating_margin_trend
+                    ]
+                    mc_assumptions = MonteCarloAssumptions(
+                        revenue_growth_1=build_distribution_from_trend(
+                            revenue_yoy_trend, anchor=base_g1_fcf, lo=-0.5, hi=1.5, variable_key="revenue_growth_1",
+                        ),
+                        operating_margin=build_distribution_from_trend(
+                            operating_margin_decimal_trend, anchor=operating_margin_anchor,
+                            lo=0.0, hi=0.80, variable_key="operating_margin",
+                        ),
+                        discount_rate=build_distribution_from_trend(
+                            [], anchor=base_discount_rate, lo=0.04, hi=0.25, variable_key="discount_rate",
+                        ),
+                        terminal_growth=build_distribution_from_trend(
+                            [], anchor=terminal_growth, lo=0.005, hi=0.035, variable_key="terminal_growth",
+                        ),
+                        reinvestment_rate=build_distribution_from_trend(
+                            reinvestment_rate_trend, anchor=reinvestment_rate_anchor,
+                            lo=-0.5, hi=1.5, variable_key="reinvestment_rate",
+                        ),
+                        # Share count: no clean per-year "volatility" series
+                        # (implied_shares_trend reflects real buybacks, a
+                        # trend not noise) — a modest fixed 1% stdev models
+                        # buyback-pace uncertainty without overstating it as
+                        # measured historical volatility.
+                        shares_out=DistributionInput(
+                            mean=projected_shares, stdev=max(projected_shares * 0.01, 1.0),
+                            lo=projected_shares * 0.9, hi=projected_shares * 1.1,
+                        ),
+                        tax_rate=tax_rate,
+                        terminal_roic_pct=avg_roic / 100,
+                        net_cash=net_cash,
+                        revenue_0=latest_rev,
+                    )
+                    mc_result = run_monte_carlo_dcf(mc_assumptions, current_price=price)
+                    monte_carlo = {
+                        "n_simulations": mc_result.n_simulations,
+                        "n_valid": mc_result.n_valid,
+                        "n_discarded": mc_result.n_discarded,
+                        "min": mc_result.min,
+                        "p10": mc_result.p10,
+                        "p25": mc_result.p25,
+                        "median": mc_result.median,
+                        "p75": mc_result.p75,
+                        "p90": mc_result.p90,
+                        "max": mc_result.max,
+                        "probability_undervalued_pct": mc_result.probability_undervalued_pct,
+                    }
+                except Exception as e:
+                    logger.info("get_fundamental_analysis(%s): monte carlo not computable: %s", ticker, e)
+
             dcf = {
                 "base_fcf": round(base_fcf, 0),
                 "avg_fcf_margin_pct": round(avg_fcf_margin * 100, 1),
@@ -1597,6 +1769,8 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                     "buyback_rate_pct": round(buyback_rate * 100, 1),
                     "fcf_per_share_cagr_pct": fcf_per_share_cagr,
                 },
+                "driver_based_valuation": driver_based_valuation,
+                "monte_carlo": monte_carlo,
             }
 
     # ── Quality score (0-10, matches the "Calidad del negocio: X.X/10" format) ──
@@ -1878,6 +2052,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
         "data_source": fin.get("provider"),
         "liquidity_gate": liquidity_gate,
         "data_validation": data_validation,
+        "sector_model_note": sector_model_note,
     }
 
 
@@ -1940,6 +2115,10 @@ def format_fundamental_analysis_for_prompt(data: dict) -> str:
             f"⚠️ ALERTA DE VALIDACIÓN CONTABLE (menciónalo antes de usar cifras de esos años específicos): "
             f"{data_validation['detalle']}"
         )
+        lines.append("")
+    sector_model_note = data.get("sector_model_note")
+    if sector_model_note:
+        lines.append(f"ℹ️ NOTA DE MODELO DE VALUACIÓN (explícasela al usuario, no la omitas): {sector_model_note['detalle']}")
         lines.append("")
     segments = data.get("segments") or []
     if segments:

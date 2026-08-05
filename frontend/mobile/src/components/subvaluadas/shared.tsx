@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
+import Slider from "@react-native-community/slider";
 import Svg, { Circle } from "react-native-svg";
 import Markdown from "react-native-markdown-display";
 import { Ionicons } from "@expo/vector-icons";
@@ -83,6 +84,57 @@ export interface YearlyDetailRow {
   fcf: number;
   discount_factor: number;
   present_value: number;
+}
+
+// ── Fase 1, Incremento 4 (escenarios configurables + sensibilidad real +
+// reverse DCF) — see /Users/diegoarria/.claude/plans/stateful-painting-flurry.md.
+// Mirror of the web version's types in frontend/web/src/components/subvaluadas/shared.tsx.
+export interface ScenarioValues {
+  intrinsic_value_per_share: number;
+  stage1_growth_pct: number;
+  discount_rate_pct: number;
+}
+
+export interface ScenariosData {
+  pessimistic: ScenarioValues;
+  base: ScenarioValues;
+  optimistic: ScenarioValues;
+}
+
+export interface ProbabilityWeights {
+  pessimistic: number;
+  base: number;
+  optimistic: number;
+}
+
+export interface SensitivityMatrixData {
+  wacc_rows_pct: number[];
+  growth_cols_pct: number[];
+  values: (number | null)[][];
+}
+
+export interface ReverseDcfSanityCheckData {
+  fcf_projected_year_n: number;
+  years: number;
+  vs_cagr_historico_propio: string;
+  regime_change_flag: boolean;
+  detalle: string;
+}
+
+export interface ExpectationsInvestingGrowthByRate {
+  scenario: string;
+  discount_rate_pct: number;
+  implied_growth_pct: number | null;
+}
+
+export interface ExpectationsInvestingData {
+  fcf0: number;
+  fcf0_source: string;
+  implied_multiple_pfcf: number;
+  growth_by_rate: ExpectationsInvestingGrowthByRate[];
+  fcf_year10_base_scenario: number | null;
+  historical_fcf_decline_years: number;
+  years_available: number;
 }
 
 export function GeneratedAtNote({ generatedAt, colors }: { generatedAt: number; colors: any }) {
@@ -212,6 +264,114 @@ export function MarketExpectationsPanel({ data, colors }: { data: MarketExpectat
           </Text>
         </View>
       </View>
+    </View>
+  );
+}
+
+// Lets the user override the confidence-derived pessimistic/base/optimistic
+// probability weighting (Parte C). Mirror of the web version — see its
+// docstring for why the default starts from the backend's confidence-tiered
+// weights rather than a flat 20/60/20.
+export function ScenarioWeightingPanel({
+  scenarios, defaultWeights, colors,
+}: {
+  scenarios: ScenariosData; defaultWeights: ProbabilityWeights; colors: any;
+}) {
+  const { t } = useTranslation();
+  const [weights, setWeights] = useState(defaultWeights);
+
+  const total = weights.pessimistic + weights.base + weights.optimistic;
+  const norm = (w: number) => (total > 0 ? w / total : 0);
+  const expectedValue =
+    scenarios.pessimistic.intrinsic_value_per_share * norm(weights.pessimistic) +
+    scenarios.base.intrinsic_value_per_share * norm(weights.base) +
+    scenarios.optimistic.intrinsic_value_per_share * norm(weights.optimistic);
+
+  const rows: { key: keyof ProbabilityWeights; labelKey: string; color: string }[] = [
+    { key: "pessimistic", labelKey: "subvaluadas.scenarios.pessimistic", color: "#ef4444" },
+    { key: "base", labelKey: "subvaluadas.scenarios.base", color: colors.accentLight },
+    { key: "optimistic", labelKey: "subvaluadas.scenarios.optimistic", color: "#22c55e" },
+  ];
+
+  return (
+    <View style={{ borderWidth: 1, borderRadius: 12, padding: 12, borderColor: colors.border, backgroundColor: colors.bgRaised }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>{t("subvaluadas.scenarios.label")}</Text>
+        <TouchableOpacity onPress={() => setWeights(defaultWeights)}>
+          <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted }}>{t("subvaluadas.scenarios.reset")}</Text>
+        </TouchableOpacity>
+      </View>
+      {rows.map(({ key, labelKey, color }) => (
+        <View key={key} style={{ marginBottom: 8 }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
+            <Text style={{ fontSize: 10, color: colors.textSub }}>
+              {t(labelKey)} · <Text style={{ fontWeight: "800", color: colors.text }}>${scenarios[key].intrinsic_value_per_share.toFixed(0)}</Text>
+            </Text>
+            <Text style={{ fontSize: 10, fontWeight: "800", color }}>{Math.round(norm(weights[key]) * 100)}%</Text>
+          </View>
+          <Slider
+            minimumValue={0} maximumValue={100} step={1} value={weights[key]}
+            onValueChange={(v) => setWeights((w) => ({ ...w, [key]: v }))}
+            minimumTrackTintColor={color} maximumTrackTintColor={colors.borderStrong} thumbTintColor={color}
+            style={{ height: 26 }}
+          />
+        </View>
+      ))}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", paddingTop: 8, marginTop: 2, borderTopWidth: 1, borderTopColor: colors.border }}>
+        <Text style={{ fontSize: 11, fontWeight: "800", color: colors.textSub }}>{t("subvaluadas.scenarios.expectedValue")}</Text>
+        <Text style={{ fontSize: 13, fontWeight: "900", color: colors.text }}>${expectedValue.toFixed(0)}</Text>
+      </View>
+    </View>
+  );
+}
+
+// Reverse DCF (Parte E) — mirror of the web version.
+export function ReverseDcfPanel({
+  sanityCheck, expectationsInvesting, colors,
+}: {
+  sanityCheck: ReverseDcfSanityCheckData | null;
+  expectationsInvesting: ExpectationsInvestingData | null;
+  colors: any;
+}) {
+  const { t } = useTranslation();
+  if (!sanityCheck && !expectationsInvesting) return null;
+  return (
+    <View style={{ borderWidth: 1, borderRadius: 12, padding: 12, borderColor: colors.border, backgroundColor: colors.bgRaised }}>
+      <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text, marginBottom: 8 }}>{t("subvaluadas.reverseDcf.label")}</Text>
+      {sanityCheck && (
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+          {sanityCheck.regime_change_flag && (
+            <Ionicons name="alert-circle-outline" size={14} color="#f59e0b" style={{ marginTop: 1 }} />
+          )}
+          <Text style={{ flex: 1, fontSize: 11, lineHeight: 16, color: sanityCheck.regime_change_flag ? "#f59e0b" : colors.textSub }}>
+            {sanityCheck.detalle}
+          </Text>
+        </View>
+      )}
+      {expectationsInvesting && (
+        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+          <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 6, color: colors.textMuted }}>
+            {t("subvaluadas.reverseDcf.expectationsInvesting")}
+          </Text>
+          <View style={{ flexDirection: "row", gap: 6 }}>
+            {expectationsInvesting.growth_by_rate.map((row) => (
+              <View key={row.scenario} style={{ flex: 1, borderRadius: 8, padding: 6, alignItems: "center", backgroundColor: colors.card }}>
+                <Text style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: 0.3, color: colors.textMuted }}>
+                  {t(`subvaluadas.scenarios.${row.scenario}`)}
+                </Text>
+                <Text style={{ fontSize: 11, fontWeight: "900", color: colors.text }}>
+                  {row.implied_growth_pct !== null ? `${row.implied_growth_pct}%` : "N/D"}
+                </Text>
+              </View>
+            ))}
+          </View>
+          {expectationsInvesting.historical_fcf_decline_years > 0 && (
+            <Text style={{ fontSize: 10, marginTop: 6, color: colors.textMuted }}>
+              {t("subvaluadas.reverseDcf.declineYears", { count: expectationsInvesting.historical_fcf_decline_years })}
+            </Text>
+          )}
+        </View>
+      )}
     </View>
   );
 }

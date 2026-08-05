@@ -787,6 +787,20 @@
       "growth": "Growth",
       "margin": "FCF margin"
     },
+    "scenarios": {
+      "label": "Scenarios and probabilities",
+      "reset": "Reset",
+      "pessimistic": "Pessimistic",
+      "base": "Base",
+      "optimistic": "Optimistic",
+      "expectedValue": "Expected value"
+    },
+    "reverseDcf": {
+      "label": "Reverse DCF — what's the market expecting?",
+      "expectationsInvesting": "Implied constant growth by scenario",
+      "declineYears_one": "{{count}} year with an FCF decline in the company's real history.",
+      "declineYears_other": "{{count}} years with an FCF decline in the company's real history."
+    },
     "disclaimer": {
       "title": "THIS IS NOT INVESTMENT ADVICE",
       "subtitle": "For a more detailed analysis, go to Mentor AI."

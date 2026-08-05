@@ -693,6 +693,25 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "fair_value_range": dcf.get("fair_value_range"),
         "confidence_meter": dcf.get("confidence_meter"),
         "market_expectations": dcf.get("market_expectations"),
+        # Fase 1, Incremento 4 (see /Users/diegoarria/.claude/plans/stateful-painting-flurry.md):
+        # these were already computed by fundamental_analysis_service but
+        # never reached the frontend — scenarios+probability_weights let the
+        # UI let the user configure their own probability weighting instead
+        # of only showing the confidence-derived expected value;
+        # sensitivity_matrix lets the frontend stop reimplementing its own
+        # client-side heatmap (dcfCalculator.ts) and show the REAL backend
+        # matrix instead; reverse_dcf_sanity_check/expectations_investing
+        # expose the reverse-DCF the backend already solves for (Parte E)
+        # but the frontend has never shown; driver_based_valuation/
+        # monte_carlo/sector_model_note are the Incremento 2/3 additions.
+        "scenarios": dcf.get("scenarios"),
+        "probability_weights": dcf.get("probability_weights"),
+        "sensitivity_matrix": dcf.get("sensitivity_matrix"),
+        "reverse_dcf_sanity_check": dcf.get("reverse_dcf_sanity_check"),
+        "expectations_investing": dcf.get("expectations_investing"),
+        "driver_based_valuation": dcf.get("driver_based_valuation"),
+        "monte_carlo": dcf.get("monte_carlo"),
+        "sector_model_note": data.get("sector_model_note"),
         "relative_valuation": relative_valuation,
         "historical_valuation": historical_valuation,
         "consensus_valuation": consensus_valuation,

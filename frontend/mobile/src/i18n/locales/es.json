@@ -787,6 +787,20 @@
       "growth": "Crecimiento",
       "margin": "Margen FCF"
     },
+    "scenarios": {
+      "label": "Escenarios y probabilidades",
+      "reset": "Restablecer",
+      "pessimistic": "Pesimista",
+      "base": "Base",
+      "optimistic": "Optimista",
+      "expectedValue": "Valor esperado"
+    },
+    "reverseDcf": {
+      "label": "DCF inverso — ¿qué espera el mercado?",
+      "expectationsInvesting": "Crecimiento constante implícito por escenario",
+      "declineYears_one": "{{count}} año con caída de FCF en el historial real de la empresa.",
+      "declineYears_other": "{{count}} años con caída de FCF en el historial real de la empresa."
+    },
     "disclaimer": {
       "title": "ESTO NO ES RECOMENDACIÓN DE INVERSIÓN",
       "subtitle": "Para un análisis más detallado, ve a Arthur."
