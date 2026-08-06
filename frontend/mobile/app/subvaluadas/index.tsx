@@ -611,6 +611,12 @@ export default function SubvaluadasScreen() {
               {data.fair_value_range && <FairValueRangeDisplay range={data.fair_value_range} consensus={data.consensus_valuation} colors={viColors} />}
               {data.confidence_meter && <ConfidenceMeter data={data.confidence_meter} colors={viColors} />}
             </View>
+            {/* Nuvos AI Fair Value Engine redesign, Incremento 11 (THE FLIP) —
+                one engine, three scenarios (Bear/Base/Bull), now the primary
+                valuation panel, ungated, in the always-visible summary block. */}
+            {data.nuvos_fair_value && (
+              <FairValueScenariosPanel data={data.nuvos_fair_value} price={price} colors={viColors} />
+            )}
             {data.market_expectations && <MarketExpectationsPanel data={data.market_expectations} colors={viColors} />}
             {data.checklist && <ChecklistDisplay checklist={data.checklist} colors={viColors} />}
             <InsightBox text={data.summary} colors={viColors} />
@@ -744,12 +750,6 @@ export default function SubvaluadasScreen() {
 
               {data.sensitivity_matrix && price !== null && (
                 <SensitivityHeatmap matrix={data.sensitivity_matrix} price={price} />
-              )}
-
-              {data.nuvos_fair_value && (
-                <View style={{ marginTop: 16 }}>
-                  <FairValueScenariosPanel data={data.nuvos_fair_value} price={price} colors={viColors} />
-                </View>
               )}
 
               {data.scenarios && data.probability_weights && (

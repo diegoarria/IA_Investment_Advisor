@@ -1051,7 +1051,7 @@
         "confidenceSummary": "Qué tan confiable es la estimación de valor razonable — nivel: {{label}}.",
         "confidenceMethodName": "Método",
         "confidenceCrossMethod": "Calculado comparando el rango real entre varios métodos de valuación independientes (DCF, comparables, histórico).",
-        "confidenceScenarioProxy": "Calculado a partir de la dispersión entre los escenarios optimista/base/pesimista del DCF (no hubo suficientes métodos independientes para comparar).",
+        "confidenceBearBullDispersion": "Calculado a partir de qué tan separados están los escenarios Bear y Bull del Nuvos AI Fair Value Engine — cuanto más amplio el rango, menor la confianza.",
         "marginOfSafetySummary": "Qué tan por debajo del valor intrínseco real está el precio actual.",
         "formula": "Fórmula real"
       }

@@ -31,12 +31,13 @@ export interface ConfidenceMeterData {
   score: number;
   label: string;
   stars: number;
-  // Fase 1, Incremento 5: "cross_method" when the score's method-agreement
-  // component used the real DCF/Relative/Historical spread, or
-  // "scenario_range_proxy" when fewer than 2 methods were computable and it
-  // fell back to the original scenario-range proxy. Optional/informational
-  // — not required for the meter to render.
-  dispersion_source?: "cross_method" | "scenario_range_proxy";
+  // "cross_method" when the score's method-agreement component used a real
+  // cross-method spread (kept, currently unused by any live caller — see
+  // confidence_engine.py's docstring), or "bear_bull_dispersion" (Nuvos AI
+  // Fair Value Engine redesign, Incremento 11 — THE FLIP) — the normal case
+  // — the real Bear<->Bull spread of the single engine. Optional/
+  // informational — not required for the meter to render.
+  dispersion_source?: "cross_method" | "bear_bull_dispersion";
 }
 
 export interface MarketExpectationsData {
@@ -506,14 +507,13 @@ export interface GrowthEngineData {
   factors: NifScoreFactor[];
 }
 
-// Nuvos AI Fair Value Engine redesign, Incremento 9 (ver
-// /Users/diegoarria/.claude/plans/stateful-painting-flurry.md) — una sola
-// máquina, tres escenarios (Bear/Base/Bull), reemplazo del "Conservative
-// DCF"/"Professional DCF"/Relative Valuation mostrados como métodos
-// separados (ver GrowthEnginePreviewPanel arriba y ExecutiveSummaryPanel
-// para el Consensus que este panel eventualmente reemplaza — Incremento
-// 11 en adelante). Aditivo por ahora: se muestra junto a todo lo demás,
-// nunca reemplaza el número que el resto de la pantalla usa hasta el flip.
+// Nuvos AI Fair Value Engine redesign (ver /Users/diegoarria/.claude/plans/
+// stateful-painting-flurry.md) — una sola máquina, tres escenarios (Bear/
+// Base/Bull), reemplazo del "Conservative DCF"/"Professional DCF"/Relative
+// Valuation mostrados como métodos separados. Desde Incremento 11 (EL FLIP)
+// este es el panel de valuación PRIMARIO — `fair_value_range` (usado por
+// ExecutiveSummaryPanel/ConfidenceMeter en toda la pantalla) ahora ES la
+// dispersión Bear<->Bull de este mismo panel, no un número independiente.
 export interface NuvosScenarioAssumptions {
   revenue_growth_1_pct: number;
   high_growth_years: number;

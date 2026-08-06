@@ -91,7 +91,7 @@ export function ExecutiveSummaryPanel({
       reason: t(
         confidenceMeter.dispersion_source === "cross_method"
           ? "subvaluadas.executiveSummary.explain.confidenceCrossMethod"
-          : "subvaluadas.executiveSummary.explain.confidenceScenarioProxy"
+          : "subvaluadas.executiveSummary.explain.confidenceBearBullDispersion"
       ),
     }],
   } : undefined;

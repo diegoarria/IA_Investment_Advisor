@@ -13,12 +13,25 @@ price fetch that `get_fundamental_analysis()` itself doesn't do.
 This module provides the upgrade: once Methods 3/4 ARE available (in the
 API layer, after `_compute_extra_valuations` returns), recompute the
 "agreement" component from the REAL spread across independent valuation
-methods (DCF base case, Relative, Historical) instead of the scenario-range
+methods (DCF base case, Relative, Historical) instead of the bear/bull
 proxy. When fewer than 2 real method values are available (e.g. a recent
 IPO with no 5-year price history, or a thinly-covered ticker with no real
 peer group), this degrades EXACTLY to the original proxy — same score,
 same behavior — so this is additive, not a silent behavior change for
 every ticker.
+
+Nuvos AI Fair Value Engine redesign, Incremento 11 (THE FLIP) — decision #6
+resolved this gap by deletion rather than new math: `method_values` is no
+longer passed from `screener.py` (Consensus, its source, is retired from
+display — Incremento 12), so every call now degrades to the "proxy" branch
+below. That branch is no longer a proxy for anything — `fair_value_range`'s
+low/high ARE the single engine's own Bear/Bull scenario values (see
+`fundamental_analysis_service.combine_fair_value_range`), so its
+`dispersion_source` label is `"bear_bull_dispersion"`, not
+`"scenario_range_proxy"`. `method_values`/`compute_cross_method_spread_pct`
+are kept, unused by any current caller, rather than deleted — a real
+cross-method signal may return in a future increment (e.g. Relative/
+Historical vs. the new engine) and the mechanism already works.
 """
 
 from __future__ import annotations
@@ -75,7 +88,7 @@ def compute_confidence_meter_v2(
     else:
         base, low, high = fair_value_range.get("base"), fair_value_range.get("low"), fair_value_range.get("high")
         dispersion_pct = min(100, abs(high - low) / base * 100) if base and base > 0 else 50.0
-        dispersion_source = "scenario_range_proxy"
+        dispersion_source = "bear_bull_dispersion"
     agreement = 100 - dispersion_pct
 
     liquidity_component = 100 if liquidity_ok else 40
@@ -164,7 +177,7 @@ def compute_confidence_meter_v3(
     else:
         base, low, high = fair_value_range.get("base"), fair_value_range.get("low"), fair_value_range.get("high")
         dispersion_pct = min(100, abs(high - low) / base * 100) if base and base > 0 else 50.0
-        dispersion_source = "scenario_range_proxy"
+        dispersion_source = "bear_bull_dispersion"
     agreement = 100 - dispersion_pct
 
     liquidity_component = 100 if liquidity_ok else 40

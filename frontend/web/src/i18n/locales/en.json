@@ -1051,7 +1051,7 @@
         "confidenceSummary": "How reliable the fair-value estimate is — level: {{label}}.",
         "confidenceMethodName": "Method",
         "confidenceCrossMethod": "Computed by comparing the real spread across several independent valuation methods (DCF, comparables, historical).",
-        "confidenceScenarioProxy": "Computed from the spread between the DCF's optimistic/base/pessimistic scenarios (not enough independent methods were available to compare).",
+        "confidenceBearBullDispersion": "Computed from how far apart the Nuvos AI Fair Value Engine's Bear and Bull scenarios are — the wider the range, the lower the confidence.",
         "marginOfSafetySummary": "How far below the real intrinsic value the current price is.",
         "formula": "Real formula"
       }

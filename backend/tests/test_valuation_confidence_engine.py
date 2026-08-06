@@ -67,7 +67,7 @@ class TestComputeConfidenceMeterV2:
         assert v2["score"] == v1["score"]
         assert v2["label"] == v1["label"]
         assert v2["stars"] == v1["stars"]
-        assert v2["dispersion_source"] == "scenario_range_proxy"
+        assert v2["dispersion_source"] == "bear_bull_dispersion"
 
     def test_degrades_exactly_to_v1_when_fewer_than_2_real_method_values(self):
         v1 = _confidence_meter(
@@ -80,7 +80,7 @@ class TestComputeConfidenceMeterV2:
             method_values=[50.0, None],  # only one real value
         )
         assert v2["score"] == v1["score"]
-        assert v2["dispersion_source"] == "scenario_range_proxy"
+        assert v2["dispersion_source"] == "bear_bull_dispersion"
 
     def test_uses_real_cross_method_spread_when_available(self):
         result = compute_confidence_meter_v2(

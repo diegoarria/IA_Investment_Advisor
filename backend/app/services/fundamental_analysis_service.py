@@ -517,50 +517,36 @@ def _fair_value_range(scenarios: dict) -> dict:
     }
 
 
-def combine_fair_value_range(
-    monte_carlo: Optional[dict], consensus: Optional[dict], fallback_range: dict,
-) -> dict:
-    """Fase 1.5, Incremento 10 (see /Users/diegoarria/.claude/plans/
-    stateful-painting-flurry.md) — the unified `fair_value_range`, replacing
-    the old 3-scenario-only range with one that widens to reflect BOTH real
-    sources of uncertainty: the driver-based DCF's own Monte Carlo
-    distribution (2,000 draws, P25-P75) and the spread across Consensus's
-    independently-computed methods (DCF/Relative/Historical). Never a single
-    point — "an analyst thinks in ranges" — and never None: falls back to
-    `fallback_range` (the legacy scenario-based range) when neither Monte
-    Carlo nor Consensus is available, so every caller can rely on this
-    always returning a real low/base/high dict.
+def combine_fair_value_range(nuvos_fair_value: Optional[dict], fallback_range: dict) -> dict:
+    """Nuvos AI Fair Value Engine redesign, Incremento 11 (THE FLIP — see
+    /Users/diegoarria/.claude/plans/stateful-painting-flurry.md) — supersedes
+    Fase 1.5's Monte Carlo + Consensus combination formula. `fair_value_range`
+    is now simply the single engine's own Bear/Base/Bull scenarios: `low` is
+    the Bear Case fair value, `high` is the Bull Case fair value, `base` is
+    the Base Case fair value. No more blending two independently-uncertain
+    sources (a Monte Carlo distribution AND a spread across separately-
+    computed methods) — one engine, three real scenarios, done. Never None:
+    falls back to `fallback_range` (the legacy scenario-based range) when
+    `nuvos_fair_value` isn't available (e.g. financials/REITs, which the
+    engine skips — decision #5) or any of its 3 scenario values is missing,
+    so every caller can rely on this always returning a real low/base/high
+    dict.
 
     Pulled out as a single reusable function (not inlined at each call site)
-    per Diego's dedup mandate — the exact same combination formula is used
-    inside get_fundamental_analysis() (sector-only peers, every live caller)
-    and by screener.py/undervalued_screener_service.py, which recompute a
-    strictly better, industry-aware Consensus right afterward and use this
-    same helper to refresh the range rather than re-deriving the formula."""
-    mc_low = monte_carlo.get("p25") if monte_carlo else None
-    mc_base = monte_carlo.get("median") if monte_carlo else None
-    mc_high = monte_carlo.get("p75") if monte_carlo else None
+    per Diego's dedup mandate — used inside get_fundamental_analysis() and
+    by screener.py/undervalued_screener_service.py, which just read back
+    `dcf["nuvos_fair_value"]` (or their own candidate's) rather than
+    re-deriving the formula."""
+    scenarios = (nuvos_fair_value or {}).get("scenarios") or {}
+    bear = (scenarios.get("bear") or {}).get("fair_value_per_share")
+    base = (scenarios.get("base") or {}).get("fair_value_per_share")
+    bull = (scenarios.get("bull") or {}).get("fair_value_per_share")
 
-    consensus_low = consensus_high = consensus_base = None
-    if consensus:
-        method_values = [m["value"] for m in (consensus.get("methods_used") or {}).values() if m.get("value") is not None]
-        if method_values:
-            consensus_low, consensus_high = min(method_values), max(method_values)
-        consensus_base = consensus.get("consensus_fair_value")
-
-    lows = [v for v in (mc_low, consensus_low) if v is not None]
-    highs = [v for v in (mc_high, consensus_high) if v is not None]
-    bases = [v for v in (mc_base, consensus_base) if v is not None]
-
-    if not lows and not highs and not bases:
+    if bear is None or base is None or bull is None:
         return fallback_range
 
-    low = min(lows) if lows else fallback_range["low"]
-    high = max(highs) if highs else fallback_range["high"]
-    base = round(sum(bases) / len(bases), 2) if bases else fallback_range["base"]
-    if low > high:
-        low, high = high, low
-    return {"low": round(low, 2), "high": round(high, 2), "base": base}
+    low, high = min(bear, bull), max(bear, bull)
+    return {"low": round(low, 2), "high": round(high, 2), "base": round(base, 2)}
 
 
 def _composite_ranking_score(thesis_scores: Optional[dict], sector: Optional[str]) -> Optional[float]:
@@ -2215,7 +2201,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 "buyback_rate_pct": round(buyback_rate * 100, 1),
                 "current_price": price,
                 "scenarios": scenarios,
-                "fair_value_range": combine_fair_value_range(monte_carlo, consensus_valuation, _fair_value_range(scenarios)),
+                "fair_value_range": combine_fair_value_range(nuvos_fair_value, _fair_value_range(scenarios)),
                 "consensus_valuation": consensus_valuation,
                 "relative_valuation": relative_valuation,
                 "historical_valuation": historical_valuation,

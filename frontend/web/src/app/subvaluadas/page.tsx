@@ -95,10 +95,10 @@ export interface QuickAnalysisResult {
   // shared.tsx). Never the growth number the rest of this screen actually
   // uses — that stays legacy until the production flip (Incremento 7).
   growth_engine: GrowthEngineData | null;
-  // Nuvos AI Fair Value Engine redesign, Incremento 6/9 — one engine,
-  // three named scenarios (Bear/Base/Bull), shadow mode (see
-  // FairValueScenariosPanel in shared.tsx). Never the number the rest of
-  // this screen uses until the flip (Incremento 11).
+  // Nuvos AI Fair Value Engine redesign — one engine, three named scenarios
+  // (Bear/Base/Bull), the PRIMARY valuation since Incremento 11 (THE FLIP);
+  // see FairValueScenariosPanel in shared.tsx and combine_fair_value_range
+  // (fair_value_range's low/base/high now ARE these 3 values).
   nuvos_fair_value: NuvosFairValueData | null;
 }
 
@@ -925,6 +925,17 @@ function SubvaluadasPageInner() {
                     deterioration={nifData?.deterioration ?? null}
                   />
 
+                  {/* ===== Nuvos AI Fair Value Engine redesign, Incremento 11 (THE
+                       FLIP) — one engine, three scenarios (Bear/Base/Bull), now the
+                       primary valuation panel: always visible (no longer gated to
+                       "avanzado"), right under the executive summary. Supersedes the
+                       shadow-mode placement from Incremento 9. ===== */}
+                  {data.nuvos_fair_value && (
+                    <div className="mb-8">
+                      <FairValueScenariosPanel data={data.nuvos_fair_value} price={price} />
+                    </div>
+                  )}
+
                   {/* ===== Fase 4, Incremento 12 (Personalización, Parte L) — these 4
                        blocks (checklist/nif/timeline/thesis_history) render in the
                        user's own chosen order (src/lib/personalization.ts), default
@@ -1254,17 +1265,6 @@ function SubvaluadasPageInner() {
 
                       {data.sensitivity_matrix && price !== null && (
                         <SensitivityHeatmap matrix={data.sensitivity_matrix} price={price} />
-                      )}
-
-                      {/* ===== Nuvos AI Fair Value Engine redesign, Incremento 9 —
-                           una sola máquina, tres escenarios (Bear/Base/Bull), aditivo
-                           y gateado a "avanzado" (mismo nivel que el resto del bloque
-                           DCF). Nunca reemplaza el ScenarioWeightingPanel de abajo
-                           hasta el flip (Incremento 11). ===== */}
-                      {isSectionVisible(detailLevel, "scenarios") && data.nuvos_fair_value && (
-                        <div className="mt-5">
-                          <FairValueScenariosPanel data={data.nuvos_fair_value} price={price} />
-                        </div>
                       )}
 
                       {data.scenarios && data.probability_weights && (

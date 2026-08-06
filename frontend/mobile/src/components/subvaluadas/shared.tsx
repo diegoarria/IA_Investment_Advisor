@@ -33,8 +33,8 @@ export interface ConfidenceMeterData {
   score: number;
   label: string;
   stars: number;
-  // Fase 1, Incremento 5: mirror of the web type — see its comment.
-  dispersion_source?: "cross_method" | "scenario_range_proxy";
+  // Mirror of the web type — see its comment (Incremento 11, THE FLIP).
+  dispersion_source?: "cross_method" | "bear_bull_dispersion";
 }
 
 export interface MarketExpectationsData {
@@ -395,10 +395,11 @@ export function ReverseDcfPanel({
   );
 }
 
-// Nuvos AI Fair Value Engine redesign, Incremento 10 — mobile parity for
-// the web FairValueScenariosPanel (Incremento 9, shared.tsx). One engine,
-// three scenarios (Bear/Base/Bull), aditivo por ahora — no reemplaza el
-// número que el resto de la pantalla usa hasta el flip (Incremento 11).
+// Nuvos AI Fair Value Engine redesign — mobile parity for the web
+// FairValueScenariosPanel (shared.tsx). One engine, three scenarios (Bear/
+// Base/Bull). Since Incremento 11 (EL FLIP) this is the primary valuation
+// panel — `fair_value_range` (FairValueRangeDisplay/ConfidenceMeter above)
+// now IS this same panel's Bear<->Bull dispersion.
 export interface NuvosScoreFactor {
   name: string;
   value: number | null;

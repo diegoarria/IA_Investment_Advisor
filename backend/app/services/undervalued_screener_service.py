@@ -382,12 +382,14 @@ async def refresh_undervalued_screener() -> None:
             entry["relative_valuation"] = relative
             entry["historical_valuation"] = historical
             entry["consensus_valuation"] = consensus
-            # Fase 1.5, Incremento 10 — refresh with this loop's real
-            # Consensus (computed here with `_scan`'s _compute_peer_dependent_data=
-            # False intentionally skipped it). Same helper as everywhere
-            # else this range is built.
+            # Nuvos AI Fair Value Engine redesign, Incremento 11 (THE FLIP) —
+            # `fair_value_range` is now just this candidate's own Bear/Base/
+            # Bull scenarios (already computed by get_fundamental_analysis,
+            # on `dcf["nuvos_fair_value"]`); no longer refreshed from this
+            # loop's Consensus. Same helper as everywhere else this range
+            # is built.
             from app.services.fundamental_analysis_service import combine_fair_value_range
-            entry["fair_value_range"] = combine_fair_value_range(dcf.get("monte_carlo"), consensus, entry.get("fair_value_range") or {})
+            entry["fair_value_range"] = combine_fair_value_range(dcf.get("nuvos_fair_value"), entry.get("fair_value_range") or {})
         except Exception as exc:
             # NOTE: deliberately does NOT touch entry["current_fcf"] /
             # "net_cash" / "shares_outstanding" / "dcf_assumptions" here —

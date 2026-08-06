@@ -670,14 +670,15 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         relative_valuation, historical_valuation, consensus_valuation, industry_benchmarks, peer_analysis_cache = await asyncio.wait_for(
             _compute_extra_valuations(ticker, data, dcf), timeout=15.0,
         )
-        # Fase 1.5, Incremento 10 — refresh the range with this call's
-        # industry-aware Consensus (better than the sector-only one
-        # get_fundamental_analysis would have computed itself, which is why
-        # _compute_peer_dependent_data=False was passed above). Same helper used
-        # inside get_fundamental_analysis, never a re-derived formula.
+        # Nuvos AI Fair Value Engine redesign, Incremento 11 (THE FLIP) —
+        # `fair_value_range` is now just this ticker's own Bear/Base/Bull
+        # scenarios (already computed inside get_fundamental_analysis, on
+        # `dcf["nuvos_fair_value"]`); no longer refreshed from this call's
+        # live Consensus. `consensus_valuation` is still attached below for
+        # display until it's retired (Incremento 12).
         from app.services.fundamental_analysis_service import combine_fair_value_range
         dcf["consensus_valuation"] = consensus_valuation
-        dcf["fair_value_range"] = combine_fair_value_range(dcf.get("monte_carlo"), consensus_valuation, dcf["fair_value_range"])
+        dcf["fair_value_range"] = combine_fair_value_range(dcf.get("nuvos_fair_value"), dcf["fair_value_range"])
     except Exception as exc:
         logger.warning("quick_analysis(%s): valuation engine (methods 3-5) failed: %s", ticker, exc)
 
@@ -712,16 +713,16 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
     dcf_assumptions = build_dcf_guidance(dcf, data.get("thesis_scores"))
 
     # Confidence Meter v3 (Fase 1, Incremento 5 — Parte F; extended Fase 1.5,
-    # Incremento 18): upgrades the "method agreement" component from the
-    # scenario-range proxy to the REAL spread across DCF/Relative/Historical,
-    # now that Methods 3/4 are available at this point in the request (they
-    # aren't yet inside get_fundamental_analysis() itself — see
-    # confidence_engine.py's docstring). financial_statement_quality_score/
-    # management_consistency_score were already computed once inside
-    # get_fundamental_analysis() (network-free) and are just read back from
-    # `dcf` here, never re-derived. Degrades gracefully when fewer real
-    # signals are available, so this never worsens the number for any
-    # ticker — only improves it when there's real independent evidence.
+    # Incremento 18). Nuvos AI Fair Value Engine redesign, Incremento 11
+    # (THE FLIP) — no longer passes `method_values`: Consensus, its source,
+    # is retired from display (Incremento 12), so "method agreement" now
+    # degrades to `fair_value_range`'s own dispersion, which IS the real
+    # Bear<->Bull spread of the single engine (see combine_fair_value_range
+    # and confidence_engine.py's docstring) — `dispersion_source` reports
+    # `"bear_bull_dispersion"` for every ticker now, not a proxy label.
+    # financial_statement_quality_score/management_consistency_score were
+    # already computed once inside get_fundamental_analysis() (network-free)
+    # and are just read back from `dcf` here, never re-derived.
     from app.services.valuation.confidence_engine import compute_confidence_meter_v3
     thesis_scores = data.get("thesis_scores") or {}
     confidence_meter_v3 = compute_confidence_meter_v3(
@@ -731,11 +732,6 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         liquidity_ok=(data.get("liquidity_gate") or {}).get("paso", True),
         business_quality_score=thesis_scores.get("business_quality"),
         financial_strength_score=thesis_scores.get("financial_strength"),
-        method_values=[
-            dcf["scenarios"]["base"]["intrinsic_value_per_share"],
-            relative_valuation.get("intrinsic_value_per_share") if relative_valuation else None,
-            historical_valuation.get("intrinsic_value_per_share") if historical_valuation else None,
-        ],
         financial_statement_quality_score=dcf.get("financial_statement_quality_score"),
         management_consistency_score=dcf.get("management_consistency_score"),
     )
