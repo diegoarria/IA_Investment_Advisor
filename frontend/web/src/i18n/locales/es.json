@@ -1016,6 +1016,30 @@
         "bold": "Herramienta educativa de modelaje financiero.",
         "text": "No es asesoría de inversión ni recomendación de compra o venta. El resultado depende enteramente de los supuestos que elijas — Nuvos AI no garantiza que el precio de mercado converja hacia este número."
       }
+    },
+    "executiveSummary": {
+      "title": "Resumen Ejecutivo",
+      "subtitle": "Todo lo que necesitas saber de un vistazo",
+      "price": "Precio",
+      "intrinsicValue": "Valor Intrínseco",
+      "fairValueRange": "Rango de Valor Razonable",
+      "marginOfSafety": "Margen de Seguridad",
+      "qualityScore": "Calidad",
+      "convictionScore": "Convicción",
+      "confidenceScore": "Confianza",
+      "thesisStatus": "Estado de la tesis",
+      "thesisLoading": "Generando tesis...",
+      "noThesis": "Aún no hay suficiente información generada para esta empresa.",
+      "confidence": {
+        "low": "confianza baja",
+        "medium": "confianza media",
+        "high": "confianza alta"
+      },
+      "recentChange": "Cambio desde el último trimestre",
+      "deteriorationDetected": "{{count}} señal(es) de deterioro detectada(s)",
+      "improvementDetected": "{{count}} señal(es) de mejora detectada(s)",
+      "noMaterialChange": "Sin cambios materiales detectados",
+      "keyRisks": "Riesgos principales"
     }
   },
   "patrimonio": {

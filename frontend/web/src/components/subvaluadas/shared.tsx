@@ -681,6 +681,30 @@ export interface NifDeteriorationData {
   factors: NifDeteriorationFactor[];
 }
 
+// Fase 3 (Investment Research Engine) — Thesis Engine's shared draft, from
+// GET /api/research-engine/company/{ticker}/thesis/draft. Every claim
+// carries fact/inference/ai_opinion + confidence (claim_schema.py's
+// EvidenceTaggedClaim) — never a bare string with no provenance.
+export interface EvidenceTaggedClaimData {
+  text: string;
+  kind: "fact" | "inference" | "ai_opinion";
+  source: string | null;
+  source_date: string | null;
+  confidence: "low" | "medium" | "high";
+}
+
+export interface ThesisDraftData {
+  id: string;
+  ticker: string;
+  generated_at: string;
+  thesis_summary: string;
+  strengths: EvidenceTaggedClaimData[];
+  critical_variables: EvidenceTaggedClaimData[];
+  key_risks: EvidenceTaggedClaimData[];
+  invalidation_events: EvidenceTaggedClaimData[];
+  confidence: "low" | "medium" | "high";
+}
+
 export interface NifDashboardData {
   ticker: string;
   company_name: string | null;

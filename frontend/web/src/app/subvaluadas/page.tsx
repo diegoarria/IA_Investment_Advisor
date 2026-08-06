@@ -15,19 +15,22 @@ import ExplainButton from "@/components/ExplainButton";
 import {
   type RangeBounds, type YearlyDetailRow, type Checklist, type FairValueRangeData, type ConfidenceMeterData,
   type MarketExpectationsData, type ConsensusValuationData, type LiquidityGate, type DcfAssumptions,
-  type NifDashboardData, type NifRow,
+  type NifDashboardData, type NifRow, type ThesisDraftData,
   type ScenariosData, type ProbabilityWeights, type SensitivityMatrixData,
   type ReverseDcfSanityCheckData, type ExpectationsInvestingData, type FairValueEngineData,
-  GeneratedAtNote, LiquidityWarning, ChecklistDisplay, ConfidenceMeter, FairValueRangeDisplay,
+  GeneratedAtNote, LiquidityWarning, ChecklistDisplay,
   MarketExpectationsPanel, InsightBox, FollowButton, AnalyzeButton,
   NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
   NifScoreEngineCard, NifMoatDeepDiveBlock, NifManagementDeepDiveCard,
   NifCatalystsCard, NifPeerComparisonCard, NifDeteriorationCard,
-  ScenarioWeightingPanel, ReverseDcfPanel, FinalResultPanel,
+  ScenarioWeightingPanel, ReverseDcfPanel,
 } from "@/components/subvaluadas/shared";
+import { ExecutiveSummaryPanel } from "@/components/subvaluadas/ExecutiveSummaryPanel";
+import { DetailLevelToggle } from "@/components/ui";
+import { isSectionVisible } from "@/lib/detailLevel";
 import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
-import { screenerApi, savedValuationsApi, watchlist, explain as explainApi } from "@/lib/api";
-import { useSubscriptionStore, useThemeStore } from "@/lib/store";
+import { screenerApi, savedValuationsApi, watchlist, explain as explainApi, researchEngineApi } from "@/lib/api";
+import { useSubscriptionStore, useThemeStore, useDetailLevelStore } from "@/lib/store";
 
 export interface QuickAnalysisResult {
   ticker: string;
@@ -554,6 +557,27 @@ function SubvaluadasPageInner() {
     return () => { cancelled = true; };
   }, [ticker, isPremium, i18n.language]);
 
+  // Fase 3's shared research draft — a separate, cheap read (never triggers
+  // recomputation) from the Thesis Engine. Independent load/error state,
+  // same "never block anything else" philosophy as nifData above. A 404
+  // (no draft generated yet for this ticker) is a normal, expected state,
+  // not an error to surface.
+  const [thesisDraft, setThesisDraft] = useState<ThesisDraftData | null>(null);
+  const [thesisLoading, setThesisLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isPremium) { setThesisLoading(false); return; }
+    let cancelled = false;
+    setThesisLoading(true);
+    researchEngineApi.getThesisDraft(ticker)
+      .then((res) => { if (!cancelled) setThesisDraft(res.data); })
+      .catch(() => { if (!cancelled) setThesisDraft(null); })
+      .finally(() => { if (!cancelled) setThesisLoading(false); });
+    return () => { cancelled = true; };
+  }, [ticker, isPremium]);
+
+  const { detailLevel, setDetailLevel } = useDetailLevelStore();
+
   const handleSearch = () => {
     if (!query.trim()) return;
     setWatchlisted(false);
@@ -728,7 +752,7 @@ function SubvaluadasPageInner() {
                 </div>
               ) : (
                 <>
-                  <div className="flex items-end justify-between gap-5 flex-wrap mb-7">
+                  <div className="flex items-end justify-between gap-5 flex-wrap mb-5">
                     <div className="flex items-center gap-3.5">
                       <div style={{ width: 46, height: 46 }}><StockAvatar ticker={data.ticker} size="lg" /></div>
                       <div>
@@ -750,10 +774,33 @@ function SubvaluadasPageInner() {
                     )}
                   </div>
 
+                  {/* ===== Fase 4 — Nivel de Detalle: cambiable en cualquier momento,
+                       controla qué secciones se muestran debajo (src/lib/detailLevel.ts). ===== */}
+                  <div className="flex justify-end mb-5">
+                    <DetailLevelToggle value={detailLevel} onChange={setDetailLevel} />
+                  </div>
+
+                  {/* ===== Fase 4 — Dashboard Principal: resumen ejecutivo, siempre visible
+                       (nivel Principiante), construido con datos que esta página ya trae. ===== */}
+                  <ExecutiveSummaryPanel
+                    price={data.price}
+                    intrinsicValue={data.expected_value_per_share ?? data.intrinsic_value_base}
+                    fairValueRange={data.fair_value_range}
+                    marginOfSafetyPct={data.margin_of_safety_pct}
+                    qualityScore={nifData?.pillars.business_quality.score ?? null}
+                    convictionScore={nifData?.conviction.score ?? null}
+                    confidenceScore={data.confidence_meter?.score ?? null}
+                    thesisDraft={thesisDraft}
+                    thesisLoading={isPremium && thesisLoading}
+                    deterioration={nifData?.deterioration ?? null}
+                  />
+
                   {/* ===== Nuvos Investment Framework (NIF) — automatic 4-pillar AI dashboard.
                        Independent from the manual calculator below: its own loading/error
-                       state, never blocks or alters anything under it. ===== */}
-                  {isPremium && (
+                       state, never blocks or alters anything under it. Gated to Intermedio+
+                       (Fase 4 Parte B) — Principiante already gets Quality/Valuation/riesgos
+                       from the executive summary above. ===== */}
+                  {isPremium && isSectionVisible(detailLevel, "moat_score") && (
                     nifLoading ? (
                       <NifDashboardSkeleton />
                     ) : nifData && !nifError ? (
@@ -817,25 +864,28 @@ function SubvaluadasPageInner() {
                     ) : null
                   )}
 
-                  {/* ===== Nivel 1 summary — everything already known about this company ===== */}
+                  {/* ===== Nivel 1 summary — GeneratedAtNote/LiquidityWarning/InsightBox stay
+                       visible at every Nivel de Detalle (safety info + the plain-language
+                       AI summary belong at Principiante); FinalResultPanel/FairValueRangeDisplay/
+                       ConfidenceMeter were folded into ExecutiveSummaryPanel above (Fase 4,
+                       Incremento 2) to avoid showing the same numbers twice. ===== */}
                   <div className="space-y-3 mb-8">
                     <GeneratedAtNote generatedAt={data.generated_at} />
                     {data.liquidity_gate && <LiquidityWarning gate={data.liquidity_gate} />}
-                    <FinalResultPanel
-                      intrinsicValue={data.expected_value_per_share ?? data.intrinsic_value_base}
-                      fairValue={data.fair_value_engine?.fair_value ?? null}
-                      price={data.price}
-                      confidence={data.confidence_meter}
-                    />
-                    <div className="flex flex-wrap gap-3 items-start">
-                      {data.fair_value_range && <FairValueRangeDisplay range={data.fair_value_range} consensus={data.consensus_valuation} />}
-                      {data.confidence_meter && <ConfidenceMeter data={data.confidence_meter} />}
-                    </div>
-                    {data.market_expectations && <MarketExpectationsPanel data={data.market_expectations} />}
-                    {data.checklist && <ChecklistDisplay checklist={data.checklist} />}
+                    {isSectionVisible(detailLevel, "dcf_full") && data.market_expectations && (
+                      <MarketExpectationsPanel data={data.market_expectations} />
+                    )}
+                    {isSectionVisible(detailLevel, "roic_fcf_growth") && data.checklist && (
+                      <ChecklistDisplay checklist={data.checklist} />
+                    )}
                     <InsightBox>{data.summary}</InsightBox>
                   </div>
 
+                  {/* ===== Calculadora de Valor Intrínseco (DCF manual + sensibilidad +
+                       escenarios + reverse DCF) — Fase 4 Parte B: nivel Avanzado+. Ya existía
+                       tal cual; solo se le agrega la puerta de nivel de detalle. ===== */}
+                  {isSectionVisible(detailLevel, "dcf_full") && (
+                  <>
                   <h1 style={{ fontSize: 28, fontWeight: 500, letterSpacing: "-0.3px", color: "var(--text)", margin: "0 0 6px" }}>
                     {t("subvaluadas.detail.pageTitle.pre")} <em style={{ fontStyle: "italic", color: GOLD }}>{t("subvaluadas.detail.pageTitle.em")}</em>
                   </h1>
@@ -1020,6 +1070,8 @@ function SubvaluadasPageInner() {
                         </div>
                       </div>
                     </>
+                  )}
+                  </>
                   )}
 
                   <div className="flex gap-2 mt-6">

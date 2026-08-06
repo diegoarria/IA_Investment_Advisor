@@ -1016,6 +1016,30 @@
         "bold": "Educational financial modeling tool.",
         "text": "This is not investment advice or a buy/sell recommendation. The result depends entirely on the assumptions you choose — Nuvos AI does not guarantee the market price will converge toward this number."
       }
+    },
+    "executiveSummary": {
+      "title": "Executive Summary",
+      "subtitle": "Everything you need to know at a glance",
+      "price": "Price",
+      "intrinsicValue": "Intrinsic Value",
+      "fairValueRange": "Fair Value Range",
+      "marginOfSafety": "Margin of Safety",
+      "qualityScore": "Quality",
+      "convictionScore": "Conviction",
+      "confidenceScore": "Confidence",
+      "thesisStatus": "Thesis status",
+      "thesisLoading": "Generating thesis...",
+      "noThesis": "Not enough information has been generated for this company yet.",
+      "confidence": {
+        "low": "low confidence",
+        "medium": "medium confidence",
+        "high": "high confidence"
+      },
+      "recentChange": "Change since last quarter",
+      "deteriorationDetected": "{{count}} deterioration signal(s) detected",
+      "improvementDetected": "{{count}} improvement signal(s) detected",
+      "noMaterialChange": "No material change detected",
+      "keyRisks": "Key risks"
     }
   },
   "patrimonio": {
