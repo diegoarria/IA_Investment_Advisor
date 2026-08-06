@@ -2424,35 +2424,16 @@ def _fetch_stock_detail(symbol: str) -> dict:
         except Exception:
             pass
 
-    eps_estimates = []
-    try:
-        ee = t.earnings_estimate
-        if ee is not None and not ee.empty:
-            for idx, r in ee.iterrows():
-                eps_estimates.append({
-                    "period": str(idx),
-                    "avg":    _fmt_number(r.get("avg")),
-                    "low":    _fmt_number(r.get("low")),
-                    "high":   _fmt_number(r.get("high")),
-                    "growth": _fmt_number((r.get("growth") or 0) * 100),
-                })
-    except Exception:
-        pass
-
-    revenue_estimates = []
-    try:
-        re_df = t.revenue_estimate
-        if re_df is not None and not re_df.empty:
-            for idx, r in re_df.iterrows():
-                revenue_estimates.append({
-                    "period": str(idx),
-                    "avg":    _fmt_number(r.get("avg")),
-                    "low":    _fmt_number(r.get("low")),
-                    "high":   _fmt_number(r.get("high")),
-                    "growth": _fmt_number((r.get("growth") or 0) * 100),
-                })
-    except Exception:
-        pass
+    # Fase Fair Value Engine redesign, Incremento 3: the primary yfinance
+    # earnings_estimate/revenue_estimate fetch now lives in
+    # analyst_estimates_service.py (so the valuation engine can use it too)
+    # — moved, not duplicated. The earningsTrend quoteSummary fallback right
+    # below is unchanged and stays here (tightly coupled to this endpoint's
+    # own crumb/session machinery).
+    from app.services.analyst_estimates_service import get_analyst_estimates
+    _analyst_estimates = get_analyst_estimates(symbol)
+    eps_estimates = _analyst_estimates.eps_estimates if _analyst_estimates else []
+    revenue_estimates = _analyst_estimates.revenue_estimates if _analyst_estimates else []
 
     # EPS surprises from yfinance if Finnhub not available
     if not eps_surprises:
