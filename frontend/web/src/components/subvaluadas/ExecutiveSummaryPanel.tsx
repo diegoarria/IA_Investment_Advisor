@@ -12,7 +12,8 @@
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { Card, SectionHeader, ScorePill, Badge, ExplainableValue, type ExplanationContent } from "@/components/ui";
-import type { FairValueRangeData, ThesisDraftData, NifDeteriorationData, NifScoreFactor, ConfidenceMeterData } from "./shared";
+import type { FairValueRangeData, ThesisDraftData, NifDeteriorationData, NifScoreFactor, ConfidenceMeterData, ConsensusValuationData } from "./shared";
+import { FairValueRangeDisplay } from "./shared";
 import { extractFactorsFromNuvosEstimate, formatMarginOfSafetyFormula, pickDeteriorationChangeNote } from "@/lib/explainability";
 
 function StatTile({
@@ -39,13 +40,18 @@ function ScoreTile({ label, score, explanation }: { label: string; score: number
 }
 
 export function ExecutiveSummaryPanel({
-  price, intrinsicValue, fairValueRange, marginOfSafetyPct,
+  price, intrinsicValue, fairValueRange, consensusValuation, marginOfSafetyPct,
   qualityScore, qualityNuvosEstimate, convictionScore, convictionFactors, confidenceMeter,
   thesisDraft, thesisLoading, deterioration,
 }: {
   price: number | null;
   intrinsicValue: number | null;
   fairValueRange: FairValueRangeData | null;
+  /** Fase 1.5, Incremento 11 — Method 5's real weighted blend (DCF/
+   * Relative/Historical), shown as the breakdown behind fairValueRange
+   * below via FairValueRangeDisplay. Optional/nullable: not every ticker
+   * has enough real peer/historical data for Consensus to compute. */
+  consensusValuation?: ConsensusValuationData | null;
   marginOfSafetyPct: number | null;
   qualityScore: number | null;
   /** Fase 4, Incremento 3 — raw pillar nuvos_estimate (untyped upstream
@@ -102,13 +108,9 @@ export function ExecutiveSummaryPanel({
       <SectionHeader title={t("subvaluadas.executiveSummary.title")} subtitle={t("subvaluadas.executiveSummary.subtitle")} />
 
       {/* Valuación real */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4 mb-4 border-b" style={{ borderColor: "var(--border)" }}>
+      <div className="grid grid-cols-3 gap-4 pb-4 mb-4 border-b" style={{ borderColor: "var(--border)" }}>
         <StatTile label={t("subvaluadas.executiveSummary.price")} value={price !== null ? `$${price.toFixed(2)}` : "N/D"} />
         <StatTile label={t("subvaluadas.executiveSummary.intrinsicValue")} value={intrinsicValue !== null ? `$${intrinsicValue.toFixed(2)}` : "N/D"} />
-        <StatTile
-          label={t("subvaluadas.executiveSummary.fairValueRange")}
-          value={fairValueRange ? `$${fairValueRange.low.toFixed(0)} - $${fairValueRange.high.toFixed(0)}` : "N/D"}
-        />
         <StatTile
           label={t("subvaluadas.executiveSummary.marginOfSafety")}
           value={marginOfSafetyPct !== null ? `${marginOfSafetyPct >= 0 ? "+" : ""}${marginOfSafetyPct.toFixed(1)}%` : "N/D"}
@@ -116,6 +118,16 @@ export function ExecutiveSummaryPanel({
           explanation={marginOfSafetyPct !== null ? marginOfSafetyExplanation : undefined}
         />
       </div>
+
+      {/* Fase 1.5, Incremento 11 — nunca un punto único: el rango ahora
+          combina percentiles de Monte Carlo + el spread real de Consensus
+          (Method 5), con el desglose por método visible (FairValueRangeDisplay,
+          ya existía pero nunca estaba conectado a ninguna pantalla). */}
+      {fairValueRange && (
+        <div className="pb-4 mb-4 border-b" style={{ borderColor: "var(--border)" }}>
+          <FairValueRangeDisplay range={fairValueRange} consensus={consensusValuation} />
+        </div>
+      )}
 
       {/* Scores reales (Fase 2) — cada uno explicable, nunca solo un número
           (Fase 4, Incremento 3). */}

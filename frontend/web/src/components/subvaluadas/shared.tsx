@@ -526,68 +526,6 @@ export function GrowthEnginePreviewPanel({ data }: { data: GrowthEngineData | nu
   );
 }
 
-// Fase 1, Incremento 7 (Parte H — Resultado Final): the headline summary
-// that ties both independent valuation methods together instead of
-// showing just one number. Never implies false precision — always framed
-// as "estimación fundamentada," and explicitly explains why the two
-// methods can differ (they answer different questions: intrinsic value is
-// "what are the cash flows worth," fair value is "is the price reasonable
-// for this business's growth/quality") rather than treating a gap as an
-// error to reconcile.
-export function FinalResultPanel({
-  intrinsicValue, fairValue, price, confidence,
-}: {
-  intrinsicValue: number | null;
-  fairValue: number | null;
-  price: number | null;
-  confidence: ConfidenceMeterData | null;
-}) {
-  const { t } = useTranslation();
-  if (intrinsicValue === null && fairValue === null) return null;
-
-  const values = [intrinsicValue, fairValue].filter((v): v is number => v !== null);
-  const average = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
-  const low = values.length ? Math.min(...values) : null;
-  const high = values.length ? Math.max(...values) : null;
-  const diffPct = intrinsicValue !== null && fairValue !== null && average
-    ? Math.abs(intrinsicValue - fairValue) / average * 100
-    : null;
-
-  return (
-    <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-      <p className="text-[13px] font-bold mb-3" style={{ color: "var(--text)" }}>{t("subvaluadas.finalResult.label")}</p>
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        {intrinsicValue !== null && (
-          <div className="rounded-xl p-2.5" style={{ background: "var(--raised)" }}>
-            <p className="text-[9px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.finalResult.intrinsicValue")}</p>
-            <p className="text-lg font-black tabular-nums" style={{ color: "var(--text)" }}>${intrinsicValue.toFixed(0)}</p>
-          </div>
-        )}
-        {fairValue !== null && (
-          <div className="rounded-xl p-2.5" style={{ background: "var(--raised)" }}>
-            <p className="text-[9px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.finalResult.fairValue")}</p>
-            <p className="text-lg font-black tabular-nums" style={{ color: "var(--text)" }}>${fairValue.toFixed(0)}</p>
-          </div>
-        )}
-      </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] mb-2" style={{ color: "var(--sub)" }}>
-        {price !== null && <span>{t("subvaluadas.finalResult.currentPrice")}: <span className="font-bold tabular-nums" style={{ color: "var(--text)" }}>${price.toFixed(2)}</span></span>}
-        {average !== null && <span>{t("subvaluadas.finalResult.average")}: <span className="font-bold tabular-nums" style={{ color: "var(--text)" }}>${average.toFixed(0)}</span></span>}
-        {low !== null && high !== null && low !== high && (
-          <span>{t("subvaluadas.finalResult.range")}: <span className="font-bold tabular-nums" style={{ color: "var(--text)" }}>${low.toFixed(0)} – ${high.toFixed(0)}</span></span>
-        )}
-      </div>
-      {confidence && <div className="mb-2"><ConfidenceMeter data={confidence} /></div>}
-      {diffPct !== null && diffPct > 15 && (
-        <p className="text-[11px] leading-relaxed mb-1" style={{ color: "#f59e0b" }}>
-          {t("subvaluadas.finalResult.methodsDiffer", { pct: diffPct.toFixed(0) })}
-        </p>
-      )}
-      <p className="text-[10px] leading-relaxed" style={{ color: "var(--dim)" }}>{t("subvaluadas.finalResult.disclaimer")}</p>
-    </div>
-  );
-}
-
 export function FollowButton({ watchlisted, onFollow }: { ticker: string; watchlisted: boolean; onFollow: () => void }) {
   const { t } = useTranslation();
   return (

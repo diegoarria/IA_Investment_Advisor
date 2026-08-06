@@ -826,16 +826,6 @@
       "declineYears_one": "{{count}} año con caída de FCF en el historial real de la empresa.",
       "declineYears_other": "{{count}} años con caída de FCF en el historial real de la empresa."
     },
-    "finalResult": {
-      "label": "Resultado final",
-      "intrinsicValue": "Valor intrínseco (DCF)",
-      "fairValue": "Valor razonable (múltiplo)",
-      "currentPrice": "Precio actual",
-      "average": "Promedio",
-      "range": "Rango",
-      "methodsDiffer": "Los dos métodos difieren {{pct}}% entre sí — el DCF mide cuánto valen los flujos de caja futuros; el múltiplo mide si el precio es razonable frente a negocios similares. Que difieran no significa que uno esté \"mal\" — son dos preguntas distintas.",
-      "disclaimer": "Esto es una estimación fundamentada, no una cifra exacta — trátala como un rango de referencia, no como el valor \"correcto\"."
-    },
     "disclaimer": {
       "title": "ESTO NO ES RECOMENDACIÓN DE INVERSIÓN",
       "subtitle": "Para un análisis más detallado, ve a Arthur."

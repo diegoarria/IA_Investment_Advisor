@@ -903,6 +903,7 @@ function SubvaluadasPageInner() {
                     price={data.price}
                     intrinsicValue={data.expected_value_per_share ?? data.intrinsic_value_base}
                     fairValueRange={data.fair_value_range}
+                    consensusValuation={data.consensus_valuation}
                     marginOfSafetyPct={data.margin_of_safety_pct}
                     qualityScore={nifData?.pillars?.business_quality?.score ?? null}
                     qualityNuvosEstimate={nifData?.pillars?.business_quality?.nuvos_estimate ?? null}
@@ -1058,9 +1059,11 @@ function SubvaluadasPageInner() {
 
                   {/* ===== Nivel 1 summary — GeneratedAtNote/LiquidityWarning/InsightBox stay
                        visible at every Nivel de Detalle (safety info + the plain-language
-                       AI summary belong at Principiante); FinalResultPanel/FairValueRangeDisplay/
-                       ConfidenceMeter were folded into ExecutiveSummaryPanel above (Fase 4,
-                       Incremento 2) to avoid showing the same numbers twice. ===== */}
+                       AI summary belong at Principiante); FairValueRangeDisplay/ConfidenceMeter
+                       are folded into ExecutiveSummaryPanel above (Fase 4, Incremento 2;
+                       FairValueRangeDisplay actually wired in at Fase 1.5, Incremento 11) to
+                       avoid showing the same numbers twice. FinalResultPanel (dead code, no
+                       references) was deleted in the same increment. ===== */}
                   <div className="space-y-3 mb-8">
                     <GeneratedAtNote generatedAt={data.generated_at} />
                     {data.liquidity_gate && <LiquidityWarning gate={data.liquidity_gate} />}
