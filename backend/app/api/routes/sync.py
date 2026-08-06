@@ -577,7 +577,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
     try:
         profile_res = await run_query(
             db.table("user_profiles")
-            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, streak_bonus_premium_until, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, completed_topic_ids, portfolio_view_mode, checklist_done, watchlist_view_mode, has_broker, preferred_language")
+            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, streak_bonus_premium_until, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, completed_topic_ids, portfolio_view_mode, checklist_done, watchlist_view_mode, has_broker, preferred_language, detail_level")
             .eq("user_id", user_id)
         )
     except Exception:
@@ -665,6 +665,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         "watchlist_view_mode":  profile_row.get("watchlist_view_mode", "advanced"),
         "checklist_done":       bool(profile_row.get("checklist_done", False)),
         "has_broker":           bool(profile_row.get("has_broker", False)),
+        "detail_level":         profile_row.get("detail_level", "intermedio"),
     }
     # A brand-new account with zero portfolio rows is a normal, cacheable state.
     # But if this account has ever had a portfolio and this particular read just
@@ -795,6 +796,25 @@ async def sync_watchlist_view_mode(body: dict, user_id: str = Depends(get_curren
         mode = "advanced"
     db = get_supabase()
     await run_query(db.table("user_profiles").update({"watchlist_view_mode": mode}).eq("user_id", user_id))
+    cache_delete(f"sync:all:{user_id}")
+    return {"ok": True}
+
+
+# ─── Detail level (Fase 4, Incremento 1) ─────────────────────────────────────
+
+_VALID_DETAIL_LEVELS = ("principiante", "intermedio", "avanzado", "profesional")
+
+
+@router.post("/detail-level")
+async def sync_detail_level(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Persist the user's "Nivel de Detalle" (Principiante/Intermedio/
+    Avanzado/Profesional) for cross-device sync — deliberately separate from
+    portfolio/watchlist view mode above, see migration 064."""
+    level = body.get("level", "intermedio")
+    if level not in _VALID_DETAIL_LEVELS:
+        level = "intermedio"
+    db = get_supabase()
+    await run_query(db.table("user_profiles").update({"detail_level": level}).eq("user_id", user_id))
     cache_delete(f"sync:all:{user_id}")
     return {"ok": True}
 

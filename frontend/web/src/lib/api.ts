@@ -1,6 +1,7 @@
 import axios from "axios";
 import { getSupabaseClient } from "./supabase";
 import { apiBase } from "./apiBase";
+import type { DetailLevel } from "./detailLevel";
 
 const BASE_URL = apiBase();
 
@@ -293,6 +294,10 @@ export const sync = {
   getLanguage: () => api.get("/api/sync/language"),
   pushPortfolioViewMode: (mode: "basic" | "advanced") => api.post("/api/sync/portfolio-view-mode", { mode }),
   pushWatchlistViewMode: (mode: "basic" | "advanced") => api.post("/api/sync/watchlist-view-mode", { mode }),
+  // Fase 4, Incremento 1 — the "Nivel de Detalle" preference (Principiante/
+  // Intermedio/Avanzado/Profesional), deliberately separate from the
+  // basic/advanced view-mode toggles above (see src/lib/detailLevel.ts).
+  pushDetailLevel: (level: DetailLevel) => api.post("/api/sync/detail-level", { level }),
   pushChecklistDone: () => api.post("/api/sync/checklist-done"),
   pushMaturity: (score: number, history: unknown[]) =>
     api.post("/api/sync/maturity", { score, history }),
@@ -342,6 +347,38 @@ export const researchApi = {
   // Protected endpoint — needs the auth header, so this fetches a blob and
   // triggers the download client-side rather than linking directly to the URL.
   downloadPdf: (id: string) => api.get(`/api/research/reports/${id}/pdf`, { responseType: "blob" }),
+};
+
+// Fase 3's Investment Research Engine (backend/app/api/routes/research_engine.py)
+// — deliberately a separate object from `researchApi` above, which is the
+// unrelated Deep Research paid one-off report feature (`/api/research/...`).
+// These target `/api/research-engine/...`.
+export const researchEngineApi = {
+  getDossier: (ticker: string, lang?: string) =>
+    api.get(`/api/research-engine/company/${ticker}/dossier`, { params: { lang }, timeout: 30000 }),
+  getBusinessUnderstanding: (ticker: string, lang?: string) =>
+    api.get(`/api/research-engine/company/${ticker}/business-understanding`, { params: { lang } }),
+  getCompetitiveIntelligence: (ticker: string, lang?: string) =>
+    api.get(`/api/research-engine/company/${ticker}/competitive-intelligence`, { params: { lang } }),
+  getIndustryIntelligence: (ticker: string, lang?: string) =>
+    api.get(`/api/research-engine/company/${ticker}/industry-intelligence`, { params: { lang } }),
+  getManagementIntelligence: (ticker: string, lang?: string) =>
+    api.get(`/api/research-engine/company/${ticker}/management-intelligence`, { params: { lang } }),
+  getTimeline: (ticker: string, limit = 100) =>
+    api.get(`/api/research-engine/company/${ticker}/timeline`, { params: { limit } }),
+  getThesisDraft: (ticker: string) =>
+    api.get(`/api/research-engine/company/${ticker}/thesis/draft`),
+  refreshThesisDraft: (ticker: string, lang?: string) =>
+    api.post(`/api/research-engine/company/${ticker}/thesis/draft/refresh`, {}, { params: { lang }, timeout: 30000 }),
+  forkThesis: (ticker: string) =>
+    api.post(`/api/research-engine/company/${ticker}/thesis/fork`, {}),
+  getMyThesis: (ticker: string) =>
+    api.get(`/api/research-engine/company/${ticker}/thesis/mine`),
+  reviewThesis: (ticker: string, lang?: string) =>
+    api.post(`/api/research-engine/company/${ticker}/thesis/review`, {}, { params: { lang }, timeout: 30000 }),
+  getMemo: (ticker: string, lang?: string) =>
+    api.get(`/api/research-engine/company/${ticker}/memo`, { params: { lang }, timeout: 30000 }),
+  getBenchmark: () => api.get("/api/research-engine/benchmark"),
 };
 
 export const feedbackApi = {

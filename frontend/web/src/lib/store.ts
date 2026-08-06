@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { UserProfile, ChatMessage, Notification } from "./types";
 import { sync as syncApi } from "./api";
+import { DEFAULT_DETAIL_LEVEL, isValidDetailLevel, type DetailLevel } from "./detailLevel";
 
 // All user-specific data is stored under per-user keys so switching accounts
 // never leaks one user's watchlist, profile, or history to another.
@@ -836,6 +837,40 @@ export const useLanguageStore = create<LanguageState>()(
       },
     }),
     { name: "language-store" }
+  )
+);
+
+// ─── Detail level store (Fase 4, Incremento 1) ────────────────────────────────
+// "Nivel de Detalle" (Principiante/Intermedio/Avanzado/Profesional) — see
+// src/lib/detailLevel.ts for why this is deliberately separate from
+// UserLevel. Same persisted-store + server-sync shape as useThemeStore/
+// useLanguageStore above.
+
+interface DetailLevelState {
+  detailLevel: DetailLevel;
+  setDetailLevel: (level: DetailLevel) => void;
+  loadDetailLevelFromServer: () => Promise<void>;
+}
+
+export const useDetailLevelStore = create<DetailLevelState>()(
+  persist(
+    (set, get) => ({
+      detailLevel: DEFAULT_DETAIL_LEVEL,
+      setDetailLevel: (level) => {
+        set({ detailLevel: level });
+        syncApi.pushDetailLevel(level).catch(() => {});
+      },
+      loadDetailLevelFromServer: async () => {
+        try {
+          const res = await syncApi.getAll();
+          const serverLevel: unknown = res.data?.detail_level;
+          if (isValidDetailLevel(serverLevel) && serverLevel !== get().detailLevel) {
+            set({ detailLevel: serverLevel });
+          }
+        } catch {}
+      },
+    }),
+    { name: "detail-level-store" }
   )
 );
 

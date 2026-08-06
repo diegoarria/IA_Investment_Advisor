@@ -70,6 +70,13 @@
       "ageHours": "Hace {{h}}h",
       "ageYesterday": "Ayer",
       "ageDays": "Hace {{d}}d"
+    },
+    "detailLevel": {
+      "label": "Nivel de detalle",
+      "principiante": "Principiante",
+      "intermedio": "Intermedio",
+      "avanzado": "Avanzado",
+      "profesional": "Profesional"
     }
   },
   "home": {
