@@ -37,6 +37,7 @@ from app.services.valuation.numeric_helpers import _num, _cagr, _score, _coeffic
 from app.services.valuation.legacy_dcf_core import _project_path, _run_dcf, _run_dcf_constant_growth
 from app.services.valuation.reverse_dcf_engine import (
     _implied_growth_rate, _implied_fcf_margin_at_fixed_growth, _implied_constant_growth_rate,
+    _implied_operating_margin, _implied_terminal_roic, _implied_base_revenue,
     sanity_check_reverse_dcf,
 )
 from app.services.valuation.confidence_engine import _confidence_score, _confidence_meter
@@ -1384,11 +1385,82 @@ def get_fundamental_analysis(ticker: str, _compute_consensus: bool = True) -> Op
                     target_price=price,
                     high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
                 )
+            # ── Reverse DCF 2.0 — Fase 1.5, Incremento 12: three more implied
+            # variables (operating margin, terminal ROIC, base revenue), same
+            # "hold everything else fixed at Nuvos's real estimate, solve for
+            # this one" technique as implied_growth_pct/implied_margin_pct
+            # above. "Implied FCF" (the 4th variable the increment asks for)
+            # is deliberately NOT a 4th root-find — in this waterfall FCF is
+            # never an independent lever, it's a RESULT of margin +
+            # reinvestment + revenue, so it's derived arithmetically below
+            # from implied_margin_pct's own already-solved year-1 figures
+            # instead of re-running Brent's method for a question the model
+            # doesn't actually treat as a free variable.
+            implied_operating_margin_pct = None
+            implied_terminal_roic_pct = None
+            implied_base_revenue = None
+            implied_fcf_year_1 = None
+            if (
+                operating_margin_anchor is not None and reinvestment_rate_anchor is not None
+                and avg_roic is not None and avg_roic > 0
+            ):
+                implied_operating_margin_pct = _implied_operating_margin(
+                    revenue_0=latest_rev,
+                    growth_fixed=driver_based_base_g1,
+                    reinvestment_rate_anchor_pct=reinvestment_rate_anchor,
+                    tax_rate=tax_rate,
+                    terminal_roic_pct=avg_roic / 100,
+                    discount_rate=base_discount_rate,
+                    terminal_growth=terminal_growth,
+                    net_cash=net_cash,
+                    shares_out=projected_shares,
+                    target_price=price,
+                    high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
+                )
+                implied_terminal_roic_pct = _implied_terminal_roic(
+                    revenue_0=latest_rev,
+                    growth_fixed=driver_based_base_g1,
+                    operating_margin_anchor_pct=operating_margin_anchor,
+                    terminal_operating_margin_pct=operating_margin_anchor,
+                    reinvestment_rate_anchor_pct=reinvestment_rate_anchor,
+                    tax_rate=tax_rate,
+                    discount_rate=base_discount_rate,
+                    terminal_growth=terminal_growth,
+                    net_cash=net_cash,
+                    shares_out=projected_shares,
+                    target_price=price,
+                    high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
+                )
+                implied_base_revenue = _implied_base_revenue(
+                    revenue_0_estimate=latest_rev,
+                    growth_fixed=driver_based_base_g1,
+                    operating_margin_anchor_pct=operating_margin_anchor,
+                    terminal_operating_margin_pct=operating_margin_anchor,
+                    reinvestment_rate_anchor_pct=reinvestment_rate_anchor,
+                    tax_rate=tax_rate,
+                    terminal_roic_pct=avg_roic / 100,
+                    discount_rate=base_discount_rate,
+                    terminal_growth=terminal_growth,
+                    net_cash=net_cash,
+                    shares_out=projected_shares,
+                    target_price=price,
+                    high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
+                )
+                if implied_margin_pct is not None:
+                    implied_fcf_year_1 = round(implied_margin_pct / 100 * latest_rev * (1 + driver_based_base_g1), 0)
+
             market_expectations = {
                 "market_implied_growth_pct": implied_growth_pct,
                 "market_implied_fcf_margin_pct": implied_margin_pct,
+                "market_implied_operating_margin_pct": implied_operating_margin_pct,
+                "market_implied_terminal_roic_pct": implied_terminal_roic_pct,
+                "market_implied_base_revenue": implied_base_revenue,
+                "market_implied_fcf_year_1": implied_fcf_year_1,
                 "nuvos_growth_estimate_pct": round(base_historical_growth * 100, 1),
                 "nuvos_fcf_margin_estimate_pct": round(avg_fcf_margin * 100, 1),
+                "nuvos_operating_margin_estimate_pct": round(operating_margin_anchor * 100, 1) if operating_margin_anchor is not None else None,
+                "nuvos_terminal_roic_estimate_pct": round(avg_roic, 1) if avg_roic is not None else None,
+                "nuvos_base_revenue_estimate": round(latest_rev, 0) if latest_rev else None,
             }
 
             # ── Reverse DCF — Expectations Investing (Rappaport) ───────────

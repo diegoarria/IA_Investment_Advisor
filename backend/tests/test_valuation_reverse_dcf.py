@@ -26,6 +26,9 @@ from app.services.fundamental_analysis_service import (
     _implied_growth_rate,
     _implied_fcf_margin_at_fixed_growth,
     _implied_constant_growth_rate,
+    _implied_operating_margin,
+    _implied_terminal_roic,
+    _implied_base_revenue,
     sanity_check_reverse_dcf,
 )
 
@@ -146,6 +149,111 @@ class TestImpliedFcfMarginAtFixedGrowth:
             terminal_operating_margin_pct=0.25, tax_rate=0.21, terminal_roic_pct=0.15,
             discount_rate=0.09, terminal_growth=0.025, net_cash=0.0, shares_out=1.0,
             target_price=1_000_000.0,
+        )
+        assert implied is None
+
+
+class TestImpliedOperatingMargin:
+    def test_recovers_the_margin_used_to_build_the_price(self):
+        growth_fixed = 0.08
+        known_margin = 0.30
+        fwd = project_driver_based_dcf(
+            revenue_growth_1=growth_fixed, operating_margin_anchor_pct=known_margin,
+            terminal_operating_margin_pct=known_margin,
+            **{k: v for k, v in _DRIVER_KWARGS.items() if k not in ("operating_margin_anchor_pct", "terminal_operating_margin_pct")},
+        )
+        target_price = fwd.value_per_share
+
+        implied = _implied_operating_margin(
+            revenue_0=_DRIVER_KWARGS["revenue_0"],
+            growth_fixed=growth_fixed,
+            reinvestment_rate_anchor_pct=_DRIVER_KWARGS["reinvestment_rate_anchor_pct"],
+            tax_rate=_DRIVER_KWARGS["tax_rate"],
+            terminal_roic_pct=_DRIVER_KWARGS["terminal_roic_pct"],
+            discount_rate=_DRIVER_KWARGS["discount_rate"],
+            terminal_growth=_DRIVER_KWARGS["terminal_growth"],
+            net_cash=_DRIVER_KWARGS["net_cash"],
+            shares_out=_DRIVER_KWARGS["shares_out"],
+            target_price=target_price,
+        )
+        assert implied == pytest.approx(known_margin * 100, abs=0.3)
+
+    def test_returns_none_outside_search_range(self):
+        implied = _implied_operating_margin(
+            revenue_0=10_000.0, growth_fixed=0.08, reinvestment_rate_anchor_pct=0.30,
+            tax_rate=0.21, terminal_roic_pct=0.15, discount_rate=0.09, terminal_growth=0.025,
+            net_cash=0.0, shares_out=1.0, target_price=1_000_000.0,
+        )
+        assert implied is None
+
+
+class TestImpliedTerminalRoic:
+    def test_recovers_the_roic_used_to_build_the_price(self):
+        growth_fixed = 0.08
+        known_roic = 0.20
+        fwd = project_driver_based_dcf(
+            revenue_growth_1=growth_fixed, terminal_roic_pct=known_roic,
+            **{k: v for k, v in _DRIVER_KWARGS.items() if k != "terminal_roic_pct"},
+        )
+        target_price = fwd.value_per_share
+
+        implied = _implied_terminal_roic(
+            revenue_0=_DRIVER_KWARGS["revenue_0"],
+            growth_fixed=growth_fixed,
+            operating_margin_anchor_pct=_DRIVER_KWARGS["operating_margin_anchor_pct"],
+            terminal_operating_margin_pct=_DRIVER_KWARGS["terminal_operating_margin_pct"],
+            reinvestment_rate_anchor_pct=_DRIVER_KWARGS["reinvestment_rate_anchor_pct"],
+            tax_rate=_DRIVER_KWARGS["tax_rate"],
+            discount_rate=_DRIVER_KWARGS["discount_rate"],
+            terminal_growth=_DRIVER_KWARGS["terminal_growth"],
+            net_cash=_DRIVER_KWARGS["net_cash"],
+            shares_out=_DRIVER_KWARGS["shares_out"],
+            target_price=target_price,
+        )
+        assert implied == pytest.approx(known_roic * 100, abs=0.5)
+
+    def test_returns_none_outside_search_range(self):
+        implied = _implied_terminal_roic(
+            revenue_0=10_000.0, growth_fixed=0.08, operating_margin_anchor_pct=0.25,
+            terminal_operating_margin_pct=0.25, reinvestment_rate_anchor_pct=0.30, tax_rate=0.21,
+            discount_rate=0.09, terminal_growth=0.025, net_cash=0.0, shares_out=1.0,
+            target_price=1_000_000.0,
+        )
+        assert implied is None
+
+
+class TestImpliedBaseRevenue:
+    def test_recovers_the_revenue_used_to_build_the_price(self):
+        growth_fixed = 0.08
+        known_revenue = 25_000.0
+        fwd = project_driver_based_dcf(
+            revenue_growth_1=growth_fixed, revenue_0=known_revenue,
+            **{k: v for k, v in _DRIVER_KWARGS.items() if k != "revenue_0"},
+        )
+        target_price = fwd.value_per_share
+
+        implied = _implied_base_revenue(
+            revenue_0_estimate=_DRIVER_KWARGS["revenue_0"],
+            growth_fixed=growth_fixed,
+            operating_margin_anchor_pct=_DRIVER_KWARGS["operating_margin_anchor_pct"],
+            terminal_operating_margin_pct=_DRIVER_KWARGS["terminal_operating_margin_pct"],
+            reinvestment_rate_anchor_pct=_DRIVER_KWARGS["reinvestment_rate_anchor_pct"],
+            tax_rate=_DRIVER_KWARGS["tax_rate"],
+            terminal_roic_pct=_DRIVER_KWARGS["terminal_roic_pct"],
+            discount_rate=_DRIVER_KWARGS["discount_rate"],
+            terminal_growth=_DRIVER_KWARGS["terminal_growth"],
+            net_cash=_DRIVER_KWARGS["net_cash"],
+            shares_out=_DRIVER_KWARGS["shares_out"],
+            target_price=target_price,
+        )
+        assert implied == pytest.approx(known_revenue, rel=0.01)
+
+    def test_returns_none_outside_search_range(self):
+        implied = _implied_base_revenue(
+            revenue_0_estimate=10_000.0, growth_fixed=0.08, operating_margin_anchor_pct=0.25,
+            terminal_operating_margin_pct=0.25, reinvestment_rate_anchor_pct=0.30, tax_rate=0.21,
+            terminal_roic_pct=0.15, discount_rate=0.09, terminal_growth=0.025,
+            net_cash=0.0, shares_out=1.0, target_price=100_000_000.0,
         )
         assert implied is None
 

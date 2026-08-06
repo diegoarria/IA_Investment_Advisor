@@ -4,7 +4,10 @@ ported to the driver-based DCF in Fase 1.5, Incremento 3 (see
 /Users/diegoarria/.claude/plans/stateful-painting-flurry.md).
 
 Answers "what is the market actually pricing in at today's price?" via
-root-finding (scipy's Brent's method) — three complementary variants.
+root-finding (scipy's Brent's method) — three complementary variants,
+extended in Fase 1.5, Incremento 12 to three more implied variables
+(operating margin, terminal ROIC, base revenue), each holding every OTHER
+real input fixed at Nuvos's own estimates, same technique.
 
 Fase 1.5, Incremento 3 — why this port happened, and why one variant is
 NOT ported:
@@ -176,6 +179,179 @@ def _implied_fcf_margin_at_fixed_growth(
     reinv_implied = brentq(equity_only, lo, hi, xtol=1e-6)
     _, margin_implied = equity_and_margin_at(reinv_implied)
     return round(margin_implied * 100, 1) if margin_implied is not None else None
+
+
+def _implied_operating_margin(
+    revenue_0: float,
+    growth_fixed: float,
+    reinvestment_rate_anchor_pct: float,
+    tax_rate: float,
+    terminal_roic_pct: float,
+    discount_rate: float,
+    terminal_growth: float,
+    net_cash: float,
+    shares_out: float,
+    target_price: float,
+    high_growth_years: int = 0,
+) -> Optional[float]:
+    """Fase 1.5, Incremento 12 — third reverse-DCF question: holding growth
+    AND reinvestment intensity fixed at Nuvos's own real estimates, what
+    YEAR-1 operating margin would the market need to believe in for this
+    price to be fair? Direct analog of `_implied_fcf_margin_at_fixed_growth`
+    (which instead holds margin fixed and solves reinvestment) — the two are
+    deliberately complementary questions about the same waterfall, not
+    duplicates of each other.
+
+    The TERMINAL operating margin is held fixed at the same real Nuvos
+    estimate passed in (`terminal_operating_margin_pct`) — mirroring how
+    `_implied_growth_rate` holds `terminal_growth` fixed and solves only the
+    year-1 rate — so this answers "what does the price require for margin
+    to START at, assuming it still converges to our real long-run estimate,"
+    not a wholesale rewrite of the long-run margin assumption too.
+
+    Monotonic increasing in operating margin (more EBIT/NOPAT at the same
+    reinvestment intensity -> more FCF -> higher value), so the same
+    Brent's-method bracket-and-solve as `_implied_growth_rate` applies
+    unchanged. Returns None if no margin in [-50%, 90%] reconciles the
+    price."""
+    def equity_at(margin_pct: float) -> Optional[float]:
+        result = project_driver_based_dcf(
+            revenue_0=revenue_0,
+            revenue_growth_1=growth_fixed,
+            terminal_growth=terminal_growth,
+            operating_margin_anchor_pct=margin_pct,
+            terminal_operating_margin_pct=margin_pct,
+            tax_rate=tax_rate,
+            reinvestment_rate_anchor_pct=reinvestment_rate_anchor_pct,
+            terminal_roic_pct=terminal_roic_pct,
+            discount_rate=discount_rate,
+            net_cash=net_cash,
+            shares_out=shares_out,
+            high_growth_years=high_growth_years,
+        )
+        return result.value_per_share
+
+    lo, hi = -0.50, 0.90
+    v_lo, v_hi = equity_at(lo), equity_at(hi)
+    if v_lo is None or v_hi is None or v_lo > target_price or v_hi < target_price:
+        return None
+    margin_implied = brentq(lambda m: equity_at(m) - target_price, lo, hi, xtol=1e-6)
+    return round(margin_implied * 100, 1)
+
+
+def _implied_terminal_roic(
+    revenue_0: float,
+    growth_fixed: float,
+    operating_margin_anchor_pct: float,
+    terminal_operating_margin_pct: float,
+    reinvestment_rate_anchor_pct: float,
+    tax_rate: float,
+    discount_rate: float,
+    terminal_growth: float,
+    net_cash: float,
+    shares_out: float,
+    target_price: float,
+    high_growth_years: int = 0,
+) -> Optional[float]:
+    """Fase 1.5, Incremento 12 — fourth reverse-DCF question: holding
+    growth, margin, and the YEAR-1 reinvestment rate fixed at Nuvos's own
+    real estimates, what TERMINAL ROIC would the market need to believe in?
+    `terminal_roic_pct` only enters the waterfall through Damodaran's
+    stable-growth identity (`terminal_reinvestment_rate = terminal_growth /
+    terminal_roic_pct`, see dcf_engine.py) — a higher terminal ROIC means
+    LESS reinvestment is needed to sustain the same terminal growth, so more
+    cash converts to FCF in the years the fade reaches toward that terminal
+    reinvestment rate. Monotonic increasing in ROIC for any positive
+    `terminal_growth` (the case this always runs under, since a 0%/negative
+    terminal growth would need no reinvestment fade at all) — same
+    Brent's-method pattern as the other three.
+
+    Returns None if no terminal ROIC in (0.5%, 200%] reconciles the price —
+    `project_driver_based_dcf` itself requires a strictly positive terminal
+    ROIC (raises ValueError otherwise), so the search floor stays just above
+    zero rather than at it."""
+    def equity_at(roic: float) -> Optional[float]:
+        result = project_driver_based_dcf(
+            revenue_0=revenue_0,
+            revenue_growth_1=growth_fixed,
+            terminal_growth=terminal_growth,
+            operating_margin_anchor_pct=operating_margin_anchor_pct,
+            terminal_operating_margin_pct=terminal_operating_margin_pct,
+            tax_rate=tax_rate,
+            reinvestment_rate_anchor_pct=reinvestment_rate_anchor_pct,
+            terminal_roic_pct=roic,
+            discount_rate=discount_rate,
+            net_cash=net_cash,
+            shares_out=shares_out,
+            high_growth_years=high_growth_years,
+        )
+        return result.value_per_share
+
+    lo, hi = 0.005, 2.0
+    v_lo, v_hi = equity_at(lo), equity_at(hi)
+    if v_lo is None or v_hi is None or v_lo > target_price or v_hi < target_price:
+        return None
+    roic_implied = brentq(lambda r: equity_at(r) - target_price, lo, hi, xtol=1e-6)
+    return round(roic_implied * 100, 1)
+
+
+def _implied_base_revenue(
+    revenue_0_estimate: float,
+    growth_fixed: float,
+    operating_margin_anchor_pct: float,
+    terminal_operating_margin_pct: float,
+    reinvestment_rate_anchor_pct: float,
+    tax_rate: float,
+    terminal_roic_pct: float,
+    discount_rate: float,
+    terminal_growth: float,
+    net_cash: float,
+    shares_out: float,
+    target_price: float,
+    high_growth_years: int = 0,
+) -> Optional[float]:
+    """Fase 1.5, Incremento 12 — fifth reverse-DCF question, genuinely
+    different in kind from the other four: instead of "what assumption
+    justifies the price," it asks "is the price even consistent with the
+    revenue we already observed?" Holds every ratio (growth, margin,
+    reinvestment, ROIC) fixed at Nuvos's own real estimates and solves for
+    the CURRENT REVENUE level (`revenue_0`) that would reconcile the price
+    — since the whole waterfall scales close to proportionally with
+    revenue_0, this is less "what does the market believe" and more a
+    coherence check: a solved value wildly different from the company's
+    real reported revenue signals the OTHER assumptions (not revenue) are
+    what's really driving the gap, worth surfacing rather than silently
+    absorbing into the growth number alone.
+
+    Monotonic increasing in revenue_0 (a strictly positive linear scale on
+    the whole NOPAT/FCF path). Search range is relative to the real
+    `revenue_0_estimate` (0.1x-10x) rather than a fixed absolute range,
+    since revenue scale varies by orders of magnitude across companies —
+    unlike the rate/percentage variables above, an absolute bracket
+    wouldn't generalize."""
+    def equity_at(revenue_0: float) -> Optional[float]:
+        result = project_driver_based_dcf(
+            revenue_0=revenue_0,
+            revenue_growth_1=growth_fixed,
+            terminal_growth=terminal_growth,
+            operating_margin_anchor_pct=operating_margin_anchor_pct,
+            terminal_operating_margin_pct=terminal_operating_margin_pct,
+            tax_rate=tax_rate,
+            reinvestment_rate_anchor_pct=reinvestment_rate_anchor_pct,
+            terminal_roic_pct=terminal_roic_pct,
+            discount_rate=discount_rate,
+            net_cash=net_cash,
+            shares_out=shares_out,
+            high_growth_years=high_growth_years,
+        )
+        return result.value_per_share
+
+    lo, hi = revenue_0_estimate * 0.1, revenue_0_estimate * 10
+    v_lo, v_hi = equity_at(lo), equity_at(hi)
+    if v_lo is None or v_hi is None or v_lo > target_price or v_hi < target_price:
+        return None
+    revenue_implied = brentq(lambda rev: equity_at(rev) - target_price, lo, hi, xtol=1e-6)
+    return round(revenue_implied, 0)
 
 
 def _constant_growth_enterprise_value(
