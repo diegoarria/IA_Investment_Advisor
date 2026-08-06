@@ -157,3 +157,62 @@ class TestDriverBasedValuationWiring:
         # branch is scoped to the standard FCF-DCF path only)
         assert "driver_based_valuation" not in result["dcf"]
         assert result["sector_model_note"] is None
+
+
+class TestPeerDependentDataWiring:
+    """Nuvos AI Fair Value Engine redesign, Incremento 3b — see
+    /Users/diegoarria/.claude/plans/stateful-painting-flurry.md. Mocks
+    compute_relative_valuation/compute_historical_valuation/
+    compute_industry_benchmarks directly (rather than relying on real
+    UNIVERSE peer lookups, which fail fast/gracefully to None in this
+    sandbox for lack of real API keys) for a deterministic assertion that
+    the 3 pieces reach every caller of get_fundamental_analysis(), not
+    just screener.py's live search."""
+
+    def test_relative_historical_industry_present_on_dcf_when_peer_dependent_data_enabled(self):
+        patches = _patch_boundary(sector="Technology")
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], \
+             patch("app.services.relative_valuation_service.compute_relative_valuation", return_value={"methodology": "relative_valuation", "intrinsic_value_per_share": 123.0}), \
+             patch("app.services.historical_valuation_service.compute_historical_valuation", return_value={"methodology": "historical_valuation", "intrinsic_value_per_share": 130.0}), \
+             patch("app.services.quality.industry_engine.compute_industry_benchmarks") as mock_industry:
+            from app.services.quality.industry_engine import IndustryBenchmarks
+            mock_industry.return_value = IndustryBenchmarks(
+                category="Software", sector="Technology", industry=None, peer_count=8, peers_used=["A", "B"],
+                median_roic_pct=18.0, median_operating_margin_pct=25.0, median_fcf_margin_pct=20.0, median_revenue_cagr_pct=12.0,
+            )
+            result = get_fundamental_analysis("SYN4")
+
+        assert result is not None
+        assert result["dcf"]["relative_valuation"]["intrinsic_value_per_share"] == 123.0
+        assert result["dcf"]["historical_valuation"]["intrinsic_value_per_share"] == 130.0
+        assert result["dcf"]["industry_benchmarks"]["category"] == "Software"
+        assert result["dcf"]["industry_benchmarks"]["median_roic_pct"] == 18.0
+
+    def test_all_three_are_none_when_peer_dependent_data_disabled(self):
+        # Same guard Consensus already used (Fase 1.5, Incremento 10),
+        # broadened in this increment to also cover industry/relative/
+        # historical — a peer-level lookup must never cascade into ITS
+        # OWN peer-fetching.
+        patches = _patch_boundary(sector="Technology")
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], \
+             patch("app.services.relative_valuation_service.compute_relative_valuation") as mock_relative, \
+             patch("app.services.quality.industry_engine.compute_industry_benchmarks") as mock_industry:
+            result = get_fundamental_analysis("SYN5", _compute_peer_dependent_data=False)
+
+        assert result is not None
+        assert result["dcf"]["relative_valuation"] is None
+        assert result["dcf"]["historical_valuation"] is None
+        assert result["dcf"]["industry_benchmarks"] is None
+        mock_relative.assert_not_called()
+        mock_industry.assert_not_called()
+
+    def test_never_breaks_the_primary_dcf_when_industry_benchmarks_raises(self):
+        patches = _patch_boundary(sector="Technology")
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], \
+             patch("app.services.quality.industry_engine.compute_industry_benchmarks", side_effect=Exception("boom")):
+            result = get_fundamental_analysis("SYN6")
+
+        assert result is not None
+        assert result["dcf"] is not None
+        assert result["dcf"]["margin_of_safety_pct"] is not None
+        assert result["dcf"]["industry_benchmarks"] is None

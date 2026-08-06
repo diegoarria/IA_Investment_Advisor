@@ -77,12 +77,12 @@ def compute_quality_peer_comparison(
             peer_data = analysis_cache[peer_ticker]
         else:
             try:
-                # _compute_consensus=False — this only needs the peer's
+                # _compute_peer_dependent_data=False — this only needs the peer's
                 # quality score (build_quality_score_from_analysis below),
                 # never its Consensus fair value; skipping it avoids the
                 # peer's own peer-fetching cascade for a result that would
                 # just be discarded. See get_fundamental_analysis's docstring.
-                peer_data = get_fundamental_analysis(peer_ticker, _compute_consensus=False)
+                peer_data = get_fundamental_analysis(peer_ticker, _compute_peer_dependent_data=False)
             except Exception:
                 continue
             if analysis_cache is not None:

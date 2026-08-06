@@ -167,13 +167,13 @@ def _scan(tickers: list[dict], analysis_cache: Optional[dict[str, Optional[dict]
     results = []
     for entry in tickers:
         try:
-            # _compute_consensus=False — this scan already runs get_fundamental_
+            # _compute_peer_dependent_data=False — this scan already runs get_fundamental_
             # analysis for the ENTIRE curated universe (~150+ tickers); doing
             # peer-fetching Consensus for every one of them here would fan out
             # into thousands of extra requests and duplicate the real Consensus
             # pass this module already does below (refresh_undervalued_screener,
             # lines ~325-391), on the smaller already-capped candidate list.
-            data = get_fundamental_analysis(entry["ticker"], _compute_consensus=False)
+            data = get_fundamental_analysis(entry["ticker"], _compute_peer_dependent_data=False)
             if analysis_cache is not None:
                 analysis_cache[entry["ticker"]] = data
             dcf = data.get("dcf") if data else None
@@ -383,7 +383,7 @@ async def refresh_undervalued_screener() -> None:
             entry["historical_valuation"] = historical
             entry["consensus_valuation"] = consensus
             # Fase 1.5, Incremento 10 — refresh with this loop's real
-            # Consensus (computed here with `_scan`'s _compute_consensus=
+            # Consensus (computed here with `_scan`'s _compute_peer_dependent_data=
             # False intentionally skipped it). Same helper as everywhere
             # else this range is built.
             from app.services.fundamental_analysis_service import combine_fair_value_range

@@ -124,10 +124,10 @@ def compute_industry_benchmarks(
             peer_data = analysis_cache[peer_ticker]
         else:
             try:
-                # _compute_consensus=False — only real trend/margin data is
+                # _compute_peer_dependent_data=False — only real trend/margin data is
                 # read from the peer below, never its Consensus fair value;
                 # see get_fundamental_analysis's docstring.
-                peer_data = get_fundamental_analysis(peer_ticker, _compute_consensus=False)
+                peer_data = get_fundamental_analysis(peer_ticker, _compute_peer_dependent_data=False)
             except Exception:
                 continue
             if analysis_cache is not None:

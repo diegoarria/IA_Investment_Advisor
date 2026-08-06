@@ -768,23 +768,29 @@ def _build_financial_sector_valuation(
     }
 
 
-def get_fundamental_analysis(ticker: str, _compute_consensus: bool = True) -> Optional[dict]:
+def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = True) -> Optional[dict]:
     """Returns a fully computed fundamental-analysis dict for `ticker`, or
     None if there isn't enough real financial data to compute one reliably
     (fewer than 3 years of statements, or no live quote).
 
-    `_compute_consensus` (Fase 1.5, Incremento 10 — see
+    `_compute_peer_dependent_data` (Fase 1.5, Incremento 10; broadened in
+    the Nuvos AI Fair Value Engine redesign, Incremento 3b — see
     /Users/diegoarria/.claude/plans/stateful-painting-flurry.md) guards
-    against real recursion: Consensus (Method 5) calls
-    relative_valuation_service.compute_relative_valuation, which itself
-    calls get_fundamental_analysis() for every peer — and peers are
-    frequently mutual (AAPL and MSFT are each other's peer in the curated
-    UNIVERSE), so an unguarded call would recurse: AAPL → Consensus → peer
-    MSFT → MSFT's own Consensus → peer AAPL → ... Internal callers that
-    fetch a PEER's analysis (relative_valuation_service, the undervalued
-    screener's universe scan) pass `_compute_consensus=False` to cut the
-    recursion at depth 1; every real top-level caller (the API routes,
-    Arthur, the thesis engine) keeps the default and gets Consensus."""
+    against real recursion: Consensus (Method 5), industry benchmarks
+    (`industry_engine.compute_industry_benchmarks`), and Relative/
+    Historical Valuation all fetch real PEERS via
+    `relative_valuation_service._find_peers`, and each peer fetch calls
+    get_fundamental_analysis() again — peers are frequently mutual (AAPL
+    and MSFT are each other's peer in the curated UNIVERSE), so an
+    unguarded call would recurse: AAPL → industry benchmarks → peer MSFT →
+    MSFT's own industry benchmarks → peer AAPL → ... Internal callers that
+    fetch a PEER's analysis (relative_valuation_service, industry_engine,
+    peer_comparison_engine, the undervalued screener's universe scan) pass
+    `_compute_peer_dependent_data=False` to cut the recursion at depth 1 —
+    that peer's own analysis skips Consensus AND industry/relative/
+    historical, since none of those would ever be used for a peer lookup
+    anyway. Every real top-level caller (the API routes, Arthur, the
+    thesis engine) keeps the default and gets all of it."""
     ticker = ticker.upper().strip()
     try:
         fin = get_financials(ticker, limit=10)
@@ -1902,34 +1908,59 @@ def get_fundamental_analysis(ticker: str, _compute_consensus: bool = True) -> Op
             # looser peer group than screener.py's industry-aware call;
             # callers that already recompute a tighter Consensus afterward
             # (screener.py, undervalued_screener_service.py) pass
-            # `_compute_consensus=False` here and refresh the range
+            # `_compute_peer_dependent_data=False` here and refresh the range
             # themselves via `combine_fair_value_range` instead of paying
             # for this weaker version too. Broad except: Consensus is an
             # enrichment, never allowed to break the primary DCF result.
+            #
+            # Nuvos AI Fair Value Engine redesign, Incremento 3b — the SAME
+            # relative_valuation/historical_valuation this block was already
+            # computing (previously used only as Consensus inputs, then
+            # discarded) are now stored on `dcf` below, plus a new
+            # industry_benchmarks fetch — the real peer/industry medians
+            # exit_multiple_engine.py (Incremento 1) needs to derive a real
+            # anchor, now available to every caller of this function for
+            # the first time, not just screener.py's live search. Same
+            # `_compute_peer_dependent_data` guard, same broad except.
             consensus_valuation = None
-            if _compute_consensus:
+            relative_valuation = None
+            historical_valuation = None
+            industry_benchmarks = None
+            if _compute_peer_dependent_data:
                 try:
                     from app.services.consensus_valuation_service import classify_archetype, compute_consensus_fair_value
                     from app.services.relative_valuation_service import compute_relative_valuation
                     from app.services.historical_valuation_service import compute_historical_valuation
+                    from app.services.quality.industry_engine import compute_industry_benchmarks
 
                     _latest_income_row = income[-1] if income else {}
                     _latest_eps = _num(_latest_income_row.get("Diluted EPS")) or _num(_latest_income_row.get("Basic EPS"))
                     _latest_ebitda = _num(_latest_income_row.get("EBITDA"))
                     _latest_fcf = fcf_valid[-1] if fcf_valid else None
 
-                    relative_valuation = None
-                    historical_valuation = None
+                    # Shared across relative_valuation AND industry_benchmarks
+                    # — both resolve the SAME peer group here (same sector,
+                    # industry=None) via _find_peers, so without this a real
+                    # live request fetched every peer's full analysis TWICE
+                    # (~20 sequential peer fetches instead of ~10), found via
+                    # a real-network smoke test that took 94s before this
+                    # cache was added.
+                    _peer_analysis_cache: dict = {}
                     if price and shares_out:
                         relative_valuation = compute_relative_valuation(
                             ticker, price, shares_out, _latest_eps, _latest_ebitda, _latest_fcf,
                             total_debt, cash_latest, sector, None,
+                            analysis_cache=_peer_analysis_cache,
                         )
                         if n >= 5:
                             historical_valuation = compute_historical_valuation(
                                 ticker, income, balance, cashflow, price, shares_out, total_debt, cash_latest,
                                 _latest_eps, _latest_ebitda, _latest_fcf,
                             )
+                    industry_benchmarks_result = compute_industry_benchmarks(
+                        ticker, sector, None, analysis_cache=_peer_analysis_cache,
+                    )
+                    industry_benchmarks = asdict(industry_benchmarks_result) if industry_benchmarks_result else None
                     # business_quality_score isn't computed until later in
                     # this function (it blends several trend scores built
                     # further down) — None here just means classify_
@@ -1947,7 +1978,7 @@ def get_fundamental_analysis(ticker: str, _compute_consensus: bool = True) -> Op
                         archetype, conservative_dcf_value, professional_dcf_value, relative_valuation, historical_valuation,
                     )
                 except Exception as e:
-                    logger.info("get_fundamental_analysis(%s): consensus fair value not computable: %s", ticker, e)
+                    logger.info("get_fundamental_analysis(%s): consensus/relative/historical/industry not computable: %s", ticker, e)
 
             dcf = {
                 "base_fcf": round(base_fcf, 0),
@@ -1968,6 +1999,9 @@ def get_fundamental_analysis(ticker: str, _compute_consensus: bool = True) -> Op
                 "scenarios": scenarios,
                 "fair_value_range": combine_fair_value_range(monte_carlo, consensus_valuation, _fair_value_range(scenarios)),
                 "consensus_valuation": consensus_valuation,
+                "relative_valuation": relative_valuation,
+                "historical_valuation": historical_valuation,
+                "industry_benchmarks": industry_benchmarks,
                 "margin_of_safety_pct": margin_of_safety,
                 "sensitivity": sensitivity,
                 "implied_growth_pct": implied_growth_pct,

@@ -619,14 +619,14 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         # Bounded so a stalled FMP/Finnhub call can never hang this endpoint
         # indefinitely — the frontend gets a fast, clear failure to retry
         # instead of an infinite spinner on a screen that must always open.
-        # _compute_consensus=False: this function computes its OWN, better
+        # _compute_peer_dependent_data=False: this function computes its OWN, better
         # (industry-aware, not just sector-aware) Consensus a few lines
         # below via _compute_extra_valuations — paying for get_fundamental_
         # analysis's internal sector-only Consensus too would just be
         # duplicate peer-fetching for a result this overwrites anyway (see
         # combine_fair_value_range call below).
         data = await asyncio.wait_for(
-            asyncio.to_thread(get_fundamental_analysis, ticker, _compute_consensus=False), timeout=20.0,
+            asyncio.to_thread(get_fundamental_analysis, ticker, _compute_peer_dependent_data=False), timeout=20.0,
         )
     except Exception as exc:
         # A real data-provider hiccup (FMP/Finnhub timeout, rate limit,
@@ -673,7 +673,7 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         # Fase 1.5, Incremento 10 — refresh the range with this call's
         # industry-aware Consensus (better than the sector-only one
         # get_fundamental_analysis would have computed itself, which is why
-        # _compute_consensus=False was passed above). Same helper used
+        # _compute_peer_dependent_data=False was passed above). Same helper used
         # inside get_fundamental_analysis, never a re-derived formula.
         from app.services.fundamental_analysis_service import combine_fair_value_range
         dcf["consensus_valuation"] = consensus_valuation
