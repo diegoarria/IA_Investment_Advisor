@@ -9,6 +9,7 @@ import {
   fmtPrice, fmtPct, fmtVolume, fmtMarketCap, fmtEarningsDate, changeColor,
 } from "@/lib/types/stock";
 import FinancialTip from "@/components/FinancialTip";
+import { scoreColor as scoreTone } from "@/components/ui";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,19 @@ export interface AdvancedRow {
   avgCost?: number | null;
   positionValue?: number | null;
   gainLossPct?: number | null;
+  // Fase 4, Incremento 9 (Watchlist Inteligente, Parte I) — sourced from
+  // watchlistApi.getBatchScores (cache-only, never recomputed). Present
+  // only in "watchlist" mode when the caller passes showScores; null on
+  // any ticker whose analysis isn't cached yet, never fabricated.
+  qualityScore?: number | null;
+  convictionScore?: number | null;
+  marginOfSafetyPct?: number | null;
+  opportunityScore?: number | null;
+  thesisStatus?: "no_thesis" | "draft_only" | "user_thesis" | null;
+  /** improving_count - deteriorating_count from the Deterioration Engine — positive means more improving factors than deteriorating ones. */
+  netChangeScore?: number | null;
+  topRisk?: string | null;
+  topCatalyst?: string | null;
 }
 
 import type { UserLevel } from "@/lib/userLevel";
@@ -53,6 +67,11 @@ interface Props {
   onRemove?: (ticker: string) => void;
   onEdit?: (ticker: string) => void;
   onRowClick?: (ticker: string) => void;
+  /** Fase 4, Incremento 9 — renders the Quality/Conviction/MoS/Oportunidad/
+   * Tesis/Cambio columns (watchlist mode only). Off by default so
+   * portfolio and any non-Premium/no-scores watchlist render exactly as
+   * before. */
+  showScores?: boolean;
 }
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
@@ -147,7 +166,7 @@ function DeleteBtn({ ticker, onRemove }: { ticker: string; onRemove: (t: string)
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado", fxRate = 1, onRemove, onEdit, onRowClick }: Props) {
+export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado", fxRate = 1, onRemove, onEdit, onRowClick, showScores = false }: Props) {
   const { t } = useTranslation();
   // All columns visible — the Avanzado toggle already gates access to this table
   const showVol      = true;
@@ -232,6 +251,13 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
   };
 
   const colProps = { current: sortKey, dir: sortDir, onClick: handleSort };
+  const showScoreCols = mode === "watchlist" && showScores;
+
+  const thesisBadgeStyle: Record<string, { bg: string; color: string }> = {
+    user_thesis:  { bg: "rgba(0,168,94,0.14)",  color: "var(--accent-l)" },
+    draft_only:   { bg: "rgba(234,179,8,0.14)", color: "#eab308" },
+    no_thesis:    { bg: "var(--raised)",        color: "var(--dim)" },
+  };
 
   return (
     <div className="rounded-xl border overflow-hidden"
@@ -251,8 +277,8 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
       </div>
 
       {/* Table */}
-      <div className="w-full overflow-hidden">
-        <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+      <div className="w-full overflow-x-auto">
+        <table className="border-collapse" style={{ tableLayout: "fixed", width: showScoreCols ? "1400px" : "100%", minWidth: "100%" }}>
           <colgroup>
             <col style={{ width: "22%" }} />
             <col style={{ width: "10%" }} />
@@ -263,6 +289,12 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
             {showPE       && <col style={{ width: "7%"  }} />}
             {showEarnings && <col style={{ width: "9%"  }} />}
             {show52W      && <col style={{ width: "14%" }} />}
+            {showScoreCols && <col style={{ width: "90px" }} />}
+            {showScoreCols && <col style={{ width: "90px" }} />}
+            {showScoreCols && <col style={{ width: "90px" }} />}
+            {showScoreCols && <col style={{ width: "90px" }} />}
+            {showScoreCols && <col style={{ width: "110px" }} />}
+            {showScoreCols && <col style={{ width: "80px" }} />}
             {mode === "portfolio" && <col style={{ width: "10%" }} />}
             {mode === "portfolio" && <col style={{ width: "9%"  }} />}
             {onEdit       && <col style={{ width: "5%"  }} />}
@@ -283,6 +315,16 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
               {showPE       && <Th label="P/E"      sortKey="pe"           {...colProps} tip={<FinancialTip term="P/E" userLevel={userLevel}>P/E</FinancialTip>} />}
               {showEarnings && <Th label="Earnings" sortKey="earningsDate" {...colProps} tip={<FinancialTip term="Earnings" userLevel={userLevel}>Earnings</FinancialTip>} />}
               {show52W      && <Th label="52W"      sortKey="week52High"   {...colProps} tip={<FinancialTip term="52W High" userLevel={userLevel}>52W</FinancialTip>} />}
+              {showScoreCols && (
+                <>
+                  <Th label={t("advancedStockTable.scores.quality")}     sortKey="qualityScore"     {...colProps} />
+                  <Th label={t("advancedStockTable.scores.conviction")}  sortKey="convictionScore"  {...colProps} />
+                  <Th label={t("advancedStockTable.scores.discount")}    sortKey="marginOfSafetyPct" {...colProps} />
+                  <Th label={t("advancedStockTable.scores.opportunity")} sortKey="opportunityScore" {...colProps} />
+                  <Th label={t("advancedStockTable.scores.thesis")}      sortKey="thesisStatus"     {...colProps} />
+                  <Th label={t("advancedStockTable.scores.change")}      sortKey="netChangeScore"   {...colProps} />
+                </>
+              )}
               {mode === "portfolio" && (
                 <>
                   <Th label={t("advancedStockTable.value")}       sortKey="positionValue" {...colProps} tip={<FinancialTip term="Value" userLevel={userLevel}>{t("advancedStockTable.value")}</FinancialTip>} />
@@ -430,6 +472,56 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
                         <span className="text-sm" style={{ color: "var(--dim)" }}>—</span>
                       )}
                     </td>
+                  )}
+
+                  {/* Fase 4, Incremento 9 — Quality/Conviction/Descuento/Oportunidad/Tesis/Cambio */}
+                  {showScoreCols && (
+                    <>
+                      <td className="px-3 py-2.5 text-right overflow-hidden">
+                        <span className="text-sm font-bold tabular-nums" style={{ color: scoreTone(row.qualityScore) }}>
+                          {row.qualityScore ?? "—"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right overflow-hidden">
+                        <span className="text-sm font-bold tabular-nums" style={{ color: scoreTone(row.convictionScore) }}>
+                          {row.convictionScore ?? "—"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right overflow-hidden">
+                        <span className="text-sm font-bold tabular-nums" style={{ color: row.marginOfSafetyPct == null ? "var(--dim)" : row.marginOfSafetyPct >= 0 ? "#22c55e" : "#ef4444" }}>
+                          {fmtPct(row.marginOfSafetyPct)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right overflow-hidden">
+                        <span className="text-sm font-bold tabular-nums" style={{ color: scoreTone(row.opportunityScore) }}>
+                          {row.opportunityScore != null ? Math.round(row.opportunityScore) : "—"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right overflow-hidden">
+                        {row.thesisStatus ? (
+                          <span
+                            className="text-[9.5px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                            style={thesisBadgeStyle[row.thesisStatus]}
+                            title={row.topRisk ?? undefined}
+                          >
+                            {t(`advancedStockTable.scores.thesisStatus.${row.thesisStatus}`)}
+                          </span>
+                        ) : (
+                          <span className="text-sm" style={{ color: "var(--dim)" }}>—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-right overflow-hidden">
+                        {row.netChangeScore == null ? (
+                          <span className="text-sm" style={{ color: "var(--dim)" }}>—</span>
+                        ) : row.netChangeScore > 0 ? (
+                          <span className="text-sm font-bold" style={{ color: "#22c55e" }}>▲ {row.netChangeScore}</span>
+                        ) : row.netChangeScore < 0 ? (
+                          <span className="text-sm font-bold" style={{ color: "#ef4444" }}>▼ {Math.abs(row.netChangeScore)}</span>
+                        ) : (
+                          <span className="text-sm" style={{ color: "var(--dim)" }}>—</span>
+                        )}
+                      </td>
+                    </>
                   )}
 
                   {/* Portfolio: Valor + G/P */}

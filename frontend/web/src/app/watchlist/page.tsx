@@ -351,7 +351,7 @@ function SkeletonCard() {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function WatchlistPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const [isTour, setIsTour] = useState(false);
   useEffect(() => { setIsTour(new URLSearchParams(window.location.search).get("tour") === "5"); }, []);
@@ -381,6 +381,16 @@ export default function WatchlistPage() {
 
   const [dragIndex, setDragIndex]     = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  // Fase 4, Incremento 9 (Watchlist Inteligente, Parte I) — cache-only batch
+  // scores, keyed by ticker. Independent load state, same "never block
+  // anything else" philosophy as the rest of Fase 4's per-panel fetches.
+  type WatchlistScores = Record<string, {
+    quality_score: number | null; conviction_score: number | null; margin_of_safety_pct: number | null;
+    opportunity_score: number | null; thesis_status: "no_thesis" | "draft_only" | "user_thesis";
+    top_risks: string[]; deteriorating_count: number | null; improving_count: number | null; top_catalysts: string[];
+  }>;
+  const [scores, setScores] = useState<WatchlistScores>({});
 
   const [toast, setToast] = useState<string | null>(null);
 
@@ -471,6 +481,20 @@ export default function WatchlistPage() {
     return () => mq.removeEventListener("change", onChange);
   }, []);
   const effectiveViewMode: "basic" | "advanced" = isMobileViewport ? "basic" : viewMode;
+
+  // Fase 4, Incremento 9 — only fetched when the advanced table with real
+  // tickers is actually visible, and only for Premium (matches the backend
+  // gate) — never fires for the basic card view.
+  const tickerKey = items.map((i) => i.ticker).join(",");
+  useEffect(() => {
+    if (!isPremium || effectiveViewMode !== "advanced" || items.length === 0) return;
+    let cancelled = false;
+    watchlistApi.getBatchScores(items.map((i) => i.ticker), i18n.language)
+      .then((res) => { if (!cancelled) setScores(res.data ?? {}); })
+      .catch(() => { if (!cancelled) setScores({}); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickerKey, isPremium, effectiveViewMode, i18n.language]);
 
   const searchRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -847,18 +871,30 @@ export default function WatchlistPage() {
                 mode="watchlist"
                 userLevel={userLevel}
                 fxRate={fxRate}
-                rows={items.map((i): AdvancedRow => ({
-                  ticker: i.ticker,
-                  name: i.name,
-                  logoUrl: i.logo_url,
-                  price: i.price !== null ? i.price * fxRate : null,
-                  changePct: i.change_pct,
-                  currency: portfolioCurrency,
-                  marketState: i.market_state,
-                  extPrice: (i.pre_market_price ?? i.post_market_price) !== null ? (i.pre_market_price ?? i.post_market_price)! * fxRate : null,
-                  extPct: i.pre_market_change_pct ?? i.post_market_change_pct,
-                  extLabel: i.pre_market_price ? t("watchlist.extLabel.pre") : i.post_market_price ? t("watchlist.extLabel.post") : null,
-                }))}
+                showScores={isPremium}
+                rows={items.map((i): AdvancedRow => {
+                  const s = scores[i.ticker];
+                  return {
+                    ticker: i.ticker,
+                    name: i.name,
+                    logoUrl: i.logo_url,
+                    price: i.price !== null ? i.price * fxRate : null,
+                    changePct: i.change_pct,
+                    currency: portfolioCurrency,
+                    marketState: i.market_state,
+                    extPrice: (i.pre_market_price ?? i.post_market_price) !== null ? (i.pre_market_price ?? i.post_market_price)! * fxRate : null,
+                    extPct: i.pre_market_change_pct ?? i.post_market_change_pct,
+                    extLabel: i.pre_market_price ? t("watchlist.extLabel.pre") : i.post_market_price ? t("watchlist.extLabel.post") : null,
+                    qualityScore: s?.quality_score ?? null,
+                    convictionScore: s?.conviction_score ?? null,
+                    marginOfSafetyPct: s?.margin_of_safety_pct ?? null,
+                    opportunityScore: s?.opportunity_score ?? null,
+                    thesisStatus: s?.thesis_status ?? null,
+                    netChangeScore: s ? (s.improving_count ?? 0) - (s.deteriorating_count ?? 0) : null,
+                    topRisk: s?.top_risks?.[0] ?? null,
+                    topCatalyst: s?.top_catalysts?.[0] ?? null,
+                  };
+                })}
                 onRemove={handleConfirmDelete}
                 onRowClick={setSelectedStock}
               />

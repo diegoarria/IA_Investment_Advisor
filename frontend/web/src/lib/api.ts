@@ -471,6 +471,10 @@ export const watchlist = {
   get: () => api.get("/api/watchlist"),
   add: (ticker: string, name?: string) => api.post("/api/watchlist", { ticker, name }),
   remove: (ticker: string) => api.delete(`/api/watchlist/${encodeURIComponent(ticker)}`),
+  // Fase 4, Incremento 9 (Watchlist Inteligente, Parte I) — cache-only,
+  // Premium-gated batch read; never triggers a fresh valuation/quality run.
+  getBatchScores: (tickers: string[], lang?: string) =>
+    api.post("/api/watchlist/batch-scores", { tickers }, { params: { lang } }),
 };
 
 export const priceAlerts = {

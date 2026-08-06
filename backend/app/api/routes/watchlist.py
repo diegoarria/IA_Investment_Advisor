@@ -221,6 +221,110 @@ async def get_batch_prices(request: Request, body: dict, user_id: str = Depends(
     return prices
 
 
+def _extract_ticker_scores(nif_cached: dict | None, quick_cached: dict | None) -> dict:
+    """Assembles one ticker's Watchlist Inteligente row purely from whatever
+    is ALREADY cached (nif-dashboard/quick-analysis) — never recomputes,
+    never calls an engine. Every field is None when its source cache is
+    missing, which the frontend renders as "N/D", never a fabricated value."""
+    pillars = (nif_cached or {}).get("pillars") or {}
+    valuation_estimate = (pillars.get("valuation") or {}).get("nuvos_estimate") or {}
+    conviction = (nif_cached or {}).get("conviction") or {}
+    deterioration = (nif_cached or {}).get("deterioration") or {}
+    catalysts_list = ((nif_cached or {}).get("catalysts") or {}).get("catalysts") or []
+
+    margin_of_safety_pct = valuation_estimate.get("margin_of_safety_pct")
+    if margin_of_safety_pct is None:
+        margin_of_safety_pct = (quick_cached or {}).get("margin_of_safety_pct")
+
+    return {
+        "quality_score": (pillars.get("business_quality") or {}).get("score"),
+        "conviction_score": conviction.get("score"),
+        "margin_of_safety_pct": margin_of_safety_pct,
+        "fair_value_range": valuation_estimate.get("fair_value_range"),
+        # "Oportunidad" — deliberately aliased to the SAME composite_score
+        # already used to rank /market/screener/undervalued's "Best Overall"
+        # (valuation 25% + quality/growth/management pillars), not a new
+        # metric invented for the watchlist.
+        "opportunity_score": (quick_cached or {}).get("composite_score"),
+        "deteriorating_count": deterioration.get("deteriorating_count"),
+        "improving_count": deterioration.get("improving_count"),
+        "top_catalysts": [c.get("catalyst") for c in catalysts_list[:2] if c.get("catalyst")],
+    }
+
+
+async def _fetch_thesis_status_batch(user_id: str, tickers: list[str]) -> dict[str, dict]:
+    """One `IN (...)` query per table (never N+1) for thesis status + top
+    risks — real DB reads, not AI calls, so this is cheap enough to run on
+    every watchlist load."""
+    db = get_supabase()
+    drafts_res, mine_res = await asyncio.gather(
+        run_query(db.table("research_thesis_drafts").select("ticker,key_risks").in_("ticker", tickers)),
+        run_query(
+            db.table("user_investment_theses").select("ticker")
+            .eq("user_id", user_id).eq("is_current", True).in_("ticker", tickers)
+        ),
+    )
+    drafts_by_ticker = {row["ticker"]: row for row in (drafts_res.data or [])}
+    user_thesis_tickers = {row["ticker"] for row in (mine_res.data or [])}
+
+    result = {}
+    for ticker in tickers:
+        draft = drafts_by_ticker.get(ticker)
+        if ticker in user_thesis_tickers:
+            status = "user_thesis"
+        elif draft:
+            status = "draft_only"
+        else:
+            status = "no_thesis"
+        risks = [r.get("text") for r in (draft.get("key_risks") or [])[:2]] if draft else []
+        result[ticker] = {"thesis_status": status, "top_risks": [r for r in risks if r]}
+    return result
+
+
+@router.post("/batch-scores")
+@limiter.limit("20/minute")
+async def get_batch_scores(request: Request, body: dict, lang: str = "es", user_id: str = Depends(get_current_user_id)):
+    """Fase 4, Incremento 9 (Watchlist Inteligente, Parte I) — Quality/
+    Conviction/opportunity scores, margin of safety, thesis status, top
+    risks/catalysts for N watchlist tickers in one call.
+
+    Deliberately cache-ONLY: reads whatever /market/screener/nif-dashboard
+    and /market/screener/quick-analysis already cached for these tickers
+    (screener.py's `nif_dashboard:v1:*` / `quick_analysis:v2:*` keys) and
+    returns null fields for tickers with no cached analysis — it NEVER
+    triggers a fresh engine run, so opening the watchlist is always cheap
+    regardless of how many tickers are on it. Premium-only, same gate as
+    /nif-dashboard itself (the scores this surfaces are a premium feature)."""
+    from app.api.routes.chat import _is_premium
+    from app.api.routes.screener import _nif_dashboard_cache_key, _quick_analysis_cache_key, _get_user_profile_safe
+
+    profile = await _get_user_profile_safe(user_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
+    if not _is_premium(profile):
+        raise HTTPException(status_code=403, detail={
+            "code": "premium_required",
+            "message": "Los scores de Watchlist Inteligente son exclusivos para Premium.",
+        })
+
+    tickers = [t.strip().upper() for t in body.get("tickers", []) if t][:50]
+    if not tickers:
+        return {}
+    if lang not in ("es", "en"):
+        lang = "es"
+
+    thesis_status = await _fetch_thesis_status_batch(user_id, tickers)
+
+    result = {}
+    for ticker in tickers:
+        nif_cached = cache_get(_nif_dashboard_cache_key(ticker, lang))
+        quick_cached = cache_get(_quick_analysis_cache_key(ticker, lang))
+        row = _extract_ticker_scores(nif_cached, quick_cached)
+        row.update(thesis_status.get(ticker, {"thesis_status": "no_thesis", "top_risks": []}))
+        result[ticker] = row
+    return result
+
+
 @router.get("")
 async def get_watchlist(user_id: str = Depends(get_current_user_id)):
     """Return user's watchlist enriched with current prices."""

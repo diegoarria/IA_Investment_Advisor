@@ -3002,7 +3002,20 @@
     "delete": "Delete",
     "confirmOk": "OK?",
     "webSocket": "WebSocket",
-    "polling": "Polling"
+    "polling": "Polling",
+    "scores": {
+      "quality": "Quality",
+      "conviction": "Conviction",
+      "discount": "Disc.",
+      "opportunity": "Opport.",
+      "thesis": "Thesis",
+      "change": "Change",
+      "thesisStatus": {
+        "no_thesis": "No thesis",
+        "draft_only": "Draft",
+        "user_thesis": "Own"
+      }
+    }
   },
   "videoCard": {
     "preAudioLabel": "AI Introduction",
