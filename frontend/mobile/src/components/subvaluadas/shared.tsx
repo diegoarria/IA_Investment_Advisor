@@ -395,6 +395,197 @@ export function ReverseDcfPanel({
   );
 }
 
+// Nuvos AI Fair Value Engine redesign, Incremento 10 — mobile parity for
+// the web FairValueScenariosPanel (Incremento 9, shared.tsx). One engine,
+// three scenarios (Bear/Base/Bull), aditivo por ahora — no reemplaza el
+// número que el resto de la pantalla usa hasta el flip (Incremento 11).
+export interface NuvosScoreFactor {
+  name: string;
+  value: number | null;
+  score: number | null;
+  reason: string;
+}
+
+export interface NuvosScenarioAssumptions {
+  revenue_growth_1_pct: number;
+  high_growth_years: number;
+  terminal_growth_pct: number;
+  operating_margin_anchor_pct: number;
+  terminal_operating_margin_pct: number;
+  tax_rate_pct: number;
+  reinvestment_rate_anchor_pct: number;
+  terminal_reinvestment_rate_pct: number;
+  discount_rate_pct: number;
+  terminal_value_method: "gordon" | "exit_multiple";
+  exit_multiple: number | null;
+  exit_metric: "ev_sales" | "ev_ebit" | "ev_fcf" | null;
+  gordon_terminal_value: number | null;
+  gordon_sanity_check_ratio: number | null;
+  implied_fcf_margin_pct_year_n: number | null;
+}
+
+export interface NuvosScenario {
+  fair_value_per_share: number | null;
+  assumptions: NuvosScenarioAssumptions;
+}
+
+export interface NuvosFairValueData {
+  scenarios: {
+    bear: NuvosScenario;
+    base: NuvosScenario;
+    bull: NuvosScenario;
+  };
+  exit_metric: string;
+  exit_multiple_anchor_source: "own_historical" | "peer_median" | "sector_table_fallback";
+  price_implied_scenario: "bear" | "base" | "bull" | null;
+  growth_factors: NuvosScoreFactor[];
+  operating_margin_factors: NuvosScoreFactor[];
+  terminal_roic_factors: NuvosScoreFactor[];
+}
+
+const _SCENARIO_COLOR: Record<"bear" | "base" | "bull", string> = {
+  bear: "#DD6E63", base: "#D4A24C", bull: "#4FA695",
+};
+
+function _nuvosScenarioMosPct(fairValue: number | null, price: number | null): number | null {
+  if (fairValue === null || fairValue <= 0 || price === null) return null;
+  return ((fairValue - price) / fairValue) * 100;
+}
+
+function _NuvosScenarioRow({
+  name, scenario, price, isPriceImplied, colors,
+}: {
+  name: "bear" | "base" | "bull";
+  scenario: NuvosScenario;
+  price: number | null;
+  isPriceImplied: boolean;
+  colors: any;
+}) {
+  const { t } = useTranslation();
+  const color = _SCENARIO_COLOR[name];
+  const fv = scenario.fair_value_per_share;
+  const mos = _nuvosScenarioMosPct(fv, price);
+  const a = scenario.assumptions;
+  return (
+    <View
+      style={{
+        borderRadius: 10, padding: 10, gap: 4,
+        backgroundColor: colors.card,
+        borderWidth: isPriceImplied ? 1.5 : 1,
+        borderColor: isPriceImplied ? color : colors.border,
+      }}
+    >
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, color }}>
+          {t(`subvaluadas.nuvosFairValue.scenarios.${name}`)}
+        </Text>
+        {isPriceImplied && (
+          <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, backgroundColor: `${color}22` }}>
+            <Text style={{ fontSize: 8, fontWeight: "800", textTransform: "uppercase", color }}>
+              {t("subvaluadas.nuvosFairValue.priceImpliedBadge")}
+            </Text>
+          </View>
+        )}
+      </View>
+      <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text }}>
+        {fv !== null ? `$${fv.toFixed(2)}` : "N/D"}
+      </Text>
+      {mos !== null && (
+        <Text style={{ fontSize: 11, fontWeight: "800", color: mos >= 0 ? "#22c55e" : "#ef4444" }}>
+          {mos >= 0 ? "+" : ""}{mos.toFixed(1)}% {t("subvaluadas.nuvosFairValue.mos")}
+        </Text>
+      )}
+      <View style={{ paddingTop: 6, marginTop: 2, borderTopWidth: 1, borderTopColor: colors.border, gap: 2 }}>
+        <Text style={{ fontSize: 10, color: colors.textSub }}>
+          {t("subvaluadas.nuvosFairValue.growth")}: <Text style={{ fontWeight: "800", color: colors.text }}>{a.revenue_growth_1_pct.toFixed(1)}%</Text>
+        </Text>
+        <Text style={{ fontSize: 10, color: colors.textSub }}>
+          {t("subvaluadas.nuvosFairValue.margin")}: <Text style={{ fontWeight: "800", color: colors.text }}>{a.operating_margin_anchor_pct.toFixed(1)}% → {a.terminal_operating_margin_pct.toFixed(1)}%</Text>
+        </Text>
+        <Text style={{ fontSize: 10, color: colors.textSub }}>
+          {t("subvaluadas.nuvosFairValue.wacc")}: <Text style={{ fontWeight: "800", color: colors.text }}>{a.discount_rate_pct.toFixed(1)}%</Text>
+        </Text>
+        {a.exit_multiple !== null && (
+          <Text style={{ fontSize: 10, color: colors.textSub }}>
+            {t("subvaluadas.nuvosFairValue.exitMultiple")}: <Text style={{ fontWeight: "800", color: colors.text }}>{a.exit_multiple.toFixed(1)}x {a.exit_metric ? t(`subvaluadas.nuvosFairValue.exitMetric.${a.exit_metric}`) : ""}</Text>
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function _NuvosFactorsSection({ title, factors, colors }: { title: string; factors: NuvosScoreFactor[]; colors: any }) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  if (factors.length === 0) return null;
+  return (
+    <View>
+      <TouchableOpacity onPress={() => setExpanded((e) => !e)}>
+        <Text style={{ fontSize: 10, fontWeight: "800", textDecorationLine: "underline", color: colors.textMuted }}>
+          {title} — {expanded ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}
+        </Text>
+      </TouchableOpacity>
+      {expanded && (
+        <View style={{ gap: 6, marginTop: 6 }}>
+          {factors.map((f, i) => (
+            <View key={i} style={{ borderRadius: 8, padding: 8, backgroundColor: colors.bgRaised }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8, marginBottom: 2 }}>
+                <Text style={{ fontSize: 10.5, fontWeight: "800", color: colors.textSub }}>
+                  {t(`subvaluadas.nuvosFairValue.assumptionFactors.${f.name}`, { defaultValue: f.name })}
+                </Text>
+                {f.value !== null && (
+                  <Text style={{ fontSize: 10.5, fontWeight: "900", color: colors.text }}>{f.value.toFixed(1)}%</Text>
+                )}
+              </View>
+              <Text style={{ fontSize: 10.5, lineHeight: 15, color: colors.textMuted }}>{f.reason}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+export function FairValueScenariosPanel({ data, price, colors }: { data: NuvosFairValueData | null; price: number | null; colors: any }) {
+  const { t } = useTranslation();
+  if (!data) return null;
+  const { scenarios, price_implied_scenario } = data;
+  return (
+    <View style={{ borderWidth: 1, borderRadius: 12, padding: 12, borderColor: colors.border, backgroundColor: colors.bgRaised }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 2 }}>
+        <Ionicons name="sparkles-outline" size={13} color={colors.accentLight} />
+        <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>{t("subvaluadas.nuvosFairValue.title")}</Text>
+      </View>
+      <Text style={{ fontSize: 10.5, lineHeight: 15, color: colors.textMuted, marginBottom: 10 }}>
+        {t("subvaluadas.nuvosFairValue.subtitle")}
+      </Text>
+
+      <View style={{ gap: 8, marginBottom: 10 }}>
+        <_NuvosScenarioRow name="bear" scenario={scenarios.bear} price={price} isPriceImplied={price_implied_scenario === "bear"} colors={colors} />
+        <_NuvosScenarioRow name="base" scenario={scenarios.base} price={price} isPriceImplied={price_implied_scenario === "base"} colors={colors} />
+        <_NuvosScenarioRow name="bull" scenario={scenarios.bull} price={price} isPriceImplied={price_implied_scenario === "bull"} colors={colors} />
+      </View>
+
+      {price_implied_scenario && (
+        <Text style={{ fontSize: 11, lineHeight: 16, fontStyle: "italic", color: colors.textSub, marginBottom: 10 }}>
+          {t("subvaluadas.nuvosFairValue.priceImpliedNote", { scenario: t(`subvaluadas.nuvosFairValue.scenarios.${price_implied_scenario}`) })}
+        </Text>
+      )}
+
+      <View style={{ gap: 8 }}>
+        <_NuvosFactorsSection title={t("subvaluadas.nuvosFairValue.growthFactorsTitle")} factors={data.growth_factors} colors={colors} />
+        <_NuvosFactorsSection title={t("subvaluadas.nuvosFairValue.marginFactorsTitle")} factors={data.operating_margin_factors} colors={colors} />
+        <_NuvosFactorsSection title={t("subvaluadas.nuvosFairValue.roicFactorsTitle")} factors={data.terminal_roic_factors} colors={colors} />
+      </View>
+
+      <Text style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, fontSize: 9.5, lineHeight: 14, color: colors.textDim }}>
+        {t("subvaluadas.nuvosFairValue.disclaimer")}
+      </Text>
+    </View>
+  );
+}
+
 // Fase 1, Incremento 7 (Parte H — Resultado Final). Mirror of the web
 // version — see its comment for the full rationale.
 export function FinalResultPanel({

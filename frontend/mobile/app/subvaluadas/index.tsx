@@ -20,9 +20,10 @@ import {
   type NifDashboardData, type NifRow,
   type ScenariosData, type ProbabilityWeights, type SensitivityMatrixData,
   type ReverseDcfSanityCheckData, type ExpectationsInvestingData, type FairValueEngineData,
+  type NuvosFairValueData,
   GeneratedAtNote, LiquidityWarning, ConfidenceMeter, FairValueRangeDisplay, MarketExpectationsPanel, InsightBox,
   ChecklistDisplay, ActionButtons, NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
-  ScenarioWeightingPanel, ReverseDcfPanel, FinalResultPanel,
+  ScenarioWeightingPanel, ReverseDcfPanel, FinalResultPanel, FairValueScenariosPanel,
 } from "../../src/components/subvaluadas/shared";
 
 // Gold/teal/coral is this screen's fixed brand identity (Valor Intrínseco),
@@ -88,6 +89,7 @@ interface QuickAnalysisResult {
   expectations_investing: ExpectationsInvestingData | null;
   sector_model_note: { sector_type: string; detalle: string } | null;
   fair_value_engine: FairValueEngineData | null;
+  nuvos_fair_value: NuvosFairValueData | null;
 }
 
 function pct(v: number): string {
@@ -742,6 +744,12 @@ export default function SubvaluadasScreen() {
 
               {data.sensitivity_matrix && price !== null && (
                 <SensitivityHeatmap matrix={data.sensitivity_matrix} price={price} />
+              )}
+
+              {data.nuvos_fair_value && (
+                <View style={{ marginTop: 16 }}>
+                  <FairValueScenariosPanel data={data.nuvos_fair_value} price={price} colors={viColors} />
+                </View>
               )}
 
               {data.scenarios && data.probability_weights && (
