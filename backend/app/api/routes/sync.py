@@ -832,7 +832,7 @@ _MAX_FAVORITE_METRICS = 6
 _VALID_DASHBOARD_SECTIONS = (
     "summary", "quality_headline", "fair_value_range", "key_risks", "conclusion",
     "roic_fcf_growth", "moat_score", "capital_allocation", "competitors", "timeline",
-    "dcf_full", "monte_carlo", "reverse_dcf", "sensitivity", "scenarios",
+    "dcf_full", "reverse_dcf", "sensitivity", "scenarios",
     "raw_assumptions", "factors_detail",
 )
 

@@ -9,7 +9,7 @@ these exact functions and passed before and after this move). No logic
 changed here — this file exists so these small, genuinely reusable
 primitives live in the shared `valuation` package instead of being
 private to one 2,200-line service file, since every engine in this
-package (dcf_engine, monte_carlo_engine, fair_value_engine,
+package (dcf_engine, fair_value_engine, exit_multiple_engine,
 confidence_engine) needs some subset of them.
 """
 

@@ -13,8 +13,11 @@ Modules (as they land):
   finite-number checks) shared by every engine below it.
 - dcf_engine: driver-based DCF (Revenue -> Operating Margin -> EBIT ->
   NOPAT -> Reinvestment -> FCF -> DCF). Incremento 2.
-- monte_carlo_engine: probabilistic simulation over the DCF's inputs.
-  Incremento 3.
 - fair_value_engine: rule-based justified-multiple model, independent of
   the DCF. Incremento 6.
+
+monte_carlo_engine (probabilistic simulation over the DCF's inputs) was
+retired in the Nuvos AI Fair Value Engine redesign, Incremento 13 — its
+"probability of being undervalued" concept has no equivalent in the
+Bear/Base/Bull design and was not replaced.
 """

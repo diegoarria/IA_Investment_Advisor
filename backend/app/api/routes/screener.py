@@ -1017,7 +1017,7 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         # matrix instead; reverse_dcf_sanity_check/expectations_investing
         # expose the reverse-DCF the backend already solves for (Parte E)
         # but the frontend has never shown; driver_based_valuation/
-        # monte_carlo/sector_model_note are the Incremento 2/3 additions.
+        # sector_model_note are the Incremento 2/3 additions.
         "scenarios": dcf.get("scenarios"),
         "probability_weights": dcf.get("probability_weights"),
         "sensitivity_matrix": dcf.get("sensitivity_matrix"),
@@ -1034,11 +1034,11 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "driver_based_scenarios": dcf.get("driver_based_scenarios"),
         "driver_based_sensitivity_matrix": dcf.get("driver_based_sensitivity_matrix"),
         "driver_based_value_drivers": dcf.get("driver_based_value_drivers"),
-        # Nuvos AI Fair Value Engine redesign, Incremento 6 — Bear/Base/Bull,
-        # shadow mode (never the number shown until the flip, Incremento 11).
+        # Nuvos AI Fair Value Engine — one engine, three named scenarios
+        # (Bear/Base/Bull); the primary valuation since the flip (Incremento
+        # 11) — see combine_fair_value_range.
         "nuvos_fair_value": dcf.get("nuvos_fair_value"),
         "growth_engine": dcf.get("growth_engine"),
-        "monte_carlo": dcf.get("monte_carlo"),
         "sector_model_note": data.get("sector_model_note"),
         "fair_value_engine": fair_value_engine_result,
         "industry_benchmarks": _asdict_or_none(industry_benchmarks),

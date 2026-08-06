@@ -32,9 +32,13 @@ export function isAtLeastDetail(level: DetailLevel, min: DetailLevel): boolean {
 
 // Every section a Fase 4 dashboard can show, mapped to the minimum detail
 // level required to display it. Sections marked "avanzado"/"profesional"
-// already exist in `/subvaluadas` today (DCF, Monte Carlo, Reverse DCF,
-// sensitivity, scenarios, raw factors[]) — this mapping only controls
-// visibility, it never hides data the backend doesn't already compute.
+// already exist in `/subvaluadas` today (DCF, Reverse DCF, sensitivity,
+// scenarios, raw factors[]) — this mapping only controls visibility, it
+// never hides data the backend doesn't already compute.
+//
+// "monte_carlo" was retired (Nuvos AI Fair Value Engine redesign,
+// Incremento 13) along with monte_carlo_engine.py — no component ever
+// gated on it (`isSectionVisible(level, "monte_carlo")` had zero callers).
 export type DashboardSection =
   | "summary"
   | "quality_headline"
@@ -47,7 +51,6 @@ export type DashboardSection =
   | "competitors"
   | "timeline"
   | "dcf_full"
-  | "monte_carlo"
   | "reverse_dcf"
   | "sensitivity"
   | "scenarios"
@@ -68,7 +71,6 @@ export const SECTION_MIN_LEVEL: Record<DashboardSection, DetailLevel> = {
   timeline: "intermedio",
 
   dcf_full: "avanzado",
-  monte_carlo: "avanzado",
   reverse_dcf: "avanzado",
   sensitivity: "avanzado",
   scenarios: "avanzado",

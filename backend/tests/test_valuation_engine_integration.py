@@ -125,13 +125,6 @@ class TestDriverBasedValuationWiring:
         assert driver["yearly"][0]["revenue"] > 0
         assert result["sector_model_note"] is None
 
-        # Monte Carlo (Incremento 3) is wired in too, reusing the same anchors
-        mc = result["dcf"]["monte_carlo"]
-        assert mc is not None
-        assert mc["n_valid"] > 0
-        assert mc["min"] <= mc["p10"] <= mc["p25"] <= mc["median"] <= mc["p75"] <= mc["p90"] <= mc["max"]
-        assert mc["probability_undervalued_pct"] is not None
-
     def test_reit_sector_gets_a_note_and_no_standard_dcf(self):
         patches = _patch_boundary(sector="REIT - Retail")
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:

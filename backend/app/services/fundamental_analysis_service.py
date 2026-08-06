@@ -24,9 +24,6 @@ from app.services.valuation.dcf_engine import (
     project_driver_based_dcf, recency_weighted_average, compute_reinvestment_rate_anchor, is_reit_sector,
 )
 from app.services.valuation.robustness import UnstableGordonGrowthError, clamp
-from app.services.valuation.monte_carlo_engine import (
-    DistributionInput, MonteCarloAssumptions, run_monte_carlo_dcf, build_distribution_from_trend,
-)
 # Fase 1, Incremento 7 (Parte I — modular reorganization): these used to be
 # private functions defined in this file. They're now real, independently
 # testable modules under valuation/, imported back here under their
@@ -1410,7 +1407,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             # the concrete, computed answer to "what is the investor buying
             # at this price" — not a narrative guess. Fase 1.5, Incremento 3:
             # solved against the SAME driver-based engine that computes
-            # driver_based_valuation/monte_carlo below, not the legacy model
+            # driver_based_valuation below, not the legacy model
             # — see reverse_dcf_engine.py's module docstring for why that
             # coherence matters. None when the driver-based inputs
             # (operating margin/reinvestment anchors, ROIC) aren't
@@ -1882,116 +1879,23 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                     driver_based_sensitivity_matrix = None
                     driver_based_value_drivers = None
 
-            # ── Monte Carlo simulation — Fase 1, Incremento 3 (Parte B).
-            # Reuses the exact same driver-based engine as
-            # driver_based_valuation above, run 2,000 times with each input
-            # sampled from a distribution centered on the SAME real anchor
-            # values, with stdev derived from the company's own real
-            # historical volatility where a historical series exists
-            # (revenue growth, operating margin, reinvestment rate) — see
-            # valuation.monte_carlo_engine.build_distribution_from_trend.
-            # Discount rate and terminal growth have no per-year company
-            # trend to measure (they're market/sector-level, not observed
-            # annual company data), so they fall back to the module's
-            # documented realism floors rather than a fabricated trend.
-            # Broad except: a Monte Carlo failure must never take down the
-            # primary valuation above it.
-            monte_carlo = None
-            if (
-                operating_margin_anchor is not None and reinvestment_rate_anchor is not None
-                and avg_roic is not None and avg_roic > 0
-            ):
-                try:
-                    revenue_yoy_trend = [
-                        (revenue_trend[i] / revenue_trend[i - 1] - 1)
-                        if revenue_trend[i - 1] and revenue_trend[i] is not None else None
-                        for i in range(1, len(revenue_trend))
-                    ]
-                    operating_margin_decimal_trend = [
-                        m / 100 if m is not None else None for m in operating_margin_trend
-                    ]
-                    mc_assumptions = MonteCarloAssumptions(
-                        revenue_growth_1=build_distribution_from_trend(
-                            revenue_yoy_trend, anchor=driver_based_base_g1, lo=-0.5, hi=1.5, variable_key="revenue_growth_1",
-                        ),
-                        operating_margin=build_distribution_from_trend(
-                            operating_margin_decimal_trend, anchor=operating_margin_anchor,
-                            lo=0.0, hi=0.80, variable_key="operating_margin",
-                        ),
-                        discount_rate=build_distribution_from_trend(
-                            [], anchor=base_discount_rate, lo=0.04, hi=0.25, variable_key="discount_rate",
-                        ),
-                        terminal_growth=build_distribution_from_trend(
-                            [], anchor=terminal_growth, lo=0.005, hi=0.035, variable_key="terminal_growth",
-                        ),
-                        reinvestment_rate=build_distribution_from_trend(
-                            reinvestment_rate_trend, anchor=reinvestment_rate_anchor,
-                            lo=-0.5, hi=1.5, variable_key="reinvestment_rate",
-                        ),
-                        # Share count: no clean per-year "volatility" series
-                        # (implied_shares_trend reflects real buybacks, a
-                        # trend not noise) — a modest fixed 1% stdev models
-                        # buyback-pace uncertainty without overstating it as
-                        # measured historical volatility.
-                        shares_out=DistributionInput(
-                            mean=projected_shares, stdev=max(projected_shares * 0.01, 1.0),
-                            lo=projected_shares * 0.9, hi=projected_shares * 1.1,
-                        ),
-                        tax_rate=tax_rate,
-                        terminal_roic_pct=avg_roic / 100,
-                        net_cash=net_cash,
-                        revenue_0=latest_rev,
-                        high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
-                    )
-                    mc_result = run_monte_carlo_dcf(mc_assumptions, current_price=price)
-                    monte_carlo = {
-                        "n_simulations": mc_result.n_simulations,
-                        "n_valid": mc_result.n_valid,
-                        "n_discarded": mc_result.n_discarded,
-                        "min": mc_result.min,
-                        "p10": mc_result.p10,
-                        "p25": mc_result.p25,
-                        "median": mc_result.median,
-                        "p75": mc_result.p75,
-                        "p90": mc_result.p90,
-                        "max": mc_result.max,
-                        "probability_undervalued_pct": mc_result.probability_undervalued_pct,
-                    }
-                except Exception as e:
-                    logger.info("get_fundamental_analysis(%s): monte carlo not computable: %s", ticker, e)
-
-            # ── Consensus Fair Value (Method 5) — Fase 1.5, Incremento 10.
-            # Previously only computed in screener.py/undervalued_screener_
-            # service.py's live/batch paths; every OTHER consumer of this
-            # function (research_orchestrator → thesis_engine/bull_bear_
-            # engine, chat.py, nif_service) only ever saw the crude 3-
-            # scenario fair_value_range. `industry` isn't known at this
-            # scope (only `sector` is, from the Finnhub profile) — peer
-            # matching here falls back to sector-only, a real but slightly
-            # looser peer group than screener.py's industry-aware call;
-            # callers that already recompute a tighter Consensus afterward
-            # (screener.py, undervalued_screener_service.py) pass
-            # `_compute_peer_dependent_data=False` here and refresh the range
-            # themselves via `combine_fair_value_range` instead of paying
-            # for this weaker version too. Broad except: Consensus is an
-            # enrichment, never allowed to break the primary DCF result.
-            #
-            # Nuvos AI Fair Value Engine redesign, Incremento 3b — the SAME
-            # relative_valuation/historical_valuation this block was already
-            # computing (previously used only as Consensus inputs, then
-            # discarded) are now stored on `dcf` below, plus a new
-            # industry_benchmarks fetch — the real peer/industry medians
-            # exit_multiple_engine.py (Incremento 1) needs to derive a real
-            # anchor, now available to every caller of this function for
-            # the first time, not just screener.py's live search. Same
-            # `_compute_peer_dependent_data` guard, same broad except.
+            # ── Relative Valuation + Historical Valuation + Industry
+            # Benchmarks. `industry` isn't known at this scope (only `sector`
+            # is, from the Finnhub profile) — peer matching here falls back
+            # to sector-only, a real but slightly looser peer group than
+            # screener.py's industry-aware call; callers that already
+            # recompute these with real `industry` (screener.py,
+            # undervalued_screener_service.py) pass
+            # `_compute_peer_dependent_data=False` here to avoid paying for
+            # the weaker version too. Broad except: these are an enrichment
+            # (they feed the exit multiple anchor — decision #1 — and
+            # display), never allowed to break the primary DCF result.
             #
             # Incremento 12 — Consensus Engine (the archetype-weighted blend
             # of Conservative DCF/Professional DCF/Relative/Historical that
             # used to be shown as "5 methods") is retired: the Nuvos AI Fair
             # Value Engine's Bear/Base/Bull IS the single number shown to
-            # users now (Incremento 11 — THE FLIP). Relative/Historical stay
-            # — they still feed the exit multiple anchor (decision #1).
+            # users now (Incremento 11 — THE FLIP).
             relative_valuation = None
             historical_valuation = None
             industry_benchmarks = None
@@ -2229,7 +2133,6 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                     "total_adjustment_pct": growth_engine_result.total_adjustment_pct,
                     "factors": [asdict(f) for f in growth_engine_result.factors],
                 },
-                "monte_carlo": monte_carlo,
             }
 
     # ── Quality score (0-10, matches the "Calidad del negocio: X.X/10" format) ──

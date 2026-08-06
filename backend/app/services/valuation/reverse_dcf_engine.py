@@ -14,8 +14,8 @@ NOT ported:
 
 `_implied_growth_rate` and `_implied_fcf_margin_at_fixed_growth` now solve
 against `dcf_engine.project_driver_based_dcf` (the same engine
-`fundamental_analysis_service.py`'s `driver_based_valuation` and
-`monte_carlo_engine.py` already use) instead of `legacy_dcf_core._run_dcf`.
+`fundamental_analysis_service.py`'s `driver_based_valuation` uses) instead
+of `legacy_dcf_core._run_dcf`.
 This is a real coherence fix, not just a refactor: both answer questions
 directly paired with the SAME headline valuation the rest of the app shows
 (margin of safety, market-expectations panel) — solving them against a

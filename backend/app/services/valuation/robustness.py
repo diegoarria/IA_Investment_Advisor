@@ -12,7 +12,7 @@ either raises `ZeroDivisionError` (`r == gt`) or silently returns a
 behavior.
 
 This module exists to give every future valuation engine (dcf_engine,
-monte_carlo_engine, fair_value_engine, ...) ONE well-tested place for these
+fair_value_engine, exit_multiple_engine, ...) ONE well-tested place for these
 checks, instead of re-deriving them per module. It does not change
 `fundamental_analysis_service.py`'s current behavior — it is deliberately
 new code, wired into the new `dcf_engine` in Incremento 2, so Incremento 1
