@@ -2369,6 +2369,24 @@ async def job_saved_valuation_alerts():
         logger.error("job_saved_valuation_alerts failed: %s", e)
 
 
+async def job_smart_alerts():
+    """4:20 PM ET weekdays — Fase 4, Incremento 10 (Alertas Inteligentes).
+    Bridges Fase 2/3's Change Detection/Deterioration/DCF outputs into push
+    notifications for watchlist tickers. See
+    smart_alerts_service.run_smart_alerts_check's docstring for the actual
+    logic — kept there (not here), same reasoning as
+    job_saved_valuation_alerts. Runs right after the valuation-milestone
+    job so both read from the same freshly-closed trading day."""
+    if not _is_market_open_today():
+        logger.info("job_smart_alerts: market closed today — skipping")
+        return
+    from app.services.smart_alerts_service import run_smart_alerts_check
+    try:
+        await run_smart_alerts_check()
+    except Exception as e:
+        logger.error("job_smart_alerts failed: %s", e)
+
+
 def _fetch_historical_earnings_reactions(ticker: str) -> dict:
     """Compute avg stock reaction (%) the day after each of the last 4 earnings reports.
     Uses Finnhub /stock/earnings for EPS surprises and /stock/candle for price reactions.
@@ -4767,6 +4785,7 @@ async def main():
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="10-15", minute="*/5", timezone="America/New_York")
     scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=5,     timezone="America/New_York")
     scheduler.add_job(job_saved_valuation_alerts, "cron", day_of_week="mon-fri", hour=16,    minute=10,    timezone="America/New_York")
+    scheduler.add_job(job_smart_alerts,           "cron", day_of_week="mon-fri", hour=16,    minute=20,    timezone="America/New_York")
     scheduler.add_job(job_earnings_results,     "cron", day_of_week="mon-fri", hour=16,      minute=30,    timezone="America/New_York")
     scheduler.add_job(job_daily_email,          "cron", day_of_week="fri",     hour=18,      minute=0,     timezone="America/New_York")
 

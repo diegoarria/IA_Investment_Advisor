@@ -3345,6 +3345,26 @@
       "volatility": {
         "label": "Volatility alerts",
         "desc": "High volatility events"
+      },
+      "thesisChanges": {
+        "label": "Thesis/strategy changes",
+        "desc": "When a company you follow changes strategy"
+      },
+      "guidanceChanges": {
+        "label": "Guidance changes",
+        "desc": "When a company you follow changes its guidance"
+      },
+      "roicFcfDeterioration": {
+        "label": "ROIC/FCF deterioration",
+        "desc": "When ROIC or FCF margin starts deteriorating"
+      },
+      "newRisks": {
+        "label": "New risks in the thesis",
+        "desc": "When a new risk appears in the research thesis"
+      },
+      "priceInRange": {
+        "label": "Price in fair value range",
+        "desc": "When the price enters the calculated fair value range"
       }
     },
     "email": {

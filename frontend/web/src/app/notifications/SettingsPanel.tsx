@@ -18,6 +18,14 @@ function getPushToggles(t: TFunction) {
     { key: "push_ai_recommendations", label: t("notificationSettings.push.aiRecommendations.label"), desc: t("notificationSettings.push.aiRecommendations.desc") },
     { key: "push_milestones",         label: t("notificationSettings.push.milestones.label"),        desc: t("notificationSettings.push.milestones.desc") },
     { key: "push_volatility",         label: t("notificationSettings.push.volatility.label"),        desc: t("notificationSettings.push.volatility.desc") },
+    // Fase 4, Incremento 10 (Alertas Inteligentes, Parte J) — each bridges
+    // a real Fase 2/3 signal (Change Detection Engine / Deterioration
+    // Engine / DCF), never a new detection.
+    { key: "push_thesis_changes",         label: t("notificationSettings.push.thesisChanges.label"),        desc: t("notificationSettings.push.thesisChanges.desc") },
+    { key: "push_guidance_changes",       label: t("notificationSettings.push.guidanceChanges.label"),      desc: t("notificationSettings.push.guidanceChanges.desc") },
+    { key: "push_roic_fcf_deterioration", label: t("notificationSettings.push.roicFcfDeterioration.label"), desc: t("notificationSettings.push.roicFcfDeterioration.desc") },
+    { key: "push_new_risks",              label: t("notificationSettings.push.newRisks.label"),              desc: t("notificationSettings.push.newRisks.desc") },
+    { key: "push_price_in_range",         label: t("notificationSettings.push.priceInRange.label"),          desc: t("notificationSettings.push.priceInRange.desc") },
   ];
 }
 function getEmailToggles(t: TFunction) {

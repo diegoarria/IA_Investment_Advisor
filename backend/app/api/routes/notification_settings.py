@@ -22,6 +22,12 @@ _DEFAULT_PREFS = {
     "push_news_general": True, "push_portfolio_alerts": True,
     "push_watchlist_alerts": True, "push_ai_recommendations": True,
     "push_milestones": True, "push_volatility": True,
+    # Fase 4, Incremento 10 (Alertas Inteligentes, Parte J) — see
+    # app/services/smart_alerts_service.py for exactly which existing
+    # Fase 2/3 signal backs each of these.
+    "push_thesis_changes": True, "push_guidance_changes": True,
+    "push_roic_fcf_deterioration": True, "push_new_risks": True,
+    "push_price_in_range": True,
     "email_daily_summary": True, "email_weekly_summary": True,
     "max_push_per_day": 15, "max_push_per_week": 60,
     "quiet_hours_start": 22, "quiet_hours_end": 8,
@@ -38,6 +44,11 @@ class PrefsUpdate(BaseModel):
     push_ai_recommendations: Optional[bool] = None
     push_milestones:         Optional[bool] = None
     push_volatility:         Optional[bool] = None
+    push_thesis_changes:          Optional[bool] = None
+    push_guidance_changes:        Optional[bool] = None
+    push_roic_fcf_deterioration:  Optional[bool] = None
+    push_new_risks:               Optional[bool] = None
+    push_price_in_range:          Optional[bool] = None
     email_daily_summary:     Optional[bool] = None
     email_weekly_summary:    Optional[bool] = None
     max_push_per_day:        Optional[int]  = None
