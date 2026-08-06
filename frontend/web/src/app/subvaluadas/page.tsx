@@ -31,6 +31,8 @@ import { CompanyTimeline } from "@/components/subvaluadas/CompanyTimeline";
 import type { CompanyTimelineEvent } from "@/lib/companyTimeline";
 import { ThesisHistoryPanel } from "@/components/subvaluadas/ThesisHistoryPanel";
 import type { ThesisVersion } from "@/lib/thesisHistory";
+import { ManualVsAiPanel } from "@/components/subvaluadas/ManualVsAiPanel";
+import { buildManualVsAiComparison } from "@/lib/manualVsAi";
 import { DetailLevelToggle } from "@/components/ui";
 import { isSectionVisible } from "@/lib/detailLevel";
 import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
@@ -1103,6 +1105,18 @@ function SubvaluadasPageInner() {
                             )}
                           </div>
                         </div>
+                      </div>
+
+                      {/* ===== Fase 4, Incremento 7 — Manual vs. IA (Parte G): compara los
+                           supuestos que el usuario acaba de mover contra los de Nuvos, sin
+                           veredicto de cuál es correcto. ===== */}
+                      <div className="mt-5">
+                        <ManualVsAiPanel
+                          comparison={buildManualVsAiComparison(
+                            g, r, gt, suggestedG, suggestedR, suggestedGt,
+                            liveResult?.valorPorAccion ?? null, data.expected_value_per_share ?? data.intrinsic_value_base,
+                          )}
+                        />
                       </div>
 
                       {data.sensitivity_matrix && price !== null && (

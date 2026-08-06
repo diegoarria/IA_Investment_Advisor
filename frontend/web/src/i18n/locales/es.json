@@ -1103,6 +1103,21 @@
       "variablesChanged": "Variables críticas — qué cambió",
       "risksChanged": "Riesgos clave — qué cambió",
       "noChange": "Sin cambios reales entre estas dos versiones."
+    },
+    "manualVsAi": {
+      "title": "Tus Supuestos vs. los de Nuvos",
+      "subtitle": "Entiende el impacto de cada supuesto — sin decir cuál es correcto",
+      "you": "Tú",
+      "nuvos": "Nuvos",
+      "vs": "vs.",
+      "resultingValue": "Valor intrínseco resultante",
+      "assumptions": {
+        "growth": "Crecimiento",
+        "wacc": "Tasa de descuento (WACC)",
+        "terminalGrowth": "Crecimiento terminal"
+      },
+      "mostDivergentNote": "La mayor diferencia está en {{assumption}} ({{diff}}pp vs. Nuvos) — esto explica gran parte de la diferencia en el valor resultante.",
+      "footnote": "Ninguno de los dos supuestos es \"correcto\" — cada uno refleja una visión distinta del futuro de la empresa. Usa esta comparación para entender qué tan sensible es tu valor estimado a cada supuesto."
     }
   },
   "patrimonio": {
