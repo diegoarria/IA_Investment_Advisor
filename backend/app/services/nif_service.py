@@ -87,12 +87,14 @@ async def _safe(coro, fallback, ticker: str, label: str, timeout: float = 20.0):
     """Every NIF sub-call (insider data, each explanation call) must degrade
     independently — a slow/failed Finnhub call or a truncated Haiku response
     must never take down the whole dashboard, matching the same philosophy
-    already used throughout fundamental_analysis_service/screener.py."""
-    try:
-        return await asyncio.wait_for(coro, timeout=timeout)
-    except Exception as e:
-        logger.warning("build_nif_dashboard(%s): %s failed: %s", ticker, label, e)
-        return fallback
+    already used throughout fundamental_analysis_service/screener.py.
+
+    Thin alias — the real implementation is `safe_call.safe_call`
+    (promoted there in Fase 3, Incremento 10, so `research_orchestrator.py`
+    reuses it too instead of a second copy). Kept here under the original
+    (ticker-first) signature for its many existing call sites."""
+    from app.services.safe_call import safe_call
+    return await safe_call(coro, fallback, label, timeout=timeout, context=ticker)
 
 
 def _factor_score(factors: list, name: str) -> Optional[float]:
