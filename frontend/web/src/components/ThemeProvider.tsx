@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { usePathname } from "next/navigation";
-import { useThemeStore, useAuthStore, useWatchlistStore, useLearnStore, useLanguageStore, useDetailLevelStore } from "@/lib/store";
+import { useThemeStore, useAuthStore, useWatchlistStore, useLearnStore, useLanguageStore, useDetailLevelStore, usePersonalizationStore } from "@/lib/store";
 import "@/i18n";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -13,6 +13,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   const { theme, loadThemeFromServer } = useThemeStore();
   const { language, loadLanguageFromServer } = useLanguageStore();
   const { loadDetailLevelFromServer } = useDetailLevelStore();
+  const { loadPersonalizationFromServer } = usePersonalizationStore();
   const { isAuthenticated, setAuth, setAuthRestoring } = useAuthStore();
   const lastSyncRef = useRef<number>(0);
   const pathname = usePathname();
@@ -98,6 +99,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
       loadThemeFromServer();
       loadLanguageFromServer();
       loadDetailLevelFromServer();
+      loadPersonalizationFromServer();
       useWatchlistStore.getState().loadFromServer();
       useLearnStore.getState().restoreFromServer();
       usePortfolioStore.getState().loadFromServer();

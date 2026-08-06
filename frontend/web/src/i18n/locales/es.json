@@ -1132,6 +1132,7 @@
       "unmark": "Quitar marca de Invertible",
       "markedBadge": "Invertible",
       "incompleteHint": "Completa todos los items del checklist para poder marcarla como Invertible",
+      "yourMinimum": "tu mínimo: {{pct}}%",
       "markError": "No pudimos guardar el cambio — intenta de nuevo.",
       "items": {
         "understand_business": "Entiendo cómo gana dinero esta empresa",
@@ -2784,6 +2785,55 @@
       "iol": "Bolsa de Buenos Aires + NYSE",
       "gbm": "Broker líder en México",
       "actinver": "Casa de bolsa mexicana"
+    }
+  },
+  "settings": {
+    "title": "Personalización",
+    "subtitle": "Ajusta Nuvos a tu propio criterio de inversión",
+    "profileLinkTitle": "Personalización",
+    "profileLinkSubtitle": "Retorno requerido, margen de seguridad, métricas favoritas",
+    "detailLevel": {
+      "title": "Nivel de detalle por defecto",
+      "subtitle": "Controla cuánta información ves en /subvaluadas"
+    },
+    "discountRate": {
+      "title": "Tasa de descuento",
+      "subtitle": "Usada como default en tu calculadora manual de valor intrínseco — nunca cambia los valores automáticos que ya calculó Nuvos para otros usuarios",
+      "requiredReturnLabel": "Tu retorno requerido",
+      "requiredReturnHint": "El retorno mínimo anual que buscas en tus inversiones",
+      "methodLabel": "Qué tasa usar por defecto",
+      "methods": {
+        "wacc": "WACC calculado",
+        "required_return": "Mi retorno requerido"
+      }
+    },
+    "marginOfSafety": {
+      "title": "Margen de seguridad mínimo",
+      "subtitle": "Resalta oportunidades en tu watchlist e informa el checklist de inversión",
+      "label": "Margen de seguridad mínimo",
+      "hint": "El descuento mínimo vs. valor razonable que buscas antes de considerar invertir"
+    },
+    "favoriteMetrics": {
+      "title": "Métricas favoritas",
+      "subtitle": "Se destacan primero en la tabla de tu watchlist",
+      "keys": {
+        "qualityScore": "Quality Score",
+        "convictionScore": "Conviction Score",
+        "marginOfSafetyPct": "Margen de seguridad",
+        "opportunityScore": "Oportunidad",
+        "thesisStatus": "Estado de tesis",
+        "netChangeScore": "Cambio reciente"
+      }
+    },
+    "dashboardOrder": {
+      "title": "Orden del dashboard",
+      "subtitle": "Arrastra para reordenar las secciones de /subvaluadas",
+      "sections": {
+        "checklist": "Checklist de Inversión",
+        "nif": "Nuvos Investment Framework",
+        "timeline": "Timeline de la empresa",
+        "thesis_history": "Historial de tu tesis"
+      }
     }
   },
   "investmentJournal": {

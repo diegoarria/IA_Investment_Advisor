@@ -72,6 +72,12 @@ interface Props {
    * portfolio and any non-Premium/no-scores watchlist render exactly as
    * before. */
   showScores?: boolean;
+  /** Fase 4, Incremento 12 (Personalización, Parte L) — highlights rows
+   * whose real marginOfSafetyPct meets this threshold, and bolds/marks
+   * the header of any score column the user picked as a favorite metric.
+   * Both purely visual — never changes sort order or which rows render. */
+  minMarginOfSafetyPct?: number | null;
+  favoriteMetrics?: string[];
 }
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
@@ -107,12 +113,14 @@ function Avatar({ ticker, logoUrl }: { ticker: string; logoUrl?: string | null }
 // ─── Sort header cell ─────────────────────────────────────────────────────────
 
 function Th({
-  label, sortKey, current, dir, onClick, align = "right", tip,
+  label, sortKey, current, dir, onClick, align = "right", tip, favorite = false,
 }: {
   label: string; sortKey: SortKey;
   current: SortKey | null; dir: "asc" | "desc";
   onClick: (k: SortKey) => void; align?: "left" | "right";
   tip?: ReactNode;
+  /** Fase 4, Incremento 12 — this column is one of the user's favorite metrics. */
+  favorite?: boolean;
 }) {
   const active = current === sortKey;
   return (
@@ -120,12 +128,13 @@ function Th({
       onClick={() => onClick(sortKey)}
       className="px-3 py-2.5 text-xs font-bold uppercase tracking-wide cursor-pointer select-none whitespace-nowrap"
       style={{
-        color: active ? "var(--accent-l)" : "var(--muted)",
+        color: active ? "var(--accent-l)" : favorite ? "var(--text)" : "var(--muted)",
         textAlign: align,
-        borderBottom: "1px solid var(--border)",
+        borderBottom: active || favorite ? "2px solid var(--accent-l)" : "1px solid var(--border)",
       }}
     >
       <span className="inline-flex items-center gap-0.5 justify-end">
+        {favorite && <span style={{ color: "var(--accent-l)" }}>★</span>}
         {tip ?? label}
         {active
           ? dir === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
@@ -166,7 +175,10 @@ function DeleteBtn({ ticker, onRemove }: { ticker: string; onRemove: (t: string)
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado", fxRate = 1, onRemove, onEdit, onRowClick, showScores = false }: Props) {
+export default function AdvancedStockTable({
+  rows, mode, userLevel = "avanzado", fxRate = 1, onRemove, onEdit, onRowClick, showScores = false,
+  minMarginOfSafetyPct = null, favoriteMetrics = [],
+}: Props) {
   const { t } = useTranslation();
   // All columns visible — the Avanzado toggle already gates access to this table
   const showVol      = true;
@@ -317,12 +329,12 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
               {show52W      && <Th label="52W"      sortKey="week52High"   {...colProps} tip={<FinancialTip term="52W High" userLevel={userLevel}>52W</FinancialTip>} />}
               {showScoreCols && (
                 <>
-                  <Th label={t("advancedStockTable.scores.quality")}     sortKey="qualityScore"     {...colProps} />
-                  <Th label={t("advancedStockTable.scores.conviction")}  sortKey="convictionScore"  {...colProps} />
-                  <Th label={t("advancedStockTable.scores.discount")}    sortKey="marginOfSafetyPct" {...colProps} />
-                  <Th label={t("advancedStockTable.scores.opportunity")} sortKey="opportunityScore" {...colProps} />
-                  <Th label={t("advancedStockTable.scores.thesis")}      sortKey="thesisStatus"     {...colProps} />
-                  <Th label={t("advancedStockTable.scores.change")}      sortKey="netChangeScore"   {...colProps} />
+                  <Th label={t("advancedStockTable.scores.quality")}     sortKey="qualityScore"     {...colProps} favorite={favoriteMetrics.includes("qualityScore")} />
+                  <Th label={t("advancedStockTable.scores.conviction")}  sortKey="convictionScore"  {...colProps} favorite={favoriteMetrics.includes("convictionScore")} />
+                  <Th label={t("advancedStockTable.scores.discount")}    sortKey="marginOfSafetyPct" {...colProps} favorite={favoriteMetrics.includes("marginOfSafetyPct")} />
+                  <Th label={t("advancedStockTable.scores.opportunity")} sortKey="opportunityScore" {...colProps} favorite={favoriteMetrics.includes("opportunityScore")} />
+                  <Th label={t("advancedStockTable.scores.thesis")}      sortKey="thesisStatus"     {...colProps} favorite={favoriteMetrics.includes("thesisStatus")} />
+                  <Th label={t("advancedStockTable.scores.change")}      sortKey="netChangeScore"   {...colProps} favorite={favoriteMetrics.includes("netChangeScore")} />
                 </>
               )}
               {mode === "portfolio" && (
@@ -350,6 +362,10 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
               const glUp       = (row.gainLossPct ?? 0) >= 0;
               const isLive     = !!livePrices[row.ticker];
               const hasAH      = row.extPrice != null;
+              // Fase 4, Incremento 12 — meets the user's own minimum margin
+              // of safety (purely visual, never changes sort/filtering).
+              const meetsMinMoS = minMarginOfSafetyPct !== null && row.marginOfSafetyPct != null
+                && row.marginOfSafetyPct >= minMarginOfSafetyPct;
 
               return (
                 <tr
@@ -360,6 +376,7 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
                     cursor: onRowClick ? "pointer" : "default",
                     borderBottom: idx < sorted.length - 1 ? "1px solid var(--border)" : "none",
                     borderLeft: `3px solid ${isUp ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)"}`,
+                    background: meetsMinMoS ? "rgba(0,168,94,0.06)" : undefined,
                   }}
                 >
                   {/* Symbol + Name */}

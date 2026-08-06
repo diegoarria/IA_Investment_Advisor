@@ -577,7 +577,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
     try:
         profile_res = await run_query(
             db.table("user_profiles")
-            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, streak_bonus_premium_until, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, completed_topic_ids, portfolio_view_mode, checklist_done, watchlist_view_mode, has_broker, preferred_language, detail_level")
+            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, streak_bonus_premium_until, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, completed_topic_ids, portfolio_view_mode, checklist_done, watchlist_view_mode, has_broker, preferred_language, detail_level, required_return_pct, min_margin_of_safety_pct, preferred_discount_rate_method, favorite_metrics, dashboard_section_order")
             .eq("user_id", user_id)
         )
     except Exception:
@@ -666,6 +666,12 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         "checklist_done":       bool(profile_row.get("checklist_done", False)),
         "has_broker":           bool(profile_row.get("has_broker", False)),
         "detail_level":         profile_row.get("detail_level", "intermedio"),
+        # Fase 4, Incremento 12 (Personalización, Parte L)
+        "required_return_pct":            profile_row.get("required_return_pct"),
+        "min_margin_of_safety_pct":       profile_row.get("min_margin_of_safety_pct"),
+        "preferred_discount_rate_method": profile_row.get("preferred_discount_rate_method", "wacc"),
+        "favorite_metrics":               profile_row.get("favorite_metrics") or [],
+        "dashboard_section_order":        profile_row.get("dashboard_section_order"),
     }
     # A brand-new account with zero portfolio rows is a normal, cacheable state.
     # But if this account has ever had a portfolio and this particular read just
@@ -815,6 +821,73 @@ async def sync_detail_level(body: dict, user_id: str = Depends(get_current_user_
         level = "intermedio"
     db = get_supabase()
     await run_query(db.table("user_profiles").update({"detail_level": level}).eq("user_id", user_id))
+    cache_delete(f"sync:all:{user_id}")
+    return {"ok": True}
+
+
+# ─── Personalization (Fase 4, Incremento 12) ─────────────────────────────────
+
+_VALID_DISCOUNT_RATE_METHODS = ("wacc", "required_return")
+_MAX_FAVORITE_METRICS = 6
+_VALID_DASHBOARD_SECTIONS = (
+    "summary", "quality_headline", "fair_value_range", "key_risks", "conclusion",
+    "roic_fcf_growth", "moat_score", "capital_allocation", "competitors", "timeline",
+    "dcf_full", "monte_carlo", "reverse_dcf", "sensitivity", "scenarios",
+    "raw_assumptions", "factors_detail",
+)
+
+
+def _build_personalization_update(body: dict) -> dict:
+    """Pure validation/sanitization of a partial personalization body into
+    a safe user_profiles update dict — separated from the route so it's
+    testable without mocking Supabase. Only keys present in `body` are
+    included in the result; an out-of-range/invalid value for a present
+    key is stored as None (an explicit "cleared", never silently ignored
+    or defaulted to something the user didn't ask for) except
+    `preferred_discount_rate_method`, which has a real safe default."""
+    update: dict = {}
+
+    if "required_return_pct" in body:
+        val = body["required_return_pct"]
+        update["required_return_pct"] = float(val) if val is not None and 0 < float(val) < 100 else None
+
+    if "min_margin_of_safety_pct" in body:
+        val = body["min_margin_of_safety_pct"]
+        update["min_margin_of_safety_pct"] = float(val) if val is not None and -100 < float(val) < 100 else None
+
+    if "preferred_discount_rate_method" in body:
+        method = body["preferred_discount_rate_method"]
+        update["preferred_discount_rate_method"] = method if method in _VALID_DISCOUNT_RATE_METHODS else "wacc"
+
+    if "favorite_metrics" in body:
+        metrics = body["favorite_metrics"]
+        update["favorite_metrics"] = list(metrics)[:_MAX_FAVORITE_METRICS] if isinstance(metrics, list) else []
+
+    if "dashboard_section_order" in body:
+        order = body["dashboard_section_order"]
+        if isinstance(order, list) and all(s in _VALID_DASHBOARD_SECTIONS for s in order):
+            update["dashboard_section_order"] = order
+        else:
+            update["dashboard_section_order"] = None
+
+    return update
+
+
+@router.post("/personalization")
+async def sync_personalization(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Persist the Personalización settings (Parte L): required return,
+    minimum margin of safety, preferred discount-rate method, favorite
+    metrics, and dashboard section order. Deliberately per-request-surface
+    only — see migration 069's docstring for why these never touch the
+    shared nif_dashboard/quick_analysis caches. Every field is optional;
+    only the ones present in the body are updated (same partial-update
+    convention as the rest of this file)."""
+    update = _build_personalization_update(body)
+    if not update:
+        return {"ok": True}
+
+    db = get_supabase()
+    await run_query(db.table("user_profiles").update(update).eq("user_id", user_id))
     cache_delete(f"sync:all:{user_id}")
     return {"ok": True}
 

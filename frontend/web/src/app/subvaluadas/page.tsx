@@ -38,7 +38,8 @@ import { DetailLevelToggle } from "@/components/ui";
 import { isSectionVisible } from "@/lib/detailLevel";
 import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
 import { screenerApi, savedValuationsApi, watchlist, explain as explainApi, researchEngineApi } from "@/lib/api";
-import { useSubscriptionStore, useThemeStore, useDetailLevelStore } from "@/lib/store";
+import { useSubscriptionStore, useThemeStore, useDetailLevelStore, usePersonalizationStore } from "@/lib/store";
+import { selectDefaultDiscountRatePct, resolveDashboardSectionOrder } from "@/lib/personalization";
 
 export interface QuickAnalysisResult {
   ticker: string;
@@ -654,6 +655,7 @@ function SubvaluadasPageInner() {
   }, [ticker, isPremium]);
 
   const { detailLevel, setDetailLevel } = useDetailLevelStore();
+  const { requiredReturnPct, preferredDiscountRateMethod, minMarginOfSafetyPct, dashboardSectionOrder } = usePersonalizationStore();
 
   const handleSearch = () => {
     if (!query.trim()) return;
@@ -675,14 +677,23 @@ function SubvaluadasPageInner() {
   const suggestedR = data?.dcf_assumptions?.suggested_r ?? 9;
   const suggestedGt = data?.dcf_assumptions?.suggested_gt ?? 3;
 
+  // Fase 4, Incremento 12 (Personalización, Parte L) — the manual
+  // calculator's DEFAULT discount rate, per the user's own
+  // retorno-requerido preference (mirrors dcf_engine.select_discount_rate's
+  // exact selection rule — never a new computation). Nuvos's own real WACC
+  // suggestion (suggestedR) is untouched everywhere else (the "reset to
+  // Nuvos" button, ManualVsAiPanel's comparison, the saved-valuation
+  // suggested_wacc_pct) — this only changes what the slider starts at.
+  const effectiveSuggestedR = selectDefaultDiscountRatePct(suggestedR, requiredReturnPct, preferredDiscountRateMethod);
+
   const [g, setG] = useState(suggestedG);
-  const [r, setR] = useState(suggestedR);
+  const [r, setR] = useState(effectiveSuggestedR);
   const [gt, setGt] = useState(suggestedGt);
 
-  useEffect(() => { setG(suggestedG); setR(suggestedR); setGt(suggestedGt); }, [suggestedG, suggestedR, suggestedGt]);
+  useEffect(() => { setG(suggestedG); setR(effectiveSuggestedR); setGt(suggestedGt); }, [suggestedG, effectiveSuggestedR, suggestedGt]);
   useEffect(() => { setSaveState("idle"); }, [g, r, gt, ticker]);
 
-  const isDefault = g === suggestedG && r === suggestedR && gt === suggestedGt;
+  const isDefault = g === suggestedG && r === effectiveSuggestedR && gt === suggestedGt;
 
   const liveResult = useMemo(() => {
     if (!hasData) return null;
@@ -874,125 +885,134 @@ function SubvaluadasPageInner() {
                     deterioration={nifData?.deterioration ?? null}
                   />
 
-                  {/* ===== Fase 4, Incremento 8 — Investment Checklist (Parte H): siempre
-                       visible (como el resumen ejecutivo), es un gate de decisión, no un
-                       nivel de profundidad analítica. ===== */}
-                  {isPremium && <InvestmentChecklistPanel ticker={data.ticker} />}
-
-                  {/* ===== Nuvos Investment Framework (NIF) — automatic 4-pillar AI dashboard.
-                       Independent from the manual calculator below: its own loading/error
-                       state, never blocks or alters anything under it. Gated to Intermedio+
-                       (Fase 4 Parte B) — Principiante already gets Quality/Valuation/riesgos
-                       from the executive summary above. ===== */}
-                  {isPremium && isSectionVisible(detailLevel, "moat_score") && (
-                    nifLoading ? (
-                      <NifDashboardSkeleton />
-                    ) : nifData && !nifError ? (
-                      <div className="mb-8">
-                        <NifOverallScoreBanner overall={nifData.overall_nif_score} />
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <NifPillarCard
-                            titleKey="business_quality"
-                            score={nifData.pillars.business_quality.score}
-                            dataRows={buildNifRows("business_quality_data", nifData.pillars.business_quality.data, isFinancialSector, t)}
-                            estimateRows={buildNifRows("business_quality_estimate", nifData.pillars.business_quality.nuvos_estimate, isFinancialSector, t)}
-                            explanation={nifData.pillars.business_quality.explanation}
-                          />
-                          <NifPillarCard
-                            titleKey="financial_strength"
-                            score={nifData.pillars.financial_strength.score}
-                            dataRows={buildNifRows("financial_strength_data", nifData.pillars.financial_strength.data, isFinancialSector, t)}
-                            estimateRows={buildNifRows("financial_strength_estimate", nifData.pillars.financial_strength.nuvos_estimate, isFinancialSector, t)}
-                            explanation={nifData.pillars.financial_strength.explanation}
-                          />
-                          <NifPillarCard
-                            titleKey="management_quality"
-                            score={nifData.pillars.management_quality.score}
-                            dataRows={buildNifRows("management_quality_data", nifData.pillars.management_quality.data, isFinancialSector, t)}
-                            estimateRows={buildNifRows("management_quality_estimate", nifData.pillars.management_quality.nuvos_estimate, isFinancialSector, t)}
-                            explanation={nifData.pillars.management_quality.explanation}
-                          />
-                          <NifPillarCard
-                            titleKey="valuation"
-                            score={nifData.pillars.valuation.score}
-                            dataRows={buildNifRows("valuation_data", nifData.pillars.valuation.data, isFinancialSector, t)}
-                            estimateRows={buildNifRows("valuation_estimate", nifData.pillars.valuation.nuvos_estimate, isFinancialSector, t)}
-                            explanation={nifData.pillars.valuation.explanation}
-                          />
-                        </div>
-
-                        {/* ===== Fase 2 — Motores de Calidad: Moat, Conviction, Management
-                             deep dive, Catalysts, Peer Comparison, Deterioration. Deliberately
-                             SIBLINGS of the 4-pillar grid above, never blended into
-                             overall_nif_score — see shared.tsx's section header comment. ===== */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                          <NifScoreEngineCard
-                            titleKey="moat"
-                            icon={<Shield className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
-                            score={nifData.moat.score}
-                            factors={nifData.moat.factors}
-                            footer={nifData.moat.deep_dive ? <NifMoatDeepDiveBlock deepDive={nifData.moat.deep_dive} /> : null}
-                          />
-                          <NifScoreEngineCard
-                            titleKey="conviction"
-                            icon={<Target className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
-                            score={nifData.conviction.score}
-                            factors={nifData.conviction.factors}
-                          />
-                          <NifManagementDeepDiveCard deepDive={nifData.pillars.management_quality.deep_dive} />
-                          <NifCatalystsCard data={nifData.catalysts} />
-                          <NifDeteriorationCard data={nifData.deterioration} />
-                        </div>
-
-                        {/* ===== Fase 4, Incremento 4 — Comparaciones (Parte D): visualización de
-                             barras contra peers reales, reemplaza el NifPeerComparisonCard (lista
-                             simple) con algo explícitamente visual. ===== */}
-                        <PeerComparisonChart
+                  {/* ===== Fase 4, Incremento 12 (Personalización, Parte L) — these 4
+                       blocks (checklist/nif/timeline/thesis_history) render in the
+                       user's own chosen order (src/lib/personalization.ts), default
+                       order unchanged from Incrementos 5/6/8. Each block keeps its own
+                       gating condition exactly as before — reordering never changes
+                       WHETHER something shows, only the sequence. ===== */}
+                  {resolveDashboardSectionOrder(dashboardSectionOrder).map((sectionKey) => {
+                    if (sectionKey === "checklist") {
+                      return isPremium ? (
+                        <InvestmentChecklistPanel
+                          key="checklist"
                           ticker={data.ticker}
-                          companyMetrics={{
-                            quality_score: nifData.pillars.business_quality.score,
-                            roic_pct: numOrNull((nifData.pillars.business_quality.data as Record<string, unknown>)?.roic_pct),
-                            operating_margin_pct: numOrNull((nifData.pillars.business_quality.data as Record<string, unknown>)?.operating_margin_pct),
-                            revenue_cagr_pct: numOrNull((nifData.pillars.business_quality.data as Record<string, unknown>)?.revenue_cagr_pct),
-                          }}
-                          peerComparison={nifData.peer_comparison}
+                          marginOfSafetyPct={data.margin_of_safety_pct}
+                          minMarginOfSafetyPct={minMarginOfSafetyPct}
                         />
-                      </div>
-                    ) : null
-                  )}
+                      ) : null;
+                    }
+                    if (sectionKey === "nif") {
+                      return (
+                        <div key="nif">
+                          {isPremium && isSectionVisible(detailLevel, "moat_score") && (
+                            nifLoading ? (
+                              <NifDashboardSkeleton />
+                            ) : nifData && !nifError ? (
+                              <div className="mb-8">
+                                <NifOverallScoreBanner overall={nifData.overall_nif_score} />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <NifPillarCard
+                                    titleKey="business_quality"
+                                    score={nifData.pillars.business_quality.score}
+                                    dataRows={buildNifRows("business_quality_data", nifData.pillars.business_quality.data, isFinancialSector, t)}
+                                    estimateRows={buildNifRows("business_quality_estimate", nifData.pillars.business_quality.nuvos_estimate, isFinancialSector, t)}
+                                    explanation={nifData.pillars.business_quality.explanation}
+                                  />
+                                  <NifPillarCard
+                                    titleKey="financial_strength"
+                                    score={nifData.pillars.financial_strength.score}
+                                    dataRows={buildNifRows("financial_strength_data", nifData.pillars.financial_strength.data, isFinancialSector, t)}
+                                    estimateRows={buildNifRows("financial_strength_estimate", nifData.pillars.financial_strength.nuvos_estimate, isFinancialSector, t)}
+                                    explanation={nifData.pillars.financial_strength.explanation}
+                                  />
+                                  <NifPillarCard
+                                    titleKey="management_quality"
+                                    score={nifData.pillars.management_quality.score}
+                                    dataRows={buildNifRows("management_quality_data", nifData.pillars.management_quality.data, isFinancialSector, t)}
+                                    estimateRows={buildNifRows("management_quality_estimate", nifData.pillars.management_quality.nuvos_estimate, isFinancialSector, t)}
+                                    explanation={nifData.pillars.management_quality.explanation}
+                                  />
+                                  <NifPillarCard
+                                    titleKey="valuation"
+                                    score={nifData.pillars.valuation.score}
+                                    dataRows={buildNifRows("valuation_data", nifData.pillars.valuation.data, isFinancialSector, t)}
+                                    estimateRows={buildNifRows("valuation_estimate", nifData.pillars.valuation.nuvos_estimate, isFinancialSector, t)}
+                                    explanation={nifData.pillars.valuation.explanation}
+                                  />
+                                </div>
 
-                  {/* ===== Fase 4, Incremento 5 — Timeline interactiva (Parte F): eventos
-                       reales de la empresa (Change Detection Engine, Fase 3), en orden
-                       cronológico. Intermedio+, misma cadencia que Comparaciones. ===== */}
-                  {isPremium && isSectionVisible(detailLevel, "timeline") && (
-                    <CompanyTimeline events={timelineEvents} loading={timelineLoading} />
-                  )}
+                                {/* ===== Fase 2 — Motores de Calidad: Moat, Conviction, Management
+                                     deep dive, Catalysts, Peer Comparison, Deterioration. Deliberately
+                                     SIBLINGS of the 4-pillar grid above, never blended into
+                                     overall_nif_score — see shared.tsx's section header comment. ===== */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                                  <NifScoreEngineCard
+                                    titleKey="moat"
+                                    icon={<Shield className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
+                                    score={nifData.moat.score}
+                                    factors={nifData.moat.factors}
+                                    footer={nifData.moat.deep_dive ? <NifMoatDeepDiveBlock deepDive={nifData.moat.deep_dive} /> : null}
+                                  />
+                                  <NifScoreEngineCard
+                                    titleKey="conviction"
+                                    icon={<Target className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
+                                    score={nifData.conviction.score}
+                                    factors={nifData.conviction.factors}
+                                  />
+                                  <NifManagementDeepDiveCard deepDive={nifData.pillars.management_quality.deep_dive} />
+                                  <NifCatalystsCard data={nifData.catalysts} />
+                                  <NifDeteriorationCard data={nifData.deterioration} />
+                                </div>
 
-                  {/* ===== Fase 4, Incremento 6 — Historial de valuaciones (Parte E, alcance
-                       ajustado): evolución real de la tesis personal del usuario. Avanzado+,
-                       ya que "comparar contra hace 1/3/5 años" es un caso de uso analítico. ===== */}
-                  {isPremium && isSectionVisible(detailLevel, "dcf_full") && (
-                    <>
-                      {!thesisLoading && thesisDraft && !myThesis && (
-                        <div className="flex items-center justify-between gap-3 rounded-xl border p-3.5 mb-3"
-                             style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                          <p className="text-[12px]" style={{ color: "var(--sub)" }}>
-                            {t("subvaluadas.investmentJournal.adoptPrompt")}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={handleAdoptThesis}
-                            disabled={adoptingThesis}
-                            className="shrink-0 text-[11.5px] font-semibold rounded-lg px-3 py-1.5 disabled:opacity-40"
-                            style={{ background: "var(--accent-l)", color: "#0a0a0a" }}
-                          >
-                            {adoptingThesis ? t("subvaluadas.investmentJournal.adopting") : t("subvaluadas.investmentJournal.adoptCta")}
-                          </button>
+                                {/* ===== Fase 4, Incremento 4 — Comparaciones (Parte D): visualización de
+                                     barras contra peers reales, reemplaza el NifPeerComparisonCard (lista
+                                     simple) con algo explícitamente visual. ===== */}
+                                <PeerComparisonChart
+                                  ticker={data.ticker}
+                                  companyMetrics={{
+                                    quality_score: nifData.pillars.business_quality.score,
+                                    roic_pct: numOrNull((nifData.pillars.business_quality.data as Record<string, unknown>)?.roic_pct),
+                                    operating_margin_pct: numOrNull((nifData.pillars.business_quality.data as Record<string, unknown>)?.operating_margin_pct),
+                                    revenue_cagr_pct: numOrNull((nifData.pillars.business_quality.data as Record<string, unknown>)?.revenue_cagr_pct),
+                                  }}
+                                  peerComparison={nifData.peer_comparison}
+                                />
+                              </div>
+                            ) : null
+                          )}
                         </div>
-                      )}
-                      <ThesisHistoryPanel versions={thesisHistory} loading={thesisHistoryLoading} />
-                    </>
-                  )}
+                      );
+                    }
+                    if (sectionKey === "timeline") {
+                      return isPremium && isSectionVisible(detailLevel, "timeline") ? (
+                        <CompanyTimeline key="timeline" events={timelineEvents} loading={timelineLoading} />
+                      ) : null;
+                    }
+                    // thesis_history
+                    return isPremium && isSectionVisible(detailLevel, "dcf_full") ? (
+                      <div key="thesis_history">
+                        {!thesisLoading && thesisDraft && !myThesis && (
+                          <div className="flex items-center justify-between gap-3 rounded-xl border p-3.5 mb-3"
+                               style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                            <p className="text-[12px]" style={{ color: "var(--sub)" }}>
+                              {t("subvaluadas.investmentJournal.adoptPrompt")}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={handleAdoptThesis}
+                              disabled={adoptingThesis}
+                              className="shrink-0 text-[11.5px] font-semibold rounded-lg px-3 py-1.5 disabled:opacity-40"
+                              style={{ background: "var(--accent-l)", color: "#0a0a0a" }}
+                            >
+                              {adoptingThesis ? t("subvaluadas.investmentJournal.adopting") : t("subvaluadas.investmentJournal.adoptCta")}
+                            </button>
+                          </div>
+                        )}
+                        <ThesisHistoryPanel versions={thesisHistory} loading={thesisHistoryLoading} />
+                      </div>
+                    ) : null;
+                  })}
 
                   {/* ===== Nivel 1 summary — GeneratedAtNote/LiquidityWarning/InsightBox stay
                        visible at every Nivel de Detalle (safety info + the plain-language

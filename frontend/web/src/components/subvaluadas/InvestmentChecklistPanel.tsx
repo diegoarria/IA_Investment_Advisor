@@ -21,7 +21,17 @@ import { Card, SectionHeader, Badge } from "@/components/ui";
 import { checklistApi } from "@/lib/api";
 import { ChecklistItem, isChecklistComplete, checklistProgress } from "@/lib/investmentChecklist";
 
-export function InvestmentChecklistPanel({ ticker }: { ticker: string }) {
+export function InvestmentChecklistPanel({
+  ticker, marginOfSafetyPct = null, minMarginOfSafetyPct = null,
+}: {
+  ticker: string;
+  /** Fase 4, Incremento 12 (Personalización, Parte L) — the ticker's real
+   * current margin of safety and the user's own minimum, shown as a hint
+   * next to the "margin_of_safety" checklist item — purely informational,
+   * never auto-checks anything for the user. */
+  marginOfSafetyPct?: number | null;
+  minMarginOfSafetyPct?: number | null;
+}) {
   const { t } = useTranslation();
   const [items, setItems] = useState<ChecklistItem[]>([]);
   const [isInvestable, setIsInvestable] = useState(false);
@@ -131,6 +141,14 @@ export function InvestmentChecklistPanel({ ticker }: { ticker: string }) {
                     <span className="text-[12.5px] truncate" style={{ color: item.checked ? "var(--sub)" : "var(--text)" }}>
                       {label}
                     </span>
+                    {item.item_key === "margin_of_safety" && minMarginOfSafetyPct !== null && (
+                      <span
+                        className="text-[10.5px] tabular-nums shrink-0"
+                        style={{ color: marginOfSafetyPct !== null && marginOfSafetyPct >= minMarginOfSafetyPct ? "#22c55e" : "var(--muted)" }}
+                      >
+                        ({marginOfSafetyPct !== null ? `${marginOfSafetyPct.toFixed(1)}% · ` : ""}{t("subvaluadas.investableChecklist.yourMinimum", { pct: minMarginOfSafetyPct })})
+                      </span>
+                    )}
                   </button>
                   {item.is_custom && (
                     <button

@@ -298,6 +298,12 @@ export const sync = {
   // Intermedio/Avanzado/Profesional), deliberately separate from the
   // basic/advanced view-mode toggles above (see src/lib/detailLevel.ts).
   pushDetailLevel: (level: DetailLevel) => api.post("/api/sync/detail-level", { level }),
+  // Fase 4, Incremento 12 (Personalización, Parte L) — partial update,
+  // omit a key entirely to leave it untouched server-side.
+  pushPersonalization: (patch: {
+    required_return_pct?: number | null; min_margin_of_safety_pct?: number | null;
+    preferred_discount_rate_method?: string; favorite_metrics?: string[]; dashboard_section_order?: string[];
+  }) => api.post("/api/sync/personalization", patch),
   pushChecklistDone: () => api.post("/api/sync/checklist-done"),
   pushMaturity: (score: number, history: unknown[]) =>
     api.post("/api/sync/maturity", { score, history }),

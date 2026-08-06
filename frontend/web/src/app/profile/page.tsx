@@ -17,7 +17,7 @@ import PaywallModal from "@/components/PaywallModal";
 import WrappedCard from "@/components/WrappedCard";
 import SavedValuationsSection from "@/components/SavedValuationsSection";
 import {
-  User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, ChevronRight, NotebookPen, Star, BarChart,
+  User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, ChevronRight, NotebookPen, SlidersHorizontal, Star, BarChart,
   Loader2, Copy, Check, Gift, Users, Share2, Trash2, Phone, Video, FileSearch, Lock,
   Bell, HeadphonesIcon,
 } from "lucide-react";
@@ -1318,6 +1318,20 @@ export default function ProfilePage() {
                     <p className="text-xs" style={{ color: "var(--muted)" }}>{t("profile.yearAsInvestor")}</p>
                   </div>
                   <p className="text-xs font-black shrink-0" style={{ color: "#00d47e" }}>{t("profile.view")}</p>
+                </button>
+
+                {/* Fase 4, Incremento 12 (Personalización, Parte L) */}
+                <button onClick={() => router.push("/settings")}
+                        className="w-full flex items-center justify-between rounded-xl border p-3.5"
+                        style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                  <div className="flex items-center gap-2.5">
+                    <SlidersHorizontal className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
+                    <div className="text-left">
+                      <p className="text-[12.5px] font-bold" style={{ color: "var(--text)" }}>{t("settings.profileLinkTitle")}</p>
+                      <p className="text-[11px]" style={{ color: "var(--muted)" }}>{t("settings.profileLinkSubtitle")}</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
                 </button>
 
                 {/* Notificaciones y Soporte — movidos aquí desde el sidebar, ahora

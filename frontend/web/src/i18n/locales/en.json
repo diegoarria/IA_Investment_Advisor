@@ -1132,6 +1132,7 @@
       "unmark": "Remove Investable mark",
       "markedBadge": "Investable",
       "incompleteHint": "Complete every checklist item to mark this company Investable",
+      "yourMinimum": "your minimum: {{pct}}%",
       "markError": "We couldn't save that change — try again.",
       "items": {
         "understand_business": "I understand how this company makes money",
@@ -2784,6 +2785,55 @@
       "iol": "Buenos Aires Stock Exchange + NYSE",
       "gbm": "Leading broker in Mexico",
       "actinver": "Mexican brokerage firm"
+    }
+  },
+  "settings": {
+    "title": "Personalization",
+    "subtitle": "Tune Nuvos to your own investment criteria",
+    "profileLinkTitle": "Personalization",
+    "profileLinkSubtitle": "Required return, margin of safety, favorite metrics",
+    "detailLevel": {
+      "title": "Default detail level",
+      "subtitle": "Controls how much information you see on /subvaluadas"
+    },
+    "discountRate": {
+      "title": "Discount rate",
+      "subtitle": "Used as the default in your manual intrinsic value calculator — never changes the automatic values Nuvos already computed for other users",
+      "requiredReturnLabel": "Your required return",
+      "requiredReturnHint": "The minimum annual return you look for in your investments",
+      "methodLabel": "Which rate to use by default",
+      "methods": {
+        "wacc": "Computed WACC",
+        "required_return": "My required return"
+      }
+    },
+    "marginOfSafety": {
+      "title": "Minimum margin of safety",
+      "subtitle": "Highlights opportunities in your watchlist and informs the investment checklist",
+      "label": "Minimum margin of safety",
+      "hint": "The minimum discount to fair value you look for before considering an investment"
+    },
+    "favoriteMetrics": {
+      "title": "Favorite metrics",
+      "subtitle": "Highlighted first in your watchlist table",
+      "keys": {
+        "qualityScore": "Quality Score",
+        "convictionScore": "Conviction Score",
+        "marginOfSafetyPct": "Margin of safety",
+        "opportunityScore": "Opportunity",
+        "thesisStatus": "Thesis status",
+        "netChangeScore": "Recent change"
+      }
+    },
+    "dashboardOrder": {
+      "title": "Dashboard order",
+      "subtitle": "Drag to reorder /subvaluadas's sections",
+      "sections": {
+        "checklist": "Investment Checklist",
+        "nif": "Nuvos Investment Framework",
+        "timeline": "Company timeline",
+        "thesis_history": "Your thesis history"
+      }
     }
   },
   "investmentJournal": {

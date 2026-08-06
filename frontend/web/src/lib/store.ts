@@ -3,6 +3,10 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import type { UserProfile, ChatMessage, Notification } from "./types";
 import { sync as syncApi } from "./api";
 import { DEFAULT_DETAIL_LEVEL, isValidDetailLevel, type DetailLevel } from "./detailLevel";
+import {
+  isValidDiscountRateMethod, resolveDashboardSectionOrder, sanitizeFavoriteMetrics,
+  DEFAULT_DASHBOARD_SECTION_ORDER, type DiscountRateMethod, type ReorderableSection, type FavoriteMetricKey,
+} from "./personalization";
 
 // All user-specific data is stored under per-user keys so switching accounts
 // never leaks one user's watchlist, profile, or history to another.
@@ -871,6 +875,64 @@ export const useDetailLevelStore = create<DetailLevelState>()(
       },
     }),
     { name: "detail-level-store" }
+  )
+);
+
+// ─── Personalization store (Fase 4, Incremento 12) ────────────────────────────
+// retorno requerido, margen de seguridad mínimo, método de tasa de descuento
+// preferido, métricas favoritas, orden de secciones del dashboard — see
+// src/lib/personalization.ts for exactly which per-request surface each
+// setting actually feeds (never the shared nif_dashboard/quick_analysis
+// caches). Same persisted-store + server-sync shape as useDetailLevelStore.
+
+interface PersonalizationState {
+  requiredReturnPct: number | null;
+  minMarginOfSafetyPct: number | null;
+  preferredDiscountRateMethod: DiscountRateMethod;
+  favoriteMetrics: FavoriteMetricKey[];
+  dashboardSectionOrder: ReorderableSection[];
+  setPersonalization: (patch: Partial<{
+    requiredReturnPct: number | null; minMarginOfSafetyPct: number | null;
+    preferredDiscountRateMethod: DiscountRateMethod; favoriteMetrics: FavoriteMetricKey[];
+    dashboardSectionOrder: ReorderableSection[];
+  }>) => void;
+  loadPersonalizationFromServer: () => Promise<void>;
+}
+
+export const usePersonalizationStore = create<PersonalizationState>()(
+  persist(
+    (set, get) => ({
+      requiredReturnPct: null,
+      minMarginOfSafetyPct: null,
+      preferredDiscountRateMethod: "wacc",
+      favoriteMetrics: [],
+      dashboardSectionOrder: DEFAULT_DASHBOARD_SECTION_ORDER,
+      setPersonalization: (patch) => {
+        set(patch);
+        syncApi.pushPersonalization({
+          required_return_pct: "requiredReturnPct" in patch ? patch.requiredReturnPct : undefined,
+          min_margin_of_safety_pct: "minMarginOfSafetyPct" in patch ? patch.minMarginOfSafetyPct : undefined,
+          preferred_discount_rate_method: patch.preferredDiscountRateMethod,
+          favorite_metrics: patch.favoriteMetrics,
+          dashboard_section_order: patch.dashboardSectionOrder,
+        }).catch(() => {});
+      },
+      loadPersonalizationFromServer: async () => {
+        try {
+          const res = await syncApi.getAll();
+          const data = res.data ?? {};
+          set({
+            requiredReturnPct: typeof data.required_return_pct === "number" ? data.required_return_pct : null,
+            minMarginOfSafetyPct: typeof data.min_margin_of_safety_pct === "number" ? data.min_margin_of_safety_pct : null,
+            preferredDiscountRateMethod: isValidDiscountRateMethod(data.preferred_discount_rate_method)
+              ? data.preferred_discount_rate_method : "wacc",
+            favoriteMetrics: sanitizeFavoriteMetrics(data.favorite_metrics),
+            dashboardSectionOrder: resolveDashboardSectionOrder(data.dashboard_section_order),
+          });
+        } catch {}
+      },
+    }),
+    { name: "personalization-store" }
   )
 );
 

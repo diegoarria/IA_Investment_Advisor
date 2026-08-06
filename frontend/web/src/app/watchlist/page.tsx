@@ -11,7 +11,7 @@ import {
   TrendingUp, TrendingDown, Lock, Plus, GripVertical, Bell, BellOff,
 } from "lucide-react";
 import { watchlist as watchlistApi, market as marketApi, sync as syncApi, priceAlerts as priceAlertsApi } from "@/lib/api";
-import { useAuthStore, useSubscriptionStore, useProfileStore } from "@/lib/store";
+import { useAuthStore, useSubscriptionStore, useProfileStore, usePersonalizationStore } from "@/lib/store";
 import { getUserLevel } from "@/lib/userLevel";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
@@ -359,6 +359,7 @@ export default function WatchlistPage() {
   const { profile } = useProfileStore();
   const userLevel = getUserLevel(profile);
   const { tier, isTrialPremium } = useSubscriptionStore();
+  const { minMarginOfSafetyPct, favoriteMetrics } = usePersonalizationStore();
   const isPremium = tier === "premium" || isTrialPremium;
   const { positions, portfolioCurrency } = usePortfolioStore();
   const fxRate = useFxRate(portfolioCurrency);
@@ -872,6 +873,8 @@ export default function WatchlistPage() {
                 userLevel={userLevel}
                 fxRate={fxRate}
                 showScores={isPremium}
+                minMarginOfSafetyPct={minMarginOfSafetyPct}
+                favoriteMetrics={favoriteMetrics}
                 rows={items.map((i): AdvancedRow => {
                   const s = scores[i.ticker];
                   return {
