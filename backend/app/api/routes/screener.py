@@ -1013,6 +1013,17 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "reverse_dcf_sanity_check": dcf.get("reverse_dcf_sanity_check"),
         "expectations_investing": dcf.get("expectations_investing"),
         "driver_based_valuation": dcf.get("driver_based_valuation"),
+        # Fase 1.5, Incrementos 4/5/8 (see /Users/diegoarria/.claude/plans/
+        # stateful-painting-flurry.md) — same shadow-mode discipline as
+        # driver_based_valuation above: computed on every request, not yet
+        # the production number. Exposed here so the frontend's Profesional-
+        # tier preview panel (Incremento 9) can show them; NOT wired into
+        # the primary valuation display until the production flip
+        # (Incremento 7, blocked on the validation harness).
+        "driver_based_scenarios": dcf.get("driver_based_scenarios"),
+        "driver_based_sensitivity_matrix": dcf.get("driver_based_sensitivity_matrix"),
+        "driver_based_value_drivers": dcf.get("driver_based_value_drivers"),
+        "growth_engine": dcf.get("growth_engine"),
         "monte_carlo": dcf.get("monte_carlo"),
         "sector_model_note": data.get("sector_model_note"),
         "fair_value_engine": fair_value_engine_result,

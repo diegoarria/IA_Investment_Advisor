@@ -454,6 +454,78 @@ export function ReverseDcfPanel({
   );
 }
 
+// Fase 1.5, Incremento 8/9 — Growth Engine (motor de crecimiento
+// ponderado, ver /Users/diegoarria/.claude/plans/stateful-painting-flurry.md).
+// Corre en modo sombra: se calcula siempre, pero el número que el usuario ve
+// en el resto de la pantalla sigue siendo el legacy hasta el flip a
+// producción (Incremento 7, bloqueado en un harness de validación con datos
+// reales). Este panel es explícitamente una VISTA PREVIA del motor nuevo,
+// gateada a nivel de detalle "Profesional" — nunca se mezcla con
+// growth_buildup.quality_adjusted_growth_pct (campo legacy, mismo nombre,
+// distinto dict, distinta escala) que el resto de la pantalla usa.
+export interface GrowthEngineData {
+  historical_growth_pct: number;
+  quality_adjusted_growth_pct: number;
+  total_adjustment_pct: number;
+  factors: NifScoreFactor[];
+}
+
+export function GrowthEnginePreviewPanel({ data }: { data: GrowthEngineData | null }) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  if (!data) return null;
+  const adjustmentColor = data.total_adjustment_pct > 0 ? "#22c55e" : data.total_adjustment_pct < 0 ? "#ef4444" : "var(--muted)";
+  return (
+    <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+      <div className="flex items-center gap-1.5 mb-1">
+        <Sparkles className="w-3 h-3" style={{ color: "var(--accent-l)" }} />
+        <p className="text-[11px] font-bold" style={{ color: "var(--text)" }}>{t("subvaluadas.growthEngine.label")}</p>
+      </div>
+      <p className="text-[10px] leading-relaxed mb-2" style={{ color: "var(--muted)" }}>{t("subvaluadas.growthEngine.previewNote")}</p>
+      <div className="grid grid-cols-3 gap-1.5 mb-2">
+        <div className="rounded-lg p-1.5 text-center" style={{ background: "var(--card)" }}>
+          <p className="text-[8px] uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.growthEngine.historical")}</p>
+          <p className="text-[11px] font-black tabular-nums" style={{ color: "var(--text)" }}>{data.historical_growth_pct.toFixed(1)}%</p>
+        </div>
+        <div className="rounded-lg p-1.5 text-center" style={{ background: "var(--card)" }}>
+          <p className="text-[8px] uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.growthEngine.adjustment")}</p>
+          <p className="text-[11px] font-black tabular-nums" style={{ color: adjustmentColor }}>
+            {data.total_adjustment_pct > 0 ? "+" : ""}{data.total_adjustment_pct.toFixed(2)}pp
+          </p>
+        </div>
+        <div className="rounded-lg p-1.5 text-center" style={{ background: "var(--card)" }}>
+          <p className="text-[8px] uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.growthEngine.qualityAdjusted")}</p>
+          <p className="text-[11px] font-black tabular-nums" style={{ color: "var(--text)" }}>{(data.quality_adjusted_growth_pct * 100).toFixed(1)}%</p>
+        </div>
+      </div>
+      {data.factors.length > 0 && (
+        <>
+          <button onClick={() => setExpanded((e) => !e)} className="text-[10px] font-bold underline underline-offset-2" style={{ color: "var(--muted)" }}>
+            {expanded ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}
+          </button>
+          {expanded && (
+            <div className="space-y-1.5 mt-2">
+              {data.factors.map((f, i) => (
+                <div key={i} className="rounded-lg p-2" style={{ background: "var(--card)" }}>
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <span className="text-[10.5px] font-bold" style={{ color: "var(--sub)" }}>
+                      {t(`subvaluadas.growthEngine.factors.${f.name}`, { defaultValue: f.name })}
+                    </span>
+                    {f.score !== null && (
+                      <span className="text-[10.5px] font-black tabular-nums shrink-0" style={{ color: nifScoreColor(f.score) }}>{f.score}</span>
+                    )}
+                  </div>
+                  <p className="text-[10.5px] leading-relaxed" style={{ color: "var(--dim)" }}>{f.reason}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // Fase 1, Incremento 7 (Parte H — Resultado Final): the headline summary
 // that ties both independent valuation methods together instead of
 // showing just one number. Never implies false precision — always framed

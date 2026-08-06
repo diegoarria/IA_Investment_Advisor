@@ -1147,6 +1147,21 @@
       "adoptPrompt": "Nuvos ya construyó una tesis de investigación para esta empresa — puedes adoptarla como punto de partida para la tuya.",
       "adoptCta": "Adoptar como mi tesis",
       "adopting": "Adoptando..."
+    },
+    "growthEngine": {
+      "label": "Vista previa — Growth Engine (motor nuevo, no oficial)",
+      "previewNote": "Motor de crecimiento en desarrollo, corriendo en modo sombra. No es el número que usa el resto de esta pantalla todavía.",
+      "historical": "Histórico",
+      "adjustment": "Ajuste",
+      "qualityAdjusted": "Ajustado por calidad",
+      "factors": {
+        "recent_growth_trend": "Tendencia reciente de crecimiento",
+        "incremental_roic_vs_average": "ROIC incremental vs. promedio",
+        "moat_stability": "Estabilidad del moat",
+        "deterioration_direction": "Dirección (mejora/deterioro)",
+        "capital_allocation": "Asignación de capital",
+        "industry_growth_comparison": "Comparación vs. industria"
+      }
     }
   },
   "patrimonio": {

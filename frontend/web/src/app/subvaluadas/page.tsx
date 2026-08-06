@@ -18,12 +18,13 @@ import {
   type NifDashboardData, type NifRow, type ThesisDraftData,
   type ScenariosData, type ProbabilityWeights, type SensitivityMatrixData,
   type ReverseDcfSanityCheckData, type ExpectationsInvestingData, type FairValueEngineData,
+  type GrowthEngineData,
   GeneratedAtNote, LiquidityWarning, ChecklistDisplay,
   MarketExpectationsPanel, InsightBox, FollowButton, AnalyzeButton,
   NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
   NifScoreEngineCard, NifMoatDeepDiveBlock, NifManagementDeepDiveCard,
   NifCatalystsCard, NifDeteriorationCard,
-  ScenarioWeightingPanel, ReverseDcfPanel,
+  ScenarioWeightingPanel, ReverseDcfPanel, GrowthEnginePreviewPanel,
 } from "@/components/subvaluadas/shared";
 import { ExecutiveSummaryPanel } from "@/components/subvaluadas/ExecutiveSummaryPanel";
 import dynamic from "next/dynamic";
@@ -89,6 +90,11 @@ export interface QuickAnalysisResult {
   expectations_investing: ExpectationsInvestingData | null;
   sector_model_note: { sector_type: string; detalle: string } | null;
   fair_value_engine: FairValueEngineData | null;
+  // Fase 1.5, Incremento 8/9 — Growth Engine shadow-mode preview, gated to
+  // Nivel de Detalle "Profesional" (see GrowthEnginePreviewPanel in
+  // shared.tsx). Never the growth number the rest of this screen actually
+  // uses — that stays legacy until the production flip (Incremento 7).
+  growth_engine: GrowthEngineData | null;
 }
 
 // Gold/teal/coral is this screen's fixed brand identity (Valor Intrínseco),
@@ -1245,6 +1251,15 @@ function SubvaluadasPageInner() {
                             sanityCheck={data.reverse_dcf_sanity_check}
                             expectationsInvesting={data.expectations_investing}
                           />
+                        </div>
+                      )}
+
+                      {/* ===== Fase 1.5, Incremento 9 — vista previa del Growth
+                           Engine nuevo (modo sombra), gateada a Profesional per
+                           decisión explícita de Diego. ===== */}
+                      {isSectionVisible(detailLevel, "factors_detail") && data.growth_engine && (
+                        <div className="mt-5">
+                          <GrowthEnginePreviewPanel data={data.growth_engine} />
                         </div>
                       )}
 

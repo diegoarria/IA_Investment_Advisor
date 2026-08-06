@@ -1147,6 +1147,21 @@
       "adoptPrompt": "Nuvos already built a research thesis for this company — you can adopt it as a starting point for your own.",
       "adoptCta": "Adopt as my thesis",
       "adopting": "Adopting..."
+    },
+    "growthEngine": {
+      "label": "Preview — Growth Engine (new, unofficial)",
+      "previewNote": "Growth engine under development, running in shadow mode. Not the number the rest of this screen uses yet.",
+      "historical": "Historical",
+      "adjustment": "Adjustment",
+      "qualityAdjusted": "Quality-adjusted",
+      "factors": {
+        "recent_growth_trend": "Recent growth trend",
+        "incremental_roic_vs_average": "Incremental ROIC vs. average",
+        "moat_stability": "Moat stability",
+        "deterioration_direction": "Direction (improving/deteriorating)",
+        "capital_allocation": "Capital allocation",
+        "industry_growth_comparison": "Industry comparison"
+      }
     }
   },
   "patrimonio": {
