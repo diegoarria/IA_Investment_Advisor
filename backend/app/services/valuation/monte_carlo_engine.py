@@ -113,6 +113,14 @@ class MonteCarloAssumptions:
     net_cash: float
     revenue_0: float
     years: int = 10
+    # Fase 1.5, Incremento 2 — the three-stage growth plateau
+    # (dcf_engine.project_driver_based_dcf's high_growth_years) is held
+    # FIXED across every draw, never sampled: it's a structural modeling
+    # choice (how many years growth stays flat before decelerating), not a
+    # measured quantity with a real historical distribution the way
+    # revenue growth or margin are — sampling it would add a dimension of
+    # "noise" with no real variance to anchor it to.
+    high_growth_years: int = 0
 
 
 @dataclass
@@ -182,6 +190,7 @@ def run_monte_carlo_dcf(
                 net_cash=assumptions.net_cash,
                 shares_out=shares_out,
                 years=assumptions.years,
+                high_growth_years=assumptions.high_growth_years,
             )
         except (UnstableGordonGrowthError, ValueError):
             n_discarded += 1

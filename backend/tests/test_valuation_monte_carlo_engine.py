@@ -90,6 +90,22 @@ class TestRunMonteCarloDcf:
         result = run_monte_carlo_dcf(_base_assumptions(), current_price=1_000_000.0, n_simulations=300, seed=1)
         assert result.probability_undervalued_pct == pytest.approx(0.0, abs=1.0)
 
+    def test_high_growth_years_defaults_to_zero_two_stage_behavior(self):
+        assumptions = _base_assumptions()
+        assert assumptions.high_growth_years == 0
+
+    def test_high_growth_years_is_held_fixed_and_raises_the_median(self):
+        # Fase 1.5, Incremento 2 — a longer plateau means every draw's
+        # revenue grows at its (higher) year-1 rate for longer before
+        # fading, so the resulting value distribution should shift up.
+        no_plateau = run_monte_carlo_dcf(
+            _base_assumptions(high_growth_years=0), n_simulations=500, seed=42,
+        )
+        with_plateau = run_monte_carlo_dcf(
+            _base_assumptions(high_growth_years=4), n_simulations=500, seed=42,
+        )
+        assert with_plateau.median > no_plateau.median
+
     def test_discards_draws_where_sampled_discount_rate_undershoots_terminal_growth(self):
         # force overlapping ranges so some draws WILL produce r <= gt
         assumptions = _base_assumptions(

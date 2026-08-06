@@ -45,6 +45,15 @@ logger = logging.getLogger(__name__)
 
 _MIN_YEARS = 3
 _PROJECTION_YEARS = 10
+# Fase 1.5, Incremento 2 — placeholder high-growth plateau for the driver-
+# based DCF's three-stage growth (dcf_engine.project_driver_based_dcf's
+# high_growth_years), fixed until the Growth Engine (Fase 1.5, Incremento 8)
+# determines this per-company from real signals (business maturity, moat,
+# industry growth stage) instead of one constant for every ticker. A short,
+# conservative plateau was chosen over 0 (which would make Incremento 1's
+# work invisible even in shadow mode) and over a longer one (which would
+# overstate durability for companies the Growth Engine hasn't assessed yet).
+_DEFAULT_HIGH_GROWTH_YEARS = 2
 _SENSITIVITY_DISCOUNT_RATES = (0.08, 0.10, 0.12)  # classic Wall-Street-style sensitivity table, independent of the real WACC used for the 3 growth scenarios
 _DEFAULT_DISCOUNT_RATE = 0.09  # fallback when WACC inputs (beta/risk-free rate) aren't available
 
@@ -1395,6 +1404,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                         discount_rate=base_discount_rate,
                         net_cash=net_cash,
                         shares_out=projected_shares,
+                        high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
                     )
                     driver_based_valuation = {
                         "value_per_share": driver_result.value_per_share,
@@ -1464,6 +1474,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                         terminal_roic_pct=avg_roic / 100,
                         net_cash=net_cash,
                         revenue_0=latest_rev,
+                        high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
                     )
                     mc_result = run_monte_carlo_dcf(mc_assumptions, current_price=price)
                     monte_carlo = {
