@@ -1207,12 +1207,35 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                 sensitivity.append((round(rate * 100), round(sens_equity / projected_shares, 2)))
 
             # Reverse DCF: what growth rate would the CURRENT price actually
-            # require, holding the real WACC and terminal growth fixed? This
-            # is the concrete, computed answer to "what is the investor
-            # buying at this price" — not a narrative guess.
-            implied_growth_pct = _implied_growth_rate(
-                base_fcf, base_discount_rate, terminal_growth, total_debt, cash_latest, projected_shares, price,
-            )
+            # require, holding every other real input (margin, reinvestment,
+            # WACC, terminal growth) fixed at Nuvos's own estimates? This is
+            # the concrete, computed answer to "what is the investor buying
+            # at this price" — not a narrative guess. Fase 1.5, Incremento 3:
+            # solved against the SAME driver-based engine that computes
+            # driver_based_valuation/monte_carlo below, not the legacy model
+            # — see reverse_dcf_engine.py's module docstring for why that
+            # coherence matters. None when the driver-based inputs
+            # (operating margin/reinvestment anchors, ROIC) aren't
+            # computable — same guard driver_based_valuation uses below.
+            implied_growth_pct = None
+            if (
+                operating_margin_anchor is not None and reinvestment_rate_anchor is not None
+                and avg_roic is not None and avg_roic > 0
+            ):
+                implied_growth_pct = _implied_growth_rate(
+                    revenue_0=latest_rev,
+                    operating_margin_anchor_pct=operating_margin_anchor,
+                    terminal_operating_margin_pct=operating_margin_anchor,
+                    tax_rate=tax_rate,
+                    reinvestment_rate_anchor_pct=reinvestment_rate_anchor,
+                    terminal_roic_pct=avg_roic / 100,
+                    discount_rate=base_discount_rate,
+                    terminal_growth=terminal_growth,
+                    net_cash=net_cash,
+                    shares_out=projected_shares,
+                    target_price=price,
+                    high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
+                )
 
             # Mandatory sanity check — never present the implied growth
             # rate as a bare percentage. Compares it against the company's
@@ -1229,10 +1252,23 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
             # never as "the market is wrong" — both are real, disclosed model
             # outputs, not certainties.
             implied_margin_pct = None
-            if latest_rev:
+            if (
+                latest_rev and operating_margin_anchor is not None
+                and avg_roic is not None and avg_roic > 0
+            ):
                 implied_margin_pct = _implied_fcf_margin_at_fixed_growth(
-                    latest_rev, base_historical_growth, base_discount_rate, terminal_growth,
-                    total_debt, cash_latest, projected_shares, price,
+                    revenue_0=latest_rev,
+                    growth_fixed=base_historical_growth,
+                    operating_margin_anchor_pct=operating_margin_anchor,
+                    terminal_operating_margin_pct=operating_margin_anchor,
+                    tax_rate=tax_rate,
+                    terminal_roic_pct=avg_roic / 100,
+                    discount_rate=base_discount_rate,
+                    terminal_growth=terminal_growth,
+                    net_cash=net_cash,
+                    shares_out=projected_shares,
+                    target_price=price,
+                    high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
                 )
             market_expectations = {
                 "market_implied_growth_pct": implied_growth_pct,
