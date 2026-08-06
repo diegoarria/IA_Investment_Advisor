@@ -27,6 +27,8 @@ import {
 } from "@/components/subvaluadas/shared";
 import { ExecutiveSummaryPanel } from "@/components/subvaluadas/ExecutiveSummaryPanel";
 import { PeerComparisonChart } from "@/components/subvaluadas/PeerComparisonChart";
+import { CompanyTimeline } from "@/components/subvaluadas/CompanyTimeline";
+import type { CompanyTimelineEvent } from "@/lib/companyTimeline";
 import { DetailLevelToggle } from "@/components/ui";
 import { isSectionVisible } from "@/lib/detailLevel";
 import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
@@ -583,6 +585,23 @@ function SubvaluadasPageInner() {
     return () => { cancelled = true; };
   }, [ticker, isPremium]);
 
+  // Fase 4, Incremento 5 — company timeline (Fase 3's Change Detection
+  // Engine output). Independent load state, same "never block anything
+  // else" philosophy as nifData/thesisDraft above.
+  const [timelineEvents, setTimelineEvents] = useState<CompanyTimelineEvent[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isPremium) { setTimelineLoading(false); return; }
+    let cancelled = false;
+    setTimelineLoading(true);
+    researchEngineApi.getTimeline(ticker)
+      .then((res) => { if (!cancelled) setTimelineEvents(res.data?.timeline ?? []); })
+      .catch(() => { if (!cancelled) setTimelineEvents([]); })
+      .finally(() => { if (!cancelled) setTimelineLoading(false); });
+    return () => { cancelled = true; };
+  }, [ticker, isPremium]);
+
   const { detailLevel, setDetailLevel } = useDetailLevelStore();
 
   const handleSearch = () => {
@@ -884,6 +903,13 @@ function SubvaluadasPageInner() {
                         />
                       </div>
                     ) : null
+                  )}
+
+                  {/* ===== Fase 4, Incremento 5 — Timeline interactiva (Parte F): eventos
+                       reales de la empresa (Change Detection Engine, Fase 3), en orden
+                       cronológico. Intermedio+, misma cadencia que Comparaciones. ===== */}
+                  {isPremium && isSectionVisible(detailLevel, "timeline") && (
+                    <CompanyTimeline events={timelineEvents} loading={timelineLoading} />
                   )}
 
                   {/* ===== Nivel 1 summary — GeneratedAtNote/LiquidityWarning/InsightBox stay

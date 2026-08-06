@@ -1071,6 +1071,27 @@
         "revenueGrowth": "Revenue Growth"
       },
       "footnote": "Every bar uses real, already-computed data — a comparison is never fabricated for metrics the peer engine doesn't compute (e.g. moat or capital allocation per peer)."
+    },
+    "timeline": {
+      "title": "Timeline",
+      "subtitle": "Real company events, in chronological order",
+      "loading": "Loading timeline...",
+      "empty": "No real events detected for this company yet.",
+      "showAll": "See all {{count}} events",
+      "showLess": "Show less",
+      "eventTypes": {
+        "ceo_change": "CEO change",
+        "ma": "M&A",
+        "spinoff": "Spin-off",
+        "product_launch": "Product launch",
+        "new_segment": "New segment",
+        "regulatory": "Regulatory",
+        "guidance_change": "Guidance change",
+        "margin_shift": "Margin shift",
+        "revenue_shift": "Revenue shift",
+        "strategy_change": "Strategy change",
+        "other": "Other"
+      }
     }
   },
   "patrimonio": {

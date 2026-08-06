@@ -45,6 +45,7 @@ export type DashboardSection =
   | "moat_score"
   | "capital_allocation"
   | "competitors"
+  | "timeline"
   | "dcf_full"
   | "monte_carlo"
   | "reverse_dcf"
@@ -64,6 +65,7 @@ export const SECTION_MIN_LEVEL: Record<DashboardSection, DetailLevel> = {
   moat_score: "intermedio",
   capital_allocation: "intermedio",
   competitors: "intermedio",
+  timeline: "intermedio",
 
   dcf_full: "avanzado",
   monte_carlo: "avanzado",

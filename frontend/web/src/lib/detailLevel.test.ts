@@ -41,7 +41,12 @@ describe("isSectionVisible", () => {
   it("intermedio sees principiante + intermedio sections, not beyond", () => {
     expect(isSectionVisible("intermedio", "summary")).toBe(true);
     expect(isSectionVisible("intermedio", "moat_score")).toBe(true);
+    expect(isSectionVisible("intermedio", "timeline")).toBe(true);
     expect(isSectionVisible("intermedio", "dcf_full")).toBe(false);
+  });
+
+  it("principiante does not see the company timeline", () => {
+    expect(isSectionVisible("principiante", "timeline")).toBe(false);
   });
 
   it("avanzado sees everything up through avanzado", () => {
