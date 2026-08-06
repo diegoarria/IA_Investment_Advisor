@@ -189,6 +189,99 @@ class TestProjectDriverBasedDcf:
         assert result.assumptions["revenue_growth_1_pct"] == pytest.approx(12.0)
         assert result.assumptions["high_growth_years"] == 0
 
+    def test_gordon_mode_assumptions_declare_the_method_and_no_exit_multiple(self):
+        result = project_driver_based_dcf(**self._base_kwargs())
+        assert result.assumptions["terminal_value_method"] == "gordon"
+        assert result.assumptions["exit_multiple"] is None
+        assert result.assumptions["exit_metric"] is None
+        assert result.assumptions["gordon_terminal_value"] is None
+        assert result.assumptions["gordon_sanity_check_ratio"] is None
+
+
+class TestHybridExitMultipleTerminalValue:
+    """Nuvos AI Fair Value Engine redesign, Incremento 2 — see
+    /Users/diegoarria/.claude/plans/stateful-painting-flurry.md."""
+
+    def _base_kwargs(self, **overrides):
+        kwargs = dict(
+            revenue_0=10_000.0,
+            revenue_growth_1=0.12,
+            terminal_growth=0.025,
+            operating_margin_anchor_pct=0.25,
+            terminal_operating_margin_pct=0.22,
+            tax_rate=0.21,
+            reinvestment_rate_anchor_pct=0.30,
+            terminal_roic_pct=0.15,
+            discount_rate=0.09,
+        )
+        kwargs.update(overrides)
+        return kwargs
+
+    def test_no_regression_when_exit_multiple_omitted(self):
+        # Zero-behavior-change guarantee: identical inputs, with vs. without
+        # the new (defaulted) params, must produce IDENTICAL results.
+        a = project_driver_based_dcf(**self._base_kwargs())
+        b = project_driver_based_dcf(**self._base_kwargs(exit_multiple=None, exit_metric=None))
+        assert a.enterprise_value == b.enterprise_value
+        assert a.terminal_value == b.terminal_value
+        assert a.assumptions == b.assumptions
+
+    def test_raises_when_exit_multiple_given_without_a_valid_metric(self):
+        with pytest.raises(ValueError):
+            project_driver_based_dcf(**self._base_kwargs(exit_multiple=15.0, exit_metric=None))
+        with pytest.raises(ValueError):
+            project_driver_based_dcf(**self._base_kwargs(exit_multiple=15.0, exit_metric="p_e"))
+
+    def test_exit_multiple_terminal_value_uses_year_n_metric(self):
+        result = project_driver_based_dcf(**self._base_kwargs(exit_multiple=15.0, exit_metric="ev_ebit"))
+        final_ebit = result.yearly[-1].ebit
+        assert result.terminal_value == pytest.approx(15.0 * final_ebit, abs=1)
+        assert result.assumptions["terminal_value_method"] == "exit_multiple"
+        assert result.assumptions["exit_multiple"] == 15.0
+        assert result.assumptions["exit_metric"] == "ev_ebit"
+
+    def test_each_exit_metric_reads_the_matching_year_n_field(self):
+        for metric, field_name in [("ev_sales", "revenue"), ("ev_ebit", "ebit"), ("ev_fcf", "fcf")]:
+            result = project_driver_based_dcf(**self._base_kwargs(exit_multiple=10.0, exit_metric=metric))
+            expected = getattr(result.yearly[-1], field_name)
+            assert result.terminal_value == pytest.approx(10.0 * expected, abs=1)
+
+    def test_monotonic_in_exit_multiple(self):
+        low = project_driver_based_dcf(**self._base_kwargs(exit_multiple=8.0, exit_metric="ev_ebit"))
+        high = project_driver_based_dcf(**self._base_kwargs(exit_multiple=20.0, exit_metric="ev_ebit"))
+        assert high.enterprise_value > low.enterprise_value
+
+    def test_gordon_sanity_check_present_when_gordon_has_a_valid_solution(self):
+        result = project_driver_based_dcf(**self._base_kwargs(exit_multiple=15.0, exit_metric="ev_ebit"))
+        assert result.assumptions["gordon_terminal_value"] is not None
+        assert result.assumptions["gordon_sanity_check_ratio"] is not None
+        expected_gordon = result.yearly[-1].fcf * 1.025 / (0.09 - 0.025)
+        assert result.assumptions["gordon_terminal_value"] == pytest.approx(expected_gordon, abs=1)
+
+    def test_never_raises_when_discount_rate_too_close_to_terminal_growth(self):
+        # The exact input combination that raises UnstableGordonGrowthError
+        # in Gordon-only mode (see TestProjectDriverBasedDcf above) must
+        # instead return a real valuation in exit-multiple mode, with the
+        # Gordon sanity check simply unavailable.
+        result = project_driver_based_dcf(
+            **self._base_kwargs(discount_rate=0.03, terminal_growth=0.03, exit_multiple=15.0, exit_metric="ev_ebit"),
+        )
+        assert result.enterprise_value is not None
+        assert result.assumptions["gordon_terminal_value"] is None
+        assert result.assumptions["gordon_sanity_check_ratio"] is None
+
+    def test_terminal_roic_still_required_positive_in_exit_multiple_mode(self):
+        # Still governs the reinvestment-rate fade, independent of which
+        # terminal-value formula is used for the final year's metric.
+        with pytest.raises(ValueError):
+            project_driver_based_dcf(**self._base_kwargs(terminal_roic_pct=0.0, exit_multiple=15.0, exit_metric="ev_ebit"))
+
+    def test_implied_fcf_margin_year_n_is_a_derived_output_not_an_input(self):
+        result = project_driver_based_dcf(**self._base_kwargs(exit_multiple=15.0, exit_metric="ev_ebit"))
+        final_row = result.yearly[-1]
+        expected = round(final_row.fcf / final_row.revenue * 100, 2)
+        assert result.assumptions["implied_fcf_margin_pct_year_n"] == pytest.approx(expected)
+
 
 class TestThreeStageGrowthPlateau:
     """Fase 1.5, Incremento 1 — the high_growth_years plateau."""

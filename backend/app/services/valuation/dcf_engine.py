@@ -66,11 +66,19 @@ just "the formula"):
    and never blends the two (per the brief: "Nunca mezclar ambos
    conceptos").
 
-4. Every Gordon-growth terminal value is guarded by
-   `valuation.robustness.validate_discount_beats_terminal_growth` before
-   it's computed — this is the real fix for the gap pinned in
+4. Every Gordon-growth terminal value (still the ONLY terminal value method
+   when `project_driver_based_dcf` is called without `exit_multiple`) is
+   guarded by `valuation.robustness.validate_discount_beats_terminal_growth`
+   before it's computed — this is the real fix for the gap pinned in
    `tests/test_valuation_dcf_core.py::TestRunDcf` (the old `_run_dcf` has
-   no such guard).
+   no such guard). Nuvos AI Fair Value Engine redesign, Incremento 2: when
+   `exit_multiple`/`exit_metric` are passed, the terminal value instead
+   comes from `exit_multiple × <metric>`'s year-N value (see
+   `exit_multiple_engine.py`) — Gordon growth is still computed as an
+   internal sanity check when it has a valid solution, but no longer
+   blocks the valuation the way it does in Gordon-only mode, since the
+   two terminal-value formulas answer the same question through
+   genuinely different, independently-valid math.
 """
 
 from __future__ import annotations
@@ -80,10 +88,17 @@ from typing import Optional
 
 from app.services.valuation.robustness import (
     validate_discount_beats_terminal_growth,
+    UnstableGordonGrowthError,
     safe_divide,
     clamp,
     validate_positive_shares,
 )
+
+# Nuvos AI Fair Value Engine redesign, Incremento 2 — the 3 exit-multiple
+# metrics decision #13 restricts this to (see exit_multiple_engine.py's
+# module docstring for why P/E, Price/FCF, and EV/EBITDA don't apply to
+# this unlevered, no-separate-D&A waterfall).
+_EXIT_METRICS = ("ev_sales", "ev_ebit", "ev_fcf")
 
 _PROJECTION_YEARS = 10
 
@@ -199,11 +214,30 @@ def project_driver_based_dcf(
     shares_out: Optional[float] = None,
     years: int = _PROJECTION_YEARS,
     high_growth_years: int = 0,
+    exit_multiple: Optional[float] = None,
+    exit_metric: Optional[str] = None,
 ) -> DriverBasedDcfResult:
     """The core driver-based DCF: projects Revenue -> Operating Margin ->
     EBIT -> Tax -> NOPAT -> Reinvestment -> FCF for `years`, discounts
-    each year's FCF, and adds a Gordon-growth terminal value on the final
-    year's FCF.
+    each year's FCF, and adds a terminal value on the final year.
+
+    Nuvos AI Fair Value Engine redesign, Incremento 2 — `exit_multiple`/
+    `exit_metric` (both `None` by default, reproducing today's Gordon-
+    growth-only behavior with ZERO change for every existing caller):
+    when both are given, the terminal value becomes `exit_multiple ×
+    <exit_metric's year-`years` value>` (`exit_metric` one of "ev_sales"/
+    "ev_ebit"/"ev_fcf" — see exit_multiple_engine.py for why only these
+    three) instead of the Gordon-growth perpetuity. Gordon is still
+    computed as an internal sanity check whenever it has a valid solution
+    (`gordon_terminal_value`/`gordon_sanity_check_ratio` in `assumptions`)
+    but a spread too thin for a stable Gordon solution (`discount_rate`
+    not comfortably above `terminal_growth`) no longer blocks the
+    valuation in exit-multiple mode — it only means the sanity check isn't
+    available for that run, since `validate_discount_beats_terminal_
+    growth`'s failure mode (see robustness.py) is specific to the Gordon-
+    growth perpetuity formula, not to an exit-multiple terminal value at
+    all. In Gordon-only mode (`exit_multiple=None`) that validation is
+    still called up front, unchanged.
 
     All rate inputs are decimals (0.08 = 8%), all money inputs share one
     currency unit (the caller's choice — typically millions, matching
@@ -218,18 +252,25 @@ def project_driver_based_dcf(
     `terminal_growth`, silently breaking the terminal-value consistency
     the rest of this engine relies on).
 
-    Raises `valuation.robustness.UnstableGordonGrowthError` if
-    `discount_rate` does not exceed `terminal_growth` by a healthy margin
-    — never returns a silently-wrong (negative or divide-by-zero) terminal
-    value. Raises `ValueError` if `terminal_roic_pct` is not positive,
-    since the terminal reinvestment rate (`terminal_growth /
-    terminal_roic_pct`) has no meaningful value otherwise — a business
-    that can't sustain a positive terminal ROIC also can't have a stable
-    perpetuity growing at `terminal_growth`, which is precisely the "no
-    valid solution" case this should surface clearly rather than silently
-    compute a nonsensical reinvestment rate.
+    Raises `valuation.robustness.UnstableGordonGrowthError` in Gordon-only
+    mode (`exit_multiple=None`) if `discount_rate` does not exceed
+    `terminal_growth` by a healthy margin — never returns a silently-wrong
+    (negative or divide-by-zero) terminal value. In exit-multiple mode this
+    same condition never raises (see above). Raises `ValueError` if
+    `exit_multiple` is given without a valid `exit_metric`, or if
+    `terminal_roic_pct` is not positive, since the terminal reinvestment
+    rate (`terminal_growth / terminal_roic_pct`) has no meaningful value
+    otherwise — a business that can't sustain a positive terminal ROIC also
+    can't have a stable perpetuity growing at `terminal_growth`, which is
+    precisely the "no valid solution" case this should surface clearly
+    rather than silently compute a nonsensical reinvestment rate (this
+    still governs the reinvestment-rate fade in exit-multiple mode too,
+    independent of which terminal-value formula is used).
     """
-    validate_discount_beats_terminal_growth(discount_rate, terminal_growth)
+    if exit_multiple is None:
+        validate_discount_beats_terminal_growth(discount_rate, terminal_growth)
+    elif exit_metric not in _EXIT_METRICS:
+        raise ValueError(f"exit_metric debe ser uno de {_EXIT_METRICS} cuando se pasa exit_multiple, no {exit_metric!r}.")
 
     if revenue_0 <= 0:
         raise ValueError("revenue_0 debe ser positivo — no hay una base real desde la cual proyectar.")
@@ -281,10 +322,32 @@ def project_driver_based_dcf(
         ))
         revenue_prev = revenue
 
-    final_fcf = yearly[-1].fcf
-    terminal_value = final_fcf * (1 + terminal_growth) / (discount_rate - terminal_growth)
+    final_row = yearly[-1]
+    final_fcf = final_row.fcf
+
+    gordon_terminal_value: Optional[float] = None
+    gordon_sanity_check_ratio: Optional[float] = None
+    if exit_multiple is None:
+        terminal_value_method = "gordon"
+        terminal_value = final_fcf * (1 + terminal_growth) / (discount_rate - terminal_growth)
+    else:
+        terminal_value_method = "exit_multiple"
+        metric_value = {"ev_sales": final_row.revenue, "ev_ebit": final_row.ebit, "ev_fcf": final_fcf}[exit_metric]
+        terminal_value = exit_multiple * metric_value
+        # Gordon still computed as an internal sanity check whenever it has
+        # a valid solution — never blocks the exit-multiple valuation (see
+        # docstring), only informs whether the two methods roughly agree.
+        try:
+            validate_discount_beats_terminal_growth(discount_rate, terminal_growth)
+            gordon_terminal_value = final_fcf * (1 + terminal_growth) / (discount_rate - terminal_growth)
+            if gordon_terminal_value:
+                gordon_sanity_check_ratio = round(terminal_value / gordon_terminal_value, 2)
+        except UnstableGordonGrowthError:
+            pass
+
     pv_terminal = terminal_value / ((1 + discount_rate) ** years)
     enterprise_value = pv_sum + pv_terminal
+    implied_fcf_margin_pct_year_n = round(final_fcf / final_row.revenue * 100, 2) if final_row.revenue else None
 
     result = DriverBasedDcfResult(
         yearly=yearly,
@@ -302,6 +365,12 @@ def project_driver_based_dcf(
             "reinvestment_rate_anchor_pct": round(reinvestment_rate_anchor_pct * 100, 2),
             "terminal_reinvestment_rate_pct": round(terminal_reinvestment_rate * 100, 2),
             "discount_rate_pct": round(discount_rate * 100, 2),
+            "terminal_value_method": terminal_value_method,
+            "exit_multiple": round(exit_multiple, 2) if exit_multiple is not None else None,
+            "exit_metric": exit_metric,
+            "gordon_terminal_value": round(gordon_terminal_value, 0) if gordon_terminal_value is not None else None,
+            "gordon_sanity_check_ratio": gordon_sanity_check_ratio,
+            "implied_fcf_margin_pct_year_n": implied_fcf_margin_pct_year_n,
         },
     )
 
