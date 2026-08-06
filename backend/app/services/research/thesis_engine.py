@@ -216,6 +216,24 @@ async def get_user_current_thesis(user_id: str, ticker: str) -> Optional[dict]:
     return res.data[0] if res.data else None
 
 
+async def get_user_thesis_history(user_id: str, ticker: str) -> list[dict]:
+    """Fase 4, Incremento 6 (Historial de valuaciones, Parte E — see
+    /Users/diegoarria/.claude/plans/stateful-painting-flurry.md): every
+    real version of this user's thesis for `ticker`, most recent first —
+    `create_thesis_version` never overwrites, so this is a real, complete
+    version history, not a reconstruction. Returns [] (never fabricates a
+    history) if the user has never created a thesis for this ticker."""
+    from app.core.database import get_supabase, run_query
+
+    db = get_supabase()
+    res = await run_query(
+        db.table("user_investment_theses").select("*")
+        .eq("user_id", user_id).eq("ticker", ticker.upper())
+        .order("version", desc=True)
+    )
+    return res.data or []
+
+
 async def create_thesis_version(
     user_id: str, ticker: str, thesis_summary: str,
     strengths: list, critical_variables: list, key_risks: list, invalidation_events: list,

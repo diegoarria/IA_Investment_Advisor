@@ -198,6 +198,18 @@ async def get_my_thesis_route(ticker: str, user_id: str = Depends(get_current_us
     return thesis
 
 
+@router.get("/company/{ticker}/thesis/history")
+async def get_thesis_history_route(ticker: str, user_id: str = Depends(get_current_user_id)):
+    """Fase 4, Incremento 6 (Historial de valuaciones, Parte E) — every real
+    version of the user's own thesis for this ticker, most recent first.
+    Empty list (never a 404) when the user has never created one — an
+    empty history is a normal, honest state for the frontend to render."""
+    from app.services.research.thesis_engine import get_user_thesis_history
+
+    history = await get_user_thesis_history(user_id, ticker)
+    return {"ticker": ticker.upper(), "versions": history}
+
+
 @router.post("/company/{ticker}/thesis/review")
 async def review_thesis_route(ticker: str, lang: str = "es", user_id: str = Depends(get_current_user_id)):
     """Thesis Tracker: compares the user's current thesis against real

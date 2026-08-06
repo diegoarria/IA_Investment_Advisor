@@ -1092,6 +1092,17 @@
         "strategy_change": "Cambio de estrategia",
         "other": "Otro"
       }
+    },
+    "thesisHistory": {
+      "title": "Historial de tu Tesis",
+      "subtitle": "{{count}} versión(es) real(es) guardada(s)",
+      "loading": "Cargando historial...",
+      "noThesisYet": "Todavía no tienes una tesis propia para esta empresa — se puede adoptar el borrador de investigación de Nuvos como punto de partida.",
+      "onlyOneVersion": "Solo hay una versión guardada — vuelve después de revisar tu tesis para ver cómo evolucionó.",
+      "current": "actual",
+      "variablesChanged": "Variables críticas — qué cambió",
+      "risksChanged": "Riesgos clave — qué cambió",
+      "noChange": "Sin cambios reales entre estas dos versiones."
     }
   },
   "patrimonio": {

@@ -1092,6 +1092,17 @@
         "strategy_change": "Strategy change",
         "other": "Other"
       }
+    },
+    "thesisHistory": {
+      "title": "Your Thesis History",
+      "subtitle": "{{count}} real saved version(s)",
+      "loading": "Loading history...",
+      "noThesisYet": "You don't have your own thesis for this company yet — you can adopt Nuvos's research draft as a starting point.",
+      "onlyOneVersion": "Only one saved version exists — come back after reviewing your thesis to see how it evolved.",
+      "current": "current",
+      "variablesChanged": "Critical variables — what changed",
+      "risksChanged": "Key risks — what changed",
+      "noChange": "No real changes between these two versions."
     }
   },
   "patrimonio": {

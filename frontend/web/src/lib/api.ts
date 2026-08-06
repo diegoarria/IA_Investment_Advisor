@@ -374,6 +374,9 @@ export const researchEngineApi = {
     api.post(`/api/research-engine/company/${ticker}/thesis/fork`, {}),
   getMyThesis: (ticker: string) =>
     api.get(`/api/research-engine/company/${ticker}/thesis/mine`),
+  // Fase 4, Incremento 6 — every real version of the user's own thesis.
+  getThesisHistory: (ticker: string) =>
+    api.get(`/api/research-engine/company/${ticker}/thesis/history`),
   reviewThesis: (ticker: string, lang?: string) =>
     api.post(`/api/research-engine/company/${ticker}/thesis/review`, {}, { params: { lang }, timeout: 30000 }),
   getMemo: (ticker: string, lang?: string) =>

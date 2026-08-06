@@ -29,6 +29,8 @@ import { ExecutiveSummaryPanel } from "@/components/subvaluadas/ExecutiveSummary
 import { PeerComparisonChart } from "@/components/subvaluadas/PeerComparisonChart";
 import { CompanyTimeline } from "@/components/subvaluadas/CompanyTimeline";
 import type { CompanyTimelineEvent } from "@/lib/companyTimeline";
+import { ThesisHistoryPanel } from "@/components/subvaluadas/ThesisHistoryPanel";
+import type { ThesisVersion } from "@/lib/thesisHistory";
 import { DetailLevelToggle } from "@/components/ui";
 import { isSectionVisible } from "@/lib/detailLevel";
 import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
@@ -602,6 +604,23 @@ function SubvaluadasPageInner() {
     return () => { cancelled = true; };
   }, [ticker, isPremium]);
 
+  // Fase 4, Incremento 6 — the user's own real thesis version history
+  // (Fase 3's user_investment_theses, never overwritten — see
+  // src/lib/thesisHistory.ts). Independent load state.
+  const [thesisHistory, setThesisHistory] = useState<ThesisVersion[]>([]);
+  const [thesisHistoryLoading, setThesisHistoryLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isPremium) { setThesisHistoryLoading(false); return; }
+    let cancelled = false;
+    setThesisHistoryLoading(true);
+    researchEngineApi.getThesisHistory(ticker)
+      .then((res) => { if (!cancelled) setThesisHistory(res.data?.versions ?? []); })
+      .catch(() => { if (!cancelled) setThesisHistory([]); })
+      .finally(() => { if (!cancelled) setThesisHistoryLoading(false); });
+    return () => { cancelled = true; };
+  }, [ticker, isPremium]);
+
   const { detailLevel, setDetailLevel } = useDetailLevelStore();
 
   const handleSearch = () => {
@@ -910,6 +929,13 @@ function SubvaluadasPageInner() {
                        cronológico. Intermedio+, misma cadencia que Comparaciones. ===== */}
                   {isPremium && isSectionVisible(detailLevel, "timeline") && (
                     <CompanyTimeline events={timelineEvents} loading={timelineLoading} />
+                  )}
+
+                  {/* ===== Fase 4, Incremento 6 — Historial de valuaciones (Parte E, alcance
+                       ajustado): evolución real de la tesis personal del usuario. Avanzado+,
+                       ya que "comparar contra hace 1/3/5 años" es un caso de uso analítico. ===== */}
+                  {isPremium && isSectionVisible(detailLevel, "dcf_full") && (
+                    <ThesisHistoryPanel versions={thesisHistory} loading={thesisHistoryLoading} />
                   )}
 
                   {/* ===== Nivel 1 summary — GeneratedAtNote/LiquidityWarning/InsightBox stay
