@@ -12,8 +12,11 @@ import pytest
 from app.services.valuation.confidence_engine import (
     compute_cross_method_spread_pct,
     compute_confidence_meter_v2,
+    compute_confidence_meter_v3,
+    compute_financial_statement_quality_score,
+    compute_management_consistency_score,
+    _confidence_meter,
 )
-from app.services.fundamental_analysis_service import _confidence_meter
 
 
 class TestComputeCrossMethodSpreadPct:
@@ -114,6 +117,75 @@ class TestComputeConfidenceMeterV2:
             fair_value_range={"base": 100, "low": 95, "high": 105}, liquidity_ok=True,
             business_quality_score=95, financial_strength_score=95,
             method_values=[100.0, 100.5, 99.5],
+        )
+        assert 0 <= result["score"] <= 100
+        assert 1 <= result["stars"] <= 5
+
+
+# Fase 1.5, Incremento 18 — Confidence Engine 2.0.
+
+class TestComputeFinancialStatementQualityScore:
+    def test_perfect_score_when_no_years_flagged(self):
+        assert compute_financial_statement_quality_score([]) == 100.0
+
+    def test_penalizes_each_flagged_year(self):
+        assert compute_financial_statement_quality_score(["2022"]) == 75.0
+        assert compute_financial_statement_quality_score(["2021", "2022"]) == 50.0
+
+    def test_floored_at_20_even_with_many_flagged_years(self):
+        assert compute_financial_statement_quality_score(["2019", "2020", "2021", "2022", "2023"]) == 20.0
+
+
+class TestComputeManagementConsistencyScore:
+    def test_blends_both_signals_when_both_available(self):
+        score = compute_management_consistency_score(80.0, 60.0)
+        assert score == pytest.approx(70.0)
+
+    def test_renormalizes_over_whichever_signal_is_present(self):
+        assert compute_management_consistency_score(80.0, None) == pytest.approx(80.0)
+        assert compute_management_consistency_score(None, 60.0) == pytest.approx(60.0)
+
+    def test_none_when_neither_signal_available(self):
+        assert compute_management_consistency_score(None, None) is None
+
+
+class TestComputeConfidenceMeterV3:
+    def test_degrades_to_v2_score_when_new_signals_are_none(self):
+        # With financial_statement_quality_score/management_consistency_score
+        # both None, weighted_mean renormalizes over the same 6 v2 components
+        # (with v3's slightly different base weights) — this pins that v3
+        # still produces a real, sane score in that degraded case, not that
+        # it's bit-identical to v2 (the weights were deliberately rebalanced).
+        result = compute_confidence_meter_v3(
+            predictability_score=75, years_available=8,
+            fair_value_range={"base": 100, "low": 80, "high": 120}, liquidity_ok=True,
+            business_quality_score=70, financial_strength_score=65,
+            method_values=[100.0, 102.0, 98.0],
+            financial_statement_quality_score=None, management_consistency_score=None,
+        )
+        assert result is not None
+        assert 0 <= result["score"] <= 100
+        assert result["dispersion_source"] == "cross_method"
+
+    def test_a_flagged_financial_statement_lowers_the_score(self):
+        base_kwargs = dict(
+            predictability_score=75, years_available=8,
+            fair_value_range={"base": 100, "low": 80, "high": 120}, liquidity_ok=True,
+            business_quality_score=70, financial_strength_score=65,
+        )
+        clean = compute_confidence_meter_v3(**base_kwargs, financial_statement_quality_score=100.0, management_consistency_score=80.0)
+        flagged = compute_confidence_meter_v3(**base_kwargs, financial_statement_quality_score=20.0, management_consistency_score=80.0)
+        assert flagged["score"] < clean["score"]
+
+    def test_returns_none_when_predictability_score_missing(self):
+        assert compute_confidence_meter_v3(None, 8, {}, True) is None
+
+    def test_score_bounds_and_stars_stay_within_range(self):
+        result = compute_confidence_meter_v3(
+            predictability_score=95, years_available=10,
+            fair_value_range={"base": 100, "low": 95, "high": 105}, liquidity_ok=True,
+            business_quality_score=95, financial_strength_score=95,
+            financial_statement_quality_score=100.0, management_consistency_score=90.0,
         )
         assert 0 <= result["score"] <= 100
         assert 1 <= result["stars"] <= 5

@@ -40,7 +40,11 @@ from app.services.valuation.reverse_dcf_engine import (
     _implied_operating_margin, _implied_terminal_roic, _implied_base_revenue,
     sanity_check_reverse_dcf,
 )
-from app.services.valuation.confidence_engine import _confidence_score, _confidence_meter
+from app.services.valuation.confidence_engine import (
+    _confidence_score, compute_confidence_meter_v3,
+    compute_financial_statement_quality_score, compute_management_consistency_score,
+)
+from app.services.quality.capital_allocation_engine import evaluate_dividend_consistency, evaluate_reinvestment_quality
 from app.services.valuation.growth_engine import compute_weighted_growth
 from app.services.quality.moat_engine import compute_moat_score
 from app.services.quality.deterioration_engine import compute_deterioration_signals
@@ -2128,9 +2132,31 @@ def get_fundamental_analysis(ticker: str, _compute_consensus: bool = True) -> Op
         # Confidence Meter — computed once here, generically, for whichever
         # methodology produced `dcf` (FCF DCF or Justified P/B both populate
         # the same "confidence_score"/"fair_value_range" keys).
-        dcf["confidence_meter"] = _confidence_meter(
+        #
+        # Fase 1.5, Incremento 18 (Confidence Engine 2.0) — the 2 signals
+        # the original brief asked for and the audit found missing:
+        # financial-statement quality (data_validation, computed near the
+        # top of this function, previously only used to warn in the LLM
+        # prompt) and management consistency (dividend-cut history +
+        # reinvestment-rate stability, both already-real trends this
+        # function computes for the DCF engine itself — reused here, not
+        # re-derived). Both network-free, so both are always computable
+        # here (unlike Methods 3/4's cross-method spread, which needs the
+        # peer/historical fetches only screener.py's live path does).
+        financial_statement_quality_score = compute_financial_statement_quality_score(data_validation["years_flagged"])
+        dividend_consistency_score, _dividend_cuts = evaluate_dividend_consistency(dividends_paid_trend)
+        reinvestment_quality_score = evaluate_reinvestment_quality(reinvestment_rate_trend)
+        management_consistency_score = compute_management_consistency_score(
+            dividend_consistency_score, reinvestment_quality_score,
+        )
+        dcf["financial_statement_quality_score"] = financial_statement_quality_score
+        dcf["management_consistency_score"] = management_consistency_score
+
+        dcf["confidence_meter"] = compute_confidence_meter_v3(
             dcf.get("confidence_score"), n, dcf.get("fair_value_range") or {}, liquidity_ok=liquidity_gate.get("paso", True),
             business_quality_score=business_quality_score, financial_strength_score=financial_strength_score,
+            financial_statement_quality_score=financial_statement_quality_score,
+            management_consistency_score=management_consistency_score,
         )
         gb = dcf.get("growth_buildup") or {}
         qual_growth = gb.get("quality_adjusted_growth_pct")

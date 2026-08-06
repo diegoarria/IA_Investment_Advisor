@@ -26,7 +26,7 @@ from __future__ import annotations
 import statistics
 from typing import Optional
 
-from app.services.valuation.numeric_helpers import _score
+from app.services.valuation.numeric_helpers import _score, weighted_mean
 
 
 def compute_cross_method_spread_pct(values: list[Optional[float]]) -> Optional[float]:
@@ -90,6 +90,98 @@ def compute_confidence_meter_v2(
         + 0.20 * agreement
         + 0.10 * liquidity_component
     )
+    if score >= 85: label = "Alta confianza"
+    elif score >= 65: label = "Confianza moderada"
+    elif score >= 45: label = "Confianza baja"
+    else: label = "Especulativo — rango amplio de incertidumbre"
+    stars = max(1, min(5, round(score / 20)))
+    return {"score": int(score), "label": label, "stars": stars, "dispersion_source": dispersion_source}
+
+
+def compute_financial_statement_quality_score(years_flagged: list[str]) -> float:
+    """Fase 1.5, Incremento 18 (Confidence Engine 2.0) — connects the
+    `data_validation` cross-check (`fundamental_analysis_service.py`'s
+    Revenue-COGS-OpEx vs. reported Operating Income comparison, per year)
+    to the Confidence Score for the first time; previously only used to
+    warn in the LLM prompt (`ai_service.py`), never scored. Always returns
+    a real value (never None) — every ticker has this check available, no
+    optional network dependency. 100 with zero flagged years; each flagged
+    year costs 25 points (a genuine accounting inconsistency, not rounding
+    noise — see `financial_data_service._income_period`'s validation
+    tolerance), floored at 20 rather than 0 so this one signal alone can't
+    zero out an otherwise-strong overall confidence score."""
+    return 100.0 if not years_flagged else max(20.0, 100.0 - 25.0 * len(years_flagged))
+
+
+def compute_management_consistency_score(
+    dividend_consistency_score: Optional[float], reinvestment_quality_score: Optional[float],
+) -> Optional[float]:
+    """Fase 1.5, Incremento 18 — "consistencia de management," built from 2
+    already-real, network-free signals `quality.capital_allocation_engine`
+    already computes (`evaluate_dividend_consistency`/
+    `evaluate_reinvestment_quality`): has the company avoided real dividend
+    cuts, and is its reinvestment-rate policy stable year to year rather
+    than erratic. Deliberately excludes `evaluate_buyback_timing` (needs a
+    real historical-price fetch per year) — `get_fundamental_analysis()`
+    stays network-free for this component, same discipline the Growth
+    Engine (Incremento 8) already established. None (never a fabricated
+    50) when NEITHER signal is available (e.g. no dividend history and too
+    few reinvestment-rate years) — `weighted_mean` renormalizes over
+    whichever signal IS present otherwise."""
+    return weighted_mean([(dividend_consistency_score, 0.5), (reinvestment_quality_score, 0.5)])
+
+
+def compute_confidence_meter_v3(
+    predictability_score: Optional[float], years_available: int,
+    fair_value_range: dict, liquidity_ok: bool,
+    business_quality_score: Optional[float] = None,
+    financial_strength_score: Optional[float] = None,
+    method_values: Optional[list[Optional[float]]] = None,
+    financial_statement_quality_score: Optional[float] = None,
+    management_consistency_score: Optional[float] = None,
+) -> Optional[dict]:
+    """Fase 1.5, Incremento 18 — superset of `compute_confidence_meter_v2`,
+    adding the 2 signals the original brief asked for and the audit found
+    missing (docs/FASE1.5_VALUATION_ENGINE_AUDIT.md, section 5/6):
+    financial-statement quality and management consistency. Weights
+    rebalanced (still sum to 1.0) rather than just appended on top, so the
+    two new signals genuinely count rather than being additive noise:
+    predictability 0.25->0.20, completeness 0.20->0.15, agreement
+    0.20->0.15 (each trimmed 0.05), funding the 2 new 0.10/0.05 slots.
+    Uses `weighted_mean` (not the v1/v2 hardcoded weighted sum) so either
+    new component being None (financial_statement_quality_score never is in
+    practice; management_consistency_score can be, per its own docstring)
+    renormalizes over what's actually available instead of silently
+    counting a missing signal as zero."""
+    if predictability_score is None:
+        return None
+    completeness = min(100, round(years_available / 10 * 100))
+
+    cross_method_dispersion = compute_cross_method_spread_pct(method_values) if method_values else None
+    if cross_method_dispersion is not None:
+        dispersion_pct = cross_method_dispersion
+        dispersion_source = "cross_method"
+    else:
+        base, low, high = fair_value_range.get("base"), fair_value_range.get("low"), fair_value_range.get("high")
+        dispersion_pct = min(100, abs(high - low) / base * 100) if base and base > 0 else 50.0
+        dispersion_source = "scenario_range_proxy"
+    agreement = 100 - dispersion_pct
+
+    liquidity_component = 100 if liquidity_ok else 40
+    bq = business_quality_score if business_quality_score is not None else predictability_score
+    fs = financial_strength_score if financial_strength_score is not None else predictability_score
+
+    score_raw = weighted_mean([
+        (predictability_score, 0.20),
+        (bq, 0.15),
+        (fs, 0.10),
+        (completeness, 0.15),
+        (agreement, 0.15),
+        (liquidity_component, 0.10),
+        (financial_statement_quality_score, 0.10),
+        (management_consistency_score, 0.05),
+    ])
+    score = round(score_raw) if score_raw is not None else 0
     if score >= 85: label = "Alta confianza"
     elif score >= 65: label = "Confianza moderada"
     elif score >= 45: label = "Confianza baja"

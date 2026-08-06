@@ -711,17 +711,20 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
     from app.services.undervalued_screener_service import build_dcf_guidance
     dcf_assumptions = build_dcf_guidance(dcf, data.get("thesis_scores"))
 
-    # Confidence Meter v2 (Fase 1, Incremento 5 — Parte F): upgrades the
-    # "method agreement" component from the scenario-range proxy to the
-    # REAL spread across DCF/Relative/Historical, now that Methods 3/4 are
-    # available at this point in the request (they aren't yet inside
-    # get_fundamental_analysis() itself — see confidence_engine.py's
-    # docstring). Degrades to the exact v1 score when fewer than 2 of the
-    # three method values are real, so this never worsens the number for
-    # any ticker — only improves it when there's real independent evidence.
-    from app.services.valuation.confidence_engine import compute_confidence_meter_v2
+    # Confidence Meter v3 (Fase 1, Incremento 5 — Parte F; extended Fase 1.5,
+    # Incremento 18): upgrades the "method agreement" component from the
+    # scenario-range proxy to the REAL spread across DCF/Relative/Historical,
+    # now that Methods 3/4 are available at this point in the request (they
+    # aren't yet inside get_fundamental_analysis() itself — see
+    # confidence_engine.py's docstring). financial_statement_quality_score/
+    # management_consistency_score were already computed once inside
+    # get_fundamental_analysis() (network-free) and are just read back from
+    # `dcf` here, never re-derived. Degrades gracefully when fewer real
+    # signals are available, so this never worsens the number for any
+    # ticker — only improves it when there's real independent evidence.
+    from app.services.valuation.confidence_engine import compute_confidence_meter_v3
     thesis_scores = data.get("thesis_scores") or {}
-    confidence_meter_v2 = compute_confidence_meter_v2(
+    confidence_meter_v3 = compute_confidence_meter_v3(
         predictability_score=dcf.get("confidence_score"),
         years_available=data.get("data_years_available", 0),
         fair_value_range=dcf.get("fair_value_range") or {},
@@ -733,6 +736,8 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
             relative_valuation.get("intrinsic_value_per_share") if relative_valuation else None,
             historical_valuation.get("intrinsic_value_per_share") if historical_valuation else None,
         ],
+        financial_statement_quality_score=dcf.get("financial_statement_quality_score"),
+        management_consistency_score=dcf.get("management_consistency_score"),
     )
 
     # Fair Value Engine (Fase 1, Incremento 6 — Parte G): completely
@@ -1010,7 +1015,7 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "thesis_scores": data.get("thesis_scores"),
         "composite_score": data.get("composite_score"),
         "fair_value_range": dcf.get("fair_value_range"),
-        "confidence_meter": confidence_meter_v2 or dcf.get("confidence_meter"),
+        "confidence_meter": confidence_meter_v3 or dcf.get("confidence_meter"),
         "market_expectations": dcf.get("market_expectations"),
         # Fase 1, Incremento 4 (see /Users/diegoarria/.claude/plans/stateful-painting-flurry.md):
         # these were already computed by fundamental_analysis_service but
