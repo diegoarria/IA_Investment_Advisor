@@ -1,29 +1,39 @@
 """
-DCF Engine — driver-based two-stage discounted cash flow model.
+DCF Engine — driver-based three-stage discounted cash flow model.
 
-Context: Fase 1, Incremento 2 of the Nuvos AI valuation redesign (see
-/Users/diegoarria/.claude/plans/stateful-painting-flurry.md). Replaces the
-"project FCF directly" approach of `fundamental_analysis_service._run_dcf`
-with the driver waterfall the brief asks for:
+Context: Fase 1, Incremento 2 of the Nuvos AI valuation redesign, extended
+in Fase 1.5 Incremento 1 (see
+/Users/diegoarria/.claude/plans/stateful-painting-flurry.md) to a real
+three-stage growth profile. Replaces the "project FCF directly" approach of
+`fundamental_analysis_service._run_dcf` with the driver waterfall the brief
+asks for:
 
     Revenue -> Operating Margin -> EBIT -> Tax -> NOPAT -> Reinvestment -> FCF
 
 This module is NEW and self-contained — it does not yet replace
 `_run_dcf` inside `fundamental_analysis_service.py` (that live swap, plus
-the frontend/API wiring described in the Fase 1 plan's Incremento 2, is a
-separate, larger change to the production request path and ships after
-this engine is reviewed on its own).
+the frontend/API wiring described in the Fase 1.5 plan, is a separate,
+larger change to the production request path and ships after this engine
+is reviewed on its own).
 
 Design notes (documented here because they're real judgment calls, not
 just "the formula"):
 
-1. Revenue and Operating Margin both fade linearly from a year-1 value to
-   a terminal value over the projection window — the same two-stage fade
-   `_project_path` already uses for the old FCF-based model, just applied
-   one level up the waterfall. A CONSTANT operating margin was considered
-   and rejected: it would implicitly assume margin expansion/compression
-   never happens, which is false for almost every real company's 10-year
-   history.
+1. Revenue growth is THREE-stage (Fase 1.5, Incremento 1): a plateau of
+   `high_growth_years` at the year-1 growth rate, then a linear fade down
+   to the terminal growth rate over the remaining years — never a single
+   discrete jump from a high growth number straight to the terminal
+   number. `high_growth_years=0` (the default) degenerates exactly to the
+   original two-stage fade (immediate linear fade from year 1), so every
+   existing caller is unaffected until it explicitly opts into a plateau.
+   Operating Margin still uses the plain two-stage fade (`_fade`), not the
+   plateau — margin expansion/compression is typically gradual from year 1
+   for real companies, unlike revenue growth, which genuinely does often
+   hold near its current rate for a few years before decelerating (a
+   company doesn't usually go from 25% growth to 15% growth in the very
+   next year). A CONSTANT (non-fading) operating margin for the whole
+   projection was considered and rejected for the same reason as before:
+   it would implicitly assume margin expansion/compression never happens.
 
 2. Reinvestment is modeled as ONE aggregate number (Capex + Delta-Working-
    Capital - D&A, i.e. "net reinvestment"), not three independently
@@ -122,9 +132,24 @@ def recency_weighted_average(pairs: list[tuple[int, float]]) -> Optional[float]:
 
 def _fade(year_1_value: float, terminal_value: float, yr: int, years: int) -> float:
     """Same linear fade `_project_path` uses, extracted as a pure
-    per-year function so it can drive revenue growth, operating margin,
-    AND reinvestment rate from one implementation instead of three."""
+    per-year function so it can drive operating margin AND reinvestment
+    rate from one implementation instead of two."""
     return year_1_value + (terminal_value - year_1_value) * (yr / years)
+
+
+def _fade_growth_with_plateau(
+    year_1_value: float, terminal_value: float, yr: int, years: int, high_growth_years: int,
+) -> float:
+    """Revenue growth's three-stage profile (Fase 1.5, Incremento 1): flat
+    at `year_1_value` for `high_growth_years`, then linear fade to
+    `terminal_value` over the remaining years. With `high_growth_years=0`
+    this is IDENTICAL to `_fade` (the `(yr-0)/(years-0)` reduces to
+    `yr/years`) — the two-stage model is the zero-plateau special case of
+    this one, not a separate code path to keep in sync."""
+    if yr <= high_growth_years:
+        return year_1_value
+    remaining_years = years - high_growth_years
+    return year_1_value + (terminal_value - year_1_value) * ((yr - high_growth_years) / remaining_years)
 
 
 @dataclass
@@ -173,6 +198,7 @@ def project_driver_based_dcf(
     net_cash: Optional[float] = None,
     shares_out: Optional[float] = None,
     years: int = _PROJECTION_YEARS,
+    high_growth_years: int = 0,
 ) -> DriverBasedDcfResult:
     """The core driver-based DCF: projects Revenue -> Operating Margin ->
     EBIT -> Tax -> NOPAT -> Reinvestment -> FCF for `years`, discounts
@@ -182,6 +208,15 @@ def project_driver_based_dcf(
     All rate inputs are decimals (0.08 = 8%), all money inputs share one
     currency unit (the caller's choice — typically millions, matching
     `dcfCalculator.ts`'s convention).
+
+    `high_growth_years` (Fase 1.5, Incremento 1): how many years revenue
+    growth stays flat at `revenue_growth_1` before it starts fading toward
+    `terminal_growth`. Default `0` reproduces the original two-stage
+    (immediate fade) model exactly. Must be in `[0, years)` — raises
+    `ValueError` otherwise (a plateau covering the entire projection or
+    longer would leave zero years for the fade to actually reach
+    `terminal_growth`, silently breaking the terminal-value consistency
+    the rest of this engine relies on).
 
     Raises `valuation.robustness.UnstableGordonGrowthError` if
     `discount_rate` does not exceed `terminal_growth` by a healthy margin
@@ -199,6 +234,12 @@ def project_driver_based_dcf(
     if revenue_0 <= 0:
         raise ValueError("revenue_0 debe ser positivo — no hay una base real desde la cual proyectar.")
 
+    if high_growth_years < 0 or high_growth_years >= years:
+        raise ValueError(
+            f"high_growth_years debe estar en [0, {years}) — un valor de {high_growth_years} no deja "
+            "años reales para desacelerar hacia el crecimiento terminal."
+        )
+
     if terminal_roic_pct <= 0:
         raise ValueError(
             "terminal_roic_pct debe ser positivo: el reinvestment rate terminal "
@@ -211,7 +252,7 @@ def project_driver_based_dcf(
     revenue_prev = revenue_0
     pv_sum = 0.0
     for yr in range(1, years + 1):
-        growth = _fade(revenue_growth_1, terminal_growth, yr, years)
+        growth = _fade_growth_with_plateau(revenue_growth_1, terminal_growth, yr, years, high_growth_years)
         revenue = revenue_prev * (1 + growth)
 
         operating_margin = _fade(operating_margin_anchor_pct, terminal_operating_margin_pct, yr, years)
@@ -253,6 +294,7 @@ def project_driver_based_dcf(
         enterprise_value=round(enterprise_value, 0),
         assumptions={
             "revenue_growth_1_pct": round(revenue_growth_1 * 100, 2),
+            "high_growth_years": high_growth_years,
             "terminal_growth_pct": round(terminal_growth * 100, 2),
             "operating_margin_anchor_pct": round(operating_margin_anchor_pct * 100, 2),
             "terminal_operating_margin_pct": round(terminal_operating_margin_pct * 100, 2),

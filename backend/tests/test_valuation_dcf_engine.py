@@ -187,3 +187,69 @@ class TestProjectDriverBasedDcf:
         assert result.assumptions["discount_rate_pct"] == pytest.approx(9.0)
         assert result.assumptions["terminal_growth_pct"] == pytest.approx(2.5)
         assert result.assumptions["revenue_growth_1_pct"] == pytest.approx(12.0)
+        assert result.assumptions["high_growth_years"] == 0
+
+
+class TestThreeStageGrowthPlateau:
+    """Fase 1.5, Incremento 1 — the high_growth_years plateau."""
+
+    def _base_kwargs(self, **overrides):
+        kwargs = dict(
+            revenue_0=10_000.0,
+            revenue_growth_1=0.20,
+            terminal_growth=0.03,
+            operating_margin_anchor_pct=0.25,
+            terminal_operating_margin_pct=0.22,
+            tax_rate=0.21,
+            reinvestment_rate_anchor_pct=0.30,
+            terminal_roic_pct=0.15,
+            discount_rate=0.10,
+        )
+        kwargs.update(overrides)
+        return kwargs
+
+    def test_default_high_growth_years_matches_explicit_zero(self):
+        default = project_driver_based_dcf(**self._base_kwargs())
+        explicit_zero = project_driver_based_dcf(**self._base_kwargs(high_growth_years=0))
+        assert [r.revenue_growth_pct for r in default.yearly] == [r.revenue_growth_pct for r in explicit_zero.yearly]
+        assert default.enterprise_value == explicit_zero.enterprise_value
+
+    def test_plateau_years_hold_growth_flat_at_year_1_rate(self):
+        result = project_driver_based_dcf(**self._base_kwargs(high_growth_years=3))
+        for row in result.yearly[:3]:
+            assert row.revenue_growth_pct == pytest.approx(20.0)
+
+    def test_fade_begins_immediately_after_the_plateau(self):
+        result = project_driver_based_dcf(**self._base_kwargs(high_growth_years=3))
+        # year 4 is the first faded year — strictly below the plateau rate, strictly above terminal
+        assert result.yearly[3].revenue_growth_pct < 20.0
+        assert result.yearly[3].revenue_growth_pct > 3.0
+
+    def test_final_year_growth_still_reaches_terminal_growth(self):
+        result = project_driver_based_dcf(**self._base_kwargs(high_growth_years=4))
+        assert result.yearly[-1].revenue_growth_pct == pytest.approx(3.0, abs=0.01)
+
+    def test_longer_plateau_yields_higher_enterprise_value(self):
+        short_plateau = project_driver_based_dcf(**self._base_kwargs(high_growth_years=1))
+        long_plateau = project_driver_based_dcf(**self._base_kwargs(high_growth_years=6))
+        assert long_plateau.enterprise_value > short_plateau.enterprise_value
+
+    def test_assumptions_dict_exposes_high_growth_years(self):
+        result = project_driver_based_dcf(**self._base_kwargs(high_growth_years=5))
+        assert result.assumptions["high_growth_years"] == 5
+
+    def test_raises_when_high_growth_years_negative(self):
+        with pytest.raises(ValueError):
+            project_driver_based_dcf(**self._base_kwargs(high_growth_years=-1))
+
+    def test_raises_when_high_growth_years_equals_or_exceeds_years(self):
+        with pytest.raises(ValueError):
+            project_driver_based_dcf(**self._base_kwargs(high_growth_years=10))
+        with pytest.raises(ValueError):
+            project_driver_based_dcf(**self._base_kwargs(high_growth_years=15))
+
+    def test_operating_margin_unaffected_by_plateau(self):
+        """Only revenue growth plateaus — operating margin keeps its plain two-stage fade."""
+        no_plateau = project_driver_based_dcf(**self._base_kwargs(high_growth_years=0))
+        with_plateau = project_driver_based_dcf(**self._base_kwargs(high_growth_years=4))
+        assert [r.operating_margin_pct for r in no_plateau.yearly] == [r.operating_margin_pct for r in with_plateau.yearly]
