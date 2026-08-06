@@ -16,7 +16,7 @@ import ExplainButton from "../../src/components/ExplainButton";
 import { calcularValorIntrinseco } from "../../src/lib/dcfCalculator";
 import {
   type Checklist, type LiquidityGate, type FairValueRangeData, type ConfidenceMeterData, type MarketExpectationsData,
-  type ConsensusValuationData, type DcfAssumptions, type RangeBounds, type YearlyDetailRow,
+  type DcfAssumptions, type RangeBounds, type YearlyDetailRow,
   type NifDashboardData, type NifRow,
   type ScenariosData, type ProbabilityWeights, type SensitivityMatrixData,
   type ReverseDcfSanityCheckData, type ExpectationsInvestingData, type FairValueEngineData,
@@ -68,7 +68,6 @@ interface QuickAnalysisResult {
   fair_value_range: FairValueRangeData | null;
   confidence_meter: ConfidenceMeterData | null;
   market_expectations: MarketExpectationsData | null;
-  consensus_valuation: ConsensusValuationData | null;
   summary: string;
   checklist: Checklist | null;
   liquidity_gate: LiquidityGate | null;
@@ -608,7 +607,7 @@ export default function SubvaluadasScreen() {
               colors={viColors}
             />
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-              {data.fair_value_range && <FairValueRangeDisplay range={data.fair_value_range} consensus={data.consensus_valuation} colors={viColors} />}
+              {data.fair_value_range && <FairValueRangeDisplay range={data.fair_value_range} colors={viColors} />}
               {data.confidence_meter && <ConfidenceMeter data={data.confidence_meter} colors={viColors} />}
             </View>
             {/* Nuvos AI Fair Value Engine redesign, Incremento 11 (THE FLIP) —

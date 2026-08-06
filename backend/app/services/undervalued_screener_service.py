@@ -322,16 +322,17 @@ async def refresh_undervalued_screener() -> None:
     results = _scan(UNIVERSE, analysis_cache=analysis_cache)
     results = _cap_per_sector(results, _MAX_PER_SECTOR)
 
-    # Methods 3 (Relative), 4 (Historical) and 5 (Consensus) of the
-    # valuation engine — deliberately only run here, on the already-capped
-    # candidate list (~30-40 tickers), never in the live quick-analysis
-    # path: Method 3 alone means a full analysis per real peer, and Method 4
-    # means a real historical-price fetch — exactly the kind of per-request
-    # cost this weekly batch job exists to amortize instead.
+    # Relative/Historical Valuation — deliberately only run here, on the
+    # already-capped candidate list (~30-40 tickers), never in the live
+    # quick-analysis path: Relative alone means a full analysis per real
+    # peer, and Historical means a real historical-price fetch — exactly the
+    # kind of per-request cost this weekly batch job exists to amortize
+    # instead. Consensus Engine (which used to blend these with Conservative/
+    # Professional DCF here) is retired — Incremento 12, Nuvos AI Fair Value
+    # Engine redesign; the single engine's Bear/Base/Bull is what's shown.
     from app.services.relative_valuation_service import compute_relative_valuation
     from app.services.historical_valuation_service import compute_historical_valuation
-    from app.services.consensus_valuation_service import classify_archetype, compute_consensus_fair_value
-    from app.services.fundamental_analysis_service import _is_financial_sector, _sector_cyclicality_dampener, get_financials
+    from app.services.fundamental_analysis_service import get_financials
 
     for entry in results:
         try:
@@ -370,18 +371,8 @@ async def refresh_undervalued_screener() -> None:
                         latest_eps, latest_ebitda, latest_fcf,
                     )
 
-            archetype = classify_archetype(
-                _is_financial_sector(sector), thesis_scores.get("business_quality"),
-                thesis_scores.get("predictability"), _sector_cyclicality_dampener(sector),
-            )
-            scenarios = dcf.get("scenarios") or {}
-            conservative_dcf_value = (scenarios.get("pessimistic") or {}).get("intrinsic_value_per_share")
-            professional_dcf_value = (scenarios.get("base") or {}).get("intrinsic_value_per_share")
-            consensus = compute_consensus_fair_value(archetype, conservative_dcf_value, professional_dcf_value, relative, historical)
-
             entry["relative_valuation"] = relative
             entry["historical_valuation"] = historical
-            entry["consensus_valuation"] = consensus
             # Nuvos AI Fair Value Engine redesign, Incremento 11 (THE FLIP) —
             # `fair_value_range` is now just this candidate's own Bear/Base/
             # Bull scenarios (already computed by get_fundamental_analysis,
@@ -394,15 +385,14 @@ async def refresh_undervalued_screener() -> None:
             # NOTE: deliberately does NOT touch entry["current_fcf"] /
             # "net_cash" / "shares_outstanding" / "dcf_assumptions" here —
             # _scan() already set those correctly for every entry, before
-            # this methods-3-5 (relative/historical valuation) enrichment
-            # step ever runs. A single rate-limited get_financials() call in
-            # this loop used to null out the DCF calculator's real inputs
-            # for every ticker after it, even though nothing was wrong with
-            # them — this except is only about methods 3-5 failing.
-            logger.warning("undervalued_screener_service: valuation engine (methods 3-5) failed for %s: %s", entry["ticker"], exc)
+            # this relative/historical valuation enrichment step ever runs.
+            # A single rate-limited get_financials() call in this loop used
+            # to null out the DCF calculator's real inputs for every ticker
+            # after it, even though nothing was wrong with them — this
+            # except is only about relative/historical valuation failing.
+            logger.warning("undervalued_screener_service: valuation engine (relative/historical) failed for %s: %s", entry["ticker"], exc)
             entry["relative_valuation"] = None
             entry["historical_valuation"] = None
-            entry["consensus_valuation"] = None
 
         try:
             entry["momentum"] = _compute_momentum(entry["ticker"], entry.get("price"))

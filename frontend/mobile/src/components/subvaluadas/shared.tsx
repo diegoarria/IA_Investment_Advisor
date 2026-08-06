@@ -44,12 +44,6 @@ export interface MarketExpectationsData {
   nuvos_fcf_margin_estimate_pct: number;
 }
 
-export interface ConsensusValuationData {
-  archetype: string;
-  methods_used: Record<string, { value: number; weight: number }>;
-  consensus_fair_value: number;
-}
-
 export interface MomentumData {
   return_1m_pct: number;
   return_6m_pct: number;
@@ -226,31 +220,25 @@ export function ConfidenceMeter({ data, colors }: { data: ConfidenceMeterData; c
   );
 }
 
-export function FairValueRangeDisplay({ range, consensus, colors }: { range: FairValueRangeData; consensus?: ConsensusValuationData | null; colors: any }) {
+// `range` is the Nuvos AI Fair Value Engine's own Bear/Base/Bull scenarios
+// since the flip (Incremento 11) — see combine_fair_value_range. Consensus
+// Engine (the archetype-weighted blend previously shown as a method
+// breakdown here) is retired (Incremento 12).
+export function FairValueRangeDisplay({ range, colors }: { range: FairValueRangeData; colors: any }) {
   const { t } = useTranslation();
   const lo = Math.min(range.low, range.high);
   const hi = Math.max(range.low, range.high);
-  const baseValue = consensus?.consensus_fair_value ?? range.base;
   return (
     <View style={{ borderRadius: 12, padding: 12, gap: 2, backgroundColor: colors.bgRaised }}>
       <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2, color: colors.textMuted }}>
-        {consensus ? t("subvaluadas.fairValueRange.consensus") : t("subvaluadas.fairValueRange.label")}
+        {t("subvaluadas.fairValueRange.label")}
       </Text>
       <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text }}>
         ${lo.toFixed(0)} – ${hi.toFixed(0)}
       </Text>
       <Text style={{ fontSize: 11, color: colors.textSub }}>
-        {t("subvaluadas.fairValueRange.base")}: <Text style={{ fontWeight: "800" }}>${baseValue.toFixed(0)}</Text>
+        {t("subvaluadas.fairValueRange.base")}: <Text style={{ fontWeight: "800" }}>${range.base.toFixed(0)}</Text>
       </Text>
-      {consensus && (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
-          {Object.entries(consensus.methods_used).map(([key, m]) => (
-            <Text key={key} style={{ fontSize: 9, color: colors.textMuted }}>
-              {key.replace(/_/g, " ")}: <Text style={{ fontVariant: ["tabular-nums"] }}>${m.value.toFixed(0)}</Text>
-            </Text>
-          ))}
-        </View>
-      )}
     </View>
   );
 }

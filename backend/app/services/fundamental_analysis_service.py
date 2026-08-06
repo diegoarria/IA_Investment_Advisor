@@ -1985,13 +1985,18 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             # anchor, now available to every caller of this function for
             # the first time, not just screener.py's live search. Same
             # `_compute_peer_dependent_data` guard, same broad except.
-            consensus_valuation = None
+            #
+            # Incremento 12 — Consensus Engine (the archetype-weighted blend
+            # of Conservative DCF/Professional DCF/Relative/Historical that
+            # used to be shown as "5 methods") is retired: the Nuvos AI Fair
+            # Value Engine's Bear/Base/Bull IS the single number shown to
+            # users now (Incremento 11 — THE FLIP). Relative/Historical stay
+            # — they still feed the exit multiple anchor (decision #1).
             relative_valuation = None
             historical_valuation = None
             industry_benchmarks = None
             if _compute_peer_dependent_data:
                 try:
-                    from app.services.consensus_valuation_service import classify_archetype, compute_consensus_fair_value
                     from app.services.relative_valuation_service import compute_relative_valuation
                     from app.services.historical_valuation_service import compute_historical_valuation
                     from app.services.quality.industry_engine import compute_industry_benchmarks
@@ -2024,24 +2029,8 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                         ticker, sector, None, analysis_cache=_peer_analysis_cache,
                     )
                     industry_benchmarks = asdict(industry_benchmarks_result) if industry_benchmarks_result else None
-                    # business_quality_score isn't computed until later in
-                    # this function (it blends several trend scores built
-                    # further down) — None here just means classify_
-                    # archetype can't route to "secular_compounder"
-                    # specifically at this call site, falling through to
-                    # "cyclical"/"balanced" instead; still real weights,
-                    # never a fabricated quality signal.
-                    archetype = classify_archetype(
-                        _is_financial_sector(sector), None, confidence_score,
-                        _sector_cyclicality_dampener(sector),
-                    )
-                    conservative_dcf_value = scenarios["pessimistic"]["intrinsic_value_per_share"]
-                    professional_dcf_value = scenarios["base"]["intrinsic_value_per_share"]
-                    consensus_valuation = compute_consensus_fair_value(
-                        archetype, conservative_dcf_value, professional_dcf_value, relative_valuation, historical_valuation,
-                    )
                 except Exception as e:
-                    logger.info("get_fundamental_analysis(%s): consensus/relative/historical/industry not computable: %s", ticker, e)
+                    logger.info("get_fundamental_analysis(%s): relative/historical/industry not computable: %s", ticker, e)
 
             # ── Nuvos AI Fair Value Engine — Incremento 6 (see
             # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md).
@@ -2134,10 +2123,10 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                     nuvos_scenarios = {}
                     for name, deltas in BEAR_BASE_BULL.items():
                         # business_quality_score not yet computed at this
-                        # point in the function (see classify_archetype's
-                        # same None above) — None falls back to the neutral
-                        # midpoint, a real (if less sharp) cap rather than
-                        # skipping the scenario.
+                        # point in the function (it blends several trend
+                        # scores built further down) — None falls back to
+                        # the neutral midpoint, a real (if less sharp) cap
+                        # rather than skipping the scenario.
                         growth_cap_pct = bear_base_bull_growth_cap_pct(None, name)
                         g1 = clamp((blended_growth_pct + deltas["growth_delta_pp"]) / 100, -0.5, growth_cap_pct / 100)
                         margin_start = max((blended_margin_pct + deltas["operating_margin_start_delta_pp"]) / 100, 0.0)
@@ -2202,7 +2191,6 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 "current_price": price,
                 "scenarios": scenarios,
                 "fair_value_range": combine_fair_value_range(nuvos_fair_value, _fair_value_range(scenarios)),
-                "consensus_valuation": consensus_valuation,
                 "relative_valuation": relative_valuation,
                 "historical_valuation": historical_valuation,
                 "industry_benchmarks": industry_benchmarks,

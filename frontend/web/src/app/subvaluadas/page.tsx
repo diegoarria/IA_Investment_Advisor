@@ -14,7 +14,7 @@ import StockAvatar from "@/components/StockAvatar";
 import ExplainButton from "@/components/ExplainButton";
 import {
   type RangeBounds, type YearlyDetailRow, type Checklist, type FairValueRangeData, type ConfidenceMeterData,
-  type MarketExpectationsData, type ConsensusValuationData, type LiquidityGate, type DcfAssumptions,
+  type MarketExpectationsData, type LiquidityGate, type DcfAssumptions,
   type NifDashboardData, type NifRow, type ThesisDraftData,
   type ScenariosData, type ProbabilityWeights, type SensitivityMatrixData,
   type ReverseDcfSanityCheckData, type ExpectationsInvestingData, type FairValueEngineData,
@@ -64,7 +64,6 @@ export interface QuickAnalysisResult {
   fair_value_range: FairValueRangeData | null;
   confidence_meter: ConfidenceMeterData | null;
   market_expectations: MarketExpectationsData | null;
-  consensus_valuation: ConsensusValuationData | null;
   thesis_scores: Record<string, number> | null;
   summary: string;
   checklist: Checklist | null;
@@ -913,7 +912,6 @@ function SubvaluadasPageInner() {
                     price={data.price}
                     intrinsicValue={data.expected_value_per_share ?? data.intrinsic_value_base}
                     fairValueRange={data.fair_value_range}
-                    consensusValuation={data.consensus_valuation}
                     marginOfSafetyPct={data.margin_of_safety_pct}
                     qualityScore={nifData?.pillars?.business_quality?.score ?? null}
                     qualityNuvosEstimate={nifData?.pillars?.business_quality?.nuvos_estimate ?? null}

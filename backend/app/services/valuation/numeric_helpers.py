@@ -111,8 +111,8 @@ def weighted_mean(scored: list[tuple[Optional[float], float]]) -> Optional[float
     """Mean of (score, weight) pairs, skipping any with score=None and
     renormalizing by the weights actually used — so a missing component
     never silently counts as zero and drags the blend down. Same
-    philosophy as `consensus_valuation_service.compute_consensus_fair_value`
-    (Fase 1). Fase 2, Incremento 7: promoted here from
+    philosophy as `valuation.assumptions_engine.compute_weighted_assumption`.
+    Fase 2, Incremento 7: promoted here from
     `quality_engine._weighted_mean` (which becomes a thin alias) so
     `moat_engine.py` and every future score-blending engine share one
     implementation instead of each re-deriving it."""

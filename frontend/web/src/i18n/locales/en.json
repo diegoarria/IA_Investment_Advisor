@@ -802,8 +802,7 @@
     },
     "fairValueRange": {
       "label": "Fair Value Range",
-      "base": "Base case",
-      "consensus": "Fair Value (Consensus)"
+      "base": "Base case"
     },
     "marketExpectations": {
       "label": "What is the market pricing in?",

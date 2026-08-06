@@ -12,7 +12,7 @@
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { Card, SectionHeader, ScorePill, Badge, ExplainableValue, type ExplanationContent } from "@/components/ui";
-import type { FairValueRangeData, ThesisDraftData, NifDeteriorationData, NifScoreFactor, ConfidenceMeterData, ConsensusValuationData } from "./shared";
+import type { FairValueRangeData, ThesisDraftData, NifDeteriorationData, NifScoreFactor, ConfidenceMeterData } from "./shared";
 import { FairValueRangeDisplay } from "./shared";
 import { extractFactorsFromNuvosEstimate, formatMarginOfSafetyFormula, pickDeteriorationChangeNote } from "@/lib/explainability";
 
@@ -40,18 +40,13 @@ function ScoreTile({ label, score, explanation }: { label: string; score: number
 }
 
 export function ExecutiveSummaryPanel({
-  price, intrinsicValue, fairValueRange, consensusValuation, marginOfSafetyPct,
+  price, intrinsicValue, fairValueRange, marginOfSafetyPct,
   qualityScore, qualityNuvosEstimate, convictionScore, convictionFactors, confidenceMeter,
   thesisDraft, thesisLoading, deterioration,
 }: {
   price: number | null;
   intrinsicValue: number | null;
   fairValueRange: FairValueRangeData | null;
-  /** Fase 1.5, Incremento 11 — Method 5's real weighted blend (DCF/
-   * Relative/Historical), shown as the breakdown behind fairValueRange
-   * below via FairValueRangeDisplay. Optional/nullable: not every ticker
-   * has enough real peer/historical data for Consensus to compute. */
-  consensusValuation?: ConsensusValuationData | null;
   marginOfSafetyPct: number | null;
   qualityScore: number | null;
   /** Fase 4, Incremento 3 — raw pillar nuvos_estimate (untyped upstream
@@ -119,13 +114,11 @@ export function ExecutiveSummaryPanel({
         />
       </div>
 
-      {/* Fase 1.5, Incremento 11 — nunca un punto único: el rango ahora
-          combina percentiles de Monte Carlo + el spread real de Consensus
-          (Method 5), con el desglose por método visible (FairValueRangeDisplay,
-          ya existía pero nunca estaba conectado a ninguna pantalla). */}
+      {/* Nunca un punto único: el rango es el Nuvos AI Fair Value Engine's
+          propio Bear/Base/Bull (Incremento 11 — EL FLIP). */}
       {fairValueRange && (
         <div className="pb-4 mb-4 border-b" style={{ borderColor: "var(--border)" }}>
-          <FairValueRangeDisplay range={fairValueRange} consensus={consensusValuation} />
+          <FairValueRangeDisplay range={fairValueRange} />
         </div>
       )}
 

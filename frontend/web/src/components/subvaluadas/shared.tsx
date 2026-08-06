@@ -59,12 +59,6 @@ export interface MarketExpectationsData {
   nuvos_base_revenue_estimate: number | null;
 }
 
-export interface ConsensusValuationData {
-  archetype: string;
-  methods_used: Record<string, { value: number; weight: number }>;
-  consensus_fair_value: number;
-}
-
 export interface MomentumData {
   return_1m_pct: number;
   return_6m_pct: number;
@@ -307,31 +301,25 @@ export function ConfidenceMeter({ data }: { data: ConfidenceMeterData }) {
   );
 }
 
-export function FairValueRangeDisplay({ range, consensus }: { range: FairValueRangeData; consensus?: ConsensusValuationData | null }) {
+// `range` is the Nuvos AI Fair Value Engine's own Bear/Base/Bull scenarios
+// since the flip (Incremento 11) — see combine_fair_value_range. Consensus
+// Engine (the archetype-weighted blend previously shown as a method
+// breakdown here) is retired (Incremento 12).
+export function FairValueRangeDisplay({ range }: { range: FairValueRangeData }) {
   const { t } = useTranslation();
   const lo = Math.min(range.low, range.high);
   const hi = Math.max(range.low, range.high);
-  const baseValue = consensus?.consensus_fair_value ?? range.base;
   return (
     <div className="rounded-xl p-3" style={{ background: "var(--raised)" }}>
       <p className="text-[9px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--muted)" }}>
-        {consensus ? t("subvaluadas.fairValueRange.consensus") : t("subvaluadas.fairValueRange.label")}
+        {t("subvaluadas.fairValueRange.label")}
       </p>
       <p className="text-lg font-black tabular-nums" style={{ color: "var(--text)" }}>
         ${lo.toFixed(0)} – ${hi.toFixed(0)}
       </p>
       <p className="text-[11px]" style={{ color: "var(--sub)" }}>
-        {t("subvaluadas.fairValueRange.base")}: <span className="font-bold">${baseValue.toFixed(0)}</span>
+        {t("subvaluadas.fairValueRange.base")}: <span className="font-bold">${range.base.toFixed(0)}</span>
       </p>
-      {consensus && (
-        <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1.5 pt-1.5 border-t" style={{ borderColor: "var(--border)" }}>
-          {Object.entries(consensus.methods_used).map(([key, m]) => (
-            <span key={key} className="text-[9px]" style={{ color: "var(--muted)" }}>
-              {key.replace(/_/g, " ")}: <span className="tabular-nums">${m.value.toFixed(0)}</span>
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

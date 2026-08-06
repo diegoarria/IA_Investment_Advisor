@@ -520,13 +520,21 @@ def _asdict_or_none(obj) -> Optional[dict]:
 
 
 async def _compute_extra_valuations(ticker: str, data: dict, dcf: dict):
-    """Methods 3/4/5 of the valuation engine (Relative, Historical, Consensus)
-    for quick_analysis's single-ticker live search. Split out from
-    quick_analysis so the whole block can be bounded by one asyncio.wait_for
-    — a stalled peer/history fetch must never hang the request past a few
-    seconds; the quick-analysis card just degrades to the base DCF result."""
-    from app.services.consensus_valuation_service import classify_archetype, compute_consensus_fair_value
-    from app.services.fundamental_analysis_service import _is_financial_sector, _sector_cyclicality_dampener, get_financials
+    """Relative/Historical Valuation + Industry Benchmarks for quick_analysis's
+    single-ticker live search — industry-aware (real `industry`, not just
+    `sector`), tighter than the sector-only version get_fundamental_analysis()
+    computes for itself. Split out from quick_analysis so the whole block can
+    be bounded by one asyncio.wait_for — a stalled peer/history fetch must
+    never hang the request past a few seconds; the quick-analysis card just
+    degrades to the base DCF result.
+
+    Nuvos AI Fair Value Engine redesign, Incremento 12 — Consensus Engine
+    (the archetype-weighted blend of Conservative/Professional DCF/Relative/
+    Historical, previously computed here too) is retired: the Nuvos AI Fair
+    Value Engine's Bear/Base/Bull is the single number shown to users
+    (Incremento 11 — THE FLIP). Relative/Historical stay — they still feed
+    the exit multiple anchor (decision #1)."""
+    from app.services.fundamental_analysis_service import get_financials
     from app.services.historical_valuation_service import compute_historical_valuation
     from app.services.relative_valuation_service import compute_relative_valuation
 
@@ -539,7 +547,6 @@ async def _compute_extra_valuations(ticker: str, data: dict, dcf: dict):
     cash = data.get("cash") or 0
     sector = data.get("sector")
     industry = next((u["industry"] for u in UNIVERSE if u["ticker"] == ticker), None)
-    thesis_scores = data.get("thesis_scores") or {}
 
     fin = await asyncio.to_thread(get_financials, ticker, 10)
     income = fin.get("incomeStatement", {}).get("annual", [])
@@ -564,15 +571,6 @@ async def _compute_extra_valuations(ticker: str, data: dict, dcf: dict):
                 latest_eps, latest_ebitda, latest_fcf,
             )
 
-    archetype = classify_archetype(
-        _is_financial_sector(sector), thesis_scores.get("business_quality"),
-        thesis_scores.get("predictability"), _sector_cyclicality_dampener(sector),
-    )
-    scenarios = dcf.get("scenarios") or {}
-    conservative_dcf_value = (scenarios.get("pessimistic") or {}).get("intrinsic_value_per_share")
-    professional_dcf_value = (scenarios.get("base") or {}).get("intrinsic_value_per_share")
-    consensus_valuation = compute_consensus_fair_value(archetype, conservative_dcf_value, professional_dcf_value, relative_valuation, historical_valuation)
-
     # Fase 2, Incremento 1 (Quality Engine — Industry Engine, see
     # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md): real,
     # live peer-derived benchmarks — same peer group this function already
@@ -586,7 +584,7 @@ async def _compute_extra_valuations(ticker: str, data: dict, dcf: dict):
     peer_analysis_cache: dict = {}
     industry_benchmarks = compute_industry_benchmarks(ticker, sector, industry, analysis_cache=peer_analysis_cache)
 
-    return relative_valuation, historical_valuation, consensus_valuation, industry_benchmarks, peer_analysis_cache
+    return relative_valuation, historical_valuation, industry_benchmarks, peer_analysis_cache
 
 
 _QUICK_ANALYSIS_CACHE_TTL = 90 * 24 * 3600  # 3 months — a ceiling, not the real invalidation trigger.
@@ -654,33 +652,29 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         }
     dcf = data["dcf"]
 
-    # Methods 3/4/5 of the valuation engine (Relative, Historical, Consensus)
-    # — computed live here for this ONE ticker (unlike the weekly screener's
-    # whole-universe batch, a single-ticker peer/history fetch is cheap
-    # enough for a live search) and cached alongside the rest of this
-    # response for 24h, so a repeat search of the same ticker never re-pays
-    # this cost. A failure here must never break the base DCF result — the
-    # quick-analysis card degrades to showing only the base Fair Value Range.
+    # Relative/Historical Valuation + Industry Benchmarks — computed live
+    # here for this ONE ticker (unlike the weekly screener's whole-universe
+    # batch, a single-ticker peer/history fetch is cheap enough for a live
+    # search) and cached alongside the rest of this response for 24h, so a
+    # repeat search of the same ticker never re-pays this cost. A failure
+    # here must never break the base DCF result — the quick-analysis card
+    # degrades to showing only the base Fair Value Range.
+    #
+    # Nuvos AI Fair Value Engine redesign, Incremento 11 (THE FLIP) —
+    # `fair_value_range` is just this ticker's own Bear/Base/Bull scenarios
+    # (already computed inside get_fundamental_analysis, on
+    # `dcf["nuvos_fair_value"]`), not refreshed from anything computed here.
+    # Consensus Engine itself is retired (Incremento 12).
     relative_valuation = None
     historical_valuation = None
-    consensus_valuation = None
     industry_benchmarks = None
     peer_analysis_cache: dict = {}
     try:
-        relative_valuation, historical_valuation, consensus_valuation, industry_benchmarks, peer_analysis_cache = await asyncio.wait_for(
+        relative_valuation, historical_valuation, industry_benchmarks, peer_analysis_cache = await asyncio.wait_for(
             _compute_extra_valuations(ticker, data, dcf), timeout=15.0,
         )
-        # Nuvos AI Fair Value Engine redesign, Incremento 11 (THE FLIP) —
-        # `fair_value_range` is now just this ticker's own Bear/Base/Bull
-        # scenarios (already computed inside get_fundamental_analysis, on
-        # `dcf["nuvos_fair_value"]`); no longer refreshed from this call's
-        # live Consensus. `consensus_valuation` is still attached below for
-        # display until it's retired (Incremento 12).
-        from app.services.fundamental_analysis_service import combine_fair_value_range
-        dcf["consensus_valuation"] = consensus_valuation
-        dcf["fair_value_range"] = combine_fair_value_range(dcf.get("nuvos_fair_value"), dcf["fair_value_range"])
     except Exception as exc:
-        logger.warning("quick_analysis(%s): valuation engine (methods 3-5) failed: %s", ticker, exc)
+        logger.warning("quick_analysis(%s): valuation engine (relative/historical/industry) failed: %s", ticker, exc)
 
     # 7-point investment checklist — item 1 (Entender el negocio) is Claude's
     # qualitative judgment from ai_result above; items 2-7's "stars" ratings
@@ -1057,7 +1051,6 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "earnings_quality_engine": earnings_quality_result,
         "relative_valuation": relative_valuation,
         "historical_valuation": historical_valuation,
-        "consensus_valuation": consensus_valuation,
         "summary": ai_result.get("summary", ""),
         "checklist": checklist,
         "liquidity_gate": data.get("liquidity_gate"),

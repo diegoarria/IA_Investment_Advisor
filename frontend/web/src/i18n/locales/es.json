@@ -802,8 +802,7 @@
     },
     "fairValueRange": {
       "label": "Rango de valor razonable",
-      "base": "Escenario base",
-      "consensus": "Fair Value (Consenso)"
+      "base": "Escenario base"
     },
     "marketExpectations": {
       "label": "¿Qué está descontando el mercado?",

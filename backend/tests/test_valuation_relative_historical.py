@@ -1,11 +1,18 @@
 """
-Regression tests — Relative Valuation (Method 3), Historical Valuation
-(Method 4), and Consensus blend (Method 5) of the Valuation Engine.
+Regression tests — Relative Valuation (Method 3) and Historical Valuation
+(Method 4) of the Valuation Engine.
 
 Part of Fase 1, Incremento 1 — see
-/Users/diegoarria/.claude/plans/stateful-painting-flurry.md. All three
-methods are network/DB-free pure functions once their peer/price data is
-supplied (or mocked), which is exactly what's exercised here.
+/Users/diegoarria/.claude/plans/stateful-painting-flurry.md. Both methods
+are network/DB-free pure functions once their peer/price data is supplied
+(or mocked), which is exactly what's exercised here.
+
+Nuvos AI Fair Value Engine redesign, Incremento 12 — Consensus (Method 5,
+the archetype-weighted blend of these two with Conservative/Professional
+DCF) is retired; its tests (previously in this file, named
+test_valuation_relative_historical_consensus.py) were removed along with
+consensus_valuation_service.py. Relative/Historical themselves are
+untouched — they still feed the exit multiple anchor (decision #1).
 """
 from unittest.mock import patch
 
@@ -13,7 +20,6 @@ import pytest
 
 from app.services.relative_valuation_service import _find_peers, compute_relative_valuation
 from app.services.historical_valuation_service import compute_historical_valuation
-from app.services.consensus_valuation_service import classify_archetype, compute_consensus_fair_value
 
 
 # ── Relative Valuation (Method 3) ───────────────────────────────────────────
@@ -153,68 +159,3 @@ class TestComputeHistoricalValuation:
                 total_debt=0, cash=0, latest_eps=5.0, latest_ebitda=200.0, latest_fcf=150.0,
             )
         assert result is None
-
-
-# ── Consensus (Method 5) ─────────────────────────────────────────────────────
-
-class TestClassifyArchetype:
-    def test_financial_sector_always_wins(self):
-        assert classify_archetype(True, business_quality_score=90, predictability_score=90, cyclicality_dampener=1.0) == "financials"
-
-    def test_high_quality_high_predictability_is_secular_compounder(self):
-        assert classify_archetype(False, business_quality_score=85, predictability_score=80, cyclicality_dampener=1.0) == "secular_compounder"
-
-    def test_low_cyclicality_dampener_is_cyclical(self):
-        assert classify_archetype(False, business_quality_score=50, predictability_score=50, cyclicality_dampener=0.90) == "cyclical"
-
-    def test_default_is_balanced(self):
-        assert classify_archetype(False, business_quality_score=50, predictability_score=50, cyclicality_dampener=1.0) == "balanced"
-
-    def test_missing_scores_do_not_crash(self):
-        assert classify_archetype(False, business_quality_score=None, predictability_score=None, cyclicality_dampener=1.0) == "balanced"
-
-
-class TestComputeConsensusFairValue:
-    def test_blends_all_four_methods_when_all_available(self):
-        result = compute_consensus_fair_value(
-            archetype="balanced",
-            conservative_dcf_value=90.0,
-            professional_dcf_value=110.0,
-            relative={"intrinsic_value_per_share": 100.0, "peer_count": 8},
-            historical={"intrinsic_value_per_share": 95.0, "years_used": 7},
-        )
-        assert result is not None
-        assert set(result["methods_used"].keys()) == {"conservative_dcf", "professional_dcf", "relative", "historical"}
-        assert 90.0 <= result["consensus_fair_value"] <= 110.0
-
-    def test_renormalizes_when_a_method_is_missing(self):
-        result = compute_consensus_fair_value(
-            archetype="secular_compounder",
-            conservative_dcf_value=90.0,
-            professional_dcf_value=110.0,
-            relative=None,
-            historical=None,
-        )
-        assert result is not None
-        assert set(result["methods_used"].keys()) == {"conservative_dcf", "professional_dcf"}
-
-    def test_returns_none_when_nothing_is_available(self):
-        result = compute_consensus_fair_value(
-            archetype="balanced",
-            conservative_dcf_value=None,
-            professional_dcf_value=None,
-            relative=None,
-            historical=None,
-        )
-        assert result is None
-
-    def test_unknown_archetype_falls_back_to_balanced_weights(self):
-        result = compute_consensus_fair_value(
-            archetype="not_a_real_archetype",
-            conservative_dcf_value=100.0,
-            professional_dcf_value=100.0,
-            relative=None,
-            historical=None,
-        )
-        assert result is not None
-        assert result["archetype_base_weights"] == result["archetype_base_weights"]  # sanity: doesn't crash
