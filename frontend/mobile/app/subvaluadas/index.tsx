@@ -3,20 +3,18 @@ import {
   View, Text, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, TextInput, Modal,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Slider from "@react-native-community/slider";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { useTheme } from "../../src/lib/ThemeContext";
-import { screenerWeeklyApi, watchlistServerApi, savedValuationsApi, explainApi } from "../../src/lib/api";
+import { screenerWeeklyApi, watchlistServerApi } from "../../src/lib/api";
 import PaywallModal from "../../src/components/PaywallModal";
 import StockAvatar from "../../src/components/StockAvatar";
 import ExplainButton from "../../src/components/ExplainButton";
-import { calcularValorIntrinseco } from "../../src/lib/dcfCalculator";
 import {
   type Checklist, type LiquidityGate, type FairValueRangeData, type ConfidenceMeterData, type MarketExpectationsData,
-  type DcfAssumptions, type RangeBounds, type YearlyDetailRow,
+  type DcfAssumptions, type YearlyDetailRow,
   type NifDashboardData, type NifRow,
   type ScenariosData, type ProbabilityWeights, type SensitivityMatrixData,
   type ReverseDcfSanityCheckData, type ExpectationsInvestingData, type FairValueEngineData,
@@ -102,19 +100,6 @@ function fmtMoney(v: number | null | undefined): string {
   if (abs >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
   return `$${v.toFixed(2)}`;
 }
-
-type Stoplight = "green" | "yellow" | "red";
-
-function stoplightFor(value: number, range: RangeBounds | null): Stoplight {
-  if (!range) return "yellow";
-  const spread = range.high - range.low;
-  if (value >= range.low && value <= range.high) return "green";
-  if (value >= range.low - spread && value <= range.high + spread) return "yellow";
-  return "red";
-}
-
-const STOPLIGHT_DOT: Record<Stoplight, string> = { green: "🟢", yellow: "🟡", red: "🔴" };
-const STOPLIGHT_COLOR: Record<Stoplight, string> = { green: "#22c55e", yellow: "#f59e0b", red: "#ef4444" };
 
 function colorForRatio(ratio: number): string {
   const coral = [221, 110, 99], gold = [212, 162, 76], teal = [79, 166, 149];
@@ -274,7 +259,6 @@ export default function SubvaluadasScreen() {
   const [limitHit, setLimitHit] = useState(false);
   const [watchlisted, setWatchlisted] = useState(false);
   const [level3Open, setLevel3Open] = useState(false);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   // Free users get 1 search/week (enforced server-side) — don't burn that on
   // the default AAPL auto-load; only fetch once they've actually searched,
   // or if a deep link named a ticker explicitly.
@@ -364,7 +348,6 @@ export default function SubvaluadasScreen() {
   const handleSearch = () => {
     if (!query.trim()) return;
     setWatchlisted(false);
-    setSaveState("idle");
     setSearchTriggered(true);
     setTicker(query.trim().toUpperCase());
   };
@@ -381,59 +364,7 @@ export default function SubvaluadasScreen() {
   const suggestedR = data?.dcf_assumptions?.suggested_r ?? 9;
   const suggestedGt = data?.dcf_assumptions?.suggested_gt ?? 3;
 
-  const [g, setG] = useState(suggestedG);
-  const [r, setR] = useState(suggestedR);
-  const [gt, setGt] = useState(suggestedGt);
-
-  useEffect(() => { setG(suggestedG); setR(suggestedR); setGt(suggestedGt); }, [suggestedG, suggestedR, suggestedGt]);
-  useEffect(() => { setSaveState("idle"); }, [g, r, gt, ticker]);
-
-  const isDefault = g === suggestedG && r === suggestedR && gt === suggestedGt;
-
-  const liveResult = useMemo(() => {
-    if (!hasData) return null;
-    return calcularValorIntrinseco({ fcf0, g: g / 100, r: r / 100, gt: gt / 100, n: horizon, netCash, shares });
-  }, [hasData, fcf0, g, r, gt, horizon, netCash, shares]);
-
   const price = data?.price ?? 0;
-  const liveMos = liveResult && price ? ((liveResult.valorPorAccion - price) / price) * 100 : null;
-  const barMax = Math.max(price, liveResult?.valorPorAccion ?? 0) * 1.15 || 1;
-
-  // Mentor feedback on the slider the user just moved — fires automatically
-  // (debounced, no button tap) whenever an assumption drifts from the
-  // suggested default, text-only (no TTS — this would fire far too often to
-  // synthesize audio every time).
-  const [mentorTip, setMentorTip] = useState<string | null>(null);
-  const [mentorTipLoading, setMentorTipLoading] = useState(false);
-  useEffect(() => {
-    if (isDefault || !hasData) { setMentorTip(null); return; }
-    const handle = setTimeout(async () => {
-      setMentorTipLoading(true);
-      try {
-        const res: any = await explainApi.explain("oportunidades_slider_feedback", {
-          ticker: data?.ticker,
-          wacc_pct: r,
-          growth_pct: g,
-          terminal_growth_pct: gt,
-          suggested_wacc_pct: suggestedR,
-          suggested_growth_pct: suggestedG,
-          suggested_terminal_growth_pct: suggestedGt,
-          wacc_range: data?.dcf_assumptions?.r_range ?? null,
-          growth_range: data?.dcf_assumptions?.g_range ?? null,
-          terminal_growth_range: data?.dcf_assumptions?.gt_range ?? null,
-          intrinsic_value_per_share: liveResult?.valorPorAccion ?? null,
-          price,
-        }, i18n.language, true);
-        setMentorTip(res.data?.text || null);
-      } catch {
-        setMentorTip(null);
-      } finally {
-        setMentorTipLoading(false);
-      }
-    }, 900);
-    return () => clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [g, r, gt]);
 
   const handleFollow = async () => {
     if (!data || watchlisted) return;
@@ -441,17 +372,6 @@ export default function SubvaluadasScreen() {
   };
   const handleAnalyze = () => router.push(`/chat?msg=${encodeURIComponent(t("subvaluadas.analyze.prompt", { ticker }))}&autosend=1` as any);
   const askMentor = (question: string) => router.push(`/chat?msg=${encodeURIComponent(question)}&autosend=1` as any);
-
-  const handleSaveValuation = async () => {
-    if (!data) return;
-    setSaveState("saving");
-    try {
-      await savedValuationsApi.save(data.ticker, g, r, gt);
-      setSaveState("saved");
-    } catch {
-      setSaveState("error");
-    }
-  };
 
   const name = data?.company_name || ticker;
   const mentorQuestions = [
@@ -651,102 +571,6 @@ export default function SubvaluadasScreen() {
             </View>
           ) : (
             <>
-              <View style={{ borderRadius: 14, backgroundColor: viColors.card, borderWidth: 1, borderColor: viColors.border, padding: 16, gap: 18 }}>
-                {[
-                  { key: "growth", label: t("subvaluadas.detail.controls.growth"), sub: t("subvaluadas.detail.controls.growthSub"), value: g, set: setG, min: 0, max: 25, step: 0.5, range: data.dcf_assumptions?.g_range ?? null },
-                  { key: "wacc", label: t("subvaluadas.detail.controls.wacc"), sub: t("subvaluadas.detail.controls.waccSub"), value: r, set: setR, min: 4, max: 18, step: 0.25, range: data.dcf_assumptions?.r_range ?? null },
-                  { key: "terminal", label: t("subvaluadas.detail.controls.terminalGrowth"), sub: t("subvaluadas.detail.controls.terminalGrowthSub"), value: gt, set: setGt, min: 0, max: 5, step: 0.25, range: data.dcf_assumptions?.gt_range ?? null },
-                ].map((ctrl) => {
-                  const light = stoplightFor(ctrl.value, ctrl.range);
-                  return (
-                    <View key={ctrl.key}>
-                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 4 }}>
-                        <View>
-                          <Text style={{ fontSize: 13, fontWeight: "700", color: viColors.text }}>{ctrl.label}</Text>
-                          <Text style={{ fontSize: 10.5, color: viColors.textMuted }}>{ctrl.sub}</Text>
-                        </View>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <Text style={{ fontSize: 12 }}>{STOPLIGHT_DOT[light]}</Text>
-                          <Text style={{ fontSize: 15, fontWeight: "600", color: GOLD }}>{pct(ctrl.value)}</Text>
-                        </View>
-                      </View>
-                      <Slider
-                        minimumValue={ctrl.min} maximumValue={ctrl.max} step={ctrl.step} value={ctrl.value}
-                        onValueChange={ctrl.set}
-                        minimumTrackTintColor={GOLD} maximumTrackTintColor={viColors.borderStrong} thumbTintColor={GOLD}
-                        style={{ height: 30 }}
-                      />
-                      <Text style={{ fontSize: 10, color: STOPLIGHT_COLOR[light] }}>{t(`subvaluadas.dcf.stoplight.${light}`)}</Text>
-                    </View>
-                  );
-                })}
-
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-                  {!isDefault && (
-                    <TouchableOpacity onPress={() => { setG(suggestedG); setR(suggestedR); setGt(suggestedGt); }} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Ionicons name="refresh" size={12} color={GOLD} />
-                      <Text style={{ fontSize: 11, fontWeight: "700", color: GOLD }}>{t("subvaluadas.dcf.reset")}</Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity onPress={handleSaveValuation} disabled={saveState === "saving" || saveState === "saved"}
-                                    style={{ flexDirection: "row", alignItems: "center", gap: 6, opacity: saveState === "saving" ? 0.6 : 1 }}>
-                    <Ionicons name={saveState === "saved" ? "checkmark" : "bookmark-outline"} size={12} color={saveState === "saved" ? TEAL : viColors.textSub} />
-                    <Text style={{ fontSize: 11, fontWeight: "700", color: saveState === "saved" ? TEAL : viColors.textSub }}>
-                      {saveState === "saved" ? t("subvaluadas.detail.saveCta.saved") : t("subvaluadas.detail.saveCta.default")}
-                    </Text>
-                  </TouchableOpacity>
-                  {saveState === "error" && (
-                    <Text style={{ fontSize: 11, color: CORAL }}>{t("subvaluadas.detail.saveCta.error")}</Text>
-                  )}
-                </View>
-
-                {(mentorTipLoading || mentorTip) && (
-                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 12, backgroundColor: viColors.bgRaised }}>
-                    <Text>🎓</Text>
-                    {mentorTipLoading ? (
-                      <Text style={{ flex: 1, fontSize: 12, color: viColors.textMuted }}>{t("subvaluadas.dcf.mentorTip.loading")}</Text>
-                    ) : (
-                      <Text style={{ flex: 1, fontSize: 12, lineHeight: 17, color: viColors.textSub }}>{mentorTip}</Text>
-                    )}
-                  </View>
-                )}
-
-                <View style={{ height: 1, backgroundColor: viColors.border }} />
-
-                <View>
-                  <Text style={{ fontSize: 11, textTransform: "uppercase", color: viColors.textMuted, marginBottom: 2 }}>{t("subvaluadas.detail.output.label")}</Text>
-                  {liveResult ? (
-                    <>
-                      <Text style={{ fontSize: 34, fontWeight: "700", color: viColors.text }}>${liveResult.valorPorAccion.toFixed(2)}</Text>
-                      <Text style={{ fontSize: 12, color: viColors.textSub }}>{t("subvaluadas.detail.output.vs", { price: price.toFixed(2) })}</Text>
-                    </>
-                  ) : (
-                    <Text style={{ fontSize: 13, color: viColors.textMuted }}>{t("subvaluadas.dcf.liveResult.noSolution")}</Text>
-                  )}
-                </View>
-
-                {liveMos !== null && (
-                  <View style={{ alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: liveMos >= 0 ? "rgba(79,166,149,0.14)" : "rgba(221,110,99,0.14)" }}>
-                    <Text style={{ fontSize: 12.5, fontWeight: "700", color: liveMos >= 0 ? TEAL : CORAL }}>
-                      {liveMos >= 0 ? "+" : ""}{liveMos.toFixed(1)}% {t("subvaluadas.detail.marginOfSafety")}
-                    </Text>
-                  </View>
-                )}
-
-                {liveResult && (
-                  <View style={{ height: 10, borderRadius: 5, backgroundColor: viColors.borderStrong, marginTop: 8 }}>
-                    <View style={{ position: "absolute", top: -3, left: `${Math.max(0, Math.min(100, (price / barMax) * 100))}%`, width: 12, height: 12, borderRadius: 6, backgroundColor: viColors.textSub, marginLeft: -6 }} />
-                    <View style={{ position: "absolute", top: -3, left: `${Math.max(0, Math.min(100, (liveResult.valorPorAccion / barMax) * 100))}%`, width: 12, height: 12, borderRadius: 6, backgroundColor: GOLD, marginLeft: -6 }} />
-                  </View>
-                )}
-
-                {data.dcf_assumptions?.market_implied_growth_pct != null && (
-                  <Text style={{ fontSize: 11, lineHeight: 15, color: viColors.textMuted }}>
-                    {t("subvaluadas.dcf.marketImplied", { market: data.dcf_assumptions.market_implied_growth_pct.toFixed(1), nuvos: suggestedG.toFixed(1) })}
-                  </Text>
-                )}
-              </View>
-
               {data.sensitivity_matrix && price !== null && (
                 <SensitivityHeatmap matrix={data.sensitivity_matrix} price={price} />
               )}
@@ -809,11 +633,11 @@ export default function SubvaluadasScreen() {
                 price: data.price,
                 fair_value_low: data.fair_value_range?.low ?? null,
                 fair_value_high: data.fair_value_range?.high ?? null,
-                margin_of_safety_pct: liveMos,
-                intrinsic_value_per_share: liveResult?.valorPorAccion ?? null,
-                wacc_pct: r,
-                growth_pct: g,
-                terminal_growth_pct: gt,
+                margin_of_safety_pct: data.margin_of_safety_pct,
+                intrinsic_value_per_share: data.expected_value_per_share ?? data.intrinsic_value_base,
+                wacc_pct: suggestedR,
+                growth_pct: suggestedG,
+                terminal_growth_pct: suggestedGt,
                 summary: data.summary,
               }
             : {
@@ -832,7 +656,7 @@ export default function SubvaluadasScreen() {
       {level3Open && data && (
         <Level3Modal
           ticker={data.ticker} price={data.price} fcf0={fcf0} netCash={netCash} shares={shares}
-          g={g} r={r} gt={gt}
+          g={suggestedG} r={suggestedR} gt={suggestedGt}
           yearlyDetail={data.yearly_detail} pvOfFcfSum={data.pv_of_fcf_sum} pvOfTerminalValue={data.pv_of_terminal_value} enterpriseValue={data.enterprise_value}
           onClose={() => setLevel3Open(false)}
         />

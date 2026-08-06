@@ -24,8 +24,15 @@ async def list_saved_valuations(user_id: str = Depends(get_current_user_id)):
     return await saved_valuation_service.list_with_live_data(user_id)
 
 
-@router.post("")
+@router.post("", deprecated=True)
 async def create_saved_valuation(body: dict, user_id: str = Depends(get_current_user_id)):
+    """DEPRECATED — Nuvos AI Fair Value Engine redesign, Incremento 14:
+    creating new saved valuations from `/subvaluadas` was retired (the
+    manual DCF calculator/sliders no longer exist there). Never called by
+    the current web/mobile clients. Kept alive, not deleted (decision #8):
+    existing saved valuations must keep receiving their milestone alerts
+    (worker.py's job_saved_valuation_alerts) and stay manageable from
+    `/profile` (SavedValuationsSection.tsx, GET/DELETE below, both live)."""
     await _require_premium(user_id)
     ticker = (body.get("ticker") or "").strip()
     growth_pct = body.get("growth_pct")

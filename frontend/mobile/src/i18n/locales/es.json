@@ -882,27 +882,7 @@
       "assumptions": {
         "growth": "Crecimiento del FCF",
         "wacc": "Tasa de descuento (WACC)",
-        "terminalGrowth": "Crecimiento terminal",
-        "tooltips": {
-          "growth": "Qué tan rápido asume Nuvos que crecerá el flujo de caja libre de la empresa durante los próximos años, basado en su historial real y ajustado por la calidad del negocio.",
-          "wacc": "La tasa de retorno que un inversor exigiría por el riesgo de esta empresa — a mayor riesgo, mayor tasa, y menor el valor presente de sus flujos futuros.",
-          "terminalGrowth": "El crecimiento perpetuo que Nuvos asume después del periodo de proyección explícito — siempre conservador, cercano al crecimiento de la economía en general."
-        }
-      },
-      "stoplight": {
-        "green": "Muy razonable",
-        "yellow": "Optimista — revisa la justificación",
-        "red": "Poco probable para esta empresa"
-      },
-      "reset": "Restablecer estimación de Nuvos",
-      "marketImplied": "El mercado está pagando un precio que implica ~{{market}}% de crecimiento anual — Nuvos estima {{nuvos}}%.",
-      "mentorTip": {
-        "loading": "Pensando..."
-      },
-      "liveResult": {
-        "intrinsicValue": "Valor intrínseco con tus supuestos",
-        "marginOfSafety": "Margen de seguridad",
-        "noSolution": "Estos supuestos no tienen solución matemática — ajusta un slider."
+        "terminalGrowth": "Crecimiento terminal"
       },
       "mentor": {
         "title": "Pregúntale a Arthur",
@@ -938,23 +918,14 @@
       "openCta": "Ver calculadora de Valor Intrínseco",
       "breadcrumb": "Valor intrínseco",
       "today": "hoy",
-      "pageTitle": { "pre": "Calculadora de", "em": "Valor Intrínseco" },
-      "pageSubtitle": "Mueve los supuestos y observa cómo cambia el resultado en tiempo real. Ningún número aquí es una verdad fija — es matemática con supuestos que tú controlas.",
+      "pageTitle": { "pre": "Modelo de", "em": "Valuación" },
+      "pageSubtitle": "El modelo completo detrás de los escenarios Bear/Base/Bull de arriba — sensibilidad, escenarios alternativos y reverse DCF, todos calculados con los mismos números reales.",
       "chips": { "fcf": "FCF (TTM)", "netCash": "Deuda neta", "shares": "Acciones diluidas" },
-      "saveCta": {
-        "default": "Guardar este valor intrínseco",
-        "saved": "Guardado — te avisamos si cambia",
-        "error": "No se pudo guardar, intenta de nuevo"
-      },
       "controls": {
         "growth": "Crecimiento anual del FCF",
-        "growthSub": "Próximos 10 años (g)",
         "wacc": "Tasa de descuento",
-        "waccSub": "Costo de capital / WACC aproximado (r)",
-        "terminalGrowth": "Crecimiento a perpetuidad",
-        "terminalGrowthSub": "Después del año 10 (g∞)"
+        "terminalGrowth": "Crecimiento a perpetuidad"
       },
-      "output": { "label": "Valor intrínseco por acción", "vs": "vs. precio actual ${{price}}" },
       "marginOfSafety": "de margen de seguridad",
       "heatmap": {
         "title": "Mapa de sensibilidad",

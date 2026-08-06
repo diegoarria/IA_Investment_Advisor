@@ -901,27 +901,7 @@
       "assumptions": {
         "growth": "FCF growth",
         "wacc": "Discount rate (WACC)",
-        "terminalGrowth": "Terminal growth",
-        "tooltips": {
-          "growth": "How fast Nuvos assumes the company's free cash flow will grow over the next years, based on its real track record and adjusted for business quality.",
-          "wacc": "The return an investor would require given this company's risk — the higher the risk, the higher the rate, and the lower the present value of its future cash flows.",
-          "terminalGrowth": "The perpetual growth Nuvos assumes after the explicit projection period — always conservative, close to the growth rate of the broader economy."
-        }
-      },
-      "stoplight": {
-        "green": "Very reasonable",
-        "yellow": "Optimistic — check the justification",
-        "red": "Unlikely for this company"
-      },
-      "reset": "Reset to Nuvos's estimate",
-      "marketImplied": "The market is paying a price that implies ~{{market}}% annual growth — Nuvos estimates {{nuvos}}%.",
-      "mentorTip": {
-        "loading": "Thinking..."
-      },
-      "liveResult": {
-        "intrinsicValue": "Intrinsic value with your assumptions",
-        "marginOfSafety": "Margin of safety",
-        "noSolution": "These assumptions have no mathematical solution — adjust a slider."
+        "terminalGrowth": "Terminal growth"
       },
       "mentor": {
         "title": "Ask Arthur",
@@ -958,36 +938,22 @@
       "breadcrumb": "Intrinsic value",
       "today": "today",
       "pageTitle": {
-        "pre": "Intrinsic Value",
-        "em": "Calculator"
+        "pre": "Valuation",
+        "em": "Model"
       },
-      "pageSubtitle": "Move the assumptions and watch the result change in real time. Nothing here is a fixed truth — it's math with assumptions you control.",
-      "autofillLabel": "Base data from Arthur",
+      "pageSubtitle": "The full model behind the Bear/Base/Bull scenarios above — sensitivity, alternative scenarios, and reverse DCF, all computed from the same real numbers.",
+      "autofillLabel": "Base data",
       "chips": {
         "fcf": "FCF (TTM)",
         "netCash": "Net debt",
         "shares": "Diluted shares"
       },
-      "saveCta": {
-        "default": "Save this intrinsic value",
-        "saved": "Saved — we'll alert you if it changes",
-        "error": "Couldn't save, try again"
-      },
       "controls": {
         "growth": "Annual FCF growth",
-        "growthSub": "Next 10 years (g)",
         "wacc": "Discount rate",
-        "waccSub": "Approximate cost of capital / WACC (r)",
-        "terminalGrowth": "Perpetuity growth",
-        "terminalGrowthSub": "After year 10 (g∞)"
-      },
-      "output": {
-        "label": "Intrinsic value per share",
-        "vs": "vs. current price ${{price}}"
+        "terminalGrowth": "Perpetuity growth"
       },
       "marginOfSafety": "margin of safety",
-      "priceMarker": "Price",
-      "viMarker": "IV",
       "heatmap": {
         "title": "Sensitivity map",
         "desc": "How fragile this number is. Each cell recalculates the full intrinsic value for that combination of discount rate and growth.",

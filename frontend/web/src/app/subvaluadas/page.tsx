@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import {
-  Loader2, Lock, Search, X, Info, RotateCcw, FileSpreadsheet, MessageCircle, AlertTriangle, Sparkles, Bookmark, Check,
+  Loader2, Lock, Search, X, FileSpreadsheet, MessageCircle, AlertTriangle,
   Shield, Target,
 } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
@@ -30,13 +30,11 @@ import { ExecutiveSummaryPanel } from "@/components/subvaluadas/ExecutiveSummary
 import dynamic from "next/dynamic";
 import type { CompanyTimelineEvent } from "@/lib/companyTimeline";
 import type { ThesisVersion } from "@/lib/thesisHistory";
-import { buildManualVsAiComparison } from "@/lib/manualVsAi";
 import { DetailLevelToggle } from "@/components/ui";
 import { isSectionVisible } from "@/lib/detailLevel";
-import { calcularValorIntrinseco, margenDeSeguridad } from "@/lib/dcfCalculator";
-import { screenerApi, savedValuationsApi, watchlist, explain as explainApi, researchEngineApi } from "@/lib/api";
+import { screenerApi, watchlist, researchEngineApi } from "@/lib/api";
 import { useSubscriptionStore, useThemeStore, useDetailLevelStore, usePersonalizationStore } from "@/lib/store";
-import { selectDefaultDiscountRatePct, resolveDashboardSectionOrder, DEFAULT_DASHBOARD_SECTION_ORDER } from "@/lib/personalization";
+import { resolveDashboardSectionOrder, DEFAULT_DASHBOARD_SECTION_ORDER } from "@/lib/personalization";
 
 // Fase 4, Incremento 13 (Cierre, Parte M) — every panel below is already
 // gated by isPremium/isSectionVisible (never rendered on initial load for
@@ -47,7 +45,6 @@ const PeerComparisonChart = dynamic(() => import("@/components/subvaluadas/PeerC
 const CompanyTimeline = dynamic(() => import("@/components/subvaluadas/CompanyTimeline").then((m) => m.CompanyTimeline));
 const ThesisHistoryPanel = dynamic(() => import("@/components/subvaluadas/ThesisHistoryPanel").then((m) => m.ThesisHistoryPanel));
 const InvestmentChecklistPanel = dynamic(() => import("@/components/subvaluadas/InvestmentChecklistPanel").then((m) => m.InvestmentChecklistPanel));
-const ManualVsAiPanel = dynamic(() => import("@/components/subvaluadas/ManualVsAiPanel").then((m) => m.ManualVsAiPanel));
 
 export interface QuickAnalysisResult {
   ticker: string;
@@ -149,19 +146,6 @@ function fmtMoney(v: number | null | undefined): string {
   return `$${v.toFixed(2)}`;
 }
 
-type Stoplight = "green" | "yellow" | "red";
-
-function stoplightFor(value: number, range: RangeBounds | null): Stoplight {
-  if (!range) return "yellow";
-  const spread = range.high - range.low;
-  if (value >= range.low && value <= range.high) return "green";
-  if (value >= range.low - spread && value <= range.high + spread) return "yellow";
-  return "red";
-}
-
-const STOPLIGHT_DOT: Record<Stoplight, string> = { green: "🟢", yellow: "🟡", red: "🔴" };
-const STOPLIGHT_COLOR: Record<Stoplight, string> = { green: "#22c55e", yellow: "#f59e0b", red: "#ef4444" };
-
 function colorForRatio(ratio: number): string {
   const coral = [221, 110, 99], gold = [212, 162, 76], teal = [79, 166, 149];
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -174,24 +158,6 @@ function colorForRatio(ratio: number): string {
     c = gold.map((v, i) => Math.round(v + (teal[i] - v) * t));
   }
   return `rgb(${c[0]},${c[1]},${c[2]})`;
-}
-
-function Tooltip({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <span className="relative inline-flex items-center">
-      <button type="button" onClick={() => setOpen((o) => !o)} onBlur={() => setTimeout(() => setOpen(false), 150)}
-              className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full ml-1.5" style={{ color: "var(--muted)" }} aria-label="info">
-        <Info className="w-3.5 h-3.5" />
-      </button>
-      {open && (
-        <span className="absolute z-20 bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-60 rounded-lg p-2.5 text-[11px] leading-snug font-normal shadow-lg"
-              style={{ background: "var(--card-2)", border: "1px solid var(--border)", color: "var(--sub)" }}>
-          {text}
-        </span>
-      )}
-    </span>
-  );
 }
 
 // Fase 1, Incremento 4: this used to recompute its own 5x5 grid client-side
@@ -502,7 +468,6 @@ function SubvaluadasPageInner() {
   const [limitHit, setLimitHit] = useState(false);
   const [watchlisted, setWatchlisted] = useState(false);
   const [level3Open, setLevel3Open] = useState(false);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   // Free users get 1 search/week (enforced server-side) — don't burn that on
   // the default AAPL auto-load; only fetch once they've actually searched,
   // or if the URL itself names a ticker (a shared link is an explicit ask).
@@ -693,7 +658,6 @@ function SubvaluadasPageInner() {
   const handleSearch = () => {
     if (!query.trim()) return;
     setWatchlisted(false);
-    setSaveState("idle");
     setSearchTriggered(true);
     setTicker(query.trim().toUpperCase());
   };
@@ -710,73 +674,7 @@ function SubvaluadasPageInner() {
   const suggestedR = data?.dcf_assumptions?.suggested_r ?? 9;
   const suggestedGt = data?.dcf_assumptions?.suggested_gt ?? 3;
 
-  // Fase 4, Incremento 12 (Personalización, Parte L) — the manual
-  // calculator's DEFAULT discount rate, per the user's own
-  // retorno-requerido preference (mirrors dcf_engine.select_discount_rate's
-  // exact selection rule — never a new computation). Nuvos's own real WACC
-  // suggestion (suggestedR) is untouched everywhere else (the "reset to
-  // Nuvos" button, ManualVsAiPanel's comparison, the saved-valuation
-  // suggested_wacc_pct) — this only changes what the slider starts at.
-  const effectiveSuggestedR = selectDefaultDiscountRatePct(suggestedR, requiredReturnPct, preferredDiscountRateMethod);
-
-  const [g, setG] = useState(suggestedG);
-  const [r, setR] = useState(effectiveSuggestedR);
-  const [gt, setGt] = useState(suggestedGt);
-
-  useEffect(() => { setG(suggestedG); setR(effectiveSuggestedR); setGt(suggestedGt); }, [suggestedG, effectiveSuggestedR, suggestedGt]);
-  useEffect(() => { setSaveState("idle"); }, [g, r, gt, ticker]);
-
-  const isDefault = g === suggestedG && r === effectiveSuggestedR && gt === suggestedGt;
-
-  const liveResult = useMemo(() => {
-    if (!hasData) return null;
-    return calcularValorIntrinseco({ fcf0, g: g / 100, r: r / 100, gt: gt / 100, n: horizon, netCash, shares });
-  }, [hasData, fcf0, g, r, gt, horizon, netCash, shares]);
-
   const price = data?.price ?? 0;
-  // Fase 1.5, Incremento 15 — was an inline /price duplicate of the same
-  // formula margenDeSeguridad() already implements; calling it directly
-  // both dedups the formula and picks up its Incremento 14 fix (denominator
-  // is the intrinsic value, matching the single backend convention).
-  const liveMosFraction = liveResult && price ? margenDeSeguridad(liveResult.valorPorAccion, price) : null;
-  const liveMos = liveMosFraction !== null ? liveMosFraction * 100 : null;
-
-  // Mentor feedback on the slider the user just moved — fires automatically
-  // (debounced, no button tap) whenever an assumption drifts from the
-  // suggested default, text-only (no TTS — this would fire far too often to
-  // synthesize audio every time).
-  const [mentorTip, setMentorTip] = useState<string | null>(null);
-  const [mentorTipLoading, setMentorTipLoading] = useState(false);
-  useEffect(() => {
-    if (isDefault || !hasData) { setMentorTip(null); return; }
-    const handle = setTimeout(async () => {
-      setMentorTipLoading(true);
-      try {
-        const res = await explainApi.explain("oportunidades_slider_feedback", {
-          ticker: data?.ticker,
-          wacc_pct: r,
-          growth_pct: g,
-          terminal_growth_pct: gt,
-          suggested_wacc_pct: suggestedR,
-          suggested_growth_pct: suggestedG,
-          suggested_terminal_growth_pct: suggestedGt,
-          wacc_range: data?.dcf_assumptions?.r_range ?? null,
-          growth_range: data?.dcf_assumptions?.g_range ?? null,
-          terminal_growth_range: data?.dcf_assumptions?.gt_range ?? null,
-          intrinsic_value_per_share: liveResult?.valorPorAccion ?? null,
-          price,
-        }, i18n.language, true);
-        setMentorTip(res.data?.text || null);
-      } catch {
-        setMentorTip(null);
-      } finally {
-        setMentorTipLoading(false);
-      }
-    }, 900);
-    return () => clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [g, r, gt]);
-  const barMax = Math.max(price, liveResult?.valorPorAccion ?? 0) * 1.15 || 1;
 
   const handleFollow = async () => {
     if (!data || watchlisted) return;
@@ -784,17 +682,6 @@ function SubvaluadasPageInner() {
   };
   const handleAnalyze = () => router.push(`/chat?msg=${encodeURIComponent(t("subvaluadas.analyze.prompt", { ticker }))}&autosend=1`);
   const askMentor = (question: string) => router.push(`/chat?msg=${encodeURIComponent(question)}&autosend=1`);
-
-  const handleSaveValuation = async () => {
-    if (!data) return;
-    setSaveState("saving");
-    try {
-      await savedValuationsApi.save(data.ticker, g, r, gt);
-      setSaveState("saved");
-    } catch {
-      setSaveState("error");
-    }
-  };
 
   const name = data?.company_name || ticker;
   const mentorQuestions = [
@@ -1095,9 +982,13 @@ function SubvaluadasPageInner() {
                     <InsightBox>{data.summary}</InsightBox>
                   </div>
 
-                  {/* ===== Calculadora de Valor Intrínseco (DCF manual + sensibilidad +
-                       escenarios + reverse DCF) — Fase 4 Parte B: nivel Avanzado+. Ya existía
-                       tal cual; solo se le agrega la puerta de nivel de detalle. ===== */}
+                  {/* ===== Modelo de valuación detallado (sensibilidad + escenarios +
+                       reverse DCF) — Fase 4 Parte B: nivel Avanzado+. Nuvos AI Fair
+                       Value Engine redesign, Incremento 14: la calculadora manual
+                       (sliders + guardar valuación) fue retirada de aquí — ver
+                       FairValueScenariosPanel arriba para el número primario
+                       (Bear/Base/Bull). Lo que queda es exploración de la valuación
+                       REAL que el backend ya calculó, nunca supuestos del usuario. ===== */}
                   {isSectionVisible(detailLevel, "dcf_full") && (
                   <>
                   <h1 style={{ fontSize: 28, fontWeight: 500, letterSpacing: "-0.3px", color: "var(--text)", margin: "0 0 6px" }}>
@@ -1108,7 +999,6 @@ function SubvaluadasPageInner() {
                   {hasData && (
                     <div className="flex items-center gap-2.5 flex-wrap mb-6">
                       <span className="text-[11.5px] flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
-                        <Sparkles className="w-3 h-3" style={{ color: GOLD }} />
                         {t("subvaluadas.detail.autofillLabel")}
                       </span>
                       {[
@@ -1133,134 +1023,6 @@ function SubvaluadasPageInner() {
                     </div>
                   ) : (
                     <>
-                      {/* ===== HERO: sliders + output ===== */}
-                      <div className="rounded-[14px] p-7" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-                        <div className="grid gap-0" style={{ gridTemplateColumns: "1fr 320px" }}>
-                          <div className="pr-8 border-r" style={{ borderColor: "var(--border)" }}>
-                            {[
-                              { key: "growth", label: t("subvaluadas.detail.controls.growth"), sub: t("subvaluadas.detail.controls.growthSub"), tip: t("subvaluadas.dcf.assumptions.tooltips.growth"), value: g, set: setG, min: 0, max: 25, step: 0.5, range: data.dcf_assumptions?.g_range ?? null },
-                              { key: "wacc", label: t("subvaluadas.detail.controls.wacc"), sub: t("subvaluadas.detail.controls.waccSub"), tip: t("subvaluadas.dcf.assumptions.tooltips.wacc"), value: r, set: setR, min: 4, max: 18, step: 0.25, range: data.dcf_assumptions?.r_range ?? null },
-                              { key: "terminal", label: t("subvaluadas.detail.controls.terminalGrowth"), sub: t("subvaluadas.detail.controls.terminalGrowthSub"), tip: t("subvaluadas.dcf.assumptions.tooltips.terminalGrowth"), value: gt, set: setGt, min: 0, max: 5, step: 0.25, range: data.dcf_assumptions?.gt_range ?? null },
-                            ].map((ctrl, i, arr) => {
-                              const light = stoplightFor(ctrl.value, ctrl.range);
-                              return (
-                                <div key={ctrl.key} className={i < arr.length - 1 ? "mb-7" : ""}>
-                                  <div className="flex justify-between items-baseline mb-2.5">
-                                    <div>
-                                      <div className="text-[13.5px] font-semibold flex items-center" style={{ color: "var(--text)" }}>
-                                        {ctrl.label}
-                                        <Tooltip text={ctrl.tip} />
-                                      </div>
-                                      <span className="block text-[11px] font-normal mt-0.5" style={{ color: "var(--muted)" }}>{ctrl.sub}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-[13px]">{STOPLIGHT_DOT[light]}</span>
-                                      <span className="text-base font-medium tabular-nums" style={{ color: GOLD }}>{pct(ctrl.value)}</span>
-                                    </div>
-                                  </div>
-                                  <input type="range" min={ctrl.min} max={ctrl.max} step={ctrl.step} value={ctrl.value}
-                                         onChange={(e) => ctrl.set(parseFloat(e.target.value))}
-                                         className="vi-range w-full" />
-                                  <div className="flex justify-between text-[10px] mt-1" style={{ color: "var(--muted)" }}>
-                                    <span>{ctrl.min}%</span><span>{ctrl.max}%</span>
-                                  </div>
-                                  <p className="text-[10px] mt-1" style={{ color: STOPLIGHT_COLOR[light] }}>{t(`subvaluadas.dcf.stoplight.${light}`)}</p>
-                                </div>
-                              );
-                            })}
-                            <div className="flex items-center gap-4 mt-1 flex-wrap">
-                              {!isDefault && (
-                                <button onClick={() => { setG(suggestedG); setR(suggestedR); setGt(suggestedGt); }}
-                                        className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: GOLD }}>
-                                  <RotateCcw className="w-3 h-3" />
-                                  {t("subvaluadas.dcf.reset")}
-                                </button>
-                              )}
-                              <button onClick={handleSaveValuation} disabled={saveState === "saving" || saveState === "saved"}
-                                      className="flex items-center gap-1.5 text-[11px] font-bold disabled:opacity-70"
-                                      style={{ color: saveState === "saved" ? TEAL : "var(--sub)" }}>
-                                {saveState === "saving" ? <Loader2 className="w-3 h-3 animate-spin" /> : saveState === "saved" ? <Check className="w-3 h-3" /> : <Bookmark className="w-3 h-3" />}
-                                {saveState === "saved" ? t("subvaluadas.detail.saveCta.saved") : t("subvaluadas.detail.saveCta.default")}
-                              </button>
-                              {saveState === "error" && (
-                                <span className="text-[11px]" style={{ color: CORAL }}>{t("subvaluadas.detail.saveCta.error")}</span>
-                              )}
-                            </div>
-
-                            {(mentorTipLoading || mentorTip) && (
-                              <div className="flex items-start gap-2 mt-3 p-3 rounded-xl text-[12px] leading-relaxed"
-                                   style={{ background: "var(--raised)", border: "1px solid var(--border)", color: "var(--sub)" }}>
-                                <span className="shrink-0">🎓</span>
-                                {mentorTipLoading ? (
-                                  <span style={{ color: "var(--muted)" }}>{t("subvaluadas.dcf.mentorTip.loading")}</span>
-                                ) : (
-                                  <span>{mentorTip}</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="pl-8 flex flex-col gap-4">
-                            <div>
-                              <p className="text-[11.5px] uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.detail.output.label")}</p>
-                              {liveResult ? (
-                                <>
-                                  <p style={{ fontSize: 40, fontWeight: 500, letterSpacing: "-1px", lineHeight: 1, color: "var(--text)" }}>
-                                    ${liveResult.valorPorAccion.toFixed(2)}
-                                  </p>
-                                  <p className="text-[12.5px] tabular-nums" style={{ color: "var(--sub)" }}>
-                                    {t("subvaluadas.detail.output.vs", { price: price.toFixed(2) })}
-                                  </p>
-                                </>
-                              ) : (
-                                <p className="text-sm" style={{ color: "var(--muted)" }}>{t("subvaluadas.dcf.liveResult.noSolution")}</p>
-                              )}
-                            </div>
-
-                            {liveMos !== null && (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] font-bold tabular-nums w-fit"
-                                    style={{ background: liveMos >= 0 ? "rgba(79,166,149,0.14)" : "rgba(221,110,99,0.14)", color: liveMos >= 0 ? TEAL : CORAL }}>
-                                {liveMos >= 0 ? "+" : ""}{liveMos.toFixed(1)}% {t("subvaluadas.detail.marginOfSafety")}
-                              </span>
-                            )}
-
-                            {liveResult && (
-                              <div className="relative h-2.5 rounded-md mt-1" style={{ background: "var(--border-s)" }}>
-                                <div className="absolute inset-0 rounded-md opacity-35" style={{ background: `linear-gradient(90deg, ${CORAL}, ${GOLD}, ${TEAL})` }} />
-                                <div className="absolute -top-1.5 w-0.5 h-5" style={{ left: `${Math.max(0, Math.min(100, (price / barMax) * 100))}%`, background: "var(--text)" }}>
-                                  <span className="absolute -top-[19px] left-1/2 -translate-x-1/2 text-[9.5px] whitespace-nowrap" style={{ color: "var(--sub)" }}>{t("subvaluadas.detail.priceMarker")}</span>
-                                </div>
-                                <div className="absolute -top-1.5 w-0.5 h-5" style={{ left: `${Math.max(0, Math.min(100, (liveResult.valorPorAccion / barMax) * 100))}%`, background: GOLD }}>
-                                  <span className="absolute -top-[19px] left-1/2 -translate-x-1/2 text-[9.5px] font-bold whitespace-nowrap" style={{ color: GOLD }}>{t("subvaluadas.detail.viMarker")}</span>
-                                </div>
-                              </div>
-                            )}
-
-                            {data.dcf_assumptions?.market_implied_growth_pct != null && (
-                              <p className="text-[11px] leading-relaxed" style={{ color: "var(--muted)" }}>
-                                {t("subvaluadas.dcf.marketImplied", { market: data.dcf_assumptions.market_implied_growth_pct.toFixed(1), nuvos: suggestedG.toFixed(1) })}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* ===== Fase 4, Incremento 7 — Manual vs. IA (Parte G): compara los
-                           supuestos que el usuario acaba de mover contra los de Nuvos, sin
-                           veredicto de cuál es correcto. ===== */}
-                      <div className="mt-5">
-                        <ManualVsAiPanel
-                          comparison={buildManualVsAiComparison(
-                            [
-                              { key: "growth", userValuePct: g, nuvosValuePct: suggestedG },
-                              { key: "wacc", userValuePct: r, nuvosValuePct: suggestedR },
-                              { key: "terminalGrowth", userValuePct: gt, nuvosValuePct: suggestedGt },
-                            ],
-                            liveResult?.valorPorAccion ?? null, data.expected_value_per_share ?? data.intrinsic_value_base,
-                          )}
-                        />
-                      </div>
-
                       {data.sensitivity_matrix && price !== null && (
                         <SensitivityHeatmap matrix={data.sensitivity_matrix} price={price} />
                       )}
@@ -1338,11 +1100,11 @@ function SubvaluadasPageInner() {
                 price: data.price,
                 fair_value_low: data.fair_value_range?.low ?? null,
                 fair_value_high: data.fair_value_range?.high ?? null,
-                margin_of_safety_pct: liveMos,
-                intrinsic_value_per_share: liveResult?.valorPorAccion ?? null,
-                wacc_pct: r,
-                growth_pct: g,
-                terminal_growth_pct: gt,
+                margin_of_safety_pct: data.margin_of_safety_pct,
+                intrinsic_value_per_share: data.expected_value_per_share ?? data.intrinsic_value_base,
+                wacc_pct: suggestedR,
+                growth_pct: suggestedG,
+                terminal_growth_pct: suggestedGt,
                 summary: data.summary,
               }
             : {
@@ -1365,7 +1127,7 @@ function SubvaluadasPageInner() {
           fcf0={fcf0}
           netCash={netCash}
           shares={shares}
-          g={g} r={r} gt={gt}
+          g={suggestedG} r={suggestedR} gt={suggestedGt}
           yearlyDetail={data.yearly_detail}
           pvOfFcfSum={data.pv_of_fcf_sum}
           pvOfTerminalValue={data.pv_of_terminal_value}
@@ -1373,12 +1135,6 @@ function SubvaluadasPageInner() {
           onClose={() => setLevel3Open(false)}
         />
       )}
-
-      <style jsx global>{`
-        .vi-range { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 3px; background: var(--border-s); outline: none; }
-        .vi-range::-webkit-slider-thumb { -webkit-appearance: none; width: 17px; height: 17px; border-radius: 50%; background: ${GOLD}; border: 3px solid #0A0F1A; box-shadow: 0 0 0 1px rgba(212,162,76,0.35); cursor: pointer; }
-        .vi-range::-moz-range-thumb { width: 17px; height: 17px; border-radius: 50%; background: ${GOLD}; border: 3px solid #0A0F1A; cursor: pointer; }
-      `}</style>
     </div>
   );
 }
