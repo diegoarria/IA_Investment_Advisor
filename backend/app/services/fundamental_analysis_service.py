@@ -23,7 +23,7 @@ from app.core.finnhub import fh_quote, fh_profile, fh_price_target, fh_metrics, 
 from app.services.valuation.dcf_engine import (
     project_driver_based_dcf, recency_weighted_average, compute_reinvestment_rate_anchor, is_reit_sector,
 )
-from app.services.valuation.robustness import UnstableGordonGrowthError
+from app.services.valuation.robustness import UnstableGordonGrowthError, clamp
 from app.services.valuation.monte_carlo_engine import (
     DistributionInput, MonteCarloAssumptions, run_monte_carlo_dcf, build_distribution_from_trend,
 )
@@ -2057,6 +2057,147 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 except Exception as e:
                     logger.info("get_fundamental_analysis(%s): consensus/relative/historical/industry not computable: %s", ticker, e)
 
+            # ── Nuvos AI Fair Value Engine — Incremento 6 (see
+            # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md).
+            # The convergence point: one engine, three named scenarios
+            # (Bear/Base/Bull), each with its own exit-multiple terminal
+            # value (Incremento 2) derived from real anchors (Incremento 1,
+            # fed by relative_valuation/historical_valuation/
+            # industry_benchmarks above), and its own growth/margin/ROIC
+            # assumptions blended by the Assumptions Engine (Incremento 4)
+            # across BEAR_BASE_BULL's deltas (Incremento 5). Computed IN
+            # ADDITION to driver_based_scenarios above — shadow mode, same
+            # broad guard, until the validation gate (Incremento 8) clears
+            # and the flip (Incremento 11) happens.
+            nuvos_fair_value = None
+            if (
+                operating_margin_anchor is not None and reinvestment_rate_anchor is not None
+                and avg_roic is not None and avg_roic > 0
+            ):
+                try:
+                    from app.services.valuation.exit_multiple_engine import select_exit_metric, derive_exit_multiple
+                    from app.services.valuation.assumptions_engine import compute_weighted_assumption
+                    from app.services.quality.industry_engine import classify_industry
+                    from app.services.analyst_estimates_service import get_analyst_estimates
+
+                    analyst_estimates = None
+                    try:
+                        analyst_estimates = get_analyst_estimates(ticker)
+                    except Exception as e:
+                        logger.info("get_fundamental_analysis(%s): analyst estimates not computable: %s", ticker, e)
+
+                    # Recomputed locally rather than reusing the peer-
+                    # dependent block's _latest_ebitda/_latest_fcf above —
+                    # those are only defined when _compute_peer_dependent_
+                    # data=True, and this block must work either way.
+                    _nuvos_latest_income_row = income[-1] if income else {}
+                    _nuvos_own_ebitda = _num(_nuvos_latest_income_row.get("EBITDA"))
+                    _nuvos_own_ebit = _num(_nuvos_latest_income_row.get("Operating Income"))
+                    _nuvos_own_fcf = fcf_valid[-1] if fcf_valid else None
+
+                    exit_category = classify_industry(sector, None)
+                    exit_metric = select_exit_metric(exit_category)
+
+                    growth_assumption = compute_weighted_assumption(
+                        dimension="revenue_growth_1",
+                        historical_value_pct=base_historical_growth * 100,
+                        industry_value_pct=(industry_benchmarks or {}).get("median_revenue_cagr_pct"),
+                        wall_street_value_pct=analyst_estimates.revenue_growth_next_year_pct if analyst_estimates else None,
+                        business_quality_value_pct=growth_engine_result.quality_adjusted_growth_pct * 100,
+                    )
+                    margin_assumption = compute_weighted_assumption(
+                        dimension="terminal_operating_margin",
+                        historical_value_pct=operating_margin_anchor * 100,
+                        industry_value_pct=(industry_benchmarks or {}).get("median_operating_margin_pct"),
+                        wall_street_value_pct=None,
+                        business_quality_value_pct=None,
+                    )
+                    roic_assumption = compute_weighted_assumption(
+                        dimension="terminal_roic",
+                        historical_value_pct=avg_roic,
+                        industry_value_pct=(industry_benchmarks or {}).get("median_roic_pct"),
+                        wall_street_value_pct=None,
+                        business_quality_value_pct=None,
+                    )
+
+                    blended_growth_pct = growth_assumption.blended_value_pct if growth_assumption.blended_value_pct is not None else base_historical_growth * 100
+                    blended_margin_pct = margin_assumption.blended_value_pct if margin_assumption.blended_value_pct is not None else operating_margin_anchor * 100
+                    blended_roic_pct = roic_assumption.blended_value_pct if roic_assumption.blended_value_pct is not None else avg_roic
+
+                    exit_multiple_result = derive_exit_multiple(
+                        metric=exit_metric,
+                        own_historical_ev_ebitda=(historical_valuation or {}).get("historical_median_ev_ebitda"),
+                        own_historical_ev_fcf=None,
+                        peer_median_ev_ebitda=(relative_valuation or {}).get("peer_median_ev_ebitda"),
+                        peer_median_ev_fcf=(relative_valuation or {}).get("peer_median_ev_fcf"),
+                        own_ebitda=_nuvos_own_ebitda,
+                        own_ebit=_nuvos_own_ebit,
+                        own_revenue=latest_rev,
+                        own_fcf=_nuvos_own_fcf,
+                        expected_eps_growth_pct=analyst_estimates.eps_growth_next_year_pct if analyst_estimates else None,
+                        roic_pct=avg_roic,
+                        cost_of_capital_pct=base_discount_rate * 100,
+                        fcf_margin_pct=round(avg_fcf_margin * 100, 1),
+                        net_debt_to_ebitda=round((total_debt - cash_latest) / _nuvos_own_ebitda, 2) if _nuvos_own_ebitda else None,
+                        interest_coverage=None,
+                        dividend_yield_pct=None,
+                        moat_score=None,
+                        management_score=None,
+                    )
+
+                    nuvos_scenarios = {}
+                    for name, deltas in BEAR_BASE_BULL.items():
+                        # business_quality_score not yet computed at this
+                        # point in the function (see classify_archetype's
+                        # same None above) — None falls back to the neutral
+                        # midpoint, a real (if less sharp) cap rather than
+                        # skipping the scenario.
+                        growth_cap_pct = bear_base_bull_growth_cap_pct(None, name)
+                        g1 = clamp((blended_growth_pct + deltas["growth_delta_pp"]) / 100, -0.5, growth_cap_pct / 100)
+                        margin_start = max((blended_margin_pct + deltas["operating_margin_start_delta_pp"]) / 100, 0.0)
+                        margin_terminal = max((blended_margin_pct + deltas["operating_margin_terminal_delta_pp"]) / 100, 0.0)
+                        dr = max(base_discount_rate + deltas["discount_rate_delta_pct"] / 100, 0.04)
+                        scenario_exit_multiple = exit_multiple_result.exit_multiple * (1 + deltas["exit_multiple_delta_fraction"])
+
+                        scenario_result = project_driver_based_dcf(
+                            revenue_0=latest_rev,
+                            revenue_growth_1=g1,
+                            terminal_growth=terminal_growth,
+                            operating_margin_anchor_pct=margin_start,
+                            terminal_operating_margin_pct=margin_terminal,
+                            tax_rate=tax_rate,
+                            reinvestment_rate_anchor_pct=reinvestment_rate_anchor,
+                            terminal_roic_pct=max(blended_roic_pct, 0.5) / 100,
+                            discount_rate=dr,
+                            net_cash=net_cash,
+                            shares_out=projected_shares,
+                            high_growth_years=deltas["high_growth_years"],
+                            exit_multiple=scenario_exit_multiple,
+                            exit_metric=exit_metric,
+                        )
+                        nuvos_scenarios[name] = {
+                            "fair_value_per_share": scenario_result.value_per_share,
+                            "assumptions": scenario_result.assumptions,
+                        }
+
+                    price_implied_scenario = None
+                    if price:
+                        real_values = {k: v["fair_value_per_share"] for k, v in nuvos_scenarios.items() if v["fair_value_per_share"] is not None}
+                        if real_values:
+                            price_implied_scenario = min(real_values.items(), key=lambda kv: abs(kv[1] - price))[0]
+
+                    nuvos_fair_value = {
+                        "scenarios": nuvos_scenarios,
+                        "exit_metric": exit_metric,
+                        "exit_multiple_anchor_source": exit_multiple_result.anchor_source,
+                        "price_implied_scenario": price_implied_scenario,
+                        "growth_factors": [asdict(f) for f in growth_assumption.factors],
+                        "operating_margin_factors": [asdict(f) for f in margin_assumption.factors],
+                        "terminal_roic_factors": [asdict(f) for f in roic_assumption.factors],
+                    }
+                except (UnstableGordonGrowthError, ValueError) as e:
+                    logger.info("get_fundamental_analysis(%s): nuvos_fair_value not computable: %s", ticker, e)
+
             dcf = {
                 "base_fcf": round(base_fcf, 0),
                 "avg_fcf_margin_pct": round(avg_fcf_margin * 100, 1),
@@ -2079,6 +2220,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 "relative_valuation": relative_valuation,
                 "historical_valuation": historical_valuation,
                 "industry_benchmarks": industry_benchmarks,
+                "nuvos_fair_value": nuvos_fair_value,
                 "margin_of_safety_pct": margin_of_safety,
                 "sensitivity": sensitivity,
                 "implied_growth_pct": implied_growth_pct,

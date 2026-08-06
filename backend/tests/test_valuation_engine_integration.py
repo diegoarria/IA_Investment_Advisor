@@ -216,3 +216,83 @@ class TestPeerDependentDataWiring:
         assert result["dcf"] is not None
         assert result["dcf"]["margin_of_safety_pct"] is not None
         assert result["dcf"]["industry_benchmarks"] is None
+
+
+class TestNuvosFairValueWiring:
+    """Nuvos AI Fair Value Engine redesign, Incremento 6 — see
+    /Users/diegoarria/.claude/plans/stateful-painting-flurry.md. Shadow
+    mode: computed alongside driver_based_scenarios, never replacing the
+    primary valuation until the flip (Incremento 11)."""
+
+    def test_profitable_tech_company_gets_three_named_scenarios(self):
+        patches = _patch_boundary(sector="Technology")
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
+            result = get_fundamental_analysis("SYN7")
+
+        assert result is not None
+        nuvos = result["dcf"]["nuvos_fair_value"]
+        assert nuvos is not None
+        assert set(nuvos["scenarios"].keys()) == {"bear", "base", "bull"}
+        assert nuvos["exit_metric"] in ("ev_sales", "ev_ebit", "ev_fcf")
+        assert nuvos["exit_multiple_anchor_source"] in ("own_historical", "peer_median", "sector_table_fallback")
+
+    def test_fair_value_increases_bear_to_base_to_bull(self):
+        patches = _patch_boundary(sector="Technology")
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
+            result = get_fundamental_analysis("SYN8")
+
+        scenarios = result["dcf"]["nuvos_fair_value"]["scenarios"]
+        bear = scenarios["bear"]["fair_value_per_share"]
+        base = scenarios["base"]["fair_value_per_share"]
+        bull = scenarios["bull"]["fair_value_per_share"]
+        assert bear is not None and base is not None and bull is not None
+        assert bear < base < bull
+
+    def test_each_scenario_has_real_assumptions(self):
+        patches = _patch_boundary(sector="Technology")
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
+            result = get_fundamental_analysis("SYN9")
+
+        for name, scenario in result["dcf"]["nuvos_fair_value"]["scenarios"].items():
+            assumptions = scenario["assumptions"]
+            assert len(assumptions) >= 5
+            assert assumptions["terminal_value_method"] == "exit_multiple"
+            assert assumptions["exit_metric"] is not None
+
+    def test_growth_margin_roic_factors_are_explainable(self):
+        patches = _patch_boundary(sector="Technology")
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
+            result = get_fundamental_analysis("SYN10")
+
+        nuvos = result["dcf"]["nuvos_fair_value"]
+        for key in ("growth_factors", "operating_margin_factors", "terminal_roic_factors"):
+            factors = nuvos[key]
+            assert len(factors) == 4
+            for f in factors:
+                assert f["reason"]
+
+    def test_price_implied_scenario_is_one_of_the_three(self):
+        patches = _patch_boundary(sector="Technology")
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
+            result = get_fundamental_analysis("SYN11")
+
+        implied = result["dcf"]["nuvos_fair_value"]["price_implied_scenario"]
+        assert implied in ("bear", "base", "bull")
+
+    def test_financial_sector_never_computes_nuvos_fair_value(self):
+        # nuvos_fair_value lives inside the same standard-FCF-DCF branch as
+        # driver_based_scenarios — financial-sector companies (Justified
+        # P-B methodology) never reach it, by construction (decision #5).
+        patches = _patch_boundary(sector="Banks - Regional")
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
+            result = get_fundamental_analysis("SYN12")
+
+        assert result["dcf"] is not None
+        assert "nuvos_fair_value" not in result["dcf"]
+
+    def test_reit_sector_never_computes_nuvos_fair_value(self):
+        patches = _patch_boundary(sector="REIT - Retail")
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
+            result = get_fundamental_analysis("SYN13")
+
+        assert result["dcf"] is None

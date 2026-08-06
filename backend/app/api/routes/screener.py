@@ -1044,6 +1044,9 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "driver_based_scenarios": dcf.get("driver_based_scenarios"),
         "driver_based_sensitivity_matrix": dcf.get("driver_based_sensitivity_matrix"),
         "driver_based_value_drivers": dcf.get("driver_based_value_drivers"),
+        # Nuvos AI Fair Value Engine redesign, Incremento 6 — Bear/Base/Bull,
+        # shadow mode (never the number shown until the flip, Incremento 11).
+        "nuvos_fair_value": dcf.get("nuvos_fair_value"),
         "growth_engine": dcf.get("growth_engine"),
         "monte_carlo": dcf.get("monte_carlo"),
         "sector_model_note": data.get("sector_model_note"),
