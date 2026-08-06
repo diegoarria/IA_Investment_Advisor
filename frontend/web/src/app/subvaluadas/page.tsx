@@ -898,10 +898,10 @@ function SubvaluadasPageInner() {
                     intrinsicValue={data.expected_value_per_share ?? data.intrinsic_value_base}
                     fairValueRange={data.fair_value_range}
                     marginOfSafetyPct={data.margin_of_safety_pct}
-                    qualityScore={nifData?.pillars.business_quality.score ?? null}
-                    qualityNuvosEstimate={nifData?.pillars.business_quality.nuvos_estimate ?? null}
-                    convictionScore={nifData?.conviction.score ?? null}
-                    convictionFactors={nifData?.conviction.factors ?? null}
+                    qualityScore={nifData?.pillars?.business_quality?.score ?? null}
+                    qualityNuvosEstimate={nifData?.pillars?.business_quality?.nuvos_estimate ?? null}
+                    convictionScore={nifData?.conviction?.score ?? null}
+                    convictionFactors={nifData?.conviction?.factors ?? null}
                     confidenceMeter={data.confidence_meter}
                     thesisDraft={thesisDraft}
                     thesisLoading={isPremium && thesisLoading}
@@ -931,37 +931,49 @@ function SubvaluadasPageInner() {
                           {isPremium && isSectionVisible(detailLevel, "moat_score") && (
                             nifLoading ? (
                               <NifDashboardSkeleton />
-                            ) : nifData && !nifError ? (
+                            ) : nifData && !nifError ? (() => {
+                              // Hotfix: nif_dashboard is cached for up to 90 days
+                              // (screener.py's _NIF_DASHBOARD_CACHE_TTL) — a payload
+                              // cached before some field existed, or any other real-
+                              // world schema drift, can legitimately arrive missing a
+                              // key the type used to (wrongly) declare as required.
+                              // Every nested read below is defensive because of that,
+                              // not because these are ever intentionally omitted.
+                              const bq = nifData.pillars?.business_quality ?? null;
+                              const fs = nifData.pillars?.financial_strength ?? null;
+                              const mq = nifData.pillars?.management_quality ?? null;
+                              const val = nifData.pillars?.valuation ?? null;
+                              return (
                               <div className="mb-8">
                                 <NifOverallScoreBanner overall={nifData.overall_nif_score} />
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                   <NifPillarCard
                                     titleKey="business_quality"
-                                    score={nifData.pillars.business_quality.score}
-                                    dataRows={buildNifRows("business_quality_data", nifData.pillars.business_quality.data, isFinancialSector, t)}
-                                    estimateRows={buildNifRows("business_quality_estimate", nifData.pillars.business_quality.nuvos_estimate, isFinancialSector, t)}
-                                    explanation={nifData.pillars.business_quality.explanation}
+                                    score={bq?.score ?? null}
+                                    dataRows={buildNifRows("business_quality_data", bq?.data ?? {}, isFinancialSector, t)}
+                                    estimateRows={buildNifRows("business_quality_estimate", bq?.nuvos_estimate ?? {}, isFinancialSector, t)}
+                                    explanation={bq?.explanation ?? null}
                                   />
                                   <NifPillarCard
                                     titleKey="financial_strength"
-                                    score={nifData.pillars.financial_strength.score}
-                                    dataRows={buildNifRows("financial_strength_data", nifData.pillars.financial_strength.data, isFinancialSector, t)}
-                                    estimateRows={buildNifRows("financial_strength_estimate", nifData.pillars.financial_strength.nuvos_estimate, isFinancialSector, t)}
-                                    explanation={nifData.pillars.financial_strength.explanation}
+                                    score={fs?.score ?? null}
+                                    dataRows={buildNifRows("financial_strength_data", fs?.data ?? {}, isFinancialSector, t)}
+                                    estimateRows={buildNifRows("financial_strength_estimate", fs?.nuvos_estimate ?? {}, isFinancialSector, t)}
+                                    explanation={fs?.explanation ?? null}
                                   />
                                   <NifPillarCard
                                     titleKey="management_quality"
-                                    score={nifData.pillars.management_quality.score}
-                                    dataRows={buildNifRows("management_quality_data", nifData.pillars.management_quality.data, isFinancialSector, t)}
-                                    estimateRows={buildNifRows("management_quality_estimate", nifData.pillars.management_quality.nuvos_estimate, isFinancialSector, t)}
-                                    explanation={nifData.pillars.management_quality.explanation}
+                                    score={mq?.score ?? null}
+                                    dataRows={buildNifRows("management_quality_data", mq?.data ?? {}, isFinancialSector, t)}
+                                    estimateRows={buildNifRows("management_quality_estimate", mq?.nuvos_estimate ?? {}, isFinancialSector, t)}
+                                    explanation={mq?.explanation ?? null}
                                   />
                                   <NifPillarCard
                                     titleKey="valuation"
-                                    score={nifData.pillars.valuation.score}
-                                    dataRows={buildNifRows("valuation_data", nifData.pillars.valuation.data, isFinancialSector, t)}
-                                    estimateRows={buildNifRows("valuation_estimate", nifData.pillars.valuation.nuvos_estimate, isFinancialSector, t)}
-                                    explanation={nifData.pillars.valuation.explanation}
+                                    score={val?.score ?? null}
+                                    dataRows={buildNifRows("valuation_data", val?.data ?? {}, isFinancialSector, t)}
+                                    estimateRows={buildNifRows("valuation_estimate", val?.nuvos_estimate ?? {}, isFinancialSector, t)}
+                                    explanation={val?.explanation ?? null}
                                   />
                                 </div>
 
@@ -973,17 +985,17 @@ function SubvaluadasPageInner() {
                                   <NifScoreEngineCard
                                     titleKey="moat"
                                     icon={<Shield className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
-                                    score={nifData.moat.score}
-                                    factors={nifData.moat.factors}
-                                    footer={nifData.moat.deep_dive ? <NifMoatDeepDiveBlock deepDive={nifData.moat.deep_dive} /> : null}
+                                    score={nifData.moat?.score ?? null}
+                                    factors={nifData.moat?.factors ?? []}
+                                    footer={nifData.moat?.deep_dive ? <NifMoatDeepDiveBlock deepDive={nifData.moat.deep_dive} /> : null}
                                   />
                                   <NifScoreEngineCard
                                     titleKey="conviction"
                                     icon={<Target className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
-                                    score={nifData.conviction.score}
-                                    factors={nifData.conviction.factors}
+                                    score={nifData.conviction?.score ?? null}
+                                    factors={nifData.conviction?.factors ?? []}
                                   />
-                                  <NifManagementDeepDiveCard deepDive={nifData.pillars.management_quality.deep_dive} />
+                                  <NifManagementDeepDiveCard deepDive={mq?.deep_dive} />
                                   <NifCatalystsCard data={nifData.catalysts} />
                                   <NifDeteriorationCard data={nifData.deterioration} />
                                 </div>
@@ -994,15 +1006,16 @@ function SubvaluadasPageInner() {
                                 <PeerComparisonChart
                                   ticker={data.ticker}
                                   companyMetrics={{
-                                    quality_score: nifData.pillars.business_quality.score,
-                                    roic_pct: numOrNull((nifData.pillars.business_quality.data as Record<string, unknown>)?.roic_pct),
-                                    operating_margin_pct: numOrNull((nifData.pillars.business_quality.data as Record<string, unknown>)?.operating_margin_pct),
-                                    revenue_cagr_pct: numOrNull((nifData.pillars.business_quality.data as Record<string, unknown>)?.revenue_cagr_pct),
+                                    quality_score: bq?.score ?? null,
+                                    roic_pct: numOrNull((bq?.data as Record<string, unknown>)?.roic_pct),
+                                    operating_margin_pct: numOrNull((bq?.data as Record<string, unknown>)?.operating_margin_pct),
+                                    revenue_cagr_pct: numOrNull((bq?.data as Record<string, unknown>)?.revenue_cagr_pct),
                                   }}
                                   peerComparison={nifData.peer_comparison}
                                 />
                               </div>
-                            ) : null
+                              );
+                            })() : null
                           )}
                         </div>
                       );

@@ -712,17 +712,24 @@ export interface NifDashboardData {
   price: number | null;
   change_pct: number | null;
   overall_nif_score: NifOverallScore | null;
-  moat: NifMoatData;
-  conviction: NifConvictionData;
+  // Structurally always present in a freshly-computed response
+  // (nif_service.py builds every key unconditionally) — but this endpoint
+  // is cached for up to 90 days (screener.py's _NIF_DASHBOARD_CACHE_TTL),
+  // so a payload cached before this contract existed, or any other
+  // real-world schema drift, can still legitimately arrive missing a key.
+  // Typed optional so every consumer is forced to handle that, rather than
+  // trusting a shape the cache doesn't actually guarantee.
+  moat?: NifMoatData | null;
+  conviction?: NifConvictionData | null;
   catalysts: NifCatalystsData | null;
   peer_comparison: NifPeerComparisonData | null;
-  deterioration: NifDeteriorationData;
-  pillars: {
-    business_quality: NifPillarData;
-    financial_strength: NifPillarData;
-    management_quality: NifPillarData;
-    valuation: NifPillarData;
-  };
+  deterioration?: NifDeteriorationData | null;
+  pillars?: {
+    business_quality?: NifPillarData | null;
+    financial_strength?: NifPillarData | null;
+    management_quality?: NifPillarData | null;
+    valuation?: NifPillarData | null;
+  } | null;
 }
 
 /** A single prepared row for the "Dato real" / "Estimación Nuvos" sections —
@@ -1059,9 +1066,10 @@ export function NifPeerComparisonCard({ data }: { data: NifPeerComparisonData | 
 
 /** Fase 2, Incremento 10 — Deterioration Engine: mechanical trend
  * direction per metric, complements Moat's non-directional stability. */
-export function NifDeteriorationCard({ data }: { data: NifDeteriorationData }) {
+export function NifDeteriorationCard({ data }: { data: NifDeteriorationData | null | undefined }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
+  if (!data) return null;
   return (
     <div className="rounded-2xl border" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
       <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center justify-between gap-2 p-3.5">
