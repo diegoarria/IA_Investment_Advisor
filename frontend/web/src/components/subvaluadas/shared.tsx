@@ -44,6 +44,18 @@ export interface MarketExpectationsData {
   market_implied_fcf_margin_pct: number | null;
   nuvos_growth_estimate_pct: number;
   nuvos_fcf_margin_estimate_pct: number;
+  // Fase 1.5, Incremento 12/13 (Reverse DCF 2.0) — 3 more implied variables
+  // solved the same way (hold everything else fixed at Nuvos's real
+  // estimate, back out this one). market_implied_fcf_year_1 is NOT a 4th
+  // solve — it's derived from market_implied_fcf_margin_pct's own already-
+  // solved figures, since FCF isn't an independent lever in this model.
+  market_implied_operating_margin_pct: number | null;
+  market_implied_terminal_roic_pct: number | null;
+  market_implied_base_revenue: number | null;
+  market_implied_fcf_year_1: number | null;
+  nuvos_operating_margin_estimate_pct: number | null;
+  nuvos_terminal_roic_estimate_pct: number | null;
+  nuvos_base_revenue_estimate: number | null;
 }
 
 export interface ConsensusValuationData {
@@ -323,26 +335,50 @@ export function FairValueRangeDisplay({ range, consensus }: { range: FairValueRa
   );
 }
 
+function _fmtCompactMoney(v: number | null): string {
+  if (v === null || !isFinite(v)) return "N/D";
+  const abs = Math.abs(v);
+  if (abs >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
+  return `$${v.toFixed(0)}`;
+}
+
+/** One implied-vs-Nuvos row — skipped entirely when the market side
+ * couldn't be solved (a wide/absurd price can put the implied value
+ * outside the reverse-DCF solver's sane search range, see
+ * reverse_dcf_engine.py), since showing only Nuvos's half would misleadingly
+ * imply agreement. */
+function _marketExpectationsRow(label: string, marketVal: number | null, nuvosVal: number | null, fmt: (v: number) => string) {
+  if (marketVal === null) return null;
+  return (
+    <div key={label} className="grid grid-cols-3 gap-2 items-baseline py-1">
+      <p className="text-[10px]" style={{ color: "var(--sub)" }}>{label}</p>
+      <p className="text-[11.5px] font-bold tabular-nums text-right" style={{ color: "var(--text)" }}>{fmt(marketVal)}</p>
+      <p className="text-[11.5px] font-bold tabular-nums text-right" style={{ color: "var(--accent-l)" }}>{nuvosVal !== null ? fmt(nuvosVal) : "N/D"}</p>
+    </div>
+  );
+}
+
 export function MarketExpectationsPanel({ data }: { data: MarketExpectationsData }) {
   const { t } = useTranslation();
   if (data.market_implied_growth_pct === null) return null;
+  const pct = (v: number) => `${v}%`;
   return (
     <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
-      <p className="text-[11px] font-bold mb-2" style={{ color: "var(--text)" }}>{t("subvaluadas.marketExpectations.label")}</p>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <p className="text-[9px] uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>{t("subvaluadas.marketExpectations.marketAssumes")}</p>
-          <p className="text-[11px] font-bold tabular-nums" style={{ color: "var(--text)" }}>{t("subvaluadas.marketExpectations.growth")}: {data.market_implied_growth_pct}%</p>
-          {data.market_implied_fcf_margin_pct !== null && (
-            <p className="text-[11px] font-bold tabular-nums" style={{ color: "var(--text)" }}>{t("subvaluadas.marketExpectations.margin")}: {data.market_implied_fcf_margin_pct}%</p>
-          )}
-        </div>
-        <div>
-          <p className="text-[9px] uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>{t("subvaluadas.marketExpectations.nuvosBelieves")}</p>
-          <p className="text-[11px] font-bold tabular-nums" style={{ color: "var(--accent-l)" }}>{t("subvaluadas.marketExpectations.growth")}: {data.nuvos_growth_estimate_pct}%</p>
-          <p className="text-[11px] font-bold tabular-nums" style={{ color: "var(--accent-l)" }}>{t("subvaluadas.marketExpectations.margin")}: {data.nuvos_fcf_margin_estimate_pct}%</p>
-        </div>
+      <p className="text-[11px] font-bold mb-1" style={{ color: "var(--text)" }}>{t("subvaluadas.marketExpectations.label")}</p>
+      <div className="grid grid-cols-3 gap-2 pb-1 mb-1 border-b" style={{ borderColor: "var(--border)" }}>
+        <span />
+        <p className="text-[9px] uppercase tracking-wide text-right" style={{ color: "var(--muted)" }}>{t("subvaluadas.marketExpectations.marketAssumes")}</p>
+        <p className="text-[9px] uppercase tracking-wide text-right" style={{ color: "var(--muted)" }}>{t("subvaluadas.marketExpectations.nuvosBelieves")}</p>
       </div>
+      {_marketExpectationsRow(t("subvaluadas.marketExpectations.growth"), data.market_implied_growth_pct, data.nuvos_growth_estimate_pct, pct)}
+      {_marketExpectationsRow(t("subvaluadas.marketExpectations.margin"), data.market_implied_fcf_margin_pct, data.nuvos_fcf_margin_estimate_pct, pct)}
+      {/* Fase 1.5, Incremento 13 — Reverse DCF 2.0's 3 new implied
+          variables plus the derived implied FCF. */}
+      {_marketExpectationsRow(t("subvaluadas.marketExpectations.operatingMargin"), data.market_implied_operating_margin_pct, data.nuvos_operating_margin_estimate_pct, pct)}
+      {_marketExpectationsRow(t("subvaluadas.marketExpectations.terminalRoic"), data.market_implied_terminal_roic_pct, data.nuvos_terminal_roic_estimate_pct, pct)}
+      {_marketExpectationsRow(t("subvaluadas.marketExpectations.baseRevenue"), data.market_implied_base_revenue, data.nuvos_base_revenue_estimate, _fmtCompactMoney)}
+      {_marketExpectationsRow(t("subvaluadas.marketExpectations.fcfYear1"), data.market_implied_fcf_year_1, null, _fmtCompactMoney)}
     </div>
   );
 }

@@ -810,7 +810,11 @@
       "marketAssumes": "Market assumes",
       "nuvosBelieves": "Nuvos believes",
       "growth": "Growth",
-      "margin": "FCF margin"
+      "margin": "FCF margin",
+      "operatingMargin": "Operating margin",
+      "terminalRoic": "Terminal ROIC",
+      "baseRevenue": "Base revenue",
+      "fcfYear1": "FCF (year 1)"
     },
     "scenarios": {
       "label": "Scenarios and probabilities",

@@ -810,7 +810,11 @@
       "marketAssumes": "El mercado asume",
       "nuvosBelieves": "Nuvos cree",
       "growth": "Crecimiento",
-      "margin": "Margen FCF"
+      "margin": "Margen FCF",
+      "operatingMargin": "Margen operativo",
+      "terminalRoic": "ROIC terminal",
+      "baseRevenue": "Ingresos base",
+      "fcfYear1": "FCF (año 1)"
     },
     "scenarios": {
       "label": "Escenarios y probabilidades",
