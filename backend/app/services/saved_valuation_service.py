@@ -25,19 +25,30 @@ def compute_iv(
     fcf0_millions: float, growth_pct: float, discount_rate_pct: float, terminal_growth_pct: float,
     net_cash_millions: float, shares_millions: float,
 ) -> Optional[float]:
-    """Same constant-growth two-stage DCF the frontend's dcfCalculator.ts
-    uses (not fundamental_analysis_service's own fading-growth _run_dcf) —
-    this must reproduce exactly what the user saw and agreed to when they
-    moved the sliders, not Nuvos's own auto-computed model."""
-    from app.services.fundamental_analysis_service import _run_dcf_constant_growth
+    """Same fading-growth two-stage DCF the frontend's dcfCalculator.ts
+    uses (Fase 1.5, Incremento 16 — see /Users/diegoarria/.claude/plans/
+    stateful-painting-flurry.md) — this must reproduce exactly what the
+    user saw and agreed to when they moved the sliders. Previously used
+    `_run_dcf_constant_growth` (flat growth for all years, then a discrete
+    jump to terminal growth); migrated to `_run_dcf` (growth fading
+    linearly from `growth_pct` to `terminal_growth_pct` across the
+    projection, `legacy_dcf_core.py`'s own namesake two-stage model) only
+    now that the frontend calculator shows that same fade too (Incremento
+    15) — migrating earlier would have broken the "this is what you saw
+    when you saved" guarantee this module exists for.
+
+    `_run_dcf` has no `years` parameter (always `legacy_dcf_core._PROJECTION_
+    YEARS`, currently 10, same value as `_DCF_YEARS` below) — both must
+    stay in sync for this docstring's guarantee to hold."""
+    from app.services.fundamental_analysis_service import _run_dcf
 
     g, r, gt = growth_pct / 100, discount_rate_pct / 100, terminal_growth_pct / 100
     if not shares_millions or shares_millions <= 0:
         return None
-    if r == g or r == gt:
+    if r == gt:
         return None
     try:
-        result = _run_dcf_constant_growth(fcf0_millions, g, r, gt, years=_DCF_YEARS)
+        result = _run_dcf(fcf0_millions, g, r, gt)
     except ZeroDivisionError:
         return None
     equity = result["enterprise_value"] + net_cash_millions
@@ -91,11 +102,7 @@ def _with_live_valuation(row: dict, inputs: Optional[dict]) -> dict:
             # Fase 1.5, Incremento 14 (dedup) — was the lone site dividing
             # by price instead of intrinsic value; see numeric_helpers.py::
             # calc_margin_of_safety's docstring for why /intrinsic is the
-            # convention everywhere now. This only changes how the SAVED
-            # assumptions' resulting cushion is displayed, not compute_iv()
-            # itself (the fade formula those assumptions still reproduce is
-            # untouched here — that migration is Incremento 16, after the
-            # frontend's own fade is fixed).
+            # convention everywhere now.
             margin_of_safety_pct = calc_margin_of_safety(live_iv, live_price)
     return {
         **row,
@@ -236,9 +243,9 @@ async def run_milestone_check() -> None:
                 inputs["current_fcf"] / 1e6, row["growth_pct"], row["discount_rate_pct"], row["terminal_growth_pct"],
                 inputs["net_cash"] / 1e6, inputs["shares_outstanding"] / 1e6,
             )
-            if iv is None or not inputs["price"]:
+            margin_pct = calc_margin_of_safety(iv, inputs["price"]) if iv is not None else None
+            if margin_pct is None:
                 continue
-            margin_pct = (iv - inputs["price"]) / inputs["price"] * 100
             crossed = _newly_crossed_milestones(margin_pct, row.get("notified_milestones") or [])
             if not crossed:
                 continue
