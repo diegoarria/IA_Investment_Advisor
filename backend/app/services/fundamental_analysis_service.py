@@ -1464,6 +1464,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
             # valuation, hence the broad guard.
             driver_based_scenarios = None
             driver_based_sensitivity_matrix = None
+            driver_based_value_drivers = None
             if (
                 operating_margin_anchor is not None and reinvestment_rate_anchor is not None
                 and avg_roic is not None and avg_roic > 0
@@ -1531,10 +1532,86 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                             for r in db_wacc_rows
                         ],
                     }
+
+                    # ── Value drivers ("why $X and not $Y") — Fase 1.5,
+                    # Incremento 5. Same four real counterfactual DCFs as the
+                    # legacy value_drivers above, each changing ONE
+                    # assumption at a time and holding everything else at
+                    # the base scenario's real values — but every run is now
+                    # project_driver_based_dcf, and the shape adaptation the
+                    # plan flagged: the legacy version reads
+                    # dcf_result["fcf_path"] (a plain list); the driver-based
+                    # result exposes `yearly: list[YearlyDriverRow]`
+                    # instead, so "the base value" here is
+                    # driver_based_scenarios["base"] rather than a
+                    # re-derived local, and every counterfactual reads
+                    # `.value_per_share` directly instead of manually adding
+                    # back debt/cash (project_driver_based_dcf already does
+                    # that internally when given net_cash + shares_out).
+                    db_base_value = driver_based_scenarios["base"]["intrinsic_value_per_share"]
+
+                    g1_no_moat = min(base_historical_growth, 0.25)
+                    no_moat_result = project_driver_based_dcf(
+                        revenue_0=latest_rev, revenue_growth_1=g1_no_moat, terminal_growth=terminal_growth,
+                        operating_margin_anchor_pct=operating_margin_anchor, terminal_operating_margin_pct=operating_margin_anchor,
+                        tax_rate=tax_rate, reinvestment_rate_anchor_pct=reinvestment_rate_anchor,
+                        terminal_roic_pct=avg_roic / 100, discount_rate=base_discount_rate,
+                        net_cash=net_cash, shares_out=projected_shares, high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
+                    )
+                    db_moat_impact = round(db_base_value - no_moat_result.value_per_share, 2)
+
+                    # Buyback impact: today's STATIC share count instead of
+                    # the buyback-projected average — same real counterfactual
+                    # question as the legacy driver, same base growth/margin/
+                    # reinvestment/WACC otherwise.
+                    no_buyback_result = project_driver_based_dcf(
+                        revenue_0=latest_rev, revenue_growth_1=base_g1_rev, terminal_growth=terminal_growth,
+                        operating_margin_anchor_pct=operating_margin_anchor, terminal_operating_margin_pct=operating_margin_anchor,
+                        tax_rate=tax_rate, reinvestment_rate_anchor_pct=reinvestment_rate_anchor,
+                        terminal_roic_pct=avg_roic / 100, discount_rate=base_discount_rate,
+                        net_cash=net_cash, shares_out=shares_out, high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
+                    )
+                    db_buyback_impact = round(db_base_value - no_buyback_result.value_per_share, 2)
+
+                    lower_wacc_result = project_driver_based_dcf(
+                        revenue_0=latest_rev, revenue_growth_1=base_g1_rev, terminal_growth=terminal_growth,
+                        operating_margin_anchor_pct=operating_margin_anchor, terminal_operating_margin_pct=operating_margin_anchor,
+                        tax_rate=tax_rate, reinvestment_rate_anchor_pct=reinvestment_rate_anchor,
+                        terminal_roic_pct=avg_roic / 100, discount_rate=max(base_discount_rate - 0.01, 0.01),
+                        net_cash=net_cash, shares_out=projected_shares, high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
+                    )
+                    db_wacc_impact_per_1pp = round(lower_wacc_result.value_per_share - db_base_value, 2)
+
+                    # Margin-normalization impact: the analog of the legacy
+                    # driver's "raw last-year FCF vs. recency-weighted
+                    # normalized FCF" is "raw last-year operating margin vs.
+                    # the recency-weighted operating_margin_anchor" — same
+                    # question (what does normalizing actually buy you),
+                    # same lever this model actually has.
+                    latest_om_raw = next((v for v in reversed(operating_margin_trend) if v is not None), None)
+                    if latest_om_raw is not None:
+                        raw_margin_result = project_driver_based_dcf(
+                            revenue_0=latest_rev, revenue_growth_1=base_g1_rev, terminal_growth=terminal_growth,
+                            operating_margin_anchor_pct=latest_om_raw / 100, terminal_operating_margin_pct=latest_om_raw / 100,
+                            tax_rate=tax_rate, reinvestment_rate_anchor_pct=reinvestment_rate_anchor,
+                            terminal_roic_pct=avg_roic / 100, discount_rate=base_discount_rate,
+                            net_cash=net_cash, shares_out=projected_shares, high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
+                        )
+                        db_margin_normalization_impact = round(db_base_value - raw_margin_result.value_per_share, 2)
+                    else:
+                        db_margin_normalization_impact = None
+
+                    driver_based_value_drivers = {
+                        "moat_impact_per_share": db_moat_impact,
+                        "buyback_impact_per_share": db_buyback_impact,
+                        "wacc_impact_per_1pp_lower_per_share": db_wacc_impact_per_1pp,
+                        "margin_normalization_impact_per_share": db_margin_normalization_impact,
+                    }
                 except (UnstableGordonGrowthError, ValueError) as e:
                     logger.info("get_fundamental_analysis(%s): driver-based scenarios not computable: %s", ticker, e)
                     driver_based_scenarios = None
                     driver_based_sensitivity_matrix = None
+                    driver_based_value_drivers = None
 
             # ── Monte Carlo simulation — Fase 1, Incremento 3 (Parte B).
             # Reuses the exact same driver-based engine as
@@ -1659,6 +1736,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                 "driver_based_valuation": driver_based_valuation,
                 "driver_based_scenarios": driver_based_scenarios,
                 "driver_based_sensitivity_matrix": driver_based_sensitivity_matrix,
+                "driver_based_value_drivers": driver_based_value_drivers,
                 "monte_carlo": monte_carlo,
             }
 
