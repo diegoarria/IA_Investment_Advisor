@@ -35,7 +35,7 @@ import { isSectionVisible } from "@/lib/detailLevel";
 import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
 import { screenerApi, savedValuationsApi, watchlist, explain as explainApi, researchEngineApi } from "@/lib/api";
 import { useSubscriptionStore, useThemeStore, useDetailLevelStore, usePersonalizationStore } from "@/lib/store";
-import { selectDefaultDiscountRatePct, resolveDashboardSectionOrder } from "@/lib/personalization";
+import { selectDefaultDiscountRatePct, resolveDashboardSectionOrder, DEFAULT_DASHBOARD_SECTION_ORDER } from "@/lib/personalization";
 
 // Fase 4, Incremento 13 (Cierre, Parte M) — every panel below is already
 // gated by isPremium/isSectionVisible (never rendered on initial load for
@@ -664,6 +664,22 @@ function SubvaluadasPageInner() {
   const { detailLevel, setDetailLevel } = useDetailLevelStore();
   const { requiredReturnPct, preferredDiscountRateMethod, minMarginOfSafetyPct, dashboardSectionOrder } = usePersonalizationStore();
 
+  // Hotfix (post-Incremento 12): /subvaluadas is statically prerendered, so
+  // the server always renders the DEFAULT section order (no localStorage on
+  // the server). zustand's persist middleware rehydrates synchronously from
+  // localStorage on the client BEFORE the first paint, so a user with a
+  // saved custom order got a different array order client-side than what
+  // the server sent — React can tolerate a hydration diff in most
+  // attributes, but reordering keyed siblings crashes hydration outright
+  // (Uncaught Error: Minified React error #418, cascading into a second
+  // TypeError). Force the default order until after mount, then swap to
+  // the real persisted order — same fix shape as any SSR-page + localStorage
+  // state combination, applied narrowly here since only this value affects
+  // sibling ORDER (not just visibility/style, which hydrate safely).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const effectiveSectionOrder = mounted ? dashboardSectionOrder : DEFAULT_DASHBOARD_SECTION_ORDER;
+
   const handleSearch = () => {
     if (!query.trim()) return;
     setWatchlisted(false);
@@ -898,7 +914,7 @@ function SubvaluadasPageInner() {
                        order unchanged from Incrementos 5/6/8. Each block keeps its own
                        gating condition exactly as before — reordering never changes
                        WHETHER something shows, only the sequence. ===== */}
-                  {resolveDashboardSectionOrder(dashboardSectionOrder).map((sectionKey) => {
+                  {resolveDashboardSectionOrder(effectiveSectionOrder).map((sectionKey) => {
                     if (sectionKey === "checklist") {
                       return isPremium ? (
                         <InvestmentChecklistPanel
