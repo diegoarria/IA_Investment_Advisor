@@ -289,6 +289,83 @@ FCF_DCF_SCENARIOS = {
     "optimistic":  {"growth_multiplier": 1.3, "discount_rate_delta_pct": -1.0, "revenue_growth_cap_pct": 40.0, "fcf_growth_cap_pct": 35.0},
 }
 
+# Nuvos AI Fair Value Engine redesign, Incremento 5 — Bear/Base/Bull for the
+# NEW engine (nuvos_fair_value, wired in Incremento 6). Deliberately
+# separate from FCF_DCF_SCENARIOS above, not a replacement of it yet — the
+# legacy `scenarios` block keeps using FCF_DCF_SCENARIOS unchanged until
+# Incremento 12's teardown (never break the screen mid-migration).
+#
+# Structurally different from FCF_DCF_SCENARIOS in the 2 ways the audit
+# flagged as the actual mechanism of the "same treatment for an exceptional
+# business and an average one" bias Diego wants gone:
+#
+# 1. `growth_delta_pp` is a DELTA in percentage points applied on top of the
+#    Assumptions Engine's real blended growth (Incremento 4), not a flat
+#    multiplier (FCF_DCF_SCENARIOS' 0.5x/1.0x/1.3x) — a multiplier punishes
+#    a low-growth business less in absolute terms than a high-growth one
+#    for the identical "how much worse could this go" judgment.
+# 2. There is no static `revenue_growth_cap_pct` here — see
+#    `bear_base_bull_growth_cap_pct` below, which scales the ceiling with
+#    the business's own real quality signal instead of applying the same
+#    flat cap (15/25/40, FCF_DCF_SCENARIOS) to every company regardless of
+#    whether it's an exceptional compounder or an average business.
+#
+# `operating_margin_start_delta_pp`/`operating_margin_terminal_delta_pp` are
+# genuinely separate (unlike every current production call site, which
+# passes the SAME margin value to both `operating_margin_anchor_pct` and
+# `terminal_operating_margin_pct` — dcf_engine.py has always supported an
+# evolving margin, nothing in the orchestrator ever used it until now).
+#
+# `exit_multiple_delta_fraction` scales the multiple exit_multiple_engine.py
+# derives (Incremento 1) — bear contracts it, bull expands it, same
+# direction as the growth/margin deltas so all three levers agree on which
+# story each scenario is telling.
+BEAR_BASE_BULL = {
+    "bear": {
+        "growth_delta_pp": -4.0,
+        "discount_rate_delta_pct": 1.5,
+        "operating_margin_start_delta_pp": -2.0,
+        "operating_margin_terminal_delta_pp": -3.0,
+        "exit_multiple_delta_fraction": -0.15,
+        "high_growth_years": 1,
+    },
+    "base": {
+        "growth_delta_pp": 0.0,
+        "discount_rate_delta_pct": 0.0,
+        "operating_margin_start_delta_pp": 0.0,
+        "operating_margin_terminal_delta_pp": 0.0,
+        "exit_multiple_delta_fraction": 0.0,
+        "high_growth_years": 2,
+    },
+    "bull": {
+        "growth_delta_pp": 4.0,
+        "discount_rate_delta_pct": -1.0,
+        "operating_margin_start_delta_pp": 1.5,
+        "operating_margin_terminal_delta_pp": 2.5,
+        "exit_multiple_delta_fraction": 0.15,
+        "high_growth_years": 3,
+    },
+}
+
+
+def bear_base_bull_growth_cap_pct(business_quality_score: Optional[float], scenario: str) -> float:
+    """Growth ceiling that SCALES with the business's own real quality
+    signal (0-100 Business Quality score, same one thesis_scores already
+    computes) instead of the flat 15/25/40 cap FCF_DCF_SCENARIOS applies to
+    every company alike — an exceptional compounder (high, stable ROIC, a
+    durable moat) genuinely can sustain faster growth for longer than an
+    average business, and a cap that can't reflect that is, mechanically,
+    the "same treatment for the exceptional and the average business" bias
+    the audit flagged (docs/FAIR_VALUE_ENGINE_REDESIGN_AUDIT.md, section
+    1.12). `business_quality_score=None` (data gap, not a real 50) falls
+    back to the neutral midpoint so an unscored company still gets a real,
+    sane cap rather than an exception."""
+    quality = business_quality_score if business_quality_score is not None else 50.0
+    base_cap = {"bear": 12.0, "base": 20.0, "bull": 30.0}[scenario]
+    quality_swing_pp = (quality - 50.0) / 50.0 * 10.0  # +-10pp across the full 0-100 range
+    return max(base_cap + quality_swing_pp, 5.0)
+
+
 # Excess Return / Justified P-B (banks, insurers, brokers) — cost_of_equity_
 # delta_pct shifts the discount rate; growth_multiplier scales sustainable
 # growth (ROE × retention), still bounded by the model's own growth ceiling.
