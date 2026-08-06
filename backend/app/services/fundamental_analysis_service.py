@@ -1451,6 +1451,91 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                 except (UnstableGordonGrowthError, ValueError) as e:
                     logger.info("get_fundamental_analysis(%s): driver-based DCF not computable: %s", ticker, e)
 
+            # ── Driver-based scenarios + sensitivity matrix — Fase 1.5,
+            # Incremento 4. Same shadow-mode discipline as
+            # driver_based_valuation above (computed IN ADDITION to, never
+            # replacing, the legacy scenarios/sensitivity_matrix): the exact
+            # same FCF_DCF_SCENARIOS multipliers/caps and the exact same
+            # WACC-rows x growth-cols grid, but every run is a real
+            # project_driver_based_dcf call instead of legacy _run_dcf. This
+            # is what the validation harness (Incremento 6) compares against
+            # the legacy numbers above before the production flip
+            # (Incremento 7) — a failure here must never affect the primary
+            # valuation, hence the broad guard.
+            driver_based_scenarios = None
+            driver_based_sensitivity_matrix = None
+            if (
+                operating_margin_anchor is not None and reinvestment_rate_anchor is not None
+                and avg_roic is not None and avg_roic > 0
+            ):
+                try:
+                    driver_based_scenarios = {}
+                    for name, assumptions in FCF_DCF_SCENARIOS.items():
+                        mult = assumptions["growth_multiplier"]
+                        dr = base_discount_rate + assumptions["discount_rate_delta_pct"] / 100
+                        rev_cap = assumptions["revenue_growth_cap_pct"] / 100
+                        g1_rev = min(g1_rev_raw * mult, rev_cap)
+                        scenario_result = project_driver_based_dcf(
+                            revenue_0=latest_rev,
+                            revenue_growth_1=g1_rev,
+                            terminal_growth=terminal_growth,
+                            operating_margin_anchor_pct=operating_margin_anchor,
+                            terminal_operating_margin_pct=operating_margin_anchor,
+                            tax_rate=tax_rate,
+                            reinvestment_rate_anchor_pct=reinvestment_rate_anchor,
+                            terminal_roic_pct=avg_roic / 100,
+                            discount_rate=dr,
+                            net_cash=net_cash,
+                            shares_out=projected_shares,
+                            high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
+                        )
+                        driver_based_scenarios[name] = {
+                            "revenue_growth_pct": round(g1_rev * 100, 1),
+                            "discount_rate_pct": round(dr * 100, 1),
+                            "intrinsic_value_per_share": scenario_result.value_per_share,
+                            "revenue_year1": scenario_result.yearly[0].revenue,
+                            "revenue_year10": scenario_result.yearly[-1].revenue,
+                            "fcf_year1": scenario_result.yearly[0].fcf,
+                            "fcf_year10": scenario_result.yearly[-1].fcf,
+                        }
+
+                    base_g1_rev = driver_based_scenarios["base"]["revenue_growth_pct"] / 100
+                    db_wacc_rows = [
+                        round(base_discount_rate - 0.01, 4), round(base_discount_rate, 4), round(base_discount_rate + 0.01, 4),
+                    ]
+                    db_growth_cols = [
+                        max(base_g1_rev - 0.04, 0.0), max(base_g1_rev - 0.02, 0.0),
+                        base_g1_rev, base_g1_rev + 0.02,
+                    ]
+                    driver_based_sensitivity_matrix = {
+                        "wacc_rows_pct": [round(r * 100, 1) for r in db_wacc_rows],
+                        "growth_cols_pct": [round(g * 100, 1) for g in db_growth_cols],
+                        "values": [
+                            [
+                                project_driver_based_dcf(
+                                    revenue_0=latest_rev,
+                                    revenue_growth_1=g,
+                                    terminal_growth=terminal_growth,
+                                    operating_margin_anchor_pct=operating_margin_anchor,
+                                    terminal_operating_margin_pct=operating_margin_anchor,
+                                    tax_rate=tax_rate,
+                                    reinvestment_rate_anchor_pct=reinvestment_rate_anchor,
+                                    terminal_roic_pct=avg_roic / 100,
+                                    discount_rate=r,
+                                    net_cash=net_cash,
+                                    shares_out=projected_shares,
+                                    high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
+                                ).value_per_share
+                                for g in db_growth_cols
+                            ]
+                            for r in db_wacc_rows
+                        ],
+                    }
+                except (UnstableGordonGrowthError, ValueError) as e:
+                    logger.info("get_fundamental_analysis(%s): driver-based scenarios not computable: %s", ticker, e)
+                    driver_based_scenarios = None
+                    driver_based_sensitivity_matrix = None
+
             # ── Monte Carlo simulation — Fase 1, Incremento 3 (Parte B).
             # Reuses the exact same driver-based engine as
             # driver_based_valuation above, run 2,000 times with each input
@@ -1572,6 +1657,8 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                     "fcf_per_share_cagr_pct": fcf_per_share_cagr,
                 },
                 "driver_based_valuation": driver_based_valuation,
+                "driver_based_scenarios": driver_based_scenarios,
+                "driver_based_sensitivity_matrix": driver_based_sensitivity_matrix,
                 "monte_carlo": monte_carlo,
             }
 
