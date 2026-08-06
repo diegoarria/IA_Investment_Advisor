@@ -18,13 +18,13 @@ import {
   type NifDashboardData, type NifRow, type ThesisDraftData,
   type ScenariosData, type ProbabilityWeights, type SensitivityMatrixData,
   type ReverseDcfSanityCheckData, type ExpectationsInvestingData, type FairValueEngineData,
-  type GrowthEngineData,
+  type GrowthEngineData, type NuvosFairValueData,
   GeneratedAtNote, LiquidityWarning, ChecklistDisplay,
   MarketExpectationsPanel, InsightBox, FollowButton, AnalyzeButton,
   NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
   NifScoreEngineCard, NifMoatDeepDiveBlock, NifManagementDeepDiveCard,
   NifCatalystsCard, NifDeteriorationCard,
-  ScenarioWeightingPanel, ReverseDcfPanel, GrowthEnginePreviewPanel,
+  ScenarioWeightingPanel, ReverseDcfPanel, GrowthEnginePreviewPanel, FairValueScenariosPanel,
 } from "@/components/subvaluadas/shared";
 import { ExecutiveSummaryPanel } from "@/components/subvaluadas/ExecutiveSummaryPanel";
 import dynamic from "next/dynamic";
@@ -95,6 +95,11 @@ export interface QuickAnalysisResult {
   // shared.tsx). Never the growth number the rest of this screen actually
   // uses — that stays legacy until the production flip (Incremento 7).
   growth_engine: GrowthEngineData | null;
+  // Nuvos AI Fair Value Engine redesign, Incremento 6/9 — one engine,
+  // three named scenarios (Bear/Base/Bull), shadow mode (see
+  // FairValueScenariosPanel in shared.tsx). Never the number the rest of
+  // this screen uses until the flip (Incremento 11).
+  nuvos_fair_value: NuvosFairValueData | null;
 }
 
 // Gold/teal/coral is this screen's fixed brand identity (Valor Intrínseco),
@@ -1249,6 +1254,17 @@ function SubvaluadasPageInner() {
 
                       {data.sensitivity_matrix && price !== null && (
                         <SensitivityHeatmap matrix={data.sensitivity_matrix} price={price} />
+                      )}
+
+                      {/* ===== Nuvos AI Fair Value Engine redesign, Incremento 9 —
+                           una sola máquina, tres escenarios (Bear/Base/Bull), aditivo
+                           y gateado a "avanzado" (mismo nivel que el resto del bloque
+                           DCF). Nunca reemplaza el ScenarioWeightingPanel de abajo
+                           hasta el flip (Incremento 11). ===== */}
+                      {isSectionVisible(detailLevel, "scenarios") && data.nuvos_fair_value && (
+                        <div className="mt-5">
+                          <FairValueScenariosPanel data={data.nuvos_fair_value} price={price} />
+                        </div>
                       )}
 
                       {data.scenarios && data.probability_weights && (

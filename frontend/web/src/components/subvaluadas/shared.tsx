@@ -506,6 +506,183 @@ export interface GrowthEngineData {
   factors: NifScoreFactor[];
 }
 
+// Nuvos AI Fair Value Engine redesign, Incremento 9 (ver
+// /Users/diegoarria/.claude/plans/stateful-painting-flurry.md) — una sola
+// máquina, tres escenarios (Bear/Base/Bull), reemplazo del "Conservative
+// DCF"/"Professional DCF"/Relative Valuation mostrados como métodos
+// separados (ver GrowthEnginePreviewPanel arriba y ExecutiveSummaryPanel
+// para el Consensus que este panel eventualmente reemplaza — Incremento
+// 11 en adelante). Aditivo por ahora: se muestra junto a todo lo demás,
+// nunca reemplaza el número que el resto de la pantalla usa hasta el flip.
+export interface NuvosScenarioAssumptions {
+  revenue_growth_1_pct: number;
+  high_growth_years: number;
+  terminal_growth_pct: number;
+  operating_margin_anchor_pct: number;
+  terminal_operating_margin_pct: number;
+  tax_rate_pct: number;
+  reinvestment_rate_anchor_pct: number;
+  terminal_reinvestment_rate_pct: number;
+  discount_rate_pct: number;
+  terminal_value_method: "gordon" | "exit_multiple";
+  exit_multiple: number | null;
+  exit_metric: "ev_sales" | "ev_ebit" | "ev_fcf" | null;
+  gordon_terminal_value: number | null;
+  gordon_sanity_check_ratio: number | null;
+  implied_fcf_margin_pct_year_n: number | null;
+}
+
+export interface NuvosScenario {
+  fair_value_per_share: number | null;
+  assumptions: NuvosScenarioAssumptions;
+}
+
+export interface NuvosFairValueData {
+  scenarios: {
+    bear: NuvosScenario;
+    base: NuvosScenario;
+    bull: NuvosScenario;
+  };
+  exit_metric: string;
+  exit_multiple_anchor_source: "own_historical" | "peer_median" | "sector_table_fallback";
+  price_implied_scenario: "bear" | "base" | "bull" | null;
+  growth_factors: NifScoreFactor[];
+  operating_margin_factors: NifScoreFactor[];
+  terminal_roic_factors: NifScoreFactor[];
+}
+
+const _SCENARIO_COLOR: Record<"bear" | "base" | "bull", string> = {
+  bear: "#DD6E63", base: "#D4A24C", bull: "#4FA695",
+};
+
+function _nuvosScenarioMosPct(fairValue: number | null, price: number | null): number | null {
+  if (fairValue === null || fairValue <= 0 || price === null) return null;
+  return ((fairValue - price) / fairValue) * 100;
+}
+
+function _NuvosScenarioColumn({
+  name, scenario, price, isPriceImplied,
+}: {
+  name: "bear" | "base" | "bull";
+  scenario: NuvosScenario;
+  price: number | null;
+  isPriceImplied: boolean;
+}) {
+  const { t } = useTranslation();
+  const color = _SCENARIO_COLOR[name];
+  const fv = scenario.fair_value_per_share;
+  const mos = _nuvosScenarioMosPct(fv, price);
+  const a = scenario.assumptions;
+  return (
+    <div
+      className="rounded-xl p-3 flex flex-col gap-1.5"
+      style={{ background: "var(--card)", border: isPriceImplied ? `1.5px solid ${color}` : "1px solid var(--border)" }}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color }}>
+          {t(`subvaluadas.nuvosFairValue.scenarios.${name}`)}
+        </span>
+        {isPriceImplied && (
+          <span className="text-[8px] font-bold uppercase tracking-wide rounded-full px-1.5 py-0.5" style={{ color, background: `${color}22` }}>
+            {t("subvaluadas.nuvosFairValue.priceImpliedBadge")}
+          </span>
+        )}
+      </div>
+      <p className="text-lg font-black tabular-nums" style={{ color: "var(--text)" }}>
+        {fv !== null ? `$${fv.toFixed(2)}` : "N/D"}
+      </p>
+      {mos !== null && (
+        <p className="text-[11px] font-bold tabular-nums" style={{ color: mos >= 0 ? "#22c55e" : "#ef4444" }}>
+          {mos >= 0 ? "+" : ""}{mos.toFixed(1)}% {t("subvaluadas.nuvosFairValue.mos")}
+        </p>
+      )}
+      <div className="pt-1.5 mt-0.5 border-t space-y-0.5" style={{ borderColor: "var(--border)" }}>
+        <p className="text-[10px]" style={{ color: "var(--sub)" }}>
+          {t("subvaluadas.nuvosFairValue.growth")}: <b style={{ color: "var(--text)" }}>{a.revenue_growth_1_pct.toFixed(1)}%</b>
+        </p>
+        <p className="text-[10px]" style={{ color: "var(--sub)" }}>
+          {t("subvaluadas.nuvosFairValue.margin")}: <b style={{ color: "var(--text)" }}>{a.operating_margin_anchor_pct.toFixed(1)}% → {a.terminal_operating_margin_pct.toFixed(1)}%</b>
+        </p>
+        <p className="text-[10px]" style={{ color: "var(--sub)" }}>
+          {t("subvaluadas.nuvosFairValue.wacc")}: <b style={{ color: "var(--text)" }}>{a.discount_rate_pct.toFixed(1)}%</b>
+        </p>
+        {a.exit_multiple !== null && (
+          <p className="text-[10px]" style={{ color: "var(--sub)" }}>
+            {t("subvaluadas.nuvosFairValue.exitMultiple")}: <b style={{ color: "var(--text)" }}>{a.exit_multiple.toFixed(1)}x {a.exit_metric ? t(`subvaluadas.nuvosFairValue.exitMetric.${a.exit_metric}`) : ""}</b>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function _NuvosFactorsSection({ title, factors }: { title: string; factors: NifScoreFactor[] }) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  if (factors.length === 0) return null;
+  return (
+    <div>
+      <button onClick={() => setExpanded((e) => !e)} className="text-[10px] font-bold underline underline-offset-2" style={{ color: "var(--muted)" }}>
+        {title} — {expanded ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}
+      </button>
+      {expanded && (
+        <div className="space-y-1.5 mt-1.5">
+          {factors.map((f, i) => (
+            <div key={i} className="rounded-lg p-2" style={{ background: "var(--raised)" }}>
+              <div className="flex items-center justify-between gap-2 mb-0.5">
+                <span className="text-[10.5px] font-bold" style={{ color: "var(--sub)" }}>
+                  {t(`subvaluadas.nuvosFairValue.assumptionFactors.${f.name}`, { defaultValue: f.name })}
+                </span>
+                {f.value !== null && (
+                  <span className="text-[10.5px] font-black tabular-nums shrink-0" style={{ color: "var(--text)" }}>{f.value.toFixed(1)}%</span>
+                )}
+              </div>
+              <p className="text-[10.5px] leading-relaxed" style={{ color: "var(--dim)" }}>{f.reason}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function FairValueScenariosPanel({ data, price }: { data: NuvosFairValueData | null; price: number | null }) {
+  const { t } = useTranslation();
+  if (!data) return null;
+  const { scenarios, price_implied_scenario } = data;
+  return (
+    <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+      <div className="flex items-center gap-1.5 mb-1">
+        <Sparkles className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
+        <p className="text-[12px] font-bold" style={{ color: "var(--text)" }}>{t("subvaluadas.nuvosFairValue.title")}</p>
+      </div>
+      <p className="text-[10.5px] leading-relaxed mb-3" style={{ color: "var(--muted)" }}>{t("subvaluadas.nuvosFairValue.subtitle")}</p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-3">
+        <_NuvosScenarioColumn name="bear" scenario={scenarios.bear} price={price} isPriceImplied={price_implied_scenario === "bear"} />
+        <_NuvosScenarioColumn name="base" scenario={scenarios.base} price={price} isPriceImplied={price_implied_scenario === "base"} />
+        <_NuvosScenarioColumn name="bull" scenario={scenarios.bull} price={price} isPriceImplied={price_implied_scenario === "bull"} />
+      </div>
+
+      {price_implied_scenario && (
+        <p className="text-[11px] leading-relaxed mb-3 italic" style={{ color: "var(--sub)" }}>
+          {t("subvaluadas.nuvosFairValue.priceImpliedNote", { scenario: t(`subvaluadas.nuvosFairValue.scenarios.${price_implied_scenario}`) })}
+        </p>
+      )}
+
+      <div className="space-y-2">
+        <_NuvosFactorsSection title={t("subvaluadas.nuvosFairValue.growthFactorsTitle")} factors={data.growth_factors} />
+        <_NuvosFactorsSection title={t("subvaluadas.nuvosFairValue.marginFactorsTitle")} factors={data.operating_margin_factors} />
+        <_NuvosFactorsSection title={t("subvaluadas.nuvosFairValue.roicFactorsTitle")} factors={data.terminal_roic_factors} />
+      </div>
+
+      <p className="mt-3 pt-3 border-t text-[10px] leading-relaxed" style={{ borderColor: "var(--border)", color: "var(--dim)" }}>
+        {t("subvaluadas.nuvosFairValue.disclaimer")}
+      </p>
+    </div>
+  );
+}
+
 export function GrowthEnginePreviewPanel({ data }: { data: GrowthEngineData | null }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);

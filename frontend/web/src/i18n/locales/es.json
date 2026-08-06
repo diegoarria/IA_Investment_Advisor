@@ -1156,6 +1156,37 @@
         "capital_allocation": "Asignación de capital",
         "industry_growth_comparison": "Comparación vs. industria"
       }
+    },
+    "nuvosFairValue": {
+      "title": "Nuvos AI Fair Value Engine (vista previa)",
+      "subtitle": "Un solo motor de valuación, tres escenarios posibles — nunca un precio exacto, sino un rango de estimaciones razonables según distintos supuestos.",
+      "scenarios": {
+        "bear": "Bear Case",
+        "base": "Base Case",
+        "bull": "Bull Case"
+      },
+      "priceImpliedBadge": "Precio actual",
+      "mos": "margen de seguridad",
+      "growth": "Crecimiento",
+      "margin": "Margen",
+      "wacc": "WACC",
+      "exitMultiple": "Múltiplo de salida",
+      "exitMetric": {
+        "ev_sales": "EV/Ventas",
+        "ev_ebit": "EV/EBIT",
+        "ev_fcf": "EV/FCF"
+      },
+      "priceImpliedNote": "El precio actual refleja un escenario cercano al {{scenario}}.",
+      "growthFactorsTitle": "Por qué este crecimiento",
+      "marginFactorsTitle": "Por qué este margen",
+      "roicFactorsTitle": "Por qué este ROIC terminal",
+      "disclaimer": "Vista previa del nuevo motor de valuación de Nuvos AI (modo sombra) — no es aún el número principal que usa el resto de esta pantalla. No significa que la acción valga exactamente estos precios: son estimaciones basadas en supuestos sobre crecimiento, rentabilidad y riesgo.",
+      "assumptionFactors": {
+        "historical": "Histórico propio",
+        "industry": "Industria (peers reales)",
+        "wall_street": "Consenso de Wall Street",
+        "business_quality": "Calidad del negocio"
+      }
     }
   },
   "patrimonio": {
