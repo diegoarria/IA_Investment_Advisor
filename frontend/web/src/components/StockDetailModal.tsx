@@ -897,7 +897,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 {profile?.name ?? ticker}
               </p>
             </div>
-            <button onClick={onClose}
+            <button onClick={onClose} aria-label={t("common.close")}
                     className="p-1.5 rounded-lg hover:bg-white/10 transition-colors shrink-0 mt-0.5"
                     style={{ color: "var(--muted)" }}>
               <X className="w-5 h-5" />

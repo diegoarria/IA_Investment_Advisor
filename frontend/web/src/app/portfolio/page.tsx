@@ -17,7 +17,11 @@ import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
 import AdvancedStockTable from "@/components/AdvancedStockTable";
 import type { AdvancedRow } from "@/components/AdvancedStockTable";
-import StockDetailModal from "@/components/StockDetailModal";
+import dynamic from "next/dynamic";
+// Fase 4, Incremento 13 (Cierre, Parte M) — code-split: StockDetailModal is
+// ~1900 lines and only ever mounted when a ticker is selected, so its chunk
+// should never be part of the initial bundle for this page.
+const StockDetailModal = dynamic(() => import("@/components/StockDetailModal"), { ssr: false });
 import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
 import PaywallModal from "@/components/PaywallModal";
 import GuidedSteps from "@/components/GuidedSteps";

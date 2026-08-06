@@ -123,6 +123,7 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
             {/* Close */}
             <button
               onClick={onClose}
+              aria-label={t("common.close")}
               className="absolute top-4 right-4 p-1.5 rounded-xl hover:bg-white/10 transition-colors"
               style={{ color: "var(--muted)" }}
             >

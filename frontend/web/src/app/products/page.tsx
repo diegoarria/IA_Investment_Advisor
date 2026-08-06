@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
-import PricingModal from "@/components/PricingModal";
+import dynamic from "next/dynamic";
+// Fase 4, Incremento 13 (Cierre, Parte M) — modal-gated, safe to split out.
+const PricingModal = dynamic(() => import("@/components/PricingModal"), { ssr: false });
 import { useSubscriptionStore, useAuthStore } from "@/lib/store";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { market as marketApi } from "@/lib/api";
+import { useCachedFetch } from "@/lib/useCachedFetch";
 
 const LOCAL_FALLBACK: Record<string, number> = {
   MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, ARS: 1150, BRL: 5.7,
@@ -9,35 +9,29 @@ const LOCAL_FALLBACK: Record<string, number> = {
 };
 
 // Fetch live FX rate (USD -> currency) — open.er-api.com (primary) → frankfurter → hardcoded fallback.
-// Caches last-known-good rate in localStorage so the UI never shows a stale 1.0 on reload.
+// Fase 4, Incremento 13 — now built on the shared useCachedFetch hook
+// (this was the original stale-while-revalidate precedent it's modeled
+// on); behavior is unchanged, just formalized.
 export function useFxRate(currency: string): number {
-  const [fxRate, setFxRate] = useState(1);
-
-  useEffect(() => {
-    if (currency === "USD") { setFxRate(1); return; }
-    const lsKey = `nuvos_fx_${currency}`;
-    const stored = typeof window !== "undefined" ? parseFloat(localStorage.getItem(lsKey) ?? "") : NaN;
-    if (!isNaN(stored) && stored > 0) setFxRate(stored);
-    const fetchRate = () => {
+  const { data } = useCachedFetch<number>({
+    key: `nuvos_fx_${currency}`,
+    enabled: currency !== "USD",
+    refreshIntervalMs: 60 * 60 * 1000, // refresh every hour
+    fetcher: () =>
       marketApi.getFxRate(currency)
         .then((r) => {
           const rate = r.data?.rate;
-          if (rate && rate > 0) {
-            setFxRate(rate);
-            if (typeof window !== "undefined") localStorage.setItem(lsKey, String(rate));
-          } else if (LOCAL_FALLBACK[currency]) {
-            setFxRate(LOCAL_FALLBACK[currency]);
-          }
+          if (rate && rate > 0) return rate;
+          if (LOCAL_FALLBACK[currency]) return LOCAL_FALLBACK[currency];
+          throw new Error(`No FX rate available for ${currency}`);
         })
-        .catch(() => {
-          if (!isNaN(stored) && stored > 0) return; // already applied stored
-          if (LOCAL_FALLBACK[currency]) setFxRate(LOCAL_FALLBACK[currency]);
-        });
-    };
-    fetchRate();
-    const interval = setInterval(fetchRate, 60 * 60 * 1000); // refresh every hour
-    return () => clearInterval(interval);
-  }, [currency]);
+        .catch((err) => {
+          if (LOCAL_FALLBACK[currency]) return LOCAL_FALLBACK[currency];
+          throw err;
+        }),
+    isEmpty: (rate) => !(rate > 0),
+  });
 
-  return fxRate;
+  if (currency === "USD") return 1;
+  return data && data > 0 ? data : 1;
 }

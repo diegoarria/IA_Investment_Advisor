@@ -22,7 +22,9 @@ import PaywallModal from "@/components/PaywallModal";
 import WatchlistEarningsCalendar from "@/components/WatchlistEarningsCalendar";
 import AdvancedStockTable from "@/components/AdvancedStockTable";
 import type { AdvancedRow } from "@/components/AdvancedStockTable";
-import StockDetailModal from "@/components/StockDetailModal";
+import dynamic from "next/dynamic";
+// Fase 4, Incremento 13 (Cierre, Parte M) — see portfolio/page.tsx's comment.
+const StockDetailModal = dynamic(() => import("@/components/StockDetailModal"), { ssr: false });
 import GuidedSteps from "@/components/GuidedSteps";
 
 // ─── Types ──────────────────────────────────────────────────────────────────

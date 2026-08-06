@@ -70,7 +70,7 @@ export default function PricingModal({ visible, onClose }: Props) {
           <h1 className="text-xl font-black" style={{ color: "var(--text)" }}>
             {t("pricingModal.title")}
           </h1>
-          <button onClick={onClose} className="absolute right-5 top-1/2 -translate-y-1/2 p-2 rounded-xl hover:bg-white/5 transition-colors" style={{ color: "var(--muted)" }}>
+          <button onClick={onClose} aria-label={t("common.close")} className="absolute right-5 top-1/2 -translate-y-1/2 p-2 rounded-xl hover:bg-white/5 transition-colors" style={{ color: "var(--muted)" }}>
             <X className="w-5 h-5" />
           </button>
         </div>

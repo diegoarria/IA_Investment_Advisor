@@ -26,13 +26,9 @@ import {
   ScenarioWeightingPanel, ReverseDcfPanel,
 } from "@/components/subvaluadas/shared";
 import { ExecutiveSummaryPanel } from "@/components/subvaluadas/ExecutiveSummaryPanel";
-import { PeerComparisonChart } from "@/components/subvaluadas/PeerComparisonChart";
-import { CompanyTimeline } from "@/components/subvaluadas/CompanyTimeline";
+import dynamic from "next/dynamic";
 import type { CompanyTimelineEvent } from "@/lib/companyTimeline";
-import { ThesisHistoryPanel } from "@/components/subvaluadas/ThesisHistoryPanel";
-import { InvestmentChecklistPanel } from "@/components/subvaluadas/InvestmentChecklistPanel";
 import type { ThesisVersion } from "@/lib/thesisHistory";
-import { ManualVsAiPanel } from "@/components/subvaluadas/ManualVsAiPanel";
 import { buildManualVsAiComparison } from "@/lib/manualVsAi";
 import { DetailLevelToggle } from "@/components/ui";
 import { isSectionVisible } from "@/lib/detailLevel";
@@ -40,6 +36,17 @@ import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
 import { screenerApi, savedValuationsApi, watchlist, explain as explainApi, researchEngineApi } from "@/lib/api";
 import { useSubscriptionStore, useThemeStore, useDetailLevelStore, usePersonalizationStore } from "@/lib/store";
 import { selectDefaultDiscountRatePct, resolveDashboardSectionOrder } from "@/lib/personalization";
+
+// Fase 4, Incremento 13 (Cierre, Parte M) — every panel below is already
+// gated by isPremium/isSectionVisible (never rendered on initial load for
+// a free user or below the relevant Nivel de Detalle), so splitting them
+// into their own chunks never risks layout shift — only ExecutiveSummaryPanel
+// above (always visible) stays a static import.
+const PeerComparisonChart = dynamic(() => import("@/components/subvaluadas/PeerComparisonChart").then((m) => m.PeerComparisonChart));
+const CompanyTimeline = dynamic(() => import("@/components/subvaluadas/CompanyTimeline").then((m) => m.CompanyTimeline));
+const ThesisHistoryPanel = dynamic(() => import("@/components/subvaluadas/ThesisHistoryPanel").then((m) => m.ThesisHistoryPanel));
+const InvestmentChecklistPanel = dynamic(() => import("@/components/subvaluadas/InvestmentChecklistPanel").then((m) => m.InvestmentChecklistPanel));
+const ManualVsAiPanel = dynamic(() => import("@/components/subvaluadas/ManualVsAiPanel").then((m) => m.ManualVsAiPanel));
 
 export interface QuickAnalysisResult {
   ticker: string;

@@ -154,7 +154,7 @@ export function InvestmentChecklistPanel({
                     <button
                       type="button"
                       onClick={() => removeItem(item.item_key)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                      className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity shrink-0"
                       aria-label={t("subvaluadas.investableChecklist.removeItem")}
                     >
                       <X className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />
