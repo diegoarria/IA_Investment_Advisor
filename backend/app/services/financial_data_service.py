@@ -111,6 +111,16 @@ def _yoy(periods: list[dict], field: str) -> Optional[float]:
 _fx: dict[str, float] = {}          # from_currency → USD rate
 _fx_ts: float = 0.0
 _fx_mu = threading.Lock()
+# Negative cache — a currency pair yfinance doesn't have (or is transiently
+# down for) used to be retried on EVERY single call with no memory of the
+# prior failure, since only successful lookups ever landed in `_fx`. Found
+# via the Fase 1.5 validation harness: a foreign-currency reporter with many
+# line items needing conversion (BABA/CNY) triggered hundreds of repeated
+# real yfinance network calls, all failing identically, stalling that one
+# ticker for minutes. Shorter TTL than the success cache (5 min, not 1h) so
+# a genuinely transient failure doesn't get stuck wrong for too long.
+_fx_failed: dict[str, float] = {}   # from_currency → failure timestamp
+_FX_FAILURE_TTL = 300
 
 
 def _usd_rate(currency: str) -> float:
@@ -122,6 +132,9 @@ def _usd_rate(currency: str) -> float:
     with _fx_mu:
         if _fx and time.time() - _fx_ts < 3_600 and c in _fx:
             return _fx[c]
+        failed_at = _fx_failed.get(c)
+        if failed_at is not None and time.time() - failed_at < _FX_FAILURE_TTL:
+            return 1.0
 
     try:
         import yfinance as yf
@@ -132,9 +145,12 @@ def _usd_rate(currency: str) -> float:
             with _fx_mu:
                 _fx[c] = float(rate)
                 _fx_ts = time.time()
+                _fx_failed.pop(c, None)
             return float(rate)
     except Exception:
         pass
+    with _fx_mu:
+        _fx_failed[c] = time.time()
     return 1.0
 
 

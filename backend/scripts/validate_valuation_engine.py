@@ -51,6 +51,18 @@ from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# Real root cause of this harness's first two "broken" runs, found the hard
+# way (Fase 1.5, Incremento 7): FMP_API_KEY/FINNHUB_API_KEY are read via raw
+# os.getenv() throughout financial_data_service.py/finnhub.py/market_data_
+# service.py — pydantic-settings' own .env parsing (app.core.config.Settings)
+# does NOT mutate os.environ as a side effect, so those calls silently saw
+# empty keys and every ticker failed with "insufficient real data," which
+# LOOKED LIKE a Finnhub rate-limit/burst problem but wasn't. main.py has this
+# exact same gap — worth fixing there too, flagged separately, not bundled
+# into this one-off validation script.
+from dotenv import load_dotenv  # noqa: E402
+load_dotenv()
+
 from app.api.routes.screener import UNIVERSE  # noqa: E402
 from app.services.fundamental_analysis_service import get_fundamental_analysis  # noqa: E402
 from app.services.valuation.dcf_engine import is_reit_sector  # noqa: E402
@@ -62,7 +74,15 @@ from app.services.valuation.dcf_engine import is_reit_sector  # noqa: E402
 # threshold for this harness.
 _EXTREME_MOS_THRESHOLD_PCT = 50.0
 
-_REQUEST_DELAY_SECONDS = 1.0  # be polite to the real data providers
+# Fase 1.5, Incremento 7 — real run found this too low: get_fundamental_
+# analysis makes ~5 real Finnhub calls per ticker (quote, profile, metrics,
+# recommendation, price target, via check_liquidity_gate + the analyst-
+# target block), and app/core/finnhub.py has no retry/backoff on 429 — a
+# 1s delay blew through a free-tier ~60 req/min budget almost immediately,
+# producing a run where nearly every ticker after the first few silently
+# came back None (all Finnhub calls 429ing). 7s keeps sustained throughput
+# safely under that ceiling (~5 calls / 7s ≈ 43/min).
+_REQUEST_DELAY_SECONDS = 7.0
 
 
 @dataclass
