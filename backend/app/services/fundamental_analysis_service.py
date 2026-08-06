@@ -40,6 +40,10 @@ from app.services.valuation.reverse_dcf_engine import (
     sanity_check_reverse_dcf,
 )
 from app.services.valuation.confidence_engine import _confidence_score, _confidence_meter
+from app.services.valuation.growth_engine import compute_weighted_growth
+from app.services.quality.moat_engine import compute_moat_score
+from app.services.quality.deterioration_engine import compute_deterioration_signals
+from app.services.quality.quality_engine import compute_incremental_roic, compute_cagr_windows
 
 logger = logging.getLogger(__name__)
 
@@ -1112,6 +1116,57 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
 
         g1_rev_raw = base_historical_growth + moat_adjustment
 
+        # ── Growth Engine (Fase 1.5, Incremento 8) — feeds ONLY the driver-
+        # based shadow calculations below (driver_based_valuation/scenarios/
+        # sensitivity_matrix/value_drivers, Monte Carlo, and the driver-based
+        # Reverse DCF calls), never the legacy model above/below (which keeps
+        # using g1_rev_raw/base_historical_growth completely untouched,
+        # exactly as before this increment). See growth_engine.py's module
+        # docstring for why this is a more disciplined, bounded, bidirectional
+        # replacement for the removed moat_adjustment, not a return to it.
+        # Every input is already-computed (trends already built earlier in
+        # this function) or a cheap, deterministic, NETWORK-FREE Fase 2
+        # engine call (moat_engine/deterioration_engine both take real trends
+        # directly, no fetching) — capital_allocation_score and
+        # industry_median_revenue_cagr_pct are left as their defaults (None)
+        # since computing those for real requires network I/O
+        # (capital_allocation_engine's historical price lookups,
+        # industry_engine's peer fetches) this otherwise-synchronous
+        # function deliberately doesn't add; the engine degrades gracefully
+        # (weighted_mean renormalizes over whatever signals ARE available).
+        fcf_margin_trend_full = [
+            round(f / r * 100, 1) if f is not None and r else None
+            for f, r in zip(fcf_trend, revenue_trend)
+        ]
+        gross_margin_latest = next((v for v in reversed(gross_margin_trend) if v is not None), None)
+        growth_engine_moat = compute_moat_score(
+            avg_roic_pct=avg_roic, roic_trend=roic_trend,
+            avg_operating_margin_pct=operating_margin_anchor * 100 if operating_margin_anchor is not None else None,
+            operating_margin_trend=operating_margin_trend,
+            gross_margin_latest_pct=gross_margin_latest,
+            industry_median_roic_pct=None, industry_median_operating_margin_pct=None,
+        )
+        growth_engine_deterioration = compute_deterioration_signals(
+            roic_trend=roic_trend, operating_margin_trend=operating_margin_trend,
+            net_margin_trend=net_margin_trend, fcf_margin_trend=fcf_margin_trend_full,
+            revenue_trend=revenue_trend,
+        )
+        growth_engine_result = compute_weighted_growth(
+            historical_growth_pct=base_historical_growth,
+            cagr_windows=compute_cagr_windows(revenue_trend),
+            avg_roic_pct=avg_roic,
+            incremental_roic_pct=compute_incremental_roic(nopat_trend, invested_capital_trend),
+            moat_result=growth_engine_moat,
+            deterioration_result=growth_engine_deterioration,
+        )
+        driver_based_g1_rev_raw = growth_engine_result.quality_adjusted_growth_pct
+        # Same "base" scenario cap the legacy model applies (FCF_DCF_SCENARIOS
+        # never changes) — the driver-based "base case" growth used wherever
+        # a single representative growth number is needed (driver_based_
+        # valuation, Monte Carlo's anchor, the driver-based Reverse DCF's
+        # fixed-growth question).
+        driver_based_base_g1 = min(driver_based_g1_rev_raw, FCF_DCF_SCENARIOS["base"]["revenue_growth_cap_pct"] / 100)
+
         # Projected share count path — gradual reduction if the company has a
         # real, sustained buyback track record (never assumed constant when
         # real buybacks are happening). Average of the projected path over
@@ -1258,7 +1313,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
             ):
                 implied_margin_pct = _implied_fcf_margin_at_fixed_growth(
                     revenue_0=latest_rev,
-                    growth_fixed=base_historical_growth,
+                    growth_fixed=driver_based_base_g1,
                     operating_margin_anchor_pct=operating_margin_anchor,
                     terminal_operating_margin_pct=operating_margin_anchor,
                     tax_rate=tax_rate,
@@ -1430,7 +1485,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                 try:
                     driver_result = project_driver_based_dcf(
                         revenue_0=latest_rev,
-                        revenue_growth_1=base_g1_fcf,
+                        revenue_growth_1=driver_based_base_g1,
                         terminal_growth=terminal_growth,
                         operating_margin_anchor_pct=operating_margin_anchor,
                         terminal_operating_margin_pct=operating_margin_anchor,
@@ -1475,7 +1530,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                         mult = assumptions["growth_multiplier"]
                         dr = base_discount_rate + assumptions["discount_rate_delta_pct"] / 100
                         rev_cap = assumptions["revenue_growth_cap_pct"] / 100
-                        g1_rev = min(g1_rev_raw * mult, rev_cap)
+                        g1_rev = min(driver_based_g1_rev_raw * mult, rev_cap)
                         scenario_result = project_driver_based_dcf(
                             revenue_0=latest_rev,
                             revenue_growth_1=g1_rev,
@@ -1643,7 +1698,7 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                     ]
                     mc_assumptions = MonteCarloAssumptions(
                         revenue_growth_1=build_distribution_from_trend(
-                            revenue_yoy_trend, anchor=base_g1_fcf, lo=-0.5, hi=1.5, variable_key="revenue_growth_1",
+                            revenue_yoy_trend, anchor=driver_based_base_g1, lo=-0.5, hi=1.5, variable_key="revenue_growth_1",
                         ),
                         operating_margin=build_distribution_from_trend(
                             operating_margin_decimal_trend, anchor=operating_margin_anchor,
@@ -1737,6 +1792,12 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                 "driver_based_scenarios": driver_based_scenarios,
                 "driver_based_sensitivity_matrix": driver_based_sensitivity_matrix,
                 "driver_based_value_drivers": driver_based_value_drivers,
+                "growth_engine": {
+                    "historical_growth_pct": growth_engine_result.historical_growth_pct,
+                    "quality_adjusted_growth_pct": round(growth_engine_result.quality_adjusted_growth_pct * 100, 1),
+                    "total_adjustment_pct": growth_engine_result.total_adjustment_pct,
+                    "factors": [asdict(f) for f in growth_engine_result.factors],
+                },
                 "monte_carlo": monte_carlo,
             }
 
