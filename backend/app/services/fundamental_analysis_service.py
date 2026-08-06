@@ -435,6 +435,52 @@ def _fair_value_range(scenarios: dict) -> dict:
     }
 
 
+def combine_fair_value_range(
+    monte_carlo: Optional[dict], consensus: Optional[dict], fallback_range: dict,
+) -> dict:
+    """Fase 1.5, Incremento 10 (see /Users/diegoarria/.claude/plans/
+    stateful-painting-flurry.md) — the unified `fair_value_range`, replacing
+    the old 3-scenario-only range with one that widens to reflect BOTH real
+    sources of uncertainty: the driver-based DCF's own Monte Carlo
+    distribution (2,000 draws, P25-P75) and the spread across Consensus's
+    independently-computed methods (DCF/Relative/Historical). Never a single
+    point — "an analyst thinks in ranges" — and never None: falls back to
+    `fallback_range` (the legacy scenario-based range) when neither Monte
+    Carlo nor Consensus is available, so every caller can rely on this
+    always returning a real low/base/high dict.
+
+    Pulled out as a single reusable function (not inlined at each call site)
+    per Diego's dedup mandate — the exact same combination formula is used
+    inside get_fundamental_analysis() (sector-only peers, every live caller)
+    and by screener.py/undervalued_screener_service.py, which recompute a
+    strictly better, industry-aware Consensus right afterward and use this
+    same helper to refresh the range rather than re-deriving the formula."""
+    mc_low = monte_carlo.get("p25") if monte_carlo else None
+    mc_base = monte_carlo.get("median") if monte_carlo else None
+    mc_high = monte_carlo.get("p75") if monte_carlo else None
+
+    consensus_low = consensus_high = consensus_base = None
+    if consensus:
+        method_values = [m["value"] for m in (consensus.get("methods_used") or {}).values() if m.get("value") is not None]
+        if method_values:
+            consensus_low, consensus_high = min(method_values), max(method_values)
+        consensus_base = consensus.get("consensus_fair_value")
+
+    lows = [v for v in (mc_low, consensus_low) if v is not None]
+    highs = [v for v in (mc_high, consensus_high) if v is not None]
+    bases = [v for v in (mc_base, consensus_base) if v is not None]
+
+    if not lows and not highs and not bases:
+        return fallback_range
+
+    low = min(lows) if lows else fallback_range["low"]
+    high = max(highs) if highs else fallback_range["high"]
+    base = round(sum(bases) / len(bases), 2) if bases else fallback_range["base"]
+    if low > high:
+        low, high = high, low
+    return {"low": round(low, 2), "high": round(high, 2), "base": base}
+
+
 def _composite_ranking_score(thesis_scores: Optional[dict], sector: Optional[str]) -> Optional[float]:
     """Weighted blend of the 6 Investment Thesis Scorecard dimensions (all
     already real, already computed) — never a fresh metric of its own.
@@ -705,10 +751,23 @@ def _build_financial_sector_valuation(
     }
 
 
-def get_fundamental_analysis(ticker: str) -> Optional[dict]:
+def get_fundamental_analysis(ticker: str, _compute_consensus: bool = True) -> Optional[dict]:
     """Returns a fully computed fundamental-analysis dict for `ticker`, or
     None if there isn't enough real financial data to compute one reliably
-    (fewer than 3 years of statements, or no live quote)."""
+    (fewer than 3 years of statements, or no live quote).
+
+    `_compute_consensus` (Fase 1.5, Incremento 10 — see
+    /Users/diegoarria/.claude/plans/stateful-painting-flurry.md) guards
+    against real recursion: Consensus (Method 5) calls
+    relative_valuation_service.compute_relative_valuation, which itself
+    calls get_fundamental_analysis() for every peer — and peers are
+    frequently mutual (AAPL and MSFT are each other's peer in the curated
+    UNIVERSE), so an unguarded call would recurse: AAPL → Consensus → peer
+    MSFT → MSFT's own Consensus → peer AAPL → ... Internal callers that
+    fetch a PEER's analysis (relative_valuation_service, the undervalued
+    screener's universe scan) pass `_compute_consensus=False` to cut the
+    recursion at depth 1; every real top-level caller (the API routes,
+    Arthur, the thesis engine) keeps the default and gets Consensus."""
     ticker = ticker.upper().strip()
     try:
         fin = get_financials(ticker, limit=10)
@@ -1746,6 +1805,64 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                 except Exception as e:
                     logger.info("get_fundamental_analysis(%s): monte carlo not computable: %s", ticker, e)
 
+            # ── Consensus Fair Value (Method 5) — Fase 1.5, Incremento 10.
+            # Previously only computed in screener.py/undervalued_screener_
+            # service.py's live/batch paths; every OTHER consumer of this
+            # function (research_orchestrator → thesis_engine/bull_bear_
+            # engine, chat.py, nif_service) only ever saw the crude 3-
+            # scenario fair_value_range. `industry` isn't known at this
+            # scope (only `sector` is, from the Finnhub profile) — peer
+            # matching here falls back to sector-only, a real but slightly
+            # looser peer group than screener.py's industry-aware call;
+            # callers that already recompute a tighter Consensus afterward
+            # (screener.py, undervalued_screener_service.py) pass
+            # `_compute_consensus=False` here and refresh the range
+            # themselves via `combine_fair_value_range` instead of paying
+            # for this weaker version too. Broad except: Consensus is an
+            # enrichment, never allowed to break the primary DCF result.
+            consensus_valuation = None
+            if _compute_consensus:
+                try:
+                    from app.services.consensus_valuation_service import classify_archetype, compute_consensus_fair_value
+                    from app.services.relative_valuation_service import compute_relative_valuation
+                    from app.services.historical_valuation_service import compute_historical_valuation
+
+                    _latest_income_row = income[-1] if income else {}
+                    _latest_eps = _num(_latest_income_row.get("Diluted EPS")) or _num(_latest_income_row.get("Basic EPS"))
+                    _latest_ebitda = _num(_latest_income_row.get("EBITDA"))
+                    _latest_fcf = fcf_valid[-1] if fcf_valid else None
+
+                    relative_valuation = None
+                    historical_valuation = None
+                    if price and shares_out:
+                        relative_valuation = compute_relative_valuation(
+                            ticker, price, shares_out, _latest_eps, _latest_ebitda, _latest_fcf,
+                            total_debt, cash_latest, sector, None,
+                        )
+                        if n >= 5:
+                            historical_valuation = compute_historical_valuation(
+                                ticker, income, balance, cashflow, price, shares_out, total_debt, cash_latest,
+                                _latest_eps, _latest_ebitda, _latest_fcf,
+                            )
+                    # business_quality_score isn't computed until later in
+                    # this function (it blends several trend scores built
+                    # further down) — None here just means classify_
+                    # archetype can't route to "secular_compounder"
+                    # specifically at this call site, falling through to
+                    # "cyclical"/"balanced" instead; still real weights,
+                    # never a fabricated quality signal.
+                    archetype = classify_archetype(
+                        _is_financial_sector(sector), None, confidence_score,
+                        _sector_cyclicality_dampener(sector),
+                    )
+                    conservative_dcf_value = scenarios["pessimistic"]["intrinsic_value_per_share"]
+                    professional_dcf_value = scenarios["base"]["intrinsic_value_per_share"]
+                    consensus_valuation = compute_consensus_fair_value(
+                        archetype, conservative_dcf_value, professional_dcf_value, relative_valuation, historical_valuation,
+                    )
+                except Exception as e:
+                    logger.info("get_fundamental_analysis(%s): consensus fair value not computable: %s", ticker, e)
+
             dcf = {
                 "base_fcf": round(base_fcf, 0),
                 "avg_fcf_margin_pct": round(avg_fcf_margin * 100, 1),
@@ -1763,7 +1880,8 @@ def get_fundamental_analysis(ticker: str) -> Optional[dict]:
                 "buyback_rate_pct": round(buyback_rate * 100, 1),
                 "current_price": price,
                 "scenarios": scenarios,
-                "fair_value_range": _fair_value_range(scenarios),
+                "fair_value_range": combine_fair_value_range(monte_carlo, consensus_valuation, _fair_value_range(scenarios)),
+                "consensus_valuation": consensus_valuation,
                 "margin_of_safety_pct": margin_of_safety,
                 "sensitivity": sensitivity,
                 "implied_growth_pct": implied_growth_pct,

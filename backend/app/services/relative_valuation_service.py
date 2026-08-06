@@ -76,7 +76,11 @@ def compute_relative_valuation(
             if analysis_cache is not None and peer_ticker in analysis_cache:
                 peer_data = analysis_cache[peer_ticker]
             else:
-                peer_data = get_fundamental_analysis(peer_ticker)
+                # _compute_consensus=False — a peer's own Consensus would
+                # recurse back into compute_relative_valuation for THEIR
+                # peers (frequently including the ticker we started from);
+                # see get_fundamental_analysis's docstring.
+                peer_data = get_fundamental_analysis(peer_ticker, _compute_consensus=False)
                 if analysis_cache is not None:
                     analysis_cache[peer_ticker] = peer_data
         except Exception as exc:

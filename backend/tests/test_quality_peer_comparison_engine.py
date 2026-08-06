@@ -31,7 +31,7 @@ class TestComputeQualityPeerComparison:
             return SimpleNamespace(quality_score=score, has_any_signal=score is not None)
 
         with patch("app.services.relative_valuation_service._find_peers", return_value=peers), \
-             patch("app.services.fundamental_analysis_service.get_fundamental_analysis", side_effect=lambda t: peer_data_by_ticker.get(t)), \
+             patch("app.services.fundamental_analysis_service.get_fundamental_analysis", side_effect=lambda t, **kw: peer_data_by_ticker.get(t)), \
              patch("app.services.quality.quality_engine.build_quality_score_from_analysis", side_effect=fake_build_quality_score):
             return compute_quality_peer_comparison("ME", "Technology", "Software", company_score)
 
