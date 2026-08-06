@@ -1060,6 +1060,17 @@
         "marginOfSafetySummary": "How far below the real intrinsic value the current price is.",
         "formula": "Real formula"
       }
+    },
+    "comparisons": {
+      "title": "Comparison Against Real Peers",
+      "subtitle": "Rank #{{rank}} of {{count}} (company + real industry peers)",
+      "metrics": {
+        "qualityScore": "Quality Score",
+        "roic": "ROIC",
+        "operatingMargin": "Operating Margin",
+        "revenueGrowth": "Revenue Growth"
+      },
+      "footnote": "Every bar uses real, already-computed data — a comparison is never fabricated for metrics the peer engine doesn't compute (e.g. moat or capital allocation per peer)."
     }
   },
   "patrimonio": {

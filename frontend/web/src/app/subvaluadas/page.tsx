@@ -22,10 +22,11 @@ import {
   MarketExpectationsPanel, InsightBox, FollowButton, AnalyzeButton,
   NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
   NifScoreEngineCard, NifMoatDeepDiveBlock, NifManagementDeepDiveCard,
-  NifCatalystsCard, NifPeerComparisonCard, NifDeteriorationCard,
+  NifCatalystsCard, NifDeteriorationCard,
   ScenarioWeightingPanel, ReverseDcfPanel,
 } from "@/components/subvaluadas/shared";
 import { ExecutiveSummaryPanel } from "@/components/subvaluadas/ExecutiveSummaryPanel";
+import { PeerComparisonChart } from "@/components/subvaluadas/PeerComparisonChart";
 import { DetailLevelToggle } from "@/components/ui";
 import { isSectionVisible } from "@/lib/detailLevel";
 import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
@@ -389,8 +390,14 @@ function FullModelModal({ ticker, price, fcf0, netCash, shares, g, r, gt, yearly
 // since only the page knows each pillar's specific field names/units,
 // matching how every other shared display component in this file takes
 // already-formatted data rather than a raw API dict.
+// Fase 4, Incremento 4 — small module-level helper (PeerComparisonChart's
+// companyMetrics extraction needs the same "is this really a number"
+// guard buildNifRows already uses internally, just outside that function's
+// scope).
+const numOrNull = (v: unknown): number | null => (typeof v === "number" && isFinite(v) ? v : null);
+
 function buildNifRows(pillarKey: string, d: Record<string, unknown>, isFinancialSector: boolean, t: (k: string, o?: Record<string, unknown>) => string): NifRow[] {
-  const num = (v: unknown): number | null => (typeof v === "number" && isFinite(v) ? v : null);
+  const num = numOrNull;
   const label = (key: string) => t(`subvaluadas.nif.fields.${key}`);
   const rows: NifRow[] = [];
   const push = (key: string, value: string | null) => { if (value !== null) rows.push({ label: label(key), value }); };
@@ -859,9 +866,22 @@ function SubvaluadasPageInner() {
                           />
                           <NifManagementDeepDiveCard deepDive={nifData.pillars.management_quality.deep_dive} />
                           <NifCatalystsCard data={nifData.catalysts} />
-                          <NifPeerComparisonCard data={nifData.peer_comparison} />
                           <NifDeteriorationCard data={nifData.deterioration} />
                         </div>
+
+                        {/* ===== Fase 4, Incremento 4 — Comparaciones (Parte D): visualización de
+                             barras contra peers reales, reemplaza el NifPeerComparisonCard (lista
+                             simple) con algo explícitamente visual. ===== */}
+                        <PeerComparisonChart
+                          ticker={data.ticker}
+                          companyMetrics={{
+                            quality_score: nifData.pillars.business_quality.score,
+                            roic_pct: numOrNull((nifData.pillars.business_quality.data as Record<string, unknown>)?.roic_pct),
+                            operating_margin_pct: numOrNull((nifData.pillars.business_quality.data as Record<string, unknown>)?.operating_margin_pct),
+                            revenue_cagr_pct: numOrNull((nifData.pillars.business_quality.data as Record<string, unknown>)?.revenue_cagr_pct),
+                          }}
+                          peerComparison={nifData.peer_comparison}
+                        />
                       </div>
                     ) : null
                   )}
