@@ -33,7 +33,7 @@ import type { ThesisVersion } from "@/lib/thesisHistory";
 import { buildManualVsAiComparison } from "@/lib/manualVsAi";
 import { DetailLevelToggle } from "@/components/ui";
 import { isSectionVisible } from "@/lib/detailLevel";
-import { calcularValorIntrinseco } from "@/lib/dcfCalculator";
+import { calcularValorIntrinseco, margenDeSeguridad } from "@/lib/dcfCalculator";
 import { screenerApi, savedValuationsApi, watchlist, explain as explainApi, researchEngineApi } from "@/lib/api";
 import { useSubscriptionStore, useThemeStore, useDetailLevelStore, usePersonalizationStore } from "@/lib/store";
 import { selectDefaultDiscountRatePct, resolveDashboardSectionOrder, DEFAULT_DASHBOARD_SECTION_ORDER } from "@/lib/personalization";
@@ -730,7 +730,12 @@ function SubvaluadasPageInner() {
   }, [hasData, fcf0, g, r, gt, horizon, netCash, shares]);
 
   const price = data?.price ?? 0;
-  const liveMos = liveResult && price ? ((liveResult.valorPorAccion - price) / price) * 100 : null;
+  // Fase 1.5, Incremento 15 — was an inline /price duplicate of the same
+  // formula margenDeSeguridad() already implements; calling it directly
+  // both dedups the formula and picks up its Incremento 14 fix (denominator
+  // is the intrinsic value, matching the single backend convention).
+  const liveMosFraction = liveResult && price ? margenDeSeguridad(liveResult.valorPorAccion, price) : null;
+  const liveMos = liveMosFraction !== null ? liveMosFraction * 100 : null;
 
   // Mentor feedback on the slider the user just moved — fires automatically
   // (debounced, no button tap) whenever an assumption drifts from the
@@ -1232,7 +1237,11 @@ function SubvaluadasPageInner() {
                       <div className="mt-5">
                         <ManualVsAiPanel
                           comparison={buildManualVsAiComparison(
-                            g, r, gt, suggestedG, suggestedR, suggestedGt,
+                            [
+                              { key: "growth", userValuePct: g, nuvosValuePct: suggestedG },
+                              { key: "wacc", userValuePct: r, nuvosValuePct: suggestedR },
+                              { key: "terminalGrowth", userValuePct: gt, nuvosValuePct: suggestedGt },
+                            ],
                             liveResult?.valorPorAccion ?? null, data.expected_value_per_share ?? data.intrinsic_value_base,
                           )}
                         />

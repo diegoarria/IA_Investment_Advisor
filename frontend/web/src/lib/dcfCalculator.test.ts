@@ -22,14 +22,33 @@ describe("calcularValorIntrinseco", () => {
     expect(isFinite(result!.valorPorAccion)).toBe(true);
   });
 
-  it("returns null when r === g (division by zero in stage1)", () => {
+  it("computes fine when r === g — g is just the year-1 fade point now, not a denominator", () => {
+    // Fase 1.5, Incremento 15: growth fades from g to gt per year (a loop),
+    // so unlike the old constant-growth closed form, r === g is no longer
+    // a division-by-zero case — only r === gt (the terminal formula) is.
     const result = calcularValorIntrinseco({ ...base, r: 0.07, g: 0.07 });
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(isFinite(result!.valorPorAccion)).toBe(true);
   });
 
   it("returns null when r === gt (division by zero in terminal)", () => {
     const result = calcularValorIntrinseco({ ...base, r: 0.03, gt: 0.03 });
     expect(result).toBeNull();
+  });
+
+  it("growth fades linearly from g to gt, reaching exactly gt by the final year", () => {
+    // A flat g === gt input should reproduce the OLD constant-growth
+    // formula's stage1 exactly (fade of g->g is just g every year) — a
+    // useful cross-check that the new per-year loop is mathematically
+    // consistent with the closed-form annuity in the degenerate case where
+    // there's nothing to fade.
+    const flat = calcularValorIntrinseco({ ...base, g: 0.05, gt: 0.05 - 1e-9 });
+    const closedForm = (() => {
+      const { fcf0, r, n } = base;
+      const g = 0.05;
+      return (fcf0 * (1 + g)) / (r - g) * (1 - Math.pow((1 + g) / (1 + r), n!));
+    })();
+    expect(flat!.stage1).toBeCloseTo(closedForm, 0);
   });
 
   it("handles a negative growth rate without throwing", () => {
