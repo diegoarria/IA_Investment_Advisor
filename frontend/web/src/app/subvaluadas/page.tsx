@@ -30,6 +30,7 @@ import { PeerComparisonChart } from "@/components/subvaluadas/PeerComparisonChar
 import { CompanyTimeline } from "@/components/subvaluadas/CompanyTimeline";
 import type { CompanyTimelineEvent } from "@/lib/companyTimeline";
 import { ThesisHistoryPanel } from "@/components/subvaluadas/ThesisHistoryPanel";
+import { InvestmentChecklistPanel } from "@/components/subvaluadas/InvestmentChecklistPanel";
 import type { ThesisVersion } from "@/lib/thesisHistory";
 import { ManualVsAiPanel } from "@/components/subvaluadas/ManualVsAiPanel";
 import { buildManualVsAiComparison } from "@/lib/manualVsAi";
@@ -843,6 +844,11 @@ function SubvaluadasPageInner() {
                     thesisLoading={isPremium && thesisLoading}
                     deterioration={nifData?.deterioration ?? null}
                   />
+
+                  {/* ===== Fase 4, Incremento 8 — Investment Checklist (Parte H): siempre
+                       visible (como el resumen ejecutivo), es un gate de decisión, no un
+                       nivel de profundidad analítica. ===== */}
+                  {isPremium && <InvestmentChecklistPanel ticker={data.ticker} />}
 
                   {/* ===== Nuvos Investment Framework (NIF) — automatic 4-pillar AI dashboard.
                        Independent from the manual calculator below: its own loading/error

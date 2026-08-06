@@ -1118,6 +1118,28 @@
       },
       "mostDivergentNote": "La mayor diferencia está en {{assumption}} ({{diff}}pp vs. Nuvos) — esto explica gran parte de la diferencia en el valor resultante.",
       "footnote": "Ninguno de los dos supuestos es \"correcto\" — cada uno refleja una visión distinta del futuro de la empresa. Usa esta comparación para entender qué tan sensible es tu valor estimado a cada supuesto."
+    },
+    "investableChecklist": {
+      "title": "Checklist de Inversión",
+      "subtitle": "Complétalo antes de marcar esta empresa como Invertible",
+      "loading": "Cargando checklist...",
+      "addPlaceholder": "Agregar un item propio...",
+      "addItem": "Agregar",
+      "removeItem": "Quitar item",
+      "progress": "{{checked}}/{{total}} completados",
+      "markInvestable": "Marcar como Invertible",
+      "unmark": "Quitar marca de Invertible",
+      "markedBadge": "Invertible",
+      "incompleteHint": "Completa todos los items del checklist para poder marcarla como Invertible",
+      "markError": "No pudimos guardar el cambio — intenta de nuevo.",
+      "items": {
+        "understand_business": "Entiendo cómo gana dinero esta empresa",
+        "know_risks": "Conozco los riesgos principales de la tesis",
+        "read_thesis": "Leí la tesis de investigación completa",
+        "margin_of_safety": "El margen de seguridad me parece adecuado",
+        "moat_still_valid": "El moat/ventaja competitiva sigue vigente",
+        "loss_scenario": "Entiendo cuánto podría perder si me equivoco"
+      }
     }
   },
   "patrimonio": {

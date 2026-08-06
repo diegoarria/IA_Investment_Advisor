@@ -384,6 +384,19 @@ export const researchEngineApi = {
   getBenchmark: () => api.get("/api/research-engine/benchmark"),
 };
 
+// Fase 4, Incremento 8 (Investment Checklist, Parte H) — the user's
+// personalized checklist + per-ticker checked state + "Invertible" mark.
+export const checklistApi = {
+  getItems: () => api.get("/api/checklist/items"),
+  addItem: (label: string) => api.post("/api/checklist/items", { label }),
+  removeItem: (itemKey: string) => api.delete(`/api/checklist/items/${itemKey}`),
+  getForTicker: (ticker: string) => api.get(`/api/checklist/${ticker}`),
+  toggleItem: (ticker: string, itemKey: string, checked: boolean) =>
+    api.post(`/api/checklist/${ticker}/${itemKey}`, { checked }),
+  setInvestable: (ticker: string, marked: boolean) =>
+    api.post(`/api/checklist/${ticker}/investable`, { marked }),
+};
+
 export const feedbackApi = {
   status: () => api.get("/api/feedback/status"),
   seen:   () => api.post("/api/feedback/seen"),

@@ -477,6 +477,7 @@ _USER_DATA_TABLES = [
     "clip_likes", "clip_saves", "clip_views", "clip_comments",
     "research_jobs", "research_reports", "security_events",
     "investment_graph_events", "user_investment_theses",
+    "user_checklist_items", "checklist_completions", "investable_marks",
 ]
 
 
