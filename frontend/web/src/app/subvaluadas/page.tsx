@@ -788,8 +788,10 @@ function SubvaluadasPageInner() {
                     fairValueRange={data.fair_value_range}
                     marginOfSafetyPct={data.margin_of_safety_pct}
                     qualityScore={nifData?.pillars.business_quality.score ?? null}
+                    qualityNuvosEstimate={nifData?.pillars.business_quality.nuvos_estimate ?? null}
                     convictionScore={nifData?.conviction.score ?? null}
-                    confidenceScore={data.confidence_meter?.score ?? null}
+                    convictionFactors={nifData?.conviction.factors ?? null}
+                    confidenceMeter={data.confidence_meter}
                     thesisDraft={thesisDraft}
                     thesisLoading={isPremium && thesisLoading}
                     deterioration={nifData?.deterioration ?? null}

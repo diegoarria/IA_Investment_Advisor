@@ -77,6 +77,16 @@
       "intermedio": "Intermediate",
       "avanzado": "Advanced",
       "profesional": "Professional"
+    },
+    "explainability": {
+      "trigger": "Explain {{label}}",
+      "howCalculated": "How it was calculated",
+      "sinceLastQuarter": "Since last quarter",
+      "confidence": {
+        "low": "low confidence",
+        "medium": "medium confidence",
+        "high": "high confidence"
+      }
     }
   },
   "home": {
@@ -1039,7 +1049,17 @@
       "deteriorationDetected": "{{count}} deterioration signal(s) detected",
       "improvementDetected": "{{count}} improvement signal(s) detected",
       "noMaterialChange": "No material change detected",
-      "keyRisks": "Key risks"
+      "keyRisks": "Key risks",
+      "explain": {
+        "qualitySummary": "Measures how good the business is (profitability, margins, cash flow, growth, balance sheet) — never considers price.",
+        "convictionSummary": "Synthesis of business quality, moat strength, stability, and market volatility — never touches price or valuation.",
+        "confidenceSummary": "How reliable the fair-value estimate is — level: {{label}}.",
+        "confidenceMethodName": "Method",
+        "confidenceCrossMethod": "Computed by comparing the real spread across several independent valuation methods (DCF, comparables, historical).",
+        "confidenceScenarioProxy": "Computed from the spread between the DCF's optimistic/base/pessimistic scenarios (not enough independent methods were available to compare).",
+        "marginOfSafetySummary": "How far below the real intrinsic value the current price is.",
+        "formula": "Real formula"
+      }
     }
   },
   "patrimonio": {

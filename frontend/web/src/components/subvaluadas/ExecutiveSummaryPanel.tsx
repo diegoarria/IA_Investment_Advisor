@@ -11,23 +11,28 @@
 
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, TrendingDown, TrendingUp, Minus } from "lucide-react";
-import { Card, SectionHeader, ScorePill, Badge } from "@/components/ui";
-import type { FairValueRangeData, ThesisDraftData, NifDeteriorationData } from "./shared";
+import { Card, SectionHeader, ScorePill, Badge, ExplainableValue, type ExplanationContent } from "@/components/ui";
+import type { FairValueRangeData, ThesisDraftData, NifDeteriorationData, NifScoreFactor, ConfidenceMeterData } from "./shared";
+import { extractFactorsFromNuvosEstimate, formatMarginOfSafetyFormula, pickDeteriorationChangeNote } from "@/lib/explainability";
 
-function StatTile({ label, value, sub, valueColor }: { label: string; value: string; sub?: string; valueColor?: string }) {
+function StatTile({
+  label, value, sub, valueColor, explanation,
+}: { label: string; value: string; sub?: string; valueColor?: string; explanation?: ExplanationContent }) {
+  const valueEl = <p className="text-lg font-semibold tabular-nums truncate" style={{ color: valueColor ?? "var(--text)" }}>{value}</p>;
   return (
     <div className="min-w-0">
       <p className="text-[10px] uppercase tracking-wide truncate" style={{ color: "var(--muted)" }}>{label}</p>
-      <p className="text-lg font-semibold tabular-nums truncate" style={{ color: valueColor ?? "var(--text)" }}>{value}</p>
+      {explanation ? <ExplainableValue label={label} content={explanation}>{valueEl}</ExplainableValue> : valueEl}
       {sub && <p className="text-[10.5px] tabular-nums" style={{ color: "var(--sub)" }}>{sub}</p>}
     </div>
   );
 }
 
-function ScoreTile({ label, score }: { label: string; score: number | null }) {
+function ScoreTile({ label, score, explanation }: { label: string; score: number | null; explanation?: ExplanationContent }) {
+  const pill = <ScorePill score={score} size="md" />;
   return (
     <div className="flex flex-col items-center gap-0.5 min-w-0">
-      <ScorePill score={score} size="md" />
+      {explanation ? <ExplainableValue label={label} content={explanation}>{pill}</ExplainableValue> : pill}
       <p className="text-[9.5px] uppercase tracking-wide text-center" style={{ color: "var(--muted)" }}>{label}</p>
     </div>
   );
@@ -35,7 +40,7 @@ function ScoreTile({ label, score }: { label: string; score: number | null }) {
 
 export function ExecutiveSummaryPanel({
   price, intrinsicValue, fairValueRange, marginOfSafetyPct,
-  qualityScore, convictionScore, confidenceScore,
+  qualityScore, qualityNuvosEstimate, convictionScore, convictionFactors, confidenceMeter,
   thesisDraft, thesisLoading, deterioration,
 }: {
   price: number | null;
@@ -43,8 +48,13 @@ export function ExecutiveSummaryPanel({
   fairValueRange: FairValueRangeData | null;
   marginOfSafetyPct: number | null;
   qualityScore: number | null;
+  /** Fase 4, Incremento 3 — raw pillar nuvos_estimate (untyped upstream
+   * since every NIF pillar has different fields); extracted via
+   * extractFactorsFromNuvosEstimate for the explainability popover. */
+  qualityNuvosEstimate?: Record<string, unknown> | null;
   convictionScore: number | null;
-  confidenceScore: number | null;
+  convictionFactors?: NifScoreFactor[] | null;
+  confidenceMeter?: ConfidenceMeterData | null;
   thesisDraft: ThesisDraftData | null;
   thesisLoading: boolean;
   deterioration: NifDeteriorationData | null;
@@ -52,6 +62,40 @@ export function ExecutiveSummaryPanel({
   const { t } = useTranslation();
   const mosColor = marginOfSafetyPct === null ? "var(--text)" : marginOfSafetyPct >= 0 ? "#22c55e" : "#ef4444";
   const topRisks = (thesisDraft?.key_risks ?? []).slice(0, 3);
+
+  // Fase 4, Incremento 3 (Explainability Engine) — every explanation below
+  // is built ENTIRELY from data the backend already computed (factors[],
+  // deterioration reasons, the real MoS formula) — never a new judgment.
+  const qualityExplanation: ExplanationContent = {
+    summary: t("subvaluadas.executiveSummary.explain.qualitySummary"),
+    factors: extractFactorsFromNuvosEstimate(qualityNuvosEstimate),
+    changeNote: pickDeteriorationChangeNote(deterioration?.factors ?? null, ["roic", "operating_margin", "net_margin", "fcf_margin"]),
+  };
+  const convictionExplanation: ExplanationContent = {
+    summary: t("subvaluadas.executiveSummary.explain.convictionSummary"),
+    factors: (convictionFactors ?? []).map((f) => ({ name: f.name, value: f.value, score: f.score, reason: f.reason })),
+    changeNote: pickDeteriorationChangeNote(deterioration?.factors ?? null, ["roic", "operating_margin"]),
+  };
+  const confidenceExplanation: ExplanationContent | undefined = confidenceMeter ? {
+    summary: t("subvaluadas.executiveSummary.explain.confidenceSummary", { label: confidenceMeter.label }),
+    factors: [{
+      name: t("subvaluadas.executiveSummary.explain.confidenceMethodName"),
+      value: confidenceMeter.dispersion_source ?? null,
+      score: null,
+      reason: t(
+        confidenceMeter.dispersion_source === "cross_method"
+          ? "subvaluadas.executiveSummary.explain.confidenceCrossMethod"
+          : "subvaluadas.executiveSummary.explain.confidenceScenarioProxy"
+      ),
+    }],
+  } : undefined;
+  const marginOfSafetyFormula = formatMarginOfSafetyFormula(price, intrinsicValue);
+  const marginOfSafetyExplanation: ExplanationContent = {
+    summary: t("subvaluadas.executiveSummary.explain.marginOfSafetySummary"),
+    factors: marginOfSafetyFormula
+      ? [{ name: t("subvaluadas.executiveSummary.explain.formula"), value: null, score: null, reason: marginOfSafetyFormula }]
+      : [],
+  };
 
   return (
     <Card className="mb-6">
@@ -69,14 +113,16 @@ export function ExecutiveSummaryPanel({
           label={t("subvaluadas.executiveSummary.marginOfSafety")}
           value={marginOfSafetyPct !== null ? `${marginOfSafetyPct >= 0 ? "+" : ""}${marginOfSafetyPct.toFixed(1)}%` : "N/D"}
           valueColor={mosColor}
+          explanation={marginOfSafetyPct !== null ? marginOfSafetyExplanation : undefined}
         />
       </div>
 
-      {/* Scores reales (Fase 2) */}
+      {/* Scores reales (Fase 2) — cada uno explicable, nunca solo un número
+          (Fase 4, Incremento 3). */}
       <div className="grid grid-cols-3 gap-3 pb-4 mb-4 border-b" style={{ borderColor: "var(--border)" }}>
-        <ScoreTile label={t("subvaluadas.executiveSummary.qualityScore")} score={qualityScore} />
-        <ScoreTile label={t("subvaluadas.executiveSummary.convictionScore")} score={convictionScore} />
-        <ScoreTile label={t("subvaluadas.executiveSummary.confidenceScore")} score={confidenceScore} />
+        <ScoreTile label={t("subvaluadas.executiveSummary.qualityScore")} score={qualityScore} explanation={qualityScore !== null ? qualityExplanation : undefined} />
+        <ScoreTile label={t("subvaluadas.executiveSummary.convictionScore")} score={convictionScore} explanation={convictionScore !== null ? convictionExplanation : undefined} />
+        <ScoreTile label={t("subvaluadas.executiveSummary.confidenceScore")} score={confidenceMeter?.score ?? null} explanation={confidenceExplanation} />
       </div>
 
       {/* Estado de la tesis + cambio reciente (Fase 3) */}

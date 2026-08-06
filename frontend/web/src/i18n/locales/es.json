@@ -77,6 +77,16 @@
       "intermedio": "Intermedio",
       "avanzado": "Avanzado",
       "profesional": "Profesional"
+    },
+    "explainability": {
+      "trigger": "Explicar {{label}}",
+      "howCalculated": "Cómo se calculó",
+      "sinceLastQuarter": "Desde el trimestre anterior",
+      "confidence": {
+        "low": "confianza baja",
+        "medium": "confianza media",
+        "high": "confianza alta"
+      }
     }
   },
   "home": {
@@ -1039,7 +1049,17 @@
       "deteriorationDetected": "{{count}} señal(es) de deterioro detectada(s)",
       "improvementDetected": "{{count}} señal(es) de mejora detectada(s)",
       "noMaterialChange": "Sin cambios materiales detectados",
-      "keyRisks": "Riesgos principales"
+      "keyRisks": "Riesgos principales",
+      "explain": {
+        "qualitySummary": "Mide qué tan buena es la empresa como negocio (rentabilidad, márgenes, flujo de caja, crecimiento, balance) — nunca considera el precio.",
+        "convictionSummary": "Síntesis de calidad del negocio, fortaleza del moat, estabilidad y volatilidad de mercado — nunca toca precio ni valuación.",
+        "confidenceSummary": "Qué tan confiable es la estimación de valor razonable — nivel: {{label}}.",
+        "confidenceMethodName": "Método",
+        "confidenceCrossMethod": "Calculado comparando el rango real entre varios métodos de valuación independientes (DCF, comparables, histórico).",
+        "confidenceScenarioProxy": "Calculado a partir de la dispersión entre los escenarios optimista/base/pesimista del DCF (no hubo suficientes métodos independientes para comparar).",
+        "marginOfSafetySummary": "Qué tan por debajo del valor intrínseco real está el precio actual.",
+        "formula": "Fórmula real"
+      }
     }
   },
   "patrimonio": {
