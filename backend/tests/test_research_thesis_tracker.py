@@ -151,3 +151,23 @@ class TestComputeAndSaveThesisReview:
         assert outcomes_by_text["El margen de Services debe recuperar 25% en 2 trimestres."] is None
         assert all(r["ticker"] == "AAPL" for r in insert_rows)
         assert all(r["source_thesis_id"] == "draft1" for r in insert_rows)
+
+    @pytest.mark.asyncio
+    async def test_sector_and_industry_propagate_into_outcome_rows(self):
+        mock_db = MagicMock()
+        with patch("app.services.research.thesis_engine.get_user_current_thesis", new_callable=AsyncMock) as mock_prior, \
+             patch("app.services.research.timeline_engine.get_company_timeline", new_callable=AsyncMock) as mock_timeline, \
+             patch("app.services.ai_service.generate_thesis_review", new_callable=AsyncMock) as mock_ai, \
+             patch("app.services.research.thesis_engine.create_thesis_version", new_callable=AsyncMock) as mock_create, \
+             patch("app.core.database.get_supabase", return_value=mock_db), \
+             patch("app.core.database.run_query", new_callable=AsyncMock) as mock_run:
+            mock_prior.return_value = _PRIOR_THESIS
+            mock_timeline.return_value = _RECENT_EVENTS
+            mock_ai.return_value = _AI_RESULT
+            mock_create.return_value = {"id": "t2", "version": 2}
+            mock_run.return_value = SimpleNamespace(data=[{"id": "outcome1"}])
+
+            await compute_and_save_thesis_review("user1", "AAPL", "Apple", sector="Technology", industry="Software")
+
+        insert_rows = mock_db.table.return_value.insert.call_args[0][0]
+        assert all(r["sector"] == "Technology" and r["industry"] == "Software" for r in insert_rows)

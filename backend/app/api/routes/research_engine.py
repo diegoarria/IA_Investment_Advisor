@@ -205,11 +205,14 @@ async def review_thesis_route(ticker: str, lang: str = "es", user_id: str = Depe
     the prior one), and records hypothesis outcomes."""
     from app.services.research.thesis_tracker import compute_and_save_thesis_review
     from app.services.fundamental_analysis_service import get_fundamental_analysis
+    from app.api.routes.screener import UNIVERSE
     import asyncio
 
     data = await asyncio.to_thread(get_fundamental_analysis, ticker)
     company_name = (data or {}).get("company_name") or ticker
-    result = await compute_and_save_thesis_review(user_id, ticker, company_name, lang)
+    sector = (data or {}).get("sector")
+    industry = next((u["industry"] for u in UNIVERSE if u["ticker"] == ticker.upper()), None)
+    result = await compute_and_save_thesis_review(user_id, ticker, company_name, lang, sector=sector, industry=industry)
     if not result.has_any_signal:
         raise HTTPException(status_code=404, detail="No hay una tesis propia previa para revisar en esta empresa.")
     return {
@@ -307,3 +310,18 @@ async def get_investment_memo_route(ticker: str, lang: str = "es", user_id: str 
         catalysts=catalysts, segments=segments, user_id=user_id,
     )
     return memo.to_dict()
+
+
+@router.get("/benchmark")
+async def get_benchmark_report_route(user_id: str = Depends(get_current_user_id)):
+    """Benchmark Engine (Parte N) — how accurate has Nuvos's own research
+    been, overall and broken down by industry/sector/claim type. Only
+    has_any_signal=True once the Thesis Tracker has evaluated at least
+    one real hypothesis (see `research_hypothesis_outcomes`) — early on,
+    this legitimately returns "not enough history yet" rather than a
+    fabricated stat."""
+    from app.services.research.benchmark_engine import compute_benchmark_report
+    from dataclasses import asdict
+
+    report = await compute_benchmark_report()
+    return asdict(report)

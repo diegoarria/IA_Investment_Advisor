@@ -124,12 +124,17 @@ def _texts_from_jsonb(claims_jsonb: Optional[list]) -> list[str]:
 
 async def _record_hypothesis_outcomes(
     ticker: str, prior: dict, result: ThesisReviewResult,
+    sector: Optional[str] = None, industry: Optional[str] = None,
 ) -> None:
     """Populates `research_hypothesis_outcomes` (migration 063, Benchmark
     Engine's schema) — every prior critical variable/risk gets a real
     outcome now that there's real evidence to judge it, and every new
     critical variable/risk in the updated thesis gets a fresh
-    `outcome=NULL` row pending the NEXT review."""
+    `outcome=NULL` row pending the NEXT review. `sector`/`industry` are
+    stored per-row so the Benchmark Engine (Incremento 11) can answer
+    "which industries does Nuvos analyze best" without a second join —
+    optional/backward-compatible since earlier reviews may not have
+    passed them."""
     from app.core.database import get_supabase, run_query
 
     db = get_supabase()
@@ -158,13 +163,17 @@ async def _record_hypothesis_outcomes(
         rows.append({"claim_text": c.text, "claim_type": "risk", "outcome": None, "evaluated_at": None})
 
     for row in rows:
-        row.update({"ticker": ticker.upper(), "source_thesis_id": source_thesis_id, "predicted_at": predicted_at})
+        row.update({
+            "ticker": ticker.upper(), "source_thesis_id": source_thesis_id, "predicted_at": predicted_at,
+            "sector": sector, "industry": industry,
+        })
     if rows:
         await run_query(db.table("research_hypothesis_outcomes").insert(rows))
 
 
 async def compute_and_save_thesis_review(
     user_id: str, ticker: str, company_name: str, lang: str = "es",
+    sector: Optional[str] = None, industry: Optional[str] = None,
 ) -> ThesisReviewResult:
     """Computes the review, creates the new thesis version (via
     `thesis_engine.create_thesis_version` — never touches thesis content
@@ -189,6 +198,6 @@ async def compute_and_save_thesis_review(
     result.new_thesis_version = new_version
 
     if prior:
-        await _record_hypothesis_outcomes(ticker, prior, result)
+        await _record_hypothesis_outcomes(ticker, prior, result, sector=sector, industry=industry)
 
     return result
