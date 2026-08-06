@@ -33,7 +33,7 @@ from app.services.valuation.monte_carlo_engine import (
 # original names so every internal call site below (`_run_dcf(...)`,
 # `_num(...)`, etc.) keeps working completely unchanged — see each new
 # module's docstring for the full rationale.
-from app.services.valuation.numeric_helpers import _num, _cagr, _score, _coefficient_of_variation
+from app.services.valuation.numeric_helpers import _num, _cagr, _score, _coefficient_of_variation, calc_margin_of_safety
 from app.services.valuation.legacy_dcf_core import _project_path, _run_dcf, _run_dcf_constant_growth
 from app.services.valuation.reverse_dcf_engine import (
     _implied_growth_rate, _implied_fcf_margin_at_fixed_growth, _implied_constant_growth_rate,
@@ -690,7 +690,7 @@ def _build_financial_sector_valuation(
     if base_value <= 0:
         return None
 
-    margin_of_safety = round((base_value - price) / base_value * 100, 1)
+    margin_of_safety = calc_margin_of_safety(base_value, price)
     expected_value_per_share = round(
         scenarios["pessimistic"]["intrinsic_value_per_share"] * 0.25
         + scenarios["base"]["intrinsic_value_per_share"] * 0.5
@@ -706,12 +706,24 @@ def _build_financial_sector_valuation(
         if -0.30 < g_implied < cost_of_equity:
             implied_growth_pct = round(g_implied * 100, 1)
 
+    # Fase 1.5, Incremento 14 (dedup) — this is a THIRD, genuinely different
+    # "confidence_score" formula in this codebase: a simple ROE-volatility
+    # heuristic, unrelated to `_confidence_score` (confidence_engine.py,
+    # FCF-CV + ROIC-trend based, used by the standard FCF-DCF branch below)
+    # or `confidence_engine.compute_...` more broadly. Named distinctly here
+    # (`roe_volatility_confidence_score`) so a reader/grep never confuses
+    # the three. Still returned under the JSON key "confidence_score" below
+    # — that polymorphism (whichever methodology ran populates the same
+    # generic key) is deliberate, documented where confidence_meter reads it
+    # (~line 2118), and left unchanged so downstream consumers that treat
+    # dcf's shape as methodology-agnostic keep working for financial-sector
+    # tickers exactly as before.
     roe_stdev = statistics.pstdev(roe_valid) if len(roe_valid) >= 3 else None
-    confidence_score = _score(roe_stdev, [(5, 90), (10, 75), (18, 55), (30, 35), (999, 15)]) if roe_stdev is not None else 50
+    roe_volatility_confidence_score = _score(roe_stdev, [(5, 90), (10, 75), (18, 55), (30, 35), (999, 15)]) if roe_stdev is not None else 50
 
     net_cash = cash - total_debt
     valuation_risk_label = "Bajo" if margin_of_safety >= 0 else "Medio" if margin_of_safety >= -30 else "Alto" if margin_of_safety >= -100 else "Muy alto"
-    operational_risk_label = "Bajo" if confidence_score >= 80 else "Medio" if confidence_score >= 60 else "Alto" if confidence_score >= 40 else "Muy alto"
+    operational_risk_label = "Bajo" if roe_volatility_confidence_score >= 80 else "Medio" if roe_volatility_confidence_score >= 60 else "Alto" if roe_volatility_confidence_score >= 40 else "Muy alto"
 
     return {
         "methodology": "residual_income_justified_pb",
@@ -737,7 +749,7 @@ def _build_financial_sector_valuation(
         "margin_of_safety_pct": margin_of_safety,
         "expected_value_per_share": expected_value_per_share,
         "implied_growth_pct": implied_growth_pct,
-        "confidence_score": confidence_score,
+        "confidence_score": roe_volatility_confidence_score,
         "operational_risk_label": operational_risk_label,
         "valuation_risk_label": valuation_risk_label,
         "growth_buildup": {
@@ -1306,9 +1318,7 @@ def get_fundamental_analysis(ticker: str, _compute_consensus: bool = True) -> Op
         # a nonsensical negative price — the prompt is instructed to say so
         # explicitly instead of inventing a number.
         if base_scenario["intrinsic_value_per_share"] > 0:
-            margin_of_safety = round(
-                (base_scenario["intrinsic_value_per_share"] - price) / base_scenario["intrinsic_value_per_share"] * 100, 1
-            )
+            margin_of_safety = calc_margin_of_safety(base_scenario["intrinsic_value_per_share"], price)
             # Classic sensitivity table: same base-case growth rate, only the
             # discount rate changes (8%/10%/12%) — separate from the 3
             # growth scenarios above, which vary growth AND discount rate

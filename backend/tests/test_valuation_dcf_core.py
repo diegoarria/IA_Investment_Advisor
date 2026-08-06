@@ -27,10 +27,12 @@ from app.services.fundamental_analysis_service import (
     _score,
     _coefficient_of_variation,
     _confidence_score,
+    calc_margin_of_safety,
     _DEFAULT_DISCOUNT_RATE,
     _DEFAULT_TERMINAL_GROWTH,
     _DEFAULT_CYCLICALITY_DAMPENER,
 )
+from app.services.valuation.numeric_helpers import derive_fcf
 
 
 # ── _project_path ──────────────────────────────────────────────────────────
@@ -262,6 +264,36 @@ class TestNumericHelpers:
 
     def test_coefficient_of_variation_none_when_mean_is_zero(self):
         assert _coefficient_of_variation([-5.0, 5.0, 0.0]) is None
+
+    # Fase 1.5, Incremento 14 (dedup) — single source of truth for margin
+    # of safety, replacing 5 independently-drifted inline copies.
+    def test_calc_margin_of_safety_divides_by_intrinsic_value(self):
+        # (150 - 100) / 150, NOT / 100 — the convention 4 of the 5 original
+        # sites already used; the lone holdout (saved_valuation_service.py)
+        # was migrated to this, not the other way around.
+        assert calc_margin_of_safety(150.0, 100.0) == pytest.approx(33.3, abs=0.1)
+
+    def test_calc_margin_of_safety_negative_when_overpriced(self):
+        assert calc_margin_of_safety(80.0, 100.0) == pytest.approx(-25.0, abs=0.1)
+
+    def test_calc_margin_of_safety_none_for_non_positive_intrinsic_value(self):
+        assert calc_margin_of_safety(0.0, 100.0) is None
+        assert calc_margin_of_safety(-10.0, 100.0) is None
+        assert calc_margin_of_safety(None, 100.0) is None
+
+    def test_calc_margin_of_safety_none_when_price_missing(self):
+        assert calc_margin_of_safety(150.0, None) is None
+
+    # Fase 1.5, Incremento 14 (dedup) — single source of truth for
+    # FCF = CFO + Capex, replacing independent copies in
+    # financial_data_service.py and market_data_service.py.
+    def test_derive_fcf_adds_cfo_and_capex(self):
+        # Capex is a negative outflow, same as every provider reports it.
+        assert derive_fcf(1000.0, -300.0) == 700.0
+
+    def test_derive_fcf_none_when_either_input_missing(self):
+        assert derive_fcf(None, -300.0) is None
+        assert derive_fcf(1000.0, None) is None
 
 
 # ── _confidence_score ───────────────────────────────────────────────────────

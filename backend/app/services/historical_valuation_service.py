@@ -21,6 +21,8 @@ from __future__ import annotations
 import statistics
 from typing import Optional
 
+from app.services.valuation.numeric_helpers import calc_margin_of_safety
+
 _MIN_HISTORICAL_YEARS = 5  # never build a "10-year distribution" claim off fewer real data points
 
 
@@ -105,10 +107,7 @@ def compute_historical_valuation(
         return None
 
     intrinsic_value_per_share = round(statistics.median(list(implied_values.values())), 2)
-    margin_of_safety_pct = (
-        round((intrinsic_value_per_share - price) / intrinsic_value_per_share * 100, 1)
-        if intrinsic_value_per_share else None
-    )
+    margin_of_safety_pct = calc_margin_of_safety(intrinsic_value_per_share, price)
     today_pe = price / latest_eps if latest_eps and latest_eps > 0 else None
 
     return {

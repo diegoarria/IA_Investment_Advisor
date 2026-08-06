@@ -13,6 +13,8 @@ several checkpoints on the way to "this is a great price."
 import logging
 from typing import Optional
 
+from app.services.valuation.numeric_helpers import calc_margin_of_safety
+
 logger = logging.getLogger(__name__)
 
 MILESTONES = [-10, 0, 10, 20, 30, 40]
@@ -86,7 +88,15 @@ def _with_live_valuation(row: dict, inputs: Optional[dict]) -> dict:
             inputs["net_cash"] / 1e6, inputs["shares_outstanding"] / 1e6,
         )
         if live_iv is not None and live_price:
-            margin_of_safety_pct = round((live_iv - live_price) / live_price * 100, 1)
+            # Fase 1.5, Incremento 14 (dedup) — was the lone site dividing
+            # by price instead of intrinsic value; see numeric_helpers.py::
+            # calc_margin_of_safety's docstring for why /intrinsic is the
+            # convention everywhere now. This only changes how the SAVED
+            # assumptions' resulting cushion is displayed, not compute_iv()
+            # itself (the fade formula those assumptions still reproduce is
+            # untouched here — that migration is Incremento 16, after the
+            # frontend's own fade is fixed).
+            margin_of_safety_pct = calc_margin_of_safety(live_iv, live_price)
     return {
         **row,
         "company_name": (inputs or {}).get("company_name") or row.get("company_name"),

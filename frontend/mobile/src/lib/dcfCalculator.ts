@@ -69,8 +69,11 @@ export function calcularValorIntrinseco(inputs: DcfInputs): DcfResult | null {
   return { stage1, terminal, equity, valorPorAccion };
 }
 
-/** Margin of safety: (valor intrínseco - precio) / precio, as a fraction (not %). */
+/** Margin of safety: (valor intrínseco - precio) / valor intrínseco, as a
+ * fraction (not %). Denominator is the INTRINSIC value, not price — Fase
+ * 1.5, Incremento 14 dedup: matches the web copy and the single backend
+ * convention (numeric_helpers.py::calc_margin_of_safety). */
 export function margenDeSeguridad(valorPorAccion: number, precioActual: number): number | null {
-  if (!precioActual || precioActual <= 0) return null;
-  return (valorPorAccion - precioActual) / precioActual;
+  if (!valorPorAccion || valorPorAccion <= 0) return null;
+  return (valorPorAccion - precioActual) / valorPorAccion;
 }

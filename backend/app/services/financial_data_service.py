@@ -30,6 +30,7 @@ import pandas as pd
 
 from app.core.cache import cache_get, cache_set
 from app.core.config import settings
+from app.services.valuation.numeric_helpers import derive_fcf
 
 logger = logging.getLogger(__name__)
 
@@ -248,12 +249,10 @@ def _balance_period(period: str, **fields) -> dict:
 
 def _cashflow_period(period: str, **fields) -> dict:
     d: dict = {"period": period, **{k: _num(v) for k, v in fields.items()}}
-    # Auto-derive FCF = CFO + Capex (capex reported as negative outflow)
     if d.get("Free Cash Flow") is None:
-        cfo = d.get("Operating Cash Flow")
-        capex = d.get("Capital Expenditure")
-        if cfo is not None and capex is not None:
-            d["Free Cash Flow"] = round(cfo + capex, 2)
+        derived = derive_fcf(d.get("Operating Cash Flow"), d.get("Capital Expenditure"))
+        if derived is not None:
+            d["Free Cash Flow"] = derived
     return d
 
 

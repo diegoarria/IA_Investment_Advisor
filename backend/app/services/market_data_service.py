@@ -6,6 +6,7 @@ import requests
 import yfinance as yf
 from datetime import datetime, timedelta
 from app.core.cache import cache_get, cache_set
+from app.services.valuation.numeric_helpers import derive_fcf
 
 # ── Company name → ticker map ─────────────────────────────────────────────
 COMPANY_TICKERS: dict[str, str] = {
@@ -915,8 +916,8 @@ def _build_company_context(ticker: str) -> str:
                 div_v   = _safe_val(cf_src, DIV)
                 cf_note = _col_label(cf_src, 0)
 
-            if fcf_v is None and fco_v is not None and capex_v is not None:
-                fcf_v = fco_v + capex_v
+            if fcf_v is None:
+                fcf_v = derive_fcf(fco_v, capex_v)
 
             lines.append(f"\n**💵 Flujo de Caja ({cf_note}):**")
             lines.append(f"- FCO (Operaciones): {_fmt_num(fco_v)}")

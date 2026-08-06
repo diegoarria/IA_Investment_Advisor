@@ -62,15 +62,15 @@ describe("calcularValorIntrinseco", () => {
 
 describe("margenDeSeguridad", () => {
   it("computes a positive margin when intrinsic value exceeds price", () => {
-    expect(margenDeSeguridad(150, 100)).toBeCloseTo(0.5, 6);
+    expect(margenDeSeguridad(150, 100)).toBeCloseTo(1 / 3, 6);
   });
 
   it("computes a negative margin when intrinsic value is below price", () => {
-    expect(margenDeSeguridad(80, 100)).toBeCloseTo(-0.2, 6);
+    expect(margenDeSeguridad(80, 100)).toBeCloseTo(-0.25, 6);
   });
 
-  it("returns null for a zero or negative price instead of dividing by zero", () => {
-    expect(margenDeSeguridad(150, 0)).toBeNull();
-    expect(margenDeSeguridad(150, -10)).toBeNull();
+  it("returns null for a zero or negative intrinsic value instead of dividing by zero", () => {
+    expect(margenDeSeguridad(0, 100)).toBeNull();
+    expect(margenDeSeguridad(-10, 100)).toBeNull();
   });
 });

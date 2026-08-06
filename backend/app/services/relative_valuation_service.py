@@ -23,6 +23,8 @@ import logging
 import statistics
 from typing import Optional
 
+from app.services.valuation.numeric_helpers import calc_margin_of_safety
+
 logger = logging.getLogger(__name__)
 
 _MIN_PEERS = 5  # never compute a median off a "peer group" too small to mean anything
@@ -125,10 +127,7 @@ def compute_relative_valuation(
     # not an average, so one distorted multiple (e.g. a peer set with an
     # outlier EV/EBITDA) doesn't drag the whole estimate.
     intrinsic_value_per_share = round(statistics.median(list(implied_values.values())), 2)
-    margin_of_safety_pct = (
-        round((intrinsic_value_per_share - price) / intrinsic_value_per_share * 100, 1)
-        if intrinsic_value_per_share else None
-    )
+    margin_of_safety_pct = calc_margin_of_safety(intrinsic_value_per_share, price)
 
     return {
         "methodology": "relative_valuation",

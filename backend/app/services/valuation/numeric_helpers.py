@@ -44,6 +44,46 @@ def _score(value: Optional[float], tiers: list[tuple[float, int]]) -> Optional[i
     return tiers[-1][1]
 
 
+def calc_margin_of_safety(intrinsic_value_per_share: Optional[float], price: Optional[float]) -> Optional[float]:
+    """Fase 1.5, Incremento 14 (dedup — see /Users/diegoarria/.claude/plans/
+    stateful-painting-flurry.md, section 9.2 of the audit) — single source
+    of truth for margin of safety, replacing 5 independent inline copies of
+    this formula (fundamental_analysis_service.py x2, historical_valuation_
+    service.py, relative_valuation_service.py, saved_valuation_service.py)
+    that had quietly drifted into TWO different denominator conventions.
+
+    Denominator is `intrinsic_value_per_share` (NOT `price`) — the
+    convention 4 of the 5 original sites already used, and the one that
+    actually answers "margin of safety": Graham/Buffett's usage measures the
+    cushion as a fraction of the estimated INTRINSIC value ("I paid X% below
+    what it's really worth"), not as a fraction of the price paid. The lone
+    holdout (saved_valuation_service.py, dividing by price) was a real
+    inconsistency, not a deliberate second convention — migrated here, not
+    preserved as a second helper.
+
+    Returns None if `intrinsic_value_per_share` is missing or not positive
+    (mirrors every original site's own guard) — never divides by a
+    zero/negative/missing base."""
+    if intrinsic_value_per_share is None or intrinsic_value_per_share <= 0 or price is None:
+        return None
+    return round((intrinsic_value_per_share - price) / intrinsic_value_per_share * 100, 1)
+
+
+def derive_fcf(cfo: Optional[float], capex: Optional[float]) -> Optional[float]:
+    """FCF = CFO + Capex (capex reported as a negative outflow by every
+    provider this codebase uses). Fase 1.5, Incremento 14 (dedup) — this
+    exact two-line derivation previously existed independently in
+    `financial_data_service.py` (`_cashflow_period`) and
+    `market_data_service.py` (Arthur's live cash-flow summary) — small
+    enough that it had silently drifted (one site rounded to 2 decimals,
+    the other didn't) without anyone noticing. Returns None if either input
+    is missing, never silently substituting a zero for a genuinely absent
+    CFO or Capex."""
+    if cfo is None or capex is None:
+        return None
+    return round(cfo + capex, 2)
+
+
 def _coefficient_of_variation(values: list[Optional[float]]) -> Optional[float]:
     """Real (not eyeballed) measure of how volatile a series is: stdev/|mean|.
     Used so 'is this company's FCF stable or all over the place' is a
