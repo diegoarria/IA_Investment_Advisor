@@ -374,6 +374,15 @@ export const researchEngineApi = {
     api.post(`/api/research-engine/company/${ticker}/thesis/fork`, {}),
   getMyThesis: (ticker: string) =>
     api.get(`/api/research-engine/company/${ticker}/thesis/mine`),
+  // Fase 4, Incremento 11 — manual create/edit of the user's own thesis
+  // (always a new version, never overwrites — same rule as fork/review).
+  saveMyThesis: (ticker: string, body: {
+    thesis_summary: string; strengths?: string[]; critical_variables?: string[];
+    key_risks?: string[]; invalidation_events?: string[];
+  }) => api.post(`/api/research-engine/company/${ticker}/thesis/mine`, body),
+  // Every ticker the user has a current personal thesis for — powers the
+  // Investment Journal page's "your theses" list.
+  getAllMyTheses: () => api.get("/api/research-engine/theses/mine"),
   // Fase 4, Incremento 6 — every real version of the user's own thesis.
   getThesisHistory: (ticker: string) =>
     api.get(`/api/research-engine/company/${ticker}/thesis/history`),

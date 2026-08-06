@@ -216,6 +216,25 @@ async def get_user_current_thesis(user_id: str, ticker: str) -> Optional[dict]:
     return res.data[0] if res.data else None
 
 
+async def get_all_user_current_theses(user_id: str) -> list[dict]:
+    """Fase 4, Incremento 11 (Investment Journal, Parte K) — every ticker
+    this user has a CURRENT personal thesis for, most recently created
+    first. Every other thesis read in this module is `{ticker}`-scoped;
+    this is the one list-across-all-tickers view, so a dedicated journal
+    page doesn't force the user to already know which ticker to ask
+    about. Returns [] (never fabricates) if the user has never adopted or
+    written a thesis for anything."""
+    from app.core.database import get_supabase, run_query
+
+    db = get_supabase()
+    res = await run_query(
+        db.table("user_investment_theses").select("*")
+        .eq("user_id", user_id).eq("is_current", True)
+        .order("created_at", desc=True)
+    )
+    return res.data or []
+
+
 async def get_user_thesis_history(user_id: str, ticker: str) -> list[dict]:
     """Fase 4, Incremento 6 (Historial de valuaciones, Parte E — see
     /Users/diegoarria/.claude/plans/stateful-painting-flurry.md): every

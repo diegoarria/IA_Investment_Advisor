@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import {
@@ -590,6 +590,35 @@ function SubvaluadasPageInner() {
     return () => { cancelled = true; };
   }, [ticker, isPremium]);
 
+  // Fase 4, Incremento 11 (Investment Journal, Parte K) — whether the user
+  // already has their OWN adopted thesis for this ticker (distinct from
+  // Nuvos's shared draft above). Drives the "Adoptar como mi tesis" CTA.
+  const [myThesis, setMyThesis] = useState<{ ticker: string; version: number } | null>(null);
+  const [adoptingThesis, setAdoptingThesis] = useState(false);
+
+  const fetchMyThesis = useCallback(() => {
+    if (!isPremium) return;
+    researchEngineApi.getMyThesis(ticker)
+      .then((res) => setMyThesis(res.data))
+      .catch(() => setMyThesis(null));
+  }, [ticker, isPremium]);
+
+  useEffect(() => { fetchMyThesis(); }, [fetchMyThesis]);
+
+  const handleAdoptThesis = async () => {
+    setAdoptingThesis(true);
+    try {
+      await researchEngineApi.forkThesis(ticker);
+      fetchMyThesis();
+      const historyRes = await researchEngineApi.getThesisHistory(ticker);
+      setThesisHistory(historyRes.data?.versions ?? []);
+    } catch {
+      // real failure — myThesis stays null, the CTA simply remains visible to retry
+    } finally {
+      setAdoptingThesis(false);
+    }
+  };
+
   // Fase 4, Incremento 5 — company timeline (Fase 3's Change Detection
   // Engine output). Independent load state, same "never block anything
   // else" philosophy as nifData/thesisDraft above.
@@ -943,7 +972,26 @@ function SubvaluadasPageInner() {
                        ajustado): evolución real de la tesis personal del usuario. Avanzado+,
                        ya que "comparar contra hace 1/3/5 años" es un caso de uso analítico. ===== */}
                   {isPremium && isSectionVisible(detailLevel, "dcf_full") && (
-                    <ThesisHistoryPanel versions={thesisHistory} loading={thesisHistoryLoading} />
+                    <>
+                      {!thesisLoading && thesisDraft && !myThesis && (
+                        <div className="flex items-center justify-between gap-3 rounded-xl border p-3.5 mb-3"
+                             style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                          <p className="text-[12px]" style={{ color: "var(--sub)" }}>
+                            {t("subvaluadas.investmentJournal.adoptPrompt")}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleAdoptThesis}
+                            disabled={adoptingThesis}
+                            className="shrink-0 text-[11.5px] font-semibold rounded-lg px-3 py-1.5 disabled:opacity-40"
+                            style={{ background: "var(--accent-l)", color: "#0a0a0a" }}
+                          >
+                            {adoptingThesis ? t("subvaluadas.investmentJournal.adopting") : t("subvaluadas.investmentJournal.adoptCta")}
+                          </button>
+                        </div>
+                      )}
+                      <ThesisHistoryPanel versions={thesisHistory} loading={thesisHistoryLoading} />
+                    </>
                   )}
 
                   {/* ===== Nivel 1 summary — GeneratedAtNote/LiquidityWarning/InsightBox stay

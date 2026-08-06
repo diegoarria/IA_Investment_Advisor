@@ -15,11 +15,9 @@ import { auth as authApi, billing, insights as insightsApi, mentorLetter as ment
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
 import WrappedCard from "@/components/WrappedCard";
-import DiarioDecisionesCard from "@/components/DiarioDecisionesCard";
-import InvestmentGraphSection from "@/components/InvestmentGraphSection";
 import SavedValuationsSection from "@/components/SavedValuationsSection";
 import {
-  User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
+  User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, ChevronRight, NotebookPen, Star, BarChart,
   Loader2, Copy, Check, Gift, Users, Share2, Trash2, Phone, Video, FileSearch, Lock,
   Bell, HeadphonesIcon,
 } from "lucide-react";
@@ -164,8 +162,6 @@ export default function ProfilePage() {
   // Both sections default collapsed — they're dense (decision log, bias
   // analysis, thesis history) and most visits to /profile don't need them
   // open; a "Ver detalles" button reveals them on demand instead.
-  const [showDiario, setShowDiario] = useState(false);
-  const [showBitacora, setShowBitacora] = useState(false);
   const [letterOpen, setLetterOpen] = useState(false);
   const [letter, setLetter] = useState<string | null>(null);
   const [letterLoading, setLetterLoading] = useState(false);
@@ -697,47 +693,24 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* Fortalezas y Puntos Ciegos — Personal Investment Memory:
-                    detección real de sesgos/fortalezas a partir del
-                    historial de decisiones (auto-capturado en cada sync de
-                    portafolio, ver sync.py), no de una encuesta. Collapsed by
-                    default — dense content most profile visits don't need. */}
-                <div>
-                  <button
-                    onClick={() => setShowDiario((v) => !v)}
-                    className="w-full flex items-center justify-between mb-2"
-                  >
-                    <p className="text-[10px] font-bold uppercase tracking-widest ml-0.5" style={{ color: "var(--dim)" }}>
-                      {t("diarioDecisiones.headerTitle")}
-                    </p>
-                    <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--accent-l)" }}>
-                      {showDiario ? t("profile.hideDetails") : t("profile.viewDetails")}
-                      {showDiario ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                    </span>
-                  </button>
-                  {showDiario && <DiarioDecisionesCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />}
-                </div>
-
-                {/* Tu Bitácora — Investment Graph: distinto de Fortalezas y
-                    Puntos Ciegos (eso es psicología); esto es el archivo
-                    intelectual — tesis, preguntas, watchlist, eventos de
-                    mercado, cruzados por empresa y en el tiempo. Collapsed by
-                    default, same reasoning as above. */}
-                <div>
-                  <button
-                    onClick={() => setShowBitacora((v) => !v)}
-                    className="w-full flex items-center justify-between mb-2"
-                  >
-                    <p className="text-[10px] font-bold uppercase tracking-widest ml-0.5" style={{ color: "var(--dim)" }}>
-                      {t("investmentGraph.sectionTitle")}
-                    </p>
-                    <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--accent-l)" }}>
-                      {showBitacora ? t("profile.hideDetails") : t("profile.viewDetails")}
-                      {showBitacora ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                    </span>
-                  </button>
-                  {showBitacora && <InvestmentGraphSection isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />}
-                </div>
+                {/* Fase 4, Incremento 11 (Investment Journal, Parte K) — Fortalezas
+                    y Puntos Ciegos + Tu Bitácora (Investment Graph) + Tus tesis
+                    moved out of these collapsibles into their own dedicated
+                    /journal page. This is now just a discoverability link. */}
+                <button
+                  onClick={() => router.push("/journal")}
+                  className="w-full flex items-center justify-between rounded-xl border p-3.5"
+                  style={{ borderColor: "var(--border)", background: "var(--card)" }}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <NotebookPen className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
+                    <div className="text-left">
+                      <p className="text-[12.5px] font-bold" style={{ color: "var(--text)" }}>{t("investmentJournal.profileLinkTitle")}</p>
+                      <p className="text-[11px]" style={{ color: "var(--muted)" }}>{t("investmentJournal.profileLinkSubtitle")}</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
+                </button>
 
                 {/* Mentor card */}
                 {mentor && (

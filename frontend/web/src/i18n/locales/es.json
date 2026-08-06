@@ -14,6 +14,7 @@
       "academy": "Aprendizaje",
       "notifications": "Notificaciones",
       "profile": "Perfil",
+      "journal": "Bitácora",
       "products": "Productos",
       "support": "Soporte",
       "undervalued": "Oportunidades"
@@ -1140,6 +1141,11 @@
         "moat_still_valid": "El moat/ventaja competitiva sigue vigente",
         "loss_scenario": "Entiendo cuánto podría perder si me equivoco"
       }
+    },
+    "investmentJournal": {
+      "adoptPrompt": "Nuvos ya construyó una tesis de investigación para esta empresa — puedes adoptarla como punto de partida para la tuya.",
+      "adoptCta": "Adoptar como mi tesis",
+      "adopting": "Adoptando..."
     }
   },
   "patrimonio": {
@@ -2778,6 +2784,36 @@
       "iol": "Bolsa de Buenos Aires + NYSE",
       "gbm": "Broker líder en México",
       "actinver": "Casa de bolsa mexicana"
+    }
+  },
+  "investmentJournal": {
+    "title": "Bitácora de Inversión",
+    "subtitle": "Tus tesis, tus decisiones y tu historial de investigación, todo en un lugar",
+    "profileLinkTitle": "Bitácora de Inversión",
+    "profileLinkSubtitle": "Tus tesis, fortalezas, puntos ciegos y tu historial completo",
+    "theses": {
+      "title": "Tus tesis",
+      "subtitle": "Empresas donde adoptaste o escribiste tu propia tesis de inversión",
+      "premiumRequired": "Las tesis personales son una función Premium",
+      "loading": "Cargando tus tesis...",
+      "empty": "Todavía no adoptaste ni escribiste ninguna tesis propia.",
+      "goResearch": "Ir a investigar una empresa",
+      "version": "Versión {{version}}",
+      "edit": "Editar",
+      "cancel": "Cancelar",
+      "review": "Revisar",
+      "reviewing": "Revisando...",
+      "reviewError": "No pudimos revisar la tesis — intenta de nuevo.",
+      "reviewResultTitle": "Resultado de la revisión",
+      "newVersionCreated": "Se creó la versión {{version}} de tu tesis",
+      "noChange": "No hubo cambios reales desde tu última revisión.",
+      "summaryPlaceholder": "Resumen de tu tesis...",
+      "risksPlaceholder": "Riesgos clave (uno por línea)",
+      "strengthsPlaceholder": "Fortalezas (una por línea)",
+      "criticalVarsPlaceholder": "Variables críticas a monitorear (una por línea)",
+      "invalidationPlaceholder": "Qué invalidaría esta tesis (uno por línea)",
+      "saving": "Guardando...",
+      "save": "Guardar"
     }
   },
   "investmentGraph": {

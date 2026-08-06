@@ -16,6 +16,7 @@ from app.services.research.thesis_engine import (
     get_thesis_draft,
     get_user_current_thesis,
     get_user_thesis_history,
+    get_all_user_current_theses,
     create_thesis_version,
     fork_thesis_from_draft,
     format_real_inputs_summary,
@@ -220,6 +221,30 @@ class TestGetUserThesisHistory:
              patch("app.core.database.run_query", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = SimpleNamespace(data=[])
             assert await get_user_thesis_history("user1", "AAPL") == []
+
+
+class TestGetAllUserCurrentTheses:
+    @pytest.mark.asyncio
+    async def test_returns_every_current_thesis_most_recently_created_first(self):
+        mock_db = MagicMock()
+        rows = [{"ticker": "MSFT", "is_current": True}, {"ticker": "AAPL", "is_current": True}]
+        with patch("app.core.database.get_supabase", return_value=mock_db), \
+             patch("app.core.database.run_query", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = SimpleNamespace(data=rows)
+            result = await get_all_user_current_theses("user1")
+
+        assert result == rows
+        mock_db.table.assert_called_with("user_investment_theses")
+        order_call = mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.order
+        order_call.assert_called_once_with("created_at", desc=True)
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_list_when_no_thesis_exists(self):
+        mock_db = MagicMock()
+        with patch("app.core.database.get_supabase", return_value=mock_db), \
+             patch("app.core.database.run_query", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = SimpleNamespace(data=[])
+            assert await get_all_user_current_theses("user1") == []
 
 
 class TestForkThesisFromDraft:

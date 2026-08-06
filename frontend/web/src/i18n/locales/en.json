@@ -14,6 +14,7 @@
       "academy": "Learning",
       "notifications": "Notifications",
       "profile": "Profile",
+      "journal": "Journal",
       "products": "Products",
       "support": "Support",
       "undervalued": "Opportunities"
@@ -1140,6 +1141,11 @@
         "moat_still_valid": "The moat/competitive advantage still holds",
         "loss_scenario": "I understand how much I could lose if I'm wrong"
       }
+    },
+    "investmentJournal": {
+      "adoptPrompt": "Nuvos already built a research thesis for this company — you can adopt it as a starting point for your own.",
+      "adoptCta": "Adopt as my thesis",
+      "adopting": "Adopting..."
     }
   },
   "patrimonio": {
@@ -2778,6 +2784,36 @@
       "iol": "Buenos Aires Stock Exchange + NYSE",
       "gbm": "Leading broker in Mexico",
       "actinver": "Mexican brokerage firm"
+    }
+  },
+  "investmentJournal": {
+    "title": "Investment Journal",
+    "subtitle": "Your theses, your decisions, and your research history, all in one place",
+    "profileLinkTitle": "Investment Journal",
+    "profileLinkSubtitle": "Your theses, strengths, blind spots, and your full history",
+    "theses": {
+      "title": "Your theses",
+      "subtitle": "Companies where you adopted or wrote your own investment thesis",
+      "premiumRequired": "Personal theses are a Premium feature",
+      "loading": "Loading your theses...",
+      "empty": "You haven't adopted or written a thesis of your own yet.",
+      "goResearch": "Go research a company",
+      "version": "Version {{version}}",
+      "edit": "Edit",
+      "cancel": "Cancel",
+      "review": "Review",
+      "reviewing": "Reviewing...",
+      "reviewError": "We couldn't review the thesis — try again.",
+      "reviewResultTitle": "Review result",
+      "newVersionCreated": "Version {{version}} of your thesis was created",
+      "noChange": "No real changes since your last review.",
+      "summaryPlaceholder": "Your thesis summary...",
+      "risksPlaceholder": "Key risks (one per line)",
+      "strengthsPlaceholder": "Strengths (one per line)",
+      "criticalVarsPlaceholder": "Critical variables to monitor (one per line)",
+      "invalidationPlaceholder": "What would invalidate this thesis (one per line)",
+      "saving": "Saving...",
+      "save": "Save"
     }
   },
   "investmentGraph": {

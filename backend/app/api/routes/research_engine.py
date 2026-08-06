@@ -198,6 +198,50 @@ async def get_my_thesis_route(ticker: str, user_id: str = Depends(get_current_us
     return thesis
 
 
+@router.post("/company/{ticker}/thesis/mine")
+async def save_my_thesis_route(ticker: str, body: dict, user_id: str = Depends(get_current_user_id)):
+    """Fase 4, Incremento 11 (Investment Journal, Parte K) — manual
+    edit/save of the user's own thesis. Same "never overwrite, always
+    chain a new version" rule as fork/review (create_thesis_version is the
+    one place that's implemented) — this route is just the missing door
+    into it for a hand-written or hand-edited thesis, not a new persistence
+    mechanism. User-authored text is tagged kind="inference" (a personal
+    judgment, not a sourced fact or an AI opinion) — the existing claim
+    schema, unchanged."""
+    from app.services.research.claim_schema import EvidenceTaggedClaim
+    from app.services.research.thesis_engine import create_thesis_version
+
+    def _claims(texts: list) -> list[dict]:
+        return [
+            EvidenceTaggedClaim(text=str(t).strip(), kind="inference", confidence="medium").to_dict()
+            for t in (texts or []) if t and str(t).strip()
+        ]
+
+    thesis_summary = (body.get("thesis_summary") or "").strip()
+    if not thesis_summary:
+        raise HTTPException(status_code=400, detail="La tesis necesita un resumen.")
+
+    result = await create_thesis_version(
+        user_id, ticker, thesis_summary,
+        _claims(body.get("strengths")), _claims(body.get("critical_variables")),
+        _claims(body.get("key_risks")), _claims(body.get("invalidation_events")),
+    )
+    return result
+
+
+@router.get("/theses/mine")
+async def get_all_my_theses_route(user_id: str = Depends(get_current_user_id)):
+    """Fase 4, Incremento 11 — every ticker the user has a current personal
+    thesis for, most recently created first. The one list-across-all-
+    tickers view (every other thesis route is `{ticker}`-scoped) — powers
+    the Investment Journal page without forcing the user to already know
+    which ticker to ask about."""
+    from app.services.research.thesis_engine import get_all_user_current_theses
+
+    theses = await get_all_user_current_theses(user_id)
+    return {"theses": theses}
+
+
 @router.get("/company/{ticker}/thesis/history")
 async def get_thesis_history_route(ticker: str, user_id: str = Depends(get_current_user_id)):
     """Fase 4, Incremento 6 (Historial de valuaciones, Parte E) — every real
