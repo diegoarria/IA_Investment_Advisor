@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     fmp_api_key: str = ""          # Financial Modeling Prep — read directly via os.getenv in
                                    # financial_data_service.py; declared here only so pydantic-settings
                                    # (extra="forbid" by default) doesn't reject the env var at boot
+    finnhub_api_key: str = ""      # Read directly via os.getenv everywhere it's used (app/core/finnhub.py,
+                                   # market_data_service.py, several routes) — same reason as fmp_api_key
+                                   # above: this was missing entirely, so any .env with a real (non-empty)
+                                   # FINNHUB_API_KEY failed Settings() at boot. Found while running the
+                                   # Fase 1.5 validation harness with a real key for the first time.
     # Plaid (brokerage integrations: IBKR, Schwab, Robinhood)
     plaid_client_id: str = ""
     plaid_secret: str = ""

@@ -89,7 +89,12 @@ def _driver_based_mos_pct(driver_based_valuation: Optional[dict], price: Optiona
 
 def evaluate_ticker(ticker: str, sector: Optional[str]) -> TickerResult:
     try:
-        data = get_fundamental_analysis(ticker)
+        # _compute_consensus=False (Fase 1.5, Incremento 10 added Consensus
+        # as get_fundamental_analysis's default) — this harness compares
+        # legacy vs. driver-based DCF only; Consensus's peer fetches (5-10
+        # extra real network calls per ticker) would just slow down/rate-
+        # limit this run for a signal this harness doesn't measure.
+        data = get_fundamental_analysis(ticker, _compute_consensus=False)
     except Exception as e:
         return TickerResult(
             ticker=ticker, sector=sector, is_reit=False,
