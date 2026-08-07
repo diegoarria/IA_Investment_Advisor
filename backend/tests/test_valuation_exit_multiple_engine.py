@@ -9,6 +9,7 @@ import pytest
 from app.services.valuation.exit_multiple_engine import (
     select_exit_metric,
     derive_exit_multiple,
+    derive_exit_multiple_ladder,
     _FALLBACK_ANCHOR,
     _MAX_RELATIVE_ADJUSTMENT,
 )
@@ -121,3 +122,34 @@ class TestDeriveExitMultipleAdjustments:
         for adj in result.adjustments:
             assert hasattr(adj, "factor") and hasattr(adj, "points") and hasattr(adj, "reason")
             assert adj.reason
+
+
+class TestDeriveExitMultipleLadder:
+    def test_all_three_candidates_present_with_full_real_inputs(self):
+        ladder = derive_exit_multiple_ladder(
+            metric="ev_ebit",
+            own_historical_ev_ebitda=12.0, peer_median_ev_ebitda=10.0,
+            own_ebitda=30.0, own_ebit=25.0,
+        )
+        assert ladder["own_historical"] is not None
+        assert ladder["peer_median"] is not None
+        assert ladder["sector_table_fallback"] == _FALLBACK_ANCHOR["ev_ebit"]
+
+    def test_missing_source_data_yields_none_not_a_guess(self):
+        # No own_historical/peer inputs at all — only the sector fallback
+        # (a constant, not a "real" candidate) should be non-None.
+        ladder = derive_exit_multiple_ladder(metric="ev_sales", own_ebitda=30.0, own_ebit=25.0, own_revenue=100.0)
+        assert ladder["own_historical"] is None
+        assert ladder["peer_median"] is None
+        assert ladder["sector_table_fallback"] == _FALLBACK_ANCHOR["ev_sales"]
+
+    def test_never_raises_with_partial_inputs(self):
+        # Own EBIT/EBITDA missing entirely — bridging should degrade to
+        # None for the affected candidates rather than throwing.
+        ladder = derive_exit_multiple_ladder(metric="ev_ebit", own_historical_ev_ebitda=12.0)
+        assert ladder["own_historical"] is None
+        assert ladder["sector_table_fallback"] == _FALLBACK_ANCHOR["ev_ebit"]
+
+    def test_ev_fcf_peer_anchor_used_directly_without_bridging(self):
+        ladder = derive_exit_multiple_ladder(metric="ev_fcf", peer_median_ev_fcf=18.0)
+        assert ladder["peer_median"] == 18.0

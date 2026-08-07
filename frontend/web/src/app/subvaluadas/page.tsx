@@ -27,6 +27,10 @@ import { useSubscriptionStore, useThemeStore, usePersonalizationStore } from "@/
 // never risks layout shift on a free user's initial load (isPremium-gated).
 const InvestmentChecklistPanel = dynamic(() => import("@/components/subvaluadas/InvestmentChecklistPanel").then((m) => m.InvestmentChecklistPanel));
 
+// Modelo Completo — interactive DCF builder (see stateful-painting-flurry.md).
+// Only loaded when the user actually opens it, same reasoning as the checklist above.
+const FullModelPanel = dynamic(() => import("@/components/subvaluadas/FullModelPanel").then((m) => m.FullModelPanel));
+
 export interface QuickAnalysisResult {
   ticker: string;
   company_name: string | null;
@@ -129,6 +133,7 @@ function SubvaluadasPageInner() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [fullModelOpen, setFullModelOpen] = useState(false);
 
   // Marks the home checklist's "view 1 opportunity" step done — landing here
   // at all counts, since this screen's whole purpose is showing an opportunity.
@@ -331,6 +336,22 @@ function SubvaluadasPageInner() {
                         relativeValuation={data.relative_valuation}
                         analystPriceTarget={data.analyst_price_target}
                       />
+                      <button
+                        onClick={() => setFullModelOpen(true)}
+                        className="w-full mt-3 rounded-xl px-4 py-2.5 text-xs font-bold border"
+                        style={{ borderColor: "var(--border)", color: "var(--sub)", background: "var(--raised)" }}
+                      >
+                        {t("subvaluadas.detail.level3Toggle")}
+                      </button>
+                      {fullModelOpen && (
+                        <FullModelPanel
+                          data={data.nuvos_fair_value}
+                          price={price}
+                          ticker={data.ticker}
+                          companyName={data.company_name}
+                          onClose={() => setFullModelOpen(false)}
+                        />
+                      )}
                     </div>
                   )}
 

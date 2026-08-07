@@ -1098,6 +1098,52 @@
         "wall_street": "Wall Street consensus",
         "business_quality": "Business quality"
       }
+    },
+    "fullModel": {
+      "title": "Full model — {{ticker}}",
+      "subtitle": "How Nuvos AI arrived at this number, with every assumption editable.",
+      "customized": "Custom scenario",
+      "resetToNuvos": "Reset to Nuvos scenario",
+      "notInteractive": "This ticker doesn't have enough data for the interactive model — showing already-computed values only.",
+      "tabs": {
+        "template": "Template",
+        "projection": "Business projection",
+        "conversion": "Cash flow conversion",
+        "discount": "Discount rate",
+        "terminal": "Terminal value",
+        "result": "Valuation result",
+        "full": "Full model"
+      },
+      "template": {
+        "body": "Nuvos AI uses a single valuation method: Revenue → Operating Margin → EBIT → Taxes → NOPAT → Reinvestment → Free Cash Flow, discounted to present value, plus a terminal value.",
+        "methodology": "Terminal value comes from a real exit multiple ({{metric}}), anchored to the company's own history or its real peers — never a pure Gordon Growth model, though Gordon is still used as an internal sanity check."
+      },
+      "projection": {
+        "growth": "Revenue growth (year 1)",
+        "marginStart": "Starting operating margin",
+        "marginTerminal": "Terminal operating margin"
+      },
+      "conversion": {
+        "reinvestmentRate": "Reinvestment rate",
+        "fcfConversion": "FCF Conversion (FCF / Net Income): {{pct}}%"
+      },
+      "discount": {
+        "wacc": "Discount rate (WACC)"
+      },
+      "terminal": {
+        "metricLabel": "Exit multiple metric: {{metric}}",
+        "multiple": "Exit multiple",
+        "gordonRatio": "Ratio vs. Gordon Growth (sanity check): {{ratio}}x"
+      },
+      "ref": {
+        "hist3y": "Historical 3Y",
+        "hist5y": "Historical 5Y",
+        "wallStreet": "Wall Street",
+        "ownHistorical": "Own historical",
+        "peerMedian": "Peer median",
+        "sectorFallback": "Sector table",
+        "nuvosAuto": "Nuvos WACC"
+      }
     }
   },
   "patrimonio": {

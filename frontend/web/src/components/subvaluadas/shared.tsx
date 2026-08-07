@@ -373,9 +373,46 @@ export interface NuvosScenarioAssumptions {
   implied_fcf_margin_pct_year_n: number | null;
 }
 
+// One projected year of the Revenue -> ... -> FCF waterfall — mirrors
+// dcf_engine.py's YearlyDriverRow exactly (see driverBasedDcf.ts, the TS
+// port used to recompute this same shape client-side for custom scenarios).
+export interface NuvosYearlyDriverRow {
+  year: number;
+  revenue: number;
+  revenue_growth_pct: number;
+  operating_margin_pct: number;
+  ebit: number;
+  tax_rate_pct: number;
+  nopat: number;
+  reinvestment_rate_pct: number;
+  reinvestment: number;
+  fcf: number;
+  discounted_fcf: number;
+}
+
 export interface NuvosScenario {
   fair_value_per_share: number | null;
   assumptions: NuvosScenarioAssumptions;
+  // "Modelo Completo" fields (Nuvos AI Fair Value Engine — Modelo Completo,
+  // see stateful-painting-flurry.md) — the full waterfall + DCF result,
+  // already computed backend-side, just not previously serialized.
+  yearly?: NuvosYearlyDriverRow[];
+  pv_of_fcf_sum?: number;
+  terminal_value?: number;
+  pv_of_terminal_value?: number;
+  enterprise_value?: number;
+  equity_value?: number | null;
+  fcf_conversion_pct?: number | null;
+}
+
+// Real reference points for the terminal-value multiple — the 3 candidates
+// `exit_multiple_engine._resolve_anchor` chooses between (only the winner
+// normally survives into `exit_multiple_anchor_source`); `null` for any
+// candidate this ticker genuinely doesn't have real data for.
+export interface NuvosExitMultipleLadder {
+  own_historical: number | null;
+  peer_median: number | null;
+  sector_table_fallback: number;
 }
 
 // Incremento 15 — WACC x exit multiple, not WACC x growth: this engine's
@@ -399,19 +436,26 @@ export interface NuvosFairValueData {
   };
   exit_metric: string;
   exit_multiple_anchor_source: "own_historical" | "peer_median" | "sector_table_fallback";
+  exit_multiple_ladder?: NuvosExitMultipleLadder | null;
   price_implied_scenario: "bear" | "base" | "bull" | null;
   growth_factors: NifScoreFactor[];
   operating_margin_factors: NifScoreFactor[];
   terminal_roic_factors: NifScoreFactor[];
   sensitivity_matrix: NuvosSensitivityMatrixData | null;
+  // "Modelo Completo" reference bands — real windows only, null when the
+  // ticker doesn't have enough history/coverage for that specific window.
+  revenue_cagr_3y_pct?: number | null;
+  revenue_cagr_5y_pct?: number | null;
+  wall_street_revenue_growth_next_year_pct?: number | null;
+  wall_street_eps_growth_next_year_pct?: number | null;
 }
 
-const _SCENARIO_COLOR: Record<"bear" | "base" | "bull", string> = {
+export const _SCENARIO_COLOR: Record<"bear" | "base" | "bull", string> = {
   bear: "#DD6E63", base: "#D4A24C", bull: "#4FA695",
 };
 
-type _Verdict = "undervalued" | "overvalued" | "fair";
-interface _ValuationStatus {
+export type _Verdict = "undervalued" | "overvalued" | "fair";
+export interface _ValuationStatus {
   verdict: _Verdict;
   pct: number; // always a positive magnitude — which formula produced it depends on `verdict`
 }
@@ -429,7 +473,7 @@ interface _ValuationStatus {
 // two questions ("how cheap?" vs. "how expensive?") aren't symmetric, so
 // the formulas shouldn't be either. ±5% either side reads as noise, not a
 // real verdict, so anything inside that band is "fairly valued."
-function _valuationStatus(fairValue: number | null, price: number | null): _ValuationStatus | null {
+export function _valuationStatus(fairValue: number | null, price: number | null): _ValuationStatus | null {
   if (fairValue === null || fairValue <= 0 || price === null || price <= 0) return null;
   if (price > fairValue) {
     const premiumPct = ((price - fairValue) / price) * 100;
@@ -438,10 +482,10 @@ function _valuationStatus(fairValue: number | null, price: number | null): _Valu
   const mosPct = ((fairValue - price) / fairValue) * 100;
   return { verdict: mosPct >= 5 ? "undervalued" : "fair", pct: mosPct };
 }
-const _VERDICT_COLOR: Record<_Verdict, string> = {
+export const _VERDICT_COLOR: Record<_Verdict, string> = {
   undervalued: "#22c55e", overvalued: "#ef4444", fair: "#D4A24C",
 };
-const _VERDICT_EMOJI: Record<_Verdict, string> = {
+export const _VERDICT_EMOJI: Record<_Verdict, string> = {
   undervalued: "🟢", overvalued: "🔴", fair: "🟡",
 };
 
@@ -462,7 +506,7 @@ export interface AnalystPriceTargetData {
 // lengths directly instead of reading two separate numbers. `scale` is
 // the larger of the two values with headroom so neither bar is flush to
 // the edge.
-function _ComparisonBars({ fairValue, price, color }: { fairValue: number | null; price: number | null; color: string }) {
+export function _ComparisonBars({ fairValue, price, color }: { fairValue: number | null; price: number | null; color: string }) {
   const { t } = useTranslation();
   if (fairValue === null && price === null) return null;
   const scale = Math.max(fairValue ?? 0, price ?? 0) * 1.15 || 1;

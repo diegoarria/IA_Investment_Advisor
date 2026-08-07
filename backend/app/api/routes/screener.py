@@ -596,6 +596,13 @@ _QUICK_ANALYSIS_CACHE_TTL = 90 * 24 * 3600  # 3 months — a ceiling, not the re
 
 
 def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
+    # v4 — bumped for the "Modelo Completo" interactive DCF builder (see
+    # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md): added
+    # per-scenario yearly/waterfall fields, fcf_conversion_pct,
+    # exit_multiple_ladder, and revenue CAGR/Wall Street growth reference
+    # fields to nuvos_fair_value. A stale v3 entry would just be missing
+    # these keys client-side (None-shaped), not wrong, but the redesign
+    # discipline is to always bump on a payload-shape change.
     # v3 — bumped for the Nuvos AI Fair Value Engine redesign (Incrementos
     # 1-16, see /Users/diegoarria/.claude/plans/stateful-painting-flurry.md):
     # the ENTIRE valuation computation changed (exit-multiple terminal
@@ -609,7 +616,7 @@ def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
     # the "summary"/"blurb" schema's hardcoded "español" instruction was
     # fixed (it silently overrode the top-level language directive) doesn't
     # keep serving Spanish text under an English UI for its remaining TTL.
-    return f"quick_analysis:v3:{lang}:{ticker}"
+    return f"quick_analysis:v4:{lang}:{ticker}"
 
 
 async def _build_quick_analysis(ticker: str, lang: str) -> dict:
@@ -1150,10 +1157,13 @@ _NIF_DASHBOARD_CACHE_TTL = _QUICK_ANALYSIS_CACHE_TTL  # same ceiling philosophy 
 
 
 def _nif_dashboard_cache_key(ticker: str, lang: str) -> str:
+    # v3 — same reason as _quick_analysis_cache_key's v4 bump: the "Modelo
+    # Completo" changes touch the same nuvos_fair_value dict this dashboard
+    # reads its Valuation pillar/Confidence Score from.
     # v2 — same reason as _quick_analysis_cache_key's v3 bump: the NIF
     # dashboard's Valuation pillar and Confidence Score both derive from
     # the DCF the Nuvos AI Fair Value Engine redesign rewrote end to end.
-    return f"nif_dashboard:v2:{lang}:{ticker}"
+    return f"nif_dashboard:v3:{lang}:{ticker}"
 
 
 @router.get("/nif-dashboard")

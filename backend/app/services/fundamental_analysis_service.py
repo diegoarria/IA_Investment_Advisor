@@ -1954,7 +1954,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 and avg_roic is not None and avg_roic > 0
             ):
                 try:
-                    from app.services.valuation.exit_multiple_engine import select_exit_metric, derive_exit_multiple
+                    from app.services.valuation.exit_multiple_engine import select_exit_metric, derive_exit_multiple, derive_exit_multiple_ladder
                     from app.services.valuation.assumptions_engine import compute_weighted_assumption
                     from app.services.quality.industry_engine import classify_industry
                     from app.services.analyst_estimates_service import get_analyst_estimates
@@ -1973,6 +1973,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                     _nuvos_own_ebitda = _num(_nuvos_latest_income_row.get("EBITDA"))
                     _nuvos_own_ebit = _num(_nuvos_latest_income_row.get("Operating Income"))
                     _nuvos_own_fcf = fcf_valid[-1] if fcf_valid else None
+                    _nuvos_own_net_income = ni_valid[-1] if ni_valid else None
 
                     exit_category = classify_industry(sector, None)
                     exit_metric = select_exit_metric(exit_category)
@@ -2023,6 +2024,18 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                         moat_score=None,
                         management_score=None,
                     )
+                    exit_multiple_ladder = derive_exit_multiple_ladder(
+                        metric=exit_metric,
+                        own_historical_ev_ebitda=(historical_valuation or {}).get("historical_median_ev_ebitda"),
+                        own_historical_ev_fcf=None,
+                        peer_median_ev_ebitda=(relative_valuation or {}).get("peer_median_ev_ebitda"),
+                        peer_median_ev_fcf=(relative_valuation or {}).get("peer_median_ev_fcf"),
+                        own_ebitda=_nuvos_own_ebitda,
+                        own_ebit=_nuvos_own_ebit,
+                        own_revenue=latest_rev,
+                        own_fcf=_nuvos_own_fcf,
+                    )
+                    revenue_cagr_windows = compute_cagr_windows(revenue_trend)
 
                     nuvos_scenarios = {}
                     for name, deltas in BEAR_BASE_BULL.items():
@@ -2054,9 +2067,25 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                             exit_multiple=scenario_exit_multiple,
                             exit_metric=exit_metric,
                         )
+                        year1_fcf = scenario_result.yearly[0].fcf if scenario_result.yearly else None
                         nuvos_scenarios[name] = {
                             "fair_value_per_share": scenario_result.value_per_share,
                             "assumptions": scenario_result.assumptions,
+                            "yearly": [asdict(row) for row in scenario_result.yearly],
+                            "pv_of_fcf_sum": scenario_result.pv_of_fcf_sum,
+                            "terminal_value": scenario_result.terminal_value,
+                            "pv_of_terminal_value": scenario_result.pv_of_terminal_value,
+                            "enterprise_value": scenario_result.enterprise_value,
+                            "equity_value": scenario_result.equity_value,
+                            # FCF Conversion = Year-1 FCF / latest real Net Income — how much of
+                            # accounting earnings this scenario's projection actually converts to
+                            # cash. None when latest_net_income isn't a real positive number, never
+                            # a fabricated ratio off a non-comparable base.
+                            "fcf_conversion_pct": (
+                                round(year1_fcf / _nuvos_own_net_income * 100, 1)
+                                if year1_fcf is not None and _nuvos_own_net_income and _nuvos_own_net_income > 0
+                                else None
+                            ),
                         }
 
                     price_implied_scenario = None
@@ -2124,11 +2153,19 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                         "scenarios": nuvos_scenarios,
                         "exit_metric": exit_metric,
                         "exit_multiple_anchor_source": exit_multiple_result.anchor_source,
+                        "exit_multiple_ladder": exit_multiple_ladder,
                         "price_implied_scenario": price_implied_scenario,
                         "growth_factors": [asdict(f) for f in growth_assumption.factors],
                         "operating_margin_factors": [asdict(f) for f in margin_assumption.factors],
                         "terminal_roic_factors": [asdict(f) for f in roic_assumption.factors],
                         "sensitivity_matrix": nuvos_sensitivity_matrix,
+                        # Reference bands for the "Modelo Completo" business-projection
+                        # tab — real windows only (None when < window+1 years of history),
+                        # never a fabricated CAGR off a partial series.
+                        "revenue_cagr_3y_pct": revenue_cagr_windows.get("3y"),
+                        "revenue_cagr_5y_pct": revenue_cagr_windows.get("5y"),
+                        "wall_street_revenue_growth_next_year_pct": analyst_estimates.revenue_growth_next_year_pct if analyst_estimates else None,
+                        "wall_street_eps_growth_next_year_pct": analyst_estimates.eps_growth_next_year_pct if analyst_estimates else None,
                     }
                 except (UnstableGordonGrowthError, ValueError) as e:
                     logger.info("get_fundamental_analysis(%s): nuvos_fair_value not computable: %s", ticker, e)

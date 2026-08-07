@@ -1049,9 +1049,9 @@
       "title": "Nuvos AI Fair Value Engine",
       "subtitle": "Un solo motor de valuación, tres escenarios posibles — nunca un precio exacto, sino un rango de estimaciones razonables según distintos supuestos.",
       "scenarios": {
-        "bear": "Bear",
+        "bear": "Pesimista",
         "base": "Base",
-        "bull": "Bull"
+        "bull": "Optimista"
       },
       "headlineLabel": "Valor razonable",
       "verdictLabel": {
@@ -1097,6 +1097,52 @@
         "industry": "Industria (peers reales)",
         "wall_street": "Consenso de Wall Street",
         "business_quality": "Calidad del negocio"
+      }
+    },
+    "fullModel": {
+      "title": "Modelo completo — {{ticker}}",
+      "subtitle": "Cómo Nuvos AI llegó a este número, con cada supuesto editable.",
+      "customized": "Escenario personalizado",
+      "resetToNuvos": "Restablecer al escenario Nuvos",
+      "notInteractive": "Este ticker no tiene suficientes datos para el modelo interactivo — se muestran solo los valores ya calculados.",
+      "tabs": {
+        "template": "Plantilla",
+        "projection": "Proyección del negocio",
+        "conversion": "Conversión del flujo de caja",
+        "discount": "Tasa de descuento",
+        "terminal": "Valor terminal",
+        "result": "Resultado de la valoración",
+        "full": "Modelo completo"
+      },
+      "template": {
+        "body": "Nuvos AI usa un único método de valuación: Ingresos → Margen Operativo → EBIT → Impuestos → NOPAT → Reinversión → Flujo de Caja Libre, descontado a valor presente, más un valor terminal.",
+        "methodology": "El valor terminal se calcula con un múltiplo de salida real ({{metric}}), anclado en el historial propio de la empresa o en sus pares reales — nunca en un modelo de Gordon Growth puro, aunque Gordon sí se usa como verificación interna de sanidad."
+      },
+      "projection": {
+        "growth": "Crecimiento de ingresos (año 1)",
+        "marginStart": "Margen operativo inicial",
+        "marginTerminal": "Margen operativo terminal"
+      },
+      "conversion": {
+        "reinvestmentRate": "Tasa de reinversión",
+        "fcfConversion": "Conversión de FCF (FCF / Utilidad neta): {{pct}}%"
+      },
+      "discount": {
+        "wacc": "Tasa de descuento (WACC)"
+      },
+      "terminal": {
+        "metricLabel": "Métrica del múltiplo de salida: {{metric}}",
+        "multiple": "Múltiplo de salida",
+        "gordonRatio": "Razón vs. Gordon Growth (verificación de sanidad): {{ratio}}x"
+      },
+      "ref": {
+        "hist3y": "Histórico 3A",
+        "hist5y": "Histórico 5A",
+        "wallStreet": "Wall Street",
+        "ownHistorical": "Histórico propio",
+        "peerMedian": "Mediana de pares",
+        "sectorFallback": "Tabla sectorial",
+        "nuvosAuto": "WACC Nuvos"
       }
     }
   },

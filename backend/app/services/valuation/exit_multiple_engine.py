@@ -235,3 +235,39 @@ def derive_exit_multiple(
         adjustments=adjustments, adjustment_fraction=round(fraction, 4),
         exit_multiple=round(exit_multiple, 2),
     )
+
+
+def derive_exit_multiple_ladder(
+    *,
+    metric: ExitMetric,
+    own_historical_ev_ebitda: Optional[float] = None,
+    own_historical_ev_fcf: Optional[float] = None,
+    peer_median_ev_ebitda: Optional[float] = None,
+    peer_median_ev_fcf: Optional[float] = None,
+    own_ebitda: Optional[float] = None,
+    own_ebit: Optional[float] = None,
+    own_revenue: Optional[float] = None,
+    own_fcf: Optional[float] = None,
+) -> dict[str, Optional[float]]:
+    """"Modelo Completo" reference ladder — `_resolve_anchor` above only
+    surfaces the ONE winning candidate (own history > peers > sector
+    fallback) and discards the rest, which is correct for the actual
+    scenario math but hides real reference points a user comparing
+    multiples wants to see side by side. This exposes all 3 candidates
+    that `_resolve_anchor` would have chosen between, each still bridged to
+    the same target `metric` via `_bridge_to_metric` (never a raw
+    cross-metric number). `None` for any candidate this ticker genuinely
+    doesn't have real data for — never a filled-in guess."""
+    own_historical = _bridge_to_metric(
+        metric, own_historical_ev_ebitda, own_historical_ev_fcf,
+        own_ebitda, own_ebit, own_revenue, own_fcf,
+    )
+    peer_median = _bridge_to_metric(
+        metric, peer_median_ev_ebitda, peer_median_ev_fcf,
+        own_ebitda, own_ebit, own_revenue, own_fcf,
+    )
+    return {
+        "own_historical": round(own_historical, 2) if own_historical is not None else None,
+        "peer_median": round(peer_median, 2) if peer_median is not None else None,
+        "sector_table_fallback": round(_FALLBACK_ANCHOR[metric], 2),
+    }
