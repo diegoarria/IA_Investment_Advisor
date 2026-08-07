@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -8,6 +8,9 @@ import {
   Star, MessageCircle, AlertTriangle, Check, Sparkles, ShieldCheck, Wand2,
   ChevronDown, ChevronUp, Shield, Target, Users, Rocket, TrendingDown, TrendingUp, Minus,
 } from "lucide-react";
+import { projectDriverBasedDcf, type DriverBasedDcfInput, type DriverBasedDcfResult } from "@/lib/driverBasedDcf";
+import { Card } from "@/components/ui/Card";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 export interface ChecklistItem {
   key?: string;
@@ -241,8 +244,8 @@ export function ChecklistDisplay({ checklist }: { checklist: Checklist }) {
   );
 }
 
-function _fmtCompactMoney(v: number | null): string {
-  if (v === null || !isFinite(v)) return "N/D";
+export function _fmtCompactMoney(v: number | null | undefined): string {
+  if (v === null || v === undefined || !isFinite(v)) return "N/D";
   const abs = Math.abs(v);
   if (abs >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
   if (abs >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
@@ -539,41 +542,6 @@ export function _ComparisonBars({ fairValue, price, color }: { fairValue: number
 // one selected — the tabs control which scenario's narrative/assumptions
 // are detailed below, but the raw Bear/Base/Bull numbers themselves should
 // never be hidden behind a single click, per Diego's explicit request.
-function _ThreeScenariosRow({
-  scenarios, selected,
-}: {
-  scenarios: { bear: NuvosScenario; base: NuvosScenario; bull: NuvosScenario };
-  selected: "bear" | "base" | "bull";
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className="grid grid-cols-3 gap-2 mb-4">
-      {(["bear", "base", "bull"] as const).map((name) => {
-        const fv = scenarios[name].fair_value_per_share;
-        const isSelected = name === selected;
-        const color = _SCENARIO_COLOR[name];
-        return (
-          <div
-            key={name}
-            className="rounded-xl px-2.5 py-2 text-center"
-            style={{
-              background: isSelected ? `${color}1f` : "var(--raised)",
-              border: `1px solid ${isSelected ? color : "transparent"}`,
-            }}
-          >
-            <p className="text-[9px] font-bold uppercase tracking-wide truncate" style={{ color: isSelected ? color : "var(--muted)" }}>
-              {t(`subvaluadas.nuvosFairValue.scenarios.${name}`)}
-            </p>
-            <p className="text-[15px] font-black tabular-nums" style={{ color: "var(--text)" }}>
-              {fv !== null ? `$${fv.toFixed(2)}` : "N/D"}
-            </p>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 // Places the current price along the real Bear -> Bull range — the same
 // "one glance tells the story" idea as _ComparisonBars, but for all 3
 // scenarios at once instead of one scenario vs. price. The marker clamps
@@ -690,24 +658,92 @@ function _SupuestoAccordionItem({
   );
 }
 
-// Groups the 3 previously-separate "Ver detalle" toggles into one
-// "Supuestos" section, each dimension its own accordion.
-function _SupuestosSection({ data }: { data: NuvosFairValueData }) {
+// WACC has no real Histórico/Wall Street comparison computed anywhere in
+// this engine (it's a CAPM output, not a blended-assumption dimension like
+// growth/margin/ROIC) — a plain, non-expandable row instead of forcing a
+// 3-column comparison that doesn't exist.
+function _SupuestoSimpleRow({ title, value }: { title: string; value: string }) {
+  return (
+    <div className="rounded-xl border flex items-center justify-between gap-2 px-3 py-2.5" style={{ borderColor: "var(--border)" }}>
+      <span className="text-[11.5px] font-bold" style={{ color: "var(--text)" }}>{title}</span>
+      <span className="text-[13px] font-black tabular-nums" style={{ color: "var(--text)" }}>{value}</span>
+    </div>
+  );
+}
+
+// Same accordion shell as `_SupuestoAccordionItem`, but for the exit
+// multiple: its real comparison is Histórico propio / Mediana de pares
+// (`exit_multiple_ladder`, already computed) vs. Nuvos's own real adjusted
+// multiple — a different comparison than growth/margin/ROIC's Histórico/
+// Wall Street/Nuvos, so it gets its own labels rather than forcing the
+// wrong ones.
+function _ExitMultipleAccordionItem({
+  title, ladder, nuvosMultiple, metric,
+}: {
+  title: string;
+  ladder: NuvosExitMultipleLadder | null | undefined;
+  nuvosMultiple: number | null;
+  metric: string | null;
+}) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const fmt = (v: number | null | undefined) => (v !== null && v !== undefined ? `${v.toFixed(1)}x` : "N/D");
+
+  return (
+    <div className="rounded-xl border" style={{ borderColor: "var(--border)" }}>
+      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center justify-between gap-2 px-3 py-2.5">
+        <span className="text-[11.5px] font-bold" style={{ color: "var(--text)" }}>{title}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] font-black tabular-nums" style={{ color: "var(--text)" }}>{fmt(nuvosMultiple)}</span>
+          {open ? <ChevronUp className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted)" }} /> : <ChevronDown className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted)" }} />}
+        </div>
+      </button>
+      {open && (
+        <div className="px-3 pb-3">
+          {metric && <p className="text-[10px] mb-1.5" style={{ color: "var(--muted)" }}>{t(`subvaluadas.nuvosFairValue.exitMetric.${metric}`)}</p>}
+          <div className="grid grid-cols-3 gap-1.5">
+            <div className="rounded-lg p-2 text-center" style={{ background: "var(--raised)" }}>
+              <p className="text-[8px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.nuvosFairValue.comparative.historical")}</p>
+              <p className="text-[13px] font-black tabular-nums mt-0.5" style={{ color: "var(--text)" }}>{fmt(ladder?.own_historical)}</p>
+            </div>
+            <div className="rounded-lg p-2 text-center" style={{ background: "var(--raised)" }}>
+              <p className="text-[8px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.nuvosFairValue.comparative.peers")}</p>
+              <p className="text-[13px] font-black tabular-nums mt-0.5" style={{ color: "var(--text)" }}>{fmt(ladder?.peer_median)}</p>
+            </div>
+            <div className="rounded-lg p-2 text-center" style={{ background: `${_SCENARIO_COLOR.base}1f`, border: `1px solid ${_SCENARIO_COLOR.base}` }}>
+              <p className="text-[8px] font-bold uppercase tracking-wide" style={{ color: _SCENARIO_COLOR.base }}>{t("subvaluadas.nuvosFairValue.comparative.nuvos")}</p>
+              <p className="text-[13px] font-black tabular-nums mt-0.5" style={{ color: "var(--text)" }}>{fmt(nuvosMultiple)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Groups the 5 assumptions behind the model — Crecimiento/Márgenes/ROIC
+// terminal/WACC/Múltiplo de salida — into ONE card, one row each, instead
+// of the 3 separate "Ver detalle" toggles plus 2 stray methodology chips
+// this used to be split across (rediseño visual, ver stateful-painting-
+// flurry.md). Rendered as its own top-level section in page.tsx, not
+// nested inside `FairValueScenariosPanel`.
+export function _SupuestosSection({ data }: { data: NuvosFairValueData }) {
+  const { t } = useTranslation();
   const base = data.scenarios.base.assumptions;
 
   return (
-    <div className="mb-2">
-      <button onClick={() => setOpen((o) => !o)} className="text-[10px] font-bold underline underline-offset-2" style={{ color: "var(--muted)" }}>
-        {t("subvaluadas.nuvosFairValue.supuestosToggle")} — {open ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}
-      </button>
-      {open && (
-        <div className="space-y-1.5 mt-2">
-          <_SupuestoAccordionItem title={t("subvaluadas.nuvosFairValue.growthFactorsTitle")} factors={data.growth_factors} nuvosValuePct={base.revenue_growth_1_pct} />
-          <_SupuestoAccordionItem title={t("subvaluadas.nuvosFairValue.marginFactorsTitle")} factors={data.operating_margin_factors} nuvosValuePct={base.operating_margin_anchor_pct} />
-          <_SupuestoAccordionItem title={t("subvaluadas.nuvosFairValue.roicFactorsTitle")} factors={data.terminal_roic_factors} nuvosValuePct={_deriveTerminalRoicPct(base)} />
-        </div>
+    <div className="space-y-1.5">
+      <_SupuestoAccordionItem title={t("subvaluadas.nuvosFairValue.growthFactorsTitle")} factors={data.growth_factors} nuvosValuePct={base.revenue_growth_1_pct} />
+      <_SupuestoAccordionItem title={t("subvaluadas.nuvosFairValue.marginFactorsTitle")} factors={data.operating_margin_factors} nuvosValuePct={base.operating_margin_anchor_pct} />
+      <_SupuestoAccordionItem title={t("subvaluadas.nuvosFairValue.roicFactorsTitle")} factors={data.terminal_roic_factors} nuvosValuePct={_deriveTerminalRoicPct(base)} />
+      <_SupuestoSimpleRow title={t("subvaluadas.nuvosFairValue.wacc")} value={`${base.discount_rate_pct.toFixed(1)}%`} />
+      {base.exit_multiple !== null && (
+        <_ExitMultipleAccordionItem
+          title={t("subvaluadas.nuvosFairValue.exitMultiple")}
+          ladder={data.exit_multiple_ladder}
+          nuvosMultiple={base.exit_multiple}
+          metric={base.exit_metric}
+        />
       )}
     </div>
   );
@@ -735,11 +771,9 @@ export function FairValueScenariosPanel({
   const { scenarios, price_implied_scenario } = data;
 
   const scenario = scenarios[selected];
-  const color = _SCENARIO_COLOR[selected];
   const fv = scenario.fair_value_per_share;
   const status = _valuationStatus(fv, price);
   const verdict = status?.verdict ?? null;
-  const a = scenario.assumptions;
 
   const referencePoints: { icon: string; label: string; value: number }[] = [];
   if (relativeValuation?.intrinsic_value_per_share) {
@@ -750,15 +784,11 @@ export function FairValueScenariosPanel({
   }
 
   return (
-    <div className="rounded-2xl border p-5" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-      <div className="flex items-center gap-1.5 mb-1">
-        <Sparkles className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
-        <p className="text-[12px] font-bold" style={{ color: "var(--text)" }}>{t("subvaluadas.nuvosFairValue.title")}</p>
-      </div>
-      <p className="text-[10.5px] leading-relaxed mb-4" style={{ color: "var(--muted)" }}>{t("subvaluadas.nuvosFairValue.subtitle")}</p>
+    <Card padding="p-6">
+      <SectionHeader title={t("subvaluadas.nuvosFairValue.title")} subtitle={t("subvaluadas.nuvosFairValue.subtitle")} />
 
       {/* Scenario tab switcher — AlphaSpread's "Escenario bajista/base/alcista" pattern */}
-      <div className="flex rounded-xl p-1 mb-4" style={{ background: "var(--raised)" }}>
+      <div className="flex rounded-xl p-1 mb-6 mt-3" style={{ background: "var(--raised)" }}>
         {(["bear", "base", "bull"] as const).map((name) => {
           const isActive = selected === name;
           const tabColor = _SCENARIO_COLOR[name];
@@ -766,7 +796,7 @@ export function FairValueScenariosPanel({
             <button
               key={name}
               onClick={() => setSelected(name)}
-              className="flex-1 flex items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors"
+              className="flex-1 flex items-center justify-center gap-1 rounded-lg py-2 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 ease-out"
               style={{
                 background: isActive ? tabColor : "transparent",
                 color: isActive ? "#0A0F1A" : "var(--sub)",
@@ -781,17 +811,16 @@ export function FairValueScenariosPanel({
         })}
       </div>
 
-      {/* Always-visible Bear/Base/Bull values + where the current price
-          falls between them — independent of which tab is selected above. */}
-      <_ThreeScenariosRow scenarios={scenarios} selected={selected} />
+      {/* The one horizontal chart: real Bear<->Bull range with the current
+          price marked on it — replaces the old 3-stat-chip row +
+          headline-vs-price comparison bars, which said the same thing
+          twice. */}
       <_PriceVsScenariosBar scenarios={scenarios} price={price} />
 
-      {/* Headline number + "Estado de valoración" — two different formulas
-          depending on the side (see _valuationStatus), never a single
-          signed percentage that can read as a nonsensical "-858%". */}
-      <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+      {/* Conclusión — headline fair value + verdict, directly under the chart it explains */}
+      <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
         <div>
-          <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>
+          <p className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--muted)" }}>
             {t("subvaluadas.nuvosFairValue.headlineLabel")}
           </p>
           <p className="text-4xl font-black tabular-nums" style={{ color: "var(--text)" }}>
@@ -799,13 +828,13 @@ export function FairValueScenariosPanel({
           </p>
         </div>
         {verdict && status && (
-          <div className="flex items-center gap-2 rounded-xl px-3 py-2 shrink-0" style={{ background: `${_VERDICT_COLOR[verdict]}1a` }}>
+          <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 shrink-0" style={{ background: `${_VERDICT_COLOR[verdict]}1a` }}>
             <span className="text-lg leading-none">{_VERDICT_EMOJI[verdict]}</span>
             <div>
               <p className="text-[12px] font-bold" style={{ color: _VERDICT_COLOR[verdict] }}>
                 {t(`subvaluadas.nuvosFairValue.verdictLabel.${verdict}`)}
               </p>
-              <p className="text-[10.5px]" style={{ color: "var(--sub)" }}>
+              <p className="text-[11px]" style={{ color: "var(--sub)" }}>
                 {t(`subvaluadas.nuvosFairValue.verdictDetail.${verdict}`, { pct: status.pct.toFixed(0) })}
               </p>
             </div>
@@ -813,14 +842,9 @@ export function FairValueScenariosPanel({
         )}
       </div>
 
-      {/* Comparison bars — the AlphaSpread device: same scale, so length alone tells the story */}
-      <div className="mb-3">
-        <_ComparisonBars fairValue={fv} price={price} color={color} />
-      </div>
-
       {/* Plain-language sentence, restating the same numbers in words */}
       {fv !== null && price !== null && verdict && status && (
-        <p className="text-[11.5px] leading-relaxed mb-3" style={{ color: "var(--sub)" }}>
+        <p className="text-[12px] leading-relaxed mb-4" style={{ color: "var(--sub)" }}>
           {t("subvaluadas.nuvosFairValue.narrative", {
             scenario: t(`subvaluadas.nuvosFairValue.scenarios.${selected}`),
             fairValue: fv.toFixed(2),
@@ -832,32 +856,20 @@ export function FairValueScenariosPanel({
         </p>
       )}
 
-      {/* Methodology — names what actually produced this number */}
-      <div className="flex flex-wrap items-center gap-1.5 mb-4">
-        <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 w-fit" style={{ background: "var(--raised)" }}>
-          <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("subvaluadas.nuvosFairValue.methodologyLabel")}</span>
-          <span className="text-[11px] font-bold" style={{ color: "var(--text)" }}>
-            {t("subvaluadas.nuvosFairValue.methodologyValue")}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 w-fit" style={{ background: "var(--raised)" }}>
-          <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("subvaluadas.nuvosFairValue.wacc")}</span>
-          <span className="text-[11px] font-bold tabular-nums" style={{ color: "var(--text)" }}>{a.discount_rate_pct.toFixed(1)}%</span>
-        </div>
-        {a.exit_multiple !== null && (
-          <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 w-fit" style={{ background: "var(--raised)" }}>
-            <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("subvaluadas.nuvosFairValue.exitMultiple")}</span>
-            <span className="text-[11px] font-bold tabular-nums" style={{ color: "var(--text)" }}>
-              {a.exit_multiple.toFixed(1)}x {a.exit_metric ? t(`subvaluadas.nuvosFairValue.exitMetric.${a.exit_metric}`) : ""}
-            </span>
-          </div>
-        )}
+      {/* Methodology — names what actually produced this number. WACC/
+          múltiplo de salida moved to the "Supuestos" card (own top-level
+          section now) — this chip only names the method, not the values. */}
+      <div className="flex items-center gap-1.5 rounded-xl px-3 py-2 mb-4 w-fit" style={{ background: "var(--raised)" }}>
+        <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("subvaluadas.nuvosFairValue.methodologyLabel")}</span>
+        <span className="text-[11px] font-bold" style={{ color: "var(--text)" }}>
+          {t("subvaluadas.nuvosFairValue.methodologyValue")}
+        </span>
       </div>
 
       {/* Other reference points — demoted on purpose, never blended into the headline number */}
       {referencePoints.length > 0 && (
         <div className="mb-4">
-          <p className="text-[9px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--muted)" }}>
+          <p className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "var(--muted)" }}>
             {t("subvaluadas.nuvosFairValue.otherReferencePoints")}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -870,15 +882,305 @@ export function FairValueScenariosPanel({
         </div>
       )}
 
-      {/* Supuestos — one grouped section, 3 accordions (Crecimiento/
-          Márgenes/ROIC terminal), each comparing Histórico vs. Consenso de
-          Wall Street vs. Estimación Nuvos, AlphaSpread-style. Replaces the
-          old per-scenario quick-stats grid + 3 separate "Ver detalle"
-          toggles. */}
-      <_SupuestosSection data={data} />
-
-      <p className="mt-3 pt-3 border-t text-[10px] leading-relaxed" style={{ borderColor: "var(--border)", color: "var(--dim)" }}>
+      <p className="pt-4 border-t text-[10px] leading-relaxed" style={{ borderColor: "var(--border)", color: "var(--dim)" }}>
         {t("subvaluadas.nuvosFairValue.disclaimer")}
+      </p>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Promoted to the main /subvaluadas scroll (rediseño visual, ver stateful-
+// painting-flurry.md) — previously only reachable inside the "Modelo
+// Completo" drawer (FullModelPanel.tsx), which buried the 2 features Diego
+// values most ("¿Cómo llegamos a este valor?" and the reverse-DCF card)
+// behind an extra click. Moved here so both the main page AND the drawer's
+// advanced tabs (`_MarketVsNuvosBridge`) can share the same `_solveImplied`
+// machinery without duplicating it.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Reconstructs the exact `project_driver_based_dcf` inputs that PRODUCED a
+ * real Nuvos scenario, from fields the backend already serializes — no new
+ * endpoint. Every value here is either read directly from `assumptions`/
+ * `yearly` or backed out algebraically from other real, already-exposed
+ * numbers (never a guess). Returns null when the scenario is missing the
+ * `yearly`/`equity_value` fields this needs (e.g. a cache entry from before
+ * a cache-key bump — degrades to "no interactivo" rather than silently
+ * computing with wrong reconstructed inputs). */
+export function deriveBaseInputs(scenario: NuvosScenario): DriverBasedDcfInput | null {
+  const a = scenario.assumptions;
+  if (!scenario.yearly || scenario.yearly.length === 0) return null;
+  if (scenario.equity_value == null || scenario.enterprise_value == null || scenario.fair_value_per_share == null) return null;
+
+  const growth1 = a.revenue_growth_1_pct / 100;
+  const terminalGrowth = a.terminal_growth_pct / 100;
+  const terminalReinvestmentRate = a.terminal_reinvestment_rate_pct / 100;
+  // terminal_roic backed out from Damodaran's own identity the engine
+  // enforces (terminal_reinvestment_rate = terminal_growth / terminal_roic)
+  // — a near-zero terminal reinvestment rate has no stable inverse, falls
+  // back to a conservative 12% rather than dividing by ~0.
+  const terminalRoicPct = Math.abs(terminalReinvestmentRate) > 1e-6 ? terminalGrowth / terminalReinvestmentRate : 0.12;
+  const revenue0 = scenario.yearly[0].revenue / (1 + growth1);
+  const netCash = scenario.equity_value - scenario.enterprise_value;
+  const sharesOut = scenario.equity_value / scenario.fair_value_per_share;
+
+  return {
+    revenue0,
+    revenueGrowth1: growth1,
+    terminalGrowth,
+    operatingMarginAnchorPct: a.operating_margin_anchor_pct / 100,
+    terminalOperatingMarginPct: a.terminal_operating_margin_pct / 100,
+    taxRate: a.tax_rate_pct / 100,
+    reinvestmentRateAnchorPct: a.reinvestment_rate_anchor_pct / 100,
+    terminalRoicPct,
+    discountRate: a.discount_rate_pct / 100,
+    netCash,
+    sharesOut,
+    highGrowthYears: a.high_growth_years,
+    exitMultiple: a.exit_multiple,
+    exitMetric: a.exit_metric,
+  };
+}
+
+// "¿Cómo llegamos a este valor?" — every step's number is real: year-1 of
+// the actual 10-year projection for revenue/margin/FCF, then the real PV of
+// the full 10-year FCF stream and the real PV of the terminal value — never
+// a cosmetic placeholder next to the label.
+export function _ValuationFlowDiagram({ result, fv }: { result: DriverBasedDcfResult | null; fv: number | null }) {
+  const { t } = useTranslation();
+  const year1 = result?.yearly[0] ?? null;
+  const steps = [
+    { label: t("subvaluadas.fullModel.flow.step1"), value: year1 ? _fmtCompactMoney(year1.revenue) : null },
+    { label: t("subvaluadas.fullModel.flow.step2"), value: year1 ? `${year1.operatingMarginPct.toFixed(1)}%` : null },
+    { label: t("subvaluadas.fullModel.flow.step3"), value: year1 ? _fmtCompactMoney(year1.fcf) : null },
+    { label: t("subvaluadas.fullModel.flow.step4"), value: result ? _fmtCompactMoney(result.pvOfFcfSum) : null },
+    { label: t("subvaluadas.fullModel.flow.step5"), value: result ? _fmtCompactMoney(result.pvOfTerminalValue) : null },
+  ];
+
+  return (
+    <div className="flex flex-col items-center py-1">
+      {steps.map((step, i) => (
+        <div key={i} className="w-full flex flex-col items-center">
+          <div
+            className="w-full max-w-sm rounded-xl border px-4 py-3 flex items-center justify-between gap-3 transition-colors duration-200"
+            style={{ borderColor: "var(--border)", background: "var(--raised)" }}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <span
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black shrink-0"
+                style={{ background: "var(--accent)", color: "#0A0F1A" }}
+              >
+                {i + 1}
+              </span>
+              <span className="text-[12px] font-bold truncate" style={{ color: "var(--text)" }}>{step.label}</span>
+            </div>
+            {step.value !== null && (
+              <span className="text-[12px] font-black tabular-nums shrink-0" style={{ color: "var(--sub)" }}>{step.value}</span>
+            )}
+          </div>
+          <ChevronDown className="w-4 h-4 my-1 shrink-0" style={{ color: "var(--muted)" }} />
+        </div>
+      ))}
+      <div className="w-full max-w-sm rounded-2xl px-5 py-4 text-center" style={{ background: "var(--accent)" }}>
+        <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "#0A0F1A" }}>
+          {t("subvaluadas.nuvosFairValue.headlineLabel")}
+        </p>
+        <p className="text-2xl font-black tabular-nums" style={{ color: "#0A0F1A" }}>{fv !== null ? `$${fv.toFixed(2)}` : "N/D"}</p>
+      </div>
+    </div>
+  );
+}
+
+// Solves for the value of ONE assumption (holding every other real Nuvos
+// base-scenario assumption fixed) that makes the model's fair value equal
+// `targetPrice` — bisection over a generous, sane bracket. Used for both
+// the "what does the market imply" reverse-DCF card and the "why does
+// Nuvos differ from the market" bridge, so every implied number is solved
+// under the EXACT SAME model (WACC/margins/exit multiple all real Nuvos
+// base values) — never a separately-computed backend figure that could
+// subtly use different underlying assumptions and produce an apples-to-
+// oranges comparison.
+export function _solveImplied(
+  baseInputs: DriverBasedDcfInput,
+  targetPrice: number,
+  apply: (inputs: DriverBasedDcfInput, x: number) => DriverBasedDcfInput,
+  lo: number,
+  hi: number,
+): number | null {
+  const valueAt = (x: number): number | null => {
+    try {
+      return projectDriverBasedDcf(apply(baseInputs, x)).valuePerShare;
+    } catch {
+      return null;
+    }
+  };
+  let vLo = valueAt(lo);
+  let vHi = valueAt(hi);
+  if (vLo === null || vHi === null) return null;
+  const increasing = vHi >= vLo;
+  if (!increasing) {
+    [lo, hi] = [hi, lo];
+    [vLo, vHi] = [vHi, vLo];
+  }
+  if (!(vLo <= targetPrice && targetPrice <= vHi)) return null; // not bracketed — never extrapolate
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    const vMid = valueAt(mid);
+    if (vMid === null) return null;
+    if (vMid < targetPrice) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+export function _solveImpliedGrowth(baseInputs: DriverBasedDcfInput, targetPrice: number): number | null {
+  return _solveImplied(baseInputs, targetPrice, (inp, g) => ({ ...inp, revenueGrowth1: g }), -0.5, 1.5);
+}
+
+export function _solveImpliedDiscountRate(baseInputs: DriverBasedDcfInput, targetPrice: number): number | null {
+  // Value DECREASES as discount rate rises, so the bracket is inverted —
+  // _solveImplied's own increasing/decreasing detection handles that.
+  return _solveImplied(baseInputs, targetPrice, (inp, r) => ({ ...inp, discountRate: r }), 0.04, 0.25);
+}
+
+export function _solveImpliedExitMultiple(baseInputs: DriverBasedDcfInput, targetPrice: number): number | null {
+  if (!baseInputs.exitMultiple) return null;
+  return _solveImplied(baseInputs, targetPrice, (inp, m) => ({ ...inp, exitMultiple: m }), 0.5, baseInputs.exitMultiple * 4);
+}
+
+// "¿Qué está descontando el mercado?" — a compact, always-visible card
+// (Diego's explicit ask: never bury this). Both numbers (market-implied
+// growth, Nuvos's own real growth estimate) come from the same
+// `_solveImplied`/base-scenario machinery, so they're directly comparable.
+export function _ReverseDcfCard({ baseInputs, price }: { baseInputs: DriverBasedDcfInput | null; price: number | null }) {
+  const { t } = useTranslation();
+  const impliedGrowthPct = useMemo(
+    () => (baseInputs && price ? _solveImpliedGrowth(baseInputs, price) : null),
+    [baseInputs, price],
+  );
+  if (!baseInputs || price === null || impliedGrowthPct === null) return null;
+  const nuvosGrowthPct = baseInputs.revenueGrowth1 * 100;
+  const regimeChange = nuvosGrowthPct !== 0 && Math.abs(impliedGrowthPct) > 2 * Math.abs(nuvosGrowthPct) && impliedGrowthPct > nuvosGrowthPct;
+
+  return (
+    <Card>
+      <SectionHeader title={t("subvaluadas.fullModel.reverseDcf.title")} subtitle={t("subvaluadas.fullModel.reverseDcf.subtitle", { price: price.toFixed(2) })} />
+      <div className="grid grid-cols-2 gap-3 mt-3">
+        <div className="rounded-xl p-3 text-center" style={{ background: "var(--raised)" }}>
+          <p className="text-[9px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--muted)" }}>{t("subvaluadas.fullModel.reverseDcf.marketImplies")}</p>
+          <p className="text-xl font-black tabular-nums" style={{ color: regimeChange ? "#ef4444" : "var(--text)" }}>{impliedGrowthPct.toFixed(1)}%</p>
+        </div>
+        <div className="rounded-xl p-3 text-center" style={{ background: `${_SCENARIO_COLOR.base}1f`, border: `1px solid ${_SCENARIO_COLOR.base}` }}>
+          <p className="text-[9px] font-bold uppercase tracking-wide mb-1" style={{ color: _SCENARIO_COLOR.base }}>{t("subvaluadas.fullModel.reverseDcf.nuvosEstimates")}</p>
+          <p className="text-xl font-black tabular-nums" style={{ color: "var(--text)" }}>{nuvosGrowthPct.toFixed(1)}%</p>
+        </div>
+      </div>
+      {regimeChange && (
+        <p className="text-[11px] leading-relaxed mt-3" style={{ color: "#ef4444" }}>
+          {t("subvaluadas.fullModel.reverseDcf.regimeChange")}
+        </p>
+      )}
+    </Card>
+  );
+}
+
+type SensitivityDimension = "wacc" | "exitMultiple" | "growth" | "margin" | "roic";
+
+// Real elasticity, not an opinion: perturbs each real assumption by the
+// SAME magnitude the actual Bear/Base/Bull scenarios already use
+// (BEAR_BASE_BULL's own deltas — ±1pp WACC, ±4pp growth, ±2/2.5pp margin,
+// ±15% exit multiple — see fundamental_analysis_service.py), holding
+// everything else at the real base-scenario values, and measures how much
+// the resulting fair value swings. Ranked descending -> 5 stars for the
+// biggest mover, 1 for the smallest — never a subjective/fabricated rating.
+function _computeSensitivity(baseInputs: DriverBasedDcfInput): { dimension: SensitivityDimension; swingPct: number }[] | null {
+  try {
+    const fvBase = projectDriverBasedDcf(baseInputs).valuePerShare;
+    if (!fvBase || fvBase <= 0) return null;
+
+    const swing = (plus: DriverBasedDcfInput, minus: DriverBasedDcfInput): number => {
+      const fvPlus = projectDriverBasedDcf(plus).valuePerShare;
+      const fvMinus = projectDriverBasedDcf(minus).valuePerShare;
+      if (fvPlus === null || fvMinus === null) return 0;
+      return (Math.abs(fvPlus - fvMinus) / fvBase) * 100;
+    };
+
+    const results: { dimension: SensitivityDimension; swingPct: number }[] = [
+      {
+        dimension: "wacc",
+        swingPct: swing(
+          { ...baseInputs, discountRate: Math.max(0.04, baseInputs.discountRate - 0.01) },
+          { ...baseInputs, discountRate: baseInputs.discountRate + 0.01 },
+        ),
+      },
+      {
+        dimension: "growth",
+        swingPct: swing(
+          { ...baseInputs, revenueGrowth1: baseInputs.revenueGrowth1 + 0.04 },
+          { ...baseInputs, revenueGrowth1: baseInputs.revenueGrowth1 - 0.04 },
+        ),
+      },
+      {
+        dimension: "margin",
+        swingPct: swing(
+          {
+            ...baseInputs,
+            operatingMarginAnchorPct: baseInputs.operatingMarginAnchorPct + 0.02,
+            terminalOperatingMarginPct: baseInputs.terminalOperatingMarginPct + 0.025,
+          },
+          {
+            ...baseInputs,
+            operatingMarginAnchorPct: Math.max(0, baseInputs.operatingMarginAnchorPct - 0.02),
+            terminalOperatingMarginPct: Math.max(0, baseInputs.terminalOperatingMarginPct - 0.025),
+          },
+        ),
+      },
+      {
+        dimension: "roic",
+        swingPct: swing(
+          { ...baseInputs, terminalRoicPct: baseInputs.terminalRoicPct * 1.2 },
+          { ...baseInputs, terminalRoicPct: Math.max(0.005, baseInputs.terminalRoicPct * 0.8) },
+        ),
+      },
+      {
+        dimension: "exitMultiple",
+        swingPct: baseInputs.exitMultiple
+          ? swing(
+              { ...baseInputs, exitMultiple: baseInputs.exitMultiple * 1.15 },
+              { ...baseInputs, exitMultiple: baseInputs.exitMultiple * 0.85 },
+            )
+          : 0,
+      },
+    ];
+    return results.sort((a, b) => b.swingPct - a.swingPct);
+  } catch {
+    return null;
+  }
+}
+
+export function _SensitivityStars({ baseInputs }: { baseInputs: DriverBasedDcfInput | null }) {
+  const { t } = useTranslation();
+  const ranked = useMemo(() => (baseInputs ? _computeSensitivity(baseInputs) : null), [baseInputs]);
+  if (!ranked) return null;
+
+  return (
+    <div className="space-y-1.5">
+      {ranked.map((r, i) => {
+        const stars = 5 - i;
+        return (
+          <div key={r.dimension} className="flex items-center justify-between gap-2 rounded-xl px-3 py-2.5" style={{ background: "var(--raised)" }}>
+            <span className="text-[12px] font-semibold" style={{ color: "var(--text)" }}>
+              {t(`subvaluadas.fullModel.sensitivity.dimensions.${r.dimension}`)}
+            </span>
+            <div className="flex gap-0.5 shrink-0">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <Star key={n} className="w-3.5 h-3.5" style={{ color: n <= stars ? "#f59e0b" : "var(--border)" }} fill={n <= stars ? "#f59e0b" : "none"} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      <p className="text-[10.5px] leading-relaxed pt-1" style={{ color: "var(--dim)" }}>
+        {t("subvaluadas.fullModel.sensitivity.disclaimer")}
       </p>
     </div>
   );

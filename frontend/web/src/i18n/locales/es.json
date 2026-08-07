@@ -1104,7 +1104,8 @@
       "comparative": {
         "historical": "Histórico",
         "wallStreet": "Consenso de Wall Street",
-        "nuvos": "Estimación Nuvos"
+        "nuvos": "Estimación Nuvos",
+        "peers": "Mediana de pares"
       }
     },
     "fullModel": {
@@ -1151,6 +1152,73 @@
         "peerMedian": "Mediana de pares",
         "sectorFallback": "Tabla sectorial",
         "nuvosAuto": "WACC Nuvos"
+      },
+      "openCta": "¿Cómo llegamos a este valor?",
+      "flow": {
+        "step1": "Proyectamos ingresos",
+        "step2": "Estimamos márgenes",
+        "step3": "Calculamos FCF",
+        "step4": "Descontamos al presente",
+        "step5": "Agregamos valor terminal"
+      },
+      "bridge": {
+        "title": "Del valor del negocio al valor por acción",
+        "enterpriseValue": "Valor del negocio (Enterprise Value)",
+        "netDebt": "Deuda neta",
+        "netCash": "Caja neta",
+        "equityValue": "Valor del patrimonio (Equity Value)",
+        "sharesOut": "Acciones diluidas"
+      },
+      "contribution": {
+        "title": "¿De dónde viene el valor?",
+        "explicit": "DCF explícito (10 años)",
+        "terminal": "Valor terminal"
+      },
+      "sensitivity": {
+        "title": "¿Qué mueve más esta valuación?",
+        "dimensions": {
+          "wacc": "WACC",
+          "exitMultiple": "Múltiplo terminal",
+          "growth": "Crecimiento",
+          "margin": "Márgenes",
+          "roic": "ROIC terminal"
+        },
+        "disclaimer": "Calculado recalculando el modelo con cada supuesto movido por separado (el mismo rango que usan los escenarios Pesimista/Optimista) — mide cuánto se mueve el valor razonable, no una opinión."
+      },
+      "reverseDcf": {
+        "title": "¿Qué está descontando el mercado?",
+        "subtitle": "Para justificar ${{price}}, el FCF tendría que crecer así de rápido durante 10 años:",
+        "marketImplies": "El mercado descuenta",
+        "nuvosEstimates": "Nuvos estima",
+        "regimeChange": "El precio actual exige un cambio de régimen de crecimiento, no solo continuidad del historial — trátalo con cautela."
+      },
+      "bridge2": {
+        "titleBelow": "¿Por qué Nuvos vale menos que el mercado?",
+        "titleAbove": "¿Por qué Nuvos vale más que el mercado?",
+        "market": "Mercado",
+        "nuvos": "Nuvos",
+        "differencesFrom": "Las diferencias provienen de",
+        "reasons": {
+          "growth": "Crecimiento esperado ({{delta}} vs. Nuvos)",
+          "wacc": "Tasa de descuento ({{delta}} vs. Nuvos)",
+          "multiple": "Múltiplo terminal ({{delta}} vs. Nuvos)"
+        },
+        "disclaimer": "Cada diferencia se calcula resolviendo qué valor de ESE supuesto, por sí solo, justificaría el precio de mercado — manteniendo los demás supuestos en su valor real de Nuvos."
+      },
+      "modelConfidence": {
+        "title": "Calidad de la valuación",
+        "subtitle": "No qué tan buena es la empresa — qué tan confiable es este modelo para ella.",
+        "level": {
+          "high": "Alta",
+          "medium": "Media",
+          "low": "Baja"
+        },
+        "checks": {
+          "matureBusiness": "Empresa madura, sin señales de deterioro",
+          "stableMargins": "Márgenes estables",
+          "longHistory": "Historial largo de datos reales",
+          "lowVolatility": "Baja volatilidad (beta)"
+        }
       }
     },
     "backtest": {

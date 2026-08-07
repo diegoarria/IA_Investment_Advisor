@@ -615,6 +615,9 @@ _QUICK_ANALYSIS_CACHE_TTL = 90 * 24 * 3600  # 3 months — a ceiling, not the re
 
 
 def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
+    # v5 — bumped for the "Calidad de la valuación" model-confidence card
+    # (see /Users/diegoarria/.claude/plans/stateful-painting-flurry.md):
+    # added years_available/beta to the response.
     # v4 — bumped for the "Modelo Completo" interactive DCF builder (see
     # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md): added
     # per-scenario yearly/waterfall fields, fcf_conversion_pct,
@@ -635,7 +638,7 @@ def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
     # the "summary"/"blurb" schema's hardcoded "español" instruction was
     # fixed (it silently overrode the top-level language directive) doesn't
     # keep serving Spanish text under an English UI for its remaining TTL.
-    return f"quick_analysis:v4:{lang}:{ticker}"
+    return f"quick_analysis:v5:{lang}:{ticker}"
 
 
 async def _build_quick_analysis(ticker: str, lang: str) -> dict:
@@ -1040,6 +1043,13 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         # (Incremento 1) — see fair_value_engine.py's updated docstring.
         "industry_benchmarks": _asdict_or_none(industry_benchmarks),
         "quality_engine": quality_engine_result,
+        # "Calidad de la valuación" card (Modelo Completo follow-up, see
+        # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md) —
+        # both real, already computed elsewhere in this same request (beta
+        # for CAPM WACC, years_available for confidence_meter_v3 above),
+        # just not previously copied into this response dict.
+        "years_available": data.get("data_years_available", 0),
+        "beta": (dcf.get("wacc_details") or {}).get("beta"),
         "moat_engine": moat_engine_result,
         "conviction_engine": conviction_engine_result,
         "peer_comparison_engine": peer_comparison_result,

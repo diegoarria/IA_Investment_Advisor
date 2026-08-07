@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { X, RotateCcw, Sliders } from "lucide-react";
+import { X, RotateCcw, Sliders, ChevronDown, Check } from "lucide-react";
 import {
-  type NuvosFairValueData, type NuvosScenario,
-  _ComparisonBars, _valuationStatus, _VERDICT_COLOR, _VERDICT_EMOJI, _SCENARIO_COLOR,
+  type NuvosFairValueData, type NuvosScenario, type NifMoatData, type NifDeteriorationData, type ConfidenceMeterData,
+  _ComparisonBars, _valuationStatus, _VERDICT_COLOR, _VERDICT_EMOJI, _SCENARIO_COLOR, _fmtCompactMoney,
+  _solveImpliedGrowth, _solveImpliedDiscountRate, _solveImpliedExitMultiple, deriveBaseInputs,
 } from "./shared";
 import { projectDriverBasedDcf, type DriverBasedDcfInput, type DriverBasedDcfResult } from "@/lib/driverBasedDcf";
 
@@ -23,51 +24,6 @@ interface CustomAssumptions {
   exitMultiple: number;
 }
 
-/** Reconstructs the exact `project_driver_based_dcf` inputs that PRODUCED a
- * real Nuvos scenario, from fields the backend already serializes (Modelo
- * Completo, Incremento 1 of the frontend build — no new endpoint). Every
- * value here is either read directly from `assumptions`/`yearly` or backed
- * out algebraically from other real, already-exposed numbers (never a
- * guess) — see the plan's "Backend — cambios concretos" section for which
- * fields already existed vs. were newly exposed. Returns null when the
- * scenario is missing the `yearly`/`equity_value` fields this needs (e.g. a
- * cache entry from before the cache-key bump — degrades to "no interactivo"
- * rather than silently computing with wrong reconstructed inputs). */
-function deriveBaseInputs(scenario: NuvosScenario): DriverBasedDcfInput | null {
-  const a = scenario.assumptions;
-  if (!scenario.yearly || scenario.yearly.length === 0) return null;
-  if (scenario.equity_value == null || scenario.enterprise_value == null || scenario.fair_value_per_share == null) return null;
-
-  const growth1 = a.revenue_growth_1_pct / 100;
-  const terminalGrowth = a.terminal_growth_pct / 100;
-  const terminalReinvestmentRate = a.terminal_reinvestment_rate_pct / 100;
-  // terminal_roic backed out from Damodaran's own identity the engine
-  // enforces (terminal_reinvestment_rate = terminal_growth / terminal_roic)
-  // — a near-zero terminal reinvestment rate has no stable inverse, falls
-  // back to a conservative 12% rather than dividing by ~0.
-  const terminalRoicPct = Math.abs(terminalReinvestmentRate) > 1e-6 ? terminalGrowth / terminalReinvestmentRate : 0.12;
-  const revenue0 = scenario.yearly[0].revenue / (1 + growth1);
-  const netCash = scenario.equity_value - scenario.enterprise_value;
-  const sharesOut = scenario.equity_value / scenario.fair_value_per_share;
-
-  return {
-    revenue0,
-    revenueGrowth1: growth1,
-    terminalGrowth,
-    operatingMarginAnchorPct: a.operating_margin_anchor_pct / 100,
-    terminalOperatingMarginPct: a.terminal_operating_margin_pct / 100,
-    taxRate: a.tax_rate_pct / 100,
-    reinvestmentRateAnchorPct: a.reinvestment_rate_anchor_pct / 100,
-    terminalRoicPct,
-    discountRate: a.discount_rate_pct / 100,
-    netCash,
-    sharesOut,
-    highGrowthYears: a.high_growth_years,
-    exitMultiple: a.exit_multiple,
-    exitMetric: a.exit_metric,
-  };
-}
-
 function assumptionsFromScenario(scenario: NuvosScenario): CustomAssumptions {
   const a = scenario.assumptions;
   return {
@@ -78,14 +34,6 @@ function assumptionsFromScenario(scenario: NuvosScenario): CustomAssumptions {
     discountRatePct: a.discount_rate_pct,
     exitMultiple: a.exit_multiple ?? 0,
   };
-}
-
-function fmtMoney(v: number | null | undefined): string {
-  if (v === null || v === undefined || !isFinite(v)) return "N/D";
-  const abs = Math.abs(v);
-  if (abs >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
-  return `$${v.toFixed(0)}`;
 }
 
 function Slider({
@@ -145,6 +93,234 @@ function SectionCard({ title, children }: { title: string; children: React.React
   );
 }
 
+// "¿Cómo llegamos a este valor?" — the walkthrough Diego was most excited
+// about. Every step's number is real: year-1 of the actual 10-year
+// projection for revenue/margin/FCF, then the real PV of the full 10-year
+// FCF stream and the real PV of the terminal value — never a cosmetic
+// placeholder next to the label.
+// Diego's favorite — "¿Por qué Nuvos vale menos/más que el mercado?" A
+// waterfall from the market price down (or up) to Nuvos's fair value,
+// attributed one assumption at a time: for each of growth/WACC/exit
+// multiple, solve what THAT ONE assumption alone would need to be (others
+// held at Nuvos's real values) to justify the market price, then compare
+// to Nuvos's own real value for that same assumption. This is a genuine
+// one-at-a-time sensitivity attribution, not a fabricated narrative.
+function _MarketVsNuvosBridge({ baseInputs, price, fv }: { baseInputs: DriverBasedDcfInput | null; price: number | null; fv: number | null }) {
+  const { t } = useTranslation();
+  const rows = useMemo(() => {
+    if (!baseInputs || !price) return null;
+    const impliedGrowth = _solveImpliedGrowth(baseInputs, price);
+    const impliedDiscount = _solveImpliedDiscountRate(baseInputs, price);
+    const impliedMultiple = _solveImpliedExitMultiple(baseInputs, price);
+    const out: { key: string; delta: number; unit: string }[] = [];
+    if (impliedGrowth !== null) out.push({ key: "growth", delta: impliedGrowth - baseInputs.revenueGrowth1 * 100, unit: "pp" });
+    if (impliedDiscount !== null) out.push({ key: "wacc", delta: (impliedDiscount - baseInputs.discountRate) * 100, unit: "pp" });
+    if (impliedMultiple !== null && baseInputs.exitMultiple) out.push({ key: "multiple", delta: impliedMultiple - baseInputs.exitMultiple, unit: "x" });
+    return out;
+  }, [baseInputs, price]);
+
+  if (!rows || rows.length === 0 || price === null || fv === null) return null;
+  const marketAbove = price > fv;
+
+  return (
+    <div className="rounded-2xl border p-4 mb-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+      <p className="text-[12px] font-bold mb-3" style={{ color: "var(--text)" }}>
+        {marketAbove ? t("subvaluadas.fullModel.bridge2.titleBelow") : t("subvaluadas.fullModel.bridge2.titleAbove")}
+      </p>
+      <div className="flex items-center justify-center gap-4 mb-3">
+        <div className="text-center">
+          <p className="text-[9px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.fullModel.bridge2.market")}</p>
+          <p className="text-lg font-black tabular-nums" style={{ color: "var(--text)" }}>${price.toFixed(2)}</p>
+        </div>
+        <ChevronDown className="w-4 h-4 -rotate-90 shrink-0" style={{ color: "var(--muted)" }} />
+        <div className="text-center">
+          <p className="text-[9px] font-bold uppercase tracking-wide" style={{ color: _SCENARIO_COLOR.base }}>{t("subvaluadas.fullModel.bridge2.nuvos")}</p>
+          <p className="text-lg font-black tabular-nums" style={{ color: "var(--text)" }}>${fv.toFixed(2)}</p>
+        </div>
+      </div>
+      <p className="text-[10px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--muted)" }}>{t("subvaluadas.fullModel.bridge2.differencesFrom")}</p>
+      <div className="space-y-1">
+        {rows.map((r) => (
+          <div key={r.key} className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "var(--raised)" }}>
+            <span className="text-[10px] font-black" style={{ color: "var(--muted)" }}>+</span>
+            <span className="text-[11.5px]" style={{ color: "var(--sub)" }}>
+              {t(`subvaluadas.fullModel.bridge2.reasons.${r.key}`, { delta: `${r.delta >= 0 ? "+" : ""}${r.delta.toFixed(r.unit === "x" ? 2 : 1)}${r.unit}` })}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="text-[10px] leading-relaxed mt-2.5" style={{ color: "var(--dim)" }}>
+        {t("subvaluadas.fullModel.bridge2.disclaimer")}
+      </p>
+    </div>
+  );
+}
+
+// "Calidad de la valuación" — NOT the company's quality, the MODEL's
+// trustworthiness for THIS specific company. Every checkmark is a real,
+// already-computed signal (moat_engine.stability_score, deterioration_
+// engine's highest_concern, years_available, beta) — never a new
+// fabricated score. The headline level is read straight off the existing
+// `confidence_meter` (confidence_engine.py), which already blends these
+// same kinds of signals server-side; the checklist below just explains
+// WHY in plain language instead of a bare number.
+function _ModelConfidenceCard({
+  confidenceMeter, yearsAvailable, beta, moatEngine, deteriorationEngine,
+}: {
+  confidenceMeter: ConfidenceMeterData | null;
+  yearsAvailable: number | null;
+  beta: number | null;
+  moatEngine: NifMoatData | null;
+  deteriorationEngine: NifDeteriorationData | null;
+}) {
+  const { t } = useTranslation();
+  if (!confidenceMeter) return null;
+
+  const checks: { key: string; pass: boolean }[] = [
+    { key: "matureBusiness", pass: !deteriorationEngine?.highest_concern },
+    { key: "stableMargins", pass: (moatEngine?.stability_score ?? 0) >= 60 },
+    { key: "longHistory", pass: (yearsAvailable ?? 0) >= 8 },
+    { key: "lowVolatility", pass: beta !== null && beta < 1.3 },
+  ];
+
+  const level = confidenceMeter.stars >= 4 ? "high" : confidenceMeter.stars >= 2 ? "medium" : "low";
+  const levelColor = level === "high" ? "#22c55e" : level === "medium" ? "#f59e0b" : "#ef4444";
+
+  return (
+    <div className="rounded-2xl border p-4 mb-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+      <p className="text-[12px] font-bold mb-0.5" style={{ color: "var(--text)" }}>{t("subvaluadas.fullModel.modelConfidence.title")}</p>
+      <p className="text-[10px] mb-3" style={{ color: "var(--muted)" }}>{t("subvaluadas.fullModel.modelConfidence.subtitle")}</p>
+      <span className="inline-block text-[12px] font-black rounded-full px-3 py-1 mb-3" style={{ background: `${levelColor}1f`, color: levelColor }}>
+        {t(`subvaluadas.fullModel.modelConfidence.level.${level}`)}
+      </span>
+      <div className="space-y-1.5">
+        {checks.map((c) => (
+          <div key={c.key} className="flex items-center gap-2">
+            {c.pass
+              ? <Check className="w-3.5 h-3.5 shrink-0" style={{ color: "#22c55e" }} />
+              : <X className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted)" }} />}
+            <span className="text-[11.5px]" style={{ color: c.pass ? "var(--text)" : "var(--muted)" }}>
+              {t(`subvaluadas.fullModel.modelConfidence.checks.${c.key}`)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function fmtShares(v: number): string {
+  if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  return v.toFixed(0);
+}
+
+// AlphaSpread's intrinsic-value bridge: Enterprise Value -> (- Net Debt /
+// + Net Cash) -> Equity Value -> (÷ Shares) -> Fair Value per share. Every
+// number here is either read directly from the real DCF result or backed
+// out algebraically from it (net_cash = equity_value - enterprise_value,
+// shares_out = equity_value / fair_value_per_share) — see
+// `deriveBaseInputs` above, which computes these once from the real
+// scenario and holds them fixed across slider customization (a company's
+// real net cash/share count don't change when a user tweaks growth or
+// WACC).
+function _ValueBridge({
+  enterpriseValue, netCash, equityValue, sharesOut, fairValue,
+}: {
+  enterpriseValue: number | null;
+  netCash: number | null;
+  equityValue: number | null;
+  sharesOut: number | null;
+  fairValue: number | null;
+}) {
+  const { t } = useTranslation();
+  if (enterpriseValue === null) return null;
+  const isNetCash = (netCash ?? 0) >= 0;
+
+  const rows: { label: string; value: string; op?: string }[] = [
+    { label: t("subvaluadas.fullModel.bridge.enterpriseValue"), value: _fmtCompactMoney(enterpriseValue) },
+    {
+      label: isNetCash ? t("subvaluadas.fullModel.bridge.netCash") : t("subvaluadas.fullModel.bridge.netDebt"),
+      value: `${isNetCash ? "+" : "-"}${_fmtCompactMoney(Math.abs(netCash ?? 0))}`,
+      op: isNetCash ? "+" : "−",
+    },
+    { label: t("subvaluadas.fullModel.bridge.equityValue"), value: _fmtCompactMoney(equityValue), op: "=" },
+    { label: t("subvaluadas.fullModel.bridge.sharesOut"), value: sharesOut !== null ? fmtShares(sharesOut) : "N/D", op: "÷" },
+  ];
+
+  return (
+    <div className="mb-4">
+      <p className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "var(--muted)" }}>
+        {t("subvaluadas.fullModel.bridge.title")}
+      </p>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--border)" }}>
+        {rows.map((row, i) => (
+          <div
+            key={row.label}
+            className="flex items-center justify-between gap-3 px-3.5 py-2.5"
+            style={{ background: i % 2 === 0 ? "var(--card)" : "var(--raised)", borderTop: i > 0 ? "1px solid var(--border)" : undefined }}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              {row.op && (
+                <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-black shrink-0" style={{ background: "var(--raised)", color: "var(--muted)" }}>
+                  {row.op}
+                </span>
+              )}
+              <span className="text-[11.5px] font-semibold truncate" style={{ color: "var(--sub)" }}>{row.label}</span>
+            </div>
+            <span className="text-[12.5px] font-black tabular-nums shrink-0" style={{ color: "var(--text)" }}>{row.value}</span>
+          </div>
+        ))}
+        <div className="flex items-center justify-between gap-3 px-3.5 py-3" style={{ background: "var(--accent)", borderTop: "1px solid var(--border)" }}>
+          <div className="flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-black shrink-0" style={{ background: "rgba(10,15,26,0.15)", color: "#0A0F1A" }}>=</span>
+            <span className="text-[12px] font-black" style={{ color: "#0A0F1A" }}>{t("subvaluadas.nuvosFairValue.headlineLabel")}</span>
+          </div>
+          <span className="text-[15px] font-black tabular-nums" style={{ color: "#0A0F1A" }}>{fairValue !== null ? `$${fairValue.toFixed(2)}` : "N/D"}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// AlphaSpread's "40% explicit / 60% terminal" split — how much of the
+// enterprise value comes from the real 10-year projected FCF stream vs.
+// the real terminal value, both already computed by the same DCF result.
+function _ValueContribution({ pvOfFcfSum, pvOfTerminalValue }: { pvOfFcfSum: number | null; pvOfTerminalValue: number | null }) {
+  const { t } = useTranslation();
+  if (pvOfFcfSum === null || pvOfTerminalValue === null) return null;
+  const total = pvOfFcfSum + pvOfTerminalValue;
+  if (total <= 0) return null;
+  const explicitPct = (pvOfFcfSum / total) * 100;
+  const terminalPct = 100 - explicitPct;
+
+  return (
+    <div className="mb-4">
+      <p className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "var(--muted)" }}>
+        {t("subvaluadas.fullModel.contribution.title")}
+      </p>
+      <div className="h-6 rounded-full overflow-hidden flex" style={{ background: "var(--raised)" }}>
+        <div className="h-full flex items-center justify-center" style={{ width: `${explicitPct}%`, background: "var(--accent-l)" }}>
+          {explicitPct > 14 && <span className="text-[10px] font-black" style={{ color: "#0A0F1A" }}>{explicitPct.toFixed(0)}%</span>}
+        </div>
+        <div className="h-full flex items-center justify-center" style={{ width: `${terminalPct}%`, background: "var(--muted)" }}>
+          {terminalPct > 14 && <span className="text-[10px] font-black" style={{ color: "#0A0F1A" }}>{terminalPct.toFixed(0)}%</span>}
+        </div>
+      </div>
+      <div className="flex justify-between mt-1.5">
+        <span className="text-[10px]" style={{ color: "var(--sub)" }}>
+          <span className="inline-block w-2 h-2 rounded-full mr-1" style={{ background: "var(--accent-l)" }} />
+          {t("subvaluadas.fullModel.contribution.explicit")}
+        </span>
+        <span className="text-[10px]" style={{ color: "var(--sub)" }}>
+          {t("subvaluadas.fullModel.contribution.terminal")}
+          <span className="inline-block w-2 h-2 rounded-full ml-1" style={{ background: "var(--muted)" }} />
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // Simple div-based bar chart, no charting library — same hand-rolled
 // convention already used by _ComparisonBars/NifOverallScoreBanner.
 function RevenueBarChart({ yearly }: { yearly: DriverBasedDcfResult["yearly"] }) {
@@ -156,7 +332,7 @@ function RevenueBarChart({ yearly }: { yearly: DriverBasedDcfResult["yearly"] })
           <div
             className="w-full rounded-t-sm"
             style={{ height: `${Math.max(2, (y.revenue / max) * 100)}%`, background: "var(--accent-l)" }}
-            title={`Año ${y.year}: ${fmtMoney(y.revenue)}`}
+            title={`Año ${y.year}: ${_fmtCompactMoney(y.revenue)}`}
           />
           <span className="text-[8px]" style={{ color: "var(--muted)" }}>{`Y${y.year}`}</span>
         </div>
@@ -167,12 +343,18 @@ function RevenueBarChart({ yearly }: { yearly: DriverBasedDcfResult["yearly"] })
 
 export function FullModelPanel({
   data, price, ticker, companyName, onClose,
+  yearsAvailable = null, beta = null, moatEngine = null, deteriorationEngine = null, confidenceMeter = null,
 }: {
   data: NuvosFairValueData;
   price: number | null;
   ticker: string;
   companyName: string | null;
   onClose: () => void;
+  yearsAvailable?: number | null;
+  beta?: number | null;
+  moatEngine?: NifMoatData | null;
+  deteriorationEngine?: NifDeteriorationData | null;
+  confidenceMeter?: ConfidenceMeterData | null;
 }) {
   const { t } = useTranslation();
   const defaultScenario: ScenarioName = data.price_implied_scenario ?? "base";
@@ -427,18 +609,15 @@ export function FullModelPanel({
               <_ComparisonBars fairValue={fv} price={price} color={scenarioColor} />
 
               {displayedResult && (
-                <div className="grid grid-cols-2 gap-2 mt-4">
-                  {[
-                    { label: t("subvaluadas.detail.level3.pvFcf"), value: fmtMoney(displayedResult.pvOfFcfSum) },
-                    { label: t("subvaluadas.detail.level3.pvTerminal"), value: fmtMoney(displayedResult.pvOfTerminalValue) },
-                    { label: t("subvaluadas.detail.level3.enterpriseValue"), value: fmtMoney(displayedResult.enterpriseValue) },
-                    { label: t("subvaluadas.detail.level3.equityValue"), value: fmtMoney(displayedResult.equityValue) },
-                  ].map((row) => (
-                    <div key={row.label} className="rounded-lg p-2" style={{ background: "var(--raised)" }}>
-                      <p className="text-[9px] uppercase tracking-wide" style={{ color: "var(--muted)" }}>{row.label}</p>
-                      <p className="text-[12px] font-bold tabular-nums" style={{ color: "var(--text)" }}>{row.value}</p>
-                    </div>
-                  ))}
+                <div className="mt-4">
+                  <_ValueContribution pvOfFcfSum={displayedResult.pvOfFcfSum} pvOfTerminalValue={displayedResult.pvOfTerminalValue} />
+                  <_ValueBridge
+                    enterpriseValue={displayedResult.enterpriseValue}
+                    netCash={baseInputs?.netCash ?? null}
+                    equityValue={displayedResult.equityValue}
+                    sharesOut={baseInputs?.sharesOut ?? null}
+                    fairValue={displayedResult.valuePerShare}
+                  />
                 </div>
               )}
 
@@ -459,8 +638,8 @@ export function FullModelPanel({
                       {displayedResult.yearly.map((row) => (
                         <tr key={row.year} style={{ color: "var(--sub)" }}>
                           <td className="py-0.5">{row.year}</td>
-                          <td className="text-right tabular-nums py-0.5">{fmtMoney(row.fcf)}</td>
-                          <td className="text-right tabular-nums py-0.5">{fmtMoney(row.discountedFcf)}</td>
+                          <td className="text-right tabular-nums py-0.5">{_fmtCompactMoney(row.fcf)}</td>
+                          <td className="text-right tabular-nums py-0.5">{_fmtCompactMoney(row.discountedFcf)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -468,6 +647,19 @@ export function FullModelPanel({
                 </div>
               )}
             </SectionCard>
+          )}
+
+          {(tab === "result" || tab === "full") && (
+            <>
+              <_MarketVsNuvosBridge baseInputs={baseInputs} price={price} fv={fv} />
+              <_ModelConfidenceCard
+                confidenceMeter={confidenceMeter}
+                yearsAvailable={yearsAvailable}
+                beta={beta}
+                moatEngine={moatEngine}
+                deteriorationEngine={deteriorationEngine}
+              />
+            </>
           )}
         </div>
 

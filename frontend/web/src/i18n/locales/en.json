@@ -1104,7 +1104,8 @@
       "comparative": {
         "historical": "Historical",
         "wallStreet": "Wall Street consensus",
-        "nuvos": "Nuvos estimate"
+        "nuvos": "Nuvos estimate",
+        "peers": "Peer median"
       }
     },
     "fullModel": {
@@ -1151,6 +1152,73 @@
         "peerMedian": "Peer median",
         "sectorFallback": "Sector table",
         "nuvosAuto": "Nuvos WACC"
+      },
+      "openCta": "How did we get this value?",
+      "flow": {
+        "step1": "We project revenue",
+        "step2": "We estimate margins",
+        "step3": "We calculate FCF",
+        "step4": "We discount to present value",
+        "step5": "We add terminal value"
+      },
+      "bridge": {
+        "title": "From business value to value per share",
+        "enterpriseValue": "Business value (Enterprise Value)",
+        "netDebt": "Net debt",
+        "netCash": "Net cash",
+        "equityValue": "Equity value",
+        "sharesOut": "Diluted shares"
+      },
+      "contribution": {
+        "title": "Where does the value come from?",
+        "explicit": "Explicit DCF (10 years)",
+        "terminal": "Terminal value"
+      },
+      "sensitivity": {
+        "title": "What moves this valuation the most?",
+        "dimensions": {
+          "wacc": "WACC",
+          "exitMultiple": "Terminal multiple",
+          "growth": "Growth",
+          "margin": "Margins",
+          "roic": "Terminal ROIC"
+        },
+        "disclaimer": "Computed by recalculating the model with each assumption moved separately (the same range the Bear/Bull scenarios use) — it measures how much fair value actually moves, not an opinion."
+      },
+      "reverseDcf": {
+        "title": "What's the market pricing in?",
+        "subtitle": "To justify ${{price}}, FCF would need to grow this fast for 10 years:",
+        "marketImplies": "Market implies",
+        "nuvosEstimates": "Nuvos estimates",
+        "regimeChange": "The current price requires a growth regime change, not just a continuation of history — treat it with caution."
+      },
+      "bridge2": {
+        "titleBelow": "Why is Nuvos worth less than the market?",
+        "titleAbove": "Why is Nuvos worth more than the market?",
+        "market": "Market",
+        "nuvos": "Nuvos",
+        "differencesFrom": "The differences come from",
+        "reasons": {
+          "growth": "Expected growth ({{delta}} vs. Nuvos)",
+          "wacc": "Discount rate ({{delta}} vs. Nuvos)",
+          "multiple": "Terminal multiple ({{delta}} vs. Nuvos)"
+        },
+        "disclaimer": "Each difference is solved by finding what value of THAT ONE assumption, alone, would justify the market price — holding every other assumption at its real Nuvos value."
+      },
+      "modelConfidence": {
+        "title": "Valuation quality",
+        "subtitle": "Not how good the company is — how reliable this model is for it.",
+        "level": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low"
+        },
+        "checks": {
+          "matureBusiness": "Mature business, no deterioration signals",
+          "stableMargins": "Stable margins",
+          "longHistory": "Long history of real data",
+          "lowVolatility": "Low volatility (beta)"
+        }
       }
     },
     "backtest": {

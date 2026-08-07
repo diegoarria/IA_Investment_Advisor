@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { Loader2, Lock, Search, X, AlertTriangle } from "lucide-react";
+import { Loader2, Lock, Search, X, AlertTriangle, ChevronRight } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
@@ -15,11 +15,16 @@ import {
   type SensitivityMatrixData,
   type ReverseDcfSanityCheckData, type ExpectationsInvestingData,
   type NuvosFairValueData, type RelativeValuationData, type AnalystPriceTargetData,
+  type NifMoatData, type NifDeteriorationData,
   GeneratedAtNote, LiquidityWarning,
   FollowButton, AnalyzeButton,
-  FairValueScenariosPanel,
+  FairValueScenariosPanel, _SupuestosSection, _ValuationFlowDiagram, _ReverseDcfCard, _SensitivityStars,
+  deriveBaseInputs, _SCENARIO_COLOR,
 } from "@/components/subvaluadas/shared";
 import { ValuationBacktestPanel } from "@/components/subvaluadas/ValuationBacktestPanel";
+import { Card } from "@/components/ui/Card";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { projectDriverBasedDcf } from "@/lib/driverBasedDcf";
 import dynamic from "next/dynamic";
 import { screenerApi, watchlist } from "@/lib/api";
 import { useSubscriptionStore, useThemeStore, usePersonalizationStore } from "@/lib/store";
@@ -78,6 +83,12 @@ export interface QuickAnalysisResult {
   // independently-computed reference points, never blended into the DCF.
   relative_valuation: RelativeValuationData | null;
   analyst_price_target: AnalystPriceTargetData | null;
+  // "Calidad de la valuación" (model confidence, not company quality) —
+  // real signals only, see FullModelPanel's _ModelConfidenceCard.
+  years_available: number | null;
+  beta: number | null;
+  moat_engine: NifMoatData | null;
+  deterioration_engine: NifDeteriorationData | null;
 }
 
 // Gold/teal/coral is this screen's fixed brand identity (Valor Intrínseco),
@@ -111,9 +122,13 @@ function useViTheme(): React.CSSProperties {
   }), [theme]);
 }
 
-const GOLD = "#D4A24C";
-const TEAL = "#4FA695";
-const CORAL = "#DD6E63";
+// Single source of truth for the brand triad — `_SCENARIO_COLOR` in
+// shared.tsx (bear/base/bull) IS gold/teal/coral; this used to redefine
+// the same 3 hex values locally, a real drift risk (see rediseño visual,
+// stateful-painting-flurry.md).
+const GOLD = _SCENARIO_COLOR.base;
+const TEAL = _SCENARIO_COLOR.bull;
+const CORAL = _SCENARIO_COLOR.bear;
 const DEFAULT_TICKER = "AAPL";
 
 export default function SubvaluadasPage() {
@@ -223,6 +238,20 @@ function SubvaluadasPageInner() {
 
   const price = data?.price ?? 0;
 
+  // Real DCF inputs for the price-implied scenario — powers the 3 sections
+  // promoted out of the "Modelo Completo" drawer onto the main scroll
+  // ("¿Cómo llegamos a este valor?", Reverse DCF, Sensibilidad). Always the
+  // same default scenario `FairValueScenariosPanel`/`FullModelPanel`
+  // themselves default to — not tied to that panel's own tab selection.
+  const defaultScenarioName = data?.nuvos_fair_value?.price_implied_scenario ?? "base";
+  const defaultScenario = data?.nuvos_fair_value?.scenarios[defaultScenarioName] ?? null;
+  const baseInputs = useMemo(() => (defaultScenario ? deriveBaseInputs(defaultScenario) : null), [defaultScenario]);
+  const flowResult = useMemo(() => {
+    if (!baseInputs) return null;
+    try { return projectDriverBasedDcf(baseInputs); } catch { return null; }
+  }, [baseInputs]);
+  const flowFv = flowResult?.valuePerShare ?? defaultScenario?.fair_value_per_share ?? null;
+
   const handleFollow = async () => {
     if (!data || watchlisted) return;
     try { await watchlist.add(data.ticker, data.company_name || undefined); setWatchlisted(true); } catch { /* idempotent */ }
@@ -303,21 +332,23 @@ function SubvaluadasPageInner() {
                 </div>
               ) : (
                 <>
-                  <div className="flex items-end justify-between gap-5 flex-wrap mb-5">
-                    <div className="flex items-center gap-3.5">
-                      <div style={{ width: 46, height: 46 }}><StockAvatar ticker={data.ticker} size="lg" /></div>
+                  {/* Hero — free-floating, no card, same treatment as before but
+                      on the new type scale (rediseño visual). */}
+                  <div className="flex items-end justify-between gap-5 flex-wrap mb-8">
+                    <div className="flex items-center gap-4">
+                      <div style={{ width: 48, height: 48 }}><StockAvatar ticker={data.ticker} size="lg" /></div>
                       <div>
-                        <div className="text-lg font-semibold tracking-tight" style={{ color: "var(--text)" }}>{data.company_name}</div>
-                        <div className="text-[12.5px] mt-0.5" style={{ color: "var(--sub)" }}>
+                        <div className="text-lg font-bold tracking-tight" style={{ color: "var(--text)" }}>{data.company_name}</div>
+                        <div className="text-[12px] mt-0.5" style={{ color: "var(--sub)" }}>
                           {data.sector}{data.exchange ? ` · ${data.exchange}` : ""}
                         </div>
                       </div>
                     </div>
                     {data.price !== null && (
                       <div className="text-right">
-                        <div className="text-[22px] font-medium tabular-nums" style={{ color: "var(--text)" }}>${data.price.toFixed(2)}</div>
+                        <div className="text-[22px] font-black tabular-nums" style={{ color: "var(--text)" }}>${data.price.toFixed(2)}</div>
                         {data.change_pct !== null && (
-                          <div className="text-[12.5px] tabular-nums" style={{ color: data.change_pct >= 0 ? TEAL : CORAL }}>
+                          <div className="text-[12px] font-semibold tabular-nums" style={{ color: data.change_pct >= 0 ? TEAL : CORAL }}>
                             {data.change_pct >= 0 ? "+" : ""}{data.change_pct.toFixed(2)}% {t("subvaluadas.detail.today")}
                           </div>
                         )}
@@ -325,24 +356,76 @@ function SubvaluadasPageInner() {
                     )}
                   </div>
 
-                  {/* ===== Nuvos AI Fair Value Engine redesign — one engine, three
-                       scenarios (Bear/Base/Bull), the primary and now ONLY valuation
-                       panel at the top of the page (Incremento 17: ExecutiveSummaryPanel
-                       was retired as fully redundant with this panel). ===== */}
+                  {/* Nuvos AI Fair Value Engine — escenarios + gráfico horizontal +
+                      conclusión. LA tarjeta principal de la pantalla. */}
                   {data.nuvos_fair_value && (
-                    <div className="mb-8">
-                      <FairValueScenariosPanel
-                        data={data.nuvos_fair_value}
-                        price={price}
-                        relativeValuation={data.relative_valuation}
-                        analystPriceTarget={data.analyst_price_target}
-                      />
+                    <FairValueScenariosPanel
+                      data={data.nuvos_fair_value}
+                      price={price}
+                      relativeValuation={data.relative_valuation}
+                      analystPriceTarget={data.analyst_price_target}
+                    />
+                  )}
+
+                  {/* Supuestos — 1 tarjeta, 5 filas (Crecimiento/Márgenes/ROIC/WACC/
+                      Múltiplo), cada una comparando Histórico/Wall Street/Nuvos. */}
+                  {data.nuvos_fair_value && (
+                    <div className="mt-8">
+                      <SectionHeader title={t("subvaluadas.nuvosFairValue.supuestosToggle")} />
+                      <div className="mt-3">
+                        <_SupuestosSection data={data.nuvos_fair_value} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* "¿Cómo llegamos a este valor?" — promovida del drawer "Modelo
+                      Completo" al scroll principal (rediseño visual). */}
+                  {baseInputs && (
+                    <div className="mt-8">
+                      <Card>
+                        <SectionHeader title={t("subvaluadas.fullModel.tabs.template")} />
+                        <div className="mt-3">
+                          <_ValuationFlowDiagram result={flowResult} fv={flowFv} />
+                        </div>
+                      </Card>
+                    </div>
+                  )}
+
+                  {/* Reverse DCF — "no esconder esta sección", una de las funciones
+                      más poderosas. También promovida al scroll principal. */}
+                  {baseInputs && (
+                    <div className="mt-8">
+                      <_ReverseDcfCard baseInputs={baseInputs} price={price} />
+                    </div>
+                  )}
+
+                  {/* Sensibilidad — ranking real de qué supuesto mueve más el valor. */}
+                  {baseInputs && (
+                    <div className="mt-8">
+                      <Card>
+                        <SectionHeader title={t("subvaluadas.fullModel.sensitivity.title")} />
+                        <div className="mt-3">
+                          <_SensitivityStars baseInputs={baseInputs} />
+                        </div>
+                      </Card>
+                    </div>
+                  )}
+
+                  {/* Modelo completo — colapsable, para usuarios avanzados: sliders
+                      editables, desglose EV→Equity, contribución DCF/terminal,
+                      puente Mercado vs. Nuvos, calidad de la valuación. */}
+                  {data.nuvos_fair_value && (
+                    <div className="mt-8">
                       <button
                         onClick={() => setFullModelOpen(true)}
-                        className="w-full mt-3 rounded-xl px-4 py-2.5 text-xs font-bold border"
-                        style={{ borderColor: "var(--border)", color: "var(--sub)", background: "var(--raised)" }}
+                        className="w-full flex items-center justify-between gap-3 rounded-xl px-4 py-3 transition-colors duration-200 hover:opacity-80"
+                        style={{ background: "var(--raised)" }}
                       >
-                        {t("subvaluadas.detail.level3Toggle")}
+                        <div className="text-left">
+                          <p className="text-[12px] font-bold" style={{ color: "var(--text)" }}>{t("subvaluadas.fullModel.openCta")}</p>
+                          <p className="text-[10.5px]" style={{ color: "var(--muted)" }}>{t("subvaluadas.fullModel.subtitle")}</p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
                       </button>
                       {fullModelOpen && (
                         <FullModelPanel
@@ -351,29 +434,27 @@ function SubvaluadasPageInner() {
                           ticker={data.ticker}
                           companyName={data.company_name}
                           onClose={() => setFullModelOpen(false)}
+                          yearsAvailable={data.years_available}
+                          beta={data.beta}
+                          moatEngine={data.moat_engine}
+                          deteriorationEngine={data.deterioration_engine}
+                          confidenceMeter={data.confidence_meter}
                         />
                       )}
                     </div>
                   )}
 
-                  {/* ===== Incremento 18 — the NIF dashboard (quality/financial/
-                       management/valuation pillars, moat, conviction, catalysts,
-                       deterioration), Timeline, Thesis History, the plain-language AI
-                       summary, and the detailed "Modelo de Valuación" section
-                       (sensitivity heatmap, reverse DCF, full-model export) were all
-                       retired here per Diego's explicit request — FairValueScenariosPanel
-                       above is now the entire analytical surface of this screen.
-                       InvestmentChecklistPanel stays: a distinct actionable feature,
-                       not part of what was asked to go. ===== */}
                   {isPremium && (
-                    <InvestmentChecklistPanel
-                      ticker={data.ticker}
-                      marginOfSafetyPct={data.margin_of_safety_pct}
-                      minMarginOfSafetyPct={minMarginOfSafetyPct}
-                    />
+                    <div className="mt-8">
+                      <InvestmentChecklistPanel
+                        ticker={data.ticker}
+                        marginOfSafetyPct={data.margin_of_safety_pct}
+                        minMarginOfSafetyPct={minMarginOfSafetyPct}
+                      />
+                    </div>
                   )}
 
-                  <div className="space-y-3 mb-8 mt-3">
+                  <div className="space-y-3 mt-8">
                     <GeneratedAtNote generatedAt={data.generated_at} />
                     {data.liquidity_gate && <LiquidityWarning gate={data.liquidity_gate} />}
                   </div>
@@ -383,7 +464,7 @@ function SubvaluadasPageInner() {
                     <AnalyzeButton onAnalyze={handleAnalyze} />
                   </div>
 
-                  <div className="flex items-start gap-2.5 mt-6 p-3.5 rounded-xl text-xs leading-relaxed" style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--muted)" }}>
+                  <div className="flex items-start gap-2.5 mt-6 p-4 rounded-xl text-xs leading-relaxed" style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--muted)" }}>
                     <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                     <span><b style={{ color: "var(--sub)" }}>{t("subvaluadas.detail.disclaimer.bold")}</b> {t("subvaluadas.detail.disclaimer.text")}</span>
                   </div>
