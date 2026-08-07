@@ -276,8 +276,6 @@ function SubvaluadasPageInner() {
                 </div>
               )}
 
-              {isPremium && <OpportunitiesListPanel />}
-
               <div className="flex gap-2 mb-8">
                 <div className="flex-1 flex items-center gap-2 rounded-xl border px-3"
                      style={{ borderColor: "var(--border)", background: "var(--card)" }}>
@@ -476,6 +474,13 @@ function SubvaluadasPageInner() {
                   <ValuationBacktestPanel />
                 </>
               )}
+
+              {/* Full, filterable Oportunidades list — real S&P 500 coverage.
+                  Deliberately at the very bottom, below the single-ticker
+                  search/detail above: search is the primary action on this
+                  screen, this is the "browse everything" fallback for users
+                  without a specific ticker in mind. */}
+              {isPremium && <OpportunitiesListPanel />}
             </div>
           </div>
       </div>
