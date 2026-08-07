@@ -794,16 +794,6 @@
         "momentum6m": "6-month return"
       }
     },
-    "confidence": {
-      "high": "High confidence",
-      "moderate": "Moderate confidence",
-      "low": "Low confidence",
-      "speculative": "Speculative"
-    },
-    "fairValueRange": {
-      "label": "Fair Value Range",
-      "base": "Base case"
-    },
     "marketExpectations": {
       "label": "What is the market pricing in?",
       "marketAssumes": "Market assumes",
@@ -984,40 +974,6 @@
         "text": "This is not investment advice or a buy/sell recommendation. The result depends entirely on the assumptions you choose — Nuvos AI does not guarantee the market price will converge toward this number."
       }
     },
-    "executiveSummary": {
-      "title": "Executive Summary",
-      "subtitle": "Everything you need to know at a glance",
-      "price": "Price",
-      "intrinsicValue": "Intrinsic Value",
-      "fairValueRange": "Fair Value Range",
-      "marginOfSafety": "Margin of Safety",
-      "qualityScore": "Quality",
-      "convictionScore": "Conviction",
-      "confidenceScore": "Confidence",
-      "thesisStatus": "Thesis status",
-      "thesisLoading": "Generating thesis...",
-      "noThesis": "Not enough information has been generated for this company yet.",
-      "confidence": {
-        "low": "low confidence",
-        "medium": "medium confidence",
-        "high": "high confidence"
-      },
-      "recentChange": "Change since last quarter",
-      "deteriorationDetected": "{{count}} deterioration signal(s) detected",
-      "improvementDetected": "{{count}} improvement signal(s) detected",
-      "noMaterialChange": "No material change detected",
-      "keyRisks": "Key risks",
-      "explain": {
-        "qualitySummary": "Measures how good the business is (profitability, margins, cash flow, growth, balance sheet) — never considers price.",
-        "convictionSummary": "Synthesis of business quality, moat strength, stability, and market volatility — never touches price or valuation.",
-        "confidenceSummary": "How reliable the fair-value estimate is — level: {{label}}.",
-        "confidenceMethodName": "Method",
-        "confidenceCrossMethod": "Computed by comparing the real spread across several independent valuation methods (DCF, comparables, historical).",
-        "confidenceBearBullDispersion": "Computed from how far apart the Nuvos AI Fair Value Engine's Bear and Bull scenarios are — the wider the range, the lower the confidence.",
-        "marginOfSafetySummary": "How far below the real intrinsic value the current price is.",
-        "formula": "Real formula"
-      }
-    },
     "comparisons": {
       "title": "Comparison Against Real Peers",
       "subtitle": "Rank #{{rank}} of {{count}} (company + real industry peers)",
@@ -1060,21 +1016,6 @@
       "variablesChanged": "Critical variables — what changed",
       "risksChanged": "Key risks — what changed",
       "noChange": "No real changes between these two versions."
-    },
-    "manualVsAi": {
-      "title": "Your Assumptions vs. Nuvos's",
-      "subtitle": "Understand the impact of each assumption — without saying which is correct",
-      "you": "You",
-      "nuvos": "Nuvos",
-      "vs": "vs.",
-      "resultingValue": "Resulting intrinsic value",
-      "assumptions": {
-        "growth": "Growth",
-        "wacc": "Discount rate (WACC)",
-        "terminalGrowth": "Terminal growth"
-      },
-      "mostDivergentNote": "The biggest difference is in {{assumption}} ({{diff}}pp vs. Nuvos) — this explains most of the difference in the resulting value.",
-      "footnote": "Neither assumption is \"correct\" — each reflects a different view of the company's future. Use this comparison to understand how sensitive your estimated value is to each assumption."
     },
     "investableChecklist": {
       "title": "Investment Checklist",

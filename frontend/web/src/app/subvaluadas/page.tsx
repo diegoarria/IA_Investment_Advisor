@@ -26,7 +26,6 @@ import {
   NifCatalystsCard, NifDeteriorationCard,
   ReverseDcfPanel, FairValueScenariosPanel,
 } from "@/components/subvaluadas/shared";
-import { ExecutiveSummaryPanel } from "@/components/subvaluadas/ExecutiveSummaryPanel";
 import dynamic from "next/dynamic";
 import type { CompanyTimelineEvent } from "@/lib/companyTimeline";
 import type { ThesisVersion } from "@/lib/thesisHistory";
@@ -39,8 +38,7 @@ import { resolveDashboardSectionOrder, DEFAULT_DASHBOARD_SECTION_ORDER } from "@
 // Fase 4, Incremento 13 (Cierre, Parte M) — every panel below is already
 // gated by isPremium/isSectionVisible (never rendered on initial load for
 // a free user or below the relevant Nivel de Detalle), so splitting them
-// into their own chunks never risks layout shift — only ExecutiveSummaryPanel
-// above (always visible) stays a static import.
+// into their own chunks never risks layout shift.
 const PeerComparisonChart = dynamic(() => import("@/components/subvaluadas/PeerComparisonChart").then((m) => m.PeerComparisonChart));
 const CompanyTimeline = dynamic(() => import("@/components/subvaluadas/CompanyTimeline").then((m) => m.CompanyTimeline));
 const ThesisHistoryPanel = dynamic(() => import("@/components/subvaluadas/ThesisHistoryPanel").then((m) => m.ThesisHistoryPanel));
@@ -788,28 +786,10 @@ function SubvaluadasPageInner() {
                     <DetailLevelToggle value={detailLevel} onChange={setDetailLevel} />
                   </div>
 
-                  {/* ===== Fase 4 — Dashboard Principal: resumen ejecutivo, siempre visible
-                       (nivel Principiante), construido con datos que esta página ya trae. ===== */}
-                  <ExecutiveSummaryPanel
-                    price={data.price}
-                    intrinsicValue={data.expected_value_per_share ?? data.intrinsic_value_base}
-                    fairValueRange={data.fair_value_range}
-                    marginOfSafetyPct={data.margin_of_safety_pct}
-                    qualityScore={nifData?.pillars?.business_quality?.score ?? null}
-                    qualityNuvosEstimate={nifData?.pillars?.business_quality?.nuvos_estimate ?? null}
-                    convictionScore={nifData?.conviction?.score ?? null}
-                    convictionFactors={nifData?.conviction?.factors ?? null}
-                    confidenceMeter={data.confidence_meter}
-                    thesisDraft={thesisDraft}
-                    thesisLoading={isPremium && thesisLoading}
-                    deterioration={nifData?.deterioration ?? null}
-                  />
-
-                  {/* ===== Nuvos AI Fair Value Engine redesign, Incremento 11 (THE
-                       FLIP) — one engine, three scenarios (Bear/Base/Bull), now the
-                       primary valuation panel: always visible (no longer gated to
-                       "avanzado"), right under the executive summary. Supersedes the
-                       shadow-mode placement from Incremento 9. ===== */}
+                  {/* ===== Nuvos AI Fair Value Engine redesign — one engine, three
+                       scenarios (Bear/Base/Bull), the primary and now ONLY valuation
+                       panel at the top of the page (Incremento 17: ExecutiveSummaryPanel
+                       was retired as fully redundant with this panel). ===== */}
                   {data.nuvos_fair_value && (
                     <div className="mb-8">
                       <FairValueScenariosPanel
@@ -965,11 +945,10 @@ function SubvaluadasPageInner() {
 
                   {/* ===== Nivel 1 summary — GeneratedAtNote/LiquidityWarning/InsightBox stay
                        visible at every Nivel de Detalle (safety info + the plain-language
-                       AI summary belong at Principiante); FairValueRangeDisplay/ConfidenceMeter
-                       are folded into ExecutiveSummaryPanel above (Fase 4, Incremento 2;
-                       FairValueRangeDisplay actually wired in at Fase 1.5, Incremento 11) to
-                       avoid showing the same numbers twice. FinalResultPanel (dead code, no
-                       references) was deleted in the same increment. ===== */}
+                       AI summary belong at Principiante). ExecutiveSummaryPanel (Quality/
+                       Conviction score, thesis draft, FairValueRangeDisplay/ConfidenceMeter)
+                       was retired here — Incremento 17: fully superseded by
+                       FairValueScenariosPanel above. ===== */}
                   <div className="space-y-3 mb-8">
                     <GeneratedAtNote generatedAt={data.generated_at} />
                     {data.liquidity_gate && <LiquidityWarning gate={data.liquidity_gate} />}

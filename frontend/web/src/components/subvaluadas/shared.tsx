@@ -241,52 +241,6 @@ export function ChecklistDisplay({ checklist }: { checklist: Checklist }) {
   );
 }
 
-export function ConfidenceMeter({ data }: { data: ConfidenceMeterData }) {
-  const { t } = useTranslation();
-  const color = data.score >= 85 ? "#22c55e" : data.score >= 65 ? "#eab308" : data.score >= 45 ? "#f59e0b" : "#ef4444";
-  const labelKey = data.score >= 85 ? "high" : data.score >= 65 ? "moderate" : data.score >= 45 ? "low" : "speculative";
-  return (
-    <div className="flex items-center gap-2.5 shrink-0">
-      <div className="relative w-9 h-9 rounded-full shrink-0" style={{ background: `conic-gradient(${color} ${data.score}%, var(--border) ${data.score}%)` }}>
-        <div className="absolute inset-[3px] rounded-full flex items-center justify-center" style={{ background: "var(--card)" }}>
-          <span className="text-[10px] font-black" style={{ color }}>{data.score}</span>
-        </div>
-      </div>
-      <div>
-        <p className="text-[10px] font-bold" style={{ color: "var(--text)" }}>{t(`subvaluadas.confidence.${labelKey}`)}</p>
-        <div className="flex gap-0.5">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <Star key={i} className="w-2.5 h-2.5" style={{ color: i <= data.stars ? "#f59e0b" : "var(--border)" }} fill={i <= data.stars ? "#f59e0b" : "none"} />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// `range` is the Nuvos AI Fair Value Engine's own Bear/Base/Bull scenarios
-// since the flip (Incremento 11) — see combine_fair_value_range. Consensus
-// Engine (the archetype-weighted blend previously shown as a method
-// breakdown here) is retired (Incremento 12).
-export function FairValueRangeDisplay({ range }: { range: FairValueRangeData }) {
-  const { t } = useTranslation();
-  const lo = Math.min(range.low, range.high);
-  const hi = Math.max(range.low, range.high);
-  return (
-    <div className="rounded-xl p-3" style={{ background: "var(--raised)" }}>
-      <p className="text-[9px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--muted)" }}>
-        {t("subvaluadas.fairValueRange.label")}
-      </p>
-      <p className="text-lg font-black tabular-nums" style={{ color: "var(--text)" }}>
-        ${lo.toFixed(0)} – ${hi.toFixed(0)}
-      </p>
-      <p className="text-[11px]" style={{ color: "var(--sub)" }}>
-        {t("subvaluadas.fairValueRange.base")}: <span className="font-bold">${range.base.toFixed(0)}</span>
-      </p>
-    </div>
-  );
-}
-
 function _fmtCompactMoney(v: number | null): string {
   if (v === null || !isFinite(v)) return "N/D";
   const abs = Math.abs(v);
