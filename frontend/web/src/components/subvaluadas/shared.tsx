@@ -577,7 +577,13 @@ function _PriceVsScenariosBar({
       <p className="text-[9px] font-bold uppercase tracking-wide mb-3" style={{ color: "var(--muted)" }}>
         {t("subvaluadas.nuvosFairValue.priceVsScenarios")}
       </p>
-      <div className="relative mt-5 mb-6">
+      {/* mb-12 (not mb-6) — the marker ticks below the bar are absolutely
+          positioned, so they never push this div's own layout height; the
+          margin here is the ONLY thing keeping their 2 lines of text
+          (name + $value) from colliding with whatever renders next
+          ("Valor razonable" / the verdict card), so it has to be sized for
+          their real height, not the bar's. */}
+      <div className="relative mt-5 mb-12">
         <div
           className="h-2 rounded-full"
           style={{ background: `linear-gradient(90deg, ${_SCENARIO_COLOR.bear}, ${_SCENARIO_COLOR.base}, ${_SCENARIO_COLOR.bull})` }}
