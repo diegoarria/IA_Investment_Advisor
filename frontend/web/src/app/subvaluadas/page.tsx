@@ -1,47 +1,30 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import {
-  Loader2, Lock, Search, X, FileSpreadsheet, MessageCircle, AlertTriangle,
-  Shield, Target,
-} from "lucide-react";
+import { Loader2, Lock, Search, X, AlertTriangle } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
 import StockAvatar from "@/components/StockAvatar";
 import ExplainButton from "@/components/ExplainButton";
 import {
-  type RangeBounds, type YearlyDetailRow, type Checklist, type FairValueRangeData, type ConfidenceMeterData,
+  type YearlyDetailRow, type Checklist, type FairValueRangeData, type ConfidenceMeterData,
   type MarketExpectationsData, type LiquidityGate, type DcfAssumptions,
-  type NifDashboardData, type NifRow, type ThesisDraftData,
-  type SensitivityMatrixData, type NuvosSensitivityMatrixData,
+  type SensitivityMatrixData,
   type ReverseDcfSanityCheckData, type ExpectationsInvestingData,
   type NuvosFairValueData, type RelativeValuationData, type AnalystPriceTargetData,
-  GeneratedAtNote, LiquidityWarning, ChecklistDisplay,
-  MarketExpectationsPanel, InsightBox, FollowButton, AnalyzeButton,
-  NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
-  NifScoreEngineCard, NifMoatDeepDiveBlock, NifManagementDeepDiveCard,
-  NifCatalystsCard, NifDeteriorationCard,
-  ReverseDcfPanel, FairValueScenariosPanel,
+  GeneratedAtNote, LiquidityWarning,
+  FollowButton, AnalyzeButton,
+  FairValueScenariosPanel,
 } from "@/components/subvaluadas/shared";
 import dynamic from "next/dynamic";
-import type { CompanyTimelineEvent } from "@/lib/companyTimeline";
-import type { ThesisVersion } from "@/lib/thesisHistory";
-import { DetailLevelToggle } from "@/components/ui";
-import { isSectionVisible } from "@/lib/detailLevel";
-import { screenerApi, watchlist, researchEngineApi } from "@/lib/api";
-import { useSubscriptionStore, useThemeStore, useDetailLevelStore, usePersonalizationStore } from "@/lib/store";
-import { resolveDashboardSectionOrder, DEFAULT_DASHBOARD_SECTION_ORDER } from "@/lib/personalization";
+import { screenerApi, watchlist } from "@/lib/api";
+import { useSubscriptionStore, useThemeStore, usePersonalizationStore } from "@/lib/store";
 
-// Fase 4, Incremento 13 (Cierre, Parte M) — every panel below is already
-// gated by isPremium/isSectionVisible (never rendered on initial load for
-// a free user or below the relevant Nivel de Detalle), so splitting them
-// into their own chunks never risks layout shift.
-const PeerComparisonChart = dynamic(() => import("@/components/subvaluadas/PeerComparisonChart").then((m) => m.PeerComparisonChart));
-const CompanyTimeline = dynamic(() => import("@/components/subvaluadas/CompanyTimeline").then((m) => m.CompanyTimeline));
-const ThesisHistoryPanel = dynamic(() => import("@/components/subvaluadas/ThesisHistoryPanel").then((m) => m.ThesisHistoryPanel));
+// Fase 4, Incremento 13 (Cierre, Parte M) — split into its own chunk so it
+// never risks layout shift on a free user's initial load (isPremium-gated).
 const InvestmentChecklistPanel = dynamic(() => import("@/components/subvaluadas/InvestmentChecklistPanel").then((m) => m.InvestmentChecklistPanel));
 
 export interface QuickAnalysisResult {
@@ -128,308 +111,6 @@ const TEAL = "#4FA695";
 const CORAL = "#DD6E63";
 const DEFAULT_TICKER = "AAPL";
 
-function pct(v: number): string {
-  return `${v.toFixed(1)}%`;
-}
-
-function fmtMoney(v: number | null | undefined): string {
-  if (v === null || v === undefined || !isFinite(v)) return "N/D";
-  const abs = Math.abs(v);
-  if (abs >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
-  return `$${v.toFixed(2)}`;
-}
-
-function colorForRatio(ratio: number): string {
-  const coral = [221, 110, 99], gold = [212, 162, 76], teal = [79, 166, 149];
-  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-  let c: number[];
-  if (ratio <= 1.0) {
-    const t = clamp((ratio - 0.6) / 0.4, 0, 1);
-    c = coral.map((v, i) => Math.round(v + (gold[i] - v) * t));
-  } else {
-    const t = clamp((ratio - 1.0) / 0.5, 0, 1);
-    c = gold.map((v, i) => Math.round(v + (teal[i] - v) * t));
-  }
-  return `rgb(${c[0]},${c[1]},${c[2]})`;
-}
-
-// Nuvos AI Fair Value Engine redesign, Incremento 15 — re-fed from the new
-// engine: WACC x exit multiple, not WACC x growth. This engine's terminal
-// value comes from a real exit multiple (Incremento 2), so a growth-only
-// heatmap would miss the actual lever driving the number. Every cell is a
-// real project_driver_based_dcf run at the base case's growth/margin/ROIC,
-// varying only WACC and the multiple — the middle column IS the Base
-// Case's own multiple, so this heatmap and the scenario panel above tell
-// one story, not two.
-function SensitivityHeatmap({ matrix, price }: { matrix: NuvosSensitivityMatrixData; price: number }) {
-  const { t } = useTranslation();
-  const mVals = matrix.multiple_cols;
-  const rVals = matrix.wacc_rows_pct;
-  const centerRi = Math.floor(rVals.length / 2);
-  const centerMi = Math.floor(mVals.length / 2);
-
-  return (
-    <div className="card" style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 24, marginTop: 20 }}>
-      <div className="flex items-start justify-between gap-4 flex-wrap mb-5">
-        <div>
-          <h2 style={{ fontSize: 19, fontWeight: 500, color: "var(--text)", margin: "0 0 6px" }}>
-            {t("subvaluadas.detail.heatmap.title")}
-          </h2>
-          <p className="text-[13px] max-w-[480px] leading-relaxed" style={{ color: "var(--sub)" }}>{t("subvaluadas.detail.heatmap.desc")}</p>
-        </div>
-        <div className="flex items-center gap-2.5 text-[11px]" style={{ color: "var(--muted)" }}>
-          {t("subvaluadas.detail.heatmap.lower")}
-          <div style={{ width: 110, height: 8, borderRadius: 4, background: `linear-gradient(90deg, ${CORAL}, ${GOLD}, ${TEAL})` }} />
-          {t("subvaluadas.detail.heatmap.higher")}
-        </div>
-      </div>
-
-      <p className="text-center text-[11px] mb-2" style={{ color: "var(--muted)" }}>
-        {t("subvaluadas.detail.heatmap.multipleAxis", { metric: t(`subvaluadas.nuvosFairValue.exitMetric.${matrix.exit_metric}`) })}
-      </p>
-      <div className="grid" style={{ gridTemplateColumns: "60px 1fr" }}>
-        <div className="flex items-end justify-center text-center pb-2 text-[10px] leading-tight" style={{ color: "var(--muted)" }}>
-          {t("subvaluadas.detail.heatmap.rAxis")}
-        </div>
-        <div>
-          <div className="grid mb-2" style={{ gridTemplateColumns: `repeat(${mVals.length},1fr)` }}>
-            {mVals.map((mv, i) => (
-              <div key={i} className="text-center text-[11px]" style={{ color: "var(--muted)" }}>{mv.toFixed(1)}x</div>
-            ))}
-          </div>
-          <div className="flex">
-            <div className="flex flex-col justify-between">
-              {rVals.map((rv, i) => (
-                <div key={i} className="flex items-center justify-center text-[11px]" style={{ height: 60, color: "var(--muted)" }}>{pct(rv)}</div>
-              ))}
-            </div>
-            <div className="grid flex-1 gap-1" style={{ gridTemplateColumns: `repeat(${mVals.length},1fr)`, gridTemplateRows: `repeat(${rVals.length},60px)` }}>
-              {rVals.map((rv, ri) => mVals.map((mv, mi) => {
-                const val = matrix.values[ri][mi];
-                const isCenter = ri === centerRi && mi === centerMi;
-                const noSolution = val === null;
-                const ratio = val !== null && price ? val / price : 1;
-                return (
-                  <div key={`${ri}-${mi}`}
-                       className="relative rounded-lg flex items-center justify-center text-[13px] font-bold"
-                       style={{
-                         background: noSolution ? "var(--border-s)" : colorForRatio(ratio),
-                         color: noSolution ? "var(--muted)" : "#0A0F1A",
-                         outline: isCenter ? "2px solid var(--text)" : "none",
-                         outlineOffset: -2,
-                         }}>
-                    {isCenter && <span className="absolute top-1 text-[8px] font-extrabold tracking-wide" style={{ color: "rgba(10,15,26,0.55)" }}>{t("subvaluadas.detail.heatmap.you")}</span>}
-                    {noSolution ? "N/D" : `$${val!.toFixed(0)}`}
-                  </div>
-                );
-              }))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-start gap-2.5 mt-4 p-3 rounded-xl text-[12.5px] leading-relaxed" style={{ background: "var(--raised)", color: "var(--sub)" }}>
-        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: GOLD }} />
-        {t("subvaluadas.detail.heatmap.note")}
-      </div>
-    </div>
-  );
-}
-
-function FullModelModal({ ticker, price, fcf0, netCash, shares, g, r, gt, yearlyDetail, pvOfFcfSum, pvOfTerminalValue, enterpriseValue, onClose }: {
-  ticker: string; price: number | null; fcf0: number; netCash: number; shares: number; g: number; r: number; gt: number;
-  yearlyDetail: YearlyDetailRow[] | null; pvOfFcfSum: number | null; pvOfTerminalValue: number | null; enterpriseValue: number | null;
-  onClose: () => void;
-}) {
-  const { t } = useTranslation();
-  const equityValue = enterpriseValue !== null ? enterpriseValue + netCash * 1e6 : null;
-  const perShare = equityValue !== null && shares > 0 ? equityValue / (shares * 1e6) : null;
-  const mos = perShare !== null && price ? ((perShare - price) / price) * 100 : null;
-
-  const handleExport = async () => {
-    const XLSX = await import("xlsx");
-    const wb = XLSX.utils.book_new();
-    const inputsSheet = XLSX.utils.aoa_to_sheet([
-      [t("subvaluadas.detail.level3.inputs")],
-      [t("subvaluadas.detail.controls.growth"), pct(g)],
-      [t("subvaluadas.detail.controls.wacc"), pct(r)],
-      [t("subvaluadas.detail.controls.terminalGrowth"), pct(gt)],
-      ["FCF (TTM, M)", fcf0.toFixed(1)],
-      [t("subvaluadas.detail.level3.netCash") + " (M)", netCash.toFixed(1)],
-      [t("subvaluadas.detail.level3.shares") + " (M)", shares.toFixed(1)],
-      [t("subvaluadas.stats.price"), price ?? "N/D"],
-    ]);
-    XLSX.utils.book_append_sheet(wb, inputsSheet, "Inputs");
-    if (yearlyDetail && yearlyDetail.length > 0) {
-      const rows = [
-        [t("subvaluadas.detail.level3.year"), t("subvaluadas.detail.level3.fcf"), t("subvaluadas.detail.level3.discountFactor"), t("subvaluadas.detail.level3.presentValue")],
-        ...yearlyDetail.map((row) => [row.year, row.fcf, row.discount_factor, row.present_value]),
-      ];
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Proyeccion");
-    }
-    const bridgeSheet = XLSX.utils.aoa_to_sheet([
-      [t("subvaluadas.detail.level3.pvFcf"), pvOfFcfSum ?? "N/D"],
-      [t("subvaluadas.detail.level3.pvTerminal"), pvOfTerminalValue ?? "N/D"],
-      [t("subvaluadas.detail.level3.enterpriseValue"), enterpriseValue ?? "N/D"],
-      [t("subvaluadas.detail.level3.netCash"), netCash * 1e6],
-      [t("subvaluadas.detail.level3.equityValue"), equityValue ?? "N/D"],
-      [t("subvaluadas.detail.level3.shares"), shares * 1e6],
-      [t("subvaluadas.detail.level3.perShare"), perShare ?? "N/D"],
-    ]);
-    XLSX.utils.book_append_sheet(wb, bridgeSheet, "Valuacion");
-    XLSX.writeFile(wb, `${ticker}_dcf_nuvos.xlsx`);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.65)" }} onClick={onClose}>
-      <div className="rounded-2xl border max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
-           style={{ background: "var(--card)", borderColor: "var(--border)" }} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
-          <h3 style={{ fontSize: 16, fontWeight: 500, color: "var(--text)" }}>
-            {t("subvaluadas.detail.level3.title", { ticker })}
-          </h3>
-          <button onClick={onClose}><X className="w-4 h-4" style={{ color: "var(--muted)" }} /></button>
-        </div>
-        <div className="overflow-auto p-5 space-y-4">
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: t("subvaluadas.detail.controls.growth"), value: pct(g) },
-              { label: t("subvaluadas.detail.controls.wacc"), value: pct(r) },
-              { label: t("subvaluadas.detail.controls.terminalGrowth"), value: pct(gt) },
-            ].map((s) => (
-              <div key={s.label} className="rounded-xl p-2.5" style={{ background: "var(--raised)" }}>
-                <p className="text-[9px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{s.label}</p>
-                <p className="text-sm font-black tabular-nums" style={{ color: "var(--text)" }}>{s.value}</p>
-              </div>
-            ))}
-          </div>
-
-          {yearlyDetail && yearlyDetail.length > 0 && (
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--muted)" }}>{t("subvaluadas.detail.level3.yearlyTable")}</p>
-              <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
-                <table className="w-full text-[11px]">
-                  <thead>
-                    <tr style={{ background: "var(--raised)" }}>
-                      <th className="text-left px-2.5 py-1.5 font-bold" style={{ color: "var(--muted)" }}>{t("subvaluadas.detail.level3.year")}</th>
-                      <th className="text-right px-2.5 py-1.5 font-bold" style={{ color: "var(--muted)" }}>{t("subvaluadas.detail.level3.fcf")}</th>
-                      <th className="text-right px-2.5 py-1.5 font-bold" style={{ color: "var(--muted)" }}>{t("subvaluadas.detail.level3.discountFactor")}</th>
-                      <th className="text-right px-2.5 py-1.5 font-bold" style={{ color: "var(--muted)" }}>{t("subvaluadas.detail.level3.presentValue")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {yearlyDetail.map((row) => (
-                      <tr key={row.year} className="border-t" style={{ borderColor: "var(--border)" }}>
-                        <td className="px-2.5 py-1.5 font-bold" style={{ color: "var(--text)" }}>{row.year}</td>
-                        <td className="px-2.5 py-1.5 text-right tabular-nums" style={{ color: "var(--sub)" }}>{fmtMoney(row.fcf)}</td>
-                        <td className="px-2.5 py-1.5 text-right tabular-nums" style={{ color: "var(--sub)" }}>{row.discount_factor.toFixed(3)}</td>
-                        <td className="px-2.5 py-1.5 text-right tabular-nums font-bold" style={{ color: "var(--text)" }}>{fmtMoney(row.present_value)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <div className="rounded-xl border p-3 space-y-1.5" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
-            {[
-              [t("subvaluadas.detail.level3.pvFcf"), fmtMoney(pvOfFcfSum), false],
-              [t("subvaluadas.detail.level3.pvTerminal"), fmtMoney(pvOfTerminalValue), false],
-              [t("subvaluadas.detail.level3.enterpriseValue"), fmtMoney(enterpriseValue), true],
-              [t("subvaluadas.detail.level3.netCash"), fmtMoney(netCash * 1e6), false],
-              [t("subvaluadas.detail.level3.equityValue"), fmtMoney(equityValue), true],
-              [t("subvaluadas.detail.level3.shares"), `${shares.toFixed(1)}M`, false],
-            ].map(([label, value, bold], i) => (
-              <div key={i} className="flex items-center justify-between">
-                <span className="text-[11px]" style={{ color: "var(--sub)" }}>{label as string}</span>
-                <span className="text-[11px] tabular-nums" style={{ fontWeight: bold ? 700 : 400, color: "var(--text)" }}>{value as string}</span>
-              </div>
-            ))}
-            <div className="pt-1.5 mt-1 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
-              <span className="text-[11px] font-bold" style={{ color: "var(--sub)" }}>{t("subvaluadas.detail.level3.perShare")}</span>
-              <span className="text-[11px] font-bold tabular-nums" style={{ color: GOLD }}>{perShare !== null ? `$${perShare.toFixed(2)}` : "N/D"}</span>
-            </div>
-            {mos !== null && (
-              <p className="text-[11px] pt-1" style={{ color: mos >= 0 ? TEAL : CORAL }}>
-                {t("subvaluadas.detail.marginOfSafety")}: {mos >= 0 ? "+" : ""}{mos.toFixed(1)}%
-              </p>
-            )}
-          </div>
-
-          <button onClick={handleExport} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold border"
-                  style={{ borderColor: "var(--border)", color: "var(--text)", background: "var(--raised)" }}>
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            {t("subvaluadas.detail.level3.export")}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Turns a NIF pillar's raw data/nuvos_estimate dicts into the labeled rows
-// NifPillarCard renders — kept here (not inside the generic shared card)
-// since only the page knows each pillar's specific field names/units,
-// matching how every other shared display component in this file takes
-// already-formatted data rather than a raw API dict.
-// Fase 4, Incremento 4 — small module-level helper (PeerComparisonChart's
-// companyMetrics extraction needs the same "is this really a number"
-// guard buildNifRows already uses internally, just outside that function's
-// scope).
-const numOrNull = (v: unknown): number | null => (typeof v === "number" && isFinite(v) ? v : null);
-
-function buildNifRows(pillarKey: string, d: Record<string, unknown>, isFinancialSector: boolean, t: (k: string, o?: Record<string, unknown>) => string): NifRow[] {
-  const num = numOrNull;
-  const label = (key: string) => t(`subvaluadas.nif.fields.${key}`);
-  const rows: NifRow[] = [];
-  const push = (key: string, value: string | null) => { if (value !== null) rows.push({ label: label(key), value }); };
-
-  if (pillarKey === "business_quality_data") {
-    push("roicPct", num(d.roic_pct) !== null ? pct(num(d.roic_pct)!) : null);
-    push("operatingMarginPct", num(d.operating_margin_pct) !== null ? pct(num(d.operating_margin_pct)!) : null);
-    push("netMarginPct", num(d.net_margin_pct) !== null ? pct(num(d.net_margin_pct)!) : null);
-    push("fcfMarginPct", num(d.fcf_margin_pct) !== null ? pct(num(d.fcf_margin_pct)!) : null);
-    push("revenueCagrPct", num(d.revenue_cagr_pct) !== null ? pct(num(d.revenue_cagr_pct)!) : null);
-  } else if (pillarKey === "business_quality_estimate") {
-    push("roicScore", num(d.roic_score)?.toString() ?? null);
-    push("marginScore", num(d.operating_margin_score)?.toString() ?? null);
-    push("growthScore", num(d.growth_score)?.toString() ?? null);
-  } else if (pillarKey === "financial_strength_data") {
-    push("totalDebt", fmtMoney(num(d.total_debt)));
-    push("cash", fmtMoney(num(d.cash)));
-    push("netCash", fmtMoney(num(d.net_cash)));
-  } else if (pillarKey === "financial_strength_estimate") {
-    push("interestCoverageScore", num(d.interest_coverage_score)?.toString() ?? null);
-    push("debtScore", num(d.net_debt_to_cash_score)?.toString() ?? null);
-  } else if (pillarKey === "management_quality_data") {
-    push("buybackRatePct", num(d.buyback_rate_pct) !== null ? pct(num(d.buyback_rate_pct)!) : null);
-    push("payoutRatioPct", num(d.payout_ratio_pct) !== null ? pct(num(d.payout_ratio_pct)!) : null);
-    const t12 = d.insider_trailing_12mo as { distinct_buyers?: number; distinct_sellers?: number } | null | undefined;
-    if (t12) {
-      push("insiderBuyers", String(t12.distinct_buyers ?? 0));
-      push("insiderSellers", String(t12.distinct_sellers ?? 0));
-    }
-    push("insiderSentiment", num(d.insider_sentiment_avg_mspr) !== null ? num(d.insider_sentiment_avg_mspr)!.toFixed(0) : null);
-  } else if (pillarKey === "valuation_data") {
-    push("currentPrice", num(d.current_price) !== null ? `$${num(d.current_price)!.toFixed(2)}` : null);
-    if (!isFinancialSector) {
-      push("peRatio", num(d.pe_ratio)?.toFixed(1) ?? null);
-      push("evEbitda", num(d.ev_ebitda)?.toFixed(1) ?? null);
-      push("pegRatio", num(d.peg_ratio)?.toFixed(2) ?? null);
-    }
-  } else if (pillarKey === "valuation_estimate") {
-    const fvr = d.fair_value_range as { low?: number; high?: number } | null | undefined;
-    if (fvr && num(fvr.low) !== null && num(fvr.high) !== null) {
-      push("fairValueRange", `$${num(fvr.low)!.toFixed(0)} - $${num(fvr.high)!.toFixed(0)}`);
-    }
-    push("marginOfSafetyPct", num(d.margin_of_safety_pct) !== null ? pct(num(d.margin_of_safety_pct)!) : null);
-    push("expectedValue", num(d.expected_value_per_share) !== null ? `$${num(d.expected_value_per_share)!.toFixed(2)}` : null);
-  }
-  return rows;
-}
-
 export default function SubvaluadasPage() {
   return (
     <Suspense fallback={<div className="flex h-screen items-center justify-center" style={{ background: "var(--bg)" }}><Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent-l)" }} /></div>}>
@@ -460,7 +141,6 @@ function SubvaluadasPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [limitHit, setLimitHit] = useState(false);
   const [watchlisted, setWatchlisted] = useState(false);
-  const [level3Open, setLevel3Open] = useState(false);
   // Free users get 1 search/week (enforced server-side) — don't burn that on
   // the default AAPL auto-load; only fetch once they've actually searched,
   // or if the URL itself names a ticker (a shared link is an explicit ask).
@@ -522,131 +202,7 @@ function SubvaluadasPageInner() {
     return () => { cancelled = true; };
   }, [ticker, isPremium, searchTriggered, i18n.language, t]);
 
-  // Nuvos Investment Framework (NIF) dashboard — fired in parallel with the
-  // quick-analysis call above, as its own independent request/cache/failure
-  // domain (see backend/app/api/routes/screener.py's nif_dashboard route
-  // docstring for why). A NIF failure must never affect the existing
-  // Calculadora de Valor Intrínseco below it — it degrades to hiding the
-  // section, nothing else on the page is touched. Premium-only in this
-  // first phase, so it fetches whenever isPremium is true, same as
-  // quick-analysis already does for Premium users regardless of
-  // searchTriggered (only free users wait for an explicit search).
-  const [nifData, setNifData] = useState<NifDashboardData | null>(null);
-  const [nifLoading, setNifLoading] = useState(true);
-  const [nifError, setNifError] = useState(false);
-
-  useEffect(() => {
-    if (!isPremium) { setNifLoading(false); return; }
-    let cancelled = false;
-    setNifLoading(true);
-    setNifError(false);
-    screenerApi.nifDashboard(ticker, i18n.language)
-      .then((res) => { if (!cancelled) { setNifData(res.data); setNifError(false); } })
-      .catch(() => { if (!cancelled) { setNifData(null); setNifError(true); } })
-      .finally(() => { if (!cancelled) setNifLoading(false); });
-    return () => { cancelled = true; };
-  }, [ticker, isPremium, i18n.language]);
-
-  // Fase 3's shared research draft — a separate, cheap read (never triggers
-  // recomputation) from the Thesis Engine. Independent load/error state,
-  // same "never block anything else" philosophy as nifData above. A 404
-  // (no draft generated yet for this ticker) is a normal, expected state,
-  // not an error to surface.
-  const [thesisDraft, setThesisDraft] = useState<ThesisDraftData | null>(null);
-  const [thesisLoading, setThesisLoading] = useState(true);
-
-  useEffect(() => {
-    if (!isPremium) { setThesisLoading(false); return; }
-    let cancelled = false;
-    setThesisLoading(true);
-    researchEngineApi.getThesisDraft(ticker)
-      .then((res) => { if (!cancelled) setThesisDraft(res.data); })
-      .catch(() => { if (!cancelled) setThesisDraft(null); })
-      .finally(() => { if (!cancelled) setThesisLoading(false); });
-    return () => { cancelled = true; };
-  }, [ticker, isPremium]);
-
-  // Fase 4, Incremento 11 (Investment Journal, Parte K) — whether the user
-  // already has their OWN adopted thesis for this ticker (distinct from
-  // Nuvos's shared draft above). Drives the "Adoptar como mi tesis" CTA.
-  const [myThesis, setMyThesis] = useState<{ ticker: string; version: number } | null>(null);
-  const [adoptingThesis, setAdoptingThesis] = useState(false);
-
-  const fetchMyThesis = useCallback(() => {
-    if (!isPremium) return;
-    researchEngineApi.getMyThesis(ticker)
-      .then((res) => setMyThesis(res.data))
-      .catch(() => setMyThesis(null));
-  }, [ticker, isPremium]);
-
-  useEffect(() => { fetchMyThesis(); }, [fetchMyThesis]);
-
-  const handleAdoptThesis = async () => {
-    setAdoptingThesis(true);
-    try {
-      await researchEngineApi.forkThesis(ticker);
-      fetchMyThesis();
-      const historyRes = await researchEngineApi.getThesisHistory(ticker);
-      setThesisHistory(historyRes.data?.versions ?? []);
-    } catch {
-      // real failure — myThesis stays null, the CTA simply remains visible to retry
-    } finally {
-      setAdoptingThesis(false);
-    }
-  };
-
-  // Fase 4, Incremento 5 — company timeline (Fase 3's Change Detection
-  // Engine output). Independent load state, same "never block anything
-  // else" philosophy as nifData/thesisDraft above.
-  const [timelineEvents, setTimelineEvents] = useState<CompanyTimelineEvent[]>([]);
-  const [timelineLoading, setTimelineLoading] = useState(true);
-
-  useEffect(() => {
-    if (!isPremium) { setTimelineLoading(false); return; }
-    let cancelled = false;
-    setTimelineLoading(true);
-    researchEngineApi.getTimeline(ticker)
-      .then((res) => { if (!cancelled) setTimelineEvents(res.data?.timeline ?? []); })
-      .catch(() => { if (!cancelled) setTimelineEvents([]); })
-      .finally(() => { if (!cancelled) setTimelineLoading(false); });
-    return () => { cancelled = true; };
-  }, [ticker, isPremium]);
-
-  // Fase 4, Incremento 6 — the user's own real thesis version history
-  // (Fase 3's user_investment_theses, never overwritten — see
-  // src/lib/thesisHistory.ts). Independent load state.
-  const [thesisHistory, setThesisHistory] = useState<ThesisVersion[]>([]);
-  const [thesisHistoryLoading, setThesisHistoryLoading] = useState(true);
-
-  useEffect(() => {
-    if (!isPremium) { setThesisHistoryLoading(false); return; }
-    let cancelled = false;
-    setThesisHistoryLoading(true);
-    researchEngineApi.getThesisHistory(ticker)
-      .then((res) => { if (!cancelled) setThesisHistory(res.data?.versions ?? []); })
-      .catch(() => { if (!cancelled) setThesisHistory([]); })
-      .finally(() => { if (!cancelled) setThesisHistoryLoading(false); });
-    return () => { cancelled = true; };
-  }, [ticker, isPremium]);
-
-  const { detailLevel, setDetailLevel } = useDetailLevelStore();
-  const { requiredReturnPct, preferredDiscountRateMethod, minMarginOfSafetyPct, dashboardSectionOrder } = usePersonalizationStore();
-
-  // Hotfix (post-Incremento 12): /subvaluadas is statically prerendered, so
-  // the server always renders the DEFAULT section order (no localStorage on
-  // the server). zustand's persist middleware rehydrates synchronously from
-  // localStorage on the client BEFORE the first paint, so a user with a
-  // saved custom order got a different array order client-side than what
-  // the server sent — React can tolerate a hydration diff in most
-  // attributes, but reordering keyed siblings crashes hydration outright
-  // (Uncaught Error: Minified React error #418, cascading into a second
-  // TypeError). Force the default order until after mount, then swap to
-  // the real persisted order — same fix shape as any SSR-page + localStorage
-  // state combination, applied narrowly here since only this value affects
-  // sibling ORDER (not just visibility/style, which hydrate safely).
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-  const effectiveSectionOrder = mounted ? dashboardSectionOrder : DEFAULT_DASHBOARD_SECTION_ORDER;
+  const { minMarginOfSafetyPct } = usePersonalizationStore();
 
   const handleSearch = () => {
     if (!query.trim()) return;
@@ -654,14 +210,6 @@ function SubvaluadasPageInner() {
     setSearchTriggered(true);
     setTicker(query.trim().toUpperCase());
   };
-
-  const hasData = data?.current_fcf != null && data?.net_cash != null && data?.shares_outstanding != null && data?.price != null;
-  const isFinancialSector = data?.dcf_assumptions?.methodology === "residual_income_justified_pb";
-
-  const fcf0 = hasData ? data!.current_fcf! / 1e6 : 0;
-  const netCash = hasData ? data!.net_cash! / 1e6 : 0;
-  const shares = hasData ? data!.shares_outstanding! / 1e6 : 0;
-  const horizon = data?.yearly_detail && data.yearly_detail.length > 0 ? data.yearly_detail.length : 10;
 
   const suggestedG = data?.dcf_assumptions?.suggested_g ?? 7;
   const suggestedR = data?.dcf_assumptions?.suggested_r ?? 9;
@@ -674,15 +222,6 @@ function SubvaluadasPageInner() {
     try { await watchlist.add(data.ticker, data.company_name || undefined); setWatchlisted(true); } catch { /* idempotent */ }
   };
   const handleAnalyze = () => router.push(`/chat?msg=${encodeURIComponent(t("subvaluadas.analyze.prompt", { ticker }))}&autosend=1`);
-  const askMentor = (question: string) => router.push(`/chat?msg=${encodeURIComponent(question)}&autosend=1`);
-
-  const name = data?.company_name || ticker;
-  const mentorQuestions = [
-    { key: "why", text: t("subvaluadas.dcf.mentor.why", { ticker: name }) },
-    { key: "risk", text: t("subvaluadas.dcf.mentor.risk", { ticker: name }) },
-    { key: "sensitivity", text: t("subvaluadas.dcf.mentor.sensitivity", { ticker: name }) },
-    { key: "change", text: t("subvaluadas.dcf.mentor.change", { ticker: name }) },
-  ];
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
@@ -780,12 +319,6 @@ function SubvaluadasPageInner() {
                     )}
                   </div>
 
-                  {/* ===== Fase 4 — Nivel de Detalle: cambiable en cualquier momento,
-                       controla qué secciones se muestran debajo (src/lib/detailLevel.ts). ===== */}
-                  <div className="flex justify-end mb-5">
-                    <DetailLevelToggle value={detailLevel} onChange={setDetailLevel} />
-                  </div>
-
                   {/* ===== Nuvos AI Fair Value Engine redesign — one engine, three
                        scenarios (Bear/Base/Bull), the primary and now ONLY valuation
                        panel at the top of the page (Incremento 17: ExecutiveSummaryPanel
@@ -801,243 +334,27 @@ function SubvaluadasPageInner() {
                     </div>
                   )}
 
-                  {/* ===== Fase 4, Incremento 12 (Personalización, Parte L) — these 4
-                       blocks (checklist/nif/timeline/thesis_history) render in the
-                       user's own chosen order (src/lib/personalization.ts), default
-                       order unchanged from Incrementos 5/6/8. Each block keeps its own
-                       gating condition exactly as before — reordering never changes
-                       WHETHER something shows, only the sequence. ===== */}
-                  {resolveDashboardSectionOrder(effectiveSectionOrder).map((sectionKey) => {
-                    if (sectionKey === "checklist") {
-                      return isPremium ? (
-                        <InvestmentChecklistPanel
-                          key="checklist"
-                          ticker={data.ticker}
-                          marginOfSafetyPct={data.margin_of_safety_pct}
-                          minMarginOfSafetyPct={minMarginOfSafetyPct}
-                        />
-                      ) : null;
-                    }
-                    if (sectionKey === "nif") {
-                      return (
-                        <div key="nif">
-                          {isPremium && isSectionVisible(detailLevel, "moat_score") && (
-                            nifLoading ? (
-                              <NifDashboardSkeleton />
-                            ) : nifData && !nifError ? (() => {
-                              // Hotfix: nif_dashboard is cached for up to 90 days
-                              // (screener.py's _NIF_DASHBOARD_CACHE_TTL) — a payload
-                              // cached before some field existed, or any other real-
-                              // world schema drift, can legitimately arrive missing a
-                              // key the type used to (wrongly) declare as required.
-                              // Every nested read below is defensive because of that,
-                              // not because these are ever intentionally omitted.
-                              const bq = nifData.pillars?.business_quality ?? null;
-                              const fs = nifData.pillars?.financial_strength ?? null;
-                              const mq = nifData.pillars?.management_quality ?? null;
-                              const val = nifData.pillars?.valuation ?? null;
-                              return (
-                              <div className="mb-8">
-                                <NifOverallScoreBanner overall={nifData.overall_nif_score} />
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                  <NifPillarCard
-                                    titleKey="business_quality"
-                                    score={bq?.score ?? null}
-                                    dataRows={buildNifRows("business_quality_data", bq?.data ?? {}, isFinancialSector, t)}
-                                    estimateRows={buildNifRows("business_quality_estimate", bq?.nuvos_estimate ?? {}, isFinancialSector, t)}
-                                    explanation={bq?.explanation ?? null}
-                                  />
-                                  <NifPillarCard
-                                    titleKey="financial_strength"
-                                    score={fs?.score ?? null}
-                                    dataRows={buildNifRows("financial_strength_data", fs?.data ?? {}, isFinancialSector, t)}
-                                    estimateRows={buildNifRows("financial_strength_estimate", fs?.nuvos_estimate ?? {}, isFinancialSector, t)}
-                                    explanation={fs?.explanation ?? null}
-                                  />
-                                  <NifPillarCard
-                                    titleKey="management_quality"
-                                    score={mq?.score ?? null}
-                                    dataRows={buildNifRows("management_quality_data", mq?.data ?? {}, isFinancialSector, t)}
-                                    estimateRows={buildNifRows("management_quality_estimate", mq?.nuvos_estimate ?? {}, isFinancialSector, t)}
-                                    explanation={mq?.explanation ?? null}
-                                  />
-                                  <NifPillarCard
-                                    titleKey="valuation"
-                                    score={val?.score ?? null}
-                                    dataRows={buildNifRows("valuation_data", val?.data ?? {}, isFinancialSector, t)}
-                                    estimateRows={buildNifRows("valuation_estimate", val?.nuvos_estimate ?? {}, isFinancialSector, t)}
-                                    explanation={val?.explanation ?? null}
-                                  />
-                                </div>
+                  {/* ===== Incremento 18 — the NIF dashboard (quality/financial/
+                       management/valuation pillars, moat, conviction, catalysts,
+                       deterioration), Timeline, Thesis History, the plain-language AI
+                       summary, and the detailed "Modelo de Valuación" section
+                       (sensitivity heatmap, reverse DCF, full-model export) were all
+                       retired here per Diego's explicit request — FairValueScenariosPanel
+                       above is now the entire analytical surface of this screen.
+                       InvestmentChecklistPanel stays: a distinct actionable feature,
+                       not part of what was asked to go. ===== */}
+                  {isPremium && (
+                    <InvestmentChecklistPanel
+                      ticker={data.ticker}
+                      marginOfSafetyPct={data.margin_of_safety_pct}
+                      minMarginOfSafetyPct={minMarginOfSafetyPct}
+                    />
+                  )}
 
-                                {/* ===== Fase 2 — Motores de Calidad: Moat, Conviction, Management
-                                     deep dive, Catalysts, Peer Comparison, Deterioration. Deliberately
-                                     SIBLINGS of the 4-pillar grid above, never blended into
-                                     overall_nif_score — see shared.tsx's section header comment. ===== */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                                  <NifScoreEngineCard
-                                    titleKey="moat"
-                                    icon={<Shield className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
-                                    score={nifData.moat?.score ?? null}
-                                    factors={nifData.moat?.factors ?? []}
-                                    footer={nifData.moat?.deep_dive ? <NifMoatDeepDiveBlock deepDive={nifData.moat.deep_dive} /> : null}
-                                  />
-                                  <NifScoreEngineCard
-                                    titleKey="conviction"
-                                    icon={<Target className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
-                                    score={nifData.conviction?.score ?? null}
-                                    factors={nifData.conviction?.factors ?? []}
-                                  />
-                                  <NifManagementDeepDiveCard deepDive={mq?.deep_dive} />
-                                  <NifCatalystsCard data={nifData.catalysts} />
-                                  <NifDeteriorationCard data={nifData.deterioration} />
-                                </div>
-
-                                {/* ===== Fase 4, Incremento 4 — Comparaciones (Parte D): visualización de
-                                     barras contra peers reales, reemplaza el NifPeerComparisonCard (lista
-                                     simple) con algo explícitamente visual. ===== */}
-                                <PeerComparisonChart
-                                  ticker={data.ticker}
-                                  companyMetrics={{
-                                    quality_score: bq?.score ?? null,
-                                    roic_pct: numOrNull((bq?.data as Record<string, unknown>)?.roic_pct),
-                                    operating_margin_pct: numOrNull((bq?.data as Record<string, unknown>)?.operating_margin_pct),
-                                    revenue_cagr_pct: numOrNull((bq?.data as Record<string, unknown>)?.revenue_cagr_pct),
-                                  }}
-                                  peerComparison={nifData.peer_comparison}
-                                />
-                              </div>
-                              );
-                            })() : null
-                          )}
-                        </div>
-                      );
-                    }
-                    if (sectionKey === "timeline") {
-                      return isPremium && isSectionVisible(detailLevel, "timeline") ? (
-                        <CompanyTimeline key="timeline" events={timelineEvents} loading={timelineLoading} />
-                      ) : null;
-                    }
-                    // thesis_history
-                    return isPremium && isSectionVisible(detailLevel, "dcf_full") ? (
-                      <div key="thesis_history">
-                        {!thesisLoading && thesisDraft && !myThesis && (
-                          <div className="flex items-center justify-between gap-3 rounded-xl border p-3.5 mb-3"
-                               style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                            <p className="text-[12px]" style={{ color: "var(--sub)" }}>
-                              {t("subvaluadas.investmentJournal.adoptPrompt")}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={handleAdoptThesis}
-                              disabled={adoptingThesis}
-                              className="shrink-0 text-[11.5px] font-semibold rounded-lg px-3 py-1.5 disabled:opacity-40"
-                              style={{ background: "var(--accent-l)", color: "#0a0a0a" }}
-                            >
-                              {adoptingThesis ? t("subvaluadas.investmentJournal.adopting") : t("subvaluadas.investmentJournal.adoptCta")}
-                            </button>
-                          </div>
-                        )}
-                        <ThesisHistoryPanel versions={thesisHistory} loading={thesisHistoryLoading} />
-                      </div>
-                    ) : null;
-                  })}
-
-                  {/* ===== Nivel 1 summary — GeneratedAtNote/LiquidityWarning/InsightBox stay
-                       visible at every Nivel de Detalle (safety info + the plain-language
-                       AI summary belong at Principiante). ExecutiveSummaryPanel (Quality/
-                       Conviction score, thesis draft, FairValueRangeDisplay/ConfidenceMeter)
-                       was retired here — Incremento 17: fully superseded by
-                       FairValueScenariosPanel above. ===== */}
-                  <div className="space-y-3 mb-8">
+                  <div className="space-y-3 mb-8 mt-3">
                     <GeneratedAtNote generatedAt={data.generated_at} />
                     {data.liquidity_gate && <LiquidityWarning gate={data.liquidity_gate} />}
-                    {isSectionVisible(detailLevel, "dcf_full") && data.market_expectations && (
-                      <MarketExpectationsPanel data={data.market_expectations} />
-                    )}
-                    {isSectionVisible(detailLevel, "roic_fcf_growth") && data.checklist && (
-                      <ChecklistDisplay checklist={data.checklist} />
-                    )}
-                    <InsightBox>{data.summary}</InsightBox>
                   </div>
-
-                  {/* ===== Modelo de valuación detallado (sensibilidad + escenarios +
-                       reverse DCF) — Fase 4 Parte B: nivel Avanzado+. Nuvos AI Fair
-                       Value Engine redesign, Incremento 14: la calculadora manual
-                       (sliders + guardar valuación) fue retirada de aquí — ver
-                       FairValueScenariosPanel arriba para el número primario
-                       (Bear/Base/Bull). Lo que queda es exploración de la valuación
-                       REAL que el backend ya calculó, nunca supuestos del usuario. ===== */}
-                  {isSectionVisible(detailLevel, "dcf_full") && (
-                  <>
-                  <h1 style={{ fontSize: 28, fontWeight: 500, letterSpacing: "-0.3px", color: "var(--text)", margin: "0 0 6px" }}>
-                    {t("subvaluadas.detail.pageTitle.pre")} <em style={{ fontStyle: "italic", color: GOLD }}>{t("subvaluadas.detail.pageTitle.em")}</em>
-                  </h1>
-                  <p className="text-sm max-w-[620px] leading-relaxed mb-6" style={{ color: "var(--sub)" }}>{t("subvaluadas.detail.pageSubtitle")}</p>
-
-                  {hasData && (
-                    <div className="flex items-center gap-2.5 flex-wrap mb-6">
-                      <span className="text-[11.5px] flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
-                        {t("subvaluadas.detail.autofillLabel")}
-                      </span>
-                      {[
-                        [t("subvaluadas.detail.chips.fcf"), fmtMoney(data.current_fcf)],
-                        [t("subvaluadas.detail.chips.netCash"), fmtMoney(data.net_cash)],
-                        [t("subvaluadas.detail.chips.shares"), `${(data.shares_outstanding! / 1e6).toFixed(0)}M`],
-                      ].map(([label, value]) => (
-                        <span key={label} className="rounded-full px-3 py-1.5 text-xs flex items-center gap-1.5" style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--sub)" }}>
-                          {label} <b style={{ color: "var(--text)", fontWeight: 500 }}>{value}</b>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {!hasData ? (
-                    <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                      <p className="text-[12px]" style={{ color: "var(--sub)" }}>{t("subvaluadas.dcf.noData")}</p>
-                    </div>
-                  ) : isFinancialSector ? (
-                    <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                      <p className="text-[12px]" style={{ color: "var(--sub)" }}>{t("subvaluadas.dcf.financialSectorNote")}</p>
-                    </div>
-                  ) : (
-                    <>
-                      {data.nuvos_fair_value?.sensitivity_matrix && price !== null && (
-                        <SensitivityHeatmap matrix={data.nuvos_fair_value.sensitivity_matrix} price={price} />
-                      )}
-
-                      {(data.reverse_dcf_sanity_check || data.expectations_investing) && (
-                        <div className="mt-5">
-                          <ReverseDcfPanel
-                            sanityCheck={data.reverse_dcf_sanity_check}
-                            expectationsInvesting={data.expectations_investing}
-                          />
-                        </div>
-                      )}
-
-                      <div className="mt-5 flex flex-wrap gap-3 items-center">
-                        <button onClick={() => setLevel3Open(true)} className="text-[12px] font-bold underline underline-offset-2" style={{ color: "var(--muted)" }}>
-                          {t("subvaluadas.detail.level3Toggle")}
-                        </button>
-                      </div>
-
-                      <div className="mt-6">
-                        <p className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "var(--muted)" }}>{t("subvaluadas.dcf.mentor.title")}</p>
-                        <div className="flex flex-wrap gap-2">
-                          {mentorQuestions.map((q) => (
-                            <button key={q.key} onClick={() => askMentor(q.text)}
-                                    className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full border"
-                                    style={{ borderColor: "var(--border)", color: "var(--sub)", background: "var(--card)" }}>
-                              <MessageCircle className="w-3 h-3" />
-                              {q.text}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  </>
-                  )}
 
                   <div className="flex gap-2 mt-6">
                     <FollowButton ticker={data.ticker} watchlisted={watchlisted} onFollow={handleFollow} />
@@ -1083,22 +400,6 @@ function SubvaluadasPageInner() {
       />
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={t("subvaluadas.premiumGate.paywallReason")} />
-
-      {level3Open && data && (
-        <FullModelModal
-          ticker={data.ticker}
-          price={data.price}
-          fcf0={fcf0}
-          netCash={netCash}
-          shares={shares}
-          g={suggestedG} r={suggestedR} gt={suggestedGt}
-          yearlyDetail={data.yearly_detail}
-          pvOfFcfSum={data.pv_of_fcf_sum}
-          pvOfTerminalValue={data.pv_of_terminal_value}
-          enterpriseValue={data.enterprise_value}
-          onClose={() => setLevel3Open(false)}
-        />
-      )}
     </div>
   );
 }
