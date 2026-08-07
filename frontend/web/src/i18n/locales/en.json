@@ -1144,6 +1144,23 @@
         "sectorFallback": "Sector table",
         "nuvosAuto": "Nuvos WACC"
       }
+    },
+    "backtest": {
+      "eyebrow": "Valuation analysis",
+      "title": "Does investing in undervalued companies actually work?",
+      "legend": {
+        "undervalued": "Bought undervalued",
+        "sp500": "S&P 500",
+        "overvalued": "Bought overvalued"
+      },
+      "disclaimer": "This chart applies TODAY's Nuvos AI classification (undervalued/overvalued) to 5 real years of prices — it is not a signal computed 5 years ago, since Nuvos didn't keep that history at the time. The S&P 500 uses SPY's price (dividends excluded). Historical results do not predict future returns.",
+      "discoverMore": "Discover more",
+      "dcfValue": "DCF Value",
+      "verdict": {
+        "undervalued": "{{pct}}% undervalued",
+        "overvalued": "{{pct}}% overvalued",
+        "fair": "Fair value"
+      }
     }
   },
   "patrimonio": {

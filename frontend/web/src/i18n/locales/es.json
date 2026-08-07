@@ -1144,6 +1144,23 @@
         "sectorFallback": "Tabla sectorial",
         "nuvosAuto": "WACC Nuvos"
       }
+    },
+    "backtest": {
+      "eyebrow": "Análisis de valuación",
+      "title": "¿Invertir en empresas subvaluadas realmente funciona?",
+      "legend": {
+        "undervalued": "Comprando infravaloradas",
+        "sp500": "S&P 500",
+        "overvalued": "Comprando sobrevaloradas"
+      },
+      "disclaimer": "Este gráfico aplica la clasificación de HOY del motor de Nuvos AI (infravalorada/sobrevalorada) a precios reales de los últimos 5 años — no es una señal calculada hace 5 años, ya que Nuvos no guardaba ese historial en ese momento. El S&P 500 usa el precio de SPY (sin dividendos). Resultados históricos no predicen retornos futuros.",
+      "discoverMore": "Descubra más",
+      "dcfValue": "Valor DCF",
+      "verdict": {
+        "undervalued": "{{pct}}% infravalorada",
+        "overvalued": "{{pct}}% sobrevalorada",
+        "fair": "Valor razonable"
+      }
     }
   },
   "patrimonio": {

@@ -377,6 +377,25 @@ async def undervalued(sector: str | None = None, limit: int = 60, lang: str | No
     return result
 
 
+@router.get("/valuation-backtest")
+async def valuation_backtest(user_id: str = Depends(get_current_user_id)):
+    """"What $10,000 became" panel — a real 5-year equal-weighted-basket
+    comparison (TODAY's real Nuvos classification applied to real monthly
+    prices, see valuation_backtest_service.py's module docstring for why
+    this is NOT a genuine point-in-time signal backtest and must be labeled
+    as such in the UI). Cache-only read, refreshed weekly alongside the
+    undervalued screener; returns {} (never a fabricated placeholder) if
+    the worker hasn't populated it yet — the frontend hides the panel in
+    that case rather than showing a stale/fake chart."""
+    from app.services.valuation_backtest_service import get_valuation_backtest
+    try:
+        result = get_valuation_backtest()
+    except Exception as exc:
+        logger.error("valuation_backtest(): get_valuation_backtest failed: %s", exc, exc_info=True)
+        result = None
+    return result or {}
+
+
 def _latest_reported_earnings_period(ticker: str) -> str | None:
     """Most recent fiscal period (e.g. '2026-06-30') this ticker has actually
     reported earnings for, per Finnhub /stock/earnings. Used as the

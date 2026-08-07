@@ -430,6 +430,18 @@ async def refresh_undervalued_screener() -> None:
     cache_set(CACHE_KEY, results, CACHE_TTL)
     logger.info("undervalued_screener_service: refreshed, %d/%d tickers had positive margin of safety", len(results), len(UNIVERSE))
 
+    # Valuation Backtest panel ("What $10,000 became") — reuses THIS scan's
+    # own analysis_cache (every ticker in UNIVERSE, not just the positive-MoS
+    # survivors kept in `results`), so it costs zero extra get_fundamental_
+    # analysis calls. See valuation_backtest_service.py's module docstring
+    # for why this is real-data-honest despite not being a true point-in-time
+    # backtest. Its own failure must never affect the screener refresh above.
+    try:
+        from app.services.valuation_backtest_service import refresh_valuation_backtest
+        await refresh_valuation_backtest(analysis_cache)
+    except Exception as exc:
+        logger.warning("undervalued_screener_service: valuation backtest refresh failed: %s", exc)
+
 
 async def refresh_if_empty_on_startup() -> None:
     """Called once when worker.py boots — if the cache is already empty

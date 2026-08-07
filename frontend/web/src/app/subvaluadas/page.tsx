@@ -19,6 +19,7 @@ import {
   FollowButton, AnalyzeButton,
   FairValueScenariosPanel,
 } from "@/components/subvaluadas/shared";
+import { ValuationBacktestPanel } from "@/components/subvaluadas/ValuationBacktestPanel";
 import dynamic from "next/dynamic";
 import { screenerApi, watchlist } from "@/lib/api";
 import { useSubscriptionStore, useThemeStore, usePersonalizationStore } from "@/lib/store";
@@ -386,6 +387,11 @@ function SubvaluadasPageInner() {
                     <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                     <span><b style={{ color: "var(--sub)" }}>{t("subvaluadas.detail.disclaimer.bold")}</b> {t("subvaluadas.detail.disclaimer.text")}</span>
                   </div>
+
+                  {/* "What $10,000 became" + "Descubra más" — ticker-independent,
+                      cached globally (see ValuationBacktestPanel.tsx), shown at the
+                      very bottom of every ticker's page. */}
+                  <ValuationBacktestPanel />
                 </>
               )}
             </div>
