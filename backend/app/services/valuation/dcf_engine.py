@@ -100,6 +100,22 @@ from app.services.valuation.robustness import (
 # this unlevered, no-separate-D&A waterfall).
 _EXIT_METRICS = ("ev_sales", "ev_ebit", "ev_fcf")
 
+# Nuvos AI Fair Value Engine redesign, Incremento 17 (calibration fix) — a
+# real, anchored exit multiple (own historical or peer trading multiple)
+# can still imply a terminal value wildly inconsistent with THIS specific
+# run's own growth/WACC/reinvestment assumptions: a premium mega-cap
+# multiple bridged onto a modest terminal growth rate, for example. The
+# gate validation (Incremento 8) found 32% of tickers landing outside a
+# sane Gordon-vs-exit-multiple ratio — flagged then as non-blocking, now
+# enforced: the exit-multiple terminal value is clamped to stay within
+# this band of what Gordon Growth (the DCF's OWN perpetuity, given its OWN
+# assumptions) would imply, rather than trusting the multiple unconditionally
+# just because its anchor was real. Asymmetric on purpose — exit multiples
+# are expected to run somewhat above Gordon (that's the whole point of
+# using one instead of a bare perpetuity), so the ceiling is looser than
+# the floor.
+_GORDON_SANITY_BAND = (0.5, 2.5)
+
 _PROJECTION_YEARS = 10
 
 # REITs don't generate a normal operating-company "free cash flow" the way
@@ -333,17 +349,24 @@ def project_driver_based_dcf(
     else:
         terminal_value_method = "exit_multiple"
         metric_value = {"ev_sales": final_row.revenue, "ev_ebit": final_row.ebit, "ev_fcf": final_fcf}[exit_metric]
-        terminal_value = exit_multiple * metric_value
-        # Gordon still computed as an internal sanity check whenever it has
-        # a valid solution — never blocks the exit-multiple valuation (see
-        # docstring), only informs whether the two methods roughly agree.
+        raw_terminal_value = exit_multiple * metric_value
+        # Gordon computed as an internal sanity check whenever it has a
+        # valid solution — never blocks the exit-multiple valuation (see
+        # docstring). Since Incremento 17 it also BOUNDS the exit-multiple
+        # terminal value to _GORDON_SANITY_BAND (see that constant's
+        # comment) instead of only reporting the ratio after the fact.
         try:
             validate_discount_beats_terminal_growth(discount_rate, terminal_growth)
             gordon_terminal_value = final_fcf * (1 + terminal_growth) / (discount_rate - terminal_growth)
-            if gordon_terminal_value:
-                gordon_sanity_check_ratio = round(terminal_value / gordon_terminal_value, 2)
         except UnstableGordonGrowthError:
             pass
+        if gordon_terminal_value and gordon_terminal_value > 0:
+            lo = gordon_terminal_value * _GORDON_SANITY_BAND[0]
+            hi = gordon_terminal_value * _GORDON_SANITY_BAND[1]
+            terminal_value = clamp(raw_terminal_value, lo, hi)
+            gordon_sanity_check_ratio = round(terminal_value / gordon_terminal_value, 2)
+        else:
+            terminal_value = raw_terminal_value
 
     pv_terminal = terminal_value / ((1 + discount_rate) ** years)
     enterprise_value = pv_sum + pv_terminal

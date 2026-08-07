@@ -596,11 +596,20 @@ _QUICK_ANALYSIS_CACHE_TTL = 90 * 24 * 3600  # 3 months — a ceiling, not the re
 
 
 def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
+    # v3 — bumped for the Nuvos AI Fair Value Engine redesign (Incrementos
+    # 1-16, see /Users/diegoarria/.claude/plans/stateful-painting-flurry.md):
+    # the ENTIRE valuation computation changed (exit-multiple terminal
+    # value, Bear/Base/Bull scenarios, THE FLIP re-deriving fair_value_range/
+    # confidence_meter from them, Consensus/Monte Carlo/manual-calculator
+    # fields removed from the response shape). A cache entry computed before
+    # this redesign is only invalidated by new earnings, which has nothing
+    # to do with a code change — without this bump, every ticker keeps
+    # serving pre-redesign numbers under the new UI for up to 90 more days.
     # v2 — bumped so a stale English-requested cache entry generated before
     # the "summary"/"blurb" schema's hardcoded "español" instruction was
     # fixed (it silently overrode the top-level language directive) doesn't
     # keep serving Spanish text under an English UI for its remaining TTL.
-    return f"quick_analysis:v2:{lang}:{ticker}"
+    return f"quick_analysis:v3:{lang}:{ticker}"
 
 
 async def _build_quick_analysis(ticker: str, lang: str) -> dict:
@@ -1135,7 +1144,10 @@ _NIF_DASHBOARD_CACHE_TTL = _QUICK_ANALYSIS_CACHE_TTL  # same ceiling philosophy 
 
 
 def _nif_dashboard_cache_key(ticker: str, lang: str) -> str:
-    return f"nif_dashboard:v1:{lang}:{ticker}"
+    # v2 — same reason as _quick_analysis_cache_key's v3 bump: the NIF
+    # dashboard's Valuation pillar and Confidence Score both derive from
+    # the DCF the Nuvos AI Fair Value Engine redesign rewrote end to end.
+    return f"nif_dashboard:v2:{lang}:{ticker}"
 
 
 @router.get("/nif-dashboard")

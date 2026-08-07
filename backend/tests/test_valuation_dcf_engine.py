@@ -241,10 +241,14 @@ class TestHybridExitMultipleTerminalValue:
         assert result.assumptions["exit_metric"] == "ev_ebit"
 
     def test_each_exit_metric_reads_the_matching_year_n_field(self):
-        for metric, field_name in [("ev_sales", "revenue"), ("ev_ebit", "ebit"), ("ev_fcf", "fcf")]:
-            result = project_driver_based_dcf(**self._base_kwargs(exit_multiple=10.0, exit_metric=metric))
+        # Multiple picked per metric to stay within _GORDON_SANITY_BAND for
+        # each one's very different natural scale (revenue >> EBIT > FCF) —
+        # a flat 10x across all three would get clamped for ev_sales here,
+        # which would test the clamp, not "did it read the right field".
+        for metric, field_name, multiple in [("ev_sales", "revenue", 3.0), ("ev_ebit", "ebit", 10.0), ("ev_fcf", "fcf", 15.0)]:
+            result = project_driver_based_dcf(**self._base_kwargs(exit_multiple=multiple, exit_metric=metric))
             expected = getattr(result.yearly[-1], field_name)
-            assert result.terminal_value == pytest.approx(10.0 * expected, abs=1)
+            assert result.terminal_value == pytest.approx(multiple * expected, abs=1)
 
     def test_monotonic_in_exit_multiple(self):
         low = project_driver_based_dcf(**self._base_kwargs(exit_multiple=8.0, exit_metric="ev_ebit"))
@@ -269,6 +273,31 @@ class TestHybridExitMultipleTerminalValue:
         assert result.enterprise_value is not None
         assert result.assumptions["gordon_terminal_value"] is None
         assert result.assumptions["gordon_sanity_check_ratio"] is None
+
+    def test_extreme_exit_multiple_is_clamped_to_the_gordon_sanity_band(self):
+        # Incremento 17 (calibration fix) — an unrealistically large exit
+        # multiple (e.g. a premium mega-cap trading multiple bridged onto
+        # a modest terminal growth rate) must not be allowed to imply a
+        # terminal value arbitrarily larger than what this SAME run's own
+        # Gordon Growth perpetuity would justify.
+        huge = project_driver_based_dcf(**self._base_kwargs(exit_multiple=1000.0, exit_metric="ev_ebit"))
+        gordon = huge.assumptions["gordon_terminal_value"]
+        assert huge.terminal_value == pytest.approx(gordon * 2.5, rel=0.01)
+        assert huge.assumptions["gordon_sanity_check_ratio"] == pytest.approx(2.5, abs=0.01)
+
+    def test_extreme_low_exit_multiple_is_clamped_to_the_gordon_sanity_band(self):
+        tiny = project_driver_based_dcf(**self._base_kwargs(exit_multiple=0.01, exit_metric="ev_ebit"))
+        gordon = tiny.assumptions["gordon_terminal_value"]
+        assert tiny.terminal_value == pytest.approx(gordon * 0.5, rel=0.01)
+        assert tiny.assumptions["gordon_sanity_check_ratio"] == pytest.approx(0.5, abs=0.01)
+
+    def test_exit_multiple_within_band_is_not_clamped(self):
+        # A multiple that already produces a sane ratio (~1.4x Gordon here,
+        # from test_gordon_sanity_check_present_when_gordon_has_a_valid_
+        # solution's own 15x ev_ebit case) passes through unmodified.
+        result = project_driver_based_dcf(**self._base_kwargs(exit_multiple=15.0, exit_metric="ev_ebit"))
+        expected_raw = 15.0 * result.yearly[-1].ebit
+        assert result.terminal_value == pytest.approx(expected_raw, abs=1)
 
     def test_terminal_roic_still_required_positive_in_exit_multiple_mode(self):
         # Still governs the reinvestment-rate fade, independent of which
