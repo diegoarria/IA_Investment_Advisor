@@ -1105,14 +1105,33 @@
       "adopting": "Adopting..."
     },
     "nuvosFairValue": {
-      "title": "Nuvos AI Fair Value Engine (preview)",
+      "title": "Nuvos AI Fair Value Engine",
       "subtitle": "One valuation engine, three possible scenarios — never an exact price, but a range of reasonable estimates under different assumptions.",
       "scenarios": {
-        "bear": "Bear Case",
-        "base": "Base Case",
-        "bull": "Bull Case"
+        "bear": "Bear",
+        "base": "Base",
+        "bull": "Bull"
       },
-      "priceImpliedBadge": "Current price",
+      "headlineLabel": "Fair value",
+      "verdict": {
+        "undervalued": "Undervaluation {{pct}}%",
+        "overvalued": "Overvaluation {{pct}}%",
+        "fair": "Fairly valued"
+      },
+      "verdictWord": {
+        "undervalued": "undervalued by {{pct}}%",
+        "overvalued": "overvalued by {{pct}}%",
+        "fair": "fairly valued"
+      },
+      "narrative": "The fair value in the {{scenario}} Case is ${{fairValue}}. Compared to the current price of ${{price}}, the stock looks {{verdictPhrase}}.",
+      "barIntrinsicValue": "Fair value",
+      "barPrice": "Price",
+      "methodologyLabel": "Calculated using",
+      "methodologyValue": "Nuvos AI Fair Value Engine — DCF with a {{multiple}}x {{metric}} exit multiple",
+      "otherReferencePoints": "Other reference points",
+      "multiplesEstimate": "Multiples estimate",
+      "wallStreetTarget": "Wall Street target",
+      "assumptionsToggle": "See this scenario's assumptions",
       "mos": "margin of safety",
       "growth": "Growth",
       "margin": "Margin",
@@ -1123,11 +1142,10 @@
         "ev_ebit": "EV/EBIT",
         "ev_fcf": "EV/FCF"
       },
-      "priceImpliedNote": "The current price reflects a scenario close to the {{scenario}}.",
       "growthFactorsTitle": "Why this growth rate",
       "marginFactorsTitle": "Why this margin",
       "roicFactorsTitle": "Why this terminal ROIC",
-      "disclaimer": "Preview of Nuvos AI's new valuation engine (shadow mode) — not yet the primary number the rest of this screen uses. This does not mean the stock is worth exactly these prices: they are estimates based on assumptions about growth, profitability, and risk.",
+      "disclaimer": "This is a well-founded estimate based on real assumptions about growth, profitability, and risk — not an exact figure or a promise of a future price.",
       "assumptionFactors": {
         "historical": "Own historical",
         "industry": "Industry (real peers)",

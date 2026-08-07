@@ -18,7 +18,7 @@ import {
   type NifDashboardData, type NifRow, type ThesisDraftData,
   type SensitivityMatrixData, type NuvosSensitivityMatrixData,
   type ReverseDcfSanityCheckData, type ExpectationsInvestingData,
-  type NuvosFairValueData,
+  type NuvosFairValueData, type RelativeValuationData, type AnalystPriceTargetData,
   GeneratedAtNote, LiquidityWarning, ChecklistDisplay,
   MarketExpectationsPanel, InsightBox, FollowButton, AnalyzeButton,
   NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
@@ -88,6 +88,10 @@ export interface QuickAnalysisResult {
   // see FairValueScenariosPanel in shared.tsx and combine_fair_value_range
   // (fair_value_range's low/base/high now ARE these 3 values).
   nuvos_fair_value: NuvosFairValueData | null;
+  // Incremento 17 (visual redesign, "otros puntos de referencia") — real,
+  // independently-computed reference points, never blended into the DCF.
+  relative_valuation: RelativeValuationData | null;
+  analyst_price_target: AnalystPriceTargetData | null;
 }
 
 // Gold/teal/coral is this screen's fixed brand identity (Valor Intrínseco),
@@ -808,7 +812,12 @@ function SubvaluadasPageInner() {
                        shadow-mode placement from Incremento 9. ===== */}
                   {data.nuvos_fair_value && (
                     <div className="mb-8">
-                      <FairValueScenariosPanel data={data.nuvos_fair_value} price={price} />
+                      <FairValueScenariosPanel
+                        data={data.nuvos_fair_value}
+                        price={price}
+                        relativeValuation={data.relative_valuation}
+                        analystPriceTarget={data.analyst_price_target}
+                      />
                     </div>
                   )}
 

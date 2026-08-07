@@ -1022,6 +1022,12 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "earnings_quality_engine": earnings_quality_result,
         "relative_valuation": relative_valuation,
         "historical_valuation": historical_valuation,
+        # Real Finnhub analyst consensus price target — a genuinely
+        # different reference point than the DCF (sell-side, largely
+        # multiple/momentum-driven, not cash-flow-based), never blended
+        # into it. Exposed for the "Otros puntos de referencia" section
+        # of FairValueScenariosPanel (Incremento 17 — visual redesign).
+        "analyst_price_target": data.get("analyst_target"),
         "summary": ai_result.get("summary", ""),
         "checklist": checklist,
         "liquidity_gate": data.get("liquidity_gate"),

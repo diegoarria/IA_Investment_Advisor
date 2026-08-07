@@ -1105,14 +1105,33 @@
       "adopting": "Adoptando..."
     },
     "nuvosFairValue": {
-      "title": "Nuvos AI Fair Value Engine (vista previa)",
+      "title": "Nuvos AI Fair Value Engine",
       "subtitle": "Un solo motor de valuación, tres escenarios posibles — nunca un precio exacto, sino un rango de estimaciones razonables según distintos supuestos.",
       "scenarios": {
-        "bear": "Bear Case",
-        "base": "Base Case",
-        "bull": "Bull Case"
+        "bear": "Bear",
+        "base": "Base",
+        "bull": "Bull"
       },
-      "priceImpliedBadge": "Precio actual",
+      "headlineLabel": "Valor razonable",
+      "verdict": {
+        "undervalued": "Infravaloración {{pct}}%",
+        "overvalued": "Sobrevaloración {{pct}}%",
+        "fair": "Valor razonable"
+      },
+      "verdictWord": {
+        "undervalued": "infravalorada en {{pct}}%",
+        "overvalued": "sobrevalorada en {{pct}}%",
+        "fair": "valorada de forma razonable"
+      },
+      "narrative": "El valor razonable en el Escenario {{scenario}} es ${{fairValue}}. Comparado con el precio actual de ${{price}}, la acción parece {{verdictPhrase}}.",
+      "barIntrinsicValue": "Valor razonable",
+      "barPrice": "Precio",
+      "methodologyLabel": "Se calcula usando",
+      "methodologyValue": "Nuvos AI Fair Value Engine — DCF con múltiplo de salida {{multiple}}x {{metric}}",
+      "otherReferencePoints": "Otros puntos de referencia",
+      "multiplesEstimate": "Estimación por múltiplos",
+      "wallStreetTarget": "Objetivo de Wall Street",
+      "assumptionsToggle": "Ver supuestos de este escenario",
       "mos": "margen de seguridad",
       "growth": "Crecimiento",
       "margin": "Margen",
@@ -1123,11 +1142,10 @@
         "ev_ebit": "EV/EBIT",
         "ev_fcf": "EV/FCF"
       },
-      "priceImpliedNote": "El precio actual refleja un escenario cercano al {{scenario}}.",
       "growthFactorsTitle": "Por qué este crecimiento",
       "marginFactorsTitle": "Por qué este margen",
       "roicFactorsTitle": "Por qué este ROIC terminal",
-      "disclaimer": "Vista previa del nuevo motor de valuación de Nuvos AI (modo sombra) — no es aún el número principal que usa el resto de esta pantalla. No significa que la acción valga exactamente estos precios: son estimaciones basadas en supuestos sobre crecimiento, rentabilidad y riesgo.",
+      "disclaimer": "Esto es una estimación fundamentada a partir de supuestos reales sobre crecimiento, rentabilidad y riesgo — no una cifra exacta ni una promesa de precio futuro.",
       "assumptionFactors": {
         "historical": "Histórico propio",
         "industry": "Industria (peers reales)",
