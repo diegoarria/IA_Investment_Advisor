@@ -17,7 +17,7 @@ import {
   type MarketExpectationsData, type LiquidityGate, type DcfAssumptions,
   type NifDashboardData, type NifRow, type ThesisDraftData,
   type SensitivityMatrixData, type NuvosSensitivityMatrixData,
-  type ReverseDcfSanityCheckData, type ExpectationsInvestingData, type FairValueEngineData,
+  type ReverseDcfSanityCheckData, type ExpectationsInvestingData,
   type NuvosFairValueData,
   GeneratedAtNote, LiquidityWarning, ChecklistDisplay,
   MarketExpectationsPanel, InsightBox, FollowButton, AnalyzeButton,
@@ -83,7 +83,6 @@ export interface QuickAnalysisResult {
   reverse_dcf_sanity_check: ReverseDcfSanityCheckData | null;
   expectations_investing: ExpectationsInvestingData | null;
   sector_model_note: { sector_type: string; detalle: string } | null;
-  fair_value_engine: FairValueEngineData | null;
   // Nuvos AI Fair Value Engine redesign — one engine, three named scenarios
   // (Bear/Base/Bull), the PRIMARY valuation since Incremento 11 (THE FLIP);
   // see FairValueScenariosPanel in shared.tsx and combine_fair_value_range

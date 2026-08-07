@@ -132,23 +132,6 @@ export interface ExpectationsInvestingData {
   years_available: number;
 }
 
-// Fase 1, Incremento 6 (Fair Value Engine — Parte G).
-export interface FairValueAdjustment {
-  factor: string;
-  points: number;
-  reason: string;
-}
-
-export interface FairValueEngineData {
-  sector: string | null;
-  base_multiple: number;
-  justified_multiple: number;
-  adjustments: FairValueAdjustment[];
-  eps: number | null;
-  fair_value: number | null;
-  margin_of_safety_pct: number | null;
-}
-
 export function GeneratedAtNote({ generatedAt }: { generatedAt: number }) {
   const { t, i18n } = useTranslation();
   if (!generatedAt) return null;

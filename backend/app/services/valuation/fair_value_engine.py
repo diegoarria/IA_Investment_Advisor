@@ -1,26 +1,26 @@
 """
-Fair Value Engine — Fase 1, Incremento 6 (Parte G of the valuation-engine
-redesign — see /Users/diegoarria/.claude/plans/stateful-painting-flurry.md).
+Fair Value Engine — originally built Fase 1, Incremento 6 (Parte G of the
+valuation-engine redesign) as an independent second valuation method:
+"is the current price reasonable given this business's growth and
+quality," separate from the DCF's "what are the cash flows worth."
 
-Answers a DIFFERENT question than the DCF: not "what are this business's
-future cash flows worth today" but "is the current price reasonable given
-this business's growth and quality, compared to what the market typically
-pays for businesses like it." Completely independent of the DCF engine —
-shares no math with it, only reads already-computed real inputs.
+Nuvos AI Fair Value Engine redesign, Incremento 16 — retired as a
+standalone valuation (never shown as an independent method on web; its
+mobile-only display was retired in the same increment). The module stays:
+its 6 adjustment functions (`_growth_adjustment`, `_quality_adjustment`,
+`_fcf_margin_adjustment`, `_leverage_adjustment`, `_dividend_adjustment`,
+`_moat_management_adjustment`) are a direct dependency of
+`exit_multiple_engine.py` (Incremento 1), reused verbatim to derive the
+bounded adjustment applied to a real exit-multiple anchor — see
+/Users/diegoarria/.claude/plans/stateful-painting-flurry.md.
 
-Valor Razonable = EPS × Múltiplo Justificado.
-
-This is explicitly the v1, RULE-BASED version (see the architecture
-decision in the Fase 1 plan): a transparent, industry-anchored multiple
-adjusted by real, bounded, documented factors — never a fixed formula
-"invented from nothing," but also NOT yet the historical-backtest-
-calibrated model the original brief's addendum asks for. That calibration
-requires a real historical fundamentals+price dataset across hundreds of
-companies and a backtesting harness — a dedicated Fase 1.5 project, out of
-scope here. Every adjustment below is deliberately simple, bounded, and
-carries its own real-world justification so it can be replaced piece by
-piece once backtested coefficients exist, without discarding the
-architecture.
+`compute_justified_multiple`/`compute_fair_value`/`sector_base_multiple`
+(the original "Valor Razonable = EPS × Múltiplo Justificado" entry points)
+are kept, still real and tested (`tests/test_valuation_fair_value_engine.py`),
+even though no production caller invokes them anymore — deleting a
+working, coherent public API purely because its one caller was retired
+would be more destructive than useful; the module's actual dependency
+surface for the current architecture is the 6 adjustment functions above.
 
 Explicitly NOT a PEG ratio (P/E ÷ growth) — Peter Lynch's formula is never
 referenced or reproduced. Growth is one of several additive point

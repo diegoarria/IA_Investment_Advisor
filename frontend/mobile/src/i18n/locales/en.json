@@ -800,11 +800,7 @@
     "finalResult": {
       "label": "Final result",
       "intrinsicValue": "Intrinsic value (DCF)",
-      "fairValue": "Fair value (multiple)",
       "currentPrice": "Current price",
-      "average": "Average",
-      "range": "Range",
-      "methodsDiffer": "The two methods differ by {{pct}}% — the DCF measures what future cash flows are worth; the multiple measures whether the price is reasonable versus similar businesses. A difference doesn't mean either one is \"wrong\" — they answer different questions.",
       "disclaimer": "This is a well-founded estimate, not an exact figure — treat it as a reference range, not the \"correct\" value."
     },
     "disclaimer": {

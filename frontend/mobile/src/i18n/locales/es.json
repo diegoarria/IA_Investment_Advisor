@@ -800,11 +800,7 @@
     "finalResult": {
       "label": "Resultado final",
       "intrinsicValue": "Valor intrínseco (DCF)",
-      "fairValue": "Valor razonable (múltiplo)",
       "currentPrice": "Precio actual",
-      "average": "Promedio",
-      "range": "Rango",
-      "methodsDiffer": "Los dos métodos difieren {{pct}}% entre sí — el DCF mide cuánto valen los flujos de caja futuros; el múltiplo mide si el precio es razonable frente a negocios similares. Que difieran no significa que uno esté \"mal\" — son dos preguntas distintas.",
       "disclaimer": "Esto es una estimación fundamentada, no una cifra exacta — trátala como un rango de referencia, no como el valor \"correcto\"."
     },
     "disclaimer": {

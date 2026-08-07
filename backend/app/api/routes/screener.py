@@ -730,55 +730,6 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         management_consistency_score=dcf.get("management_consistency_score"),
     )
 
-    # Fair Value Engine (Fase 1, Incremento 6 — Parte G): completely
-    # independent second valuation method — "is the price reasonable given
-    # this business's growth/quality" rather than the DCF's "what are the
-    # cash flows worth." Every input here is already real/computed
-    # elsewhere (never a new fabricated metric) — see
-    # valuation/fair_value_engine.py for the full formula documentation.
-    # Skipped for companies without a real DCF (financial sector uses ROE/
-    # book value, not EPS multiples the same way; REITs are excluded from
-    # standard multiples too) — matches the same sector gating already
-    # applied to the driver-based DCF and Monte Carlo above.
-    from app.services.valuation.fair_value_engine import compute_justified_multiple, compute_fair_value
-    fair_value_engine_result = None
-    growth_buildup = dcf.get("growth_buildup") or {}
-    if dcf.get("methodology") != "residual_income_justified_pb":
-        total_debt = dcf.get("total_debt")
-        cash = dcf.get("cash")
-        ebitda = data.get("ebitda")
-        net_debt_to_ebitda = (
-            (total_debt - cash) / ebitda
-            if total_debt is not None and cash is not None and ebitda and ebitda > 0 else None
-        )
-        justified = compute_justified_multiple(
-            sector=data.get("sector"),
-            expected_eps_growth_pct=growth_buildup.get("quality_adjusted_growth_pct"),
-            roic_pct=growth_buildup.get("avg_roic_pct"),
-            cost_of_capital_pct=dcf.get("base_discount_rate_pct"),
-            fcf_margin_pct=dcf.get("avg_fcf_margin_pct"),
-            net_debt_to_ebitda=net_debt_to_ebitda,
-            interest_coverage=data.get("interest_coverage"),
-            dividend_yield_pct=data.get("dividend_yield_pct"),
-            moat_score=thesis_scores.get("business_quality"),
-            management_score=thesis_scores.get("management_capital_allocation"),
-        )
-        fair_value = compute_fair_value(data.get("latest_eps"), justified.justified_multiple)
-        fair_value_engine_result = {
-            "sector": justified.sector,
-            "base_multiple": justified.base_multiple,
-            "justified_multiple": justified.justified_multiple,
-            "adjustments": [
-                {"factor": a.factor, "points": a.points, "reason": a.reason} for a in justified.adjustments
-            ],
-            "eps": data.get("latest_eps"),
-            "fair_value": fair_value,
-            "margin_of_safety_pct": (
-                round((fair_value - data["current_price"]) / fair_value * 100, 1)
-                if fair_value and data.get("current_price") else None
-            ),
-        }
-
     # Fase 2, Incremento 2 (Quality Engine — "¿qué tan buena es esta
     # empresa?", completely independent of the DCF/price above — see
     # /Users/diegoarria/.claude/plans/stateful-painting-flurry.md).
@@ -1045,7 +996,13 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         # internally — they still feed the Assumptions Engine's
         # business_quality dimension (fundamental_analysis_service.py).
         "sector_model_note": data.get("sector_model_note"),
-        "fair_value_engine": fair_value_engine_result,
+        # `fair_value_engine` (the rule-based justified-multiple model) is no
+        # longer computed/exposed here either — Nuvos AI Fair Value Engine
+        # redesign, Incremento 16: never shown as an independent method on
+        # web, and its mobile-only card (FinalResultPanel) was retired in
+        # the same increment. The module itself stays: its 6 adjustment
+        # functions are a direct dependency of exit_multiple_engine.py
+        # (Incremento 1) — see fair_value_engine.py's updated docstring.
         "industry_benchmarks": _asdict_or_none(industry_benchmarks),
         "quality_engine": quality_engine_result,
         "moat_engine": moat_engine_result,

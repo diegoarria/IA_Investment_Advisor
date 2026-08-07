@@ -17,7 +17,7 @@ import {
   type DcfAssumptions, type YearlyDetailRow,
   type NifDashboardData, type NifRow,
   type SensitivityMatrixData, type NuvosSensitivityMatrixData,
-  type ReverseDcfSanityCheckData, type ExpectationsInvestingData, type FairValueEngineData,
+  type ReverseDcfSanityCheckData, type ExpectationsInvestingData,
   type NuvosFairValueData,
   GeneratedAtNote, LiquidityWarning, ConfidenceMeter, FairValueRangeDisplay, MarketExpectationsPanel, InsightBox,
   ChecklistDisplay, ActionButtons, NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
@@ -83,7 +83,6 @@ interface QuickAnalysisResult {
   reverse_dcf_sanity_check: ReverseDcfSanityCheckData | null;
   expectations_investing: ExpectationsInvestingData | null;
   sector_model_note: { sector_type: string; detalle: string } | null;
-  fair_value_engine: FairValueEngineData | null;
   nuvos_fair_value: NuvosFairValueData | null;
 }
 
@@ -521,7 +520,6 @@ export default function SubvaluadasScreen() {
             {data.liquidity_gate && <LiquidityWarning gate={data.liquidity_gate} />}
             <FinalResultPanel
               intrinsicValue={data.expected_value_per_share ?? data.intrinsic_value_base}
-              fairValue={data.fair_value_engine?.fair_value ?? null}
               price={data.price}
               confidence={data.confidence_meter}
               colors={viColors}
