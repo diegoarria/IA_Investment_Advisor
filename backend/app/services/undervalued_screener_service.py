@@ -444,14 +444,24 @@ async def refresh_undervalued_screener() -> None:
 
 
 async def refresh_if_empty_on_startup() -> None:
-    """Called once when worker.py boots — if the cache is already empty
-    (fresh deploy, flushed Redis, or the weekly job hasn't run yet), do the
-    FULL refresh immediately instead of waiting for the next scheduled
-    Sunday run. A no-op if the cache already has data."""
-    _, ts = cache_get_with_ts(CACHE_KEY)
-    if ts:
+    """Called once when worker.py boots — if EITHER this screener's own
+    cache OR the valuation-backtest cache (piggy-backed onto this same
+    refresh, see its tail above) is empty, do the FULL refresh immediately
+    instead of waiting for the next scheduled Sunday run. A no-op only when
+    both already have data — this is what lets a newly-added dependent
+    cache (like the backtest one) self-heal on the next worker restart
+    after a deploy, without needing an admin to manually trigger
+    /admin/refresh-undervalued-screener."""
+    from app.services.valuation_backtest_service import CACHE_KEY as _BACKTEST_CACHE_KEY
+
+    _, screener_ts = cache_get_with_ts(CACHE_KEY)
+    _, backtest_ts = cache_get_with_ts(_BACKTEST_CACHE_KEY)
+    if screener_ts and backtest_ts:
         return
-    logger.info("undervalued_screener_service: cache empty at worker startup, refreshing now")
+    logger.info(
+        "undervalued_screener_service: cache empty at worker startup (screener=%s, backtest=%s), refreshing now",
+        bool(screener_ts), bool(backtest_ts),
+    )
     await refresh_undervalued_screener()
 
 
