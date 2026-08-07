@@ -442,8 +442,8 @@ export const screenerApi = {
     api.post("/api/market/screener", { sector, query }),
   getWeekly: (existingTickers: string[] = []) =>
     api.get("/api/market/screener/weekly", { params: { tickers: existingTickers.join(",") } }),
-  getUndervalued: (sector?: string, limit = 10, lang?: string) =>
-    api.get("/api/market/screener/undervalued", { params: { sector, limit, lang } }),
+  getUndervalued: (sector?: string, limit = 10, lang?: string, browse?: boolean) =>
+    api.get("/api/market/screener/undervalued", { params: { sector, limit, lang, browse } }),
   quickAnalysis: (query: string, lang?: string) =>
     api.get("/api/market/screener/quick-analysis", { params: { query, lang }, timeout: 25000 }),
   nifDashboard: (query: string, lang?: string) =>

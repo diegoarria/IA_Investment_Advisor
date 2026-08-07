@@ -1237,6 +1237,27 @@
         "overvalued": "{{pct}}% overvalued",
         "fair": "Fair value"
       }
+    },
+    "opportunities": {
+      "title": "Opportunities",
+      "subtitle": "Real candidates with a positive margin of safety, from Nuvos AI's intrinsic-value engine — S&P 500 coverage.",
+      "updated": "Updated: {{date}}",
+      "loading": "Scanning the S&P 500 for real opportunities…",
+      "empty": "No data from the weekly screener yet — check back later.",
+      "sectorAll": "All sectors",
+      "sortLabel": "Sort by",
+      "sort": {
+        "mos_desc": "Most undervalued",
+        "mos_asc": "Most overvalued",
+        "market_cap_desc": "Largest market cap",
+        "market_cap_asc": "Smallest market cap",
+        "confidence_desc": "Highest confidence",
+        "confidence_asc": "Lowest confidence"
+      },
+      "confidence": "Confidence",
+      "marginOfSafety": "Margin of safety",
+      "seeMore": "See more",
+      "seeLess": "See less"
     }
   },
   "patrimonio": {

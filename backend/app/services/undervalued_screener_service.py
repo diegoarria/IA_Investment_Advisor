@@ -149,12 +149,94 @@ def _format_weak_dimension_warning(weak_dimension: Optional[dict], lang: str) ->
     return f"{weak_dimension['label']} {suffix} ({weak_dimension['score']}/100)"
 
 
+# Below this Confidence Meter score (see confidence_engine.py, whose own
+# "Especulativo" label starts at 45), the fair-value number is too uncertain
+# to publish as a Nuvos "Oportunidad" — mostly thin/short data, not a real
+# signal. Combined with debt_cash_missing (financial statements the provider
+# genuinely didn't send, not real zeros — see fundamental_analysis_service.py's
+# debt/cash read), this is the data-quality gate: better to show fewer,
+# trustworthy candidates than many with a possibly-wrong intrinsic value.
+_MIN_CONFIDENCE_SCORE = 35
+_SCAN_MAX_WORKERS = 10  # bounded concurrency for the S&P 500-sized scan — see _scan's docstring
+
+
+def _passes_quality_gate(dcf: dict) -> bool:
+    confidence = dcf.get("confidence_meter") or {}
+    score = confidence.get("score")
+    if score is not None and score < _MIN_CONFIDENCE_SCORE:
+        return False
+    if (dcf.get("data_quality_flags") or {}).get("debt_cash_missing"):
+        return False
+    return True
+
+
+def _build_candidate(entry: dict, data: Optional[dict]) -> Optional[dict]:
+    """Turns one ticker's raw get_fundamental_analysis() result into an
+    Oportunidades candidate, or None when it doesn't qualify — either no
+    real positive margin of safety, or the data-quality gate above rejects
+    it. Split out of _scan so the threaded scan below can call this from
+    worker threads without touching shared state."""
+    dcf = data.get("dcf") if data else None
+    mos = dcf.get("margin_of_safety_pct") if dcf else None
+    if not dcf or mos is None or mos <= 0 or not _passes_quality_gate(dcf):
+        return None
+    thesis_scores = data.get("thesis_scores")
+    _fcf_trend_vals = [v for v in (data.get("fcf_trend") or []) if v is not None]
+    price = data.get("current_price")
+    shares_out = dcf.get("shares_outstanding")
+    market_cap = price * shares_out if price and shares_out else None
+    return {
+        "ticker": entry["ticker"],
+        "company_name": data.get("company_name"),
+        "sector": entry.get("sector"),
+        "price": price,
+        "change_pct": data.get("change_pct"),
+        "exchange": data.get("exchange"),
+        "market_cap": market_cap,
+        "intrinsic_value_base": dcf["scenarios"]["base"]["intrinsic_value_per_share"],
+        "margin_of_safety_pct": mos,
+        "composite_score": data.get("composite_score"),
+        "fair_value_range": dcf.get("fair_value_range"),
+        "confidence_meter": dcf.get("confidence_meter"),
+        "implied_growth_pct": dcf.get("implied_growth_pct"),
+        "market_expectations": dcf.get("market_expectations"),
+        "yearly_detail": dcf.get("yearly_detail"),
+        "pv_of_fcf_sum": dcf.get("pv_of_fcf_sum"),
+        "pv_of_terminal_value": dcf.get("pv_of_terminal_value"),
+        "enterprise_value": dcf.get("enterprise_value"),
+        "total_debt": dcf.get("total_debt"),
+        "cash": dcf.get("cash"),
+        "current_fcf": _fcf_trend_vals[-1] if _fcf_trend_vals else None,
+        "net_cash": (dcf.get("cash") or 0) - (dcf.get("total_debt") or 0),
+        "shares_outstanding": shares_out,
+        "dcf_assumptions": build_dcf_guidance(dcf, thesis_scores),
+        "momentum": None,  # only computed in the full weekly refresh (see refresh_undervalued_screener) — real historical-price fetch, too costly for the bootstrap subset scan
+        "thesis_scores": thesis_scores,
+        "weak_dimension": _weak_dimension(thesis_scores),
+        "liquidity_gate": data.get("liquidity_gate"),
+        # AI text (blurb + checklist reasons), keyed by language —
+        # filled in during the full weekly refresh only (see
+        # refresh_undervalued_screener). get_undervalued() reads
+        # the requested language at serve time.
+        "blurb_by_lang": {},
+        "business_understanding_by_lang": {},
+        "checklist_reasons_by_lang": {},
+        "checklist_items_real": data.get("checklist_items_real") or [],
+    }
+
+
 def _scan(tickers: list[dict], analysis_cache: Optional[dict[str, Optional[dict]]] = None) -> list[dict]:
     """Runs the real DCF engine over the given ticker entries, keeps only
-    positive-margin-of-safety results, sorted descending. Per-ticker
-    try/except — one bad ticker must never abort the whole batch. This is
-    blocking (real HTTP calls) — callers on the async side must wrap it in
-    asyncio.to_thread.
+    positive-margin-of-safety results that also pass the data-quality gate
+    (_passes_quality_gate), sorted descending. Per-ticker try/except — one
+    bad ticker must never abort the whole batch.
+
+    Parallelized with a bounded thread pool (_SCAN_MAX_WORKERS) — this scan
+    now covers the full S&P 500 (~500+ tickers, see screener.py's UNIVERSE),
+    and each ticker is several real blocking HTTP calls; sequential would
+    make the weekly refresh job's duration scale linearly with universe
+    size. Callers on the async side must still wrap this in asyncio.to_thread
+    (it blocks until every worker thread finishes).
 
     `analysis_cache`, when passed, is populated with EVERY scanned ticker's
     full analysis (not just the positive-margin-of-safety survivors kept in
@@ -162,64 +244,46 @@ def _scan(tickers: list[dict], analysis_cache: Optional[dict[str, Optional[dict]
     computes most of what Method 3 (Relative Valuation)'s peer lookups need
     later in the same refresh, so this avoids re-fetching a same-sector
     peer that just isn't itself undervalued right now."""
+    import concurrent.futures
     from app.services.fundamental_analysis_service import get_fundamental_analysis
 
-    results = []
-    for entry in tickers:
+    def _fetch_one(entry: dict):
         try:
             # _compute_peer_dependent_data=False — this scan already runs get_fundamental_
-            # analysis for the ENTIRE curated universe (~150+ tickers); doing
+            # analysis for the ENTIRE curated universe (~500+ tickers); doing
             # peer-fetching Consensus for every one of them here would fan out
             # into thousands of extra requests and duplicate the real Consensus
             # pass this module already does below (refresh_undervalued_screener,
             # lines ~325-391), on the smaller already-capped candidate list.
             data = get_fundamental_analysis(entry["ticker"], _compute_peer_dependent_data=False)
+            return entry, data, None
+        except Exception as exc:
+            return entry, None, exc
+
+    results = []
+    excluded_by_quality_gate = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=_SCAN_MAX_WORKERS) as executor:
+        futures = [executor.submit(_fetch_one, entry) for entry in tickers]
+        for future in concurrent.futures.as_completed(futures):
+            entry, data, exc = future.result()
+            if exc is not None:
+                logger.warning("undervalued_screener_service: %s failed: %s", entry["ticker"], exc)
+                continue
             if analysis_cache is not None:
                 analysis_cache[entry["ticker"]] = data
             dcf = data.get("dcf") if data else None
             mos = dcf.get("margin_of_safety_pct") if dcf else None
-            if dcf and mos is not None and mos > 0:
-                thesis_scores = data.get("thesis_scores")
-                _fcf_trend_vals = [v for v in (data.get("fcf_trend") or []) if v is not None]
-                results.append({
-                    "ticker": entry["ticker"],
-                    "company_name": data.get("company_name"),
-                    "sector": entry.get("sector"),
-                    "price": data.get("current_price"),
-                    "change_pct": data.get("change_pct"),
-                    "exchange": data.get("exchange"),
-                    "intrinsic_value_base": dcf["scenarios"]["base"]["intrinsic_value_per_share"],
-                    "margin_of_safety_pct": mos,
-                    "composite_score": data.get("composite_score"),
-                    "fair_value_range": dcf.get("fair_value_range"),
-                    "confidence_meter": dcf.get("confidence_meter"),
-                    "implied_growth_pct": dcf.get("implied_growth_pct"),
-                    "market_expectations": dcf.get("market_expectations"),
-                    "yearly_detail": dcf.get("yearly_detail"),
-                    "pv_of_fcf_sum": dcf.get("pv_of_fcf_sum"),
-                    "pv_of_terminal_value": dcf.get("pv_of_terminal_value"),
-                    "enterprise_value": dcf.get("enterprise_value"),
-                    "total_debt": dcf.get("total_debt"),
-                    "cash": dcf.get("cash"),
-                    "current_fcf": _fcf_trend_vals[-1] if _fcf_trend_vals else None,
-                    "net_cash": (dcf.get("cash") or 0) - (dcf.get("total_debt") or 0),
-                    "shares_outstanding": dcf.get("shares_outstanding"),
-                    "dcf_assumptions": build_dcf_guidance(dcf, thesis_scores),
-                    "momentum": None,  # only computed in the full weekly refresh (see refresh_undervalued_screener) — real historical-price fetch, too costly for the bootstrap subset scan
-                    "thesis_scores": thesis_scores,
-                    "weak_dimension": _weak_dimension(thesis_scores),
-                    "liquidity_gate": data.get("liquidity_gate"),
-                    # AI text (blurb + checklist reasons), keyed by language —
-                    # filled in during the full weekly refresh only (see
-                    # refresh_undervalued_screener). get_undervalued() reads
-                    # the requested language at serve time.
-                    "blurb_by_lang": {},
-                    "business_understanding_by_lang": {},
-                    "checklist_reasons_by_lang": {},
-                    "checklist_items_real": data.get("checklist_items_real") or [],
-                })
-        except Exception as exc:
-            logger.warning("undervalued_screener_service: %s failed: %s", entry["ticker"], exc)
+            if dcf and mos is not None and mos > 0 and not _passes_quality_gate(dcf):
+                excluded_by_quality_gate += 1
+            candidate = _build_candidate(entry, data)
+            if candidate is not None:
+                results.append(candidate)
+    if excluded_by_quality_gate:
+        logger.info(
+            "undervalued_screener_service: %d candidate(s) had a real positive margin of safety but were "
+            "excluded by the data-quality gate (confidence < %d or missing debt/cash data)",
+            excluded_by_quality_gate, _MIN_CONFIDENCE_SCORE,
+        )
     # "Best Overall" default — the composite score (real business quality +
     # financial strength + predictability + growth + management, not just
     # discount) beats sorting by margin of safety alone, which rewards a
@@ -304,26 +368,37 @@ def _rotate_featured_order(results: list[dict]) -> list[dict]:
 
 
 async def refresh_undervalued_screener() -> None:
-    """Full weekly refresh — the entire curated universe. Applies the
-    per-sector cap (_MAX_PER_SECTOR) here (not just at read time) so the
-    one-liner blurb generation below only runs for candidates that will
-    actually be shown, not every positive-margin-of-safety ticker in the
-    universe — keeps the weekly Claude cost bounded (≤5 per sector).
+    """Full weekly refresh — the entire curated universe (now the real S&P
+    500, see screener.py's UNIVERSE). Caches EVERY real positive-margin-of-
+    safety + data-quality-gate-passing candidate (potentially 100-200+ once
+    the universe grew from ~183 to the full index), not just a handful —
+    that full list is what the Oportunidades screen browses/filters. Only
+    the per-sector-capped subset (_MAX_PER_SECTOR, `featured=True`) gets the
+    expensive per-candidate enrichment below (Relative/Historical Valuation,
+    AI blurb in both languages) — that cost stays bounded regardless of how
+    large the universe grows, since _MAX_PER_SECTOR × sector count doesn't
+    change with it. Non-featured candidates are still real, still DCF-backed
+    (see _scan/_build_candidate), just shown with a simpler card (no blurb,
+    no relative/historical reference points) — see get_undervalued()'s
+    `per_sector_cap` param and OpportunitiesListPanel.tsx on the frontend.
 
     Generates the AI text (blurb, business-understanding judgment, checklist
-    reasons) ONCE PER SUPPORTED LANGUAGE per candidate — doubling the Claude
-    calls here (still a weekly batch job, not a live request) is how English
-    UI users get real, non-mixed-language checklist text instead of either
-    always seeing Spanish or paying for a live translation call per read.
-    Nothing is finalized into a single "checklist" here — that merge
-    happens per-request, per-language, in get_undervalued()."""
+    reasons) ONCE PER SUPPORTED LANGUAGE per FEATURED candidate — doubling
+    the Claude calls here (still a weekly batch job, not a live request) is
+    how English UI users get real, non-mixed-language checklist text instead
+    of either always seeing Spanish or paying for a live translation call
+    per read. Nothing is finalized into a single "checklist" here — that
+    merge happens per-request, per-language, in get_undervalued()."""
     from app.api.routes.screener import UNIVERSE
     analysis_cache: dict[str, Optional[dict]] = {}
-    results = _scan(UNIVERSE, analysis_cache=analysis_cache)
-    results = _cap_per_sector(results, _MAX_PER_SECTOR)
+    all_results = _scan(UNIVERSE, analysis_cache=analysis_cache)
+    featured = _cap_per_sector(all_results, _MAX_PER_SECTOR)
+    featured_tickers = {r["ticker"] for r in featured}
+    for entry in all_results:
+        entry["featured"] = entry["ticker"] in featured_tickers
 
     # Relative/Historical Valuation — deliberately only run here, on the
-    # already-capped candidate list (~30-40 tickers), never in the live
+    # featured (per-sector-capped, ~30-55 tickers) subset, never in the live
     # quick-analysis path: Relative alone means a full analysis per real
     # peer, and Historical means a real historical-price fetch — exactly the
     # kind of per-request cost this weekly batch job exists to amortize
@@ -334,7 +409,7 @@ async def refresh_undervalued_screener() -> None:
     from app.services.historical_valuation_service import compute_historical_valuation
     from app.services.fundamental_analysis_service import get_financials
 
-    for entry in results:
+    for entry in featured:
         try:
             candidate_data = analysis_cache.get(entry["ticker"]) or {}
             dcf = candidate_data.get("dcf") or {}
@@ -401,7 +476,7 @@ async def refresh_undervalued_screener() -> None:
             entry["momentum"] = None
 
     from app.services.ai_service import generate_candidate_blurb
-    for entry in results:
+    for entry in featured:
         for lang in _SUPPORTED_LANGS:
             # One retry on a genuine failure (network hiccup, rate limit) —
             # get_undervalued used to silently fall back to the Spanish
@@ -426,9 +501,12 @@ async def refresh_undervalued_screener() -> None:
                 except Exception as exc:
                     logger.warning("undervalued_screener_service: blurb (%s) attempt %d failed for %s: %s", lang, attempt + 1, entry["ticker"], exc)
 
-    results = _rotate_featured_order(results)
-    cache_set(CACHE_KEY, results, CACHE_TTL)
-    logger.info("undervalued_screener_service: refreshed, %d/%d tickers had positive margin of safety", len(results), len(UNIVERSE))
+    all_results = _rotate_featured_order(all_results)
+    cache_set(CACHE_KEY, all_results, CACHE_TTL)
+    logger.info(
+        "undervalued_screener_service: refreshed, %d/%d tickers had a real positive margin of safety "
+        "(%d featured/enriched)", len(all_results), len(UNIVERSE), len(featured),
+    )
 
     # Valuation Backtest panel ("What $10,000 became") — reuses THIS scan's
     # own analysis_cache (every ticker in UNIVERSE, not just the positive-MoS
@@ -475,6 +553,8 @@ def bootstrap_fill_if_empty_sync() -> None:
     from app.api.routes.screener import UNIVERSE
     results = _scan(UNIVERSE[:_BOOTSTRAP_LIMIT])
     results = _cap_per_sector(results, _MAX_PER_SECTOR)
+    for entry in results:
+        entry["featured"] = True  # every bootstrap entry stayed within the cap — same shape as a full refresh's featured candidates
     # Deliberately NOT finalized here (no AI calls, no language pref known
     # yet at this layer) — left in the same un-finalized shape as a full
     # refresh's results, so get_undervalued()'s per-request/per-language
@@ -537,13 +617,25 @@ def _cap_per_sector(results: list[dict], max_per_sector: int) -> list[dict]:
     return capped
 
 
-def get_undervalued(limit: int = 60, sector: Optional[str] = None, lang: str = "es") -> dict:
+def get_undervalued(limit: int = 60, sector: Optional[str] = None, lang: str = "es", per_sector_cap: Optional[int] = _MAX_PER_SECTOR) -> dict:
     """Fast, cache-only read. `generated_at` (unix timestamp, 0 if the cache
     is empty) lets callers disclose honestly how stale the snapshot is.
     Callers should call bootstrap_fill_if_empty_sync() first if they need a
     guarantee of non-empty results (see screener.py's endpoint and chat.py's
-    context-block builder). Caps at 5 candidates per sector (real ones only
-    — a sector with fewer than 5 qualifying stocks just shows fewer).
+    context-block builder).
+
+    `per_sector_cap` defaults to _MAX_PER_SECTOR (5) — every EXISTING caller
+    (chat.py's context block, the weekly-picks-adjacent callers) keeps
+    exactly the old "top ~5 per sector, fully AI-enriched" behavior without
+    passing anything. Pass `per_sector_cap=None` (or a higher number) to
+    browse the full real, DCF-backed universe cached by refresh_undervalued_
+    screener — every candidate is a genuine positive-margin-of-safety result
+    that passed the data-quality gate, but only the `featured=True` ones
+    (still capped at 5/sector) carry the AI blurb and relative/historical
+    valuation; the rest serve their real numeric fields with those as null
+    (see refresh_undervalued_screener's docstring) — the frontend's
+    OpportunitiesListPanel renders a simpler card for those instead of
+    inventing text.
 
     The cache stores AI text keyed by language (see refresh_undervalued_
     screener) — this is where the requested `lang` is actually applied,
@@ -555,7 +647,8 @@ def get_undervalued(limit: int = 60, sector: Optional[str] = None, lang: str = "
     results = results or []
     if sector:
         results = [r for r in results if (r.get("sector") or "").lower() == sector.lower()]
-    results = _cap_per_sector(results, _MAX_PER_SECTOR)
+    if per_sector_cap is not None:
+        results = _cap_per_sector(results, per_sector_cap)
 
     finalized = []
     for r in results[:limit]:

@@ -1237,6 +1237,27 @@
         "overvalued": "{{pct}}% sobrevalorada",
         "fair": "Valor razonable"
       }
+    },
+    "opportunities": {
+      "title": "Oportunidades",
+      "subtitle": "Candidatas reales con margen de seguridad positivo, del motor de valor intrínseco de Nuvos AI — cobertura S&P 500.",
+      "updated": "Actualizado: {{date}}",
+      "loading": "Buscando oportunidades reales en el S&P 500…",
+      "empty": "Todavía no hay datos del screener semanal — vuelve más tarde.",
+      "sectorAll": "Todos los sectores",
+      "sortLabel": "Ordenar por",
+      "sort": {
+        "mos_desc": "Más subvaluadas",
+        "mos_asc": "Más sobrevaloradas",
+        "market_cap_desc": "Mayor market cap",
+        "market_cap_asc": "Menor market cap",
+        "confidence_desc": "Mayor confianza",
+        "confidence_asc": "Menor confianza"
+      },
+      "confidence": "Confianza",
+      "marginOfSafety": "Margen de seguridad",
+      "seeMore": "Ver más",
+      "seeLess": "Ver menos"
     }
   },
   "patrimonio": {

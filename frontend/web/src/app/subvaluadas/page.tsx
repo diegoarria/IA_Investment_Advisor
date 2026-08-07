@@ -22,6 +22,7 @@ import {
   deriveBaseInputs, _SCENARIO_COLOR,
 } from "@/components/subvaluadas/shared";
 import { ValuationBacktestPanel } from "@/components/subvaluadas/ValuationBacktestPanel";
+import { OpportunitiesListPanel } from "@/components/subvaluadas/OpportunitiesListPanel";
 import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { projectDriverBasedDcf } from "@/lib/driverBasedDcf";
@@ -274,6 +275,8 @@ function SubvaluadasPageInner() {
                   </button>
                 </div>
               )}
+
+              {isPremium && <OpportunitiesListPanel />}
 
               <div className="flex gap-2 mb-8">
                 <div className="flex-1 flex items-center gap-2 rounded-xl border px-3"

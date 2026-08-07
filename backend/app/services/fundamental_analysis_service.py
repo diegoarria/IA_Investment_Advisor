@@ -655,7 +655,7 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[di
 
 def _build_financial_sector_valuation(
     roe_trend: list[Optional[float]], latest_equity: float, shares_out: float, price: float,
-    cost_of_equity: float, latest_dividends_paid: float, latest_net_income: Optional[float],
+    cost_of_equity: float, latest_dividends_paid: Optional[float], latest_net_income: Optional[float],
     total_debt: float, cash: float, sector: Optional[str], wacc_details: dict,
 ) -> Optional[dict]:
     """Real valuation for banks/insurers/brokers — Justified Price-to-Book
@@ -670,9 +670,18 @@ def _build_financial_sector_valuation(
     normal `dcf` return (scenarios/margin_of_safety_pct/etc.) so downstream
     code (checklist, screener, prompt formatting) doesn't need to
     special-case the methodology — just reads a "methodology" label."""
+    # A single ROE data point can't establish a real trend — the
+    # recency-weighted average below would just be that one (possibly noisy)
+    # year's ROE dressed up as a multi-year signal. Require at least 2 real
+    # points, same spirit as the standard DCF's _MIN_YEARS gate.
     roe_valid = [v for v in roe_trend if v is not None]
-    if not roe_valid or not latest_equity or latest_equity <= 0 or not shares_out or not price:
+    if len(roe_valid) < 2 or not latest_equity or latest_equity <= 0 or not shares_out or not price:
         return None
+
+    # Missing dividends/net-income data (as opposed to a real 0) currently
+    # defaults payout_ratio to 0.0 — full retention — below. That's a real
+    # assumption, not a neutral default, so it's surfaced rather than hidden.
+    dividends_missing = latest_dividends_paid is None or latest_net_income is None
 
     # Real-world floor on cost of equity — CAPM with an unusually low beta
     # (seen for real with Progressive Corp's beta of 0.25) understates equity
@@ -691,7 +700,7 @@ def _build_financial_sector_valuation(
 
     payout_ratio = (
         min(max(latest_dividends_paid / latest_net_income, 0.0), 1.0)
-        if latest_net_income and latest_net_income > 0 else 0.0
+        if latest_dividends_paid is not None and latest_net_income and latest_net_income > 0 else 0.0
     )
     retention_ratio = 1 - payout_ratio
     # Cap sustainable growth at a realistic long-run ceiling. A mature
@@ -825,6 +834,7 @@ def _build_financial_sector_valuation(
             "buyback_rate_pct": 0.0,
             "fcf_per_share_cagr_pct": None,
         },
+        "data_quality_flags": {"dividends_missing": dividends_missing},
     }
 
 
@@ -1113,9 +1123,19 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     reinvestment_rate_anchor = compute_reinvestment_rate_anchor(reinvestment_pairs)
 
     latest_bal  = balance[-1]
-    total_debt  = (_num(latest_bal.get("Long Term Debt")) or 0) + (_num(latest_bal.get("Short Term Debt")) or 0)
-    cash_latest = _num(latest_bal.get("Cash And Short Term Investments")) or _num(latest_bal.get("Cash And Cash Equivalents")) or 0
+    _long_debt_raw  = _num(latest_bal.get("Long Term Debt"))
+    _short_debt_raw = _num(latest_bal.get("Short Term Debt"))
+    _cash_raw       = _num(latest_bal.get("Cash And Short Term Investments")) or _num(latest_bal.get("Cash And Cash Equivalents"))
+    total_debt  = (_long_debt_raw or 0) + (_short_debt_raw or 0)
+    cash_latest = _cash_raw or 0
     net_cash    = cash_latest - total_debt
+    # Real "the field is genuinely zero" and "the provider didn't send this
+    # field at all" look identical after the `or 0` above — but silently
+    # treating a MISSING balance-sheet field as real zero debt/cash biases
+    # the equity value every time, not randomly. Track it so the caller can
+    # refuse to publish a candidate with real inputs quietly swapped for
+    # false zeros (see undervalued_screener_service._scan's quality gate).
+    debt_cash_missing = _long_debt_raw is None and _short_debt_raw is None and _cash_raw is None
 
     # ── Deterministic 2-stage DCF, 3 scenarios (pessimistic/base/optimistic) ──
     # Both FCF and revenue in every scenario grow at the SAME rate (revenue
@@ -1156,7 +1176,8 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             else base_discount_rate
         )
         latest_equity = _num(latest_bal.get("Stockholders Equity"))
-        latest_dividends_paid_fin = abs(_num(cashflow[-1].get("Dividends Paid")) or 0) if cashflow else 0
+        _dividends_paid_raw = _num(cashflow[-1].get("Dividends Paid")) if cashflow else None
+        latest_dividends_paid_fin = abs(_dividends_paid_raw) if _dividends_paid_raw is not None else None
         latest_net_income = ni_valid[-1] if ni_valid else None
         dcf = _build_financial_sector_valuation(
             roe_trend, latest_equity, shares_out, price, cost_of_equity,
@@ -2374,6 +2395,13 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         )
         dcf["financial_statement_quality_score"] = financial_statement_quality_score
         dcf["management_consistency_score"] = management_consistency_score
+        # Real, non-narrative flags for inputs the provider genuinely didn't
+        # send (as opposed to sending a real 0) — set by the debt/cash read
+        # above and, for financial-sector companies, by
+        # _build_financial_sector_valuation's own dividends check. Never
+        # invented here; a missing flag key just means that check doesn't
+        # apply to this dcf's methodology.
+        dcf.setdefault("data_quality_flags", {})["debt_cash_missing"] = debt_cash_missing
 
         dcf["confidence_meter"] = compute_confidence_meter_v3(
             dcf.get("confidence_score"), n, dcf.get("fair_value_range") or {}, liquidity_ok=liquidity_gate.get("paso", True),
