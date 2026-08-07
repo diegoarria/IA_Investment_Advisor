@@ -410,23 +410,39 @@ const _SCENARIO_COLOR: Record<"bear" | "base" | "bull", string> = {
   bear: "#DD6E63", base: "#D4A24C", bull: "#4FA695",
 };
 
-function _nuvosScenarioMosPct(fairValue: number | null, price: number | null): number | null {
-  if (fairValue === null || fairValue <= 0 || price === null) return null;
-  return ((fairValue - price) / fairValue) * 100;
+type _Verdict = "undervalued" | "overvalued" | "fair";
+interface _ValuationStatus {
+  verdict: _Verdict;
+  pct: number; // always a positive magnitude — which formula produced it depends on `verdict`
 }
 
-// AlphaSpread-style verdict: 3 states, not a raw signed percentage — a
-// +2% "undervaluation" and a -2% one both read as noise, not a real
-// verdict, so anything inside ±5% is "fairly valued."
-type _Verdict = "undervalued" | "overvalued" | "fair";
-function _verdictFor(mosPct: number | null): _Verdict | null {
-  if (mosPct === null) return null;
-  if (mosPct >= 5) return "undervalued";
-  if (mosPct <= -5) return "overvalued";
-  return "fair";
+// Two different formulas, deliberately not one signed percentage divided
+// by a single denominator:
+// - Undervalued (price <= value): margin of safety, as a % of the
+//   ESTIMATED VALUE — "how much cushion below what it's really worth."
+//   (value - price) / value.
+// - Overvalued (price > value): premium, as a % of the CURRENT PRICE —
+//   "how much extra you'd be paying right now." (price - value) / price.
+// Using the same value-denominator formula for both (then just flipping
+// the sign) is what produces headline-grabbing nonsense like "-858%" when
+// a business trades far above a small or shrinking estimated value — the
+// two questions ("how cheap?" vs. "how expensive?") aren't symmetric, so
+// the formulas shouldn't be either. ±5% either side reads as noise, not a
+// real verdict, so anything inside that band is "fairly valued."
+function _valuationStatus(fairValue: number | null, price: number | null): _ValuationStatus | null {
+  if (fairValue === null || fairValue <= 0 || price === null || price <= 0) return null;
+  if (price > fairValue) {
+    const premiumPct = ((price - fairValue) / price) * 100;
+    return { verdict: premiumPct >= 5 ? "overvalued" : "fair", pct: premiumPct };
+  }
+  const mosPct = ((fairValue - price) / fairValue) * 100;
+  return { verdict: mosPct >= 5 ? "undervalued" : "fair", pct: mosPct };
 }
 const _VERDICT_COLOR: Record<_Verdict, string> = {
   undervalued: "#22c55e", overvalued: "#ef4444", fair: "#D4A24C",
+};
+const _VERDICT_EMOJI: Record<_Verdict, string> = {
+  undervalued: "🟢", overvalued: "🔴", fair: "🟡",
 };
 
 export interface RelativeValuationData {
@@ -530,8 +546,8 @@ export function FairValueScenariosPanel({
   const scenario = scenarios[selected];
   const color = _SCENARIO_COLOR[selected];
   const fv = scenario.fair_value_per_share;
-  const mos = _nuvosScenarioMosPct(fv, price);
-  const verdict = _verdictFor(mos);
+  const status = _valuationStatus(fv, price);
+  const verdict = status?.verdict ?? null;
   const a = scenario.assumptions;
 
   const referencePoints: { icon: string; label: string; value: number }[] = [];
@@ -574,7 +590,9 @@ export function FairValueScenariosPanel({
         })}
       </div>
 
-      {/* Headline number + verdict badge */}
+      {/* Headline number + "Estado de valoración" — two different formulas
+          depending on the side (see _valuationStatus), never a single
+          signed percentage that can read as a nonsensical "-858%". */}
       <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
         <div>
           <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>
@@ -584,13 +602,18 @@ export function FairValueScenariosPanel({
             {fv !== null ? `$${fv.toFixed(2)}` : "N/D"}
           </p>
         </div>
-        {verdict && mos !== null && (
-          <span
-            className="text-[11px] font-bold uppercase tracking-wide rounded-full px-3 py-1.5 shrink-0"
-            style={{ color: verdict === "fair" ? "#0A0F1A" : "#fff", background: _VERDICT_COLOR[verdict] }}
-          >
-            {t(`subvaluadas.nuvosFairValue.verdict.${verdict}`, { pct: Math.abs(mos).toFixed(0) })}
-          </span>
+        {verdict && status && (
+          <div className="flex items-center gap-2 rounded-xl px-3 py-2 shrink-0" style={{ background: `${_VERDICT_COLOR[verdict]}1a` }}>
+            <span className="text-lg leading-none">{_VERDICT_EMOJI[verdict]}</span>
+            <div>
+              <p className="text-[12px] font-bold" style={{ color: _VERDICT_COLOR[verdict] }}>
+                {t(`subvaluadas.nuvosFairValue.verdictLabel.${verdict}`)}
+              </p>
+              <p className="text-[10.5px]" style={{ color: "var(--sub)" }}>
+                {t(`subvaluadas.nuvosFairValue.verdictDetail.${verdict}`, { pct: status.pct.toFixed(0) })}
+              </p>
+            </div>
+          </div>
         )}
       </div>
 
@@ -600,7 +623,7 @@ export function FairValueScenariosPanel({
       </div>
 
       {/* Plain-language sentence, restating the same numbers in words */}
-      {fv !== null && price !== null && verdict && (
+      {fv !== null && price !== null && verdict && status && (
         <p className="text-[11.5px] leading-relaxed mb-3" style={{ color: "var(--sub)" }}>
           {t("subvaluadas.nuvosFairValue.narrative", {
             scenario: t(`subvaluadas.nuvosFairValue.scenarios.${selected}`),
@@ -608,7 +631,7 @@ export function FairValueScenariosPanel({
             price: price.toFixed(2),
             verdictPhrase: verdict === "fair"
               ? t("subvaluadas.nuvosFairValue.verdictWord.fair")
-              : t(`subvaluadas.nuvosFairValue.verdictWord.${verdict}`, { pct: Math.abs(mos ?? 0).toFixed(0) }),
+              : t(`subvaluadas.nuvosFairValue.verdictWord.${verdict}`, { pct: status.pct.toFixed(0) }),
           })}
         </p>
       )}

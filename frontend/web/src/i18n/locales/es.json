@@ -1054,10 +1054,15 @@
         "bull": "Bull"
       },
       "headlineLabel": "Valor razonable",
-      "verdict": {
-        "undervalued": "Infravaloración {{pct}}%",
-        "overvalued": "Sobrevaloración {{pct}}%",
+      "verdictLabel": {
+        "undervalued": "Infravalorada",
+        "overvalued": "Sobrevalorada",
         "fair": "Valor razonable"
+      },
+      "verdictDetail": {
+        "undervalued": "{{pct}}% de margen de seguridad",
+        "overvalued": "≈{{pct}}% por encima del valor estimado",
+        "fair": "Cerca del valor estimado"
       },
       "verdictWord": {
         "undervalued": "infravalorada en {{pct}}%",
