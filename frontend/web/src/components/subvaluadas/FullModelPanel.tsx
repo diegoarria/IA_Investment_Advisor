@@ -357,8 +357,8 @@ export function FullModelPanel({
   confidenceMeter?: ConfidenceMeterData | null;
 }) {
   const { t } = useTranslation();
-  const defaultScenario: ScenarioName = data.price_implied_scenario ?? "base";
-  const [scenarioName, setScenarioName] = useState<ScenarioName>(defaultScenario);
+  // Always opens on Base — same consistent default as FairValueScenariosPanel.
+  const [scenarioName, setScenarioName] = useState<ScenarioName>("base");
   const [tab, setTab] = useState<TabId>("template");
 
   const baseScenario = data.scenarios[scenarioName];

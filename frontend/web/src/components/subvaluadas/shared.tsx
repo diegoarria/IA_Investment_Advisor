@@ -771,8 +771,10 @@ export function FairValueScenariosPanel({
   analystPriceTarget?: AnalystPriceTargetData | null;
 }) {
   const { t } = useTranslation();
-  const defaultScenario = data?.price_implied_scenario ?? "base";
-  const [selected, setSelected] = useState<"bear" | "base" | "bull">(defaultScenario);
+  // Always opens on Base, regardless of which scenario the current price
+  // happens to imply — a consistent starting point across every ticker.
+  // `price_implied_scenario` still drives the small dot marker on its tab.
+  const [selected, setSelected] = useState<"bear" | "base" | "bull">("base");
   if (!data) return null;
   const { scenarios, price_implied_scenario } = data;
 

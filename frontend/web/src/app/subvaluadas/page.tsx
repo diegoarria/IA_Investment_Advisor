@@ -238,13 +238,11 @@ function SubvaluadasPageInner() {
 
   const price = data?.price ?? 0;
 
-  // Real DCF inputs for the price-implied scenario — powers the 3 sections
-  // promoted out of the "Modelo Completo" drawer onto the main scroll
-  // ("¿Cómo llegamos a este valor?", Reverse DCF, Sensibilidad). Always the
-  // same default scenario `FairValueScenariosPanel`/`FullModelPanel`
-  // themselves default to — not tied to that panel's own tab selection.
-  const defaultScenarioName = data?.nuvos_fair_value?.price_implied_scenario ?? "base";
-  const defaultScenario = data?.nuvos_fair_value?.scenarios[defaultScenarioName] ?? null;
+  // Real DCF inputs for the Base scenario — powers the 3 sections promoted
+  // out of the "Modelo Completo" drawer onto the main scroll ("¿Cómo
+  // llegamos a este valor?", Reverse DCF, Sensibilidad). Always Base, same
+  // consistent default `FairValueScenariosPanel`/`FullModelPanel` open on.
+  const defaultScenario = data?.nuvos_fair_value?.scenarios.base ?? null;
   const baseInputs = useMemo(() => (defaultScenario ? deriveBaseInputs(defaultScenario) : null), [defaultScenario]);
   const flowResult = useMemo(() => {
     if (!baseInputs) return null;

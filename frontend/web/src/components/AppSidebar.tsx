@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import Image from "next/image";
 import {
   BrainCircuit, Wallet, User, GraduationCap,
-  MessageSquare, ChevronLeft, ChevronRight, Plus, X, GripVertical, ArrowRight, Lock, LogOut, Home, ShoppingBag, Menu, BookMarked, NotebookPen,
+  MessageSquare, ChevronLeft, ChevronRight, Plus, X, GripVertical, ArrowRight, Lock, LogOut, Home, ShoppingBag, Menu, BookMarked,
 } from "lucide-react";
 
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
@@ -62,9 +62,10 @@ const MAIN_NAV: NavItem[] = [
   { href: "/subvaluadas", icon: BookMarked,    labelKey: "common.nav.undervalued", minLevel: "basico" },
 ];
 
+// Bitácora ("/journal") is deliberately NOT a sidebar item — it only lives
+// as a discoverability link inside Profile (see app/profile/page.tsx).
 const SECONDARY_NAV: NavItem[] = [
   { href: "/profile",  icon: User,          labelKey: "common.nav.profile", minLevel: "basico" },
-  { href: "/journal",  icon: NotebookPen,   labelKey: "common.nav.journal", minLevel: "basico" },
   { href: "/academy",  icon: GraduationCap, labelKey: "common.nav.academy", minLevel: "basico" },
   { href: "/products", icon: ShoppingBag,   labelKey: "common.nav.products", minLevel: "basico" },
 ];
