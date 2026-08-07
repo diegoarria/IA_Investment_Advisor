@@ -535,30 +535,178 @@ export function _ComparisonBars({ fairValue, price, color }: { fairValue: number
   );
 }
 
-function _NuvosFactorsSection({ title, factors }: { title: string; factors: NifScoreFactor[] }) {
+// Always shows all 3 scenario values, even while the tab switcher above has
+// one selected — the tabs control which scenario's narrative/assumptions
+// are detailed below, but the raw Bear/Base/Bull numbers themselves should
+// never be hidden behind a single click, per Diego's explicit request.
+function _ThreeScenariosRow({
+  scenarios, selected,
+}: {
+  scenarios: { bear: NuvosScenario; base: NuvosScenario; bull: NuvosScenario };
+  selected: "bear" | "base" | "bull";
+}) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
-  if (factors.length === 0) return null;
   return (
-    <div>
-      <button onClick={() => setExpanded((e) => !e)} className="text-[10px] font-bold underline underline-offset-2" style={{ color: "var(--muted)" }}>
-        {title} — {expanded ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}
+    <div className="grid grid-cols-3 gap-2 mb-4">
+      {(["bear", "base", "bull"] as const).map((name) => {
+        const fv = scenarios[name].fair_value_per_share;
+        const isSelected = name === selected;
+        const color = _SCENARIO_COLOR[name];
+        return (
+          <div
+            key={name}
+            className="rounded-xl px-2.5 py-2 text-center"
+            style={{
+              background: isSelected ? `${color}1f` : "var(--raised)",
+              border: `1px solid ${isSelected ? color : "transparent"}`,
+            }}
+          >
+            <p className="text-[9px] font-bold uppercase tracking-wide truncate" style={{ color: isSelected ? color : "var(--muted)" }}>
+              {t(`subvaluadas.nuvosFairValue.scenarios.${name}`)}
+            </p>
+            <p className="text-[15px] font-black tabular-nums" style={{ color: "var(--text)" }}>
+              {fv !== null ? `$${fv.toFixed(2)}` : "N/D"}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Places the current price along the real Bear -> Bull range — the same
+// "one glance tells the story" idea as _ComparisonBars, but for all 3
+// scenarios at once instead of one scenario vs. price. The marker clamps
+// to the bar's edges when price falls outside the Bear..Bull span (can
+// happen — the model isn't a hard ceiling/floor) while still labeling the
+// real, unclamped price.
+function _PriceVsScenariosBar({
+  scenarios, price,
+}: {
+  scenarios: { bear: NuvosScenario; base: NuvosScenario; bull: NuvosScenario };
+  price: number | null;
+}) {
+  const { t } = useTranslation();
+  const bear = scenarios.bear.fair_value_per_share;
+  const base = scenarios.base.fair_value_per_share;
+  const bull = scenarios.bull.fair_value_per_share;
+  if (bear === null || base === null || bull === null || price === null || price <= 0) return null;
+
+  const rawMin = Math.min(bear, base, bull);
+  const rawMax = Math.max(bear, base, bull);
+  const pad = (rawMax - rawMin) * 0.12 || rawMax * 0.1 || 1;
+  const min = rawMin - pad;
+  const max = rawMax + pad;
+  const span = max - min || 1;
+  const pctOf = (v: number) => Math.min(100, Math.max(0, ((v - min) / span) * 100));
+
+  const markers: { name: "bear" | "base" | "bull"; value: number }[] = [
+    { name: "bear", value: bear }, { name: "base", value: base }, { name: "bull", value: bull },
+  ];
+
+  return (
+    <div className="mb-4">
+      <p className="text-[9px] font-bold uppercase tracking-wide mb-3" style={{ color: "var(--muted)" }}>
+        {t("subvaluadas.nuvosFairValue.priceVsScenarios")}
+      </p>
+      <div className="relative mt-5 mb-6">
+        <div
+          className="h-2 rounded-full"
+          style={{ background: `linear-gradient(90deg, ${_SCENARIO_COLOR.bear}, ${_SCENARIO_COLOR.base}, ${_SCENARIO_COLOR.bull})` }}
+        />
+        {markers.map((m) => (
+          <div key={m.name} className="absolute top-0 -translate-x-1/2 flex flex-col items-center" style={{ left: `${pctOf(m.value)}%` }}>
+            <div className="w-0.5 h-2 rounded-full" style={{ background: "rgba(0,0,0,0.25)" }} />
+            <p className="text-[9px] font-bold whitespace-nowrap mt-1" style={{ color: "var(--muted)" }}>
+              {t(`subvaluadas.nuvosFairValue.scenarios.${m.name}`)}
+            </p>
+            <p className="text-[10px] font-black tabular-nums whitespace-nowrap" style={{ color: "var(--text)" }}>${m.value.toFixed(0)}</p>
+          </div>
+        ))}
+        {/* Current price marker — drawn above the bar, pointing down */}
+        <div className="absolute -top-6 -translate-x-1/2 flex flex-col items-center" style={{ left: `${pctOf(price)}%` }}>
+          <span className="text-[10px] font-black tabular-nums rounded-full px-2 py-0.5 whitespace-nowrap" style={{ background: "var(--text)", color: "var(--card)" }}>
+            {t("subvaluadas.nuvosFairValue.priceVsScenariosNow")} ${price.toFixed(2)}
+          </span>
+          <div className="w-0.5 h-3" style={{ background: "var(--text)" }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// AlphaSpread-style comparative row for one assumption dimension —
+// Histórico / Consenso de Wall Street / Estimación Nuvos side by side,
+// rather than a flat list of factors. "Estimación Nuvos" is read straight
+// off the BASE scenario's own real assumptions (never the pre-clamp raw
+// blend) — BEAR_BASE_BULL's base entry has zero deltas on every dimension,
+// so the base scenario's number IS the blended estimate that actually
+// feeds the model, clamp included.
+function _deriveTerminalRoicPct(a: NuvosScenarioAssumptions): number | null {
+  if (Math.abs(a.terminal_reinvestment_rate_pct) < 1e-6) return null;
+  return (a.terminal_growth_pct / a.terminal_reinvestment_rate_pct) * 100;
+}
+
+function _SupuestoAccordionItem({
+  title, factors, nuvosValuePct,
+}: {
+  title: string;
+  factors: NifScoreFactor[];
+  nuvosValuePct: number | null;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const historical = factors.find((f) => f.name === "historical") ?? null;
+  const wallStreet = factors.find((f) => f.name === "wall_street") ?? null;
+  const fmt = (v: number | null | undefined) => (v !== null && v !== undefined ? `${v.toFixed(1)}%` : "N/D");
+
+  return (
+    <div className="rounded-xl border" style={{ borderColor: "var(--border)" }}>
+      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center justify-between gap-2 px-3 py-2.5">
+        <span className="text-[11.5px] font-bold" style={{ color: "var(--text)" }}>{title}</span>
+        {open ? <ChevronUp className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted)" }} /> : <ChevronDown className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted)" }} />}
       </button>
-      {expanded && (
-        <div className="space-y-1.5 mt-1.5">
-          {factors.map((f, i) => (
-            <div key={i} className="rounded-lg p-2" style={{ background: "var(--raised)" }}>
-              <div className="flex items-center justify-between gap-2 mb-0.5">
-                <span className="text-[10.5px] font-bold" style={{ color: "var(--sub)" }}>
-                  {t(`subvaluadas.nuvosFairValue.assumptionFactors.${f.name}`, { defaultValue: f.name })}
-                </span>
-                {f.value !== null && (
-                  <span className="text-[10.5px] font-black tabular-nums shrink-0" style={{ color: "var(--text)" }}>{f.value.toFixed(1)}%</span>
-                )}
-              </div>
-              <p className="text-[10.5px] leading-relaxed" style={{ color: "var(--dim)" }}>{f.reason}</p>
+      {open && (
+        <div className="px-3 pb-3">
+          <div className="grid grid-cols-3 gap-1.5 mb-2">
+            <div className="rounded-lg p-2 text-center" style={{ background: "var(--raised)" }}>
+              <p className="text-[8px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.nuvosFairValue.comparative.historical")}</p>
+              <p className="text-[13px] font-black tabular-nums mt-0.5" style={{ color: "var(--text)" }}>{fmt(historical?.value)}</p>
             </div>
-          ))}
+            <div className="rounded-lg p-2 text-center" style={{ background: "var(--raised)" }}>
+              <p className="text-[8px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.nuvosFairValue.comparative.wallStreet")}</p>
+              <p className="text-[13px] font-black tabular-nums mt-0.5" style={{ color: "var(--text)" }}>{fmt(wallStreet?.value)}</p>
+            </div>
+            <div className="rounded-lg p-2 text-center" style={{ background: `${_SCENARIO_COLOR.base}1f`, border: `1px solid ${_SCENARIO_COLOR.base}` }}>
+              <p className="text-[8px] font-bold uppercase tracking-wide" style={{ color: _SCENARIO_COLOR.base }}>{t("subvaluadas.nuvosFairValue.comparative.nuvos")}</p>
+              <p className="text-[13px] font-black tabular-nums mt-0.5" style={{ color: "var(--text)" }}>{fmt(nuvosValuePct)}</p>
+            </div>
+          </div>
+          {historical?.reason && <p className="text-[10px] leading-relaxed mb-1" style={{ color: "var(--dim)" }}>{historical.reason}</p>}
+          {wallStreet?.reason && <p className="text-[10px] leading-relaxed" style={{ color: "var(--dim)" }}>{wallStreet.reason}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Groups the 3 previously-separate "Ver detalle" toggles into one
+// "Supuestos" section, each dimension its own accordion.
+function _SupuestosSection({ data }: { data: NuvosFairValueData }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const base = data.scenarios.base.assumptions;
+
+  return (
+    <div className="mb-2">
+      <button onClick={() => setOpen((o) => !o)} className="text-[10px] font-bold underline underline-offset-2" style={{ color: "var(--muted)" }}>
+        {t("subvaluadas.nuvosFairValue.supuestosToggle")} — {open ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}
+      </button>
+      {open && (
+        <div className="space-y-1.5 mt-2">
+          <_SupuestoAccordionItem title={t("subvaluadas.nuvosFairValue.growthFactorsTitle")} factors={data.growth_factors} nuvosValuePct={base.revenue_growth_1_pct} />
+          <_SupuestoAccordionItem title={t("subvaluadas.nuvosFairValue.marginFactorsTitle")} factors={data.operating_margin_factors} nuvosValuePct={base.operating_margin_anchor_pct} />
+          <_SupuestoAccordionItem title={t("subvaluadas.nuvosFairValue.roicFactorsTitle")} factors={data.terminal_roic_factors} nuvosValuePct={_deriveTerminalRoicPct(base)} />
         </div>
       )}
     </div>
@@ -583,7 +731,6 @@ export function FairValueScenariosPanel({
   const { t } = useTranslation();
   const defaultScenario = data?.price_implied_scenario ?? "base";
   const [selected, setSelected] = useState<"bear" | "base" | "bull">(defaultScenario);
-  const [assumptionsOpen, setAssumptionsOpen] = useState(false);
   if (!data) return null;
   const { scenarios, price_implied_scenario } = data;
 
@@ -634,6 +781,11 @@ export function FairValueScenariosPanel({
         })}
       </div>
 
+      {/* Always-visible Bear/Base/Bull values + where the current price
+          falls between them — independent of which tab is selected above. */}
+      <_ThreeScenariosRow scenarios={scenarios} selected={selected} />
+      <_PriceVsScenariosBar scenarios={scenarios} price={price} />
+
       {/* Headline number + "Estado de valoración" — two different formulas
           depending on the side (see _valuationStatus), never a single
           signed percentage that can read as a nonsensical "-858%". */}
@@ -681,17 +833,26 @@ export function FairValueScenariosPanel({
       )}
 
       {/* Methodology — names what actually produced this number */}
-      {a.exit_multiple !== null && (
-        <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 mb-4 w-fit" style={{ background: "var(--raised)" }}>
+      <div className="flex flex-wrap items-center gap-1.5 mb-4">
+        <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 w-fit" style={{ background: "var(--raised)" }}>
           <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("subvaluadas.nuvosFairValue.methodologyLabel")}</span>
           <span className="text-[11px] font-bold" style={{ color: "var(--text)" }}>
-            {t("subvaluadas.nuvosFairValue.methodologyValue", {
-              multiple: a.exit_multiple.toFixed(1),
-              metric: a.exit_metric ? t(`subvaluadas.nuvosFairValue.exitMetric.${a.exit_metric}`) : "",
-            })}
+            {t("subvaluadas.nuvosFairValue.methodologyValue")}
           </span>
         </div>
-      )}
+        <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 w-fit" style={{ background: "var(--raised)" }}>
+          <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("subvaluadas.nuvosFairValue.wacc")}</span>
+          <span className="text-[11px] font-bold tabular-nums" style={{ color: "var(--text)" }}>{a.discount_rate_pct.toFixed(1)}%</span>
+        </div>
+        {a.exit_multiple !== null && (
+          <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 w-fit" style={{ background: "var(--raised)" }}>
+            <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("subvaluadas.nuvosFairValue.exitMultiple")}</span>
+            <span className="text-[11px] font-bold tabular-nums" style={{ color: "var(--text)" }}>
+              {a.exit_multiple.toFixed(1)}x {a.exit_metric ? t(`subvaluadas.nuvosFairValue.exitMetric.${a.exit_metric}`) : ""}
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Other reference points — demoted on purpose, never blended into the headline number */}
       {referencePoints.length > 0 && (
@@ -709,33 +870,12 @@ export function FairValueScenariosPanel({
         </div>
       )}
 
-      {/* Assumptions behind the selected scenario, collapsed */}
-      <div className="mb-2">
-        <button onClick={() => setAssumptionsOpen((o) => !o)} className="text-[10px] font-bold underline underline-offset-2" style={{ color: "var(--muted)" }}>
-          {t("subvaluadas.nuvosFairValue.assumptionsToggle")} — {assumptionsOpen ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}
-        </button>
-        {assumptionsOpen && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mt-1.5">
-            {[
-              { label: t("subvaluadas.nuvosFairValue.growth"), value: `${a.revenue_growth_1_pct.toFixed(1)}%` },
-              { label: t("subvaluadas.nuvosFairValue.margin"), value: `${a.operating_margin_anchor_pct.toFixed(1)}% → ${a.terminal_operating_margin_pct.toFixed(1)}%` },
-              { label: t("subvaluadas.nuvosFairValue.wacc"), value: `${a.discount_rate_pct.toFixed(1)}%` },
-              ...(a.exit_multiple !== null ? [{ label: t("subvaluadas.nuvosFairValue.exitMultiple"), value: `${a.exit_multiple.toFixed(1)}x` }] : []),
-            ].map((row) => (
-              <div key={row.label} className="rounded-lg p-2" style={{ background: "var(--raised)" }}>
-                <p className="text-[9px] uppercase tracking-wide" style={{ color: "var(--muted)" }}>{row.label}</p>
-                <p className="text-[12px] font-bold tabular-nums" style={{ color: "var(--text)" }}>{row.value}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-2 mt-2">
-        <_NuvosFactorsSection title={t("subvaluadas.nuvosFairValue.growthFactorsTitle")} factors={data.growth_factors} />
-        <_NuvosFactorsSection title={t("subvaluadas.nuvosFairValue.marginFactorsTitle")} factors={data.operating_margin_factors} />
-        <_NuvosFactorsSection title={t("subvaluadas.nuvosFairValue.roicFactorsTitle")} factors={data.terminal_roic_factors} />
-      </div>
+      {/* Supuestos — one grouped section, 3 accordions (Crecimiento/
+          Márgenes/ROIC terminal), each comparing Histórico vs. Consenso de
+          Wall Street vs. Estimación Nuvos, AlphaSpread-style. Replaces the
+          old per-scenario quick-stats grid + 3 separate "Ver detalle"
+          toggles. */}
+      <_SupuestosSection data={data} />
 
       <p className="mt-3 pt-3 border-t text-[10px] leading-relaxed" style={{ borderColor: "var(--border)", color: "var(--dim)" }}>
         {t("subvaluadas.nuvosFairValue.disclaimer")}

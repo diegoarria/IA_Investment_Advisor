@@ -1073,7 +1073,7 @@
       "barIntrinsicValue": "Valor razonable",
       "barPrice": "Precio",
       "methodologyLabel": "Se calcula usando",
-      "methodologyValue": "Nuvos AI Fair Value Engine — DCF con múltiplo de salida {{multiple}}x {{metric}}",
+      "methodologyValue": "Modelo DCF a 10 años con proyección de ingresos, márgenes, reinversión, WACC y múltiplo terminal.",
       "otherReferencePoints": "Otros puntos de referencia",
       "multiplesEstimate": "Estimación por múltiplos",
       "wallStreetTarget": "Objetivo de Wall Street",
@@ -1097,6 +1097,14 @@
         "industry": "Industria (peers reales)",
         "wall_street": "Consenso de Wall Street",
         "business_quality": "Calidad del negocio"
+      },
+      "priceVsScenarios": "Precio actual vs. los tres escenarios",
+      "priceVsScenariosNow": "Hoy",
+      "supuestosToggle": "Ver supuestos",
+      "comparative": {
+        "historical": "Histórico",
+        "wallStreet": "Consenso de Wall Street",
+        "nuvos": "Estimación Nuvos"
       }
     },
     "fullModel": {

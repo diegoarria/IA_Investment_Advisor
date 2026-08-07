@@ -1073,7 +1073,7 @@
       "barIntrinsicValue": "Fair value",
       "barPrice": "Price",
       "methodologyLabel": "Calculated using",
-      "methodologyValue": "Nuvos AI Fair Value Engine — DCF with a {{multiple}}x {{metric}} exit multiple",
+      "methodologyValue": "10-year DCF model with revenue projection, margins, reinvestment, WACC, and terminal multiple.",
       "otherReferencePoints": "Other reference points",
       "multiplesEstimate": "Multiples estimate",
       "wallStreetTarget": "Wall Street target",
@@ -1097,6 +1097,14 @@
         "industry": "Industry (real peers)",
         "wall_street": "Wall Street consensus",
         "business_quality": "Business quality"
+      },
+      "priceVsScenarios": "Current price vs. all three scenarios",
+      "priceVsScenariosNow": "Now",
+      "supuestosToggle": "View assumptions",
+      "comparative": {
+        "historical": "Historical",
+        "wallStreet": "Wall Street consensus",
+        "nuvos": "Nuvos estimate"
       }
     },
     "fullModel": {
