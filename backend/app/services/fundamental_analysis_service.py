@@ -2065,6 +2065,61 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                         if real_values:
                             price_implied_scenario = min(real_values.items(), key=lambda kv: abs(kv[1] - price))[0]
 
+                    # ── Sensitivity matrix — Nuvos AI Fair Value Engine
+                    # redesign, Incremento 15. WACC x exit multiple, not WACC
+                    # x growth: this engine's terminal value comes from a real
+                    # exit multiple (Incremento 2), so growth alone would miss
+                    # the actual lever driving the number. The 5 multiple
+                    # columns use the SAME exit_multiple_delta_fraction spread
+                    # BEAR_BASE_BULL already applies (-25/-15/0/+15/+25%) —
+                    # the 3 middle columns ARE Bear/Base/Bull's own multiple,
+                    # so this heatmap and the scenario panel tell one story,
+                    # not two. Base-case growth/margin/ROIC held fixed (only
+                    # WACC and the multiple vary) — same "one lever at a time"
+                    # discipline as value_drivers/driver_based_sensitivity_matrix
+                    # above. Own try/except: a failure here must never cost
+                    # the 3 real scenarios already computed above.
+                    nuvos_sensitivity_matrix = None
+                    try:
+                        nuvos_wacc_rows = [
+                            round(base_discount_rate - 0.01, 4), round(base_discount_rate, 4), round(base_discount_rate + 0.01, 4),
+                        ]
+                        nuvos_multiple_cols = [
+                            round(exit_multiple_result.exit_multiple * (1 + f), 2)
+                            for f in (-0.25, -0.15, 0.0, 0.15, 0.25)
+                        ]
+                        base_g1 = clamp(blended_growth_pct / 100, -0.5, bear_base_bull_growth_cap_pct(None, "base") / 100)
+                        base_margin = max(blended_margin_pct / 100, 0.0)
+                        nuvos_sensitivity_matrix = {
+                            "wacc_rows_pct": [round(r * 100, 1) for r in nuvos_wacc_rows],
+                            "multiple_cols": nuvos_multiple_cols,
+                            "exit_metric": exit_metric,
+                            "values": [
+                                [
+                                    project_driver_based_dcf(
+                                        revenue_0=latest_rev,
+                                        revenue_growth_1=base_g1,
+                                        terminal_growth=terminal_growth,
+                                        operating_margin_anchor_pct=base_margin,
+                                        terminal_operating_margin_pct=base_margin,
+                                        tax_rate=tax_rate,
+                                        reinvestment_rate_anchor_pct=reinvestment_rate_anchor,
+                                        terminal_roic_pct=max(blended_roic_pct, 0.5) / 100,
+                                        discount_rate=r,
+                                        net_cash=net_cash,
+                                        shares_out=projected_shares,
+                                        high_growth_years=BEAR_BASE_BULL["base"]["high_growth_years"],
+                                        exit_multiple=m,
+                                        exit_metric=exit_metric,
+                                    ).value_per_share
+                                    for m in nuvos_multiple_cols
+                                ]
+                                for r in nuvos_wacc_rows
+                            ],
+                        }
+                    except (UnstableGordonGrowthError, ValueError) as e:
+                        logger.info("get_fundamental_analysis(%s): nuvos sensitivity matrix not computable: %s", ticker, e)
+
                     nuvos_fair_value = {
                         "scenarios": nuvos_scenarios,
                         "exit_metric": exit_metric,
@@ -2073,6 +2128,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                         "growth_factors": [asdict(f) for f in growth_assumption.factors],
                         "operating_margin_factors": [asdict(f) for f in margin_assumption.factors],
                         "terminal_roic_factors": [asdict(f) for f in roic_assumption.factors],
+                        "sensitivity_matrix": nuvos_sensitivity_matrix,
                     }
                 except (UnstableGordonGrowthError, ValueError) as e:
                     logger.info("get_fundamental_analysis(%s): nuvos_fair_value not computable: %s", ticker, e)

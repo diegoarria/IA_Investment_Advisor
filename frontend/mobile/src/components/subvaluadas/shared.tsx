@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import Slider from "@react-native-community/slider";
 import Svg, { Circle } from "react-native-svg";
 import Markdown from "react-native-markdown-display";
 import { Ionicons } from "@expo/vector-icons";
@@ -80,27 +79,6 @@ export interface YearlyDetailRow {
   fcf: number;
   discount_factor: number;
   present_value: number;
-}
-
-// ── Fase 1, Incremento 4 (escenarios configurables + sensibilidad real +
-// reverse DCF) — see /Users/diegoarria/.claude/plans/stateful-painting-flurry.md.
-// Mirror of the web version's types in frontend/web/src/components/subvaluadas/shared.tsx.
-export interface ScenarioValues {
-  intrinsic_value_per_share: number;
-  stage1_growth_pct: number;
-  discount_rate_pct: number;
-}
-
-export interface ScenariosData {
-  pessimistic: ScenarioValues;
-  base: ScenarioValues;
-  optimistic: ScenarioValues;
-}
-
-export interface ProbabilityWeights {
-  pessimistic: number;
-  base: number;
-  optimistic: number;
 }
 
 export interface SensitivityMatrixData {
@@ -279,60 +257,10 @@ export function MarketExpectationsPanel({ data, colors }: { data: MarketExpectat
 // probability weighting (Parte C). Mirror of the web version — see its
 // docstring for why the default starts from the backend's confidence-tiered
 // weights rather than a flat 20/60/20.
-export function ScenarioWeightingPanel({
-  scenarios, defaultWeights, colors,
-}: {
-  scenarios: ScenariosData; defaultWeights: ProbabilityWeights; colors: any;
-}) {
-  const { t } = useTranslation();
-  const [weights, setWeights] = useState(defaultWeights);
-
-  const total = weights.pessimistic + weights.base + weights.optimistic;
-  const norm = (w: number) => (total > 0 ? w / total : 0);
-  const expectedValue =
-    scenarios.pessimistic.intrinsic_value_per_share * norm(weights.pessimistic) +
-    scenarios.base.intrinsic_value_per_share * norm(weights.base) +
-    scenarios.optimistic.intrinsic_value_per_share * norm(weights.optimistic);
-
-  const rows: { key: keyof ProbabilityWeights; labelKey: string; color: string }[] = [
-    { key: "pessimistic", labelKey: "subvaluadas.scenarios.pessimistic", color: "#ef4444" },
-    { key: "base", labelKey: "subvaluadas.scenarios.base", color: colors.accentLight },
-    { key: "optimistic", labelKey: "subvaluadas.scenarios.optimistic", color: "#22c55e" },
-  ];
-
-  return (
-    <View style={{ borderWidth: 1, borderRadius: 12, padding: 12, borderColor: colors.border, backgroundColor: colors.bgRaised }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>{t("subvaluadas.scenarios.label")}</Text>
-        <TouchableOpacity onPress={() => setWeights(defaultWeights)}>
-          <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted }}>{t("subvaluadas.scenarios.reset")}</Text>
-        </TouchableOpacity>
-      </View>
-      {rows.map(({ key, labelKey, color }) => (
-        <View key={key} style={{ marginBottom: 8 }}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
-            <Text style={{ fontSize: 10, color: colors.textSub }}>
-              {t(labelKey)} · <Text style={{ fontWeight: "800", color: colors.text }}>${scenarios[key].intrinsic_value_per_share.toFixed(0)}</Text>
-            </Text>
-            <Text style={{ fontSize: 10, fontWeight: "800", color }}>{Math.round(norm(weights[key]) * 100)}%</Text>
-          </View>
-          <Slider
-            minimumValue={0} maximumValue={100} step={1} value={weights[key]}
-            onValueChange={(v) => setWeights((w) => ({ ...w, [key]: v }))}
-            minimumTrackTintColor={color} maximumTrackTintColor={colors.borderStrong} thumbTintColor={color}
-            style={{ height: 26 }}
-          />
-        </View>
-      ))}
-      <View style={{ flexDirection: "row", justifyContent: "space-between", paddingTop: 8, marginTop: 2, borderTopWidth: 1, borderTopColor: colors.border }}>
-        <Text style={{ fontSize: 11, fontWeight: "800", color: colors.textSub }}>{t("subvaluadas.scenarios.expectedValue")}</Text>
-        <Text style={{ fontSize: 13, fontWeight: "900", color: colors.text }}>${expectedValue.toFixed(0)}</Text>
-      </View>
-    </View>
-  );
-}
-
 // Reverse DCF (Parte E) — mirror of the web version.
+// Incremento 15 — "plegada": the regime-change sanity check (safety-
+// relevant) stays always visible; the Expectations Investing breakdown
+// collapses behind a toggle. Mirrors the web version.
 export function ReverseDcfPanel({
   sanityCheck, expectationsInvesting, colors,
 }: {
@@ -341,6 +269,7 @@ export function ReverseDcfPanel({
   colors: any;
 }) {
   const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
   if (!sanityCheck && !expectationsInvesting) return null;
   return (
     <View style={{ borderWidth: 1, borderRadius: 12, padding: 12, borderColor: colors.border, backgroundColor: colors.bgRaised }}>
@@ -357,25 +286,31 @@ export function ReverseDcfPanel({
       )}
       {expectationsInvesting && (
         <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
-          <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 6, color: colors.textMuted }}>
-            {t("subvaluadas.reverseDcf.expectationsInvesting")}
-          </Text>
-          <View style={{ flexDirection: "row", gap: 6 }}>
-            {expectationsInvesting.growth_by_rate.map((row) => (
-              <View key={row.scenario} style={{ flex: 1, borderRadius: 8, padding: 6, alignItems: "center", backgroundColor: colors.card }}>
-                <Text style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: 0.3, color: colors.textMuted }}>
-                  {t(`subvaluadas.scenarios.${row.scenario}`)}
-                </Text>
-                <Text style={{ fontSize: 11, fontWeight: "900", color: colors.text }}>
-                  {row.implied_growth_pct !== null ? `${row.implied_growth_pct}%` : "N/D"}
-                </Text>
-              </View>
-            ))}
-          </View>
-          {expectationsInvesting.historical_fcf_decline_years > 0 && (
-            <Text style={{ fontSize: 10, marginTop: 6, color: colors.textMuted }}>
-              {t("subvaluadas.reverseDcf.declineYears", { count: expectationsInvesting.historical_fcf_decline_years })}
+          <TouchableOpacity onPress={() => setExpanded((e) => !e)}>
+            <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, color: colors.textMuted }}>
+              {t("subvaluadas.reverseDcf.expectationsInvesting")} — {expanded ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}
             </Text>
+          </TouchableOpacity>
+          {expanded && (
+            <View style={{ marginTop: 6 }}>
+              <View style={{ flexDirection: "row", gap: 6 }}>
+                {expectationsInvesting.growth_by_rate.map((row) => (
+                  <View key={row.scenario} style={{ flex: 1, borderRadius: 8, padding: 6, alignItems: "center", backgroundColor: colors.card }}>
+                    <Text style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: 0.3, color: colors.textMuted }}>
+                      {t(`subvaluadas.scenarios.${row.scenario}`)}
+                    </Text>
+                    <Text style={{ fontSize: 11, fontWeight: "900", color: colors.text }}>
+                      {row.implied_growth_pct !== null ? `${row.implied_growth_pct}%` : "N/D"}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              {expectationsInvesting.historical_fcf_decline_years > 0 && (
+                <Text style={{ fontSize: 10, marginTop: 6, color: colors.textMuted }}>
+                  {t("subvaluadas.reverseDcf.declineYears", { count: expectationsInvesting.historical_fcf_decline_years })}
+                </Text>
+              )}
+            </View>
           )}
         </View>
       )}
@@ -418,6 +353,14 @@ export interface NuvosScenario {
   assumptions: NuvosScenarioAssumptions;
 }
 
+// Incremento 15 — WACC x exit multiple, mirrors the web type.
+export interface NuvosSensitivityMatrixData {
+  wacc_rows_pct: number[];
+  multiple_cols: number[];
+  exit_metric: "ev_sales" | "ev_ebit" | "ev_fcf";
+  values: (number | null)[][];
+}
+
 export interface NuvosFairValueData {
   scenarios: {
     bear: NuvosScenario;
@@ -430,6 +373,7 @@ export interface NuvosFairValueData {
   growth_factors: NuvosScoreFactor[];
   operating_margin_factors: NuvosScoreFactor[];
   terminal_roic_factors: NuvosScoreFactor[];
+  sensitivity_matrix: NuvosSensitivityMatrixData | null;
 }
 
 const _SCENARIO_COLOR: Record<"bear" | "base" | "bull", string> = {

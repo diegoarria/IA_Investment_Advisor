@@ -272,6 +272,25 @@ class TestNuvosFairValueWiring:
         implied = result["dcf"]["nuvos_fair_value"]["price_implied_scenario"]
         assert implied in ("bear", "base", "bull")
 
+    def test_sensitivity_matrix_is_wacc_by_exit_multiple(self):
+        """Incremento 15 — re-fed from the new engine: WACC x exit multiple,
+        not WACC x growth (see the nuvos_sensitivity_matrix comment in
+        fundamental_analysis_service.py)."""
+        patches = _patch_boundary(sector="Technology")
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
+            result = get_fundamental_analysis("SYN12")
+
+        matrix = result["dcf"]["nuvos_fair_value"]["sensitivity_matrix"]
+        assert matrix is not None
+        assert len(matrix["wacc_rows_pct"]) == 3
+        assert len(matrix["multiple_cols"]) == 5
+        assert matrix["exit_metric"] == result["dcf"]["nuvos_fair_value"]["exit_metric"]
+        assert len(matrix["values"]) == 3
+        assert all(len(row) == 5 for row in matrix["values"])
+        # middle column is the base case's own (unadjusted) exit multiple
+        base_exit_multiple = matrix["multiple_cols"][2]
+        assert base_exit_multiple > 0
+
     def test_financial_sector_never_computes_nuvos_fair_value(self):
         # nuvos_fair_value lives inside the same standard-FCF-DCF branch as
         # driver_based_scenarios — financial-sector companies (Justified

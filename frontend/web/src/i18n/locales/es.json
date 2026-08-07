@@ -816,12 +816,9 @@
       "fcfYear1": "FCF (año 1)"
     },
     "scenarios": {
-      "label": "Escenarios y probabilidades",
-      "reset": "Restablecer",
       "pessimistic": "Pesimista",
       "base": "Base",
-      "optimistic": "Optimista",
-      "expectedValue": "Valor esperado"
+      "optimistic": "Optimista"
     },
     "reverseDcf": {
       "label": "DCF inverso — ¿qué espera el mercado?",
@@ -956,13 +953,13 @@
       "marginOfSafety": "de margen de seguridad",
       "heatmap": {
         "title": "Mapa de sensibilidad",
-        "desc": "Qué tan frágil es este número. Cada celda recalcula el valor intrínseco completo para esa combinación de tasa de descuento y crecimiento.",
+        "desc": "Qué tan frágil es este número. Cada celda recalcula el Nuvos AI Fair Value Engine completo para esa combinación de tasa de descuento y múltiplo de salida.",
         "lower": "Menor valor",
         "higher": "Mayor valor",
-        "gAxis": "Crecimiento anual (g) →",
+        "multipleAxis": "Múltiplo de salida ({{metric}}) →",
         "rAxis": "Tasa de descuento (r) ↓",
         "you": "TÚ",
-        "note": "La casilla con borde marcado es tu escenario actual. Si moverte un par de puntos en r o g cambia mucho el resultado, trata ese número con más cautela — no es una verdad fija, es un rango de posibilidades."
+        "note": "La casilla con borde marcado es tu escenario base. Las 3 columnas del medio son literalmente Bear/Base/Bull — si moverte un par de puntos en r o el múltiplo cambia mucho el resultado, trata ese número con más cautela — no es una verdad fija, es un rango de posibilidades."
       },
       "level3Toggle": "Ver modelo completo",
       "level3": {
@@ -1106,21 +1103,6 @@
       "adoptPrompt": "Nuvos ya construyó una tesis de investigación para esta empresa — puedes adoptarla como punto de partida para la tuya.",
       "adoptCta": "Adoptar como mi tesis",
       "adopting": "Adoptando..."
-    },
-    "growthEngine": {
-      "label": "Vista previa — Growth Engine (motor nuevo, no oficial)",
-      "previewNote": "Motor de crecimiento en desarrollo, corriendo en modo sombra. No es el número que usa el resto de esta pantalla todavía.",
-      "historical": "Histórico",
-      "adjustment": "Ajuste",
-      "qualityAdjusted": "Ajustado por calidad",
-      "factors": {
-        "recent_growth_trend": "Tendencia reciente de crecimiento",
-        "incremental_roic_vs_average": "ROIC incremental vs. promedio",
-        "moat_stability": "Estabilidad del moat",
-        "deterioration_direction": "Dirección (mejora/deterioro)",
-        "capital_allocation": "Asignación de capital",
-        "industry_growth_comparison": "Comparación vs. industria"
-      }
     },
     "nuvosFairValue": {
       "title": "Nuvos AI Fair Value Engine (vista previa)",

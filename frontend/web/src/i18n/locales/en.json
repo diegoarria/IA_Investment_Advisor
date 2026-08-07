@@ -816,12 +816,9 @@
       "fcfYear1": "FCF (year 1)"
     },
     "scenarios": {
-      "label": "Scenarios and probabilities",
-      "reset": "Reset",
       "pessimistic": "Pessimistic",
       "base": "Base",
-      "optimistic": "Optimistic",
-      "expectedValue": "Expected value"
+      "optimistic": "Optimistic"
     },
     "reverseDcf": {
       "label": "Reverse DCF — what's the market expecting?",
@@ -956,13 +953,13 @@
       "marginOfSafety": "margin of safety",
       "heatmap": {
         "title": "Sensitivity map",
-        "desc": "How fragile this number is. Each cell recalculates the full intrinsic value for that combination of discount rate and growth.",
+        "desc": "How fragile this number is. Each cell recalculates the full Nuvos AI Fair Value Engine for that combination of discount rate and exit multiple.",
         "lower": "Lower value",
         "higher": "Higher value",
-        "gAxis": "Annual growth (g) →",
+        "multipleAxis": "Exit multiple ({{metric}}) →",
         "rAxis": "Discount rate (r) ↓",
         "you": "YOU",
-        "note": "The outlined cell is your current scenario. If moving a couple of points on r or g changes the result a lot, treat that number with more caution — it's not a fixed truth, it's a range of possibilities."
+        "note": "The outlined cell is your base case. The middle 3 columns are literally Bear/Base/Bull — if moving a couple of points on r or the multiple changes the result a lot, treat that number with more caution — it's not a fixed truth, it's a range of possibilities."
       },
       "level3Toggle": "See the full model",
       "level3": {
@@ -1106,21 +1103,6 @@
       "adoptPrompt": "Nuvos already built a research thesis for this company — you can adopt it as a starting point for your own.",
       "adoptCta": "Adopt as my thesis",
       "adopting": "Adopting..."
-    },
-    "growthEngine": {
-      "label": "Preview — Growth Engine (new, unofficial)",
-      "previewNote": "Growth engine under development, running in shadow mode. Not the number the rest of this screen uses yet.",
-      "historical": "Historical",
-      "adjustment": "Adjustment",
-      "qualityAdjusted": "Quality-adjusted",
-      "factors": {
-        "recent_growth_trend": "Recent growth trend",
-        "incremental_roic_vs_average": "Incremental ROIC vs. average",
-        "moat_stability": "Moat stability",
-        "deterioration_direction": "Direction (improving/deteriorating)",
-        "capital_allocation": "Capital allocation",
-        "industry_growth_comparison": "Industry comparison"
-      }
     },
     "nuvosFairValue": {
       "title": "Nuvos AI Fair Value Engine (preview)",

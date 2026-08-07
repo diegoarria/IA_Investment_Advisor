@@ -16,12 +16,12 @@ import {
   type Checklist, type LiquidityGate, type FairValueRangeData, type ConfidenceMeterData, type MarketExpectationsData,
   type DcfAssumptions, type YearlyDetailRow,
   type NifDashboardData, type NifRow,
-  type ScenariosData, type ProbabilityWeights, type SensitivityMatrixData,
+  type SensitivityMatrixData, type NuvosSensitivityMatrixData,
   type ReverseDcfSanityCheckData, type ExpectationsInvestingData, type FairValueEngineData,
   type NuvosFairValueData,
   GeneratedAtNote, LiquidityWarning, ConfidenceMeter, FairValueRangeDisplay, MarketExpectationsPanel, InsightBox,
   ChecklistDisplay, ActionButtons, NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
-  ScenarioWeightingPanel, ReverseDcfPanel, FinalResultPanel, FairValueScenariosPanel,
+  ReverseDcfPanel, FinalResultPanel, FairValueScenariosPanel,
 } from "../../src/components/subvaluadas/shared";
 
 // Gold/teal/coral is this screen's fixed brand identity (Valor Intrínseco),
@@ -79,8 +79,6 @@ interface QuickAnalysisResult {
   pv_of_terminal_value: number | null;
   enterprise_value: number | null;
   // Fase 1, Incremento 4 — mirror of the web QuickAnalysisResult additions.
-  scenarios: ScenariosData | null;
-  probability_weights: ProbabilityWeights | null;
   sensitivity_matrix: SensitivityMatrixData | null;
   reverse_dcf_sanity_check: ReverseDcfSanityCheckData | null;
   expectations_investing: ExpectationsInvestingData | null;
@@ -121,14 +119,16 @@ function colorForRatio(ratio: number): string {
 // client-side with the simpler `calcularValorIntrinseco`. See the web
 // version's identical comment for the full rationale — one DCF
 // implementation now, not two that could silently drift apart.
-function SensitivityHeatmap({ matrix, price }: { matrix: SensitivityMatrixData; price: number }) {
+// Nuvos AI Fair Value Engine redesign, Incremento 15 — re-fed from the new
+// engine: WACC x exit multiple, not WACC x growth. Mirrors the web version.
+function SensitivityHeatmap({ matrix, price }: { matrix: NuvosSensitivityMatrixData; price: number }) {
   const { t } = useTranslation();
   const { isDark } = useTheme();
   const viColors = useViColors(isDark);
-  const gVals = matrix.growth_cols_pct;
+  const mVals = matrix.multiple_cols;
   const rVals = matrix.wacc_rows_pct;
   const centerRi = Math.floor(rVals.length / 2);
-  const centerGi = Math.floor(gVals.length / 2);
+  const centerMi = Math.floor(mVals.length / 2);
   const cellSize = 52;
 
   return (
@@ -144,9 +144,9 @@ function SensitivityHeatmap({ matrix, price }: { matrix: SensitivityMatrixData; 
 
       <View style={{ flexDirection: "row" }}>
         <View style={{ width: 38 }} />
-        {gVals.map((gv, i) => (
+        {mVals.map((mv, i) => (
           <View key={i} style={{ width: cellSize, alignItems: "center" }}>
-            <Text style={{ fontSize: 9, color: viColors.textMuted }}>{pct(gv)}</Text>
+            <Text style={{ fontSize: 9, color: viColors.textMuted }}>{mv.toFixed(1)}x</Text>
           </View>
         ))}
       </View>
@@ -155,13 +155,13 @@ function SensitivityHeatmap({ matrix, price }: { matrix: SensitivityMatrixData; 
           <View style={{ width: 38, justifyContent: "center" }}>
             <Text style={{ fontSize: 9, color: viColors.textMuted, textAlign: "right", paddingRight: 4 }}>{pct(rv)}</Text>
           </View>
-          {gVals.map((gv, gi) => {
-            const val = matrix.values[ri][gi];
-            const isCenter = ri === centerRi && gi === centerGi;
+          {mVals.map((mv, mi) => {
+            const val = matrix.values[ri][mi];
+            const isCenter = ri === centerRi && mi === centerMi;
             const noSolution = val === null;
             const ratio = val !== null && price ? val / price : 1;
             return (
-              <View key={gi} style={{
+              <View key={mi} style={{
                 width: cellSize, height: cellSize, marginHorizontal: 1.5, borderRadius: 8,
                 alignItems: "center", justifyContent: "center",
                 backgroundColor: noSolution ? viColors.borderStrong : colorForRatio(ratio),
@@ -571,14 +571,8 @@ export default function SubvaluadasScreen() {
             </View>
           ) : (
             <>
-              {data.sensitivity_matrix && price !== null && (
-                <SensitivityHeatmap matrix={data.sensitivity_matrix} price={price} />
-              )}
-
-              {data.scenarios && data.probability_weights && (
-                <View style={{ marginTop: 16 }}>
-                  <ScenarioWeightingPanel scenarios={data.scenarios} defaultWeights={data.probability_weights} colors={viColors} />
-                </View>
+              {data.nuvos_fair_value?.sensitivity_matrix && price !== null && (
+                <SensitivityHeatmap matrix={data.nuvos_fair_value.sensitivity_matrix} price={price} />
               )}
 
               {(data.reverse_dcf_sanity_check || data.expectations_investing) && (

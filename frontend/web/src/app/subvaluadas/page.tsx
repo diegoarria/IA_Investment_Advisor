@@ -16,15 +16,15 @@ import {
   type RangeBounds, type YearlyDetailRow, type Checklist, type FairValueRangeData, type ConfidenceMeterData,
   type MarketExpectationsData, type LiquidityGate, type DcfAssumptions,
   type NifDashboardData, type NifRow, type ThesisDraftData,
-  type ScenariosData, type ProbabilityWeights, type SensitivityMatrixData,
+  type SensitivityMatrixData, type NuvosSensitivityMatrixData,
   type ReverseDcfSanityCheckData, type ExpectationsInvestingData, type FairValueEngineData,
-  type GrowthEngineData, type NuvosFairValueData,
+  type NuvosFairValueData,
   GeneratedAtNote, LiquidityWarning, ChecklistDisplay,
   MarketExpectationsPanel, InsightBox, FollowButton, AnalyzeButton,
   NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
   NifScoreEngineCard, NifMoatDeepDiveBlock, NifManagementDeepDiveCard,
   NifCatalystsCard, NifDeteriorationCard,
-  ScenarioWeightingPanel, ReverseDcfPanel, GrowthEnginePreviewPanel, FairValueScenariosPanel,
+  ReverseDcfPanel, FairValueScenariosPanel,
 } from "@/components/subvaluadas/shared";
 import { ExecutiveSummaryPanel } from "@/components/subvaluadas/ExecutiveSummaryPanel";
 import dynamic from "next/dynamic";
@@ -79,18 +79,11 @@ export interface QuickAnalysisResult {
   // Fase 1, Incremento 4 — see /Users/diegoarria/.claude/plans/stateful-painting-flurry.md.
   // All optional/nullable: absent for financial-sector companies and REITs,
   // which don't run the standard FCF-DCF (see `sector_model_note`).
-  scenarios: ScenariosData | null;
-  probability_weights: ProbabilityWeights | null;
   sensitivity_matrix: SensitivityMatrixData | null;
   reverse_dcf_sanity_check: ReverseDcfSanityCheckData | null;
   expectations_investing: ExpectationsInvestingData | null;
   sector_model_note: { sector_type: string; detalle: string } | null;
   fair_value_engine: FairValueEngineData | null;
-  // Fase 1.5, Incremento 8/9 — Growth Engine shadow-mode preview, gated to
-  // Nivel de Detalle "Profesional" (see GrowthEnginePreviewPanel in
-  // shared.tsx). Never the growth number the rest of this screen actually
-  // uses — that stays legacy until the production flip (Incremento 7).
-  growth_engine: GrowthEngineData | null;
   // Nuvos AI Fair Value Engine redesign — one engine, three named scenarios
   // (Bear/Base/Bull), the PRIMARY valuation since Incremento 11 (THE FLIP);
   // see FairValueScenariosPanel in shared.tsx and combine_fair_value_range
@@ -160,21 +153,20 @@ function colorForRatio(ratio: number): string {
   return `rgb(${c[0]},${c[1]},${c[2]})`;
 }
 
-// Fase 1, Incremento 4: this used to recompute its own 5x5 grid client-side
-// with `calcularValorIntrinseco` (a simpler constant-growth model than the
-// backend's real fading-growth DCF), re-centered live on whatever the g/r/gt
-// sliders were at that moment. It now renders the REAL matrix the backend
-// already computes (`dcf.sensitivity_matrix` — 3 WACC rows x 4 growth
-// columns, every cell a real driver-based DCF run) — fixed to the base
-// scenario's assumptions rather than following the sliders live, since
-// there's now exactly one DCF implementation instead of two that could
-// silently drift apart.
-function SensitivityHeatmap({ matrix, price }: { matrix: SensitivityMatrixData; price: number }) {
+// Nuvos AI Fair Value Engine redesign, Incremento 15 — re-fed from the new
+// engine: WACC x exit multiple, not WACC x growth. This engine's terminal
+// value comes from a real exit multiple (Incremento 2), so a growth-only
+// heatmap would miss the actual lever driving the number. Every cell is a
+// real project_driver_based_dcf run at the base case's growth/margin/ROIC,
+// varying only WACC and the multiple — the middle column IS the Base
+// Case's own multiple, so this heatmap and the scenario panel above tell
+// one story, not two.
+function SensitivityHeatmap({ matrix, price }: { matrix: NuvosSensitivityMatrixData; price: number }) {
   const { t } = useTranslation();
-  const gVals = matrix.growth_cols_pct;
+  const mVals = matrix.multiple_cols;
   const rVals = matrix.wacc_rows_pct;
   const centerRi = Math.floor(rVals.length / 2);
-  const centerGi = Math.floor(gVals.length / 2);
+  const centerMi = Math.floor(mVals.length / 2);
 
   return (
     <div className="card" style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 24, marginTop: 20 }}>
@@ -193,16 +185,16 @@ function SensitivityHeatmap({ matrix, price }: { matrix: SensitivityMatrixData; 
       </div>
 
       <p className="text-center text-[11px] mb-2" style={{ color: "var(--muted)" }}>
-        {t("subvaluadas.detail.heatmap.gAxis")}
+        {t("subvaluadas.detail.heatmap.multipleAxis", { metric: t(`subvaluadas.nuvosFairValue.exitMetric.${matrix.exit_metric}`) })}
       </p>
       <div className="grid" style={{ gridTemplateColumns: "60px 1fr" }}>
         <div className="flex items-end justify-center text-center pb-2 text-[10px] leading-tight" style={{ color: "var(--muted)" }}>
           {t("subvaluadas.detail.heatmap.rAxis")}
         </div>
         <div>
-          <div className="grid mb-2" style={{ gridTemplateColumns: `repeat(${gVals.length},1fr)` }}>
-            {gVals.map((gv, i) => (
-              <div key={i} className="text-center text-[11px]" style={{ color: "var(--muted)" }}>{pct(gv)}</div>
+          <div className="grid mb-2" style={{ gridTemplateColumns: `repeat(${mVals.length},1fr)` }}>
+            {mVals.map((mv, i) => (
+              <div key={i} className="text-center text-[11px]" style={{ color: "var(--muted)" }}>{mv.toFixed(1)}x</div>
             ))}
           </div>
           <div className="flex">
@@ -211,14 +203,14 @@ function SensitivityHeatmap({ matrix, price }: { matrix: SensitivityMatrixData; 
                 <div key={i} className="flex items-center justify-center text-[11px]" style={{ height: 60, color: "var(--muted)" }}>{pct(rv)}</div>
               ))}
             </div>
-            <div className="grid flex-1 gap-1" style={{ gridTemplateColumns: `repeat(${gVals.length},1fr)`, gridTemplateRows: `repeat(${rVals.length},60px)` }}>
-              {rVals.map((rv, ri) => gVals.map((gv, gi) => {
-                const val = matrix.values[ri][gi];
-                const isCenter = ri === centerRi && gi === centerGi;
+            <div className="grid flex-1 gap-1" style={{ gridTemplateColumns: `repeat(${mVals.length},1fr)`, gridTemplateRows: `repeat(${rVals.length},60px)` }}>
+              {rVals.map((rv, ri) => mVals.map((mv, mi) => {
+                const val = matrix.values[ri][mi];
+                const isCenter = ri === centerRi && mi === centerMi;
                 const noSolution = val === null;
                 const ratio = val !== null && price ? val / price : 1;
                 return (
-                  <div key={`${ri}-${gi}`}
+                  <div key={`${ri}-${mi}`}
                        className="relative rounded-lg flex items-center justify-center text-[13px] font-bold"
                        style={{
                          background: noSolution ? "var(--border-s)" : colorForRatio(ratio),
@@ -1023,14 +1015,8 @@ function SubvaluadasPageInner() {
                     </div>
                   ) : (
                     <>
-                      {data.sensitivity_matrix && price !== null && (
-                        <SensitivityHeatmap matrix={data.sensitivity_matrix} price={price} />
-                      )}
-
-                      {data.scenarios && data.probability_weights && (
-                        <div className="mt-5">
-                          <ScenarioWeightingPanel scenarios={data.scenarios} defaultWeights={data.probability_weights} />
-                        </div>
+                      {data.nuvos_fair_value?.sensitivity_matrix && price !== null && (
+                        <SensitivityHeatmap matrix={data.nuvos_fair_value.sensitivity_matrix} price={price} />
                       )}
 
                       {(data.reverse_dcf_sanity_check || data.expectations_investing) && (
@@ -1039,15 +1025,6 @@ function SubvaluadasPageInner() {
                             sanityCheck={data.reverse_dcf_sanity_check}
                             expectationsInvesting={data.expectations_investing}
                           />
-                        </div>
-                      )}
-
-                      {/* ===== Fase 1.5, Incremento 9 — vista previa del Growth
-                           Engine nuevo (modo sombra), gateada a Profesional per
-                           decisión explícita de Diego. ===== */}
-                      {isSectionVisible(detailLevel, "factors_detail") && data.growth_engine && (
-                        <div className="mt-5">
-                          <GrowthEnginePreviewPanel data={data.growth_engine} />
                         </div>
                       )}
 

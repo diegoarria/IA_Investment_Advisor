@@ -102,26 +102,6 @@ export interface YearlyDetailRow {
   present_value: number;
 }
 
-// ── Fase 1, Incremento 4 (escenarios configurables + sensibilidad real +
-// reverse DCF) — see /Users/diegoarria/.claude/plans/stateful-painting-flurry.md.
-export interface ScenarioValues {
-  intrinsic_value_per_share: number;
-  stage1_growth_pct: number;
-  discount_rate_pct: number;
-}
-
-export interface ScenariosData {
-  pessimistic: ScenarioValues;
-  base: ScenarioValues;
-  optimistic: ScenarioValues;
-}
-
-export interface ProbabilityWeights {
-  pessimistic: number;
-  base: number;
-  optimistic: number;
-}
-
 export interface SensitivityMatrixData {
   wacc_rows_pct: number[];
   growth_cols_pct: number[];
@@ -372,68 +352,15 @@ export function MarketExpectationsPanel({ data }: { data: MarketExpectationsData
   );
 }
 
-// Lets the user override the confidence-derived pessimistic/base/optimistic
-// probability weighting (Parte C) — the backend still computes a smarter,
-// confidence-tiered default (`defaultWeights`, e.g. 15/70/15 for a
-// high-confidence company) rather than a flat 20/60/20, since that default
-// is already real signal; this panel starts FROM that default and lets the
-// user reweight it, recomputing the expected value client-side from the
-// three real per-share scenario values already in the response — no new
-// backend call needed for every slider drag.
-export function ScenarioWeightingPanel({ scenarios, defaultWeights }: { scenarios: ScenariosData; defaultWeights: ProbabilityWeights }) {
-  const { t } = useTranslation();
-  const [weights, setWeights] = useState(defaultWeights);
-
-  const total = weights.pessimistic + weights.base + weights.optimistic;
-  const norm = (w: number) => (total > 0 ? w / total : 0);
-  const expectedValue =
-    scenarios.pessimistic.intrinsic_value_per_share * norm(weights.pessimistic) +
-    scenarios.base.intrinsic_value_per_share * norm(weights.base) +
-    scenarios.optimistic.intrinsic_value_per_share * norm(weights.optimistic);
-
-  const rows: { key: keyof ProbabilityWeights; labelKey: string; color: string }[] = [
-    { key: "pessimistic", labelKey: "subvaluadas.scenarios.pessimistic", color: "#ef4444" },
-    { key: "base", labelKey: "subvaluadas.scenarios.base", color: "var(--accent-l)" },
-    { key: "optimistic", labelKey: "subvaluadas.scenarios.optimistic", color: "#22c55e" },
-  ];
-
-  return (
-    <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-[11px] font-bold" style={{ color: "var(--text)" }}>{t("subvaluadas.scenarios.label")}</p>
-        <button onClick={() => setWeights(defaultWeights)} className="text-[10px] font-semibold hover:opacity-80" style={{ color: "var(--muted)" }}>
-          {t("subvaluadas.scenarios.reset")}
-        </button>
-      </div>
-      <div className="space-y-2.5">
-        {rows.map(({ key, labelKey, color }) => (
-          <div key={key}>
-            <div className="flex items-center justify-between text-[10px] mb-0.5">
-              <span style={{ color: "var(--sub)" }}>
-                {t(labelKey)} · <span className="tabular-nums font-bold" style={{ color: "var(--text)" }}>${scenarios[key].intrinsic_value_per_share.toFixed(0)}</span>
-              </span>
-              <span className="tabular-nums font-bold" style={{ color }}>{Math.round(norm(weights[key]) * 100)}%</span>
-            </div>
-            <input
-              type="range" min={0} max={100} value={weights[key]}
-              onChange={(e) => setWeights((w) => ({ ...w, [key]: Number(e.target.value) }))}
-              className="w-full" style={{ accentColor: color }}
-            />
-          </div>
-        ))}
-      </div>
-      <div className="pt-2 mt-2 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
-        <span className="text-[11px] font-bold" style={{ color: "var(--sub)" }}>{t("subvaluadas.scenarios.expectedValue")}</span>
-        <span className="text-[13px] font-black tabular-nums" style={{ color: "var(--text)" }}>${expectedValue.toFixed(0)}</span>
-      </div>
-    </div>
-  );
-}
-
 // Reverse DCF (Parte E) — already fully solved by the backend (Brent's
 // method) in 3 flavors, never previously shown anywhere in the frontend.
 // This surfaces the regime-change sanity check and the Expectations
 // Investing (Rappaport) constant-growth table.
+// Incremento 15 — "plegada": the regime-change sanity check (safety-
+// relevant, never hidden) stays always visible; the Expectations Investing
+// (Rappaport) constant-growth breakdown, a deeper drill-down, collapses
+// behind a toggle so this panel takes less space now that it sits below
+// the primary Bear/Base/Bull panel and the sensitivity heatmap.
 export function ReverseDcfPanel({
   sanityCheck, expectationsInvesting,
 }: {
@@ -441,6 +368,7 @@ export function ReverseDcfPanel({
   expectationsInvesting: ExpectationsInvestingData | null;
 }) {
   const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
   if (!sanityCheck && !expectationsInvesting) return null;
   return (
     <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
@@ -455,44 +383,32 @@ export function ReverseDcfPanel({
       )}
       {expectationsInvesting && (
         <div className="pt-2 border-t" style={{ borderColor: "var(--border)" }}>
-          <p className="text-[9px] uppercase tracking-wide mb-1.5" style={{ color: "var(--muted)" }}>
-            {t("subvaluadas.reverseDcf.expectationsInvesting")}
-          </p>
-          <div className="grid grid-cols-3 gap-1.5">
-            {expectationsInvesting.growth_by_rate.map((row) => (
-              <div key={row.scenario} className="rounded-lg p-1.5 text-center" style={{ background: "var(--card)" }}>
-                <p className="text-[8px] uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t(`subvaluadas.scenarios.${row.scenario}`)}</p>
-                <p className="text-[11px] font-black tabular-nums" style={{ color: "var(--text)" }}>
-                  {row.implied_growth_pct !== null ? `${row.implied_growth_pct}%` : "N/D"}
-                </p>
+          <button onClick={() => setExpanded((e) => !e)} className="text-[10px] font-bold underline underline-offset-2" style={{ color: "var(--muted)" }}>
+            {t("subvaluadas.reverseDcf.expectationsInvesting")} — {expanded ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}
+          </button>
+          {expanded && (
+            <div className="mt-1.5">
+              <div className="grid grid-cols-3 gap-1.5">
+                {expectationsInvesting.growth_by_rate.map((row) => (
+                  <div key={row.scenario} className="rounded-lg p-1.5 text-center" style={{ background: "var(--card)" }}>
+                    <p className="text-[8px] uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t(`subvaluadas.scenarios.${row.scenario}`)}</p>
+                    <p className="text-[11px] font-black tabular-nums" style={{ color: "var(--text)" }}>
+                      {row.implied_growth_pct !== null ? `${row.implied_growth_pct}%` : "N/D"}
+                    </p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          {expectationsInvesting.historical_fcf_decline_years > 0 && (
-            <p className="text-[10px] mt-1.5" style={{ color: "var(--muted)" }}>
-              {t("subvaluadas.reverseDcf.declineYears", { count: expectationsInvesting.historical_fcf_decline_years })}
-            </p>
+              {expectationsInvesting.historical_fcf_decline_years > 0 && (
+                <p className="text-[10px] mt-1.5" style={{ color: "var(--muted)" }}>
+                  {t("subvaluadas.reverseDcf.declineYears", { count: expectationsInvesting.historical_fcf_decline_years })}
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}
     </div>
   );
-}
-
-// Fase 1.5, Incremento 8/9 — Growth Engine (motor de crecimiento
-// ponderado, ver /Users/diegoarria/.claude/plans/stateful-painting-flurry.md).
-// Corre en modo sombra: se calcula siempre, pero el número que el usuario ve
-// en el resto de la pantalla sigue siendo el legacy hasta el flip a
-// producción (Incremento 7, bloqueado en un harness de validación con datos
-// reales). Este panel es explícitamente una VISTA PREVIA del motor nuevo,
-// gateada a nivel de detalle "Profesional" — nunca se mezcla con
-// growth_buildup.quality_adjusted_growth_pct (campo legacy, mismo nombre,
-// distinto dict, distinta escala) que el resto de la pantalla usa.
-export interface GrowthEngineData {
-  historical_growth_pct: number;
-  quality_adjusted_growth_pct: number;
-  total_adjustment_pct: number;
-  factors: NifScoreFactor[];
 }
 
 // Nuvos AI Fair Value Engine redesign (ver /Users/diegoarria/.claude/plans/
@@ -525,6 +441,19 @@ export interface NuvosScenario {
   assumptions: NuvosScenarioAssumptions;
 }
 
+// Incremento 15 — WACC x exit multiple, not WACC x growth: this engine's
+// terminal value comes from a real exit multiple, so growth alone would
+// miss the actual lever driving the number. `multiple_cols` are absolute
+// multiples (e.g. 4.2x), not percentages — the middle 3 columns are
+// literally Bear/Base/Bull's own multiple (see fundamental_analysis_
+// service.py's nuvos_sensitivity_matrix comment).
+export interface NuvosSensitivityMatrixData {
+  wacc_rows_pct: number[];
+  multiple_cols: number[];
+  exit_metric: "ev_sales" | "ev_ebit" | "ev_fcf";
+  values: (number | null)[][];
+}
+
 export interface NuvosFairValueData {
   scenarios: {
     bear: NuvosScenario;
@@ -537,6 +466,7 @@ export interface NuvosFairValueData {
   growth_factors: NifScoreFactor[];
   operating_margin_factors: NifScoreFactor[];
   terminal_roic_factors: NifScoreFactor[];
+  sensitivity_matrix: NuvosSensitivityMatrixData | null;
 }
 
 const _SCENARIO_COLOR: Record<"bear" | "base" | "bull", string> = {
@@ -667,62 +597,6 @@ export function FairValueScenariosPanel({ data, price }: { data: NuvosFairValueD
       <p className="mt-3 pt-3 border-t text-[10px] leading-relaxed" style={{ borderColor: "var(--border)", color: "var(--dim)" }}>
         {t("subvaluadas.nuvosFairValue.disclaimer")}
       </p>
-    </div>
-  );
-}
-
-export function GrowthEnginePreviewPanel({ data }: { data: GrowthEngineData | null }) {
-  const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
-  if (!data) return null;
-  const adjustmentColor = data.total_adjustment_pct > 0 ? "#22c55e" : data.total_adjustment_pct < 0 ? "#ef4444" : "var(--muted)";
-  return (
-    <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
-      <div className="flex items-center gap-1.5 mb-1">
-        <Sparkles className="w-3 h-3" style={{ color: "var(--accent-l)" }} />
-        <p className="text-[11px] font-bold" style={{ color: "var(--text)" }}>{t("subvaluadas.growthEngine.label")}</p>
-      </div>
-      <p className="text-[10px] leading-relaxed mb-2" style={{ color: "var(--muted)" }}>{t("subvaluadas.growthEngine.previewNote")}</p>
-      <div className="grid grid-cols-3 gap-1.5 mb-2">
-        <div className="rounded-lg p-1.5 text-center" style={{ background: "var(--card)" }}>
-          <p className="text-[8px] uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.growthEngine.historical")}</p>
-          <p className="text-[11px] font-black tabular-nums" style={{ color: "var(--text)" }}>{data.historical_growth_pct.toFixed(1)}%</p>
-        </div>
-        <div className="rounded-lg p-1.5 text-center" style={{ background: "var(--card)" }}>
-          <p className="text-[8px] uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.growthEngine.adjustment")}</p>
-          <p className="text-[11px] font-black tabular-nums" style={{ color: adjustmentColor }}>
-            {data.total_adjustment_pct > 0 ? "+" : ""}{data.total_adjustment_pct.toFixed(2)}pp
-          </p>
-        </div>
-        <div className="rounded-lg p-1.5 text-center" style={{ background: "var(--card)" }}>
-          <p className="text-[8px] uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("subvaluadas.growthEngine.qualityAdjusted")}</p>
-          <p className="text-[11px] font-black tabular-nums" style={{ color: "var(--text)" }}>{(data.quality_adjusted_growth_pct * 100).toFixed(1)}%</p>
-        </div>
-      </div>
-      {data.factors.length > 0 && (
-        <>
-          <button onClick={() => setExpanded((e) => !e)} className="text-[10px] font-bold underline underline-offset-2" style={{ color: "var(--muted)" }}>
-            {expanded ? t("subvaluadas.checklist.hide") : t("subvaluadas.checklist.viewDetail")}
-          </button>
-          {expanded && (
-            <div className="space-y-1.5 mt-2">
-              {data.factors.map((f, i) => (
-                <div key={i} className="rounded-lg p-2" style={{ background: "var(--card)" }}>
-                  <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <span className="text-[10.5px] font-bold" style={{ color: "var(--sub)" }}>
-                      {t(`subvaluadas.growthEngine.factors.${f.name}`, { defaultValue: f.name })}
-                    </span>
-                    {f.score !== null && (
-                      <span className="text-[10.5px] font-black tabular-nums shrink-0" style={{ color: nifScoreColor(f.score) }}>{f.score}</span>
-                    )}
-                  </div>
-                  <p className="text-[10.5px] leading-relaxed" style={{ color: "var(--dim)" }}>{f.reason}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
     </div>
   );
 }

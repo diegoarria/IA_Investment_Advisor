@@ -1008,18 +1008,18 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "confidence_meter": confidence_meter_v3 or dcf.get("confidence_meter"),
         "market_expectations": dcf.get("market_expectations"),
         # Fase 1, Incremento 4 (see /Users/diegoarria/.claude/plans/stateful-painting-flurry.md):
-        # these were already computed by fundamental_analysis_service but
-        # never reached the frontend — scenarios+probability_weights let the
-        # UI let the user configure their own probability weighting instead
-        # of only showing the confidence-derived expected value;
         # sensitivity_matrix lets the frontend stop reimplementing its own
-        # client-side heatmap (dcfCalculator.ts) and show the REAL backend
-        # matrix instead; reverse_dcf_sanity_check/expectations_investing
-        # expose the reverse-DCF the backend already solves for (Parte E)
-        # but the frontend has never shown; driver_based_valuation/
-        # sector_model_note are the Incremento 2/3 additions.
-        "scenarios": dcf.get("scenarios"),
-        "probability_weights": dcf.get("probability_weights"),
+        # client-side heatmap and show the REAL backend matrix instead;
+        # reverse_dcf_sanity_check/expectations_investing expose the
+        # reverse-DCF the backend already solves for (Parte E); driver_based_
+        # valuation/sector_model_note are the Incremento 2/3 additions.
+        #
+        # `scenarios`/`probability_weights` (the pessimistic/base/optimistic
+        # weighting UI) are no longer exposed here — Nuvos AI Fair Value
+        # Engine redesign, Incremento 15: ScenarioWeightingPanel is retired,
+        # replaced by the Bear/Base/Bull panel. `dcf["probability_weights"]`
+        # itself is untouched — it still feeds expected_value_per_share and
+        # the AI context builder internally.
         "sensitivity_matrix": dcf.get("sensitivity_matrix"),
         "reverse_dcf_sanity_check": dcf.get("reverse_dcf_sanity_check"),
         "expectations_investing": dcf.get("expectations_investing"),
@@ -1038,7 +1038,12 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         # (Bear/Base/Bull); the primary valuation since the flip (Incremento
         # 11) — see combine_fair_value_range.
         "nuvos_fair_value": dcf.get("nuvos_fair_value"),
-        "growth_engine": dcf.get("growth_engine"),
+        # `growth_engine` (Fase 1.5's shadow-mode preview panel) is no
+        # longer exposed here either — Incremento 15: GrowthEnginePreviewPanel
+        # was retired as redundant with nuvos_fair_value's own growth_factors.
+        # `dcf["growth_engine"]`/growth_engine_result stay untouched
+        # internally — they still feed the Assumptions Engine's
+        # business_quality dimension (fundamental_analysis_service.py).
         "sector_model_note": data.get("sector_model_note"),
         "fair_value_engine": fair_value_engine_result,
         "industry_benchmarks": _asdict_or_none(industry_benchmarks),

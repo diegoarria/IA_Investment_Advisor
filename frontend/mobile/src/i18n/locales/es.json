@@ -787,12 +787,9 @@
       "margin": "Margen FCF"
     },
     "scenarios": {
-      "label": "Escenarios y probabilidades",
-      "reset": "Restablecer",
       "pessimistic": "Pesimista",
       "base": "Base",
-      "optimistic": "Optimista",
-      "expectedValue": "Valor esperado"
+      "optimistic": "Optimista"
     },
     "reverseDcf": {
       "label": "DCF inverso — ¿qué espera el mercado?",
@@ -929,10 +926,10 @@
       "marginOfSafety": "de margen de seguridad",
       "heatmap": {
         "title": "Mapa de sensibilidad",
-        "desc": "Qué tan frágil es este número. Cada celda recalcula el valor intrínseco completo para esa combinación de tasa de descuento y crecimiento.",
+        "desc": "Qué tan frágil es este número. Cada celda recalcula el Nuvos AI Fair Value Engine completo para esa combinación de tasa de descuento y múltiplo de salida.",
         "lower": "Menor valor",
         "higher": "Mayor valor",
-        "note": "La casilla con borde marcado es tu escenario actual. Si moverte un par de puntos en r o g cambia mucho el resultado, trata ese número con más cautela — no es una verdad fija, es un rango de posibilidades."
+        "note": "La casilla con borde marcado es tu escenario base. Las 3 columnas del medio son literalmente Bear/Base/Bull — si moverte un par de puntos en r o el múltiplo cambia mucho el resultado, trata ese número con más cautela — no es una verdad fija, es un rango de posibilidades."
       },
       "level3Toggle": "Ver modelo completo",
       "level3": {
