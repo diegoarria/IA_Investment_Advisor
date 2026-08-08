@@ -154,6 +154,51 @@ class TestRouteWrappersAgreeWithCanonical:
         assert await learn._is_premium("fake-user-id") is False
 
 
+class TestFetchFreshSubscriptionFields:
+    @pytest.mark.asyncio
+    async def test_returns_row_data_on_success(self, monkeypatch):
+        from app.core import subscription
+
+        class FakeResult:
+            data = {"subscription_tier": "free", "trial_started_at": _iso_days_ago(15), "streak_bonus_premium_until": None}
+
+        async def fake_run_query(query):
+            return FakeResult()
+
+        monkeypatch.setattr("app.core.database.run_query", fake_run_query)
+        monkeypatch.setattr("app.core.database.get_supabase", lambda: SimpleNamespace(
+            table=lambda name: SimpleNamespace(
+                select=lambda cols: SimpleNamespace(
+                    eq=lambda k, v: SimpleNamespace(maybe_single=lambda: None)
+                )
+            )
+        ))
+        result = await subscription.fetch_fresh_subscription_fields("fake-user-id")
+        assert result["subscription_tier"] == "free"
+        assert result["trial_started_at"] is not None
+
+    @pytest.mark.asyncio
+    async def test_db_failure_returns_empty_dict_not_an_exception(self, monkeypatch):
+        # Callers merge this into an already-cached blob — a transient DB
+        # hiccup here must degrade to "keep serving the cached value" rather
+        # than crashing the whole request.
+        from app.core import subscription
+
+        async def failing_run_query(query):
+            raise Exception("simulated transient DB error")
+
+        monkeypatch.setattr("app.core.database.run_query", failing_run_query)
+        monkeypatch.setattr("app.core.database.get_supabase", lambda: SimpleNamespace(
+            table=lambda name: SimpleNamespace(
+                select=lambda cols: SimpleNamespace(
+                    eq=lambda k, v: SimpleNamespace(maybe_single=lambda: None)
+                )
+            )
+        ))
+        result = await subscription.fetch_fresh_subscription_fields("fake-user-id")
+        assert result == {}
+
+
 class TestNoReimplementedTrialMath:
     """Guards against the exact regression that kept happening: a route file
     reimplementing `datetime.fromisoformat(...)` + `days < N` trial-window
@@ -213,6 +258,33 @@ class TestNoReimplementedTrialMath:
         assert not offenders, (
             "Found ad hoc trial-window math outside app/core/subscription.py — "
             "use is_premium_active() instead:\n" + "\n".join(offenders)
+        )
+
+    def test_profile_cache_hit_refetches_subscription_fields_fresh(self):
+        # GET /profile serves most of the row from a cache that can be up to
+        # 120s stale AND, without Redis configured, is only ever invalidated
+        # on the ONE gunicorn worker process that handled the write — every
+        # other process keeps serving the old tier/trial_started_at for the
+        # rest of its TTL. Guards against that exact cache-hit branch ever
+        # returning `cached` without overwriting the subscription fields.
+        path = BACKEND_ROOT / "app" / "api" / "routes" / "profile.py"
+        text = path.read_text(encoding="utf-8")
+        cache_hit_block = text.split("cached = cache_get(cache_key)", 1)[1].split("return UserProfile(**cached)", 1)[0]
+        assert "fetch_fresh_subscription_fields" in cache_hit_block, (
+            "app/api/routes/profile.py's GET /profile cache-hit branch no longer refreshes "
+            "subscription_tier/trial_started_at before returning — this is exactly how a "
+            "trial/premium user can flicker to free depending on which backend process "
+            "answers the request. Call fetch_fresh_subscription_fields() and merge it in."
+        )
+
+    def test_sync_all_cache_hit_refetches_subscription_fields_fresh(self):
+        path = BACKEND_ROOT / "app" / "api" / "routes" / "sync.py"
+        text = path.read_text(encoding="utf-8")
+        cache_hit_block = text.split('ck = f"sync:all:{user_id}"', 1)[1].split("db = get_supabase()", 1)[0]
+        assert "fetch_fresh_subscription_fields" in cache_hit_block, (
+            "app/api/routes/sync.py's GET /sync/all cache-hit branch no longer refreshes "
+            "the trial/tier fields before returning — same flicker risk as GET /profile. "
+            "Call fetch_fresh_subscription_fields() and rebuild the `trial` object from it."
         )
 
     _TIER_ONLY_PATTERN = re.compile(r'subscription_tier["\']?\s*\)?\s*==\s*["\']premium["\']')

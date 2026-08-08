@@ -202,6 +202,15 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
     cache_key = f"profile:{user_id}"
     cached = cache_get(cache_key)
     if cached is not None:
+        # Subscription status must never be served stale — see
+        # fetch_fresh_subscription_fields's docstring for why the cached
+        # blob's tier/trial fields alone can't be trusted (multi-process
+        # cache, up to 120s old). Everything else in `cached` is fine to
+        # reuse; only these 3 fields get overwritten with a fresh read.
+        from app.core.subscription import fetch_fresh_subscription_fields
+        fresh = await fetch_fresh_subscription_fields(user_id)
+        if fresh:
+            cached = {**cached, **fresh}
         return UserProfile(**cached)
 
     db = get_supabase()

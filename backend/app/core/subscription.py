@@ -18,6 +18,36 @@ logger = logging.getLogger(__name__)
 TRIAL_DAYS = 30
 
 
+async def fetch_fresh_subscription_fields(user_id: str) -> dict:
+    """Single indexed-row read of ONLY the 3 columns that decide premium
+    status, bypassing every response cache (profile:{uid}, sync:all:{uid},
+    etc). Callers that serve a broader cached payload (GET /profile, GET
+    /sync/all) must call this on every request and overwrite whatever
+    subscription fields were in the cached blob before returning — the app
+    runs multiple backend processes (gunicorn -w N), each with its own
+    in-memory cache fallback when Redis isn't configured, so a
+    cache_delete() after a Stripe webhook or trial auto-start only clears
+    the ONE process that handled that write; every other process keeps
+    serving a stale tier/trial_started_at for the rest of its TTL. Since
+    requests load-balance across processes, that's a user seeing Premium
+    on one request and Free on the next for the SAME real state — the
+    flicker this function exists to make structurally impossible. A
+    primary-key lookup on 3 columns is cheap enough to always pay for."""
+    from app.core.database import get_supabase, run_query
+    db = get_supabase()
+    try:
+        res = await run_query(
+            db.table("user_profiles")
+            .select("subscription_tier, trial_started_at, streak_bonus_premium_until")
+            .eq("user_id", user_id)
+            .maybe_single()
+        )
+        return res.data or {}
+    except Exception as e:
+        logger.warning("fetch_fresh_subscription_fields(%s) failed: %s — leaving cached values in place", user_id, e)
+        return {}
+
+
 def is_premium_active(
     tier: str | None,
     trial_started_at: str | None,

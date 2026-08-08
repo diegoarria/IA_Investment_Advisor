@@ -107,6 +107,7 @@ async def stripe_webhook(request: Request):
                 db.table("user_profiles").update(update).eq("user_id", user_id)
             )
             cache_delete(f"profile:{user_id}")
+            cache_delete(f"sync:all:{user_id}")
 
     elif event["type"] in ("customer.subscription.deleted", "customer.subscription.paused"):
         customer_id = event["data"]["object"].get("customer")
@@ -183,15 +184,20 @@ async def stripe_webhook(request: Request):
 
 async def _invalidate_profile_cache_by_customer(customer_id: str, db):
     """Webhook branches that key their update by stripe_customer_id (rather
-    than user_id) don't have the user_id in scope to invalidate the /profile
-    cache directly — without this, a tier change from Stripe could be masked
-    by a stale cached /profile response for up to 120s."""
+    than user_id) don't have the user_id in scope to invalidate the
+    /profile or /sync/all caches directly — without this, a tier change
+    from Stripe could be masked by a stale cached response for up to 120s
+    (or 20s for sync:all). Belt-and-suspenders: GET /profile and GET
+    /sync/all now always re-read subscription fields fresh regardless (see
+    fetch_fresh_subscription_fields), so this mainly guards any other
+    cached field that keys off this same blob."""
     try:
         res = await run_query(
             db.table("user_profiles").select("user_id").eq("stripe_customer_id", customer_id)
         )
         for row in (res.data or []):
             cache_delete(f"profile:{row['user_id']}")
+            cache_delete(f"sync:all:{row['user_id']}")
     except Exception as e:
         logger.warning("_invalidate_profile_cache_by_customer failed: %s", e)
 
@@ -273,6 +279,7 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
             .eq("user_id", user_id)
         )
         cache_delete(f"profile:{user_id}")
+        cache_delete(f"sync:all:{user_id}")
 
     # Compute effective tier: premium if paid OR within the trial window OR streak
     # bonus active. is_trial/effective_tier defer to the canonical
@@ -382,6 +389,7 @@ async def _revoke_duo_secondary(primary_customer_id: str, db):
                 .eq("user_id", secondary_id)
             )
             cache_delete(f"profile:{secondary_id}")
+            cache_delete(f"sync:all:{secondary_id}")
             logger.info("Duo secondary %s reverted to free", secondary_email)
         await run_query(
             db.table("user_profiles")
@@ -436,6 +444,7 @@ async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
             .eq("user_id", old_secondary_id)
         )
         cache_delete(f"profile:{old_secondary_id}")
+        cache_delete(f"sync:all:{old_secondary_id}")
         logger.info("Duo setup: revoked stale secondary=%s for primary=%s (replaced by %s)", old_secondary_id, user_id, secondary_id)
 
     # 3. Grant premium to secondary account + link back to the primary, so the
@@ -447,6 +456,7 @@ async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
         .eq("user_id", secondary_id)
     )
     cache_delete(f"profile:{secondary_id}")
+    cache_delete(f"sync:all:{secondary_id}")
 
     # 4. Save secondary email + resolved id on primary profile (caching the id
     # avoids re-scanning all auth users by email on every future lookup).

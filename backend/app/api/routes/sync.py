@@ -560,6 +560,23 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
     ck = f"sync:all:{user_id}"
     cached = cache_get(ck)
     if cached is not None:
+        # Same reasoning as GET /profile — subscription status must never
+        # be served stale, so it's excluded from the cache-hit fast path
+        # and always re-read fresh (see fetch_fresh_subscription_fields).
+        from app.core.subscription import fetch_fresh_subscription_fields, is_premium_active
+        fresh = await fetch_fresh_subscription_fields(user_id)
+        if fresh:
+            trial_started_at = fresh.get("trial_started_at")
+            cached = {
+                **cached,
+                "trial": {
+                    "trial_started_at": trial_started_at,
+                    "trial_active": is_premium_active(
+                        fresh.get("subscription_tier"), trial_started_at, fresh.get("streak_bonus_premium_until"),
+                    ),
+                    "tier": fresh.get("subscription_tier", "free"),
+                },
+            }
         return cached
     db = get_supabase()
 
