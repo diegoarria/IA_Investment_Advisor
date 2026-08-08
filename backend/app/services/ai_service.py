@@ -2348,15 +2348,39 @@ Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta est
 # FEATURE: Screener semanal personalizado
 # ──────────────────────────────────────────────────────────────
 
+# Screener Semanal — hard, deterministic guardrail applied AFTER the LLM
+# responds (on top of the RISK_GUIDANCE prompt instruction below), so a
+# conservative user can never end up with a speculative pick (or vice
+# versa) even if the model doesn't follow the prompt perfectly. Built from
+# each tier's own "Ejemplos"/"EVITAR" lists in RISK_GUIDANCE.
+WEEKLY_PICKS_RISK_AVOID: dict[str, set[str]] = {
+    "conservative": {
+        "PLTR", "TSM", "SMCI", "AFRM", "SOFI", "HIMS", "CELH", "RDDT", "RKLB", "BE",
+        "IONQ", "RGTI", "JOBY", "ACHR", "RXRX", "BEAM", "NTLA", "MARA", "BBAI", "PLUG",
+        "UPST", "MSTR", "AI", "APP", "DDOG", "NET", "SHOP",
+    },
+    "conservative_moderate": {
+        "PLTR", "TSM", "SMCI", "AFRM", "SOFI", "HIMS", "CELH", "RDDT", "RKLB", "BE",
+        "IONQ", "RGTI", "JOBY", "ACHR", "RXRX", "BEAM", "NTLA", "MARA", "BBAI", "PLUG",
+        "UPST", "MSTR", "AI",
+    },
+    "aggressive": {"KO", "WMT", "PEP", "PG", "JNJ", "O", "NEE"},
+    "aggressive_speculative": {"KO", "WMT", "PEP", "PG", "JNJ", "O", "NEE"},
+    "speculative": {"KO", "WMT", "PEP", "PG", "JNJ", "O", "NEE"},
+}
+
+
 async def generate_weekly_picks(
     candidates: list[dict],
     profile: UserProfile | None = None,
     existing_tickers: list[str] | None = None,
+    recent_tickers: list[str] | None = None,
 ) -> dict:
     system_prompt = build_system_prompt(profile)
     risk = profile.risk_tolerance if profile else "moderado"
     mentor = profile.mentor if profile else None
     existing = existing_tickers or []
+    recent = recent_tickers or []
     quiz = (profile.quiz_answers if profile else {}) or {}
 
     # Translate quiz answers into readable investment context
@@ -2399,6 +2423,7 @@ async def generate_weekly_picks(
 
     mentor_line   = f"Mentor: {mentor}." if mentor else ""
     existing_line = f"Ya posee: {', '.join(existing)}. NO incluir." if existing else ""
+    recent_line   = f"Sugerido en semanas recientes: {', '.join(recent)}. EVITAR repetir — el usuario ya vio estas ideas." if recent else ""
 
     RISK_GUIDANCE: dict[str, str] = {
         "conservative": (
@@ -2465,6 +2490,7 @@ async def generate_weekly_picks(
 • Seguimiento: {engage_ctx}
 • {mentor_line}
 • {existing_line}
+• {recent_line}
 
 ═══ TIPO DE NEGOCIO QUE BUSCA ═══
 {mentor_biz}
@@ -2505,7 +2531,7 @@ Responde SOLO con JSON válido:
     }}
   ],
   "mentor_note": "Mensaje final del mentor al usuario — 2 oraciones, tono personal y directo, refuerza por qué estas 5 ideas encajan con su perfil",
-  "disclaimer": "Estas son sugerencias educativas basadas en tu perfil. No son asesoramiento financiero ni recomendaciones de compra. Siempre investiga antes de invertir."
+  "disclaimer": "Estas son ideas educativas para investigar, no recomendaciones de compra ni asesoría financiera. Investiga a fondo cada empresa (estados financieros, competencia, riesgos) antes de invertir un solo dólar."
 }}
 
 Sin texto fuera del JSON."""
@@ -2528,12 +2554,24 @@ Sin texto fuera del JSON."""
             "mentor_note": raw,
         }
 
+    # Hard guardrail — strip any pick that violates the risk-tier avoid-list,
+    # was already owned, or was suggested in a recent week, even though the
+    # prompt above already instructs the model to avoid all three. Never lets
+    # a conservative user see a speculative pick (or vice versa) due to an
+    # LLM slip, and guarantees weeks don't repeat the same idea.
+    block = (
+        {t.upper() for t in WEEKLY_PICKS_RISK_AVOID.get(risk, set())}
+        | {t.upper() for t in existing}
+        | {t.upper() for t in recent}
+    )
+    if result.get("picks"):
+        result["picks"] = [p for p in result["picks"] if (p.get("ticker") or "").upper() not in block]
+
     # Always guarantee disclaimer
     if "disclaimer" not in result:
         result["disclaimer"] = (
-            "Estas son sugerencias educativas basadas en tu perfil. "
-            "No son asesoramiento financiero ni recomendaciones de compra. "
-            "Siempre haz tu propia investigación antes de invertir."
+            "Estas son ideas educativas para investigar, no recomendaciones de compra ni asesoría financiera. "
+            "Investiga a fondo cada empresa (estados financieros, competencia, riesgos) antes de invertir un solo dólar."
         )
     return result
 

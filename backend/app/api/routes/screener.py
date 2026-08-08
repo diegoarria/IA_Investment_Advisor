@@ -1625,19 +1625,65 @@ def _log_thesis_event(user_id: str, ticker: str, result: dict) -> None:
     ))
 
 
+_WEEKLY_HISTORY_TTL = 24 * 86400  # ~3 weeks — rolling "don't repeat" window
+_WEEKLY_HISTORY_MAX = 15          # last 3 weeks' worth of picks (5/week)
+
+
+def _weekly_cache_key(user_id: str) -> str:
+    # isocalendar() weeks run Mon-Sun, but the Screener Semanal cadence is
+    # Sunday-to-Saturday (generated + pushed Sunday morning, see worker.py's
+    # job_weekly_screener_generate) — shift the date forward one day so
+    # Sunday itself already lands in the upcoming week's bucket instead of
+    # the ending one, or Sunday's pre-generated cache would be written under
+    # a key that goes stale the moment Monday's real ISO week begins.
+    shifted = datetime.now() + timedelta(days=1)
+    iso_year, iso_week, _ = shifted.isocalendar()
+    return f"screener:weekly:{user_id}:{iso_year}:{iso_week}"
+
+
+def _weekly_history_key(user_id: str) -> str:
+    return f"screener:weekly:history:{user_id}"
+
+
+async def _generate_weekly_picks_for_user(
+    user_id: str, existing: list[str], stocks: list[dict], profile=None,
+) -> dict:
+    """Shared by the on-demand /weekly route and the Sunday pre-generation
+    job (worker.py's job_weekly_screener_generate) — same personalization,
+    same hard risk-tier guardrail, same repeat-avoidance history, whichever
+    caller populates the week's cache first."""
+    recent = cache_get(_weekly_history_key(user_id)) or []
+    # Also skip tickers shown in recent weeks — falls back to the full pool
+    # if that filter would leave nothing (never block a user down to zero).
+    candidates_all = [s for s in stocks if s["ticker"] not in existing]
+    candidates = [s for s in candidates_all if s["ticker"] not in recent] or candidates_all
+
+    if profile is None:
+        profile = await _get_user_profile_safe(user_id)
+    result = await ai_service.generate_weekly_picks(candidates, profile, existing, recent_tickers=recent)
+    result["generated_at"] = datetime.now().isoformat()
+
+    new_tickers = [p["ticker"] for p in result.get("picks", []) if p.get("ticker")]
+    if new_tickers:
+        updated_history = (new_tickers + [t for t in recent if t not in new_tickers])[:_WEEKLY_HISTORY_MAX]
+        cache_set(_weekly_history_key(user_id), updated_history, ttl=_WEEKLY_HISTORY_TTL)
+
+    return result
+
+
 @router.get("/weekly")
 async def weekly_picks(
     tickers: str = "",
     user_id: str = Depends(get_current_user_id),
 ):
-    """Return 5 personalized weekly picks based on user profile and existing portfolio."""
-    from datetime import datetime as _dt
-    existing = [t.strip().upper() for t in tickers.split(",") if t.strip()]
-
-    # Cache per user per week (Mon–Sun)
-    week_num  = _dt.now().isocalendar()[1]
-    year      = _dt.now().year
-    cache_key = f"screener:weekly:{user_id}:{year}:{week_num}"
+    """Return 5 personalized weekly picks based on user profile and existing
+    portfolio — this is the Screener Semanal. Cache is pre-warmed for every
+    Premium user every Sunday by worker.py's job_weekly_screener_generate;
+    this on-demand path is the fallback for any user that job missed (new
+    Premium user mid-week, a run that failed for them, etc.), so the cache
+    is never left empty until next Sunday."""
+    existing  = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    cache_key = _weekly_cache_key(user_id)
     cached    = cache_get(cache_key)
     if cached:
         return cached
@@ -1645,13 +1691,8 @@ async def weekly_picks(
     # Fetch all universe stocks (cached 4h by _fetch_one)
     stocks = await asyncio.to_thread(_fetch_batch, UNIVERSE)
     stocks.sort(key=lambda x: x.get("score", 0), reverse=True)
-    # Filter out stocks already in portfolio
-    candidates = [s for s in stocks if s["ticker"] not in existing]
 
-    profile = await _get_user_profile_safe(user_id)
-    result  = await ai_service.generate_weekly_picks(candidates, profile, existing)
-    result["generated_at"] = _dt.now().isoformat()
-
+    result = await _generate_weekly_picks_for_user(user_id, existing, stocks)
     cache_set(cache_key, result, ttl=_WEEKLY_TTL)
     return result
 

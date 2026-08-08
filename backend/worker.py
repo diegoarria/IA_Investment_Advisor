@@ -2125,23 +2125,32 @@ async def job_portfolio_alerts():
         logger.error("job_portfolio_alerts failed: %s", e)
 
 
-async def job_weekly_screener_push():
-    """3:00 PM ET Wednesday + Saturday — "Oportunidades para ti". Picks 4
-    candidates per user based on risk profile, investment horizon, and
-    existing portfolio (excluded) to decide WHETHER there's something worth
-    telling this user about — the push itself is a teaser deep-linking to
-    Oportunidades (subvaluadas), it doesn't list tickers (the email does).
-    This is the single "Oportunidades" notification — it replaces what used
-    to be two separate pushes (this one on Sat 11am + a generic Sun 12:05pm
-    "picks rotated" push, see job_refresh_undervalued_screener) to avoid
-    sending 3 different opportunities pushes a week.
-    Strategy: 1 Haiku call per risk group (~6 total) → cheap regardless of user count.
-    Sends both push notification and email."""
-    import anthropic
+async def job_weekly_screener_generate():
+    """8:00 AM ET Sunday — pre-generates and caches this week's Screener
+    Semanal picks (see app/api/routes/screener.py's weekly_picks /
+    _generate_weekly_picks_for_user — the real personalized engine behind
+    WeeklyScreenerCard.tsx / MobileWeeklyScreener.tsx) for every Premium
+    user, then sends one push once it's ready. Running early Sunday, well
+    before anyone is likely to open the app that day, means the cache for
+    the new ISO week is already warm — the on-demand path in weekly_picks()
+    is now a rare fallback (new Premium user mid-week, this job failing for
+    one specific user) instead of the common case, so the screen is never
+    left showing "no suggestions" until next Sunday.
+
+    REPLACES the old Wed/Sat "Oportunidades para ti" push, which used a
+    separate, cheaper but far less personalized Haiku call over a hardcoded
+    per-risk-tier ticker universe with no repeat-avoidance and no hard
+    risk-tier guardrail — single weekly cadence now, backed by the real
+    Screener Semanal engine (deep profile/mentor/quiz context, a hard
+    per-risk-tier exclude-list, and a rolling "don't repeat last 3 weeks'
+    picks" history, see generate_weekly_picks in ai_service.py)."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     from app.services.email_service import send_email
-    from app.core.config import settings as cfg
+    from app.core.cache import cache_set
+    from app.api.routes.screener import (
+        UNIVERSE, _fetch_batch, _generate_weekly_picks_for_user, _weekly_cache_key, _WEEKLY_TTL,
+    )
 
     db = get_supabase()
     try:
@@ -2152,10 +2161,10 @@ async def job_weekly_screener_push():
         if not pref_uids:
             return
 
-        # Premium-only (paid, in-trial, or streak/referral bonus — same rule everywhere)
+        # Premium-only — the Screener Semanal card itself is Premium-locked in-app.
         profiles_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,risk_tolerance,quiz_answers,mentor,subscription_tier,preferred_language,trial_started_at,streak_bonus_premium_until")
+            .select("user_id,subscription_tier,trial_started_at,streak_bonus_premium_until,preferred_language")
             .in_("user_id", list(pref_uids))
         )
         uids = [
@@ -2165,82 +2174,12 @@ async def job_weekly_screener_push():
         if not uids:
             return
 
+        lang_map   = {r["user_id"]: (r.get("preferred_language") or "es") for r in (profiles_res.data or [])}
         auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
-        profile_map = {r["user_id"]: r for r in (profiles_res.data or []) if r["user_id"] in set(uids)}
 
-        portfolio_map: dict[str, set] = {}
-        for uid in uids:
-            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
-            if port_res.data:
-                pos = _agg_positions(port_res.data or [])
-                portfolio_map[uid] = {p["ticker"] for p in pos if p.get("ticker")}
-
-        RISK_LABELS = {
-            "conservative": "conservador", "conservative_moderate": "conservador-moderado",
-            "moderate": "moderado", "moderate_growth": "moderado con enfoque en crecimiento",
-            "growth": "de crecimiento", "aggressive": "agresivo",
-            "aggressive_speculative": "agresivo-especulativo", "speculative": "especulativo",
-        }
-        RISK_LABELS_EN = {
-            "conservative": "conservative", "conservative_moderate": "conservative-moderate",
-            "moderate": "moderate", "moderate_growth": "moderate with a growth focus",
-            "growth": "growth-oriented", "aggressive": "aggressive",
-            "aggressive_speculative": "aggressive-speculative", "speculative": "speculative",
-        }
-        HORIZON_MAP = {"A": "corto plazo", "B": "mediano plazo", "C": "largo plazo", "D": "muy largo plazo"}
-        HORIZON_MAP_EN = {"A": "short term", "B": "medium term", "C": "long term", "D": "very long term"}
-
-        RISK_UNIVERSES = {
-            "conservative":           "BRK-B, KO, PG, JNJ, O, NEE, WMT, PEP, V, MA, ABT, MCD, CVX, T, VZ",
-            "conservative_moderate":  "BRK-B, MSFT, AAPL, V, COST, UNH, ABT, KO, GOOGL, HD, LOW, JPM, PG, TGT",
-            "moderate":               "MSFT, GOOGL, AMZN, V, UNH, COST, NVDA, META, AAPL, JPM, MA, ADBE, CRM, NOW",
-            "moderate_growth":        "NVDA, META, AMZN, NOW, DDOG, NET, SHOP, PLTR, ABNB, UBER, SNOW, ZS, MDB",
-            "growth":                 "NVDA, META, DDOG, NET, SHOP, PLTR, APP, DUOL, CELH, HIMS, RDDT, IOT, TTD",
-            "aggressive":             "PLTR, APP, SMCI, AFRM, SOFI, HIMS, CELH, RDDT, RKLB, BE, MELI, NU, DLO, GLOB",
-            "aggressive_speculative": "BE, PLUG, IONQ, RKLB, JOBY, RXRX, BEAM, UPST, MSTR, AI, SNDK, SOUN, BBAI",
-            "speculative":            "IONQ, RGTI, JOBY, ACHR, RKLB, RXRX, BEAM, NTLA, MARA, BBAI, LUNR, RDW, ASTS",
-        }
-
-        # Pre-generate 8 picks per risk group — 1 Haiku call per group, reused across all users of that group
-        client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
-        picks_by_risk: dict[str, list[dict]] = {}
-
-        risk_groups: dict[str, list] = {}
-        for uid in uids:
-            r = (profile_map.get(uid) or {}).get("risk_tolerance") or "moderate"
-            risk_groups.setdefault(r, []).append(uid)
-
-        for risk, group_uids in risk_groups.items():
-            universe = RISK_UNIVERSES.get(risk, RISK_UNIVERSES["moderate"])
-            try:
-                resp = await asyncio.to_thread(
-                    lambda r=risk, u=universe: client.messages.create(
-                        model="claude-haiku-4-5-20251001",
-                        max_tokens=280,
-                        messages=[{"role": "user", "content": (
-                            f"Eres un screener de inversiones. Perfil del inversor: {r}.\n"
-                            f"Universo de acciones candidatas: {u}\n\n"
-                            "Elige exactamente 8 acciones para que este inversor investigue esta semana. "
-                            "Considera el contexto actual de mercado y elige las más relevantes para este perfil.\n"
-                            "Responde SOLO con este formato JSON, sin texto adicional:\n"
-                            '[{"ticker":"XX","name":"Nombre completo"},{"ticker":"XX","name":"Nombre completo"},...]'
-                        )}],
-                    )
-                )
-                in_tok = getattr(resp.usage, "input_tokens", 0)
-                out_tok = getattr(resp.usage, "output_tokens", 0)
-                logger.info("LLM screener(risk=%s): in=%d out=%d cost=$%.5f", risk, in_tok, out_tok,
-                            in_tok / 1e6 * 0.80 + out_tok / 1e6 * 4.0)
-                from app.services.llm_usage import log_llm_usage
-                asyncio.create_task(log_llm_usage(None, "job_weekly_screener_push", "claude-haiku-4-5-20251001", resp.usage))
-                raw = resp.content[0].text.strip() if resp.content else "[]"
-                import json as _json
-                parsed = _json.loads(raw)
-                if isinstance(parsed, list):
-                    picks_by_risk[risk] = parsed[:8]
-            except Exception as e:
-                logger.warning("Weekly screener Haiku call failed for risk=%s: %s", risk, e)
-                picks_by_risk[risk] = []
+        # Fetch the whole universe once (cached ~4h per-ticker inside _fetch_one) — reused across every user below.
+        stocks = await asyncio.to_thread(_fetch_batch, UNIVERSE)
+        stocks.sort(key=lambda x: x.get("score", 0), reverse=True)
 
         sent = 0
         for i, uid in enumerate(uids):
@@ -2248,53 +2187,57 @@ async def job_weekly_screener_push():
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.1))
 
-            p       = profile_map.get(uid) or {}
-            name    = (p.get("name") or "Inversor").split()[0]
-            risk    = p.get("risk_tolerance") or "moderate"
-            quiz    = (p.get("quiz_answers") or {})
-            is_en   = (p.get("preferred_language") or "es") == "en"
-            horizon = (HORIZON_MAP_EN if is_en else HORIZON_MAP).get(str(quiz.get("q2", "")), "long term" if is_en else "largo plazo")
-            risk_label = (RISK_LABELS_EN if is_en else RISK_LABELS).get(risk, "moderate" if is_en else "moderado")
-            owned   = portfolio_map.get(uid, set())
+            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
+            owned = [p["ticker"] for p in _agg_positions(port_res.data or []) if p.get("ticker")]
 
-            all_picks = picks_by_risk.get(risk, [])
-            # Exclude tickers the user already owns
-            picks = [pk for pk in all_picks if pk.get("ticker") not in owned][:4]
+            # Never leave a user's cache empty because of one transient LLM
+            # failure — one retry before giving up for this run (the
+            # on-demand /weekly route remains the final safety net).
+            result = None
+            for attempt in range(2):
+                try:
+                    result = await _generate_weekly_picks_for_user(uid, owned, stocks)
+                    break
+                except Exception as e:
+                    logger.warning("job_weekly_screener_generate: attempt %d failed for %s: %s", attempt + 1, uid, e)
+                    await asyncio.sleep(1)
+            if result is None:
+                logger.error("job_weekly_screener_generate: giving up on %s this run", uid)
+                continue
 
-            if len(picks) < 2:
-                continue  # not enough picks after exclusions — skip silently
+            cache_set(_weekly_cache_key(uid), result, ttl=_WEEKLY_TTL)
 
-            # Push is a teaser, not a listing — the Haiku picks above only
-            # decide WHETHER there's enough worth sending (>=2 picks survive
-            # the owned-tickers exclusion); the actual tickers are shown when
-            # the user opens Oportunidades (subvaluadas), not in-notification.
-            # The rich ticker-listing email below is unchanged.
-            if is_en:
-                push_title = "💎 Opportunities for you"
-                body = "The AI found new companies worth studying for your portfolio."
-            else:
-                push_title = "💎 Oportunidades para ti"
-                body = "La IA encontró nuevas empresas que vale la pena estudiar para tu portafolio."
-
-            await send_push(
-                uid, "weekly_screener",
-                push_title,
-                body,
-                {"screen": "subvaluadas"},
-                db,
+            is_en = lang_map.get(uid, "es") == "en"
+            title = "📊 Your Screener Semanal is ready" if is_en else "📊 Tu Screener Semanal está listo"
+            body = (
+                "5 new ideas picked for your profile — research deeply before investing in any of them."
+                if is_en else
+                "5 ideas nuevas elegidas para tu perfil — investiga a fondo antes de invertir en cualquiera de ellas."
             )
+            await send_push(uid, "weekly_screener", title, body, {"screen": "portfolio"}, db)
+            sent += 1
 
-            # Email
+            # Email — same real picks the in-app card shows, not a separate generation.
             email_addr = auth_users.get(uid)
-            if email_addr:
+            picks = (result.get("picks") or [])[:5]
+            if email_addr and picks:
                 pick_rows = "".join(
-                    f'<div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid #1e2235">'
+                    f'<div style="padding:14px 0;border-bottom:1px solid #1e2235">'
+                    f'<div style="display:flex;align-items:center;gap:12px">'
                     f'<span style="background:#00d47e22;color:#00d47e;font-size:13px;font-weight:900;width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">{idx+1}</span>'
-                    f'<div><span style="color:#fff;font-size:16px;font-weight:800">{pk["ticker"]}</span>'
-                    f'<span style="color:#6b7280;font-size:13px;margin-left:8px">{pk["name"]}</span></div>'
+                    f'<div><span style="color:#fff;font-size:16px;font-weight:800">{pk.get("ticker","")}</span>'
+                    f'<span style="color:#6b7280;font-size:13px;margin-left:8px">{pk.get("name","")}</span></div>'
+                    f'</div>'
+                    f'<p style="color:#9ca3af;font-size:12.5px;line-height:1.6;margin:8px 0 0 40px">{pk.get("why","")}</p>'
                     f'</div>'
                     for idx, pk in enumerate(picks)
                 )
+                disclaimer = result.get("disclaimer") or (
+                    "This is educational content, not financial advice. Research deeply before investing."
+                    if is_en else
+                    "Esto es contenido educativo, no asesoría financiera. Investiga a fondo antes de invertir."
+                )
+                theme = result.get("week_theme") or ""
                 if is_en:
                     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -2304,23 +2247,19 @@ async def job_weekly_screener_push():
   <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
     <div style="background:linear-gradient(135deg,#0d1f14,#0f2a1a);padding:28px 32px;text-align:center;border-bottom:1px solid #1e3a28">
       <img src="https://www.nuvosai.com/logo.png" alt="Nuvos AI" width="48" height="48" style="display:block;margin:0 auto 10px;border-radius:12px"/>
-      <p style="margin:0;color:#00d47e;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase">Nuvos AI · Weekly Screener</p>
+      <p style="margin:0;color:#00d47e;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase">Nuvos AI · Screener Semanal</p>
     </div>
     <div style="background:#161b27;padding:28px 32px">
-      <h1 style="color:#fff;font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-0.3px">Your 4 ideas for this week 📊</h1>
-      <p style="color:#6b7280;font-size:13px;margin:0 0 20px">Selected for your <strong style="color:#d1d5db">{risk_label}</strong> profile — {horizon} outlook</p>
+      <h1 style="color:#fff;font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-0.3px">Your 5 ideas for this week 📊</h1>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 20px">{theme}</p>
       <div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:8px 16px;margin-bottom:20px">
         {pick_rows}
       </div>
-      <div style="background:#111318;border:1px solid rgba(0,212,126,0.2);border-radius:14px;padding:18px;margin-bottom:20px">
-        <p style="color:#d1d5db;font-size:13px;line-height:1.7;margin:0">💬 <strong style="color:#00d47e">What do I do with these ideas?</strong> Talk to your AI Mentor to analyze them: do they fit your portfolio? what's the real risk? when's a good entry point?</p>
-      </div>
       <div style="text-align:center;margin-bottom:20px">
-        <a href="https://nuvosai.com/chat" style="display:inline-block;background:#00d47e;color:#000;font-weight:900;font-size:14px;padding:13px 28px;border-radius:12px;text-decoration:none">Talk to my mentor →</a>
+        <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#00d47e;color:#000;font-weight:900;font-size:14px;padding:13px 28px;border-radius:12px;text-decoration:none">Open Screener Semanal →</a>
       </div>
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
-        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 4px">With Nuvos, invest without fear.</p>
-        <p style="color:#374151;font-size:11px;margin:0">Nuvos AI · For educational purposes only. Not professional financial advice.</p>
+        <p style="color:#374151;font-size:11px;margin:0">{disclaimer}</p>
       </div>
     </div>
   </div>
@@ -2338,36 +2277,30 @@ async def job_weekly_screener_push():
       <p style="margin:0;color:#00d47e;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase">Nuvos AI · Screener Semanal</p>
     </div>
     <div style="background:#161b27;padding:28px 32px">
-      <h1 style="color:#fff;font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-0.3px">Tus 4 ideas para esta semana 📊</h1>
-      <p style="color:#6b7280;font-size:13px;margin:0 0 20px">Seleccionadas para tu perfil <strong style="color:#d1d5db">{risk_label}</strong> — visión de {horizon}</p>
+      <h1 style="color:#fff;font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-0.3px">Tus 5 ideas para esta semana 📊</h1>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 20px">{theme}</p>
       <div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:8px 16px;margin-bottom:20px">
         {pick_rows}
       </div>
-      <div style="background:#111318;border:1px solid rgba(0,212,126,0.2);border-radius:14px;padding:18px;margin-bottom:20px">
-        <p style="color:#d1d5db;font-size:13px;line-height:1.7;margin:0">💬 <strong style="color:#00d47e">¿Qué hago con estas ideas?</strong> Habla con tu mentor IA para analizarlas: ¿encajan en tu portafolio? ¿cuál es el riesgo real? ¿cuándo conviene entrar?</p>
-      </div>
       <div style="text-align:center;margin-bottom:20px">
-        <a href="https://nuvosai.com/chat" style="display:inline-block;background:#00d47e;color:#000;font-weight:900;font-size:14px;padding:13px 28px;border-radius:12px;text-decoration:none">Hablar con mi mentor →</a>
+        <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#00d47e;color:#000;font-weight:900;font-size:14px;padding:13px 28px;border-radius:12px;text-decoration:none">Abrir Screener Semanal →</a>
       </div>
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
-        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 4px">Con Nuvos, invierte sin miedo.</p>
-        <p style="color:#374151;font-size:11px;margin:0">Nuvos AI · Solo educativo. No constituye asesoramiento financiero profesional.</p>
+        <p style="color:#374151;font-size:11px;margin:0">{disclaimer}</p>
       </div>
     </div>
   </div>
 </div>
 </body></html>"""
-                subject = "📊 Your 4 investment ideas for this week — Nuvos AI" if is_en else "📊 Tus 4 ideas de inversión para esta semana — Nuvos AI"
+                subject = "📊 Your 5 investment ideas for this week — Nuvos AI" if is_en else "📊 Tus 5 ideas de inversión para esta semana — Nuvos AI"
                 try:
                     await send_email(email_addr, subject, html)
                 except Exception as e:
                     logger.warning("Weekly screener email failed for %s: %s", uid, e)
 
-            sent += 1
-
-        logger.info("Weekly screener push+email: %d sent across %d risk groups", sent, len(picks_by_risk))
+        logger.info("Screener Semanal generate+notify: %d sent across %d premium users", sent, len(uids))
     except Exception as e:
-        logger.error("job_weekly_screener_push failed: %s", e)
+        logger.error("job_weekly_screener_generate failed: %s", e)
 
 
 async def job_refresh_undervalued_screener():
@@ -2377,10 +2310,10 @@ async def job_refresh_undervalued_screener():
     undervalued_screener_service._rotate_featured_order — the same real
     candidates, just a different 5 up front so it doesn't look identical
     week after week). This job ONLY refreshes the data the in-app
-    Oportunidades screen reads — it no longer sends its own notification
-    (that used to be a second, generic "picks rotated" push on top of
-    Saturday's personalized one); job_weekly_screener_push's Wed/Sat 3pm
-    push is now the single opportunities notification."""
+    Oportunidades screen reads — no notification of its own. Distinct from
+    job_weekly_screener_generate (8am ET Sunday), which is the separate,
+    per-user-personalized "Screener Semanal" pipeline and owns the only
+    Sunday opportunities-style push."""
     from app.services.undervalued_screener_service import refresh_undervalued_screener
     try:
         await refresh_undervalued_screener()
@@ -4768,14 +4701,14 @@ async def main():
     scheduler.add_job(job_earnings_results,     "cron", day_of_week="mon-fri", hour=16,      minute=30,    timezone="America/New_York")
     scheduler.add_job(job_daily_email,          "cron", day_of_week="fri",     hour=18,      minute=0,     timezone="America/New_York")
 
-    # ── Wed + Sat 3pm ET: "Oportunidades para ti" (premium only) — the single
-    # opportunities notification, see job_weekly_screener_push's docstring ──
-    scheduler.add_job(job_weekly_screener_push, "cron", day_of_week="wed,sat", hour=15,      minute=0,     timezone="America/New_York")
+    # ── Sunday 8:00am ET: Screener Semanal — pre-generate + cache + notify
+    # (premium only), see job_weekly_screener_generate's docstring. Replaces
+    # the old Wed/Sat "Oportunidades para ti" push — single weekly cadence.
+    scheduler.add_job(job_weekly_screener_generate, "cron", day_of_week="sun", hour=8,  minute=0, timezone="America/New_York")
 
-    # ── Sunday: undervalued-stocks screener cache refresh (real DCF engine) ───
-    # No notification here anymore — this just keeps the in-app Oportunidades
-    # screen's data current; the Wed/Sat push above is the only opportunities
-    # notification now.
+    # ── Sunday 12:05pm ET: undervalued-stocks screener cache refresh (real
+    # DCF engine) — no notification, just keeps the in-app Oportunidades
+    # screen's data current. Separate pipeline from Screener Semanal above.
     scheduler.add_job(job_refresh_undervalued_screener, "cron", day_of_week="sun", hour=12,  minute=5,     timezone="America/New_York")
 
     # ── Sunday 7:05pm ET: index futures just came online for the week (5 min

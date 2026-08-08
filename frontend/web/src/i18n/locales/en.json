@@ -551,7 +551,7 @@
     },
     "header": {
       "title": "Weekly Screener",
-      "subtitle": "5 personalized opportunities for you — updated every Monday",
+      "subtitle": "5 personalized opportunities for you — updated every Sunday",
       "refresh": "Refresh"
     },
     "paywall": {
@@ -2483,7 +2483,7 @@
       "7": {
         "title": "Learning & Tools",
         "subtitle": "Everything you need to invest better",
-        "desc": "A library of financial concepts explained by AI, adapted to your level: ETFs, fundamental analysis, P/E ratio, DCA, Value Investing, and investor psychology. The weekly Screener (Intermediate+) analyzes the market and selects personalized opportunities every Monday.",
+        "desc": "A library of financial concepts explained by AI, adapted to your level: ETFs, fundamental analysis, P/E ratio, DCA, Value Investing, and investor psychology. The weekly Screener (Intermediate+) analyzes the market and selects personalized opportunities every Sunday.",
         "tip": "💡 The Investors section shows you how the big funds invest — useful for spotting trends and validating your ideas."
       },
       "8": {
@@ -2819,7 +2819,7 @@
     "analyzingMarket": "Analyzing the market based on your profile...",
     "catalyst": "Catalyst",
     "mainRisk": "Main risk",
-    "defaultDisclaimer": "These are educational suggestions based on your profile. They are not financial advice or buy recommendations. Always research before investing.",
+    "defaultDisclaimer": "These are educational ideas to research, not buy recommendations or financial advice. Research each company deeply before investing a single dollar.",
     "noSuggestions": "No suggestions available yet."
   },
   "paywallModal": {

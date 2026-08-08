@@ -551,7 +551,7 @@
     },
     "header": {
       "title": "Screener Semanal",
-      "subtitle": "5 oportunidades personalizadas para ti — actualizadas cada lunes",
+      "subtitle": "5 oportunidades personalizadas para ti — actualizadas cada domingo",
       "refresh": "Actualizar"
     },
     "paywall": {
@@ -2483,7 +2483,7 @@
       "7": {
         "title": "Aprendizaje & Herramientas",
         "subtitle": "Todo lo que necesitas para invertir mejor",
-        "desc": "Biblioteca de conceptos financieros explicados con IA adaptada a tu nivel: ETFs, análisis fundamental, P/E ratio, DCA, Value Investing y psicología del inversor. El Screener semanal (Intermedio+) analiza el mercado y selecciona oportunidades personalizadas cada lunes.",
+        "desc": "Biblioteca de conceptos financieros explicados con IA adaptada a tu nivel: ETFs, análisis fundamental, P/E ratio, DCA, Value Investing y psicología del inversor. El Screener semanal (Intermedio+) analiza el mercado y selecciona oportunidades personalizadas cada domingo.",
         "tip": "💡 La sección Inversores te muestra cómo invierten los grandes fondos — útil para identificar tendencias y validar tus ideas."
       },
       "8": {
@@ -2819,7 +2819,7 @@
     "analyzingMarket": "Analizando el mercado según tu perfil...",
     "catalyst": "Catalizador",
     "mainRisk": "Riesgo principal",
-    "defaultDisclaimer": "Estas son sugerencias educativas basadas en tu perfil. No son asesoramiento financiero ni recomendaciones de compra. Siempre investiga antes de invertir.",
+    "defaultDisclaimer": "Estas son ideas educativas para investigar, no recomendaciones de compra ni asesoría financiera. Investiga a fondo cada empresa antes de invertir un solo dólar.",
     "noSuggestions": "No hay sugerencias disponibles aún."
   },
   "paywallModal": {

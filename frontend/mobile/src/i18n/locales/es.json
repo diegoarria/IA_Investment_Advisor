@@ -1553,13 +1553,13 @@
       "subtitle": "Análisis avanzado de tu portafolio",
       "weeklyScreener": {
         "title": "Screener Semanal",
-        "tagline": "5 oportunidades personalizadas cada lunes",
-        "description": "Cada lunes la IA escanea el mercado y selecciona 5 oportunidades que encajan con tu perfil de riesgo, filosofía de tu mentor y los huecos en tu portafolio.",
+        "tagline": "5 oportunidades personalizadas cada domingo",
+        "description": "Cada domingo la IA escanea el mercado y selecciona 5 oportunidades que encajan con tu perfil de riesgo, filosofía de tu mentor y los huecos en tu portafolio.",
         "benefits": [
           "Filtradas por tu perfil de riesgo y mentor",
           "Catalizador concreto y riesgo por cada pick",
-          "Nunca te sugiere lo que ya tienes",
-          "Se actualiza cada lunes automáticamente"
+          "Nunca te sugiere lo que ya tienes ni lo que viste semanas recientes",
+          "Se actualiza cada domingo automáticamente"
         ]
       }
     },
@@ -2763,9 +2763,10 @@
   },
   "mobileWeeklyScreener": {
     "title": "Screener Semanal",
-    "tagline": "5 oportunidades personalizadas cada lunes",
+    "tagline": "5 oportunidades personalizadas cada domingo",
     "searching": "Buscando oportunidades...",
-    "noPicks": "No hay picks disponibles aún."
+    "noPicks": "No hay picks disponibles aún.",
+    "defaultDisclaimer": "Estas son ideas educativas para investigar, no recomendaciones de compra ni asesoría financiera. Investiga a fondo cada empresa antes de invertir un solo dólar."
   },
   "mobileTourBanner": {
     "step": "PASO {{step}}/{{total}}",

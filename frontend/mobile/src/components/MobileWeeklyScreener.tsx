@@ -107,6 +107,15 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
             <Text style={[s.emptyText, { color: colors.textMuted }]}>{t("mobileWeeklyScreener.noPicks")}</Text>
           </View>
         )}
+
+        {!loading && data && (
+          <View style={[s.disclaimerRow, { borderTopColor: colors.border }]}>
+            <Ionicons name="information-circle-outline" size={13} color={colors.textDim ?? colors.textMuted} style={{ marginTop: 1 }} />
+            <Text style={[s.disclaimerText, { color: colors.textDim ?? colors.textMuted }]}>
+              {data.disclaimer ?? t("mobileWeeklyScreener.defaultDisclaimer")}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* ── Undervalued (real DCF-backed) ── */}
@@ -168,4 +177,8 @@ const styles = () => StyleSheet.create({
   why:        { fontSize: 11, marginTop: 2, lineHeight: 15 },
   price:      { fontSize: 13, fontWeight: "700" },
   change:     { fontSize: 10, fontWeight: "700" },
+
+  // Disclaimer
+  disclaimerRow:  { flexDirection: "row", alignItems: "flex-start", gap: 6, paddingTop: 12, marginTop: 4, borderTopWidth: StyleSheet.hairlineWidth },
+  disclaimerText: { fontSize: 10, lineHeight: 14, flex: 1 },
 });

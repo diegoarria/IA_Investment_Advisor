@@ -1553,13 +1553,13 @@
       "subtitle": "Advanced analysis of your portfolio",
       "weeklyScreener": {
         "title": "Weekly Screener",
-        "tagline": "5 personalized opportunities every Monday",
-        "description": "Every Monday the AI scans the market and selects 5 opportunities that match your risk profile, your mentor's philosophy, and the gaps in your portfolio.",
+        "tagline": "5 personalized opportunities every Sunday",
+        "description": "Every Sunday the AI scans the market and selects 5 opportunities that match your risk profile, your mentor's philosophy, and the gaps in your portfolio.",
         "benefits": [
           "Filtered by your risk profile and mentor",
           "Concrete catalyst and risk for every pick",
-          "Never suggests what you already own",
-          "Updates automatically every Monday"
+          "Never suggests what you already own or saw in recent weeks",
+          "Updates automatically every Sunday"
         ]
       }
     },
@@ -1635,7 +1635,7 @@
         "We alert you before your companies report earnings",
         "Find out if your money would survive another crisis like 2008 or COVID",
         "AI reviews your portfolio and honestly tells you what to improve",
-        "5 investment ideas picked for you every Monday",
+        "5 investment ideas picked for you every Sunday",
         "News about your stocks, summarized by AI in seconds",
         "Every month we tell you if you beat the market or not",
         "Lessons built around the stocks you already own",
@@ -2763,9 +2763,10 @@
   },
   "mobileWeeklyScreener": {
     "title": "Weekly Screener",
-    "tagline": "5 personalized opportunities every Monday",
+    "tagline": "5 personalized opportunities every Sunday",
     "searching": "Searching for opportunities...",
-    "noPicks": "No picks available yet."
+    "noPicks": "No picks available yet.",
+    "defaultDisclaimer": "These are educational ideas to research, not buy recommendations or financial advice. Research each company deeply before investing a single dollar."
   },
   "mobileTourBanner": {
     "step": "STEP {{step}}/{{total}}",
