@@ -115,7 +115,16 @@ export function OpportunitiesListPanel() {
           <div className="relative">
             <select
               value={sector}
-              onChange={(e) => setSector(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setSector(next);
+                // Entering a sector is a "show me everything here, biggest
+                // first" action — auto-switch to market-cap-desc so the
+                // user doesn't have to configure two dropdowns to get that.
+                // Clearing back to "all sectors" returns to the default
+                // best-opportunities-first sort.
+                setSortKey(next ? "market_cap_desc" : "mos_desc");
+              }}
               className="appearance-none text-xs font-medium rounded-lg pl-3 pr-7 py-2 border outline-none"
               style={{ borderColor: "var(--border)", background: "var(--card)", color: "var(--text)" }}
             >
