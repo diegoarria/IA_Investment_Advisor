@@ -494,20 +494,23 @@ function SubvaluadasPageInner() {
                     <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                     <span><b style={{ color: "var(--sub)" }}>{t("subvaluadas.detail.disclaimer.bold")}</b> {t("subvaluadas.detail.disclaimer.text")}</span>
                   </div>
-
-                  {/* "What $10,000 became" + "Descubra más" — ticker-independent,
-                      cached globally (see ValuationBacktestPanel.tsx), shown at the
-                      very bottom of every ticker's page. */}
-                  <ValuationBacktestPanel />
                 </>
               )}
 
               {/* Full, filterable Oportunidades list — real S&P 500 coverage.
-                  Deliberately at the very bottom, below the single-ticker
-                  search/detail above: search is the primary action on this
-                  screen, this is the "browse everything" fallback for users
-                  without a specific ticker in mind. */}
+                  Below the single-ticker search/detail above: search is the
+                  primary action on this screen, this is the "browse
+                  everything" fallback for users without a specific ticker
+                  in mind. */}
               {isPremium && <OpportunitiesListPanel />}
+
+              {/* "What $10,000 became" + "Descubra más" — ticker-independent,
+                  cached globally (see ValuationBacktestPanel.tsx). Moved out
+                  of the single-ticker `data` block so it's always the very
+                  last thing on the screen — proof of what buying undervalued
+                  vs. overvalued vs. the S&P 500 would have done, regardless
+                  of whether the user has searched a specific ticker yet. */}
+              <ValuationBacktestPanel />
             </div>
           </div>
       </div>
