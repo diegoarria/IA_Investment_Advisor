@@ -133,6 +133,17 @@ const TEAL = _SCENARIO_COLOR.bull;
 const CORAL = _SCENARIO_COLOR.bear;
 const DEFAULT_TICKER = "AAPL";
 
+// Real GICS-style sector values the backend actually tags candidates with
+// (see screener.py's UNIVERSE) — matched exactly (case-sensitive) against
+// OpportunitiesListPanel's own filter, so a chip here and that panel's
+// dropdown always agree on what a "sector" is. "ETF" deliberately excluded
+// — it's an asset-class marker, not a sector to browse into.
+const OPPORTUNITY_SECTORS = [
+  "Technology", "Healthcare", "Financials", "Consumer Discretionary",
+  "Consumer Staples", "Industrials", "Energy", "Utilities",
+  "Real Estate", "Materials", "Communication Services",
+];
+
 export default function SubvaluadasPage() {
   return (
     <Suspense fallback={<div className="flex h-screen items-center justify-center" style={{ background: "var(--bg)" }}><Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent-l)" }} /></div>}>
@@ -158,6 +169,14 @@ function SubvaluadasPageInner() {
   useEffect(() => { localStorage.setItem("nuvos_opportunity_viewed", "1"); }, []);
 
   const [query, setQuery] = useState("");
+  // Sector chips next to the search bar — controls the same state as
+  // OpportunitiesListPanel's own sector dropdown further down the page, so
+  // clicking a sector up here scrolls to and filters that list at once.
+  const [oppSector, setOppSector] = useState("");
+  const handleSectorChip = (s: string) => {
+    setOppSector(s);
+    document.getElementById("oportunidades-lista")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   const [ticker, setTicker] = useState(() => (searchParams.get("ticker") || DEFAULT_TICKER).toUpperCase());
   const [data, setData] = useState<QuickAnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -312,6 +331,30 @@ function SubvaluadasPageInner() {
                   {t("subvaluadas.search.button")}
                 </button>
               </div>
+
+              {/* Sector chips — quick jump into the full Oportunidades list
+                  further down, pre-filtered to that sector and sorted by
+                  market cap (see OpportunitiesListPanel). Premium-gated
+                  like the list itself: no point offering a shortcut into
+                  something a free user can't see. */}
+              {isPremium && (
+                <div className="flex gap-2 overflow-x-auto pb-1 mb-8 scrollbar-thin">
+                  {OPPORTUNITY_SECTORS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => handleSectorChip(s)}
+                      className="shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition-colors duration-150"
+                      style={
+                        oppSector === s
+                          ? { background: GOLD, borderColor: GOLD, color: "#0A0F1A" }
+                          : { background: "var(--card)", borderColor: "var(--border)", color: "var(--sub)" }
+                      }
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {!isPremium && !searchTriggered && !data ? (
                 <div className="max-w-xl mx-auto rounded-2xl border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
@@ -502,7 +545,7 @@ function SubvaluadasPageInner() {
                   primary action on this screen, this is the "browse
                   everything" fallback for users without a specific ticker
                   in mind. */}
-              {isPremium && <OpportunitiesListPanel />}
+              {isPremium && <OpportunitiesListPanel sector={oppSector} onSectorChange={setOppSector} />}
 
               {/* "What $10,000 became" + "Descubra más" — ticker-independent,
                   cached globally (see ValuationBacktestPanel.tsx). Moved out

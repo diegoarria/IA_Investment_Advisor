@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, ChevronDown } from "lucide-react";
 import { screenerApi } from "@/lib/api";
@@ -53,16 +53,24 @@ function confidenceColor(score: number | null): string {
 
 const PAGE_SIZE = 24;
 
+interface Props {
+  // Controlled from the parent page so the sector chips next to the
+  // top search bar and this list always agree on which sector is active —
+  // clicking a chip up there scrolls down here with the filter already
+  // applied, instead of duplicating the filtering logic in two places.
+  sector: string;
+  onSectorChange: (sector: string) => void;
+}
+
 // The Oportunidades landing panel — a real, browsable list across the full
 // S&P 500 (see undervalued_screener_service.py's `browse` mode), not just
 // the ~5/sector "featured" picks. Sits above the single-ticker search on
 // /subvaluadas so "Oportunidades" is a screener first, a search second.
-export function OpportunitiesListPanel() {
+export function OpportunitiesListPanel({ sector, onSectorChange }: Props) {
   const { t, i18n } = useTranslation();
   const [candidates, setCandidates] = useState<OpportunityCandidate[]>([]);
   const [generatedAt, setGeneratedAt] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [sector, setSector] = useState<string>("");
   const [sortKey, setSortKey] = useState<SortKey>("mos_desc");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -94,12 +102,25 @@ export function OpportunitiesListPanel() {
 
   useEffect(() => { setVisibleCount(PAGE_SIZE); }, [sector, sortKey]);
 
+  // Entering a sector — whether via the dropdown below or a chip next to
+  // the search bar up top — is a "show me everything here, biggest first"
+  // action, so auto-switch to market-cap-desc. Clearing back to "all
+  // sectors" returns to the default best-opportunity-first sort. Lives in
+  // an effect (not the dropdown's onChange) so it applies no matter which
+  // UI actually changed the controlled `sector` prop.
+  const isFirstSectorRender = useRef(true);
+  useEffect(() => {
+    if (isFirstSectorRender.current) { isFirstSectorRender.current = false; return; }
+    setSortKey(sector ? "market_cap_desc" : "mos_desc");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sector]);
+
   const goToTicker = (ticker: string) => {
     window.location.href = `/subvaluadas?ticker=${encodeURIComponent(ticker)}`;
   };
 
   return (
-    <div className="mb-8">
+    <div className="mb-8" id="oportunidades-lista">
       <SectionHeader
         title={t("subvaluadas.opportunities.title")}
         subtitle={
@@ -115,16 +136,7 @@ export function OpportunitiesListPanel() {
           <div className="relative">
             <select
               value={sector}
-              onChange={(e) => {
-                const next = e.target.value;
-                setSector(next);
-                // Entering a sector is a "show me everything here, biggest
-                // first" action — auto-switch to market-cap-desc so the
-                // user doesn't have to configure two dropdowns to get that.
-                // Clearing back to "all sectors" returns to the default
-                // best-opportunities-first sort.
-                setSortKey(next ? "market_cap_desc" : "mos_desc");
-              }}
+              onChange={(e) => onSectorChange(e.target.value)}
               className="appearance-none text-xs font-medium rounded-lg pl-3 pr-7 py-2 border outline-none"
               style={{ borderColor: "var(--border)", background: "var(--card)", color: "var(--text)" }}
             >
