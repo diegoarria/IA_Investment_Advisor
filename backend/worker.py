@@ -2387,240 +2387,19 @@ async def job_smart_alerts():
         logger.error("job_smart_alerts failed: %s", e)
 
 
-def _fetch_historical_earnings_reactions(ticker: str) -> dict:
-    """Compute avg stock reaction (%) the day after each of the last 4 earnings reports.
-    Uses Finnhub /stock/earnings for EPS surprises and /stock/candle for price reactions.
-    Returns {beat_avg, miss_avg, n_beats, n_misses} or empty dict on failure."""
-    try:
-        import time as _time
-        from app.core.finnhub import fh_candles
-        import requests as _req
-
-        key = os.getenv("FINNHUB_API_KEY", "")
-        if not key:
-            return {}
-
-        # Fetch EPS earnings history from Finnhub
-        r = _req.get(
-            "https://finnhub.io/api/v1/stock/earnings",
-            params={"symbol": ticker, "token": key},
-            timeout=8,
-        )
-        if r.status_code != 200:
-            return {}
-        earnings_list = r.json()
-        if not earnings_list or not isinstance(earnings_list, list):
-            return {}
-
-        # Fetch 2 years of daily candles
-        now_ts  = int(_time.time())
-        from_ts = now_ts - 2 * 365 * 86400
-        candles = fh_candles(ticker, "D", from_ts, now_ts)
-        if not candles or len(candles) < 5:
-            return {}
-
-        # Build a timestamp → close dict for binary search
-        ts_list = [c["t"] for c in candles]
-        c_list  = [c["c"] for c in candles]
-
-        def _find_closest_idx(target_ts: int) -> int:
-            """Return index of candle closest to target_ts (but not after it)."""
-            lo, hi = 0, len(ts_list) - 1
-            while lo < hi:
-                mid = (lo + hi + 1) // 2
-                if ts_list[mid] <= target_ts:
-                    lo = mid
-                else:
-                    hi = mid - 1
-            return lo
-
-        beats, misses = [], []
-        for e in earnings_list[:8]:
-            try:
-                surprise = e.get("surprisePercent")
-                period   = e.get("period", "")  # "2024-03-31"
-                if surprise is None or not period:
-                    continue
-                # Convert period to unix timestamp (approximate — end of quarter)
-                from datetime import datetime, timezone
-                report_dt = datetime.strptime(period, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-                report_ts = int(report_dt.timestamp())
-
-                idx = _find_closest_idx(report_ts)
-                # prev_close = candle before earnings date, next_close = candle after
-                if idx < 1 or idx + 1 >= len(ts_list):
-                    continue
-                prev_close = float(c_list[idx - 1])
-                next_close = float(c_list[min(idx + 1, len(c_list) - 1)])
-                if prev_close == 0:
-                    continue
-                reaction = round((next_close - prev_close) / prev_close * 100, 1)
-                if float(surprise) >= 0:
-                    beats.append(reaction)
-                else:
-                    misses.append(reaction)
-            except Exception:
-                continue
-
-        return {
-            "beat_avg":  round(sum(beats)  / len(beats),  1) if beats  else None,
-            "miss_avg":  round(sum(misses) / len(misses), 1) if misses else None,
-            "n_beats":   len(beats),
-            "n_misses":  len(misses),
-        }
-    except Exception:
-        return {}
-
-
-async def _generate_earnings_push(
-    ticker: str,
-    company: str,
-    when: str,                   # "hoy" | "mañana"
-    eps_estimate: float | None,
-    eps_range: str | None,
-    revenue_estimate: str | None,
-    reactions: dict,             # from _fetch_historical_earnings_reactions
-    shares: float,
-    position_value: float,
-    avg_cost: float | None,
-    language: str = "es",
-) -> tuple[str, str]:
-    """Call Claude to generate a deeply personalized earnings push with dollar scenarios.
-    Falls back to a static template if Claude fails or times out."""
-    import anthropic
-
-    beat_avg = reactions.get("beat_avg")
-    miss_avg = reactions.get("miss_avg")
-    n_total  = reactions.get("n_beats", 0) + reactions.get("n_misses", 0)
-
-    # Calculate exact dollar scenarios for user's position
-    beat_value = round(position_value * (1 + beat_avg / 100), 2) if beat_avg is not None and position_value else None
-    miss_value = round(position_value * (1 + miss_avg / 100), 2) if miss_avg is not None and position_value else None
-
-    # Current P&L from cost basis
-    curr_price = position_value / shares if shares and position_value else None
-    pnl_pct = round((curr_price - avg_cost) / avg_cost * 100, 1) if curr_price and avg_cost else None
-
-    scenarios_str = ""
-    def _scenario_verb(pct):
-        return "subiría" if pct and pct > 0 else "caería" if pct and pct < 0 else "quedaría igual"
-
-    if beat_value and miss_value and position_value:
-        scenarios_str = (
-            f"Si supera estimados (históricamente {'+' if beat_avg > 0 else ''}{beat_avg}% en {n_total} reportes): "
-            f"tu posición de ${position_value:,.2f} {_scenario_verb(beat_avg)} a ${beat_value:,.2f}. "
-            f"Si decepciona (históricamente {miss_avg}%): {_scenario_verb(miss_avg)} a ${miss_value:,.2f}."
-        )
-    elif beat_value and position_value:
-        scenarios_str = (
-            f"Históricamente siempre ha superado estimados ({n_total} reportes), "
-            f"con reacción promedio de {'+' if beat_avg > 0 else ''}{beat_avg}%. "
-            f"Basado en eso, tu posición de ${position_value:,.2f} {_scenario_verb(beat_avg)} a ${beat_value:,.2f}. "
-            f"Importante: la reacción varía mucho — puede subir o bajar aunque bata."
-        )
-    elif miss_value and position_value:
-        scenarios_str = f"Si decepciona: tu posición de ${position_value:,.2f} {_scenario_verb(miss_avg)} a ${miss_value:,.2f} ({miss_avg}%)."
-
-    eps_str = f"${eps_estimate:.2f}" if eps_estimate else "no disponible"
-    pnl_str = f"Actualmente {'ganando' if (pnl_pct or 0) >= 0 else 'perdiendo'} {abs(pnl_pct):.1f}% desde tu entrada." if pnl_pct is not None else ""
-
-    has_position = shares > 0 and position_value > 0
-    is_en = language == "en"
-
-    if has_position:
-        shares_disp = f"{shares:.4f}".rstrip("0").rstrip(".") if shares < 1 else f"{shares:.2f}".rstrip("0").rstrip(".")
-        if is_en:
-            prompt = f"""You are the Nuvos AI assistant. Write the body of a push notification in English for an investor holding {shares_disp} shares of {company} ({ticker}) worth ${position_value:,.2f}.
-
-DATA:
-- Current position: ${position_value:,.2f} | {pnl_str}
-- Reports {when} | EPS estimate: {eps_str}
-- {scenarios_str}
-
-REQUIRED FORMAT:
-"{company} ({ticker}) reports {when}. EPS: {eps_str}. {"If it beats: your position rises to $" + f"{beat_value:,.0f}" + f" (+{beat_avg}%)" if beat_value else ""}{"." if beat_value else ""} {"If it misses: drops to $" + f"{miss_value:,.0f}" + f" ({miss_avg}%)" if miss_value else ""}."
-
-RULES:
-- Mention the company and ticker
-- Include EPS estimate and dollar scenarios if available
-- Clear English, max 250 characters, no emojis, don't mention Nuvos AI
-- Text only"""
-        else:
-            prompt = f"""Eres el asistente de Nuvos AI. Escribe el body de una notificación push en español para un inversor que tiene {shares_disp} acciones de {company} ({ticker}) valoradas en ${position_value:,.2f}.
-
-DATOS:
-- Posición actual: ${position_value:,.2f} | {pnl_str}
-- Reporta {when} | EPS estimado: {eps_str}
-- {scenarios_str}
-
-FORMATO REQUERIDO:
-"{company} ({ticker}) reporta {when}. EPS: {eps_str}. {"Si supera: tu posición sube a $" + f"{beat_value:,.0f}" + f" (+{beat_avg}%)" if beat_value else ""}{"." if beat_value else ""} {"Si decepciona: baja a $" + f"{miss_value:,.0f}" + f" ({miss_avg}%)" if miss_value else ""}."
-
-REGLAS:
-- Menciona la empresa y el ticker
-- Incluye EPS estimado y escenarios en dólares si están disponibles
-- Español claro, máximo 250 caracteres, sin emojis, sin mencionar Nuvos AI
-- Solo el texto"""
-    else:
-        if is_en:
-            prompt = f"""You are the Nuvos AI assistant. Write the body of a push notification in English for an investor following {company} ({ticker}) on their watchlist.
-
-DATA:
-- Reports {when} | EPS estimate: {eps_str}
-- Historical reaction: {f"average beat {beat_avg:+.1f}% across {n_total} reports" if beat_avg is not None else "limited data"}
-
-RULES:
-- Mention the company, ticker, and when it reports
-- Include EPS estimate
-- Briefly mention historical reaction if data is available
-- Clear English, max 200 characters, no emojis, don't mention Nuvos AI
-- Text only"""
-        else:
-            prompt = f"""Eres el asistente de Nuvos AI. Escribe el body de una notificación push en español para un inversor que sigue {company} ({ticker}) en su watchlist.
-
-DATOS:
-- Reporta {when} | EPS estimado: {eps_str}
-- Reacción histórica: {f"beat promedio {beat_avg:+.1f}% en {n_total} reportes" if beat_avg is not None else "datos limitados"}
-
-REGLAS:
-- Menciona la empresa, el ticker y cuándo reporta
-- Incluye EPS estimado
-- Menciona brevemente qué suele pasar históricamente si hay datos
-- Español claro, máximo 200 caracteres, sin emojis, sin mencionar Nuvos AI
-- Solo el texto"""
-
-    try:
-        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-        resp   = await asyncio.wait_for(
-            client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=200,
-                messages=[{"role": "user", "content": prompt}],
-            ),
-            timeout=8.0,
-        )
-        in_tok = getattr(resp.usage, "input_tokens", 0)
-        out_tok = getattr(resp.usage, "output_tokens", 0)
-        logger.info("LLM earnings_push: in=%d out=%d cost=$%.5f", in_tok, out_tok,
-                    in_tok / 1e6 * 0.80 + out_tok / 1e6 * 4.0)
-        from app.services.llm_usage import log_llm_usage
-        asyncio.create_task(log_llm_usage(None, "job_events_alerts_earnings_push", "claude-haiku-4-5-20251001", resp.usage))
-        body = resp.content[0].text.strip().strip('"').strip("'")
-        if len(body) > 280:
-            body = body[:277] + "..."
-    except Exception as e:
-        logger.warning("Claude earnings push failed for %s: %s — using fallback", ticker, e)
-        # Fallback: static but still with dollar scenarios
-        eps_part  = f" EPS est. {eps_str}." if eps_estimate else ""
-        beat_part = f" Beat: ${beat_value:,.0f} (+{beat_avg}%)." if beat_value else ""
-        miss_part = f" Miss: ${miss_value:,.0f} ({miss_avg}%)." if miss_value else ""
-        reports_word = "reports" if is_en else "reporta"
-        body = f"{company} ({ticker}) {reports_word} {when}.{eps_part}{beat_part}{miss_part}"
-        if len(body) > 280:
-            body = body[:277] + "..."
-
-    title = f"📊 {ticker} reports {when}" if is_en else f"📊 {ticker} reporta {when}"
-    return title, body
+def _earnings_result_badge(actual: float | None, estimate: float | None, is_en: bool) -> tuple[str, str] | tuple[None, None]:
+    """Real 🟢/🟡/🔴 classification from actual vs. estimated EPS — a real
+    surprise %, never a guess. Returns (None, None) when either number is
+    missing (Finnhub hasn't posted actuals yet, or no analyst estimate
+    exists) rather than fabricating a verdict."""
+    if actual is None or estimate is None or estimate == 0:
+        return None, None
+    surprise_pct = (actual - estimate) / abs(estimate) * 100
+    if surprise_pct > 2:
+        return "🟢", ("Better than expected" if is_en else "Mejor de lo esperado")
+    if surprise_pct < -2:
+        return "🔴", ("Worse than expected" if is_en else "Peor de lo esperado")
+    return "🟡", ("In line with expectations" if is_en else "En línea con lo esperado")
 
 
 def _fetch_ticker_news(ticker: str) -> list[str]:
@@ -3167,113 +2946,168 @@ async def job_events_alerts():
                     if event_type == "earnings":
                         category     = "earnings_report"
                         is_portfolio = ticker in port_tickers
+                        company      = _company_name(ticker)
+                        # Finnhub's earnings-calendar entry already carries
+                        # eps_actual/revenue_actual once the company has
+                        # actually reported (see earnings.py's
+                        # _finnhub_earnings_date) — that's the real, cheap
+                        # "has this been reported yet" signal, no extra
+                        # fetch needed to tell "before" from "after" apart.
+                        eps_actual = evt.get("eps_actual")
+                        rev_actual = evt.get("revenue_actual")
+                        has_actuals = eps_actual is not None or rev_actual is not None
 
-                        if is_premium:
-                            pos            = positions_map.get(ticker, {})
-                            shares         = float(pos.get("shares", 0) or 0)
-                            avg_cost       = float(pos.get("avg_cost", 0) or 0) or None
-                            q              = await asyncio.to_thread(_finnhub_quote, ticker)
-                            curr_price     = q["curr"] if q else 0.0
-                            position_value = shares * curr_price if shares and curr_price else 0.0
-                            reactions      = await asyncio.to_thread(_fetch_historical_earnings_reactions, ticker)
-                            title, body = await _generate_earnings_push(
-                                ticker           = ticker,
-                                company          = _company_name(ticker),
-                                when             = when,
-                                eps_estimate     = evt.get("eps_estimate"),
-                                eps_range        = evt.get("eps_range"),
-                                revenue_estimate = evt.get("revenue_estimate"),
-                                reactions        = reactions,
-                                shares           = shares if is_portfolio else 0,
-                                position_value   = position_value if is_portfolio else 0,
-                                avg_cost         = avg_cost if is_portfolio else None,
-                                language         = "en" if is_en else "es",
-                            )
-                        else:
-                            if is_en:
-                                title = f"📅 Earnings: {ticker}"
-                                body  = f"{_company_name(ticker)} reports results {when}. Activate Premium to see the impact on your portfolio."
+                        if has_actuals:
+                            eps_est  = evt.get("eps_estimate")
+                            rev_est  = evt.get("revenue_estimate")
+                            badge, label = _earnings_result_badge(eps_actual, eps_est, is_en)
+                            result_word  = "Result" if is_en else "Resultado"
+                            expected_word = "expected" if is_en else "esperado"
+
+                            lines: list[str] = []
+                            if rev_actual and rev_est:
+                                lines.append(f"Revenue: ${rev_actual} vs ${rev_est} {expected_word}")
+                            elif rev_actual:
+                                lines.append(f"Revenue: ${rev_actual}")
+                            if eps_actual is not None and eps_est is not None:
+                                lines.append(f"EPS: ${eps_actual:.2f} vs ${eps_est:.2f} {expected_word}")
+                            elif eps_actual is not None:
+                                lines.append(f"EPS: ${eps_actual:.2f}")
+
+                            if is_premium:
+                                title = f"🚨 {company} {'just reported' if is_en else 'acaba de reportar'}"
+                                body_parts = []
+                                if badge:
+                                    body_parts.append(f"{result_word}: {badge} {label}")
+                                body_parts.extend(lines)
+                                if is_portfolio:
+                                    pos = positions_map.get(ticker, {})
+                                    shares = float(pos.get("shares") or 0)
+                                    if shares:
+                                        q = await asyncio.to_thread(_finnhub_quote, ticker)
+                                        curr_price = q["curr"] if q else 0.0
+                                        position_value = shares * curr_price if curr_price else 0.0
+                                        if position_value:
+                                            body_parts.append(f"{'Your position' if is_en else 'Tu posición'}: ${position_value:,.2f} USD")
+                                body = "\n\n".join(body_parts) if body_parts else (
+                                    f"{company} just reported." if is_en else f"{company} acaba de reportar."
+                                )
                             else:
-                                title = f"📅 Earnings: {ticker}"
-                                body  = f"{_company_name(ticker)} reporta resultados {when}. Activa Premium para ver el impacto en tu portafolio."
+                                title = f"📊 {company} {'just reported results' if is_en else 'acaba de reportar resultados'}"
+                                body_parts = list(lines)
+                                if badge:
+                                    body_parts.append(f"{result_word}: {badge} {label}")
+                                body = "\n\n".join(body_parts) if body_parts else (
+                                    f"{company} just reported results." if is_en else f"{company} acaba de reportar resultados."
+                                )
+                        elif is_premium:
+                            title = f"🧠 {ticker} {'reports' if is_en else 'reporta'} {when}"
+                            pos            = positions_map.get(ticker, {}) if is_portfolio else {}
+                            shares         = float(pos.get("shares") or 0)
+                            position_value = 0.0
+                            if shares:
+                                q          = await asyncio.to_thread(_finnhub_quote, ticker)
+                                curr_price = q["curr"] if q else 0.0
+                                position_value = shares * curr_price if curr_price else 0.0
+                            if is_en:
+                                body = (
+                                    f"We'll know {ticker}'s results {when}.\n"
+                                    f"Nuvos is watching 4 things:\n\n"
+                                    f"• Revenue\n• EPS\n• Operating margin\n• Guidance"
+                                )
+                                if position_value:
+                                    body += f"\n\nYour position: ${position_value:,.2f} USD"
+                            else:
+                                body = (
+                                    f"Conoceremos los resultados de {ticker} {when}.\n"
+                                    f"Nuvos está vigilando 4 cosas:\n\n"
+                                    f"• Revenue\n• EPS\n• Margen operativo\n• Guidance"
+                                )
+                                if position_value:
+                                    body += f"\n\nTu posición: ${position_value:,.2f} USD"
+                        else:
+                            title = f"📊 {company} {'reports results' if is_en else 'reporta resultados'} {when}"
+                            if is_en:
+                                body = (
+                                    f"{company} will release quarterly results {when}.\n"
+                                    f"What to expect? Nuvos will explain it once they're out."
+                                )
+                            else:
+                                body = (
+                                    f"{company} publicará sus resultados trimestrales {when}.\n"
+                                    f"¿Qué esperar? Nuvos te lo explicará cuando se publiquen."
+                                )
 
                     elif event_type in ("ex_dividend", "dividend"):
                         is_portfolio = ticker in port_tickers
+                        company = _company_name(ticker)
                         amt = await asyncio.to_thread(_finnhub_dividend_amount, ticker)
                         if amt is None:
                             raw_amt = evt.get("dividend_amount")
                             amt = float(raw_amt) if raw_amt else None
 
+                        shares_held = float(positions_map.get(ticker, {}).get("shares") or 0) if is_portfolio else 0.0
+
                         if event_type == "ex_dividend":
-                            title    = f"✂️ Ex-Dividend: {ticker}" if is_en else f"✂️ Ex-Dividendo: {ticker}"
                             category = "ex_dividend"
-                            if is_premium and is_portfolio:
-                                pos         = positions_map.get(ticker, {})
-                                shares_held = float(pos.get("shares") or 0)
-                                if amt and shares_held:
-                                    pago = shares_held * amt
-                                    body = (
-                                        f"{ticker}'s ex-dividend date is {when}. "
-                                        f"You hold {shares_held:.4f} shares — "
-                                        f"estimated payout: ${pago:.2f} USD (${amt:.4f}/share)."
-                                        if is_en else
-                                        f"Fecha ex-dividendo de {ticker} es {when}. "
-                                        f"Tienes {shares_held:.4f} acciones — "
-                                        f"tu pago estimado: ${pago:.2f} USD (${amt:.4f}/acción)."
+                            if is_premium and is_portfolio and amt and shares_held:
+                                pago = shares_held * amt
+                                position_value = 0.0
+                                q = await asyncio.to_thread(_finnhub_quote, ticker)
+                                curr_price = q["curr"] if q else 0.0
+                                position_value = shares_held * curr_price if curr_price else 0.0
+
+                                title = f"💰 {company} {'goes ex-dividend' if is_en else 'entra en ex-dividendo'} {when}"
+                                if is_en:
+                                    holding_str = (
+                                        f"You have ${position_value:,.2f} USD, so your next dividend would be approximately ${pago:.2f} USD."
+                                        if position_value else
+                                        f"You hold {shares_held:g} shares, so your next dividend would be approximately ${pago:.2f} USD."
                                     )
-                                elif amt:
-                                    body = (
-                                        f"{ticker}'s ex-dividend date is {when}. ${amt:.4f}/share."
-                                        if is_en else
-                                        f"Fecha ex-dividendo de {ticker} es {when}. ${amt:.4f}/acción."
-                                    )
+                                    body = f"{ticker} will pay ${amt:.2f} per share.\n{holding_str}"
                                 else:
-                                    body = (
-                                        f"{ticker}'s ex-dividend date is {when}."
-                                        if is_en else
-                                        f"Fecha ex-dividendo de {ticker} es {when}."
+                                    holding_str = (
+                                        f"Tienes ${position_value:,.2f} USD, por lo que tu próximo dividendo sería de aproximadamente ${pago:.2f} USD."
+                                        if position_value else
+                                        f"Tienes {shares_held:g} acciones, por lo que tu próximo dividendo sería de aproximadamente ${pago:.2f} USD."
                                     )
+                                    body = f"{ticker} pagará ${amt:.2f} por acción.\n{holding_str}"
                             else:
-                                body = (
-                                    f"{ticker}'s ex-dividend date is {when}." + (f" ${amt:.4f}/share." if amt else "")
-                                    if is_en else
-                                    f"Fecha ex-dividendo de {ticker} es {when}." + (f" ${amt:.4f}/acción." if amt else "")
-                                )
+                                title = f"📅 {company}: {'ex-dividend date' if is_en else 'fecha ex-dividendo'} {when}"
+                                if is_en:
+                                    body = f"To receive {ticker}'s next dividend, you must hold the shares before {when}."
+                                    if amt:
+                                        body += f"\n💰 Dividend: ${amt:.2f} per share"
+                                else:
+                                    body = f"Si quieres recibir el próximo dividendo de {ticker}, debes tener las acciones antes de {when}."
+                                    if amt:
+                                        body += f"\n💰 Dividendo: ${amt:.2f} por acción"
                         else:
-                            title    = f"💰 Dividend Payment: {ticker}" if is_en else f"💰 Pago de Dividendo: {ticker}"
                             category = "dividend_payment"
-                            if is_premium and is_portfolio:
-                                pos         = positions_map.get(ticker, {})
-                                shares_held = float(pos.get("shares") or 0)
-                                if amt and shares_held:
-                                    pago = shares_held * amt
+                            if is_premium and is_portfolio and amt and shares_held:
+                                pago = shares_held * amt
+                                title = (
+                                    f"💵 {'Today you earned' if is_en else 'Hoy ganaste'} ${pago:.2f} USD {'with' if is_en else 'con'} {company}"
+                                )
+                                body = (
+                                    f"{company} just paid the dividend on your position.\n\n+ ${pago:.2f} USD"
+                                    if is_en else
+                                    f"{company} acaba de pagar el dividendo de tu posición.\n\n+ ${pago:.2f} USD"
+                                )
+                            else:
+                                title = f"💵 {'Today' if is_en else 'Hoy'} {company} {'pays dividend' if is_en else 'paga dividendo'}"
+                                if is_en:
                                     body = (
-                                        f"{ticker} pays dividend {when}. "
-                                        f"With your {shares_held:.4f} shares you'll receive "
-                                        f"${pago:.2f} USD (${amt:.4f}/share)."
-                                        if is_en else
-                                        f"{ticker} paga dividendo {when}. "
-                                        f"Con tus {shares_held:.4f} acciones recibirás "
-                                        f"${pago:.2f} USD (${amt:.4f}/acción)."
+                                        f"{ticker} pays ${amt:.2f} per share to its shareholders today." if amt else
+                                        f"{ticker} pays dividend to its shareholders today."
                                     )
-                                elif amt:
-                                    body = (
-                                        f"{ticker} pays dividend {when}. ${amt:.4f}/share."
-                                        if is_en else
-                                        f"{ticker} paga dividendo {when}. ${amt:.4f}/acción."
-                                    )
+                                    body += "\n\nSee details →"
                                 else:
                                     body = (
-                                        f"{ticker} pays dividend {when}."
-                                        if is_en else
-                                        f"{ticker} paga dividendo {when}."
+                                        f"{ticker} paga hoy ${amt:.2f} por acción a sus accionistas." if amt else
+                                        f"{ticker} paga dividendo hoy a sus accionistas."
                                     )
-                            else:
-                                body = (
-                                    f"{ticker} pays dividend {when}." + (f" ${amt:.4f}/share." if amt else "")
-                                    if is_en else
-                                    f"{ticker} paga dividendo {when}." + (f" ${amt:.4f}/acción." if amt else "")
-                                )
+                                    body += "\n\nVer detalles →"
                     else:
                         continue
 

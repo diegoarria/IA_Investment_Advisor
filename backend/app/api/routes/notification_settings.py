@@ -947,33 +947,35 @@ async def trigger_dividend_test(
     # Resolve display date: use body.event_date if set, else Finnhub exDate, else "próximamente"
     when = body.event_date or ex_date or "próximamente"
 
-    # ── Build notification ────────────────────────────────────────────────────
+    # ── Build notification — same copy as worker.py's job_events_alerts
+    #    (dividend notifications redesign), so this admin preview tool never
+    #    drifts from what real users actually receive. ──────────────────────
     if body.event_type == "ex_dividend":
-        title = f"✂️ Ex-Dividendo: {ticker}"
         if amt and shares_held:
-            pago  = shares_held * amt
+            pago = shares_held * amt
+            title = f"💰 {ticker} entra en ex-dividendo {when}"
             notif_body = (
-                f"Fecha ex-dividendo de {ticker} es {when}. "
-                f"Tienes {shares_held:.4f} acciones — "
-                f"tu pago estimado: ${pago:.2f} USD (${amt:.4f}/acción)."
+                f"{ticker} pagará ${amt:.2f} por acción.\n"
+                f"Tienes {shares_held:g} acciones, por lo que tu próximo dividendo "
+                f"sería de aproximadamente ${pago:.2f} USD."
             )
-        elif amt:
-            notif_body = f"Fecha ex-dividendo de {ticker} es {when}. ${amt:.4f}/acción."
         else:
-            notif_body = f"Fecha ex-dividendo de {ticker} es {when}."
+            title = f"📅 {ticker}: fecha ex-dividendo {when}"
+            notif_body = f"Si quieres recibir el próximo dividendo de {ticker}, debes tener las acciones antes de {when}."
+            if amt:
+                notif_body += f"\n💰 Dividendo: ${amt:.2f} por acción"
     else:
-        title = f"💰 Pago de Dividendo: {ticker}"
         if amt and shares_held:
-            pago  = shares_held * amt
-            notif_body = (
-                f"{ticker} paga dividendo {when}. "
-                f"Con tus {shares_held:.4f} acciones recibirás "
-                f"${pago:.2f} USD (${amt:.4f}/acción)."
-            )
-        elif amt:
-            notif_body = f"{ticker} paga dividendo {when}. ${amt:.4f}/acción."
+            pago = shares_held * amt
+            title = f"💵 Hoy ganaste ${pago:.2f} USD con {ticker}"
+            notif_body = f"{ticker} acaba de pagar el dividendo de tu posición.\n\n+ ${pago:.2f} USD"
         else:
-            notif_body = f"{ticker} paga dividendo {when}."
+            title = f"💵 Hoy {ticker} paga dividendo"
+            notif_body = (
+                f"{ticker} paga hoy ${amt:.2f} por acción a sus accionistas." if amt else
+                f"{ticker} paga dividendo hoy a sus accionistas."
+            )
+            notif_body += "\n\nVer detalles →"
 
     category = f"dividend_test_{ticker.lower()}_{int(time.time())}"
     await send_push(user_id, category, title, notif_body, {"ticker": ticker, "screen": "portfolio"}, db)
