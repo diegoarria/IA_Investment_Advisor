@@ -14,6 +14,9 @@ interface Idx {
   price: number | null;
   change: number;
   change_pct: number;
+  futures_price?: number | null;
+  futures_change_pct?: number | null;
+  session?: "pre" | "regular" | "after" | "futures";
 }
 
 const ABBR: Record<string, string> = {
@@ -146,7 +149,16 @@ function TickerItem({ idx, last, keySuffix, onSelect }: {
   keySuffix: string;
   onSelect: (idx: Idx) => void;
 }) {
-  const up  = idx.change_pct >= 0;
+  const { t } = useTranslation();
+  // An index has no pre-market/after-hours price of its own (only its
+  // component stocks do) — outside regular hours the corresponding index
+  // future is the real "what's happening right now" data source, for all
+  // 3 non-regular windows (pre/after/overnight-weekend). Session + label
+  // come straight from the backend (_market_session), never computed here.
+  const useFutures = idx.session && idx.session !== "regular" && idx.futures_price != null;
+  const displayPrice = useFutures ? idx.futures_price! : idx.price;
+  const displayPct   = useFutures ? (idx.futures_change_pct ?? 0) : idx.change_pct;
+  const up  = displayPct >= 0;
   const col = up ? "var(--up)" : "var(--down)";
   return (
     <button
@@ -171,17 +183,24 @@ function TickerItem({ idx, last, keySuffix, onSelect }: {
       <span style={{ fontSize: 10, fontWeight: 600, color: "var(--sub)", whiteSpace: "nowrap" }}>
         {ABBR[idx.name] ?? idx.name}
       </span>
-      {idx.price != null && (
+      {useFutures && (
+        <span style={{ fontSize: 8, fontWeight: 800, color: "#f59e0b", background: "#f59e0b1f", padding: "1px 4px", borderRadius: 4, whiteSpace: "nowrap" }}>
+          {t(`common.ticker.session.${idx.session}`)}
+        </span>
+      )}
+      {displayPrice != null && (
         <>
           <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-            {fmtPrice(idx.price)}
+            {fmtPrice(displayPrice)}
           </span>
           <span style={{ fontSize: 9.5, fontWeight: 700, color: col, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-            {up ? "▲" : "▼"}&nbsp;{Math.abs(idx.change_pct).toFixed(2)}%
+            {up ? "▲" : "▼"}&nbsp;{Math.abs(displayPct).toFixed(2)}%
           </span>
-          <span style={{ fontSize: 9, fontWeight: 500, color: col, opacity: 0.65, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-            ({up ? "+" : ""}{idx.change >= 0.01 || idx.change <= -0.01 ? idx.change.toFixed(2) : idx.change.toFixed(4)})
-          </span>
+          {!useFutures && (
+            <span style={{ fontSize: 9, fontWeight: 500, color: col, opacity: 0.65, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+              ({up ? "+" : ""}{idx.change >= 0.01 || idx.change <= -0.01 ? idx.change.toFixed(2) : idx.change.toFixed(4)})
+            </span>
+          )}
         </>
       )}
     </button>

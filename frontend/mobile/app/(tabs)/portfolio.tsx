@@ -674,7 +674,12 @@ function formatWithCommas(raw: string): string {
 }
 
 
-interface PriceData { price: number | null; currency: string; name: string }
+interface PriceData {
+  price: number | null; currency: string; name: string;
+  market_state?: string | null;
+  pre_market_price?: number | null; pre_market_change_pct?: number | null;
+  post_market_price?: number | null; post_market_change_pct?: number | null;
+}
 interface ExtractedPosition { id: string; ticker: string; name: string; shares: number | null; avg_price: number; purchase_date?: string | null }
 
 
@@ -2898,6 +2903,17 @@ export default function PortfolioScreen() {
                   const pd = prices[pos.ticker];
                   const cpUSD = pd?.price;
                   const cp = cpUSD ? cpUSD * fxRate : null;
+                  // Same PRE/PREPRE vs POST/POSTPOST session read as
+                  // Watchlist (app/(tabs)/watchlist.tsx) — real per-ticker
+                  // pre/post-market data, now that /api/market/prices
+                  // (this screen's price source) carries it too.
+                  const ms = (pd?.market_state ?? "").toUpperCase();
+                  const showPre  = (ms === "PRE"  || ms === "PREPRE")  && pd?.pre_market_price != null;
+                  const showPost = (ms === "POST" || ms === "POSTPOST") && pd?.post_market_price != null;
+                  const extPrice = showPre ? pd!.pre_market_price! : showPost ? pd!.post_market_price! : null;
+                  const extPct   = showPre ? pd?.pre_market_change_pct : showPost ? pd?.post_market_change_pct : null;
+                  const extColor = showPre ? "#f59e0b" : "#818cf8";
+                  const extLabel = showPre ? t("watchlist.row.prePrefix") : t("watchlist.row.postPrefix");
                   const hasCost = pos.avgPrice > 0;
                   const currentVal = cp ? pos.totalShares * cp : null;
                   const investedVal = hasCost ? pos.totalShares * pos.avgPrice * fxRate : null;
@@ -2931,6 +2947,11 @@ export default function PortfolioScreen() {
                           <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }} numberOfLines={1}>
                             {pd?.name || sharesLabel}
                           </Text>
+                          {(showPre || showPost) && extPrice != null && (
+                            <Text style={{ fontSize: 10.5, color: extColor, marginTop: 1 }} numberOfLines={1}>
+                              {extLabel} {extPrice.toFixed(2)}{extPct != null ? ` (${extPct >= 0 ? "+" : ""}${extPct.toFixed(2)}%)` : ""}
+                            </Text>
+                          )}
                         </View>
 
                         {/* Value + P&L */}

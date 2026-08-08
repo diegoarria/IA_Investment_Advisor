@@ -15,6 +15,9 @@ interface IndexData {
   price: number | null;
   change: number;
   change_pct: number;
+  futures_price?: number | null;
+  futures_change_pct?: number | null;
+  session?: "pre" | "regular" | "after" | "futures";
 }
 
 interface NewsItem {
@@ -208,11 +211,21 @@ export default function MarketTicker() {
             bounces={false}
           >
             {data.map((d, i) => {
-              const up  = d.change_pct >= 0;
+              const useFutures = !!d.session && d.session !== "regular" && d.futures_price != null;
+              const displayPrice = useFutures ? d.futures_price! : d.price;
+              const displayPct = useFutures ? (d.futures_change_pct ?? 0) : d.change_pct;
+              const up  = displayPct >= 0;
               const col = up ? "#22c55e" : "#ef4444";
               const absStr = Math.abs(d.change) >= 0.01
                 ? d.change.toFixed(2)
                 : d.change.toFixed(4);
+              const sessionLabel = d.session === "pre"
+                ? t("marketTicker.session.pre")
+                : d.session === "after"
+                ? t("marketTicker.session.after")
+                : d.session === "futures"
+                ? t("marketTicker.session.futures")
+                : null;
               return (
                 <TouchableOpacity
                   key={d.symbol}
@@ -223,20 +236,27 @@ export default function MarketTicker() {
                     i < data.length - 1 && { borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.border },
                   ]}
                 >
-                  <Text style={[styles.itemName, { color: colors.textSub }]}>
-                    {SHORT[d.symbol] ?? d.name}
-                  </Text>
-                  {d.price !== null && (
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Text style={[styles.itemName, { color: colors.textSub }]}>
+                      {SHORT[d.symbol] ?? d.name}
+                    </Text>
+                    {useFutures && sessionLabel && (
+                      <Text style={styles.sessionBadge}>{sessionLabel}</Text>
+                    )}
+                  </View>
+                  {displayPrice !== null && (
                     <>
                       <Text style={[styles.itemPrice, { color: colors.text }]}>
-                        {fmtPrice(d.price, d.symbol)}
+                        {fmtPrice(displayPrice, d.symbol)}
                       </Text>
                       <Text style={[styles.itemPct, { color: col }]}>
-                        {up ? "▲" : "▼"} {Math.abs(d.change_pct).toFixed(2)}%
+                        {up ? "▲" : "▼"} {Math.abs(displayPct).toFixed(2)}%
                       </Text>
-                      <Text style={[styles.itemAbs, { color: col }]}>
-                        ({up ? "+" : ""}{absStr})
-                      </Text>
+                      {!useFutures && (
+                        <Text style={[styles.itemAbs, { color: col }]}>
+                          ({up ? "+" : ""}{absStr})
+                        </Text>
+                      )}
                     </>
                   )}
                 </TouchableOpacity>
@@ -366,6 +386,17 @@ const styles = StyleSheet.create({
   itemName: {
     fontSize: 10,
     fontWeight: "600",
+  },
+  sessionBadge: {
+    fontSize: 7.5,
+    fontWeight: "700",
+    color: "#f59e0b",
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    marginLeft: 4,
+    overflow: "hidden",
   },
   itemPrice: {
     fontSize: 10.5,

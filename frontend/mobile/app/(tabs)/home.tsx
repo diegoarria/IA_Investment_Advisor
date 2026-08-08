@@ -69,7 +69,11 @@ function Sparkline({ prices, color, width = 72, height = 32 }: {
 }
 
 // ── Index detail modal ────────────────────────────────────────────────────────
-interface IdxData { name: string; symbol: string; price: number | null; change: number; change_pct: number; }
+interface IdxData {
+  name: string; symbol: string; price: number | null; change: number; change_pct: number;
+  futures_price?: number | null; futures_change_pct?: number | null;
+  session?: "pre" | "regular" | "after" | "futures";
+}
 interface NewsItem { uuid: string; title: string; publisher: string; url: string; timestamp: number; thumbnail: string | null; }
 
 const SHORT: Record<string, string> = {
@@ -125,7 +129,13 @@ function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
 
   const isHistorical = period !== "1d" && period !== "5d";
   const periodReturn  = isHistorical ? calcReturn(periodPrices) : null;
-  const displayPct    = periodReturn ?? idx.change_pct;
+  const useFutures    = !isHistorical && !!idx.session && idx.session !== "regular" && idx.futures_price != null;
+  const displayPrice  = useFutures ? idx.futures_price! : idx.price;
+  const displayPct    = periodReturn ?? (useFutures ? (idx.futures_change_pct ?? 0) : idx.change_pct);
+  const sessionLabel  = idx.session === "pre" ? t("home.markets.session.pre")
+    : idx.session === "after" ? t("home.markets.session.after")
+    : idx.session === "futures" ? t("home.markets.session.futures")
+    : null;
   const up   = displayPct >= 0;
   const col  = up ? "#22c55e" : "#ef4444";
   const CHDIMS = { w: W - 80, h: 140 };
@@ -139,17 +149,26 @@ function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
           {/* Header */}
           <View style={idxMStyles.header}>
             <View>
-              <Text style={[idxMStyles.name, { color: colors.text }]}>
-                {SHORT[idx.symbol] ?? idx.name}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Text style={[idxMStyles.name, { color: colors.text }]}>
+                  {SHORT[idx.symbol] ?? idx.name}
+                </Text>
+                {useFutures && sessionLabel && (
+                  <Text style={{
+                    fontSize: 9, fontWeight: "700", color: "#f59e0b",
+                    backgroundColor: "rgba(245, 158, 11, 0.15)", borderRadius: 5,
+                    paddingHorizontal: 5, paddingVertical: 1.5, marginLeft: 6, overflow: "hidden",
+                  }}>{sessionLabel}</Text>
+                )}
+              </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 }}>
                 <Text style={{ fontSize: 22, fontWeight: "800", color: colors.text }}>
-                  {idx.price != null
+                  {displayPrice != null
                     ? idx.symbol === "^VIX"
-                      ? idx.price.toFixed(2)
-                      : idx.price >= 10000
-                        ? idx.price.toLocaleString("en-US", { maximumFractionDigits: 0 })
-                        : idx.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      ? displayPrice.toFixed(2)
+                      : displayPrice >= 10000
+                        ? displayPrice.toLocaleString("en-US", { maximumFractionDigits: 0 })
+                        : displayPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                     : "—"}
                 </Text>
                 <View style={[idxMStyles.changePill, { backgroundColor: col + "18" }]}>
@@ -1279,10 +1298,20 @@ export default function HomeScreen() {
                 contentContainerStyle={{ paddingHorizontal: 16, gap: 10, flexDirection: "row" }}
               >
                 {indices.map((idx: IdxData) => {
-                  const up     = idx.change_pct >= 0;
+                  const useFutures   = !!idx.session && idx.session !== "regular" && idx.futures_price != null;
+                  const displayPrice = useFutures ? idx.futures_price! : idx.price;
+                  const displayPct   = useFutures ? (idx.futures_change_pct ?? 0) : idx.change_pct;
+                  const up     = displayPct >= 0;
                   const col    = up ? colors.up : colors.down;
                   const prices = indexCharts[idx.symbol];
                   const isBest = best?.symbol === idx.symbol;
+                  const sessionLabel = idx.session === "pre"
+                    ? t("home.markets.session.pre")
+                    : idx.session === "after"
+                    ? t("home.markets.session.after")
+                    : idx.session === "futures"
+                    ? t("home.markets.session.futures")
+                    : null;
                   return (
                     <TouchableOpacity
                       key={idx.symbol}
@@ -1301,18 +1330,27 @@ export default function HomeScreen() {
                           <Text style={{ fontSize: 8, fontWeight: "900", color: "#000" }}>{t("home.markets.best")}</Text>
                         </View>
                       )}
-                      <Text style={[ss.idxName, { color: colors.textSub }]}>{idx.name}</Text>
-                      {idx.price != null && (
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <Text style={[ss.idxName, { color: colors.textSub }]}>{idx.name}</Text>
+                        {useFutures && sessionLabel && (
+                          <Text style={{
+                            fontSize: 7.5, fontWeight: "700", color: "#f59e0b",
+                            backgroundColor: "rgba(245, 158, 11, 0.15)", borderRadius: 4,
+                            paddingHorizontal: 4, paddingVertical: 1, marginLeft: 4, overflow: "hidden",
+                          }}>{sessionLabel}</Text>
+                        )}
+                      </View>
+                      {displayPrice != null && (
                         <Text style={[ss.idxPrice, { color: colors.text }]}>
-                          {idx.price >= 10000
-                            ? idx.price.toLocaleString("en-US", { maximumFractionDigits: 0 })
-                            : idx.price >= 1000
-                              ? (idx.price / 1000).toFixed(1) + "K"
-                              : idx.price.toFixed(2)}
+                          {displayPrice >= 10000
+                            ? displayPrice.toLocaleString("en-US", { maximumFractionDigits: 0 })
+                            : displayPrice >= 1000
+                              ? (displayPrice / 1000).toFixed(1) + "K"
+                              : displayPrice.toFixed(2)}
                         </Text>
                       )}
                       <Text style={[ss.idxChange, { color: col }]}>
-                        {up ? "+" : ""}{idx.change_pct.toFixed(2)}%
+                        {up ? "+" : ""}{displayPct.toFixed(2)}%
                       </Text>
                       {/* Sparkline */}
                       <View style={{ marginTop: 6 }}>

@@ -252,6 +252,11 @@
         "normal": "Normal",
         "cautious": "Cauteloso",
         "highVolatility": "Alta volatilidad"
+      },
+      "session": {
+        "pre": "Pre",
+        "after": "AH",
+        "futures": "Futuros"
       }
     },
     "lessonCard": {
@@ -3170,7 +3175,12 @@
     "hourAgo": "Hace 1h",
     "hoursAgo": "Hace {{count}}h",
     "yesterday": "Ayer",
-    "daysAgo": "Hace {{count}}d"
+    "daysAgo": "Hace {{count}}d",
+    "session": {
+      "pre": "Pre",
+      "after": "AH",
+      "futures": "Futuros"
+    }
   },
   "investmentGraph": {
     "sectionTitle": "Tu Bitácora",

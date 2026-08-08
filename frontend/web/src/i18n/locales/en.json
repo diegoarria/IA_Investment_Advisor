@@ -70,7 +70,12 @@
       "age1h": "1h ago",
       "ageHours": "{{h}}h ago",
       "ageYesterday": "Yesterday",
-      "ageDays": "{{d}}d ago"
+      "ageDays": "{{d}}d ago",
+      "session": {
+        "pre": "Pre",
+        "after": "AH",
+        "futures": "Futures"
+      }
     },
     "detailLevel": {
       "label": "Detail level",

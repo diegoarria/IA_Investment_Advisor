@@ -70,7 +70,12 @@
       "age1h": "Hace 1h",
       "ageHours": "Hace {{h}}h",
       "ageYesterday": "Ayer",
-      "ageDays": "Hace {{d}}d"
+      "ageDays": "Hace {{d}}d",
+      "session": {
+        "pre": "Pre",
+        "after": "AH",
+        "futures": "Futuros"
+      }
     },
     "detailLevel": {
       "label": "Nivel de detalle",

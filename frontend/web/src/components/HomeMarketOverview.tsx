@@ -12,6 +12,9 @@ interface IndexData {
   price:  number | null;
   change: number;
   change_pct: number;
+  futures_price?: number | null;
+  futures_change_pct?: number | null;
+  session?: "pre" | "regular" | "after" | "futures";
 }
 
 type Period = "1d" | "5d" | "6m" | "ytd" | "1y" | "5y" | "max";
@@ -117,7 +120,13 @@ function IndexCard({ idx, prices, loading, isBest, period, periods, t }: {
 }) {
   const isHistorical = period !== "1d" && period !== "5d";
   const periodReturn = isHistorical ? calcPeriodReturn(prices) : null;
-  const displayPct   = periodReturn ?? idx.change_pct;
+  // Only the live "1d" view swaps in futures — a 5d/6m/1y/etc. return is
+  // about the past, where futures (a right-now-only signal) don't apply.
+  // An index has no pre-market/after-hours price of its own — outside
+  // regular hours the corresponding future is the real live data source.
+  const useFutures  = !isHistorical && idx.session && idx.session !== "regular" && idx.futures_price != null;
+  const displayPrice = useFutures ? idx.futures_price! : idx.price;
+  const displayPct   = periodReturn ?? (useFutures ? (idx.futures_change_pct ?? 0) : idx.change_pct);
   const up    = displayPct >= 0;
   const col   = up ? "#22c55e" : "#ef4444";
   const gradId = `hmo-grad-${idx.symbol.replace(/[^a-z0-9]/gi, "")}`;
@@ -136,12 +145,20 @@ function IndexCard({ idx, prices, loading, isBest, period, periods, t }: {
 
       {/* Top section */}
       <div className="px-3 pt-3 pb-1.5">
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "var(--muted)" }}>
-          {idx.name}
-        </p>
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--muted)" }}>
+            {idx.name}
+          </p>
+          {useFutures && (
+            <span className="text-[8px] font-black px-1 py-0.5 rounded"
+                  style={{ background: "#f59e0b1f", color: "#f59e0b" }}>
+              {t(`common.ticker.session.${idx.session}`)}
+            </span>
+          )}
+        </div>
         <p className="text-[17px] font-black leading-none tracking-tight"
            style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
-          {idx.price != null ? fmtPrice(idx.price, idx.symbol) : "—"}
+          {displayPrice != null ? fmtPrice(displayPrice, idx.symbol) : "—"}
         </p>
 
         {/* Period return or day change */}
@@ -154,7 +171,7 @@ function IndexCard({ idx, prices, loading, isBest, period, periods, t }: {
             <span className="text-[9px] font-semibold" style={{ color: "var(--dim)" }}>
               {periods.find(p => p.key === period)?.label}
             </span>
-          ) : idx.change !== 0 && (
+          ) : !useFutures && idx.change !== 0 && (
             <span className="text-[10px]" style={{ color: "var(--dim)", fontVariantNumeric: "tabular-nums" }}>
               {fmtChange(idx.change)}
             </span>

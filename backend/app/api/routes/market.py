@@ -63,6 +63,22 @@ INDICES = {
     "VIX":       "^VIX",
 }
 
+# CME index futures — real, continuous-front-month Yahoo symbols, same
+# v8/finance/chart endpoint _fetch_one_index already calls (verified live:
+# Yahoo returns real regularMarketPrice/previousClose for all 4). An index
+# itself has no "pre-market"/"after-hours" price of its own (only its
+# component stocks do) — the futures contract is what actually trades
+# nearly 24/5, so it's the real data source for all 3 non-regular session
+# windows (pre-market, after-hours, and overnight/weekend), not just a
+# "futures-only" state. VIX has no futures entry here (VX=F exists on CME
+# but isn't the retail-familiar "market futures" this feature is about).
+FUTURES = {
+    "^GSPC": "ES=F",
+    "^IXIC": "NQ=F",
+    "^DJI":  "YM=F",
+    "^RUT":  "RTY=F",
+}
+
 
 def _get_user_profile(user_id: str) -> UserProfile | None:
     """Sync helper — safe to call from sync contexts (e.g. _compute_performance callers).
@@ -146,6 +162,28 @@ def _is_market_open() -> bool:
     return 9 * 60 + 30 <= mins < 16 * 60
 
 
+def _market_session() -> str:
+    """Real US equities session right now: "pre" (4:00-9:30am ET),
+    "regular" (9:30am-4:00pm ET, weekdays, non-holiday), "after"
+    (4:00-8:00pm ET), or "futures" (everything else — nights and
+    weekends, when the only real-trading proxy left is the index
+    futures contract). Single server-side source of truth so web and
+    mobile never compute this independently and drift out of sync."""
+    from zoneinfo import ZoneInfo
+    from datetime import datetime
+    now = datetime.now(ZoneInfo("America/New_York"))
+    is_weekday = now.weekday() < 5 and now.date() not in _us_market_holidays(now.year)
+    mins = now.hour * 60 + now.minute
+    if is_weekday:
+        if 4 * 60 <= mins < 9 * 60 + 30:
+            return "pre"
+        if 9 * 60 + 30 <= mins < 16 * 60:
+            return "regular"
+        if 16 * 60 <= mins < 20 * 60:
+            return "after"
+    return "futures"
+
+
 def _fetch_one_index(symbol: str) -> tuple[float | None, float | None]:
     """Returns (regularMarketPrice, chartPreviousClose) direct from Yahoo meta."""
     import httpx
@@ -189,14 +227,30 @@ def _fetch_indices() -> list[dict]:
     if cached:
         return cached
     result = []
+    session = _market_session()
     prices = dict(zip(INDICES.values(), _INDICES_POOL.map(_fetch_one_index, INDICES.values())))
+    # Only fetch futures when they'd actually be shown (session != "regular")
+    # — during regular hours the real index price is what's shown, no need
+    # to pay for the extra Yahoo calls.
+    futures_prices: dict = {}
+    if session != "regular" and FUTURES:
+        futures_prices = dict(zip(FUTURES.values(), _INDICES_POOL.map(_fetch_one_index, FUTURES.values())))
     for name, symbol in INDICES.items():
-        entry = {"name": name, "symbol": symbol, "price": None, "change": 0.0, "change_pct": 0.0}
+        entry = {
+            "name": name, "symbol": symbol, "price": None, "change": 0.0, "change_pct": 0.0,
+            "futures_price": None, "futures_change_pct": None, "session": session,
+        }
         price, prev = prices.get(symbol, (None, None))
         if price and prev:
             entry["price"]      = round(price, 2)
             entry["change"]     = round(price - prev, 2)
             entry["change_pct"] = round((price - prev) / prev * 100, 2)
+        fut_symbol = FUTURES.get(symbol)
+        if fut_symbol:
+            fut_price, fut_prev = futures_prices.get(fut_symbol, (None, None))
+            if fut_price and fut_prev:
+                entry["futures_price"] = round(fut_price, 2)
+                entry["futures_change_pct"] = round((fut_price - fut_prev) / fut_prev * 100, 2)
         result.append(entry)
     ttl = _INDEX_CACHE_TTL_RT if _is_market_open() else _INDEX_CACHE_TTL
     cache_set("market:indices", result, ttl=ttl)
@@ -283,15 +337,26 @@ async def get_prices(request: Request, body: dict, user_id: str = Depends(get_cu
         import httpx
         encoded = _yf_symbol(symbol).replace("^", "%5E")
         price, prev, currency, name = None, None, "USD", symbol
+        market_state = None
+        pre_market_price = pre_market_change_pct = None
+        post_market_price = post_market_change_pct = None
 
-        # Primary: direct Yahoo Finance API — use regularMarketPrice (always current, no lag)
+        # Primary: direct Yahoo Finance API — use regularMarketPrice (always current, no lag).
+        # includePrePost=true so meta also carries preMarketPrice/postMarketPrice/
+        # marketState — same fields+extraction as watchlist.py's
+        # _fetch_extended_price, kept consistent so Portfolio (this endpoint)
+        # and Watchlist show identical pre/after-hours numbers for the same ticker.
         for domain in ("query1", "query2"):
             if price:
                 break
             for interval, rng in (("2m", "1d"), ("1d", "5d")):
                 try:
-                    url = f"https://{domain}.finance.yahoo.com/v8/finance/chart/{encoded}?interval={interval}&range={rng}"
-                    r = httpx.get(url, headers=_YF_HEADERS, timeout=8, follow_redirects=True)
+                    url = f"https://{domain}.finance.yahoo.com/v8/finance/chart/{encoded}"
+                    r = httpx.get(
+                        url, headers=_YF_HEADERS,
+                        params={"interval": interval, "range": rng, "includePrePost": "true"},
+                        timeout=8, follow_redirects=True,
+                    )
                     if r.status_code == 200:
                         res = r.json()["chart"]["result"][0]
                         meta = res.get("meta", {})
@@ -302,6 +367,21 @@ async def get_prices(request: Request, body: dict, user_id: str = Depends(get_cu
                             if prev: prev = float(prev)
                             currency = meta.get("currency", "USD")
                             name = meta.get("shortName") or meta.get("longName") or symbol
+                            market_state = meta.get("marketState")
+
+                            pre_price = meta.get("preMarketPrice")
+                            if pre_price:
+                                pre_market_price = round(float(pre_price), 4)
+                                base = prev or price
+                                if base:
+                                    pre_market_change_pct = round((float(pre_price) - base) / base * 100, 2)
+
+                            post_price = meta.get("postMarketPrice")
+                            if post_price:
+                                post_market_price = round(float(post_price), 4)
+                                base = price or prev
+                                if base:
+                                    post_market_change_pct = round((float(post_price) - base) / base * 100, 2)
                             break
                 except Exception:
                     pass
@@ -327,6 +407,11 @@ async def get_prices(request: Request, body: dict, user_id: str = Depends(get_cu
             "change_pct": change_pct,
             "currency":   currency,
             "name":       name,
+            "market_state": market_state,
+            "pre_market_price": pre_market_price,
+            "pre_market_change_pct": pre_market_change_pct,
+            "post_market_price": post_market_price,
+            "post_market_change_pct": post_market_change_pct,
         }
 
     _PRICE_TTL = 30

@@ -252,6 +252,11 @@
         "normal": "Normal",
         "cautious": "Cautious",
         "highVolatility": "High volatility"
+      },
+      "session": {
+        "pre": "Pre",
+        "after": "AH",
+        "futures": "Futures"
       }
     },
     "lessonCard": {
@@ -3170,7 +3175,12 @@
     "hourAgo": "1h ago",
     "hoursAgo": "{{count}}h ago",
     "yesterday": "Yesterday",
-    "daysAgo": "{{count}}d ago"
+    "daysAgo": "{{count}}d ago",
+    "session": {
+      "pre": "Pre",
+      "after": "AH",
+      "futures": "Futures"
+    }
   },
   "investmentGraph": {
     "sectionTitle": "Your Journal",
