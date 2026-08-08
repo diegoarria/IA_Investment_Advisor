@@ -793,6 +793,59 @@ def _market_open_lines(sp500_pct, sp500_points, nasdaq_pct, nasdaq_points, langu
     return sp_line, nq_line
 
 
+async def job_futures_weekly_push():
+    """Sunday 7:05 PM ET — index futures just came online for the week (see
+    market.py's _market_session, futures window starts Sun 7pm ET). One flat
+    broadcast, same copy for free and premium (futures are index-level, not
+    a portfolio insight, so there's nothing to gate behind Premium here).
+    Reuses push_market_open as the opt-out toggle — same "market open/closed
+    status" category as job_market_open, just the weekly futures variant."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    db = get_supabase()
+    try:
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,push_market_open")
+        )
+        disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("push_market_open") is False}
+
+        token_res = await run_query(
+            db.table("user_profiles").select("user_id,push_token,preferred_language")
+            .neq("push_token", "").not_.is_("push_token", "null")
+        )
+        expo_rows = {r["user_id"]: r for r in (token_res.data or [])}
+        web_res   = await run_query(db.table("web_push_subscriptions").select("user_id"))
+        web_uids  = {r["user_id"] for r in (web_res.data or [])}
+        lang_res  = await run_query(
+            db.table("user_profiles").select("user_id,preferred_language")
+            .in_("user_id", list(web_uids))
+        ) if web_uids else None
+        lang_map  = {r["user_id"]: r.get("preferred_language") for r in (expo_rows.values())}
+        if lang_res and lang_res.data:
+            lang_map.update({r["user_id"]: r.get("preferred_language") for r in lang_res.data})
+
+        uids = list((set(expo_rows.keys()) | web_uids) - disabled)
+        if not uids:
+            return
+
+        sent = 0
+        for i, uid in enumerate(uids):
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            await asyncio.sleep(random.uniform(0, 0.1))
+
+            is_en = (lang_map.get(uid) or "es") == "en"
+            title = "📊 Futures available" if is_en else "📊 Futuros disponibles"
+            body  = ("How does the market look this week? See Futures →"
+                      if is_en else
+                      "¿Cómo viene el mercado esta semana? Ver Futuros →")
+            await send_push(uid, "futures_weekly", title, body, {"screen": "home"}, db)
+            sent += 1
+        logger.info("Futures weekly push: %d sent", sent)
+    except Exception as e:
+        logger.error("job_futures_weekly_push failed: %s", e)
+
+
 async def job_market_open():
     """9:30 AM ET weekdays — personalized open alert for ALL users."""
     if not _is_market_open_today():
@@ -4724,6 +4777,10 @@ async def main():
     # screen's data current; the Wed/Sat push above is the only opportunities
     # notification now.
     scheduler.add_job(job_refresh_undervalued_screener, "cron", day_of_week="sun", hour=12,  minute=5,     timezone="America/New_York")
+
+    # ── Sunday 7:05pm ET: index futures just came online for the week (5 min
+    # after market.py's futures window opens at 7pm ET) ──────────────────────
+    scheduler.add_job(job_futures_weekly_push,           "cron", day_of_week="sun", hour=19, minute=5,  timezone="America/New_York")
 
     # ── Nuvos Weekly Rituals ────────────────────────────────────────────────────
     scheduler.add_job(job_daily_question,               "cron", day_of_week="sun", hour=14, minute=0,  timezone="America/New_York")
