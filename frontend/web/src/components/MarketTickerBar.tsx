@@ -16,7 +16,7 @@ interface Idx {
   change_pct: number;
   futures_price?: number | null;
   futures_change_pct?: number | null;
-  session?: "pre" | "regular" | "after" | "futures";
+  session?: "pre" | "regular" | "after" | "futures" | "closed";
 }
 
 const ABBR: Record<string, string> = {
@@ -155,7 +155,7 @@ function TickerItem({ idx, last, keySuffix, onSelect }: {
   // future is the real "what's happening right now" data source, for all
   // 3 non-regular windows (pre/after/overnight-weekend). Session + label
   // come straight from the backend (_market_session), never computed here.
-  const useFutures = idx.session && idx.session !== "regular" && idx.futures_price != null;
+  const useFutures = (idx.session === "pre" || idx.session === "after" || idx.session === "futures") && idx.futures_price != null;
   const displayPrice = useFutures ? idx.futures_price! : idx.price;
   const displayPct   = useFutures ? (idx.futures_change_pct ?? 0) : idx.change_pct;
   const up  = displayPct >= 0;

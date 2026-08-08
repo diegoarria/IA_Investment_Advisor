@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 NO_CATALYST = "__NO_CATALYST__"
 
 
-async def should_send_price_alert(user_id: str, ticker: str, db) -> bool:
+async def should_send_price_alert(user_id: str, ticker: str, db, category: str | None = None) -> bool:
     """
     Hard cap of ONE price-mover push per ticker per user per day.
 
@@ -24,6 +24,10 @@ async def should_send_price_alert(user_id: str, ticker: str, db) -> bool:
     letting the same ticker re-notify the same day. notification_log already
     gets a row written on every real send (see notification_engine.send_push
     / _log_notification), so this survives any number of restarts for free.
+
+    `category` defaults to the standard real-portfolio/watchlist price_mover_{ticker}
+    key; callers alerting on a separate position source (e.g. paper trading) pass
+    a distinct category so the two caps don't share the same daily budget.
     """
     from app.core.database import run_query
     import zoneinfo
@@ -34,7 +38,7 @@ async def should_send_price_alert(user_id: str, ticker: str, db) -> bool:
         .astimezone(timezone.utc)
         .isoformat()
     )
-    category = f"price_mover_{ticker}"
+    category = category or f"price_mover_{ticker}"
     try:
         res = await run_query(
             db.table("notification_log")

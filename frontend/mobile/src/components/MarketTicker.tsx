@@ -17,7 +17,7 @@ interface IndexData {
   change_pct: number;
   futures_price?: number | null;
   futures_change_pct?: number | null;
-  session?: "pre" | "regular" | "after" | "futures";
+  session?: "pre" | "regular" | "after" | "futures" | "closed";
 }
 
 interface NewsItem {
@@ -211,7 +211,7 @@ export default function MarketTicker() {
             bounces={false}
           >
             {data.map((d, i) => {
-              const useFutures = !!d.session && d.session !== "regular" && d.futures_price != null;
+              const useFutures = (d.session === "pre" || d.session === "after" || d.session === "futures") && d.futures_price != null;
               const displayPrice = useFutures ? d.futures_price! : d.price;
               const displayPct = useFutures ? (d.futures_change_pct ?? 0) : d.change_pct;
               const up  = displayPct >= 0;

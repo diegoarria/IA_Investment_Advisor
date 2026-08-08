@@ -140,6 +140,9 @@ function AppStack() {
         // job_portfolio_alerts' price-mover push for a watchlist (not
         // portfolio) ticker.
         router.navigate("/(tabs)/watchlist");
+      } else if (data.screen === "paper") {
+        // job_portfolio_alerts' price-mover push for a Paper Trading (Simulador) position.
+        router.navigate("/(tabs)/paper");
       } else if (data.screen === "home") {
         // job_major_news_alert.
         router.navigate("/(tabs)/home");

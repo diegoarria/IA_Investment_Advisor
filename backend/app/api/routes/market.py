@@ -165,10 +165,13 @@ def _is_market_open() -> bool:
 def _market_session() -> str:
     """Real US equities session right now: "pre" (4:00-9:30am ET),
     "regular" (9:30am-4:00pm ET, weekdays, non-holiday), "after"
-    (4:00-8:00pm ET), or "futures" (everything else — nights and
-    weekends, when the only real-trading proxy left is the index
-    futures contract). Single server-side source of truth so web and
-    mobile never compute this independently and drift out of sync."""
+    (4:00-8:00pm ET), "futures" (CME index futures are actually trading —
+    weeknights Mon-Thu after 8pm through next day's pre-market, and Sunday
+    from 7:00pm ET through Monday's pre-market), or "closed" (everything
+    else — Friday evening through Sunday 7pm ET, Saturday, and holidays —
+    when futures markets are shut too, so there's no live proxy to show).
+    Single server-side source of truth so web and mobile never compute
+    this independently and drift out of sync."""
     from zoneinfo import ZoneInfo
     from datetime import datetime
     now = datetime.now(ZoneInfo("America/New_York"))
@@ -181,7 +184,12 @@ def _market_session() -> str:
             return "regular"
         if 16 * 60 <= mins < 20 * 60:
             return "after"
-    return "futures"
+        # Weeknight after 8pm ET — CME futures resume Mon-Thu nights, but
+        # Friday's post-close session is the weekly close until Sunday 7pm.
+        return "closed" if now.weekday() == 4 else "futures"
+    if now.weekday() == 6 and mins >= 19 * 60:  # Sunday from 7:00pm ET
+        return "futures"
+    return "closed"  # Saturday, Sunday before 7pm, and holidays
 
 
 def _fetch_one_index(symbol: str) -> tuple[float | None, float | None]:
@@ -229,11 +237,12 @@ def _fetch_indices() -> list[dict]:
     result = []
     session = _market_session()
     prices = dict(zip(INDICES.values(), _INDICES_POOL.map(_fetch_one_index, INDICES.values())))
-    # Only fetch futures when they'd actually be shown (session != "regular")
-    # — during regular hours the real index price is what's shown, no need
-    # to pay for the extra Yahoo calls.
+    # Only fetch futures when they'd actually be shown — during regular
+    # hours the real index price is shown instead, and during "closed"
+    # (weekend/holiday, futures markets themselves shut) there's nothing
+    # live to fetch, so skip the extra Yahoo calls both times.
     futures_prices: dict = {}
-    if session != "regular" and FUTURES:
+    if session in ("pre", "after", "futures") and FUTURES:
         futures_prices = dict(zip(FUTURES.values(), _INDICES_POOL.map(_fetch_one_index, FUTURES.values())))
     for name, symbol in INDICES.items():
         entry = {

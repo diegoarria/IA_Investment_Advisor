@@ -72,7 +72,7 @@ function Sparkline({ prices, color, width = 72, height = 32 }: {
 interface IdxData {
   name: string; symbol: string; price: number | null; change: number; change_pct: number;
   futures_price?: number | null; futures_change_pct?: number | null;
-  session?: "pre" | "regular" | "after" | "futures";
+  session?: "pre" | "regular" | "after" | "futures" | "closed";
 }
 interface NewsItem { uuid: string; title: string; publisher: string; url: string; timestamp: number; thumbnail: string | null; }
 
@@ -129,7 +129,7 @@ function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
 
   const isHistorical = period !== "1d" && period !== "5d";
   const periodReturn  = isHistorical ? calcReturn(periodPrices) : null;
-  const useFutures    = !isHistorical && !!idx.session && idx.session !== "regular" && idx.futures_price != null;
+  const useFutures    = !isHistorical && (idx.session === "pre" || idx.session === "after" || idx.session === "futures") && idx.futures_price != null;
   const displayPrice  = useFutures ? idx.futures_price! : idx.price;
   const displayPct    = periodReturn ?? (useFutures ? (idx.futures_change_pct ?? 0) : idx.change_pct);
   const sessionLabel  = idx.session === "pre" ? t("home.markets.session.pre")
@@ -1298,7 +1298,7 @@ export default function HomeScreen() {
                 contentContainerStyle={{ paddingHorizontal: 16, gap: 10, flexDirection: "row" }}
               >
                 {indices.map((idx: IdxData) => {
-                  const useFutures   = !!idx.session && idx.session !== "regular" && idx.futures_price != null;
+                  const useFutures   = (idx.session === "pre" || idx.session === "after" || idx.session === "futures") && idx.futures_price != null;
                   const displayPrice = useFutures ? idx.futures_price! : idx.price;
                   const displayPct   = useFutures ? (idx.futures_change_pct ?? 0) : idx.change_pct;
                   const up     = displayPct >= 0;

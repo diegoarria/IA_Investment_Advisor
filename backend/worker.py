@@ -1755,10 +1755,23 @@ async def job_portfolio_alerts():
         port_uid_res = await run_query(db.table("user_portfolio").select("user_id"))
         port_uids: set[str] = {r["user_id"] for r in (port_uid_res.data or [])}
 
+        # All users who have paper trading (Simulador) positions — free users can
+        # still hold a paper portfolio from a past premium/trial period (soft lock
+        # only blocks NEW trades, not viewing), so they're eligible for alerts too,
+        # same as real-portfolio holders.
+        paper_uid_res = await run_query(
+            db.table("user_paper_trading").select("user_id,positions")
+        )
+        paper_positions_by_uid: dict[str, list] = {
+            r["user_id"]: (r.get("positions") or [])
+            for r in (paper_uid_res.data or []) if r.get("positions")
+        }
+        paper_uids: set[str] = set(paper_positions_by_uid.keys())
+
         # Union: every user who has something to alert on and a way to receive it
-        all_candidate_uids = token_uids & (watch_uids | port_uids)
+        all_candidate_uids = token_uids & (watch_uids | port_uids | paper_uids)
         # Also include users from explicit prefs even without a token (they may have web push sub)
-        all_candidate_uids |= set(explicit_prefs.keys()) & (watch_uids | port_uids)
+        all_candidate_uids |= set(explicit_prefs.keys()) & (watch_uids | port_uids | paper_uids)
 
         if not all_candidate_uids:
             return
@@ -1769,12 +1782,13 @@ async def job_portfolio_alerts():
         def _wants_watchlist(uid: str) -> bool:
             return explicit_prefs.get(uid, {}).get("push_watchlist_alerts", True)
 
-        # 2. Collect tickers + position details per user (portfolio + watchlist)
-        user_tickers: dict[str, dict] = {}  # uid → {"port": {ticker: {shares, avg_cost}}, "watch": set}
+        # 2. Collect tickers + position details per user (portfolio + paper + watchlist)
+        user_tickers: dict[str, dict] = {}  # uid → {"port": {ticker: {shares, avg_cost}}, "paper": {...}, "watch": set}
         all_tickers: set[str] = set()
 
         for uid in all_candidate_uids:
-            port_positions: dict[str, dict] = {}
+            port_positions:  dict[str, dict] = {}
+            paper_positions: dict[str, dict] = {}
             watch_set:  set[str] = set()
 
             if _wants_portfolio(uid) and uid in port_uids:
@@ -1793,15 +1807,29 @@ async def job_portfolio_alerts():
                         for p in pos if p.get("ticker")
                     }
 
+            # Paper trading (Simulador) — same "portfolio alerts" preference toggle
+            # governs it (it's the user's portfolio, just simulated).
+            if _wants_portfolio(uid) and uid in paper_uids:
+                paper_positions = {
+                    (p.get("ticker") or "").upper(): {
+                        "shares": float(p.get("shares") or 0),
+                        "avg_cost": float(p.get("avgPrice") or p.get("avg_price") or 0),
+                    }
+                    for p in paper_positions_by_uid.get(uid, []) if p.get("ticker")
+                }
+
             if _wants_watchlist(uid) and uid in watch_uids:
                 watch_res = await run_query(
                     db.table("watchlist").select("ticker").eq("user_id", uid)
                 )
-                watch_set = {r["ticker"] for r in (watch_res.data or [])} - set(port_positions.keys())
+                watch_set = (
+                    {r["ticker"] for r in (watch_res.data or [])}
+                    - set(port_positions.keys()) - set(paper_positions.keys())
+                )
 
-            if port_positions or watch_set:
-                user_tickers[uid] = {"port": port_positions, "watch": watch_set}
-                all_tickers |= set(port_positions.keys()) | watch_set
+            if port_positions or paper_positions or watch_set:
+                user_tickers[uid] = {"port": port_positions, "paper": paper_positions, "watch": watch_set}
+                all_tickers |= set(port_positions.keys()) | set(paper_positions.keys()) | watch_set
 
         if not all_tickers:
             return
@@ -1950,25 +1978,33 @@ async def job_portfolio_alerts():
             is_prem   = meta["is_premium"]
             is_en     = meta.get("language", "es") == "en"
             port_map  = sets["port"]
-            # Portfolio tickers ranked first (user owns them — higher priority)
+            paper_map = sets["paper"]
+            # Portfolio tickers ranked first (user owns them — higher priority),
+            # then paper trading (simulated but still "their" positions), then watchlist.
             port_movers  = sorted(set(port_map.keys()) & movers.keys(),
+                                  key=lambda t: abs(movers[t]), reverse=True)
+            paper_movers = sorted(set(paper_map.keys()) & movers.keys(),
                                   key=lambda t: abs(movers[t]), reverse=True)
             watch_movers = sorted(sets["watch"] & movers.keys(),
                                   key=lambda t: abs(movers[t]), reverse=True)
-            ranked = port_movers + watch_movers
+            ranked = (
+                [(t, "port") for t in port_movers]
+                + [(t, "paper") for t in paper_movers]
+                + [(t, "watch") for t in watch_movers]
+            )
             # Spaces this user's own movers-this-run ~5 min apart (0, 300,
             # 600s...) instead of firing them all within the same second —
             # only counts tickers that actually get enqueued below, so a
             # ticker skipped by should_send_price_alert doesn't waste a slot.
             queue_index = 0
 
-            for ticker in ranked:
+            for ticker, source in ranked:
                 try:
                     pct          = movers[ticker]
                     price        = prices[ticker]["curr"]
                     title        = ticker_title[ticker]
-                    is_portfolio = ticker in port_map
-                    screen       = "portfolio" if is_portfolio else "watchlist"
+                    is_paper     = source == "paper"
+                    screen       = "paper" if is_paper else ("portfolio" if source == "port" else "watchlist")
 
                     why = ticker_why_en[ticker] if (is_en and ticker in ticker_why_en) else ticker_why[ticker]
                     emoji = _move_emoji(ticker, pct)
@@ -1978,14 +2014,18 @@ async def job_portfolio_alerts():
                     # user reads tickers faster than full names once already looking
                     # at a specific stock's alert. Always 2 decimals for precision.
                     prefix = f"{emoji} {ticker} {verb} {pct:+.2f}%"
-                    push_category = f"price_mover_{ticker}"
+                    # Paper trading gets its own dedup key and category so it never
+                    # shares — or steals — the same-day budget from a real holding
+                    # of the same ticker; it also never displaces a real-portfolio
+                    # alert for the same ticker, both are sent.
+                    push_category = f"price_mover_paper_{ticker}" if is_paper else f"price_mover_{ticker}"
 
                     # Hard cap of one push per ticker per user per day — applies to
                     # free AND premium alike (this used to only gate premium users,
                     # so free users got re-pinged on every 5-min cycle a ticker
                     # stayed a mover, and premium users could still get a second
                     # "here's why" correction later the same day).
-                    if not await should_send_price_alert(uid, ticker, db):
+                    if not await should_send_price_alert(uid, ticker, db, category=push_category):
                         continue
 
                     if is_prem:
@@ -2004,6 +2044,10 @@ async def job_portfolio_alerts():
                             if is_en else
                             f"{prefix}. Activa Premium para ver por qué."
                         )
+
+                    # Simulated position — tag the copy so it's never confused with real money.
+                    if is_paper:
+                        body += " (Simulador)" if not is_en else " (Simulator)"
 
                     await enqueue_push(
                         uid,

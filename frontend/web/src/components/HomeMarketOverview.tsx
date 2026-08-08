@@ -14,7 +14,7 @@ interface IndexData {
   change_pct: number;
   futures_price?: number | null;
   futures_change_pct?: number | null;
-  session?: "pre" | "regular" | "after" | "futures";
+  session?: "pre" | "regular" | "after" | "futures" | "closed";
 }
 
 type Period = "1d" | "5d" | "6m" | "ytd" | "1y" | "5y" | "max";
@@ -124,7 +124,7 @@ function IndexCard({ idx, prices, loading, isBest, period, periods, t }: {
   // about the past, where futures (a right-now-only signal) don't apply.
   // An index has no pre-market/after-hours price of its own — outside
   // regular hours the corresponding future is the real live data source.
-  const useFutures  = !isHistorical && idx.session && idx.session !== "regular" && idx.futures_price != null;
+  const useFutures  = !isHistorical && (idx.session === "pre" || idx.session === "after" || idx.session === "futures") && idx.futures_price != null;
   const displayPrice = useFutures ? idx.futures_price! : idx.price;
   const displayPct   = periodReturn ?? (useFutures ? (idx.futures_change_pct ?? 0) : idx.change_pct);
   const up    = displayPct >= 0;
