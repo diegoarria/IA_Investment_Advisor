@@ -939,8 +939,20 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     # implies — this is what lets a mature-but-excellent compounder (Apple-
     # like: low revenue CAGR, ROIC ~95%) get a growth boost a pure CAGR
     # projection would never give it.
-    roic_valid_all = [v for v in roic_trend if v is not None]
-    avg_roic = statistics.mean(roic_valid_all) if roic_valid_all else None
+    #
+    # Recency-weighted, NOT a flat mean — same technique (and the exact same
+    # bug it fixes) as avg_fcf_margin above. A flat average across every
+    # available year let a company's oldest, deeply loss-making years drag
+    # avg_roic negative or near-zero even after it turned durably profitable
+    # (Uber, Spotify, Nu Holdings — years of real operating losses while
+    # scaling, now solidly ROIC-positive). Since nuvos_fair_value's entire
+    # computation is gated on `avg_roic > 0` below, this flat-average bug
+    # didn't just under-value these companies — it silently produced NO fair
+    # value at all for some of them (avg_roic <= 0), and a near-zero,
+    # visibly-broken one for others (avg_roic barely positive, dragging the
+    # blended terminal ROIC assumption down with it).
+    roic_pairs = [(i, v) for i, v in enumerate(roic_trend) if v is not None]
+    avg_roic = recency_weighted_average(roic_pairs)
 
     # Recency-weighted average FCF margin across the available years (paired
     # by index with revenue, not just fcf_valid[-1] in isolation) — a flat
@@ -2626,15 +2638,39 @@ def format_fundamental_analysis_for_prompt(data: dict) -> str:
     dcf = data.get("dcf")
     if dcf:
         lines.append("")
-        lines.append(
-            f"DCF calculado (2 etapas, {dcf['projection_years']} años, FCF base {_fmt_money(dcf['base_fcf'])} "
-            f"[margen de FCF promedio {dcf['avg_fcf_margin_pct']}% × ingresos del último año — normalizado, no el "
-            f"FCF crudo del último año, que puede estar distorsionado por un año de capex inusualmente alto o bajo], "
-            f"tasa de descuento (WACC) {dcf['base_discount_rate_pct']}%, "
-            f"crecimiento terminal {dcf['terminal_growth_pct']}% [ajustado por sector: {dcf.get('sector') or 'N/D'}], "
-            f"deuda {_fmt_money(dcf['total_debt'])}, "
-            f"caja {_fmt_money(dcf['cash'])}, acciones en circulación hoy {dcf['shares_outstanding']:,.0f}):"
-        )
+        if "projection_years" in dcf:
+            lines.append(
+                f"DCF calculado (2 etapas, {dcf['projection_years']} años, FCF base {_fmt_money(dcf['base_fcf'])} "
+                f"[margen de FCF promedio {dcf['avg_fcf_margin_pct']}% × ingresos del último año — normalizado, no el "
+                f"FCF crudo del último año, que puede estar distorsionado por un año de capex inusualmente alto o bajo], "
+                f"tasa de descuento (WACC) {dcf['base_discount_rate_pct']}%, "
+                f"crecimiento terminal {dcf['terminal_growth_pct']}% [ajustado por sector: {dcf.get('sector') or 'N/D'}], "
+                f"deuda {_fmt_money(dcf['total_debt'])}, "
+                f"caja {_fmt_money(dcf['cash'])}, acciones en circulación hoy {dcf['shares_outstanding']:,.0f}):"
+            )
+        else:
+            # Financial-sector companies (banks/insurers/consumer lenders) use
+            # the Residual Income / Excess Return model (financial_engine.py's
+            # build_financial_fair_value), NOT the standard FCF-DCF above — a
+            # completely different `dcf` dict shape with no projection_years/
+            # base_fcf/avg_fcf_margin_pct keys. Reading those unconditionally
+            # used to raise a raw KeyError here, silently falling back to the
+            # generic "no pudimos generar el resumen" text for EVERY
+            # financial-sector ticker (AXP, NU, JPM, ...) no matter how good
+            # the real underlying data was — the numbers were always fine,
+            # only the AI narrative was permanently broken for this sector.
+            lines.append(
+                f"Valoración calculada con el modelo de Residual Income / Excess Return para el sector financiero "
+                f"(NO es un DCF de flujo de caja libre — bancos, aseguradoras y prestamistas se valoran distinto, "
+                f"a partir del valor en libros y el ROE, no del FCF): "
+                f"valor en libros por acción {_fmt_money(dcf.get('book_value_per_share'))}, "
+                f"ROE promedio real ponderado por recencia {dcf.get('avg_roe_pct')}%, "
+                f"costo de equity {dcf.get('cost_of_equity_pct')}%, "
+                f"crecimiento sostenible (ROE × retención de utilidades) {dcf.get('sustainable_growth_pct')}%, "
+                f"múltiplo Precio/Valor en Libros justificado {dcf.get('justified_pb')}x, "
+                f"deuda {_fmt_money(dcf.get('total_debt'))}, "
+                f"caja {_fmt_money(dcf.get('cash'))}, acciones en circulación hoy {dcf['shares_outstanding']:,.0f}):"
+            )
         wd = dcf.get("wacc_details") or {}
         if wd.get("method") == "capm":
             lines.append(

@@ -971,6 +971,18 @@ _QUICK_ANALYSIS_CACHE_TTL = 90 * 24 * 3600  # 3 months — a ceiling, not the re
 
 
 def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
+    # v6 — bumped because avg_roic (fundamental_analysis_service.py) switched
+    # from a flat historical mean to the same recency-weighted average
+    # already used for operating margin. The flat mean let a company's
+    # oldest, deeply loss-making years drag nuvos_fair_value's whole
+    # avg_roic > 0 gate negative even after it turned durably profitable —
+    # Spotify got NO fair value at all, Uber got a near-zero/broken one.
+    # Also fixed the AI narrative permanently crashing (KeyError) for every
+    # financial-sector ticker (AXP, NU, JPM, ...) — silently falling back to
+    # generic text regardless of how good the underlying numbers were. Every
+    # ticker's numbers may have changed, and financial tickers' summaries
+    # were always broken before — without this bump, both keep serving
+    # broken v5 data for up to 90 more days.
     # v5 — bumped for the "Calidad de la valuación" model-confidence card
     # (see /Users/diegoarria/.claude/plans/stateful-painting-flurry.md):
     # added years_available/beta to the response.
@@ -994,7 +1006,7 @@ def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
     # the "summary"/"blurb" schema's hardcoded "español" instruction was
     # fixed (it silently overrode the top-level language directive) doesn't
     # keep serving Spanish text under an English UI for its remaining TTL.
-    return f"quick_analysis:v5:{lang}:{ticker}"
+    return f"quick_analysis:v6:{lang}:{ticker}"
 
 
 async def _build_quick_analysis(ticker: str, lang: str) -> dict:
@@ -1542,13 +1554,18 @@ _NIF_DASHBOARD_CACHE_TTL = _QUICK_ANALYSIS_CACHE_TTL  # same ceiling philosophy 
 
 
 def _nif_dashboard_cache_key(ticker: str, lang: str) -> str:
+    # v4 — same reason as _quick_analysis_cache_key's v6 bump: the Valuation
+    # pillar/Confidence Score both derive from nuvos_fair_value, which the
+    # avg_roic recency-weighting fix changed (sometimes from None to a real
+    # value — a stale entry wouldn't just be a slightly-off number, it could
+    # be a pillar with no data at all where one now exists).
     # v3 — same reason as _quick_analysis_cache_key's v4 bump: the "Modelo
     # Completo" changes touch the same nuvos_fair_value dict this dashboard
     # reads its Valuation pillar/Confidence Score from.
     # v2 — same reason as _quick_analysis_cache_key's v3 bump: the NIF
     # dashboard's Valuation pillar and Confidence Score both derive from
     # the DCF the Nuvos AI Fair Value Engine redesign rewrote end to end.
-    return f"nif_dashboard:v3:{lang}:{ticker}"
+    return f"nif_dashboard:v4:{lang}:{ticker}"
 
 
 @router.get("/nif-dashboard")
