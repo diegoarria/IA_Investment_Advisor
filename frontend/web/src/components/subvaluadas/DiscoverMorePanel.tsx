@@ -22,10 +22,8 @@ function _verdictStyle(verdict: DiscoverCandidate["verdict"]): { bg: string; fg:
 }
 
 // Real "Descubre más" pattern — a grid of 4 clickable candidate cards that
-// hard-navigate to that ticker's own /subvaluadas detail. Originally built
-// inside ValuationBacktestPanel.tsx (bottom of every ticker page); extracted
-// here so OpportunitiesListPanel can reuse the exact same component instead
-// of a second implementation drifting out of sync with this one.
+// hard-navigate to that ticker's own /subvaluadas detail. Used by
+// ValuationBacktestPanel.tsx (bottom of every ticker page).
 export function DiscoverMorePanel({ candidates }: { candidates: DiscoverCandidate[] }) {
   const { t } = useTranslation();
 

@@ -1050,6 +1050,27 @@
       "adoptCta": "Adoptar como mi tesis",
       "adopting": "Adoptando..."
     },
+    "followAlert": {
+      "title": "Seguir {{ticker}}",
+      "subtitle": "Recibe una notificación cuando baje el precio",
+      "badge": "Seguir zona de compra",
+      "belowLabel": "{{pct}}% por debajo del valor intrínseco",
+      "belowShort": "{{pct}}% por debajo",
+      "description": "Recibe una notificación cuando el precio baje a tu zona de compra",
+      "currentPrice": "Precio actual",
+      "intrinsicValue": "Valor intrínseco",
+      "marginOfSafety": "Margen de seguridad {{pct}}%",
+      "otherOptions": "O elige otro margen de seguridad",
+      "customOption": "Personalizado",
+      "customPlaceholder": "% personalizado",
+      "customApply": "Aplicar",
+      "createButton": "Crear alerta con {{pct}}% de margen",
+      "updateButton": "Actualizar alerta con {{pct}}% de margen",
+      "removeButton": "Eliminar alerta",
+      "creating": "Creando...",
+      "created": "¡Alerta creada!",
+      "error": "No se pudo crear la alerta. Intenta de nuevo."
+    },
     "nuvosFairValue": {
       "title": "Nuvos AI Fair Value Engine",
       "subtitle": "Un solo motor de valuación, tres escenarios posibles — nunca un precio exacto, sino un rango de estimaciones razonables según distintos supuestos.",
@@ -1263,27 +1284,6 @@
         "overvalued": "{{pct}}% sobrevalorada",
         "fair": "Valor razonable"
       }
-    },
-    "opportunities": {
-      "title": "Oportunidades",
-      "subtitle": "Candidatas reales con margen de seguridad positivo, del motor de valor intrínseco de Nuvos AI — cobertura S&P 500.",
-      "updated": "Actualizado: {{date}}",
-      "loading": "Buscando oportunidades reales en el S&P 500…",
-      "empty": "Todavía no hay datos del screener semanal — vuelve más tarde.",
-      "sectorAll": "Todos los sectores",
-      "sortLabel": "Ordenar por",
-      "sort": {
-        "mos_desc": "Más subvaluadas",
-        "mos_asc": "Más sobrevaloradas",
-        "market_cap_desc": "Mayor market cap",
-        "market_cap_asc": "Menor market cap",
-        "confidence_desc": "Mayor confianza",
-        "confidence_asc": "Menor confianza"
-      },
-      "confidence": "Confianza",
-      "marginOfSafety": "Margen de seguridad",
-      "seeMore": "Ver más",
-      "seeLess": "Ver menos"
     }
   },
   "patrimonio": {

@@ -1050,6 +1050,27 @@
       "adoptCta": "Adopt as my thesis",
       "adopting": "Adopting..."
     },
+    "followAlert": {
+      "title": "Follow {{ticker}}",
+      "subtitle": "Get notified when the price drops",
+      "badge": "Follow buy zone",
+      "belowLabel": "{{pct}}% below intrinsic value",
+      "belowShort": "{{pct}}% below",
+      "description": "Get notified when the price drops into your buy zone",
+      "currentPrice": "Current price",
+      "intrinsicValue": "Intrinsic value",
+      "marginOfSafety": "{{pct}}% margin of safety",
+      "otherOptions": "Or pick another margin of safety",
+      "customOption": "Custom",
+      "customPlaceholder": "custom %",
+      "customApply": "Apply",
+      "createButton": "Create alert with {{pct}}% margin",
+      "updateButton": "Update alert to {{pct}}% margin",
+      "removeButton": "Remove alert",
+      "creating": "Creating...",
+      "created": "Alert created!",
+      "error": "Couldn't create the alert. Try again."
+    },
     "nuvosFairValue": {
       "title": "Nuvos AI Fair Value Engine",
       "subtitle": "One valuation engine, three possible scenarios — never an exact price, but a range of reasonable estimates under different assumptions.",
@@ -1263,27 +1284,6 @@
         "overvalued": "{{pct}}% overvalued",
         "fair": "Fair value"
       }
-    },
-    "opportunities": {
-      "title": "Opportunities",
-      "subtitle": "Real candidates with a positive margin of safety, from Nuvos AI's intrinsic-value engine — S&P 500 coverage.",
-      "updated": "Updated: {{date}}",
-      "loading": "Scanning the S&P 500 for real opportunities…",
-      "empty": "No data from the weekly screener yet — check back later.",
-      "sectorAll": "All sectors",
-      "sortLabel": "Sort by",
-      "sort": {
-        "mos_desc": "Most undervalued",
-        "mos_asc": "Most overvalued",
-        "market_cap_desc": "Largest market cap",
-        "market_cap_asc": "Smallest market cap",
-        "confidence_desc": "Highest confidence",
-        "confidence_asc": "Lowest confidence"
-      },
-      "confidence": "Confidence",
-      "marginOfSafety": "Margin of safety",
-      "seeMore": "See more",
-      "seeLess": "See less"
     }
   },
   "patrimonio": {
