@@ -114,6 +114,24 @@ async def create_profile(
         result = await run_query(
             db.table("user_profiles").update({**db_data, "updated_at": now}).eq("user_id", user_id)
         )
+        if not result.data:
+            # Same class of bug the insert branch below is already hardened
+            # against: an update() that actually succeeds but returns no
+            # rows back (transient network hiccup, replica lag on the
+            # RETURNING clause) must never crash with an unguarded
+            # IndexError on result.data[0] a few lines down — that raw
+            # exception is exactly the "Internal Server Error" the user
+            # hits tapping "Avanzar" a second time (their first tap DID
+            # save; this retry lands here, in the update branch, not the
+            # insert branch, which is why the earlier fix there didn't
+            # cover it). Re-fetch before giving up.
+            for _ in range(3):
+                result = await run_query(db.table("user_profiles").select("*").eq("user_id", user_id))
+                if result.data:
+                    break
+                await asyncio.sleep(0.3)
+            if not result.data:
+                raise HTTPException(status_code=503, detail="No se pudo guardar tu perfil. Intenta de nuevo en unos segundos.")
     else:
         # Start the Premium trial the instant the profile row is created
         # (onboarding completion) instead of waiting for the client to
