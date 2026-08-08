@@ -451,6 +451,24 @@ export interface NuvosFairValueData {
   revenue_cagr_5y_pct?: number | null;
   wall_street_revenue_growth_next_year_pct?: number | null;
   wall_street_eps_growth_next_year_pct?: number | null;
+  // Financial-sector engine (Residual Income / Excess Return — banks,
+  // insurers, brokers) — same NuvosFairValueData shape as every other
+  // company, just populated with ROE/Cost-of-Equity/P-B numbers instead of
+  // revenue/margin/WACC ones (see valuation/financial_engine.py). Never a
+  // second visible "method" in the UI, only a label swap on this same panel.
+  is_financial_sector?: boolean;
+  financial_subsector?: string;
+  eps_cagr_3y_pct?: number | null;
+  eps_cagr_5y_pct?: number | null;
+  book_value_cagr_3y_pct?: number | null;
+  book_value_cagr_5y_pct?: number | null;
+  sector_model_note?: { sector_type: string; detalle: string } | null;
+  financial_reverse_valuation?: {
+    implied_roe_pct: number | null;
+    historical_roe_pct: number | null;
+    nuvos_roe_pct: number | null;
+  } | null;
+  valuation_sanity_warning?: boolean;
 }
 
 export const _SCENARIO_COLOR: Record<"bear" | "base" | "bull", string> = {
@@ -736,16 +754,26 @@ function _ExitMultipleAccordionItem({
 export function _SupuestosSection({ data }: { data: NuvosFairValueData }) {
   const { t } = useTranslation();
   const base = data.scenarios.base.assumptions;
+  const isFinancial = !!data.is_financial_sector;
 
   return (
     <div className="space-y-1.5">
-      <_SupuestoAccordionItem title={t("subvaluadas.nuvosFairValue.growthFactorsTitle")} factors={data.growth_factors} nuvosValuePct={base.revenue_growth_1_pct} />
-      <_SupuestoAccordionItem title={t("subvaluadas.nuvosFairValue.marginFactorsTitle")} factors={data.operating_margin_factors} nuvosValuePct={base.operating_margin_anchor_pct} />
-      <_SupuestoAccordionItem title={t("subvaluadas.nuvosFairValue.roicFactorsTitle")} factors={data.terminal_roic_factors} nuvosValuePct={_deriveTerminalRoicPct(base)} />
-      <_SupuestoSimpleRow title={t("subvaluadas.nuvosFairValue.wacc")} value={`${base.discount_rate_pct.toFixed(1)}%`} />
+      <_SupuestoAccordionItem
+        title={t(isFinancial ? "subvaluadas.nuvosFairValue.epsGrowthFactorsTitle" : "subvaluadas.nuvosFairValue.growthFactorsTitle")}
+        factors={data.growth_factors} nuvosValuePct={base.revenue_growth_1_pct}
+      />
+      <_SupuestoAccordionItem
+        title={t(isFinancial ? "subvaluadas.nuvosFairValue.roeFactorsTitle" : "subvaluadas.nuvosFairValue.marginFactorsTitle")}
+        factors={data.operating_margin_factors} nuvosValuePct={base.terminal_operating_margin_pct}
+      />
+      {/* ROIC terminal doesn't apply to a Residual Income model — omitted for financial-sector companies rather than mislabeled. */}
+      {!isFinancial && (
+        <_SupuestoAccordionItem title={t("subvaluadas.nuvosFairValue.roicFactorsTitle")} factors={data.terminal_roic_factors} nuvosValuePct={_deriveTerminalRoicPct(base)} />
+      )}
+      <_SupuestoSimpleRow title={t(isFinancial ? "subvaluadas.nuvosFairValue.costOfEquity" : "subvaluadas.nuvosFairValue.wacc")} value={`${base.discount_rate_pct.toFixed(1)}%`} />
       {base.exit_multiple !== null && (
         <_ExitMultipleAccordionItem
-          title={t("subvaluadas.nuvosFairValue.exitMultiple")}
+          title={t(isFinancial ? "subvaluadas.nuvosFairValue.terminalPb" : "subvaluadas.nuvosFairValue.exitMultiple")}
           ladder={data.exit_multiple_ladder}
           nuvosMultiple={base.exit_multiple}
           metric={base.exit_metric}
@@ -870,9 +898,22 @@ export function FairValueScenariosPanel({
       <div className="flex items-center gap-1.5 rounded-xl px-3 py-2 mb-4 w-fit" style={{ background: "var(--raised)" }}>
         <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("subvaluadas.nuvosFairValue.methodologyLabel")}</span>
         <span className="text-[11px] font-bold" style={{ color: "var(--text)" }}>
-          {t("subvaluadas.nuvosFairValue.methodologyValue")}
+          {t(data.is_financial_sector ? "subvaluadas.nuvosFairValue.methodologyValueFinancial" : "subvaluadas.nuvosFairValue.methodologyValue")}
         </span>
       </div>
+
+      {/* Sector model note — same "Nuvos AI Fair Value Engine" panel for
+          everyone, but a company whose economics call for a different real
+          method underneath (financials today) gets a short, honest
+          explanation of why, right where the methodology chip already is. */}
+      {data.sector_model_note && (
+        <div className="rounded-xl px-3 py-2.5 mb-4" style={{ background: "rgba(212,162,76,0.08)", border: "1px solid rgba(212,162,76,0.2)" }}>
+          <p className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: _SCENARIO_COLOR.base }}>
+            {t("subvaluadas.nuvosFairValue.sectorModelNoteTitle")}
+          </p>
+          <p className="text-[11.5px] leading-relaxed" style={{ color: "var(--sub)" }}>{data.sector_model_note.detalle}</p>
+        </div>
+      )}
 
       {/* Other reference points — demoted on purpose, never blended into the headline number */}
       {referencePoints.length > 0 && (

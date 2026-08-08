@@ -138,18 +138,50 @@ class TestDriverBasedValuationWiring:
         prompt_text = format_fundamental_analysis_for_prompt(result)
         assert "FFO/AFFO" in prompt_text
 
-    def test_financial_sector_still_uses_justified_pb_and_has_no_note(self):
+    def test_financial_sector_uses_residual_income_and_has_no_note(self):
+        # Financial Sector Fair Value Engine redesign — Residual Income /
+        # Excess Return model (valuation.financial_engine) replaced the old
+        # Justified P-B model ("Banks - Regional" isn't an asset-light
+        # industry per screener.py's curated UNIVERSE, so this ticker isn't
+        # in it — _fin_industry is None, which keeps the financial-sector
+        # dispatch, same as before this change: only tickers INSIDE the
+        # curated universe with a real asset-light industry get carved out).
         patches = _patch_boundary(sector="Banks - Regional")
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
             result = get_fundamental_analysis("SYN3")
 
         assert result is not None
         assert result["dcf"] is not None
-        assert result["dcf"]["methodology"] == "residual_income_justified_pb"
+        assert result["dcf"]["methodology"] == "residual_income_excess_return_v2"
         # financial-sector model doesn't compute the driver-based DCF (that
         # branch is scoped to the standard FCF-DCF path only)
         assert "driver_based_valuation" not in result["dcf"]
+        # dcf-level sector_model_note is now real (methodology explanation,
+        # decision #16) — the top-level `sector_model_note` stays None
+        # (that field is reserved for the REIT "no DCF at all" disclosure).
         assert result["sector_model_note"] is None
+        assert result["dcf"]["sector_model_note"]["sector_type"] == "financial"
+
+    def test_asset_light_financial_ticker_uses_standard_fcf_dcf_not_residual_income(self):
+        # Real validation finding (live smoke test against 13 real financial
+        # tickers) — Visa/Mastercard/BlackRock all tripped the Residual
+        # Income model's valuation_sanity_warning with implied P/B multiples
+        # wildly divergent from real comparables: asset-light, fee-based
+        # financial businesses don't fit a book-value-driven model.
+        # `_is_asset_light_financial_industry` carves these out using the
+        # curated UNIVERSE's real GICS sub-industry — "V" (Visa) is real,
+        # unmocked UNIVERSE data ("Transaction & Payment Processing
+        # Services"), the actual case this fix targets.
+        patches = _patch_boundary(sector="Financial Services")
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
+            result = get_fundamental_analysis("V")
+
+        assert result is not None
+        assert result["dcf"] is not None
+        assert result["dcf"].get("methodology") != "residual_income_excess_return_v2"
+        assert "driver_based_valuation" in result["dcf"]
+        assert result["dcf"]["nuvos_fair_value"] is not None
+        assert not result["dcf"]["nuvos_fair_value"].get("is_financial_sector")
 
 
 class TestPeerDependentDataWiring:
@@ -291,16 +323,29 @@ class TestNuvosFairValueWiring:
         base_exit_multiple = matrix["multiple_cols"][2]
         assert base_exit_multiple > 0
 
-    def test_financial_sector_never_computes_nuvos_fair_value(self):
-        # nuvos_fair_value lives inside the same standard-FCF-DCF branch as
-        # driver_based_scenarios — financial-sector companies (Justified
-        # P-B methodology) never reach it, by construction (decision #5).
+    def test_financial_sector_computes_a_real_nuvos_fair_value(self):
+        # Financial Sector Fair Value Engine redesign — financial-sector
+        # companies now DO get a real `nuvos_fair_value` (Bear/Base/Bull),
+        # from valuation.financial_engine.build_financial_fair_value, not
+        # the standard FCF driver-based engine. Previously (Justified P-B
+        # model) this key was entirely absent, which meant the 3-scenario
+        # "Nuvos AI Fair Value Engine" UI had no real data to render for a
+        # bank/insurer — this is the fix for exactly that gap.
         patches = _patch_boundary(sector="Banks - Regional")
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
             result = get_fundamental_analysis("SYN12")
 
         assert result["dcf"] is not None
-        assert "nuvos_fair_value" not in result["dcf"]
+        nfv = result["dcf"]["nuvos_fair_value"]
+        assert nfv is not None
+        assert nfv["is_financial_sector"] is True
+        bear = nfv["scenarios"]["bear"]["fair_value_per_share"]
+        base = nfv["scenarios"]["base"]["fair_value_per_share"]
+        bull = nfv["scenarios"]["bull"]["fair_value_per_share"]
+        assert bear is not None and base is not None and bull is not None
+        assert bear <= base <= bull
+        assert nfv["exit_metric"] == "price_to_book"
+        assert "implied_roe_pct" in nfv["financial_reverse_valuation"]
 
     def test_reit_sector_never_computes_nuvos_fair_value(self):
         patches = _patch_boundary(sector="REIT - Retail")

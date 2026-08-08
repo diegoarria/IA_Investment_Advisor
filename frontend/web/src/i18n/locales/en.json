@@ -1086,11 +1086,17 @@
       "exitMetric": {
         "ev_sales": "EV/Sales",
         "ev_ebit": "EV/EBIT",
-        "ev_fcf": "EV/FCF"
+        "ev_fcf": "EV/FCF",
+        "price_to_book": "Price/Book value"
       },
       "growthFactorsTitle": "Why this growth rate",
       "marginFactorsTitle": "Why this margin",
       "roicFactorsTitle": "Why this terminal ROIC",
+      "epsGrowthFactorsTitle": "Why this EPS growth rate",
+      "roeFactorsTitle": "Why this ROE",
+      "costOfEquity": "Cost of equity",
+      "terminalPb": "Terminal P/B",
+      "methodologyValueFinancial": "10-year Residual Income Model: values the company's ability to generate returns on its capital above its cost of equity, with gradual ROE normalization and a terminal Price/Book value multiple.",
       "disclaimer": "This is a well-founded estimate based on real assumptions about growth, profitability, and risk — not an exact figure or a promise of a future price.",
       "assumptionFactors": {
         "historical": "Own historical",
@@ -1106,7 +1112,22 @@
         "wallStreet": "Wall Street consensus",
         "nuvos": "Nuvos estimate",
         "peers": "Peer median"
-      }
+      },
+      "sectorModelNoteTitle": "How Nuvos values this company"
+    },
+    "financialReverseValuation": {
+      "title": "What is the market pricing in?",
+      "subtitle": "The current price implies the market expects the company to sustain roughly this ROE over the projection period:",
+      "marketImplies": "Market-implied ROE",
+      "historical": "Historical ROE",
+      "nuvosEstimates": "Nuvos estimated ROE",
+      "unavailable": "Couldn't compute the implied ROE for this price."
+    },
+    "financialSensitivity": {
+      "title": "What moves this valuation the most?",
+      "subtitle": "Value per share by Cost of Equity and terminal Price/Book value multiple.",
+      "costOfEquityRow": "Cost of equity",
+      "terminalPbCol": "Terminal P/B"
     },
     "fullModel": {
       "title": "Full model — {{ticker}}",

@@ -196,6 +196,35 @@ def _is_financial_sector(sector: str | None) -> bool:
     return any(k in s for k in _FINANCIAL_SECTOR_KEYS)
 
 
+# Real validation finding (live smoke test, 13 real financial tickers) — the
+# Residual Income model assumes real economic value comes from capital
+# deployed on the balance sheet (book equity), which is exactly right for
+# deposit-taking banks and underwriting insurers, but WRONG for asset-light,
+# fee-based financial businesses: payment networks (Visa/Mastercard don't
+# extend credit themselves — they toll transaction volume) and asset
+# managers (BlackRock earns fees on AUM, not a return on its own thin
+# balance sheet). Confirmed: V/MA/BLK all tripped `valuation_sanity_warning`
+# with implied P/B multiples wildly divergent from real market/peer
+# comparables — a genuine model-fit problem, not noise. Live Finnhub's
+# `finnhubIndustry` is too coarse to tell these apart from real banks/
+# brokers (V, MA, BLK, AXP, and Goldman Sachs ALL report the identical
+# "Financial Services" string) — this instead uses the curated UNIVERSE's
+# real GICS sub-industry (screener.py), which IS granular enough
+# ("Transaction & Payment Processing Services", "Asset Management & Custody
+# Banks"). Only refines companies already inside the curated universe —
+# `industry=None` (any ticker outside it) keeps the prior, safer default
+# (stays in the Residual Income model, same as before this fix).
+_ASSET_LIGHT_FINANCIAL_INDUSTRY_KEYS = (
+    "transaction & payment processing", "asset management", "financial exchanges & data",
+)
+
+
+def _is_asset_light_financial_industry(industry: str | None) -> bool:
+    if not industry:
+        return False
+    return any(k in industry.lower() for k in _ASSET_LIGHT_FINANCIAL_INDUSTRY_KEYS)
+
+
 # ── Liquidity gate ─────────────────────────────────────────────────────────────
 # Running a full DCF on a stock with minimal free float or trading volume
 # produces a precise-looking number built on a price that barely trades —
@@ -363,14 +392,12 @@ def bear_base_bull_growth_cap_pct(business_quality_score: Optional[float], scena
     return max(base_cap + quality_swing_pp, 5.0)
 
 
-# Excess Return / Justified P-B (banks, insurers, brokers) — cost_of_equity_
-# delta_pct shifts the discount rate; growth_multiplier scales sustainable
-# growth (ROE × retention), still bounded by the model's own growth ceiling.
-EXCESS_RETURN_SCENARIOS = {
-    "pessimistic": {"cost_of_equity_delta_pct": 1.0, "growth_multiplier": 0.5},
-    "base":        {"cost_of_equity_delta_pct": 0.0, "growth_multiplier": 1.0},
-    "optimistic":  {"cost_of_equity_delta_pct": -1.0, "growth_multiplier": 1.3},
-}
+# Financial-sector (banks/insurers/brokers) scenarios live in
+# valuation/financial_engine.py (_financial_scenario_deltas) — replaced the
+# old fixed EXCESS_RETURN_SCENARIOS multiplier table (Residual Income
+# Excess-Return redesign): scenario width now scales with the company's
+# own ROE stability and business quality instead of a flat 0.5x/1.0x/1.3x
+# applied identically to every financial company.
 
 
 # ── Real CAPM-based WACC ──────────────────────────────────────────────────────
@@ -651,193 +678,6 @@ def _build_checklist_items(dcf: dict, thesis_scores: dict, evidence: Optional[di
     return items
 
 
-
-
-def _build_financial_sector_valuation(
-    roe_trend: list[Optional[float]], latest_equity: float, shares_out: float, price: float,
-    cost_of_equity: float, latest_dividends_paid: Optional[float], latest_net_income: Optional[float],
-    total_debt: float, cash: float, sector: Optional[str], wacc_details: dict,
-) -> Optional[dict]:
-    """Real valuation for banks/insurers/brokers — Justified Price-to-Book
-    (mathematically the closed-form, Gordon-growth version of a Residual
-    Income Model): Justified P/B = (ROE - g) / (Cost of Equity - g), where
-    g is the REAL sustainable growth rate (ROE × retention ratio, from real
-    dividend/net-income data) — not the 2-stage FCF-based DCF above, which
-    is unreliable for this sector (confirmed with Progressive Corp — see
-    _is_financial_sector's docstring). Every input is real: ROE trend,
-    book value, dividends paid, and the same CAPM cost of equity already
-    computed for the standard DCF. Populates the same dict shape as the
-    normal `dcf` return (scenarios/margin_of_safety_pct/etc.) so downstream
-    code (checklist, screener, prompt formatting) doesn't need to
-    special-case the methodology — just reads a "methodology" label."""
-    # A single ROE data point can't establish a real trend — the
-    # recency-weighted average below would just be that one (possibly noisy)
-    # year's ROE dressed up as a multi-year signal. Require at least 2 real
-    # points, same spirit as the standard DCF's _MIN_YEARS gate.
-    roe_valid = [v for v in roe_trend if v is not None]
-    if len(roe_valid) < 2 or not latest_equity or latest_equity <= 0 or not shares_out or not price:
-        return None
-
-    # Missing dividends/net-income data (as opposed to a real 0) currently
-    # defaults payout_ratio to 0.0 — full retention — below. That's a real
-    # assumption, not a neutral default, so it's surfaced rather than hidden.
-    dividends_missing = latest_dividends_paid is None or latest_net_income is None
-
-    # Real-world floor on cost of equity — CAPM with an unusually low beta
-    # (seen for real with Progressive Corp's beta of 0.25) understates equity
-    # risk for financial institutions, whose leverage/underwriting risk isn't
-    # fully captured by market beta. 7% is a standard practitioner floor
-    # (Damodaran uses a similar convention) — disclosed, not silently hidden.
-    cost_of_equity = max(cost_of_equity, 0.07)
-
-    # Recency-weighted average ROE — same rationale as avg_fcf_margin above:
-    # the latest year alone can be noisy, a flat average lets stale years
-    # drag down a genuinely improving trend.
-    weight_sum = sum(i + 1 for i in range(len(roe_valid)))
-    avg_roe = sum((i + 1) * v for i, v in enumerate(roe_valid)) / weight_sum / 100  # decimal
-
-    book_value_per_share = latest_equity / shares_out
-
-    payout_ratio = (
-        min(max(latest_dividends_paid / latest_net_income, 0.0), 1.0)
-        if latest_dividends_paid is not None and latest_net_income and latest_net_income > 0 else 0.0
-    )
-    retention_ratio = 1 - payout_ratio
-    # Cap sustainable growth at a realistic long-run ceiling. A mature
-    # financial institution's book value can't keep compounding at its
-    # current ROE forever — real long-run growth converges toward overall
-    # economic growth (~long-run nominal GDP, roughly 3-4%). A 6% cap
-    # (this model's first version) was calibrated against an extreme case
-    # (Progressive Corp's 26%+ ROIC) to prevent a blow-up, but for a
-    # NORMAL, merely-good insurer (e.g. Chubb, ROE ~12-13%, cost of equity
-    # ~8%) it still leaves too thin an (r-g) spread — the Gordon-growth
-    # formula is extremely sensitive there, and 6% inflated the justified
-    # P/B well above what real-world justified P/B multiples for insurers
-    # actually look like (rarely above ~3x book even for excellent
-    # underwriters). 4% is the standard long-run ceiling instead.
-    sustainable_growth = min(avg_roe * retention_ratio, 0.04)
-
-    def justified_pb_and_value(coe: float, g: float) -> tuple[float, float]:
-        # Guard: the Gordon-growth form requires coe > g, or it's undefined/
-        # explosive — clamp g to a safe margin below coe rather than let the
-        # formula blow up (disclosed, not hidden).
-        #
-        # Ceiling of 8x is a backstop against pathological inputs (the
-        # original Progressive Corp blow-up), NOT an active constraint on
-        # legitimate high-ROE companies — confirmed by testing against 9
-        # real cases (see section-10 validation): Chubb's justified P/B
-        # (~1.95x, ROE ~12%) was never anywhere near even the old 4x
-        # ceiling, proving the ceiling wasn't what fixed that case (the
-        # growth cap and cost-of-equity floor above did the real work).
-        # A 4x ceiling, however, DID incorrectly cap American Express
-        # (ROE ~30%, real-world P/B genuinely 4-6x) — a flat cap can't
-        # serve both a merely-good insurer and an exceptional, sustained
-        # high-ROE franchise. 8x lets the formula do its job for real
-        # outliers like AXP while still catching genuine blow-ups.
-        g_safe = min(g, coe - 0.005)
-        pb = max(0.0, min((avg_roe - g_safe) / (coe - g_safe), 8.0))
-        return pb, book_value_per_share * pb
-
-    # Vary BOTH cost of equity AND growth per scenario — mirrors the
-    # standard FCF-DCF's pattern (mult 0.5/1.0/1.3 on growth) above, so the
-    # three scenarios actually differentiate instead of only moving the
-    # discount rate while holding growth fixed (a real inconsistency in
-    # the first version of this model — a wide legitimate risk this
-    # dimension should reflect, e.g. a soft insurance cycle depressing ROE,
-    # is invisible if growth never varies across scenarios).
-    scenarios = {}
-    for name, assumptions in EXCESS_RETURN_SCENARIOS.items():
-        coe_delta = assumptions["cost_of_equity_delta_pct"] / 100
-        g_mult = assumptions["growth_multiplier"]
-        coe_scenario = max(cost_of_equity + coe_delta, 0.02)
-        g_scenario = min(sustainable_growth * g_mult, 0.04)
-        pb, value = justified_pb_and_value(coe_scenario, g_scenario)
-        scenarios[name] = {
-            "stage1_growth_pct": round(g_scenario * 100, 1),
-            "discount_rate_pct": round(coe_scenario * 100, 1),
-            "intrinsic_value_per_share": round(value, 2),
-            "justified_pb": round(pb, 2),
-        }
-
-    base_value = scenarios["base"]["intrinsic_value_per_share"]
-    if base_value <= 0:
-        return None
-
-    margin_of_safety = calc_margin_of_safety(base_value, price)
-    expected_value_per_share = round(
-        scenarios["pessimistic"]["intrinsic_value_per_share"] * 0.25
-        + scenarios["base"]["intrinsic_value_per_share"] * 0.5
-        + scenarios["optimistic"]["intrinsic_value_per_share"] * 0.25, 2,
-    )
-
-    # Reverse formula: solve for g such that price = BVPS × (ROE-g)/(r-g).
-    # Linear in g — closed form, no binary search needed.
-    implied_growth_pct = None
-    denom = price - book_value_per_share
-    if abs(denom) > 1e-6:
-        g_implied = (price * cost_of_equity - book_value_per_share * avg_roe) / denom
-        if -0.30 < g_implied < cost_of_equity:
-            implied_growth_pct = round(g_implied * 100, 1)
-
-    # Fase 1.5, Incremento 14 (dedup) — this is a THIRD, genuinely different
-    # "confidence_score" formula in this codebase: a simple ROE-volatility
-    # heuristic, unrelated to `_confidence_score` (confidence_engine.py,
-    # FCF-CV + ROIC-trend based, used by the standard FCF-DCF branch below)
-    # or `confidence_engine.compute_...` more broadly. Named distinctly here
-    # (`roe_volatility_confidence_score`) so a reader/grep never confuses
-    # the three. Still returned under the JSON key "confidence_score" below
-    # — that polymorphism (whichever methodology ran populates the same
-    # generic key) is deliberate, documented where confidence_meter reads it
-    # (~line 2118), and left unchanged so downstream consumers that treat
-    # dcf's shape as methodology-agnostic keep working for financial-sector
-    # tickers exactly as before.
-    roe_stdev = statistics.pstdev(roe_valid) if len(roe_valid) >= 3 else None
-    roe_volatility_confidence_score = _score(roe_stdev, [(5, 90), (10, 75), (18, 55), (30, 35), (999, 15)]) if roe_stdev is not None else 50
-
-    net_cash = cash - total_debt
-    valuation_risk_label = "Bajo" if margin_of_safety >= 0 else "Medio" if margin_of_safety >= -30 else "Alto" if margin_of_safety >= -100 else "Muy alto"
-    operational_risk_label = "Bajo" if roe_volatility_confidence_score >= 80 else "Medio" if roe_volatility_confidence_score >= 60 else "Alto" if roe_volatility_confidence_score >= 40 else "Muy alto"
-
-    return {
-        "methodology": "residual_income_justified_pb",
-        "scenario_config_version": SCENARIO_CONFIG_VERSION,
-        "sector": sector,
-        "book_value_per_share": round(book_value_per_share, 2),
-        "avg_roe_pct": round(avg_roe * 100, 1),
-        "cost_of_equity_pct": round(cost_of_equity * 100, 2),
-        "base_discount_rate_pct": round(cost_of_equity * 100, 2),
-        "wacc_details": wacc_details,
-        "sustainable_growth_pct": round(sustainable_growth * 100, 1),
-        "terminal_growth_pct": round(sustainable_growth * 100, 1),
-        "payout_ratio_pct": round(payout_ratio * 100, 1),
-        "justified_pb": scenarios["base"]["justified_pb"],
-        "total_debt": round(total_debt, 0),
-        "cash": round(cash, 0),
-        "net_cash": round(net_cash, 0),
-        "shares_outstanding": round(shares_out, 0),
-        "projected_shares_outstanding": round(shares_out, 0),
-        "current_price": price,
-        "scenarios": scenarios,
-        "fair_value_range": _fair_value_range(scenarios),
-        "margin_of_safety_pct": margin_of_safety,
-        "expected_value_per_share": expected_value_per_share,
-        "implied_growth_pct": implied_growth_pct,
-        "confidence_score": roe_volatility_confidence_score,
-        "operational_risk_label": operational_risk_label,
-        "valuation_risk_label": valuation_risk_label,
-        "growth_buildup": {
-            "historical_growth_pct": round(sustainable_growth * 100, 1),
-            "moat_adjustment_pct": 0.0,
-            "avg_roic_pct": round(avg_roe * 100, 1),  # ROE substitutes for ROIC in this sector — same moat-evidence role
-            "quality_metric_label": "ROE",
-            "quality_adjusted_growth_pct": round(sustainable_growth * 100, 1),
-            "buyback_rate_pct": 0.0,
-            "fcf_per_share_cagr_pct": None,
-        },
-        "data_quality_flags": {"dividends_missing": dividends_missing},
-    }
-
-
 def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = True) -> Optional[dict]:
     """Returns a fully computed fundamental-analysis dict for `ticker`, or
     None if there isn't enough real financial data to compute one reliably
@@ -974,6 +814,13 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     nopat_trend, invested_capital_trend = [], []
     total_assets_trend, current_assets_trend, current_liabilities_trend, inventory_trend = [], [], [], []
     prev_working_capital: Optional[float] = None
+    # Financial-sector engine inputs (valuation.financial_engine) — real
+    # per-year EPS and book value (Stockholders Equity), oldest->newest,
+    # same convention as every other trend array here. Cheap to build
+    # alongside the rest of this loop; only ever read for financial-sector
+    # companies (see the dispatch below), harmless otherwise.
+    eps_trend: list[Optional[float]] = []
+    book_value_trend: list[Optional[float]] = []
 
     for i in range(n):
         inc, bal, cf = income[i], balance[i], cashflow[i]
@@ -1045,6 +892,8 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             invested_capital_trend.append(None)
         roe_trend.append(round(ni / equity * 100, 1) if ni is not None and equity else None)
         roa_trend.append(round(ni / assets * 100, 1) if ni is not None and assets else None)
+        eps_trend.append(diluted_eps if diluted_eps is not None else _num(inc.get("Basic EPS")))
+        book_value_trend.append(equity)
 
         # Fase 2, Incremento 2 (Quality Engine): balance-sheet liquidity
         # fields, real per-year (not derived) — feed Current Ratio, Quick
@@ -1164,24 +1013,100 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         beta, risk_free_rate, market_cap, total_debt, latest_interest_expense, tax_rate, sector,
     )
 
+    # ── Quality score (0-10, matches the "Calidad del negocio: X.X/10" format) ──
+    # Hoisted here (was previously computed much further down, near where
+    # `thesis_scores` gets assembled) so both the standard FCF bear/base/bull
+    # loop's growth cap AND the financial-sector engine's scenario-width
+    # calibration can receive a REAL business_quality_score instead of the
+    # neutral-50 fallback — every input this block needs (trend arrays,
+    # rev_cagr, avg_fcf_margin, total_debt/cash_latest/net_cash,
+    # latest_interest_expense) is already available by this point in the
+    # function; there was never a genuine dependency forcing this later,
+    # only code-ordering history.
+    latest_roic = next((v for v in reversed(roic_trend) if v is not None), None)
+    latest_om   = next((v for v in reversed(operating_margin_trend) if v is not None), None)
+    latest_nm   = next((v for v in reversed(net_margin_trend) if v is not None), None)
+
+    roic_score   = _score(latest_roic, [(4, 20), (7, 40), (10, 55), (15, 70), (20, 85), (999, 95)])
+    margin_score = _score(latest_om,   [(0, 10), (10, 35), (15, 55), (20, 70), (30, 85), (999, 95)])
+    net_margin_score = _score(latest_nm, [(0, 15), (5, 40), (10, 55), (15, 70), (25, 85), (999, 95)])
+    growth_score = _score(rev_cagr,    [(0, 15), (5, 40), (10, 60), (15, 75), (20, 88), (999, 95)])
+    fcf_margin_score = _score(avg_fcf_margin * 100 if avg_fcf_margin is not None else None, [(0, 15), (5, 40), (10, 55), (15, 70), (25, 85), (999, 95)])
+    if cash_latest > 0:
+        debt_score = _score(total_debt / cash_latest, [(0.5, 90), (1, 75), (2, 55), (4, 35), (999, 15)])
+    else:
+        debt_score = 90 if net_cash >= 0 else 20
+
+    # Interest coverage — real, from actual interest expense, a genuine
+    # additional (not redundant with net-debt/cash) signal of financial
+    # resilience: a company can carry debt comfortably if operating income
+    # covers interest many times over, even with modest net cash.
+    interest_coverage_score = None
+    interest_coverage = None
+    if latest_interest_expense and latest_interest_expense > 0 and latest_om is not None and latest_rev:
+        operating_income_latest = latest_om / 100 * latest_rev
+        interest_coverage = operating_income_latest / latest_interest_expense
+        interest_coverage_score = _score(interest_coverage, [(1, 15), (2, 35), (4, 55), (8, 75), (15, 88), (999, 95)])
+    financial_strength_components = [s for s in [debt_score, interest_coverage_score] if s is not None]
+    financial_strength_score = round(sum(financial_strength_components) / len(financial_strength_components)) if financial_strength_components else debt_score
+
+    # Business Quality — a genuine blend across profitability, margin
+    # quality, cash generation and growth, NOT a single metric (ROIC alone
+    # used to be the entire score here — replaced per the Buffett-checklist
+    # redesign, which explicitly requires multi-factor evaluation for every
+    # criterion).
+    business_quality_components = [s for s in [roic_score, margin_score, net_margin_score, fcf_margin_score, growth_score] if s is not None]
+    business_quality_score = round(sum(business_quality_components) / len(business_quality_components)) if business_quality_components else None
+
     sector_model_note = None
 
-    if _is_financial_sector(sector):
-        # Banks/insurers/brokers: the FCF-based DCF below is unreliable for
-        # this sector (confirmed with Progressive Corp) — use the real
-        # Justified Price-to-Book / Residual Income model instead.
-        cost_of_equity = (
+    # Real GICS sub-industry from the curated UNIVERSE (screener.py) —
+    # looked up here, before the dispatch decision, so it can refine WHICH
+    # financial companies get the Residual Income model (see
+    # _is_asset_light_financial_industry's docstring). `None` for any ticker
+    # outside the curated universe — that's fine, the asset-light check
+    # below just can't refine those and they keep the prior default.
+    from app.api.routes.screener import UNIVERSE as _FIN_UNIVERSE
+    _fin_industry = next((u["industry"] for u in _FIN_UNIVERSE if u["ticker"] == ticker), None)
+
+    if _is_financial_sector(sector) and not _is_asset_light_financial_industry(_fin_industry):
+        # Banks/insurers/brokers/consumer lenders: the FCF-based DCF below
+        # is unreliable for this sector (confirmed with Progressive Corp) —
+        # use the real Residual Income / Excess Return model instead
+        # (valuation.financial_engine), same Bear/Base/Bull architecture as
+        # the standard engine below. Asset-light financials (payment
+        # networks, asset managers — see _is_asset_light_financial_industry)
+        # fall through to the standard FCF engine instead, confirmed via a
+        # live smoke test to fit them better.
+        from app.services.valuation.financial_engine import build_financial_fair_value
+
+        cost_of_equity_capm = (
             wacc_details.get("cost_of_equity_pct") / 100
             if wacc_details.get("method") == "capm" and wacc_details.get("cost_of_equity_pct") is not None
             else base_discount_rate
         )
-        latest_equity = _num(latest_bal.get("Stockholders Equity"))
         _dividends_paid_raw = _num(cashflow[-1].get("Dividends Paid")) if cashflow else None
         latest_dividends_paid_fin = abs(_dividends_paid_raw) if _dividends_paid_raw is not None else None
         latest_net_income = ni_valid[-1] if ni_valid else None
-        dcf = _build_financial_sector_valuation(
-            roe_trend, latest_equity, shares_out, price, cost_of_equity,
-            latest_dividends_paid_fin, latest_net_income, total_debt, cash_latest, sector, wacc_details,
+        _fin_latest_income = income[-1] if income else {}
+        _fin_latest_eps = _num(_fin_latest_income.get("Diluted EPS")) or _num(_fin_latest_income.get("Basic EPS"))
+        _fin_pe_ratio = round(price / _fin_latest_eps, 1) if price and _fin_latest_eps and _fin_latest_eps > 0 else None
+        _fin_wall_street_eps_growth = None
+        try:
+            from app.services.analyst_estimates_service import get_analyst_estimates
+            _fin_estimates = get_analyst_estimates(ticker)
+            _fin_wall_street_eps_growth = _fin_estimates.eps_growth_next_year_pct if _fin_estimates else None
+        except Exception as e:
+            logger.warning("get_fundamental_analysis(%s): analyst estimates fetch failed (financial engine): %s", ticker, e)
+
+        dcf = build_financial_fair_value(
+            ticker=ticker, sector=sector, industry=_fin_industry, price=price, shares_out=shares_out,
+            roe_trend=roe_trend, eps_trend=eps_trend, book_value_trend=book_value_trend,
+            latest_dividends_paid=latest_dividends_paid_fin, latest_net_income=latest_net_income,
+            total_debt=total_debt, cash=cash_latest, cost_of_equity_capm=cost_of_equity_capm,
+            business_quality_score=business_quality_score, latest_eps=_fin_latest_eps, pe_ratio=_fin_pe_ratio,
+            wall_street_eps_growth_next_year_pct=_fin_wall_street_eps_growth, wacc_details=wacc_details,
+            compute_peer_dependent_data=_compute_peer_dependent_data,
         )
 
     elif is_reit_sector(sector):
@@ -2060,12 +1985,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
 
                     nuvos_scenarios = {}
                     for name, deltas in BEAR_BASE_BULL.items():
-                        # business_quality_score not yet computed at this
-                        # point in the function (it blends several trend
-                        # scores built further down) — None falls back to
-                        # the neutral midpoint, a real (if less sharp) cap
-                        # rather than skipping the scenario.
-                        growth_cap_pct = bear_base_bull_growth_cap_pct(None, name)
+                        growth_cap_pct = bear_base_bull_growth_cap_pct(business_quality_score, name)
                         g1 = clamp((blended_growth_pct + deltas["growth_delta_pp"]) / 100, -0.5, growth_cap_pct / 100)
                         margin_start = max((blended_margin_pct + deltas["operating_margin_start_delta_pp"]) / 100, 0.0)
                         margin_terminal = max((blended_margin_pct + deltas["operating_margin_terminal_delta_pp"]) / 100, 0.0)
@@ -2249,41 +2169,11 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 },
             }
 
-    # ── Quality score (0-10, matches the "Calidad del negocio: X.X/10" format) ──
-    latest_roic = next((v for v in reversed(roic_trend) if v is not None), None)
-    latest_om   = next((v for v in reversed(operating_margin_trend) if v is not None), None)
-    latest_nm   = next((v for v in reversed(net_margin_trend) if v is not None), None)
-
-    roic_score   = _score(latest_roic, [(4, 20), (7, 40), (10, 55), (15, 70), (20, 85), (999, 95)])
-    margin_score = _score(latest_om,   [(0, 10), (10, 35), (15, 55), (20, 70), (30, 85), (999, 95)])
-    net_margin_score = _score(latest_nm, [(0, 15), (5, 40), (10, 55), (15, 70), (25, 85), (999, 95)])
-    growth_score = _score(rev_cagr,    [(0, 15), (5, 40), (10, 60), (15, 75), (20, 88), (999, 95)])
-    fcf_margin_score = _score(avg_fcf_margin * 100 if avg_fcf_margin is not None else None, [(0, 15), (5, 40), (10, 55), (15, 70), (25, 85), (999, 95)])
-    if cash_latest > 0:
-        debt_score = _score(total_debt / cash_latest, [(0.5, 90), (1, 75), (2, 55), (4, 35), (999, 15)])
-    else:
-        debt_score = 90 if net_cash >= 0 else 20
-
-    # Interest coverage — real, from actual interest expense, a genuine
-    # additional (not redundant with net-debt/cash) signal of financial
-    # resilience: a company can carry debt comfortably if operating income
-    # covers interest many times over, even with modest net cash.
-    interest_coverage_score = None
-    interest_coverage = None
-    if latest_interest_expense and latest_interest_expense > 0 and latest_om is not None and latest_rev:
-        operating_income_latest = latest_om / 100 * latest_rev
-        interest_coverage = operating_income_latest / latest_interest_expense
-        interest_coverage_score = _score(interest_coverage, [(1, 15), (2, 35), (4, 55), (8, 75), (15, 88), (999, 95)])
-    financial_strength_components = [s for s in [debt_score, interest_coverage_score] if s is not None]
-    financial_strength_score = round(sum(financial_strength_components) / len(financial_strength_components)) if financial_strength_components else debt_score
-
-    # Business Quality — a genuine blend across profitability, margin
-    # quality, cash generation and growth, NOT a single metric (ROIC alone
-    # used to be the entire score here — replaced per the Buffett-checklist
-    # redesign, which explicitly requires multi-factor evaluation for every
-    # criterion).
-    business_quality_components = [s for s in [roic_score, margin_score, net_margin_score, fcf_margin_score, growth_score] if s is not None]
-    business_quality_score = round(sum(business_quality_components) / len(business_quality_components)) if business_quality_components else None
+    # business_quality_score/financial_strength_score (and their component
+    # scores: roic_score, margin_score, net_margin_score, growth_score,
+    # fcf_margin_score, debt_score, interest_coverage_score) are now
+    # computed earlier in this function, right after wacc_details — see
+    # that block's comment for why. Reused here unchanged.
 
     # Payout sanity — real, from actual dividends paid vs. net income:
     # penalizes distributing more than the business earns (unsustainable),

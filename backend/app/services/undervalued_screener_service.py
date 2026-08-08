@@ -62,10 +62,10 @@ def build_dcf_guidance(dcf: Optional[dict], thesis_scores: Optional[dict]) -> Op
     in the SAME real numbers Nuvos's own valuation engine already computed
     for this ticker — never a generic placeholder, never fabricated
     "Buffett wisdom" text. Two methodologies exist (see
-    fundamental_analysis_service._build_financial_sector_valuation for
-    banks/insurers vs. the standard two-stage FCF DCF for everyone else),
-    normalized here into one shape so the frontend doesn't need to
-    special-case which one ran.
+    valuation.financial_engine.build_financial_fair_value — Residual
+    Income/Excess Return — for banks/insurers vs. the standard two-stage
+    FCF DCF for everyone else), normalized here into one shape so the
+    frontend doesn't need to special-case which one ran.
 
     Also computes a "reasonable range" (low/high, in percentage points) per
     assumption — the basis for the assumption assistant's 🟢🟡🔴 stoplight,

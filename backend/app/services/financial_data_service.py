@@ -509,8 +509,8 @@ def get_fmp_quote_price(symbol: str) -> Optional[float]:
     valuation (no dcf at all, even though FCF/ROE/debt had all already
     been fetched successfully from FMP moments earlier) — confirmed with
     AXP, whose financial-sector valuation model is otherwise real and
-    tested (see _build_financial_sector_valuation). None if unavailable,
-    same as get_beta above — never fabricates a price."""
+    tested (see valuation.financial_engine.build_financial_fair_value).
+    None if unavailable, same as get_beta above — never fabricates a price."""
     if not FMP_KEY:
         return None
     try:

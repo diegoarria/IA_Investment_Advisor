@@ -23,6 +23,7 @@ import {
 } from "@/components/subvaluadas/shared";
 import { ValuationBacktestPanel } from "@/components/subvaluadas/ValuationBacktestPanel";
 import { OpportunitiesListPanel } from "@/components/subvaluadas/OpportunitiesListPanel";
+import { FinancialReverseValuationCard, FinancialSensitivityTable } from "@/components/subvaluadas/FinancialEngineExtras";
 import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { projectDriverBasedDcf } from "@/lib/driverBasedDcf";
@@ -243,8 +244,19 @@ function SubvaluadasPageInner() {
   // out of the "Modelo Completo" drawer onto the main scroll ("¿Cómo
   // llegamos a este valor?", Reverse DCF, Sensibilidad). Always Base, same
   // consistent default `FairValueScenariosPanel`/`FullModelPanel` open on.
+  const isFinancialSector = !!data?.nuvos_fair_value?.is_financial_sector;
   const defaultScenario = data?.nuvos_fair_value?.scenarios.base ?? null;
-  const baseInputs = useMemo(() => (defaultScenario ? deriveBaseInputs(defaultScenario) : null), [defaultScenario]);
+  // deriveBaseInputs assumes the FCF driver-based `yearly` row shape
+  // (revenue/margin/EBIT/FCF) — a financial-sector scenario's `yearly` rows
+  // are Book Value/ROE/Residual Income instead (same field NAMES reused for
+  // frontend-shape compatibility, see financial_engine.py's module
+  // docstring, but NOT the same meaning), so this must never be run on a
+  // financial-sector scenario — it wouldn't return null, it would silently
+  // extract nonsense ("book value" read as "revenue").
+  const baseInputs = useMemo(
+    () => (defaultScenario && !isFinancialSector ? deriveBaseInputs(defaultScenario) : null),
+    [defaultScenario, isFinancialSector],
+  );
   const flowResult = useMemo(() => {
     if (!baseInputs) return null;
     try { return projectDriverBasedDcf(baseInputs); } catch { return null; }
@@ -391,14 +403,24 @@ function SubvaluadasPageInner() {
                   )}
 
                   {/* Reverse DCF — "no esconder esta sección", una de las funciones
-                      más poderosas. También promovida al scroll principal. */}
+                      más poderosas. También promovida al scroll principal.
+                      Empresas financieras usan la versión de ROE implícito
+                      en vez de crecimiento de FCF implícito (ver
+                      FinancialEngineExtras.tsx). */}
                   {baseInputs && (
                     <div className="mt-8">
                       <_ReverseDcfCard baseInputs={baseInputs} price={price} />
                     </div>
                   )}
+                  {isFinancialSector && data.nuvos_fair_value && (
+                    <div className="mt-8">
+                      <FinancialReverseValuationCard data={data.nuvos_fair_value} />
+                    </div>
+                  )}
 
-                  {/* Sensibilidad — ranking real de qué supuesto mueve más el valor. */}
+                  {/* Sensibilidad — ranking real de qué supuesto mueve más el valor.
+                      Empresas financieras usan la grilla Costo de Equity x
+                      P/B terminal, ya calculada por el backend. */}
                   {baseInputs && (
                     <div className="mt-8">
                       <Card>
@@ -407,6 +429,11 @@ function SubvaluadasPageInner() {
                           <_SensitivityStars baseInputs={baseInputs} />
                         </div>
                       </Card>
+                    </div>
+                  )}
+                  {isFinancialSector && data.nuvos_fair_value && (
+                    <div className="mt-8">
+                      <FinancialSensitivityTable data={data.nuvos_fair_value} />
                     </div>
                   )}
 

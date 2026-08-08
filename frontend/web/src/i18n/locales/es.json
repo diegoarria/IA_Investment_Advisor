@@ -1086,11 +1086,17 @@
       "exitMetric": {
         "ev_sales": "EV/Ventas",
         "ev_ebit": "EV/EBIT",
-        "ev_fcf": "EV/FCF"
+        "ev_fcf": "EV/FCF",
+        "price_to_book": "Precio/Valor en libros"
       },
       "growthFactorsTitle": "Por qué este crecimiento",
       "marginFactorsTitle": "Por qué este margen",
       "roicFactorsTitle": "Por qué este ROIC terminal",
+      "epsGrowthFactorsTitle": "Por qué este crecimiento de EPS",
+      "roeFactorsTitle": "Por qué este ROE",
+      "costOfEquity": "Costo de equity",
+      "terminalPb": "P/B terminal",
+      "methodologyValueFinancial": "Modelo de Ingreso Residual (Residual Income) a 10 años: valora la capacidad de la empresa de generar retornos sobre su capital por encima de su costo de equity, con normalización gradual del ROE y un múltiplo Precio/Valor en libros terminal.",
       "disclaimer": "Esto es una estimación fundamentada a partir de supuestos reales sobre crecimiento, rentabilidad y riesgo — no una cifra exacta ni una promesa de precio futuro.",
       "assumptionFactors": {
         "historical": "Histórico propio",
@@ -1106,7 +1112,22 @@
         "wallStreet": "Consenso de Wall Street",
         "nuvos": "Estimación Nuvos",
         "peers": "Mediana de pares"
-      }
+      },
+      "sectorModelNoteTitle": "Cómo valora Nuvos a esta empresa"
+    },
+    "financialReverseValuation": {
+      "title": "¿Qué está descontando el mercado?",
+      "subtitle": "El precio actual implica que el mercado espera que la empresa mantenga aproximadamente este ROE durante el período proyectado:",
+      "marketImplies": "ROE implícito del mercado",
+      "historical": "ROE histórico",
+      "nuvosEstimates": "ROE estimado Nuvos",
+      "unavailable": "No se pudo calcular el ROE implícito para este precio."
+    },
+    "financialSensitivity": {
+      "title": "¿Qué mueve más esta valuación?",
+      "subtitle": "Valor por acción según el Costo de Equity y el múltiplo Precio/Valor en libros terminal.",
+      "costOfEquityRow": "Costo de equity",
+      "terminalPbCol": "P/B terminal"
     },
     "fullModel": {
       "title": "Modelo completo — {{ticker}}",
