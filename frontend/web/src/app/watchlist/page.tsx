@@ -361,7 +361,7 @@ export default function WatchlistPage() {
   const { profile } = useProfileStore();
   const userLevel = getUserLevel(profile);
   const { tier, isTrialPremium } = useSubscriptionStore();
-  const { minMarginOfSafetyPct, favoriteMetrics } = usePersonalizationStore();
+  const { minMarginOfSafetyPct } = usePersonalizationStore();
   const isPremium = tier === "premium" || isTrialPremium;
   const { positions, portfolioCurrency } = usePortfolioStore();
   const fxRate = useFxRate(portfolioCurrency);
@@ -874,9 +874,7 @@ export default function WatchlistPage() {
                 mode="watchlist"
                 userLevel={userLevel}
                 fxRate={fxRate}
-                showScores={isPremium}
                 minMarginOfSafetyPct={minMarginOfSafetyPct}
-                favoriteMetrics={favoriteMetrics}
                 rows={items.map((i): AdvancedRow => {
                   const s = scores[i.ticker];
                   return {
