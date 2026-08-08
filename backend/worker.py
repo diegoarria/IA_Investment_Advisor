@@ -2369,6 +2369,54 @@ async def job_saved_valuation_alerts():
         logger.error("job_saved_valuation_alerts failed: %s", e)
 
 
+async def job_daily_question():
+    """2:00 PM ET Sundays only — Nuvos Weekly Rituals: "Pregunta del Día",
+    one shared question for every user (never repeats until the whole
+    curated bank has cycled — see weekly_rituals_service.
+    pick_next_question_row). See app/services/weekly_rituals_service.py's
+    module docstring."""
+    from app.services.weekly_rituals_service import send_daily_question_push
+    try:
+        await send_daily_question_push()
+    except Exception as e:
+        logger.error("job_daily_question failed: %s", e)
+
+
+async def job_weekly_prep_sunday():
+    """12:10 PM ET Sundays — Nuvos Weekly Rituals: "Prepárate para la
+    semana" (Free tier only), a real per-user rollup of the coming week's
+    portfolio/watchlist events, counts only. See app/services/
+    weekly_rituals_service.py's module docstring."""
+    from app.services.weekly_rituals_service import send_weekly_prep_push
+    try:
+        await send_weekly_prep_push("free")
+    except Exception as e:
+        logger.error("job_weekly_prep_sunday failed: %s", e)
+
+
+async def job_weekly_prep_saturday_premium():
+    """3:30 PM ET Saturdays — Nuvos Weekly Rituals: "Tu semana en Nuvos"
+    (Premium tier only), the same weekly event rollup as the Free Sunday
+    push but naming which of the user's own portfolio tickers have an
+    event. See app/services/weekly_rituals_service.py's module docstring."""
+    from app.services.weekly_rituals_service import send_weekly_prep_push
+    try:
+        await send_weekly_prep_push("premium")
+    except Exception as e:
+        logger.error("job_weekly_prep_saturday_premium failed: %s", e)
+
+
+async def job_saturday_reflection():
+    """6:00 PM ET Saturdays — Nuvos Weekly Rituals: "Reflexión de la
+    semana" (3 saved free-text prompts, answered in-app). See
+    app/services/weekly_rituals_service.py's module docstring."""
+    from app.services.weekly_rituals_service import send_saturday_reflection_push
+    try:
+        await send_saturday_reflection_push()
+    except Exception as e:
+        logger.error("job_saturday_reflection failed: %s", e)
+
+
 async def job_smart_alerts():
     """4:20 PM ET weekdays — Fase 4, Incremento 10 (Alertas Inteligentes).
     Bridges Fase 2/3's Change Detection/Deterioration/DCF outputs into push
@@ -4632,6 +4680,12 @@ async def main():
     # screen's data current; the Wed/Sat push above is the only opportunities
     # notification now.
     scheduler.add_job(job_refresh_undervalued_screener, "cron", day_of_week="sun", hour=12,  minute=5,     timezone="America/New_York")
+
+    # ── Nuvos Weekly Rituals ────────────────────────────────────────────────────
+    scheduler.add_job(job_daily_question,               "cron", day_of_week="sun", hour=14, minute=0,  timezone="America/New_York")
+    scheduler.add_job(job_weekly_prep_sunday,            "cron", day_of_week="sun", hour=12, minute=10, timezone="America/New_York")
+    scheduler.add_job(job_weekly_prep_saturday_premium,  "cron", day_of_week="sat", hour=15, minute=30, timezone="America/New_York")
+    scheduler.add_job(job_saturday_reflection,           "cron", day_of_week="sat", hour=18, minute=0,  timezone="America/New_York")
 
     # ── AI Portfolio Manager — proactive alerts (written earlier, now scheduled) ──
     scheduler.add_job(job_risk_mgmt_push,        "cron", day_of_week="fri",     hour=15, minute=0, timezone="America/New_York")

@@ -3902,5 +3902,42 @@
       "messageWithGoal": "¡Bienvenido a Nuvos, **{{name}}**! 🎉\n\nVeo que tu meta es **{{goal}}** — vamos a trabajar juntos para lograrlo.\n\nConforme platiquemos te voy a ir conociendo mejor: tu experiencia, tu situación financiera, tus dudas. No hay prisa ni cuestionario — solo cuéntame lo que se te vaya ocurriendo.\n\n**¿Por dónde quieres empezar?**",
       "messageNoGoal": "¡Bienvenido a Nuvos, **{{name}}**! 🎉\n\nConforme platiquemos te voy a ir conociendo mejor: tu experiencia, tu situación financiera, tus metas. No hay prisa ni cuestionario — solo cuéntame lo que se te vaya ocurriendo.\n\n**¿Por dónde quieres empezar?**"
     }
+  },
+  "weeklyRitual": {
+    "question": {
+      "title": "Pregunta del Día",
+      "communityVoted": "{{pct}}% eligió {{option}}",
+      "premiumCta": "Activa Premium para ver qué elegiría Nuvos",
+      "revealCta": "¿Quieres saber qué elegiría Nuvos? Ver respuesta →",
+      "nuvosChoiceLabel": "Nuvos elegiría: {{option}}",
+      "paywallReason": "Descubre qué elegiría Nuvos AI y por qué, en cada Pregunta del Día.",
+      "error": "No se pudo cargar la pregunta del día."
+    },
+    "sunday": {
+      "title": "Prepárate para la semana",
+      "subtitle": "Eventos de tu portafolio y watchlist para los próximos 7 días.",
+      "eventsLabel": "eventos importantes",
+      "reportingLabel": "empresas reportan",
+      "empty": "No hay eventos importantes esta semana.",
+      "premiumCta": "Activa Premium para ver cuáles empresas de tu portafolio tienen eventos",
+      "noPortfolioEvents": "Ninguna empresa de tu portafolio tiene eventos esta semana — solo en tu watchlist.",
+      "paywallReason": "Ve exactamente qué empresas de tu portafolio tienen eventos esta semana."
+    },
+    "saturday": {
+      "title": "Reflexión de la semana",
+      "prompts": {
+        "went_well": "¿Qué salió bien?",
+        "learned": "¿Qué aprendiste?",
+        "would_do_differently": "¿Qué harías diferente?"
+      },
+      "placeholder": "Escribe tu respuesta...",
+      "next": "Siguiente",
+      "finish": "Terminar",
+      "doneTitle": "¡Reflexión guardada!",
+      "doneSubtitle": "Vuelve la próxima semana para seguir construyendo el hábito.",
+      "seeHistory": "Ver reflexiones pasadas",
+      "historyTitle": "Tus reflexiones pasadas",
+      "historyEmpty": "Todavía no tienes reflexiones guardadas."
+    }
   }
 }

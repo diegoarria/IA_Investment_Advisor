@@ -412,6 +412,15 @@ export const checklistApi = {
     api.post(`/api/checklist/${ticker}/investable`, { marked }),
 };
 
+export const weeklyRitualsApi = {
+  getQuestion: (lang?: string) => api.get("/api/weekly-rituals/question", { params: { lang } }),
+  vote: (choice: "a" | "b") => api.post("/api/weekly-rituals/question/vote", { choice }),
+  getSundayPrep: () => api.get("/api/weekly-rituals/sunday-prep"),
+  saveReflection: (body: { went_well?: string; learned?: string; would_do_differently?: string }) =>
+    api.post("/api/weekly-rituals/reflection", body),
+  getReflectionHistory: () => api.get("/api/weekly-rituals/reflection/history"),
+};
+
 export const feedbackApi = {
   status: () => api.get("/api/feedback/status"),
   seen:   () => api.post("/api/feedback/seen"),

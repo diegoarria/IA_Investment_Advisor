@@ -695,10 +695,18 @@
       "weakestPillar": "Weakest pillar: {{pillar}} ({{score}}/100)",
       "explanationUnavailable": "We couldn't generate the explanation right now.",
       "pillars": {
-        "business_quality": { "title": "Business Quality" },
-        "financial_strength": { "title": "Financial Strength" },
-        "management_quality": { "title": "Management Quality" },
-        "valuation": { "title": "Valuation" }
+        "business_quality": {
+          "title": "Business Quality"
+        },
+        "financial_strength": {
+          "title": "Financial Strength"
+        },
+        "management_quality": {
+          "title": "Management Quality"
+        },
+        "valuation": {
+          "title": "Valuation"
+        }
       },
       "sections": {
         "verifiedData": "Real data",
@@ -911,9 +919,16 @@
       "openCta": "See Intrinsic Value calculator",
       "breadcrumb": "Intrinsic value",
       "today": "today",
-      "pageTitle": { "pre": "Valuation", "em": "Model" },
+      "pageTitle": {
+        "pre": "Valuation",
+        "em": "Model"
+      },
       "pageSubtitle": "The full model behind the Bear/Base/Bull scenarios above — sensitivity, alternative scenarios, and reverse DCF, all computed from the same real numbers.",
-      "chips": { "fcf": "FCF (TTM)", "netCash": "Net debt", "shares": "Diluted shares" },
+      "chips": {
+        "fcf": "FCF (TTM)",
+        "netCash": "Net debt",
+        "shares": "Diluted shares"
+      },
       "controls": {
         "growth": "Annual FCF growth",
         "wacc": "Discount rate",
@@ -953,14 +968,22 @@
     "nuvosFairValue": {
       "title": "Nuvos AI Fair Value Engine (preview)",
       "subtitle": "One valuation engine, three possible scenarios — never an exact price, but a range of reasonable estimates under different assumptions.",
-      "scenarios": { "bear": "Bear Case", "base": "Base Case", "bull": "Bull Case" },
+      "scenarios": {
+        "bear": "Bear Case",
+        "base": "Base Case",
+        "bull": "Bull Case"
+      },
       "priceImpliedBadge": "Current price",
       "mos": "margin of safety",
       "growth": "Growth",
       "margin": "Margin",
       "wacc": "WACC",
       "exitMultiple": "Exit multiple",
-      "exitMetric": { "ev_sales": "EV/Sales", "ev_ebit": "EV/EBIT", "ev_fcf": "EV/FCF" },
+      "exitMetric": {
+        "ev_sales": "EV/Sales",
+        "ev_ebit": "EV/EBIT",
+        "ev_fcf": "EV/FCF"
+      },
       "priceImpliedNote": "The current price reflects a scenario close to the {{scenario}}.",
       "growthFactorsTitle": "Why this growth rate",
       "marginFactorsTitle": "Why this margin",
@@ -3541,6 +3564,43 @@
       "title": "Want deep research on {{ticker}}?",
       "subtitle": "Nuvos Deep Research compares, values and personalizes with your portfolio in minutes.",
       "cta": "Research"
+    }
+  },
+  "weeklyRitual": {
+    "question": {
+      "title": "Question of the Day",
+      "communityVoted": "{{pct}}% chose {{option}}",
+      "premiumCta": "Activate Premium to see what Nuvos would choose",
+      "revealCta": "Want to know what Nuvos would choose? See answer →",
+      "nuvosChoiceLabel": "Nuvos would choose: {{option}}",
+      "paywallReason": "See what Nuvos AI would choose and why, on every Question of the Day.",
+      "error": "Could not load today's question."
+    },
+    "sunday": {
+      "title": "Get ready for the week",
+      "subtitle": "Portfolio and watchlist events for the next 7 days.",
+      "eventsLabel": "important events",
+      "reportingLabel": "companies report",
+      "empty": "No important events this week.",
+      "premiumCta": "Activate Premium to see which of your portfolio companies have events",
+      "noPortfolioEvents": "None of your portfolio companies have events this week — only your watchlist.",
+      "paywallReason": "See exactly which of your portfolio companies have events this week."
+    },
+    "saturday": {
+      "title": "Weekly Reflection",
+      "prompts": {
+        "went_well": "What went well?",
+        "learned": "What did you learn?",
+        "would_do_differently": "What would you do differently?"
+      },
+      "placeholder": "Write your answer...",
+      "next": "Next",
+      "finish": "Finish",
+      "doneTitle": "Reflection saved!",
+      "doneSubtitle": "Come back next week to keep building the habit.",
+      "seeHistory": "See past reflections",
+      "historyTitle": "Your past reflections",
+      "historyEmpty": "You don't have any saved reflections yet."
     }
   }
 }

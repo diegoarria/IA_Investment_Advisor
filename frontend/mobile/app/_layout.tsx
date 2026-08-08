@@ -149,6 +149,10 @@ function AppStack() {
         router.navigate(`/stock/${data.ticker}` as any);
       } else if (data.screen === "profile") {
         router.navigate("/(tabs)/profile");
+      } else if (typeof data.screen === "string" && data.screen.startsWith("weekly-ritual/")) {
+        // Nuvos Weekly Rituals — daily question, Sunday prep, Saturday
+        // reflection (see backend/app/services/weekly_rituals_service.py).
+        router.navigate(`/${data.screen}` as any);
       }
     });
     return () => sub.remove();

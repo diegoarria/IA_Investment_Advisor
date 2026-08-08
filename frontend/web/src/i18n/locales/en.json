@@ -3902,5 +3902,42 @@
       "messageWithGoal": "Welcome to Nuvos, **{{name}}**! 🎉\n\nI see your goal is **{{goal}}** — let's work together to get you there.\n\nAs we talk, I'll get to know you better: your experience, your financial situation, your questions. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**",
       "messageNoGoal": "Welcome to Nuvos, **{{name}}**! 🎉\n\nAs we talk, I'll get to know you better: your experience, your financial situation, your goals. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**"
     }
+  },
+  "weeklyRitual": {
+    "question": {
+      "title": "Question of the Day",
+      "communityVoted": "{{pct}}% chose {{option}}",
+      "premiumCta": "Activate Premium to see what Nuvos would choose",
+      "revealCta": "Want to know what Nuvos would choose? See answer →",
+      "nuvosChoiceLabel": "Nuvos would choose: {{option}}",
+      "paywallReason": "See what Nuvos AI would choose and why, on every Question of the Day.",
+      "error": "Could not load today's question."
+    },
+    "sunday": {
+      "title": "Get ready for the week",
+      "subtitle": "Portfolio and watchlist events for the next 7 days.",
+      "eventsLabel": "important events",
+      "reportingLabel": "companies report",
+      "empty": "No important events this week.",
+      "premiumCta": "Activate Premium to see which of your portfolio companies have events",
+      "noPortfolioEvents": "None of your portfolio companies have events this week — only your watchlist.",
+      "paywallReason": "See exactly which of your portfolio companies have events this week."
+    },
+    "saturday": {
+      "title": "Weekly Reflection",
+      "prompts": {
+        "went_well": "What went well?",
+        "learned": "What did you learn?",
+        "would_do_differently": "What would you do differently?"
+      },
+      "placeholder": "Write your answer...",
+      "next": "Next",
+      "finish": "Finish",
+      "doneTitle": "Reflection saved!",
+      "doneSubtitle": "Come back next week to keep building the habit.",
+      "seeHistory": "See past reflections",
+      "historyTitle": "Your past reflections",
+      "historyEmpty": "You don't have any saved reflections yet."
+    }
   }
 }
