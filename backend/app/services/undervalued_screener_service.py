@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 CACHE_KEY = "undervalued_screener:v1"
 CACHE_TTL = 8 * 24 * 3600      # slightly over a week — one missed weekly run doesn't go stale/empty
 BOOTSTRAP_TTL = 24 * 3600      # short-lived — the next full weekly/startup refresh supersedes this
-_BOOTSTRAP_LIMIT = 20          # small subset so a cold-cache request stays reasonably fast
+_BOOTSTRAP_LIMIT = 44          # small subset so a cold-cache request stays reasonably fast — ~4 per GICS sector via _diverse_bootstrap_sample, now that UNIVERSE is the full S&P 500 (bumped from 20, which was fine for the old ~183-ticker curated list but too thin for real sector spread here)
 _MAX_PER_SECTOR = 5            # never more than 5 candidates from the same sector in the results shown
 
 _FEATURED_POOL_SIZE = 15  # rotate among the top N by composite_score — stays within "genuinely strong" candidates
@@ -543,6 +543,32 @@ async def refresh_if_empty_on_startup() -> None:
     await refresh_undervalued_screener()
 
 
+def _diverse_bootstrap_sample(universe: list[dict], limit: int) -> list[dict]:
+    """Round-robins across sectors instead of taking `universe[:limit]` —
+    real bug found in production: UNIVERSE is now the real S&P 500 list,
+    grouped and sorted alphabetically by sector (see screener.py), so a
+    plain prefix slice used to silently return only "Communication
+    Services" tickers (that sector sorts first alphabetically) whenever the
+    cache went cold — the emergency fallback showing 5 candidates, all the
+    same sector, was this bug, not a data problem. Distributing round-robin
+    guarantees every sector gets a fair shot at the small bootstrap sample
+    regardless of how UNIVERSE happens to be ordered."""
+    by_sector: dict[str, list[dict]] = {}
+    for entry in universe:
+        by_sector.setdefault(entry.get("sector") or "", []).append(entry)
+    buckets = list(by_sector.values())
+    sample: list[dict] = []
+    i = 0
+    while len(sample) < limit and any(buckets):
+        bucket = buckets[i % len(buckets)]
+        if bucket:
+            sample.append(bucket.pop(0))
+        i += 1
+        if i > limit * len(buckets):  # safety valve — every bucket exhausted
+            break
+    return sample
+
+
 def bootstrap_fill_if_empty_sync() -> None:
     """Blocking. Called from the read path (API endpoint / chat trigger)
     when the cache is completely empty — scans a small subset of the
@@ -551,7 +577,7 @@ def bootstrap_fill_if_empty_sync() -> None:
     short TTL so the next full refresh (worker startup or the Sunday job)
     overwrites it with the complete, accurate scan."""
     from app.api.routes.screener import UNIVERSE
-    results = _scan(UNIVERSE[:_BOOTSTRAP_LIMIT])
+    results = _scan(_diverse_bootstrap_sample(UNIVERSE, _BOOTSTRAP_LIMIT))
     results = _cap_per_sector(results, _MAX_PER_SECTOR)
     for entry in results:
         entry["featured"] = True  # every bootstrap entry stayed within the cap — same shape as a full refresh's featured candidates
