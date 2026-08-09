@@ -387,8 +387,12 @@ async def start_debate(request: Request, body: dict, user_id: str = Depends(get_
     system_prompt = DIFFICULTY_DEBATE_PROMPTS.get(difficulty, DIFFICULTY_DEBATE_PROMPTS["intermedio"])
     message = f'TESIS DEL USUARIO: "{thesis}"\n\nResponde directamente con tus contraargumentos. Sin introducción meta.'
 
+    # Haiku for the free-accessible difficulties (Principiante/Intermedio,
+    # unbounded free-tier liability, no revenue offsetting the cost) — keep
+    # Sonnet only for Difícil/Imposible, which are Premium-gated above
+    # (lower volume, and the harder-opponent value prop is worth paying for).
     result = await _debate_client.messages.create(
-        model=settings.claude_model,
+        model=settings.claude_model if difficulty in ("dificil", "imposible") else "claude-haiku-4-5-20251001",
         max_tokens=800,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": message}],
@@ -424,8 +428,9 @@ TU ARGUMENTO ANTERIOR: {previous[:600]}
 RESPUESTA DEL USUARIO: "{user_response}"
 """
 
+    # Same split as /debate above.
     result = await _debate_client.messages.create(
-        model=settings.claude_model,
+        model=settings.claude_model if difficulty in ("dificil", "imposible") else "claude-haiku-4-5-20251001",
         max_tokens=600,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": message}],

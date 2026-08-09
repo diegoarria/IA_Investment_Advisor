@@ -546,9 +546,12 @@ La carta debe:
 Escribe SOLO la carta, sin título ni encabezado adicional."""
 
     try:
+        # Haiku, not settings.claude_model (Sonnet) — a short, templated,
+        # once-per-user-per-month letter (this whole route is monthly-
+        # cached above), not deep reasoning; no meaningful quality loss.
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         response = await client.messages.create(
-            model=settings.claude_model,
+            model="claude-haiku-4-5-20251001",
             max_tokens=400,
             messages=[{"role": "user", "content": prompt}],
         )

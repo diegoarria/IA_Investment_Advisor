@@ -2536,8 +2536,16 @@ Responde SOLO con JSON válido:
 
 Sin texto fuera del JSON."""
 
+    # Haiku, not settings.claude_model (Sonnet) — this runs automatically for
+    # every Premium user, every Sunday, whether or not they ever open the
+    # card (see worker.py's job_weekly_screener_generate), the single
+    # highest-leverage recurring Claude cost in the app: real users pay per
+    # click, this fires on a clock. Quality risk is bounded by the hard,
+    # deterministic guardrails already applied AFTER this call (risk-tier
+    # exclude-list, recent-weeks repeat filter — see WEEKLY_PICKS_RISK_AVOID
+    # below), so a weaker model can't leak a bad pick past those.
     response = await _claude(
-        model=settings.claude_model,
+        model="claude-haiku-4-5-20251001",
         max_tokens=1400,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
