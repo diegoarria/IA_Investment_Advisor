@@ -1074,6 +1074,8 @@
     "nuvosFairValue": {
       "title": "Nuvos AI Fair Value Engine",
       "subtitle": "One valuation engine, three possible scenarios — never an exact price, but a range of reasonable estimates under different assumptions.",
+      "crossCheckTitle": "DCF Model (cross-check)",
+      "crossCheckSubtitle": "Discounted cash flow — a second method, used as an independent cross-check on the primary value, not the headline number.",
       "scenarios": {
         "bear": "Bear",
         "base": "Base",

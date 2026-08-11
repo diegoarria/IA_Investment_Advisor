@@ -160,14 +160,43 @@ _MIN_CONFIDENCE_SCORE = 35
 _SCAN_MAX_WORKERS = 10  # bounded concurrency for the S&P 500-sized scan — see _scan's docstring
 
 
-def _passes_quality_gate(dcf: dict) -> bool:
-    confidence = dcf.get("confidence_meter") or {}
+def _passes_quality_gate(confidence_meter: Optional[dict], data_quality_flags: Optional[dict]) -> bool:
+    confidence = confidence_meter or {}
     score = confidence.get("score")
     if score is not None and score < _MIN_CONFIDENCE_SCORE:
         return False
-    if (dcf.get("data_quality_flags") or {}).get("debt_cash_missing"):
+    if (data_quality_flags or {}).get("debt_cash_missing"):
         return False
     return True
+
+
+def _primary_valuation(dcf: dict) -> dict:
+    """Nuvos Fair Value Engine (Growth + Quality + Value) — see
+    /Users/diegoarria/.claude/plans/cosmic-munching-crown.md — is primary
+    for Oportunidades when it produced a real, gate-passed result for this
+    ticker; falls back to the DCF + exit-multiple model's own numbers
+    otherwise. Never silently drops a ticker from consideration just
+    because GQV alone couldn't value it (negative EPS, short history,
+    financial sector) when the DCF still can — a thinner Oportunidades
+    list is a worse outcome than showing the best available real number."""
+    gqv = dcf.get("gqv_fair_value")
+    if gqv and gqv.get("status") == "ok" and gqv.get("scenarios"):
+        return {
+            "intrinsic_value_base": gqv["scenarios"]["base"]["fair_value_per_share"],
+            "margin_of_safety_pct": gqv["scenarios"].get("margin_of_safety_pct"),
+            "confidence_meter": gqv.get("confidence_meter"),
+            "valuation_source": "gqv",
+        }
+    # Priority 3 (methodology audit) — `dcf["scenarios"]` can now genuinely
+    # be None (GQV-without-DCF fallback path, e.g. MU, when GQV ALSO
+    # couldn't produce a result) — `.get()` chains, never direct indexing,
+    # so a double-failure degrades to honest Nones instead of a KeyError.
+    return {
+        "intrinsic_value_base": (dcf.get("scenarios") or {}).get("base", {}).get("intrinsic_value_per_share"),
+        "margin_of_safety_pct": dcf.get("margin_of_safety_pct"),
+        "confidence_meter": dcf.get("confidence_meter"),
+        "valuation_source": "dcf",
+    }
 
 
 def _build_candidate(entry: dict, data: Optional[dict]) -> Optional[dict]:
@@ -177,8 +206,11 @@ def _build_candidate(entry: dict, data: Optional[dict]) -> Optional[dict]:
     it. Split out of _scan so the threaded scan below can call this from
     worker threads without touching shared state."""
     dcf = data.get("dcf") if data else None
-    mos = dcf.get("margin_of_safety_pct") if dcf else None
-    if not dcf or mos is None or mos <= 0 or not _passes_quality_gate(dcf):
+    if not dcf:
+        return None
+    primary = _primary_valuation(dcf)
+    mos = primary["margin_of_safety_pct"]
+    if mos is None or mos <= 0 or not _passes_quality_gate(primary["confidence_meter"], dcf.get("data_quality_flags")):
         return None
     thesis_scores = data.get("thesis_scores")
     _fcf_trend_vals = [v for v in (data.get("fcf_trend") or []) if v is not None]
@@ -193,11 +225,12 @@ def _build_candidate(entry: dict, data: Optional[dict]) -> Optional[dict]:
         "change_pct": data.get("change_pct"),
         "exchange": data.get("exchange"),
         "market_cap": market_cap,
-        "intrinsic_value_base": dcf["scenarios"]["base"]["intrinsic_value_per_share"],
+        "intrinsic_value_base": primary["intrinsic_value_base"],
         "margin_of_safety_pct": mos,
+        "valuation_source": primary["valuation_source"],
         "composite_score": data.get("composite_score"),
         "fair_value_range": dcf.get("fair_value_range"),
-        "confidence_meter": dcf.get("confidence_meter"),
+        "confidence_meter": primary["confidence_meter"],
         "implied_growth_pct": dcf.get("implied_growth_pct"),
         "market_expectations": dcf.get("market_expectations"),
         "yearly_detail": dcf.get("yearly_detail"),
@@ -272,9 +305,11 @@ def _scan(tickers: list[dict], analysis_cache: Optional[dict[str, Optional[dict]
             if analysis_cache is not None:
                 analysis_cache[entry["ticker"]] = data
             dcf = data.get("dcf") if data else None
-            mos = dcf.get("margin_of_safety_pct") if dcf else None
-            if dcf and mos is not None and mos > 0 and not _passes_quality_gate(dcf):
-                excluded_by_quality_gate += 1
+            if dcf:
+                primary = _primary_valuation(dcf)
+                mos = primary["margin_of_safety_pct"]
+                if mos is not None and mos > 0 and not _passes_quality_gate(primary["confidence_meter"], dcf.get("data_quality_flags")):
+                    excluded_by_quality_gate += 1
             candidate = _build_candidate(entry, data)
             if candidate is not None:
                 results.append(candidate)

@@ -1057,6 +1057,12 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
             "business_understanding_stars": None, "business_understanding_reason": "", "checklist_reasons": {},
         }
     dcf = data["dcf"]
+    # Nuvos Fair Value Engine (Growth + Quality + Value) — primary whenever
+    # it produced a real, gate-passed result for this ticker; same fallback
+    # logic the Oportunidades screener already applies. See
+    # /Users/diegoarria/.claude/plans/cosmic-munching-crown.md.
+    from app.services.undervalued_screener_service import _primary_valuation
+    _primary = _primary_valuation(dcf)
 
     # Relative/Historical Valuation + Industry Benchmarks — computed live
     # here for this ONE ticker (unlike the weekly screener's whole-universe
@@ -1349,9 +1355,10 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         "net_cash": net_cash,
         "shares_outstanding": shares_outstanding,
         "dcf_assumptions": dcf_assumptions,
-        "intrinsic_value_base": dcf["scenarios"]["base"]["intrinsic_value_per_share"],
+        "intrinsic_value_base": _primary["intrinsic_value_base"],
         "expected_value_per_share": dcf.get("expected_value_per_share"),
-        "margin_of_safety_pct": dcf.get("margin_of_safety_pct"),
+        "margin_of_safety_pct": _primary["margin_of_safety_pct"],
+        "valuation_source": _primary["valuation_source"],
         "implied_growth_pct": dcf.get("implied_growth_pct"),
         "yearly_detail": dcf.get("yearly_detail"),
         "pv_of_fcf_sum": dcf.get("pv_of_fcf_sum"),
@@ -1395,6 +1402,13 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
         # (Bear/Base/Bull); the primary valuation since the flip (Incremento
         # 11) — see combine_fair_value_range.
         "nuvos_fair_value": dcf.get("nuvos_fair_value"),
+        # Nuvos Fair Value Engine (Growth + Quality + Value) — see
+        # /Users/diegoarria/.claude/plans/cosmic-munching-crown.md. ADDED
+        # alongside `nuvos_fair_value` above (unrelated name collision — that
+        # key is the DCF + exit-multiple model), exposed as an experimental/
+        # secondary panel on web while it's calibrated against more real
+        # tickers before becoming primary.
+        "gqv_fair_value": dcf.get("gqv_fair_value"),
         # `growth_engine` (Fase 1.5's shadow-mode preview panel) is no
         # longer exposed here either — Incremento 15: GrowthEnginePreviewPanel
         # was retired as redundant with nuvos_fair_value's own growth_factors.

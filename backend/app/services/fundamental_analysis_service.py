@@ -46,6 +46,7 @@ from app.services.valuation.growth_engine import compute_weighted_growth
 from app.services.quality.moat_engine import compute_moat_score
 from app.services.quality.deterioration_engine import compute_deterioration_signals
 from app.services.quality.quality_engine import compute_incremental_roic, compute_cagr_windows
+from app.services.valuation.nuvos_engine.engine import compute_nuvos_fair_value
 
 logger = logging.getLogger(__name__)
 
@@ -983,6 +984,44 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     reinvestment_pairs = [(i, v) for i, v in enumerate(reinvestment_rate_trend) if v is not None]
     reinvestment_rate_anchor = compute_reinvestment_rate_anchor(reinvestment_pairs)
 
+    # ── Hoisted OUT of the `avg_fcf_margin > 0` DCF branch below (Nuvos Fair
+    # Value Engine rearchitecture, Priority 3 — see /Users/diegoarria/.claude/
+    # plans/cosmic-munching-crown.md and the methodology audit). None of these
+    # four values actually depend on anything computed inside that branch —
+    # they only need trend arrays and rev_cagr, both already available here.
+    # Moving them up lets the GQV engine run (via `_run_gqv` below) even when
+    # the legacy DCF's FCF-margin precondition fails (confirmed real case:
+    # MU/Micron — one severe down-cycle year drags its 5-year average FCF
+    # margin negative, so the DCF branch never runs, but GQV's own cyclical-
+    # earnings normalization is built for exactly this situation and
+    # shouldn't be blocked by an unrelated DCF precondition).
+    base_historical_growth = max(rev_cagr / 100, 0.0) if rev_cagr is not None else 0.08
+    fcf_margin_trend_full = [
+        round(f / r * 100, 1) if f is not None and r else None
+        for f, r in zip(fcf_trend, revenue_trend)
+    ]
+    gross_margin_latest = next((v for v in reversed(gross_margin_trend) if v is not None), None)
+    growth_engine_moat = compute_moat_score(
+        avg_roic_pct=avg_roic, roic_trend=roic_trend,
+        avg_operating_margin_pct=operating_margin_anchor * 100 if operating_margin_anchor is not None else None,
+        operating_margin_trend=operating_margin_trend,
+        gross_margin_latest_pct=gross_margin_latest,
+        industry_median_roic_pct=None, industry_median_operating_margin_pct=None,
+    )
+    growth_engine_deterioration = compute_deterioration_signals(
+        roic_trend=roic_trend, operating_margin_trend=operating_margin_trend,
+        net_margin_trend=net_margin_trend, fcf_margin_trend=fcf_margin_trend_full,
+        revenue_trend=revenue_trend,
+    )
+    growth_engine_result = compute_weighted_growth(
+        historical_growth_pct=base_historical_growth,
+        cagr_windows=compute_cagr_windows(revenue_trend),
+        avg_roic_pct=avg_roic,
+        incremental_roic_pct=compute_incremental_roic(nopat_trend, invested_capital_trend),
+        moat_result=growth_engine_moat,
+        deterioration_result=growth_engine_deterioration,
+    )
+
     latest_bal  = balance[-1]
     _long_debt_raw  = _num(latest_bal.get("Long Term Debt"))
     _short_debt_raw = _num(latest_bal.get("Short Term Debt"))
@@ -1005,6 +1044,17 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     # forward, disclosed as such, rather than extrapolating whatever the
     # single most recent year's margin happened to be.
     dcf = None
+    # Unconditional defaults (Priority 3, methodology audit) — these four
+    # are normally only assigned inside the `avg_fcf_margin > 0` DCF branch
+    # further down, which means they'd be genuinely undefined (NameError)
+    # for any ticker that takes the new GQV-without-DCF fallback path
+    # instead. Declaring them here costs nothing for every other path (the
+    # branch below still overwrites them exactly as before) and makes the
+    # fallback path safe.
+    relative_valuation = None
+    historical_valuation = None
+    industry_benchmarks = None
+    nuvos_fair_value = None
     latest_rev = rev_valid[-1] if rev_valid else None
     sector = profile.get("finnhubIndustry")
     terminal_growth = _sector_terminal_growth(sector)
@@ -1080,6 +1130,86 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     # below just can't refine those and they keep the prior default.
     from app.api.routes.screener import UNIVERSE as _FIN_UNIVERSE
     _fin_industry = next((u["industry"] for u in _FIN_UNIVERSE if u["ticker"] == ticker), None)
+
+    def _attach_gqv_fair_value(target: dict, *, extras: Optional[dict] = None) -> None:
+        """Nuvos Fair Value Engine (Growth + Quality + Value) — see
+        /Users/diegoarria/.claude/plans/cosmic-munching-crown.md. Extracted
+        into a closure (methodology audit, Priority 3) so it can run from
+        TWO call sites: the normal path (after the full DCF/relative/
+        historical pipeline below has computed its richer inputs — peer
+        P/E, dividend yield, forward consensus, financial-statement
+        quality) AND a fallback path for when the legacy DCF's own
+        `avg_fcf_margin > 0` precondition fails (e.g. MU/Micron — one
+        severe down-cycle year drags the 5-year average negative) and
+        `dcf` never gets built at all. GQV's own cyclical-earnings
+        normalization doesn't share that precondition and shouldn't be
+        blocked by it — see the fallback call site below.
+
+        `extras` carries the richer, call-site-specific inputs (all
+        Optional — every one already degrades gracefully to None inside
+        compute_nuvos_fair_value/its sub-modules); omitted keys default to
+        None, which is exactly what the fallback call site needs.
+        Own try/except: a failure here must never cost the caller's `dcf`
+        dict (which may already be fully built)."""
+        extras = extras or {}
+        _gqv_latest_eps = eps_trend[-1] if eps_trend else None
+        # Bug fix (found while re-validating Priorities 1-6): this was
+        # hardcoded `False` regardless of the ticker's real sector — same
+        # condition the DCF/financial-engine dispatch above already uses,
+        # so a financial company reaching this closure (either via the
+        # rich call site, whose `dcf` came from build_financial_fair_value,
+        # or in principle the Priority 3 fallback, which already excludes
+        # financials on its own) is correctly routed to
+        # `status="financial_sector"` instead of GQV silently applying its
+        # Growth+Quality+Value framework to a bank/card network, where
+        # ROIC/leverage/FCF-margin don't mean the same thing they do for a
+        # normal operating company.
+        _gqv_is_financial_sector = _is_financial_sector(sector) and not _is_asset_light_financial_industry(_fin_industry)
+        try:
+            gqv_result = compute_nuvos_fair_value(
+                sector=sector, industry=None, is_financial_sector=_gqv_is_financial_sector,
+                current_price=price, latest_eps=_gqv_latest_eps,
+                eps_trend=eps_trend, revenue_trend=revenue_trend, net_margin_trend=net_margin_trend,
+                fcf_trend=fcf_trend, net_income_trend=net_income_trend, implied_shares_trend=implied_shares_trend,
+                deterioration_result=growth_engine_deterioration, moat_result=growth_engine_moat,
+                management_score=extras.get("management_consistency_score"),
+                avg_roic_pct=avg_roic, cost_of_capital_pct=base_discount_rate * 100,
+                net_debt_to_ebitda=extras.get("net_debt_to_ebitda"), interest_coverage=interest_coverage,
+                dividend_yield_pct=extras.get("dividend_yield_pct"),
+                industry_median_roic_pct=extras.get("industry_median_roic_pct"),
+                expected_eps_growth_pct=extras.get("expected_eps_growth_pct"),
+                # Priority 1 (methodology audit) — last-resort growth
+                # evidence tier, real (growth_engine.py's 6-signal blend),
+                # already computed unconditionally above; not a new fetch.
+                normalized_growth_pct=growth_engine_result.quality_adjusted_growth_pct * 100,
+                forward_pe=extras.get("forward_pe"),
+                historical_median_pe=extras.get("historical_median_pe"),
+                peer_median_pe=extras.get("peer_median_pe"),
+                financials_response=fin, years_available=n,
+                liquidity_ok=liquidity_gate.get("paso", True),
+                business_quality_score=business_quality_score, financial_strength_score=financial_strength_score,
+                financial_statement_quality_score=extras.get("financial_statement_quality_score"),
+                management_consistency_score=extras.get("management_consistency_score"),
+            )
+            target["gqv_fair_value"] = {
+                "status": gqv_result.status,
+                "classification": asdict(gqv_result.classification) if gqv_result.classification else None,
+                "earnings_state": asdict(gqv_result.earnings_state) if gqv_result.earnings_state else None,
+                "growth_quality": asdict(gqv_result.growth_quality) if gqv_result.growth_quality else None,
+                "fair_pe": asdict(gqv_result.fair_pe) if gqv_result.fair_pe else None,
+                "peg": asdict(gqv_result.peg) if gqv_result.peg else None,
+                "pegy": asdict(gqv_result.pegy) if gqv_result.pegy else None,
+                "fcf_quality": asdict(gqv_result.fcf_quality) if gqv_result.fcf_quality else None,
+                "scenarios": asdict(gqv_result.scenarios) if gqv_result.scenarios else None,
+                "reality_gate": asdict(gqv_result.reality_gate) if gqv_result.reality_gate else None,
+                "divergence": asdict(gqv_result.divergence) if gqv_result.divergence else None,
+                "confidence_meter": gqv_result.confidence_meter,
+                "data_provenance": {k: asdict(v) for k, v in (gqv_result.provenance.points if gqv_result.provenance else {}).items()},
+                "insufficient_data_reason": gqv_result.insufficient_data_reason,
+            }
+        except Exception as e:
+            logger.info("get_fundamental_analysis(%s): gqv_fair_value not computable: %s", ticker, e)
+            target["gqv_fair_value"] = None
 
     if _is_financial_sector(sector) and not _is_asset_light_financial_industry(_fin_industry):
         # Banks/insurers/brokers/consumer lenders: the FCF-based DCF below
@@ -1182,7 +1312,8 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         # use) has no clean numeric source on any provider here — that stays
         # a qualitative overlay for Claude's narrative (section 14), not
         # faked into this formula.
-        base_historical_growth = max(rev_cagr / 100, 0.0) if rev_cagr is not None else 0.08
+        # base_historical_growth hoisted above (Priority 3) — no longer
+        # (re)computed here, same value.
 
         # Moat adjustment REMOVED (was up to +3pp on top of the already-real
         # historical CAGR for avg_roic >= 40%) — real testing (TSM/Adobe/
@@ -1234,31 +1365,9 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         # industry_engine's peer fetches) this otherwise-synchronous
         # function deliberately doesn't add; the engine degrades gracefully
         # (weighted_mean renormalizes over whatever signals ARE available).
-        fcf_margin_trend_full = [
-            round(f / r * 100, 1) if f is not None and r else None
-            for f, r in zip(fcf_trend, revenue_trend)
-        ]
-        gross_margin_latest = next((v for v in reversed(gross_margin_trend) if v is not None), None)
-        growth_engine_moat = compute_moat_score(
-            avg_roic_pct=avg_roic, roic_trend=roic_trend,
-            avg_operating_margin_pct=operating_margin_anchor * 100 if operating_margin_anchor is not None else None,
-            operating_margin_trend=operating_margin_trend,
-            gross_margin_latest_pct=gross_margin_latest,
-            industry_median_roic_pct=None, industry_median_operating_margin_pct=None,
-        )
-        growth_engine_deterioration = compute_deterioration_signals(
-            roic_trend=roic_trend, operating_margin_trend=operating_margin_trend,
-            net_margin_trend=net_margin_trend, fcf_margin_trend=fcf_margin_trend_full,
-            revenue_trend=revenue_trend,
-        )
-        growth_engine_result = compute_weighted_growth(
-            historical_growth_pct=base_historical_growth,
-            cagr_windows=compute_cagr_windows(revenue_trend),
-            avg_roic_pct=avg_roic,
-            incremental_roic_pct=compute_incremental_roic(nopat_trend, invested_capital_trend),
-            moat_result=growth_engine_moat,
-            deterioration_result=growth_engine_deterioration,
-        )
+        # fcf_margin_trend_full/gross_margin_latest/growth_engine_moat/
+        # growth_engine_deterioration/growth_engine_result all hoisted above
+        # (Priority 3) — no longer (re)computed here, same values.
         driver_based_g1_rev_raw = growth_engine_result.quality_adjusted_growth_pct
         # Same "base" scenario cap the legacy model applies (FCF_DCF_SCENARIOS
         # never changes) — the driver-based "base case" growth used wherever
@@ -2181,6 +2290,35 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 },
             }
 
+    # Priority 3 (methodology audit) — GQV fallback when the legacy DCF's
+    # own precondition (avg_fcf_margin > 0) failed but this isn't a REIT or
+    # a financial-sector company (both of those are deliberately out of
+    # GQV's scope). Confirmed real case: MU/Micron, whose 5-year average FCF
+    # margin sits at -3.1% because of a single severe down-cycle year
+    # (-39.4%), even though 4 of its 5 years were solidly positive — the
+    # DCF's simple average has no cyclical-earnings handling, but GQV's
+    # earnings-state machine (see nuvos_engine/earnings_state.py) does. This
+    # `dcf` dict is intentionally minimal — no legacy-DCF numbers exist to
+    # populate it with — just enough structure for every downstream
+    # `dcf.get(...)` call site (screener.py, undervalued_screener_service.py,
+    # the frontend) to keep working unchanged.
+    if dcf is None and not is_reit_sector(sector) and not (
+        _is_financial_sector(sector) and not _is_asset_light_financial_industry(_fin_industry)
+    ):
+        dcf = {
+            "sector": sector, "current_price": price,
+            "scenarios": None, "fair_value_range": None,
+            "margin_of_safety_pct": None, "confidence_score": None, "confidence_meter": None,
+            "shares_outstanding": round(shares_out, 0) if shares_out else None,
+            "total_debt": round(total_debt, 0), "cash": round(cash_latest, 0),
+            "nuvos_fair_value": None,
+            "dcf_unavailable_reason": (
+                "El DCF estándar no aplica (margen de FCF promedio no positivo, típicamente un negocio cíclico "
+                "en un año de caída severa) — se intentó valorar de forma independiente con el motor Growth+Quality+Value."
+            ),
+        }
+        _attach_gqv_fair_value(dcf)
+
     # business_quality_score/financial_strength_score (and their component
     # scores: roic_score, margin_score, net_margin_score, growth_score,
     # fcf_margin_score, debt_score, interest_coverage_score) are now
@@ -2274,7 +2412,14 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     growth_score_adj = None
     buyback_component = None
     thesis_scores = None
-    if dcf:
+    # `dcf.get("scenarios")` (not just `dcf`) — Priority 3's GQV-without-DCF
+    # fallback path builds a minimal `dcf` dict with `scenarios: None` (no
+    # legacy DCF ran, so there are no pessimistic/base/optimistic scenarios
+    # for this block's thesis-scores/checklist/confidence-interval logic to
+    # read). `gqv_fair_value` was already attached to that minimal dict in
+    # the fallback branch above — skipping this legacy-DCF-shaped
+    # post-processing doesn't touch it.
+    if dcf and dcf.get("scenarios"):
         # Confidence Meter — computed once here, generically, for whichever
         # methodology produced `dcf` (FCF DCF or Justified P/B both populate
         # the same "confidence_score"/"fair_value_range" keys).
@@ -2311,6 +2456,34 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             financial_statement_quality_score=financial_statement_quality_score,
             management_consistency_score=management_consistency_score,
         )
+
+        # Nuvos Fair Value Engine (Growth + Quality + Value) — see
+        # _attach_gqv_fair_value's own docstring above. Rich call site: every
+        # extra signal this later part of the pipeline has by now (peer/
+        # historical P/E, dividend yield, forward consensus, financial-
+        # statement quality) is passed through. Guarded: the Priority 3
+        # fallback branch above already attached `gqv_fair_value` onto its
+        # own minimal `dcf` dict (no legacy DCF numbers exist to enrich this
+        # call with in that case) — never recompute it a second time.
+        _gqv_net_debt_to_ebitda = (
+            round((total_debt - cash_latest) / latest_ebitda, 2) if latest_ebitda else None
+        )
+        if "gqv_fair_value" not in dcf:
+            _attach_gqv_fair_value(dcf, extras={
+                "net_debt_to_ebitda": _gqv_net_debt_to_ebitda,
+                "dividend_yield_pct": dividend_yield_pct,
+                "industry_median_roic_pct": (industry_benchmarks or {}).get("median_roic_pct"),
+                "expected_eps_growth_pct": (nuvos_fair_value or {}).get("wall_street_eps_growth_next_year_pct"),
+                # Trailing P/E used as a forward-P/E proxy — no real forward-EPS
+                # consensus is wired to this call site yet; documented
+                # simplification, not a fabricated forward multiple.
+                "forward_pe": pe_ratio,
+                "historical_median_pe": (historical_valuation or {}).get("historical_median_pe"),
+                "peer_median_pe": (relative_valuation or {}).get("peer_median_pe"),
+                "financial_statement_quality_score": financial_statement_quality_score,
+                "management_consistency_score": management_consistency_score,
+            })
+
         gb = dcf.get("growth_buildup") or {}
         qual_growth = gb.get("quality_adjusted_growth_pct")
         growth_score_adj = _score(qual_growth, [(0, 15), (5, 40), (10, 60), (15, 75), (20, 88), (999, 95)])

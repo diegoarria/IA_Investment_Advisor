@@ -1074,6 +1074,8 @@
     "nuvosFairValue": {
       "title": "Nuvos AI Fair Value Engine",
       "subtitle": "Un solo motor de valuación, tres escenarios posibles — nunca un precio exacto, sino un rango de estimaciones razonables según distintos supuestos.",
+      "crossCheckTitle": "Modelo DCF (verificación cruzada)",
+      "crossCheckSubtitle": "Flujo de caja descontado — un segundo método, usado como verificación independiente del valor principal, no como el número destacado.",
       "scenarios": {
         "bear": "Pesimista",
         "base": "Base",

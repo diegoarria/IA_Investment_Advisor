@@ -203,6 +203,87 @@ def compute_confidence_meter_v3(
     return {"score": int(score), "label": label, "stars": stars, "dispersion_source": dispersion_source}
 
 
+def compute_confidence_meter_v4(
+    predictability_score: Optional[float], years_available: int,
+    fair_value_range: dict, liquidity_ok: bool,
+    business_quality_score: Optional[float] = None,
+    financial_strength_score: Optional[float] = None,
+    method_values: Optional[list[Optional[float]]] = None,
+    financial_statement_quality_score: Optional[float] = None,
+    management_consistency_score: Optional[float] = None,
+    classification_confidence: Optional[float] = None,
+    provenance_completeness: Optional[float] = None,
+    divergence_explained: Optional[bool] = None,
+    reality_gate_pass_rate: Optional[float] = None,
+) -> Optional[dict]:
+    """Nuvos Fair Value Engine rearchitecture (plan §13) — additive
+    superset of `compute_confidence_meter_v3`, NOT a rewrite: every v3
+    signal keeps the same relative proportions, scaled down by 0.8 to
+    fund 4 new 0-weight slots (0.20 combined) for signals only the new
+    `nuvos_engine` package produces:
+
+    - `classification_confidence` — `nuvos_engine.classification.
+      ClassificationResult.confidence` (how clean the business-lifecycle
+      classification signal was).
+    - `provenance_completeness` — `nuvos_engine.provenance.
+      ProvenanceLedger.completeness_pct` (% of headline metrics with a
+      real, traceable source).
+    - `divergence_explained` — `nuvos_engine.divergence.
+      DivergenceExplanation.explained` (was a large Fair-Value-vs-price
+      gap actually attributed to a real cause); scored 100/40 rather than
+      100/0 so one unexplained-but-immaterial-elsewhere gap can't zero
+      out an otherwise strong confidence score, same floor philosophy as
+      `compute_financial_statement_quality_score`.
+    - `reality_gate_pass_rate` — `nuvos_engine.reality_gate.
+      RealityGateResult.pass_rate` (0-100).
+
+    Confidence still means RELIABILITY of the valuation, never likelihood
+    of the stock moving in any direction — no change to that semantic,
+    only richer inputs. Uses `weighted_mean` so any missing new signal
+    renormalizes over what's actually available, same as every other
+    optional component here."""
+    if predictability_score is None:
+        return None
+    completeness = min(100, round(years_available / 10 * 100))
+
+    cross_method_dispersion = compute_cross_method_spread_pct(method_values) if method_values else None
+    if cross_method_dispersion is not None:
+        dispersion_pct = cross_method_dispersion
+        dispersion_source = "cross_method"
+    else:
+        base, low, high = fair_value_range.get("base"), fair_value_range.get("low"), fair_value_range.get("high")
+        dispersion_pct = min(100, abs(high - low) / base * 100) if base and base > 0 else 50.0
+        dispersion_source = "bear_bull_dispersion"
+    agreement = 100 - dispersion_pct
+
+    liquidity_component = 100 if liquidity_ok else 40
+    bq = business_quality_score if business_quality_score is not None else predictability_score
+    fs = financial_strength_score if financial_strength_score is not None else predictability_score
+    divergence_component = None if divergence_explained is None else (100.0 if divergence_explained else 40.0)
+
+    score_raw = weighted_mean([
+        (predictability_score, 0.16),
+        (bq, 0.12),
+        (fs, 0.08),
+        (completeness, 0.12),
+        (agreement, 0.12),
+        (liquidity_component, 0.08),
+        (financial_statement_quality_score, 0.08),
+        (management_consistency_score, 0.04),
+        (classification_confidence, 0.07),
+        (provenance_completeness, 0.07),
+        (divergence_component, 0.03),
+        (reality_gate_pass_rate, 0.03),
+    ])
+    score = round(score_raw) if score_raw is not None else 0
+    if score >= 85: label = "Alta confianza"
+    elif score >= 65: label = "Confianza moderada"
+    elif score >= 45: label = "Confianza baja"
+    else: label = "Especulativo — rango amplio de incertidumbre"
+    stars = max(1, min(5, round(score / 20)))
+    return {"score": int(score), "label": label, "stars": stars, "dispersion_source": dispersion_source}
+
+
 # ── v1 functions (Fase 1, Incremento 7 — Parte I: relocated verbatim from
 # fundamental_analysis_service.py, behavior unchanged, pinned by the
 # Incremento 1 regression suite in tests/test_valuation_dcf_core.py::

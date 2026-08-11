@@ -791,12 +791,21 @@ export function _SupuestosSection({ data }: { data: NuvosFairValueData }) {
 // reference points" row (multiples estimate, Wall Street target) — never
 // blended into the headline number, just shown alongside it.
 export function FairValueScenariosPanel({
-  data, price, relativeValuation, analystPriceTarget,
+  data, price, relativeValuation, analystPriceTarget, titleOverride, subtitleOverride,
 }: {
   data: NuvosFairValueData | null;
   price: number | null;
   relativeValuation?: RelativeValuationData | null;
   analystPriceTarget?: AnalystPriceTargetData | null;
+  // Nuvos Fair Value Engine (Growth + Quality + Value) rearchitecture — see
+  // /Users/diegoarria/.claude/plans/cosmic-munching-crown.md. This DCF +
+  // exit-multiple panel is demoted to a secondary "cross-check" role
+  // wherever the new engine produced a real primary result; the caller
+  // passes the cross-check copy in that case, defaulting to this panel's
+  // original primary-panel title/subtitle otherwise (unchanged behavior
+  // for any other caller).
+  titleOverride?: string;
+  subtitleOverride?: string;
 }) {
   const { t } = useTranslation();
   // Always opens on Base, regardless of which scenario the current price
@@ -821,7 +830,10 @@ export function FairValueScenariosPanel({
 
   return (
     <Card padding="p-6">
-      <SectionHeader title={t("subvaluadas.nuvosFairValue.title")} subtitle={t("subvaluadas.nuvosFairValue.subtitle")} />
+      <SectionHeader
+        title={titleOverride ?? t("subvaluadas.nuvosFairValue.title")}
+        subtitle={subtitleOverride ?? t("subvaluadas.nuvosFairValue.subtitle")}
+      />
 
       {/* Scenario tab switcher — AlphaSpread's "Escenario bajista/base/alcista" pattern */}
       <div className="flex rounded-xl p-1 mb-6 mt-3" style={{ background: "var(--raised)" }}>

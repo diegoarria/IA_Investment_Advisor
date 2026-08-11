@@ -23,6 +23,7 @@ import {
 } from "@/components/subvaluadas/shared";
 import { ValuationBacktestPanel } from "@/components/subvaluadas/ValuationBacktestPanel";
 import { FollowAlertPanel } from "@/components/subvaluadas/FollowAlertPanel";
+import { GqvFairValuePanel, type GqvFairValueData } from "@/components/subvaluadas/GqvFairValuePanel";
 import { FinancialReverseValuationCard, FinancialSensitivityTable } from "@/components/subvaluadas/FinancialEngineExtras";
 import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -81,6 +82,10 @@ export interface QuickAnalysisResult {
   // see FairValueScenariosPanel in shared.tsx and combine_fair_value_range
   // (fair_value_range's low/base/high now ARE these 3 values).
   nuvos_fair_value: NuvosFairValueData | null;
+  // Nuvos Fair Value Engine (Growth + Quality + Value) — EXPERIMENTAL,
+  // shown in its own panel while calibrated against more real tickers; not
+  // yet primary. See /Users/diegoarria/.claude/plans/cosmic-munching-crown.md.
+  gqv_fair_value: GqvFairValueData | null;
   // Incremento 17 (visual redesign, "otros puntos de referencia") — real,
   // independently-computed reference points, never blended into the DCF.
   relative_valuation: RelativeValuationData | null;
@@ -244,6 +249,18 @@ function SubvaluadasPageInner() {
   // out of the "Modelo Completo" drawer onto the main scroll ("¿Cómo
   // llegamos a este valor?", Reverse DCF, Sensibilidad). Always Base, same
   // consistent default `FairValueScenariosPanel`/`FullModelPanel` open on.
+  // Nuvos Fair Value Engine (Growth + Quality + Value) is PRIMARY whenever
+  // it produced a real, gate-passed result for this ticker; the DCF +
+  // exit-multiple engine (nuvos_fair_value) becomes a secondary cross-check
+  // panel in that case, or stays primary as a fallback when GQV alone
+  // couldn't value this ticker (negative EPS, financial sector, short
+  // history) — same fallback the backend screener already applies. See
+  // /Users/diegoarria/.claude/plans/cosmic-munching-crown.md.
+  const gqvIsPrimary = data?.gqv_fair_value?.status === "ok" && !!data?.gqv_fair_value?.scenarios;
+  const primaryFairValue = gqvIsPrimary
+    ? data!.gqv_fair_value!.scenarios!.base.fair_value_per_share
+    : data?.nuvos_fair_value?.scenarios.base.fair_value_per_share ?? null;
+
   const isFinancialSector = !!data?.nuvos_fair_value?.is_financial_sector;
   const defaultScenario = data?.nuvos_fair_value?.scenarios.base ?? null;
   // deriveBaseInputs assumes the FCF driver-based `yearly` row shape
@@ -367,15 +384,22 @@ function SubvaluadasPageInner() {
                     )}
                   </div>
 
-                  {/* Nuvos AI Fair Value Engine — escenarios + gráfico horizontal +
-                      conclusión. LA tarjeta principal de la pantalla. */}
-                  {data.nuvos_fair_value && (
-                    <FairValueScenariosPanel
-                      data={data.nuvos_fair_value}
-                      price={price}
-                      relativeValuation={data.relative_valuation}
-                      analystPriceTarget={data.analyst_price_target}
-                    />
+                  {/* Nuvos Fair Value Engine — LA tarjeta principal de la
+                      pantalla. Growth + Quality + Value cuando produjo un
+                      resultado confiable para este ticker; si no, cae al
+                      modelo DCF + exit-multiple (mismo fallback que aplica
+                      el backend en el screener de Oportunidades). */}
+                  {gqvIsPrimary ? (
+                    <GqvFairValuePanel data={data.gqv_fair_value} />
+                  ) : (
+                    data.nuvos_fair_value && (
+                      <FairValueScenariosPanel
+                        data={data.nuvos_fair_value}
+                        price={price}
+                        relativeValuation={data.relative_valuation}
+                        analystPriceTarget={data.analyst_price_target}
+                      />
+                    )
                   )}
 
                   {/* "Seguir {ticker}" — zona de compra: crea una alerta de
@@ -383,12 +407,12 @@ function SubvaluadasPageInner() {
                       absoluto arbitrario), con presets de margen de
                       seguridad. Backend (price_alerts.py) ya existía; esta
                       es su primera UI real. */}
-                  {data.nuvos_fair_value?.scenarios.base.fair_value_per_share != null && (
+                  {primaryFairValue != null && (
                     <FollowAlertPanel
                       ticker={data.ticker}
                       companyName={data.company_name}
                       price={price}
-                      intrinsicValue={data.nuvos_fair_value.scenarios.base.fair_value_per_share}
+                      intrinsicValue={primaryFairValue}
                       defaultMarginPct={minMarginOfSafetyPct}
                     />
                   )}
@@ -401,6 +425,22 @@ function SubvaluadasPageInner() {
                       <div className="mt-3">
                         <_SupuestosSection data={data.nuvos_fair_value} />
                       </div>
+                    </div>
+                  )}
+
+                  {/* DCF + exit-multiple — demovido a verificación cruzada
+                      cuando el motor Growth + Quality + Value es el
+                      principal (ver arriba); sigue siendo el principal en
+                      los tickers donde GQV no pudo generar un resultado
+                      confiable. */}
+                  {gqvIsPrimary && data.nuvos_fair_value && (
+                    <div className="mt-8">
+                      <FairValueScenariosPanel
+                        data={data.nuvos_fair_value}
+                        price={price}
+                        titleOverride={t("subvaluadas.nuvosFairValue.crossCheckTitle")}
+                        subtitleOverride={t("subvaluadas.nuvosFairValue.crossCheckSubtitle")}
+                      />
                     </div>
                   )}
 

@@ -13,6 +13,7 @@ from app.services.valuation.confidence_engine import (
     compute_cross_method_spread_pct,
     compute_confidence_meter_v2,
     compute_confidence_meter_v3,
+    compute_confidence_meter_v4,
     compute_financial_statement_quality_score,
     compute_management_consistency_score,
     _confidence_meter,
@@ -187,5 +188,57 @@ class TestComputeConfidenceMeterV3:
             business_quality_score=95, financial_strength_score=95,
             financial_statement_quality_score=100.0, management_consistency_score=90.0,
         )
+        assert 0 <= result["score"] <= 100
+        assert 1 <= result["stars"] <= 5
+
+
+class TestComputeConfidenceMeterV4:
+    """Nuvos Fair Value Engine rearchitecture (plan §13) — additive superset
+    of v3. See /Users/diegoarria/.claude/plans/cosmic-munching-crown.md."""
+
+    def _base_kwargs(self, **overrides):
+        kwargs = dict(
+            predictability_score=75, years_available=8,
+            fair_value_range={"base": 100, "low": 80, "high": 120}, liquidity_ok=True,
+            business_quality_score=70, financial_strength_score=65,
+            financial_statement_quality_score=100.0, management_consistency_score=80.0,
+        )
+        kwargs.update(overrides)
+        return kwargs
+
+    def test_returns_none_when_predictability_score_missing(self):
+        assert compute_confidence_meter_v4(None, 8, {}, True) is None
+
+    def test_works_with_no_new_signals_at_all_renormalizing_over_v3_only(self):
+        result = compute_confidence_meter_v4(**self._base_kwargs())
+        assert result is not None
+        assert 0 <= result["score"] <= 100
+
+    def test_reality_gate_full_pass_scores_higher_than_partial_pass(self):
+        full_pass = compute_confidence_meter_v4(**self._base_kwargs(reality_gate_pass_rate=100.0))
+        partial_pass = compute_confidence_meter_v4(**self._base_kwargs(reality_gate_pass_rate=40.0))
+        assert full_pass["score"] > partial_pass["score"]
+
+    def test_unexplained_divergence_lowers_score_but_never_zeroes_it(self):
+        explained = compute_confidence_meter_v4(**self._base_kwargs(divergence_explained=True))
+        unexplained = compute_confidence_meter_v4(**self._base_kwargs(divergence_explained=False))
+        assert unexplained["score"] < explained["score"]
+        assert unexplained["score"] > 0  # floored at 40, not 0 — one signal can't zero out confidence
+
+    def test_low_classification_confidence_lowers_the_score(self):
+        clean = compute_confidence_meter_v4(**self._base_kwargs(classification_confidence=90.0))
+        murky = compute_confidence_meter_v4(**self._base_kwargs(classification_confidence=20.0))
+        assert murky["score"] < clean["score"]
+
+    def test_low_provenance_completeness_lowers_the_score(self):
+        complete = compute_confidence_meter_v4(**self._base_kwargs(provenance_completeness=100.0))
+        incomplete = compute_confidence_meter_v4(**self._base_kwargs(provenance_completeness=30.0))
+        assert incomplete["score"] < complete["score"]
+
+    def test_score_and_stars_stay_within_range_with_every_signal_present(self):
+        result = compute_confidence_meter_v4(**self._base_kwargs(
+            classification_confidence=80.0, provenance_completeness=95.0,
+            divergence_explained=True, reality_gate_pass_rate=90.0,
+        ))
         assert 0 <= result["score"] <= 100
         assert 1 <= result["stars"] <= 5
