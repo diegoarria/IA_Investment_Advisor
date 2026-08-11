@@ -108,9 +108,21 @@ async def create_profile(
         # directly instead of adding it to that whitelist.
         db_data["preferred_language"] = data.language
 
-    existing = await run_query(db.table("user_profiles").select("id").eq("user_id", user_id))
+    existing = await run_query(
+        db.table("user_profiles").select("id, trial_started_at, subscription_tier").eq("user_id", user_id)
+    )
     now = datetime.now(timezone.utc).isoformat()
     if existing.data:
+        # Guarantee the 30-day trial for every account, even one that reaches
+        # this UPDATE branch (double-submit, retry, a row created by another
+        # path — e.g. the Google OAuth email-migration branch below) without
+        # ever having trial_started_at set. Previously this only happened
+        # lazily on the user's first GET /billing/status call — real, but a
+        # second mechanism instead of a guarantee at the one place every
+        # account passes through (onboarding completion).
+        existing_row = existing.data[0]
+        if existing_row.get("subscription_tier") != "premium" and not existing_row.get("trial_started_at"):
+            db_data["trial_started_at"] = now
         result = await run_query(
             db.table("user_profiles").update({**db_data, "updated_at": now}).eq("user_id", user_id)
         )
