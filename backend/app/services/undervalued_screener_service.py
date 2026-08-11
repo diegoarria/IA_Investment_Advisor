@@ -34,7 +34,15 @@ from app.core.cache import cache_set, cache_get_with_ts
 
 logger = logging.getLogger(__name__)
 
-CACHE_KEY = "undervalued_screener:v1"
+# v2 — bumped for the Nuvos Fair Value Engine (Growth + Quality + Value)
+# becoming PRIMARY over the DCF (see /Users/diegoarria/.claude/plans/
+# cosmic-munching-crown.md): `_build_candidate` now sources
+# `intrinsic_value_base`/`margin_of_safety_pct`/`confidence_meter` through
+# `_primary_valuation` (GQV first, DCF fallback) instead of the DCF's own
+# scenarios unconditionally. A v1 cache entry was built by the old logic —
+# without this bump, Oportunidades keeps serving DCF-only candidates for up
+# to 8 more days (this cache's TTL) after the code changed.
+CACHE_KEY = "undervalued_screener:v2"
 CACHE_TTL = 8 * 24 * 3600      # slightly over a week — one missed weekly run doesn't go stale/empty
 BOOTSTRAP_TTL = 24 * 3600      # short-lived — the next full weekly/startup refresh supersedes this
 _BOOTSTRAP_LIMIT = 44          # small subset so a cold-cache request stays reasonably fast — ~4 per GICS sector via _diverse_bootstrap_sample, now that UNIVERSE is the full S&P 500 (bumped from 20, which was fine for the old ~183-ticker curated list but too thin for real sector spread here)

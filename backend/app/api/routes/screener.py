@@ -971,6 +971,19 @@ _QUICK_ANALYSIS_CACHE_TTL = 90 * 24 * 3600  # 3 months — a ceiling, not the re
 
 
 def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
+    # v7 — bumped for the Nuvos Fair Value Engine (Growth + Quality + Value)
+    # becoming PRIMARY over the DCF (see /Users/diegoarria/.claude/plans/
+    # cosmic-munching-crown.md and the methodology audit that followed it):
+    # `gqv_fair_value`/`valuation_source` are new top-level-consumed fields,
+    # `intrinsic_value_base`/`margin_of_safety_pct` now resolve through
+    # `_primary_valuation` (GQV first, DCF fallback) instead of always
+    # reading the DCF's own scenarios, and the DCF panel itself is relabeled
+    # as a cross-check on web whenever GQV is primary. A stale v6 entry has
+    # no `gqv_fair_value` at all and still points `intrinsic_value_base` at
+    # the DCF unconditionally — without this bump, every previously-viewed
+    # ticker (this includes AAPL, confirmed via a live screenshot showing
+    # the old DCF-only panel post-deploy) keeps serving pre-GQV numbers
+    # under the new primary-engine UI for up to 90 more days.
     # v6 — bumped because avg_roic (fundamental_analysis_service.py) switched
     # from a flat historical mean to the same recency-weighted average
     # already used for operating margin. The flat mean let a company's
@@ -1006,7 +1019,7 @@ def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
     # the "summary"/"blurb" schema's hardcoded "español" instruction was
     # fixed (it silently overrode the top-level language directive) doesn't
     # keep serving Spanish text under an English UI for its remaining TTL.
-    return f"quick_analysis:v6:{lang}:{ticker}"
+    return f"quick_analysis:v7:{lang}:{ticker}"
 
 
 async def _build_quick_analysis(ticker: str, lang: str) -> dict:
