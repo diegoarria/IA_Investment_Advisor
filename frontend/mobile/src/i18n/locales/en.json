@@ -651,10 +651,6 @@
         "title": "Already in your watchlist",
         "message": "{{ticker}} is already added."
       }
-    },
-    "tour": {
-      "title": "Search for a stock to follow",
-      "description": "Type the ticker or company name — e.g. AAPL or Tesla. Nuvos will alert you when there are important moves."
     }
   },
   "earnings": {
@@ -1540,10 +1536,6 @@
       "jpy": "Yen"
     },
     "paywallReason": "More than 10 positions requires Premium",
-    "tour": {
-      "title": "Add your first position",
-      "description": "Tap the green button to log the stocks you already own. Nuvos will calculate your real-time return."
-    },
     "tabs": {
       "myPortfolio": "My Portfolio",
       "tools": "Tools"
@@ -1828,11 +1820,7 @@
     "exploreTopics": "Explore topics",
     "seeAll": "See all →",
     "headerSub": "Learn and invest",
-    "headerTitle": "Learning",
-    "tour": {
-      "title": "Start your first lesson",
-      "description": "There's a new lesson every day. Complete 3 in a row to start your streak — it shows up on your home screen."
-    }
+    "headerTitle": "Learning"
   },
   "learn": {
     "categories": {
@@ -2128,11 +2116,7 @@
     "noVoiceDetected": "No voice detected in the audio",
     "transcribeErrorTitle": "Transcription error",
     "unknownError": "Unknown error",
-    "micPermissionError": "I need microphone permission to record. Enable it in Settings.",
-    "tour": {
-      "title": "Talk to Nuvos",
-      "description": "Type any question about investing. Nuvos remembers your portfolio and profile to give you personalized answers."
-    }
+    "micPermissionError": "I need microphone permission to record. Enable it in Settings."
   },
   "paper": {
     "sellModal": {
@@ -2767,10 +2751,6 @@
     "searching": "Searching for opportunities...",
     "noPicks": "No picks available yet.",
     "defaultDisclaimer": "These are educational ideas to research, not buy recommendations or financial advice. Research each company deeply before investing a single dollar."
-  },
-  "mobileTourBanner": {
-    "step": "STEP {{step}}/{{total}}",
-    "defaultCta": "Got it, go to home ✓"
   },
   "mobileOnboardingChecklist": {
     "title": "Set up your Nuvos",

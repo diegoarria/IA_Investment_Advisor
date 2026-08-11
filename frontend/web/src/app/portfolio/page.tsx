@@ -24,7 +24,6 @@ import dynamic from "next/dynamic";
 const StockDetailModal = dynamic(() => import("@/components/StockDetailModal"), { ssr: false });
 import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
 import PaywallModal from "@/components/PaywallModal";
-import GuidedSteps from "@/components/GuidedSteps";
 import PremiumBadge from "@/components/PremiumBadge";
 import BalanceVisibilityToggle from "@/components/BalanceVisibilityToggle";
 import ExplainButton from "@/components/ExplainButton";
@@ -1996,7 +1995,6 @@ export default function PortfolioPage() {
 
         {/* Main */}
         <main className="flex-1 overflow-y-auto scrollbar-thin p-4 w-full">
-          <GuidedSteps currentPage="portfolio" />
 
           {/* Tab switcher — Herramientas only for basico+ */}
           <div className="flex p-1 rounded-xl gap-1 mb-5" style={{ background: "var(--raised)" }}>

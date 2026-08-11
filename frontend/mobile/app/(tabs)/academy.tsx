@@ -5,10 +5,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import MobileTourBanner from "../../src/components/MobileTourBanner";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
 import { useLearnStore } from "../../src/lib/learnStore";
@@ -50,7 +49,7 @@ function StreakRing({ streak, colors }: { streak: number; colors: any }) {
 
 // ─── Aprendizaje Tab ─────────────────────────────────────────────────────────
 
-function AprendizajeTab({ colors, isTour }: { colors: any; isTour?: boolean }) {
+function AprendizajeTab({ colors }: { colors: any }) {
   const { t } = useTranslation();
   const streak = useLearnStore((s) => s.streak);
   const completedToday = useLearnStore((s) => s.completedToday);
@@ -97,7 +96,7 @@ function AprendizajeTab({ colors, isTour }: { colors: any; isTour?: boolean }) {
       <TouchableOpacity
         onPress={() => router.push("/(tabs)/learn")}
         activeOpacity={0.8}
-        style={[ss.btn, { backgroundColor: colors.accent }, isTour && { borderWidth: 3, borderColor: "#fff" }]}
+        style={[ss.btn, { backgroundColor: colors.accent }]}
       >
         <Ionicons name="library-outline" size={16} color="#fff" />
         <Text style={ss.btnText}>{t("academy.seeAll")}</Text>
@@ -112,8 +111,6 @@ export default function AcademyScreen() {
   const { colors } = useTheme();
   const { t } = useTranslation();
   const openSidebar = useAppStore((s) => s.openSidebar);
-  const { tour } = useLocalSearchParams<{ tour?: string }>();
-  const isTour = tour === "4";
 
   return (
     <SafeAreaView edges={["top"]} style={[ss.safe, { backgroundColor: colors.bg }]}>
@@ -130,15 +127,7 @@ export default function AcademyScreen() {
       </View>
 
       {/* Content */}
-      <AprendizajeTab colors={colors} isTour={isTour} />
-
-      {isTour && (
-        <MobileTourBanner
-          step={4}
-          title={t("academy.tour.title")}
-          description={t("academy.tour.description")}
-        />
-      )}
+      <AprendizajeTab colors={colors} />
     </SafeAreaView>
   );
 }

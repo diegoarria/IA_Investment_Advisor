@@ -5,8 +5,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { router, useLocalSearchParams } from "expo-router";
-import MobileTourBanner from "../../src/components/MobileTourBanner";
+import { router } from "expo-router";
 import { useTheme, type Colors } from "../../src/lib/ThemeContext";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -255,8 +254,6 @@ const rw = StyleSheet.create({
 export default function WatchlistScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
-  const { tour } = useLocalSearchParams<{ tour?: string }>();
-  const isTour = tour === "5";
   const { items, add, remove, has, reorder } = useWatchlistStore();
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
@@ -423,7 +420,7 @@ export default function WatchlistScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Search */}
-          <View style={[s.searchWrap, { backgroundColor: colors.card, borderColor: isTour ? "#00d47e" : colors.border, borderWidth: isTour ? 2 : 1 }]}>
+          <View style={[s.searchWrap, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
             <Ionicons name="search-outline" size={16} color={colors.textMuted} />
             <TextInput
               style={[s.searchInput, { color: colors.text }]}
@@ -659,13 +656,6 @@ export default function WatchlistScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {isTour && (
-        <MobileTourBanner
-          step={5}
-          title={t("watchlist.tour.title")}
-          description={t("watchlist.tour.description")}
-        />
-      )}
     </View>
   );
 }

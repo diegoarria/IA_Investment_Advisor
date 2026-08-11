@@ -12,7 +12,6 @@ import { useAuthStore, useNotificationStore, useThemeStore, useSubscriptionStore
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import PaywallModal from "@/components/PaywallModal";
 import { Bell, X, Sun, Moon, Newspaper, RefreshCw, Loader2, Settings } from "lucide-react";
-import GuidedSteps from "@/components/GuidedSteps";
 import NotificationSettingsPanel from "./SettingsPanel";
 import { useTranslation } from "react-i18next";
 
@@ -224,7 +223,6 @@ export default function NotificationsPage() {
 
         {/* Main */}
         <main className="flex-1 overflow-y-auto scrollbar-thin p-4">
-          <GuidedSteps currentPage="notifications" />
           <div className="max-w-2xl mx-auto space-y-4 pb-8">
 
             {/* Mark all read */}

@@ -27,7 +27,6 @@ const CATEGORY_LEVEL: Record<string, UserLevel> = {
   ratios:      "avanzado",
 };
 import { Search, Menu, X } from "lucide-react";
-import GuidedSteps from "@/components/GuidedSteps";
 import type { TFunction } from "i18next";
 
 function getCategories(t: TFunction) {
@@ -384,7 +383,6 @@ export default function LearnPage() {
 
         {/* Main */}
         <main className="flex-1 flex flex-col overflow-hidden">
-          <GuidedSteps currentPage="learn" />
 
           {/* Search bar */}
           <div className="px-4 pt-2 pb-2 shrink-0">

@@ -18,7 +18,6 @@ import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
 import { useUpsellStore } from "@/lib/upsellStore";
 import TutorialModal from "@/components/TutorialModal";
-import GuidedSteps from "@/components/GuidedSteps";
 import PremiumBadge from "@/components/PremiumBadge";
 import VoiceCallModal from "@/components/VoiceCallModal";
 import { unlockAudioPlayback, getUnlockedAudioElement } from "@/lib/audioUnlock";
@@ -869,7 +868,6 @@ export default function ChatPage() {
 
         {/* ── Chat column ───────────────────────────────────────────────────── */}
         <main className="flex-1 flex flex-col overflow-hidden">
-          <GuidedSteps currentPage="chat" />
 
           {/* Scroll area */}
           <div ref={scrollContainerRef} onScroll={handleScrollContainer}

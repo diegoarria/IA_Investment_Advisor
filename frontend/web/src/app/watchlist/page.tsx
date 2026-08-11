@@ -25,7 +25,6 @@ import type { AdvancedRow } from "@/components/AdvancedStockTable";
 import dynamic from "next/dynamic";
 // Fase 4, Incremento 13 (Cierre, Parte M) — see portfolio/page.tsx's comment.
 const StockDetailModal = dynamic(() => import("@/components/StockDetailModal"), { ssr: false });
-import GuidedSteps from "@/components/GuidedSteps";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -766,7 +765,6 @@ export default function WatchlistPage() {
           </div>
 
           <main className="flex-1 overflow-y-auto scrollbar-thin p-4 w-full max-w-5xl mx-auto">
-            <GuidedSteps currentPage="watchlist" />
 
             {/* ── Search bar ── */}
             <div id="tour-watchlist-search" ref={searchRef} className="relative mb-4">

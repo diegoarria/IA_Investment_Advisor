@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { router, useLocalSearchParams } from "expo-router";
-import MobileTourBanner from "../../src/components/MobileTourBanner";
+import { useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
@@ -96,8 +95,7 @@ function getObjectiveGreeting(t: TFunction): Record<string, string> {
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 104;
-  const { tour, ctx, msg: msgParam, autosend } = useLocalSearchParams<{ tour?: string; ctx?: string; msg?: string; autosend?: string }>();
-  const isTour = tour === "3"; // MobileHeader row (52) + MarketTicker (52)
+  const { ctx, msg: msgParam, autosend } = useLocalSearchParams<{ ctx?: string; msg?: string; autosend?: string }>();
   const { colors } = useTheme();
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -1063,7 +1061,7 @@ Instrucciones críticas:
             </View>
           )}
           {/* ── Input card ── */}
-          <View style={[styles.inputCard, { borderTopColor: colors.border, backgroundColor: colors.card }, isTour && { borderWidth: 2, borderColor: "#00d47e", borderRadius: 16, margin: 8 }]}>
+          <View style={[styles.inputCard, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
             <View style={[styles.inputInner, { backgroundColor: colors.bgRaised ?? colors.bg, borderColor: colors.border }]}>
               <TextInput
                 ref={inputRef}
@@ -1156,13 +1154,6 @@ Instrucciones críticas:
       visible={tutorialVisible}
       onClose={() => { setTutorialVisible(false); markTutorialSeen(); }}
     />
-    {isTour && (
-      <MobileTourBanner
-        step={3}
-        title={t("chat.tour.title")}
-        description={t("chat.tour.description")}
-      />
-    )}
 
     {/* ── Voice Recording Modal ── */}
     <Modal

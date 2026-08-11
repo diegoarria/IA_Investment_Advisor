@@ -651,10 +651,6 @@
         "title": "Ya está en tu Watchlist",
         "message": "{{ticker}} ya está agregado."
       }
-    },
-    "tour": {
-      "title": "Busca una acción para seguir",
-      "description": "Escribe el ticker o nombre de la empresa — ej. AAPL o Tesla. Nuvos te avisará cuando haya movimientos importantes."
     }
   },
   "earnings": {
@@ -1540,10 +1536,6 @@
       "jpy": "Yen"
     },
     "paywallReason": "Más de 10 posiciones requiere Premium",
-    "tour": {
-      "title": "Agrega tu primera posición",
-      "description": "Toca el botón verde para registrar las acciones que ya tienes. Nuvos calculará tu rendimiento en tiempo real."
-    },
     "tabs": {
       "myPortfolio": "Mi Portafolio",
       "tools": "Herramientas"
@@ -1828,11 +1820,7 @@
     "exploreTopics": "Explorar temas",
     "seeAll": "Ver todos →",
     "headerSub": "Aprende e invierte",
-    "headerTitle": "Aprendizaje",
-    "tour": {
-      "title": "Empieza tu primera lección",
-      "description": "Cada día hay una lección nueva. Completa 3 seguidas y arranca tu racha — tu streak aparece en el home."
-    }
+    "headerTitle": "Aprendizaje"
   },
   "learn": {
     "categories": {
@@ -2128,11 +2116,7 @@
     "noVoiceDetected": "No se detectó voz en el audio",
     "transcribeErrorTitle": "Error al transcribir",
     "unknownError": "Error desconocido",
-    "micPermissionError": "Necesito permiso de micrófono para grabar. Actívalo en Ajustes.",
-    "tour": {
-      "title": "Habla con Nuvos",
-      "description": "Escribe cualquier pregunta sobre inversiones. Nuvos recuerda tu portafolio y perfil para darte respuestas personalizadas."
-    }
+    "micPermissionError": "Necesito permiso de micrófono para grabar. Actívalo en Ajustes."
   },
   "paper": {
     "sellModal": {
@@ -2767,10 +2751,6 @@
     "searching": "Buscando oportunidades...",
     "noPicks": "No hay picks disponibles aún.",
     "defaultDisclaimer": "Estas son ideas educativas para investigar, no recomendaciones de compra ni asesoría financiera. Investiga a fondo cada empresa antes de invertir un solo dólar."
-  },
-  "mobileTourBanner": {
-    "step": "PASO {{step}}/{{total}}",
-    "defaultCta": "Entendido, ir al inicio ✓"
   },
   "mobileOnboardingChecklist": {
     "title": "Configura tu Nuvos",

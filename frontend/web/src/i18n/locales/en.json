@@ -2566,58 +2566,6 @@
     "defaultCta": "Done, back to home ✓",
     "stepOf": "Step {{step}} of {{total}}"
   },
-  "guidedSteps": {
-    "guideLabel": "Step-by-step guide",
-    "screensExplored": "{{done}}/{{total}} screens explored",
-    "view": "View",
-    "minimize": "Minimize",
-    "doThisNow": "Do this now",
-    "allDoneTitle": "🎉 You know the whole app now!",
-    "allDoneBody": "You can explore on your own now. The guide will stay here if you need it.",
-    "pages": {
-      "chat": {
-        "title": "Your investing mentor",
-        "what": "This AI chat explains any financial concept in plain language at your level. You can ask about companies, how to get started, or what to do with your money.",
-        "todo": "Write your first question. Suggestion: \"Where do I start investing with $500?\"",
-        "tip": "There are no dumb questions here. The more you tell it about your goals, the better it can guide you.",
-        "nextLabel": "Next: Learning →"
-      },
-      "learn": {
-        "title": "Your financial library",
-        "what": "Here you learn the key investing concepts in 30 seconds each. The AI explains them with real examples and no jargon.",
-        "todo": "Tap any topic tagged \"For you\". Recommended: Market Cap, Treasury Bills, or Diversification.",
-        "tip": "You don't need to learn it all today. With 2-3 topics a day, in a month you'll know more than most people.",
-        "nextLabel": "Next: Portfolio →"
-      },
-      "portfolio": {
-        "title": "Your investment command center",
-        "what": "Here you log your stocks and the app calculates in real time how much you've gained or lost, and how you're doing against the market (S&P 500).",
-        "todo": "Tap the \"+\" button to add a position, or import a screenshot from your broker — the AI detects everything automatically.",
-        "tip": "If you don't have any stocks yet, add Apple (AAPL) with a $1 purchase price to see how the screen works.",
-        "nextLabel": "Next: Watchlist →"
-      },
-      "watchlist": {
-        "title": "Your watchlist",
-        "what": "Here you save companies you're interested in but haven't bought yet. The app alerts you when they rise, fall, or have important news.",
-        "todo": "Search for 2-3 companies you know (Apple, Tesla, FEMSA) and add them with the \"+\" button. Then watch how they move.",
-        "tip": "Following companies without real money for 3-6 months is the best way to build your investing judgment.",
-        "nextLabel": "Next: Notifications →"
-      },
-      "notifications": {
-        "title": "Your personalized alerts",
-        "what": "The app notifies you when your positions move significantly, there's relevant news for your stocks, or the market does something important.",
-        "todo": "Check the alerts you already have. If you have positions in your portfolio, you should see movements here. Turn on push notifications if you haven't yet.",
-        "tip": "It's not generic noise — every alert is filtered to what you actually hold in your portfolio and watchlist.",
-        "nextLabel": "Last step: My Profile →"
-      },
-      "profile": {
-        "title": "Your investor profile",
-        "what": "Here the app learns about you: how much risk you tolerate, your time horizon, and how active you want to be. That personalizes everything else.",
-        "todo": "Check your knowledge level below and adjust it. As you learn more, update it so the app adapts with you.",
-        "tip": "Your profile isn't permanent. It evolves as you evolve as an investor."
-      }
-    }
-  },
   "cashFlowTab": {
     "metric": "Metric",
     "latest": "Latest",

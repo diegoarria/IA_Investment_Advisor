@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import StockAvatar from "../../src/components/StockAvatar";
-import { useFocusEffect, router, useLocalSearchParams } from "expo-router";
-import MobileTourBanner from "../../src/components/MobileTourBanner";
+import { useFocusEffect, router } from "expo-router";
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
   StyleSheet, ActivityIndicator, SafeAreaView, Alert,
@@ -899,8 +898,6 @@ export default function PortfolioScreen() {
   const { t, i18n } = useTranslation();
   const { colors } = useTheme();
   const s = portfolioStyles;
-  const { tour } = useLocalSearchParams<{ tour?: string }>();
-  const isTour = tour === "1";
   const PORTFOLIO_LEVELS = useMemo(() => getPortfolioLevels(t), [t]);
   const STRESS_SCENARIOS = useMemo(() => getStressScenarios(t), [t]);
   const SECTOR_LABELS = useMemo(() => getSectorLabels(t), [t]);
@@ -2116,7 +2113,7 @@ export default function PortfolioScreen() {
         <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
           {/* Agregar posición — acción primaria */}
           <TouchableOpacity
-            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 16, backgroundColor: "#00a85e", ...(isTour && { borderWidth: 3, borderColor: "#fff" }) }}
+            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 16, backgroundColor: "#00a85e" }}
             onPress={() => { setShowForm(!showForm); setScreenshotPreview(null); }}
             activeOpacity={0.8}>
             <Ionicons name="add-circle-outline" size={18} color="white" />
@@ -4150,14 +4147,6 @@ export default function PortfolioScreen() {
           </View>
         </View>
       </Modal>
-
-      {isTour && (
-        <MobileTourBanner
-          step={1}
-          title={t("portfolio.tour.title")}
-          description={t("portfolio.tour.description")}
-        />
-      )}
 
       <ExplainButton
         screen="portfolio"
