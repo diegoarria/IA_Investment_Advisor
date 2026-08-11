@@ -37,6 +37,16 @@ async def create_plan(request: Request, body: dict, user_id: str = Depends(get_c
             "status": "pending",
         })
     )
+    if not result.data:
+        # Same class of bug found and fixed in profile.py's create_profile:
+        # an insert() that actually commits but returns no rows on the
+        # RETURNING clause (transient hiccup, replica lag) must never crash
+        # with an unguarded IndexError on result.data[0] below — that's a
+        # raw "Internal Server Error" right after a paid Stripe checkout is
+        # about to reference this job. No natural key to re-fetch by here
+        # (job_id is exactly what failed to come back), so fail clean
+        # instead of silently retrying against an ambiguous row.
+        raise HTTPException(status_code=503, detail="No se pudo crear el plan de investigación. Intenta de nuevo en unos segundos.")
     job_id = result.data[0]["id"]
     return {"job_id": job_id, "plan": plan}
 

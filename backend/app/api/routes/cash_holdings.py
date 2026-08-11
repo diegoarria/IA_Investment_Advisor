@@ -199,6 +199,14 @@ async def add_cash_holding(body: dict, user_id: str = Depends(get_current_user_i
 
     db = get_supabase()
     result = await run_query(db.table("cash_holdings").insert(row))
+    if not result.data:
+        # Same class of bug found and fixed in profile.py's create_profile:
+        # an insert() that actually commits but returns no rows on the
+        # RETURNING clause (transient hiccup, replica lag) must never crash
+        # with an unguarded IndexError on result.data[0] below — that's a
+        # raw "Internal Server Error" on "add cash holding." No natural key
+        # to re-fetch by reliably here, so fail clean instead of guessing.
+        raise HTTPException(status_code=503, detail="No se pudo guardar. Intenta de nuevo en unos segundos.")
     return {"holding": _with_accrued(result.data[0])}
 
 

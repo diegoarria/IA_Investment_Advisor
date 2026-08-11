@@ -395,6 +395,24 @@ async def update_profile(
     result = await run_query(
         db.table("user_profiles").update(updates).eq("user_id", user_id)
     )
+    if not result.data:
+        # Same class of bug create_profile's update branch was hardened
+        # against (see that function's own comment): an update() that
+        # actually commits but returns no rows on the RETURNING clause
+        # (transient hiccup, replica lag) must never crash with an
+        # unguarded IndexError on result.data[0] below — that's a raw
+        # "Internal Server Error" on every "save changes" tap from any
+        # profile-edit screen (name, risk tolerance, goals, etc.). This
+        # exact guard existed in create_profile but was never mirrored
+        # here, so this parallel path kept the bug alive. Re-fetch before
+        # giving up.
+        for _ in range(3):
+            result = await run_query(db.table("user_profiles").select("*").eq("user_id", user_id))
+            if result.data:
+                break
+            await asyncio.sleep(0.3)
+        if not result.data:
+            raise HTTPException(status_code=503, detail="No se pudieron guardar los cambios. Intenta de nuevo en unos segundos.")
     cache_delete(f"profile:{user_id}")
     return UserProfile(**result.data[0])
 
