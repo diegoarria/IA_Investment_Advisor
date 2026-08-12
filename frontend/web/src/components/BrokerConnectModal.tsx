@@ -299,18 +299,20 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
             } else {
               setSyncMsg(`✓ ${t("brokerConnectModal.status.belvoBankingLinked", { institution: institution?.name ?? institutionName })}`);
             }
-          } catch {
+          } catch (e: unknown) {
             setSyncMsg("");
-            setError(t("brokerConnectModal.errors.belvoConnectFailed"));
+            const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+            setError(msg ?? t("brokerConnectModal.errors.belvoConnectFailed"));
             setScreen("home");
           }
         },
         onExit: () => setLoading(false),
       });
       widget.build();
-    } catch {
+    } catch (e: unknown) {
       setLoading(false);
-      setError(t("brokerConnectModal.errors.belvoConnectFailed"));
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(msg ?? t("brokerConnectModal.errors.belvoConnectFailed"));
     }
   };
 
