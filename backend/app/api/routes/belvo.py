@@ -86,7 +86,9 @@ async def create_widget_token(body: WidgetTokenRequest, user_id: str = Depends(g
     payload = {
         "id": settings.belvo_secret_id,
         "password": settings.belvo_secret_password,
-        "scopes": "read_institutions,write_links,read_consents,read_consent_requests",
+        # "read_consent_requests" is not a real Belvo scope — confirmed via
+        # a live 400 ("Invalid scope `read_consent_requests`") 2026-08-12.
+        "scopes": "read_institutions,write_links,read_consents",
     }
     if body.link_id:
         payload["link_id"] = body.link_id
