@@ -95,6 +95,11 @@ interface PortfolioStore {
 
 const todayStr = () => new Date().toISOString().split("T")[0];
 
+// How many closed positions per portfolio are kept in the local
+// (localStorage) instant-load cache — see the persist config's
+// `partialize` below for why this exists.
+const _LOCAL_CLOSED_POSITIONS_CAP = 200;
+
 const DEFAULT_PORTFOLIO: Portfolio = {
   id: "default", name: "Mi portafolio", positions: [], closedPositions: [], inceptionDate: null, currency: "USD",
 };
@@ -520,25 +525,57 @@ export const usePortfolioStore = create<PortfolioStore>()(
         }
         return persisted;
       },
+      // Every method wrapped in try/catch — an unguarded setItem throwing
+      // (Safari Private Browsing, or a real QuotaExceededError from a large
+      // closedPositions history — confirmed live 2026-08-12: Diego's own
+      // portfolio hit the localStorage quota) propagates straight out of
+      // zustand's set() and aborts whatever store call triggered it
+      // (addPosition, setPositions, ...) uncaught. That's what made
+      // "Agregar posición" / the currency-import modal fail with no
+      // recovery — the write to *memory* (React state) never even
+      // happened, since persist's write-through happens inside the same
+      // set() call. Same hardening store.ts already has for exactly this
+      // reason (Safari's subscription-store bug) — see its own comment.
       storage: createJSONStorage(() => ({
         getItem: (key) => {
-          const uid = useAuthStore.getState().userId ?? "guest";
-          return localStorage.getItem(`${key}__${uid}`);
+          try {
+            const uid = useAuthStore.getState().userId ?? "guest";
+            return localStorage.getItem(`${key}__${uid}`);
+          } catch {
+            return null;
+          }
         },
         setItem: (key, value) => {
-          const uid = useAuthStore.getState().userId ?? "guest";
-          localStorage.setItem(`${key}__${uid}`, value);
+          try {
+            const uid = useAuthStore.getState().userId ?? "guest";
+            localStorage.setItem(`${key}__${uid}`, value);
+          } catch {
+            // Quota exceeded or storage unavailable — the store still works
+            // in-memory for this session, it just won't persist across
+            // reloads until the payload shrinks (see closedPositions cap
+            // below) or storage frees up.
+          }
         },
         removeItem: (key) => {
-          const uid = useAuthStore.getState().userId ?? "guest";
-          localStorage.removeItem(`${key}__${uid}`);
+          try {
+            const uid = useAuthStore.getState().userId ?? "guest";
+            localStorage.removeItem(`${key}__${uid}`);
+          } catch {}
         },
       })),
+      // Only the most recent N closed positions are cached to localStorage —
+      // the full sale history always lives on the server (get_portfolio/
+      // loadFromServer), this is purely the local instant-load cache. An
+      // unbounded closed-positions ledger is exactly what exceeded the
+      // browser's storage quota in production (confirmed live 2026-08-12),
+      // which then made EVERY local write throw uncaught (see the storage
+      // adapter's comment above) — nothing here is lost server-side, only
+      // trimmed from this local cache.
       partialize: (state) => ({
-        portfolios: state.portfolios,
+        portfolios: state.portfolios.map(p => ({ ...p, closedPositions: p.closedPositions.slice(-_LOCAL_CLOSED_POSITIONS_CAP) })),
         activePortfolioId: state.activePortfolioId,
         positions: state.positions,
-        closedPositions: state.closedPositions,
+        closedPositions: state.closedPositions.slice(-_LOCAL_CLOSED_POSITIONS_CAP),
         inceptionDate: state.inceptionDate,
         portfolioCurrency: state.portfolioCurrency,
         pendingSync: state.pendingSync,
