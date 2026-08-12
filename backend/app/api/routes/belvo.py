@@ -117,7 +117,9 @@ async def list_institutions(category: str = "banking", debug: bool = False):
     against the live sandbox; remove once Phase 1 institution coverage
     is confirmed correct. Institution names/logos are public catalog
     data, not user data, so no auth/PII exposure here."""
-    ck = f"belvo:institutions:{category}"
+    # v2: bumped after fixing the type="bank" / country filter bug below —
+    # v1 keys cached the (wrong) empty result for up to 24h.
+    ck = f"belvo:institutions:v2:{category}"
     if not debug:
         cached = cache_get(ck)
         if cached is not None:
