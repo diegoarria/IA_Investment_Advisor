@@ -112,11 +112,12 @@ async def list_institutions(category: str = "banking", debug: bool = False):
     Cached: this list changes rarely.
 
     `debug=1` bypasses the cache and returns Belvo's raw response
-    verbatim instead of the mapped/filtered shape — temporary aid for
-    confirming Belvo's actual query-param values and payload shape
-    against the live sandbox; remove once Phase 1 institution coverage
-    is confirmed correct. Institution names/logos are public catalog
-    data, not user data, so no auth/PII exposure here."""
+    verbatim instead of the mapped/filtered shape — useful for
+    re-confirming Belvo's institution catalog and query-param values
+    directly (e.g. at the sandbox→production cutover, when the real MX
+    bank/investment institution codes need verifying). Institution
+    names/logos are public catalog data, not user data, so no auth/PII
+    exposure here."""
     # v2: bumped after fixing the type="bank" / country filter bug below —
     # v1 keys cached the (wrong) empty result for up to 24h.
     ck = f"belvo:institutions:v2:{category}"
