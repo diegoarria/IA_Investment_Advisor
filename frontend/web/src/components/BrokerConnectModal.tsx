@@ -334,6 +334,11 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
       style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
+      {/* Belvo's Connect Widget hard-requires this exact container to exist
+          before createWidget() is called, or it throws — confirmed live
+          2026-08-12 ("A <div id="belvo"></div> is mandatory"). The widget
+          renders its own overlay into it; this stays empty otherwise. */}
+      <div id="belvo" />
       <div
         className="w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
         style={{ background: "var(--card)", border: "1px solid var(--border)" }}
