@@ -285,9 +285,12 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
       if (!accessToken) throw new Error(t("brokerConnectModal.errors.noLinkToken"));
       setLoading(false);
 
-      const widget = window.belvoSDK.createWidget(accessToken, {
+      // Sandbox's fixture institutions are all non-MX, so restricting the
+      // widget's own picker to country_codes=["MX"] would always show it
+      // empty there — only apply that filter in production.
+      const widgetConfig: Parameters<NonNullable<Window["belvoSDK"]>["createWidget"]>[1] = {
         locale: "es",
-        country_codes: ["MX"],
+        ...(res.data?.env === "production" ? { country_codes: ["MX"] } : {}),
         callback: async (link, institution) => {
           setScreen("syncing");
           setSyncMsg(t("brokerConnectModal.status.connectingBroker"));
@@ -307,7 +310,8 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
           }
         },
         onExit: () => setLoading(false),
-      });
+      };
+      const widget = window.belvoSDK.createWidget(accessToken, widgetConfig);
       widget.build();
     } catch (e: unknown) {
       setLoading(false);

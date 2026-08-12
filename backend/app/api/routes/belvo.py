@@ -105,7 +105,11 @@ async def create_widget_token(body: WidgetTokenRequest, user_id: str = Depends(g
         # (no id/password reflected back), so this is safe to expose.
         raise HTTPException(status_code=503, detail=f"Belvo {resp.status_code}: {resp.text[:300]}")
     data = resp.json()
-    return {"access": data.get("access")}
+    # env is returned so the frontend only restricts the widget's own
+    # institution picker to country_codes=["MX"] in production — sandbox's
+    # fixture institutions are all non-MX, so that filter would always
+    # empty the picker there (confirmed live 2026-08-12).
+    return {"access": data.get("access"), "env": settings.belvo_env}
 
 
 # ── Institutions (for the picker — banking only in Phase 1) ────────────────
