@@ -291,9 +291,15 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
       if (!accessToken) throw new Error(t("brokerConnectModal.errors.noLinkToken"));
       setLoading(false);
 
-      // Sandbox's fixture institutions are all non-MX, so restricting the
-      // widget's own picker to country_codes=["MX"] would always show it
-      // empty there — only apply that filter in production.
+      // Sandbox's only bank-type fixture institutions are Brazilian
+      // (ironbank_br_business, ofmockbank_br_retail — confirmed via
+      // GET /belvo/institutions?category=all&debug=1 2026-08-12); there is
+      // no Mexican bank fixture in sandbox at all. The widget appears to
+      // apply an implicit MX-ish default even without an explicit
+      // country_codes filter (confirmed live: resources=["ACCOUNTS"] alone
+      // returned "no hay resultados" in sandbox), so BR must be passed
+      // explicitly there to see any bank. Production uses the real MX
+      // catalog.
       const widgetConfig: Parameters<NonNullable<Window["belvoSDK"]>["createWidget"]>[1] = {
         locale: "es",
         // Phase 1 is banking-only — restricts the picker to institutions
@@ -301,7 +307,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
         // products entirely (confirmed live: without this, sandbox showed
         // "Empleo"/"Fiscal" tabs and no banks at all).
         resources: ["ACCOUNTS"],
-        ...(res.data?.env === "production" ? { country_codes: ["MX"] } : {}),
+        country_codes: res.data?.env === "production" ? ["MX"] : ["BR"],
         callback: async (link, institution) => {
           setScreen("syncing");
           setSyncMsg(t("brokerConnectModal.status.connectingBroker"));
