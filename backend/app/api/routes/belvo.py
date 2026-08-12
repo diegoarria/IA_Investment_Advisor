@@ -122,8 +122,9 @@ async def list_institutions(category: str = "banking", debug: bool = False):
         cached = cache_get(ck)
         if cached is not None:
             return {"institutions": cached}
+    params = {} if category == "all" else {"country_code": "MX", "type": category}
     try:
-        resp = await _belvo_request("GET", "/api/institutions/", params={"country_code": "MX", "type": category})
+        resp = await _belvo_request("GET", "/api/institutions/", params=params)
     except Exception as e:
         logger.warning("Belvo institutions fetch failed: %s", e)
         return {"institutions": []}
