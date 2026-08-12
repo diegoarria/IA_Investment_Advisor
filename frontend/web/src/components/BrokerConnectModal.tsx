@@ -315,8 +315,14 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
       widget.build();
     } catch (e: unknown) {
       setLoading(false);
-      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(msg ?? t("brokerConnectModal.errors.belvoConnectFailed"));
+      // Temporary: surface the raw error (axios detail, or a client-side JS
+      // exception from the widget SDK itself) instead of swallowing it —
+      // needed to diagnose why the widget doesn't render even when
+      // widget-token succeeds. See handleBelvoConnect.
+      console.error("Belvo widget error:", e);
+      const apiMsg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      const jsMsg = e instanceof Error ? e.message : undefined;
+      setError(apiMsg ?? (jsMsg ? `Error del widget: ${jsMsg}` : t("brokerConnectModal.errors.belvoConnectFailed")));
     }
   };
 
