@@ -1019,7 +1019,7 @@ def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
     # the "summary"/"blurb" schema's hardcoded "español" instruction was
     # fixed (it silently overrode the top-level language directive) doesn't
     # keep serving Spanish text under an English UI for its remaining TTL.
-    return f"quick_analysis:v7:{lang}:{ticker}"
+    return f"quick_analysis:v8:{lang}:{ticker}"
 
 
 async def _build_quick_analysis(ticker: str, lang: str) -> dict:
