@@ -523,6 +523,14 @@ const CASH_INSTRUMENT_LABEL: Record<string, string> = {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
+// "Avanzado" siempre activo, en cualquier dispositivo/ancho de ventana —
+// "Básico" queda dormido (Diego, 2026-08-12). Wrapped in a function (not a
+// bare literal) so TS doesn't narrow effectiveViewMode to the "advanced"
+// literal type and flag the still-present básico branches as dead code.
+function getEffectiveViewMode(): "basic" | "advanced" {
+  return "advanced";
+}
+
 function fmtMoney(n: number): string {
   const abs = Math.abs(n);
   const neg = n < 0 ? "-" : "";
@@ -986,19 +994,12 @@ export default function PortfolioPage() {
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
-  // "Avanzado" is a denser table meant for desktop width — force "Básico" on
-  // a phone-sized viewport without touching the user's actual saved
-  // preference, so it's back to normal the moment they open this on a
-  // computer. Web-only concept (viewport width), not a device check.
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 1023px)");
-    setIsMobileViewport(mq.matches);
-    const onChange = (e: MediaQueryListEvent) => setIsMobileViewport(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-  const effectiveViewMode: "basic" | "advanced" = isMobileViewport ? "basic" : viewMode;
+  // "Avanzado" siempre activo, en cualquier dispositivo/ancho de ventana —
+  // "Básico" queda dormido (Diego, 2026-08-12). Previously this force-
+  // downgraded to "básico" under 1024px viewport width, which fired on
+  // real desktop windows too whenever the browser wasn't maximized, not
+  // just phones.
+  const effectiveViewMode: "basic" | "advanced" = getEffectiveViewMode();
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
 
   const handleSort = (field: SortField) => {
@@ -1924,19 +1925,7 @@ export default function PortfolioPage() {
                 <span className="hidden sm:inline">{t("portfolio.header.savedAt", { time: new Date(lastSaved).toLocaleTimeString(i18n.language === "en" ? "en-US" : "es-MX", { hour: "2-digit", minute: "2-digit" }) })}</span>
               </div>
             )}
-            {/* View toggle — hidden on mobile since effectiveViewMode forces "basic" there regardless of what's tapped */}
-            <div className="hidden lg:flex items-center rounded-lg border overflow-hidden" style={{ borderColor: "var(--border)" }}>
-              <button onClick={() => { setViewMode("basic"); localStorage.setItem("nuvos_portfolio_view", "basic"); import("@/lib/api").then(({ sync }) => sync.pushPortfolioViewMode("basic").catch(() => {})); }}
-                      className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
-                      style={{ background: viewMode === "basic" ? "var(--accent)" : "transparent", color: viewMode === "basic" ? "#fff" : "var(--muted)" }}>
-                {t("portfolio.header.basic")}
-              </button>
-              <button onClick={() => { setViewMode("advanced"); localStorage.setItem("nuvos_portfolio_view", "advanced"); import("@/lib/api").then(({ sync }) => sync.pushPortfolioViewMode("advanced").catch(() => {})); }}
-                      className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
-                      style={{ background: viewMode === "advanced" ? "var(--accent)" : "transparent", color: viewMode === "advanced" ? "#fff" : "var(--muted)" }}>
-                {t("portfolio.header.advanced")}
-              </button>
-            </div>
+            {/* View toggle removed — "Avanzado" is always on (Diego, 2026-08-12) */}
             <ExplainButton
               screen="portfolio"
               context={{
