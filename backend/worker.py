@@ -4313,6 +4313,39 @@ async def job_fmg_snapshot():
         logger.error("job_fmg_snapshot failed: %s", e)
 
 
+async def job_belvo_resync_all():
+    """Every 6h — safety-net re-sync for all valid Belvo links, in case a
+    webhook was missed (delivery failure, Belvo-side issue). The primary
+    sync trigger is belvo.py's webhook handler (historical_update); this
+    is the backstop, not the main path. One try/except per connection —
+    a single broken link must never abort the whole batch (same
+    convention as job_prewarm_quick_analysis_default). See
+    /Users/diegoarria/.claude/plans/cosmic-munching-crown.md."""
+    import random
+    from app.core.database import get_supabase, run_query
+    from app.api.routes.belvo import _sync_belvo_banking
+
+    db = get_supabase()
+    try:
+        result = await run_query(
+            db.table("brokerage_connections")
+            .select("*")
+            .eq("provider", "belvo").eq("status", "valid").eq("belvo_category", "banking")
+        )
+        connections = result.data or []
+    except Exception as e:
+        logger.warning("job_belvo_resync_all: could not list connections: %s", e)
+        return
+
+    for conn in connections:
+        try:
+            await _sync_belvo_banking(conn)
+        except Exception as e:
+            logger.warning("job_belvo_resync_all: sync failed for connection %s: %s", conn.get("id"), e)
+        await asyncio.sleep(random.uniform(0.05, 0.2))
+    logger.info("job_belvo_resync_all: resynced %d connection(s)", len(connections))
+
+
 async def job_cleanup_analytics():
     """Hourly — delete notification_log entries older than 90 days."""
     from app.core.database import get_supabase, run_query
@@ -4748,6 +4781,7 @@ async def main():
     # instead of waiting up to 6h for the first interval tick.
     scheduler.add_job(job_prewarm_quick_analysis_default, "interval", hours=6, next_run_time=datetime.now())
     scheduler.add_job(job_prewarm_nif_dashboard_default,  "interval", hours=6, next_run_time=datetime.now())
+    scheduler.add_job(job_belvo_resync_all,               "interval", hours=6)
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     scheduler.add_job(job_cleanup_analytics,    "interval", hours=1)

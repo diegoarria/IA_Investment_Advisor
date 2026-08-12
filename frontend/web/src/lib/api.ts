@@ -527,6 +527,22 @@ export const brokerageApi = {
   syncAll: () => api.post("/api/brokerage/sync"),
 };
 
+// Belvo — LatAm open banking (bank accounts first; brokerage sync is
+// Phase 2, see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md).
+// Separate from brokerageApi above even though both back the same
+// BrokerConnectModal — Belvo's widget flow (institutions/widget-token/
+// register-link) doesn't map onto Plaid's public_token-exchange shape.
+export const belvoApi = {
+  listInstitutions: (category: "banking" | "investment" = "banking") =>
+    api.get("/api/belvo/institutions", { params: { category } }),
+  createWidgetToken: (linkId?: string) =>
+    api.post("/api/belvo/widget-token", linkId ? { link_id: linkId } : {}),
+  registerLink: (linkId: string, institutionName: string) =>
+    api.post("/api/belvo/register-link", { link_id: linkId, institution_name: institutionName }),
+  listConnections: () => api.get("/api/belvo/connections"),
+  deleteConnection: (id: string) => api.delete(`/api/belvo/connections/${id}`),
+};
+
 export const progressApi = {
   getPersonalizedMessage: () => api.get("/api/progress/personalized-message"),
 };

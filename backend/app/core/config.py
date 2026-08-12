@@ -58,6 +58,17 @@ class Settings(BaseSettings):
     plaid_client_id: str = ""
     plaid_secret: str = ""
     plaid_env: str = "sandbox"     # sandbox | production
+    # Belvo (LatAm open banking: bank accounts + brokerage, starting with
+    # Mexico — GBM, Actinver) — see backend/app/api/routes/belvo.py.
+    # Sandbox and production are FULLY SEPARATE Belvo accounts with their
+    # own secret_id/secret_password pairs, unlike Plaid's single key + env
+    # flag above — using a sandbox secret_id against the production API
+    # host 401s rather than giving a helpful error, so keep this pair in
+    # sync with belvo_env when switching.
+    belvo_secret_id: str = ""
+    belvo_secret_password: str = ""
+    belvo_env: str = "sandbox"     # sandbox | production
+    belvo_webhook_secret: str = ""
     # Web Push (VAPID)
     vapid_private_key: str = ""   # base64url-encoded private key
     vapid_public_key: str = ""    # base64url-encoded public key (sent to browser)

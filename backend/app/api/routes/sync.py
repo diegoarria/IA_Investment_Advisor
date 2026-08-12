@@ -135,6 +135,16 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
     positions     = body.get("positions", [])
     currency      = body.get("currency", "USD")
     portfolio_id  = body.get("portfolio_id", "default") or "default"
+
+    # Reserved for Belvo-synced brokerage portfolios (belvo.py Phase 2,
+    # see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md) — only
+    # the Belvo sync job/webhook handler may write to a "belvo:"-prefixed
+    # portfolio_id. Without this guard, a manual client edit (this
+    # endpoint always sends the FULL positions array, full-overwrite) could
+    # silently clobber synced broker data the next time the user saves
+    # their default portfolio from an unrelated screen.
+    if portfolio_id.startswith("belvo:"):
+        raise HTTPException(status_code=403, detail="Este portafolio se sincroniza automáticamente y no se puede editar manualmente.")
     portfolio_name = body.get("portfolio_name", "Mi portafolio") or "Mi portafolio"
 
     db = get_supabase()

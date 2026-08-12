@@ -2854,7 +2854,9 @@
       "fetchingIolPositions": "Fetching IOL positions...",
       "positionsImportedIol": "{{count}} positions imported from Invertir Online",
       "syncingAll": "Syncing all brokers...",
-      "positionsSynced": "{{count}} positions synced"
+      "positionsSynced": "{{count}} positions synced",
+      "belvoBankingLinked": "{{institution}} connected — balances will sync shortly",
+      "belvoInvestmentLinked": "{{institution}} connected — position sync is coming soon"
     },
     "errors": {
       "plaidNotReady": "Plaid Link is not ready. Try again.",
@@ -2863,7 +2865,9 @@
       "plaidStartFailed": "Could not start the Plaid connection.",
       "iolConnectFailed": "Error connecting to IOL. Check your credentials.",
       "syncFailed": "Error syncing. Try again.",
-      "disconnectFailed": "Couldn't disconnect. Try again."
+      "disconnectFailed": "Couldn't disconnect. Try again.",
+      "belvoNotReady": "The connection widget is not ready. Try again.",
+      "belvoConnectFailed": "Could not connect the account. Try again."
     },
     "brokers": {
       "ibkr": "Stocks, options, global futures",
@@ -2871,7 +2875,9 @@
       "robinhood": "Commission-free trading",
       "iol": "Buenos Aires Stock Exchange + NYSE",
       "gbm": "Leading broker in Mexico",
-      "actinver": "Mexican brokerage firm"
+      "actinver": "Mexican brokerage firm",
+      "bbvaMx": "Bank accounts in Mexico",
+      "banorte": "Bank accounts in Mexico"
     }
   },
   "settings": {

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { X, Trash2, RefreshCw, CheckCircle, AlertCircle, Loader2, Link2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { brokerageApi } from "@/lib/api";
+import { brokerageApi, belvoApi } from "@/lib/api";
 
 interface Connection {
   id: string;
@@ -31,14 +31,25 @@ interface Props {
 
 type Screen = "home" | "iol-form" | "syncing";
 
+// Belvo institution names below are Nuvos's best-effort mapping to
+// Belvo's real institution codes — CONFIRM against a live GET
+// /api/belvo/institutions?category=banking response before shipping to
+// production; if a name doesn't match, the widget's own institution
+// picker (which lists Belvo's real supported institutions) is the
+// source of truth and this mapping should be updated to match it. See
+// /Users/diegoarria/.claude/plans/cosmic-munching-crown.md, section 6.
 function getBrokers(t: TFunction) {
   return [
     { id: "ibkr",      name: "Interactive Brokers", domain: "interactivebrokers.com", color: "#e8000d", fallback: "IB",  provider: "plaid", desc: t("brokerConnectModal.brokers.ibkr") },
     { id: "schwab",    name: "Charles Schwab",       domain: "schwab.com",             color: "#00a2e0", fallback: "CS",  provider: "plaid", desc: t("brokerConnectModal.brokers.schwab") },
     { id: "robinhood", name: "Robinhood",            domain: "robinhood.com",          color: "#00c805", fallback: "RH",  provider: "plaid", desc: t("brokerConnectModal.brokers.robinhood") },
     { id: "iol",       name: "Invertir Online",      domain: "invertironline.com",     color: "#003087", fallback: "IOL", provider: "iol",   desc: t("brokerConnectModal.brokers.iol") },
-    { id: "gbm",       name: "GBM",                  domain: "gbm.com.mx",             color: "#0033a0", fallback: "GBM", provider: "soon",  desc: t("brokerConnectModal.brokers.gbm") },
-    { id: "actinver",  name: "Actinver",             domain: "actinver.com",           color: "#c8102e", fallback: "ACT", provider: "soon",  desc: t("brokerConnectModal.brokers.actinver") },
+    // Banking (Belvo Phase 1 — real balance sync, live today).
+    { id: "bbva-mx",   name: "BBVA México",          domain: "bbva.mx",                color: "#004481", fallback: "BBVA", provider: "belvo", belvoInstitution: "bbva_mx_retail",     desc: t("brokerConnectModal.brokers.bbvaMx") },
+    { id: "banorte",   name: "Banorte",              domain: "banorte.com",            color: "#e2001a", fallback: "BNT",  provider: "belvo", belvoInstitution: "banorte_mx_retail",  desc: t("brokerConnectModal.brokers.banorte") },
+    // Brokerage (Belvo Phase 2 — link connects today, position sync lands later).
+    { id: "gbm",       name: "GBM",                  domain: "gbm.com.mx",             color: "#0033a0", fallback: "GBM", provider: "belvo", belvoInstitution: "gbm_mx_retail",      desc: t("brokerConnectModal.brokers.gbm") },
+    { id: "actinver",  name: "Actinver",             domain: "actinver.com",           color: "#c8102e", fallback: "ACT", provider: "belvo", belvoInstitution: "actinver_mx_retail", desc: t("brokerConnectModal.brokers.actinver") },
   ];
 }
 
@@ -73,6 +84,23 @@ declare global {
         onExit: () => void;
       }) => { open: () => void };
     };
+    // Belvo's hosted Connect Widget global — confirm the exact global
+    // name/shape against Belvo's current widget docs before production
+    // use (implemented here per Belvo's documented `belvoSDK.createWidget`
+    // convention); credentials the user types go straight into Belvo's
+    // iframe, never through this code.
+    belvoSDK?: {
+      createWidget: (
+        accessToken: string,
+        config: {
+          callback: (link: string, institution: { name: string }) => void;
+          onExit?: () => void;
+          onEvent?: (eventName: string) => void;
+          locale?: string;
+          country_codes?: string[];
+        },
+      ) => { build: () => void };
+    };
   }
 }
 
@@ -87,6 +115,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
   const [syncMsg, setSyncMsg] = useState("");
   const [error, setError] = useState("");
   const [plaidReady, setPlaidReady] = useState(false);
+  const [belvoReady, setBelvoReady] = useState(false);
 
   // Load Plaid Link script
   useEffect(() => {
@@ -100,10 +129,34 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
     document.head.appendChild(script);
   }, []);
 
+  // Load Belvo Connect Widget script
+  useEffect(() => {
+    if (document.querySelector('script[src*="belvo"]')) {
+      setBelvoReady(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdn.belvo.io/belvo-widget-1-stable.js";
+    script.onload = () => setBelvoReady(true);
+    document.head.appendChild(script);
+  }, []);
+
   const loadConnections = useCallback(async () => {
     try {
-      const res = await brokerageApi.listConnections();
-      setConnections(res.data?.connections ?? []);
+      const [brokerageRes, belvoRes] = await Promise.allSettled([
+        brokerageApi.listConnections(),
+        belvoApi.listConnections(),
+      ]);
+      const brokerageConns: Connection[] = brokerageRes.status === "fulfilled" ? (brokerageRes.value.data?.connections ?? []) : [];
+      const belvoConns: Connection[] = belvoRes.status === "fulfilled"
+        ? (belvoRes.value.data?.connections ?? []).map((c: { id: string; institution_name: string; last_sync_at: string | null }) => ({
+            id: c.id,
+            provider: "belvo",
+            institution_name: c.institution_name,
+            last_sync_at: c.last_sync_at,
+          }))
+        : [];
+      setConnections([...brokerageConns, ...belvoConns]);
     } catch {}
   }, []);
 
@@ -202,12 +255,62 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
 
   const handleDisconnect = async (id: string) => {
     try {
-      await brokerageApi.deleteConnection(id);
+      const conn = connections.find((c) => c.id === id);
+      if (conn?.provider === "belvo") {
+        await belvoApi.deleteConnection(id);
+      } else {
+        await brokerageApi.deleteConnection(id);
+      }
       await loadConnections();
     } catch {
       // Used to give zero feedback on failure — the connection stays live
       // server-side while the modal shows no error at all.
       setError(t("brokerConnectModal.errors.disconnectFailed"));
+    }
+  };
+
+  // ── Belvo flow (banking, live; brokerage links today but position sync
+  // is Phase 2 — see cosmic-munching-crown.md) ────────────────────────────────
+
+  const handleBelvoConnect = async (institutionName: string) => {
+    setError("");
+    if (!belvoReady || !window.belvoSDK) {
+      setError(t("brokerConnectModal.errors.belvoNotReady"));
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await belvoApi.createWidgetToken();
+      const accessToken = res.data?.access;
+      if (!accessToken) throw new Error(t("brokerConnectModal.errors.noLinkToken"));
+      setLoading(false);
+
+      const widget = window.belvoSDK.createWidget(accessToken, {
+        locale: "es",
+        country_codes: ["MX"],
+        callback: async (link, institution) => {
+          setScreen("syncing");
+          setSyncMsg(t("brokerConnectModal.status.connectingBroker"));
+          try {
+            const regRes = await belvoApi.registerLink(link, institution?.name ?? institutionName);
+            await loadConnections();
+            if (regRes.data?.category === "investment") {
+              setSyncMsg(`✓ ${t("brokerConnectModal.status.belvoInvestmentLinked", { institution: institution?.name ?? institutionName })}`);
+            } else {
+              setSyncMsg(`✓ ${t("brokerConnectModal.status.belvoBankingLinked", { institution: institution?.name ?? institutionName })}`);
+            }
+          } catch {
+            setSyncMsg("");
+            setError(t("brokerConnectModal.errors.belvoConnectFailed"));
+            setScreen("home");
+          }
+        },
+        onExit: () => setLoading(false),
+      });
+      widget.build();
+    } catch {
+      setLoading(false);
+      setError(t("brokerConnectModal.errors.belvoConnectFailed"));
     }
   };
 
@@ -383,11 +486,16 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                   const isConnected = connections.some(
                     (c) => c.institution_name === broker.name || (broker.id === "iol" && c.provider === "iol")
                   );
+                  const isBelvo = broker.provider === "belvo";
                   return (
                     <button
                       key={broker.id}
-                      onClick={() => setError(`🚀 ${t("brokerConnectModal.comingSoonMessage", { broker: broker.name })}`)}
-                      disabled={isConnected}
+                      onClick={() =>
+                        isBelvo
+                          ? handleBelvoConnect(broker.name)
+                          : setError(`🚀 ${t("brokerConnectModal.comingSoonMessage", { broker: broker.name })}`)
+                      }
+                      disabled={isConnected || (isBelvo && loading)}
                       className="flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all hover:scale-[1.01] disabled:opacity-50"
                       style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
                     >
@@ -398,6 +506,11 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                       </div>
                       {isConnected ? (
                         <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: "#22c55e" }} />
+                      ) : isBelvo ? (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full border"
+                              style={{ color: "var(--accent-l)", borderColor: "rgba(0,168,94,0.3)", background: "rgba(0,168,94,0.08)", fontSize: 10 }}>
+                          {t("brokerConnectModal.connect")}
+                        </span>
                       ) : (
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-full border"
                               style={{ color: "var(--accent-l)", borderColor: "rgba(0,168,94,0.3)", background: "rgba(0,168,94,0.08)", fontSize: 10 }}>

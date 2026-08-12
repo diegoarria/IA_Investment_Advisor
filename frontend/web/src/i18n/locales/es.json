@@ -2854,7 +2854,9 @@
       "fetchingIolPositions": "Obteniendo posiciones de IOL...",
       "positionsImportedIol": "{{count}} posiciones importadas de Invertir Online",
       "syncingAll": "Sincronizando todos los brokers...",
-      "positionsSynced": "{{count}} posiciones sincronizadas"
+      "positionsSynced": "{{count}} posiciones sincronizadas",
+      "belvoBankingLinked": "{{institution}} conectado — los saldos se sincronizarán en breve",
+      "belvoInvestmentLinked": "{{institution}} conectado — la sincronización de posiciones llega pronto"
     },
     "errors": {
       "plaidNotReady": "Plaid Link no está listo. Intenta de nuevo.",
@@ -2863,7 +2865,9 @@
       "plaidStartFailed": "No se pudo iniciar la conexión con Plaid.",
       "iolConnectFailed": "Error al conectar con IOL. Verifica tus credenciales.",
       "syncFailed": "Error al sincronizar. Intenta de nuevo.",
-      "disconnectFailed": "No se pudo desconectar. Intenta de nuevo."
+      "disconnectFailed": "No se pudo desconectar. Intenta de nuevo.",
+      "belvoNotReady": "El widget de conexión no está listo. Intenta de nuevo.",
+      "belvoConnectFailed": "No se pudo conectar la cuenta. Intenta de nuevo."
     },
     "brokers": {
       "ibkr": "Acciones, opciones, futuros globales",
@@ -2871,7 +2875,9 @@
       "robinhood": "Trading sin comisiones",
       "iol": "Bolsa de Buenos Aires + NYSE",
       "gbm": "Broker líder en México",
-      "actinver": "Casa de bolsa mexicana"
+      "actinver": "Casa de bolsa mexicana",
+      "bbvaMx": "Cuentas bancarias en México",
+      "banorte": "Cuentas bancarias en México"
     }
   },
   "settings": {
