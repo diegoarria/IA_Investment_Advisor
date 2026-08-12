@@ -121,11 +121,20 @@ async def list_institutions(category: str = "banking"):
         return {"institutions": []}
     if resp.status_code >= 400:
         return {"institutions": []}
-    items = [
-        {"name": i.get("name"), "display_name": i.get("display_name"), "logo": i.get("icon_logo") or i.get("logo")}
-        for i in resp.json()
-        if i.get("status") == "healthy"
-    ]
+    try:
+        payload = resp.json()
+        # Belvo paginates list endpoints (DRF-style {"results": [...]})
+        # rather than returning a bare array — handle both shapes rather
+        # than assuming one.
+        raw = payload.get("results", payload) if isinstance(payload, dict) else payload
+        items = [
+            {"name": i.get("name"), "display_name": i.get("display_name"), "logo": i.get("icon_logo") or i.get("logo")}
+            for i in raw
+            if isinstance(i, dict) and i.get("status") == "healthy"
+        ]
+    except Exception as e:
+        logger.warning("Belvo institutions response parse failed: %s", e)
+        return {"institutions": []}
     cache_set(ck, items, ttl=_INSTITUTIONS_CACHE_TTL)
     return {"institutions": items}
 
@@ -207,9 +216,20 @@ async def _sync_belvo_banking(connection: dict) -> None:
         logger.warning("Belvo accounts error %s for connection %s: %s", resp.status_code, connection_id, resp.text[:300])
         return
 
+    try:
+        payload = resp.json()
+        # Same DRF-style pagination possibility as /api/institutions/ — see
+        # list_institutions above. Handle both a bare list and {"results": [...]}.
+        accounts = payload.get("results", payload) if isinstance(payload, dict) else payload
+        if not isinstance(accounts, list):
+            raise ValueError(f"unexpected accounts payload shape: {type(accounts)}")
+    except Exception as e:
+        logger.warning("Belvo accounts response parse failed for connection %s: %s", connection_id, e)
+        return
+
     now = datetime.now(timezone.utc).isoformat()
-    for acc in resp.json():
-        if (acc.get("category") or "").upper() not in _CASH_ACCOUNT_CATEGORIES:
+    for acc in accounts:
+        if not isinstance(acc, dict) or (acc.get("category") or "").upper() not in _CASH_ACCOUNT_CATEGORIES:
             continue
         balance = acc.get("balance") or {}
         amount = balance.get("available")
