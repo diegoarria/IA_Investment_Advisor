@@ -98,6 +98,12 @@ declare global {
           onEvent?: (eventName: string) => void;
           locale?: string;
           country_codes?: string[];
+          // Belvo evaluates this as an AND filter — only institutions
+          // supporting every listed resource are shown. Without it, the
+          // widget shows every category (banking, fiscal, employment...)
+          // confirmed live 2026-08-12 in sandbox (showed only "Empleo"/
+          // "Fiscal" tabs, no banks, until this was added).
+          resources?: string[];
         },
       ) => { build: () => void };
     };
@@ -290,6 +296,11 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
       // empty there — only apply that filter in production.
       const widgetConfig: Parameters<NonNullable<Window["belvoSDK"]>["createWidget"]>[1] = {
         locale: "es",
+        // Phase 1 is banking-only — restricts the picker to institutions
+        // that support ACCOUNTS, excluding Belvo's Fiscal/Employment
+        // products entirely (confirmed live: without this, sandbox showed
+        // "Empleo"/"Fiscal" tabs and no banks at all).
+        resources: ["ACCOUNTS"],
         ...(res.data?.env === "production" ? { country_codes: ["MX"] } : {}),
         callback: async (link, institution) => {
           setScreen("syncing");
