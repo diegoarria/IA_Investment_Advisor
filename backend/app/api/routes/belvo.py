@@ -97,7 +97,11 @@ async def create_widget_token(body: WidgetTokenRequest, user_id: str = Depends(g
         raise HTTPException(status_code=503, detail="No se pudo iniciar la conexión con Belvo. Intenta de nuevo.")
     if resp.status_code >= 400:
         logger.error("Belvo widget-token error %s: %s", resp.status_code, resp.text[:300])
-        raise HTTPException(status_code=503, detail="No se pudo iniciar la conexión con Belvo. Intenta de nuevo.")
+        # Status code (not the raw body, which could echo request internals)
+        # surfaced to the frontend — temporary, while confirming the widget
+        # flow end-to-end; standing debug=1 mode on /institutions serves the
+        # same purpose for that endpoint. See handleBelvoConnect.
+        raise HTTPException(status_code=503, detail=f"No se pudo iniciar la conexión con Belvo (Belvo respondió {resp.status_code}). Intenta de nuevo.")
     data = resp.json()
     return {"access": data.get("access")}
 
