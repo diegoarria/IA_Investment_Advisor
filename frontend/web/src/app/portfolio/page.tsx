@@ -1605,10 +1605,22 @@ export default function PortfolioPage() {
 
   // Import: keep prices in original currency, just store the currency
   const applyImport = async (positions: PendingImport, currency: string) => {
-    setCurrency(currency);
-    setPositions(positions);
-    setConvertingCurrency(false);
-    setPendingImport(null);
+    // Diego reported clicking "Importar en <currency>" did nothing — the
+    // modal never closed. setCurrency/setPositions were previously called
+    // with no try/catch, so any exception inside them (or their downstream
+    // sync call) would abort this function before setPendingImport(null)
+    // ever ran, leaving the modal stuck open with no visible error. Now the
+    // modal always closes and a real failure is surfaced instead of silent.
+    try {
+      setCurrency(currency);
+      setPositions(positions);
+    } catch (err) {
+      console.error("applyImport failed:", err);
+      showToast("No se pudieron importar las posiciones. Intenta de nuevo.");
+    } finally {
+      setConvertingCurrency(false);
+      setPendingImport(null);
+    }
   };
 
 
