@@ -122,7 +122,20 @@ async def list_institutions(category: str = "banking", debug: bool = False):
         cached = cache_get(ck)
         if cached is not None:
             return {"institutions": cached}
-    params = {} if category == "all" else {"country_code": "MX", "type": category}
+    # Belvo's institution "type" enum uses "bank", not our "banking" category
+    # name — confirmed against a live sandbox response (2026-08-11).
+    _type_map = {"banking": "bank", "investment": "investment"}
+    if category == "all":
+        params: dict = {}
+    else:
+        params = {"type": _type_map.get(category, category)}
+        # Sandbox's fixture institutions are fake/international (Brazil,
+        # Chile, ...) with no Mexican "bank"-type entries at all, so a
+        # country_code=MX filter always returns zero results there —
+        # confirmed via debug=1 (2026-08-11). Only enforce MX in
+        # production, where Belvo's real institution catalog applies.
+        if settings.belvo_env == "production":
+            params["country_code"] = "MX"
     try:
         resp = await _belvo_request("GET", "/api/institutions/", params=params)
     except Exception as e:
