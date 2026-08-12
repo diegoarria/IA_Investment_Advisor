@@ -105,20 +105,34 @@ async def create_widget_token(body: WidgetTokenRequest, user_id: str = Depends(g
 # ── Institutions (for the picker — banking only in Phase 1) ────────────────
 
 @router.get("/institutions")
-async def list_institutions(category: str = "banking"):
+async def list_institutions(category: str = "banking", debug: bool = False):
     """Real, live-fetched institution list (never a hardcoded/invented
     one) so the widget/picker can only ever offer institutions Belvo
     actually supports — same reasoning as the plan's coverage caveat.
-    Cached: this list changes rarely."""
+    Cached: this list changes rarely.
+
+    `debug=1` bypasses the cache and returns Belvo's raw response
+    verbatim instead of the mapped/filtered shape — temporary aid for
+    confirming Belvo's actual query-param values and payload shape
+    against the live sandbox; remove once Phase 1 institution coverage
+    is confirmed correct. Institution names/logos are public catalog
+    data, not user data, so no auth/PII exposure here."""
     ck = f"belvo:institutions:{category}"
-    cached = cache_get(ck)
-    if cached is not None:
-        return {"institutions": cached}
+    if not debug:
+        cached = cache_get(ck)
+        if cached is not None:
+            return {"institutions": cached}
     try:
         resp = await _belvo_request("GET", "/api/institutions/", params={"country_code": "MX", "type": category})
     except Exception as e:
         logger.warning("Belvo institutions fetch failed: %s", e)
         return {"institutions": []}
+    if debug:
+        try:
+            body = resp.json()
+        except Exception:
+            body = resp.text[:2000]
+        return {"status_code": resp.status_code, "body": body}
     if resp.status_code >= 400:
         return {"institutions": []}
     try:
