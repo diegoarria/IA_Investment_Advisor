@@ -434,7 +434,15 @@ async def get_prices(request: Request, body: dict, user_id: str = Depends(get_cu
             uncached.append(sym)
 
     if uncached:
-        new_pairs = list(_MARKET_POOL.map(_fetch, uncached))
+        # Must go through asyncio.to_thread — ThreadPoolExecutor.map() forced
+        # with list() blocks synchronously, and this sits inside an `async
+        # def` route, so an unwrapped call freezes this worker's entire
+        # event loop (every other concurrent request, auth checks included)
+        # for as long as _fetch takes (worst case ~40s: 4 sequential 8s
+        # Yahoo attempts + an 8s Finnhub fallback, per uncached symbol).
+        # Confirmed as the root cause of "Agregar posición" hanging
+        # indefinitely, 2026-08-12.
+        new_pairs = await asyncio.to_thread(lambda: list(_MARKET_POOL.map(_fetch, uncached)))
         for sym, data in new_pairs:
             cache_set(f"price:{sym}", data, ttl=_PRICE_TTL)
             cached_result[sym] = data

@@ -1598,7 +1598,7 @@ export default function PortfolioPage() {
   // ── Manual add ─────────────────────────────────────────────────────────
   const FREE_POSITION_LIMIT = 10;
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     const ticker = form.ticker.trim().toUpperCase();
     const amount = parseFloat(form.amount);
     const enteredPrice = parseFloat(form.avgPrice);
@@ -1607,38 +1607,32 @@ export default function PortfolioPage() {
     const shares = amount / enteredPrice;
     // avgPrice always stored in USD
     const avgPrice = portfolioCurrency === "USD" ? enteredPrice : enteredPrice / fxRate;
-    setAddingLoading(true);
-    try {
-      const res = await marketApi.getPrices([ticker]);
-      addPosition({ ticker, shares: parseFloat(shares.toFixed(6)), avgPrice: parseFloat(avgPrice.toFixed(6)), name: res.data[ticker]?.name, purchaseDate: form.purchaseDate });
-    } catch {
-      addPosition({ ticker, shares: parseFloat(shares.toFixed(6)), avgPrice: parseFloat(avgPrice.toFixed(6)), purchaseDate: form.purchaseDate });
-    }
+    // Adds instantly, no network wait — `name` is cosmetic and gets filled
+    // in by the advanced table's own live quote lookup a moment later.
+    // Previously awaited marketApi.getPrices() here just to grab `name`
+    // before saving, which could hang for tens of seconds if that endpoint
+    // was slow (see market.py's blocking-event-loop bug, fixed 2026-08-12) —
+    // the position never needed that round-trip to be saved at all.
+    addPosition({ ticker, shares: parseFloat(shares.toFixed(6)), avgPrice: parseFloat(avgPrice.toFixed(6)), purchaseDate: form.purchaseDate });
     setForm({ ticker:"", amount:"", avgPrice:"", purchaseDate: new Date().toISOString().split("T")[0] });
     setShowForm(false);
-    setAddingLoading(false);
   };
 
   // Adds another purchase lot for a ticker already shown in the "Historial
   // de compras" panel — same as handleAdd, but stays inside that panel
   // instead of routing to the top-level "Agregar posición" box.
-  const handleAddLot = async (ticker: string) => {
+  const handleAddLot = (ticker: string) => {
     const amount = parseFloat(lotForm.amount);
     const enteredPrice = parseFloat(lotForm.avgPrice);
     if (!amount || !enteredPrice) { showToast("Completa el monto y el precio"); return; }
     if (!isPremium && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
     const shares = amount / enteredPrice;
     const avgPrice = portfolioCurrency === "USD" ? enteredPrice : enteredPrice / fxRate;
-    setLotAddLoading(true);
-    try {
-      const res = await marketApi.getPrices([ticker]);
-      addPosition({ ticker, shares: parseFloat(shares.toFixed(6)), avgPrice: parseFloat(avgPrice.toFixed(6)), name: res.data[ticker]?.name, purchaseDate: lotForm.purchaseDate });
-    } catch {
-      addPosition({ ticker, shares: parseFloat(shares.toFixed(6)), avgPrice: parseFloat(avgPrice.toFixed(6)), purchaseDate: lotForm.purchaseDate });
-    }
+    // Same instant-add fix as handleAdd — no reason to block on a price
+    // lookup just to save a purchase lot.
+    addPosition({ ticker, shares: parseFloat(shares.toFixed(6)), avgPrice: parseFloat(avgPrice.toFixed(6)), purchaseDate: lotForm.purchaseDate });
     setLotForm({ amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
     setAddingLot(false);
-    setLotAddLoading(false);
   };
 
   // Total shares already held for `ticker`, across every lot (purchases minus
