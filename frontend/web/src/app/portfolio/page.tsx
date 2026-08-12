@@ -1152,6 +1152,23 @@ export default function PortfolioPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, syncStatus, pendingSync]);
 
+  // Loud toast the moment a save first fails — the small red "sin guardar"
+  // icon in the header is easy to miss entirely, which is exactly how a
+  // silently-failing save (e.g. an expired session, previously not even
+  // retried correctly — see portfolioStore.ts's push()) can look like
+  // "changes just don't stick" with no visible cause. Only fires once per
+  // failure streak (won't re-toast on every 5s retry) via toastedErrorRef.
+  const toastedErrorRef = useRef(false);
+  useEffect(() => {
+    if (syncStatus === "error" && !toastedErrorRef.current) {
+      toastedErrorRef.current = true;
+      showToast("No se pudo guardar tu portafolio — reintentando automáticamente. Si sigue fallando, revisa tu conexión o vuelve a iniciar sesión.");
+    } else if (syncStatus === "saved" || syncStatus === "idle") {
+      toastedErrorRef.current = false;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncStatus]);
+
   const fetchPrices = useCallback(async () => {
     if (!positions.length) return;
     setLoadingPrices(true);

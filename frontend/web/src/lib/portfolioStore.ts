@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { useAuthStore } from "./store";
-import { apiBase } from "./apiBase";
+import api from "./api";
 
 export interface Position {
   id: string;
@@ -131,26 +131,38 @@ export const usePortfolioStore = create<PortfolioStore>()(
       ): Promise<void> => {
         set({ syncStatus: "syncing", pendingSync: true, pendingSyncSetAt: Date.now() });
         const doFetch = (): Promise<void> => {
-          const BASE_URL = apiBase();
-          return fetch(`${BASE_URL}/api/sync/portfolio`, {
-            method: "POST",
-            credentials: "include",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              positions,
-              currency,
-              portfolio_id: portfolioId,
-              portfolio_name: portfolioName,
-              closed_positions: closedPositions,
-              inception_date: inceptionDate,
-              base_updated_at: lastServerUpdatedAt[portfolioId] ?? null,
-            }),
-            keepalive: true,
+          // Uses the shared axios instance (api.ts) — NOT raw fetch() — so a
+          // 401 here goes through the same auto-refresh-and-retry interceptor
+          // every other endpoint in the app already gets. Previously this
+          // used fetch() directly, which bypassed that interceptor entirely:
+          // if the access-token cookie expired while a user sat on the
+          // Portfolio screen without triggering any other API call, every
+          // save would 401 silently, get retried every 5s with the SAME
+          // expired cookie, and never refresh — the change looked saved
+          // locally but silently never reached the server. The only visible
+          // symptom was a tiny, easy-to-miss red icon. Confirmed as the
+          // likely root cause of "mis cambios no se guardan", 2026-08-12.
+          return api.post("/api/sync/portfolio", {
+            positions,
+            currency,
+            portfolio_id: portfolioId,
+            portfolio_name: portfolioName,
+            closed_positions: closedPositions,
+            inception_date: inceptionDate,
+            base_updated_at: lastServerUpdatedAt[portfolioId] ?? null,
           })
-            .then(async (res) => {
-              if (res.status === 409) {
+            .then((res) => {
+              // Prefer the server's own commit timestamp over the client clock, so
+              // "lastSaved" is proof the write actually landed, not just that the
+              // request didn't throw.
+              const data = res.data;
+              const confirmedAt = data?.updated_at ?? new Date().toISOString();
+              if (data?.updated_at) lastServerUpdatedAt[portfolioId] = data.updated_at;
+              set({ syncStatus: "saved", lastSaved: confirmedAt, pendingSync: false, pendingSyncSetAt: null });
+              setTimeout(() => { if (get().syncStatus === "saved") set({ syncStatus: "idle" }); }, 4000);
+            })
+            .catch((err) => {
+              if (err?.response?.status === 409) {
                 // Another device wrote a newer state after this client last
                 // saw the server. Do NOT overwrite it with our stale-based
                 // edit — surface the conflict and adopt the server's
@@ -158,23 +170,11 @@ export const usePortfolioStore = create<PortfolioStore>()(
                 // (the local edit is still held in this device's state, so
                 // nothing is lost) is based on current reality and will
                 // succeed instead of conflicting again.
-                const data = await res.json().catch(() => null);
-                const serverUpdatedAt = data?.detail?.server_updated_at;
+                const serverUpdatedAt = err.response.data?.detail?.server_updated_at;
                 if (serverUpdatedAt) lastServerUpdatedAt[portfolioId] = serverUpdatedAt;
                 set({ syncStatus: "conflict", pendingSync: false, pendingSyncSetAt: null });
-                throw new Error("sync_conflict");
+                throw err;
               }
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              // Prefer the server's own commit timestamp over the client clock, so
-              // "lastSaved" is proof the write actually landed, not just that the
-              // request didn't throw.
-              const data = await res.json().catch(() => null);
-              const confirmedAt = data?.updated_at ?? new Date().toISOString();
-              if (data?.updated_at) lastServerUpdatedAt[portfolioId] = data.updated_at;
-              set({ syncStatus: "saved", lastSaved: confirmedAt, pendingSync: false, pendingSyncSetAt: null });
-              setTimeout(() => { if (get().syncStatus === "saved") set({ syncStatus: "idle" }); }, 4000);
-            })
-            .catch((err) => {
               set((s) => (s.syncStatus === "conflict" ? s : { syncStatus: "error" }));
               throw err;
             });
