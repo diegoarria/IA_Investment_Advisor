@@ -96,12 +96,20 @@ def run_reality_gate(
         else "No se pudo anclar el Fair P/E a evidencia real (histórico propio o comparables).",
     ))
 
-    # 3. Not using peak cyclical earnings as if sustainable.
-    peak_ok = not (earnings_state == EarningsState.CYCLICAL_PEAK and not normalized_eps_used)
+    # 3. Not using peak cyclical or elevated earnings as if sustainable.
+    # ELEVATED added alongside CYCLICAL_PEAK (2026-08-12) — the original
+    # check only covered cyclicals, leaving no critical gate for a
+    # non-cyclical whose earnings_state.py normalization bailed out to
+    # None on an ELEVATED read (e.g. a spike from non-operating gains with
+    # no reliable baseline to normalize against, confirmed on UBER); the
+    # symmetric DEPRESSED/CYCLICAL_TROUGH check below already existed for
+    # the understated-earnings direction, so this closes the same gap for
+    # overstated earnings rather than introducing a new kind of check.
+    peak_ok = not (earnings_state in (EarningsState.CYCLICAL_PEAK, EarningsState.ELEVATED) and not normalized_eps_used)
     checks.append(GateCheck(
         "not_peak_earnings", peak_ok,
         "Ganancias normalizadas usadas correctamente." if peak_ok
-        else "Se detectó un pico de ciclo pero no se aplicó normalización de ganancias.",
+        else "Se detectaron ganancias en pico de ciclo o anormalmente elevadas, pero no se pudo aplicar una normalización confiable.",
     ))
 
     # 4. Not using abnormally depressed earnings as if sustainable.

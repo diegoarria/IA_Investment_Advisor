@@ -128,24 +128,58 @@ def detect_earnings_state(
 
     # Non-cyclical, non-turnaround categories: compare latest EPS to its
     # own recent average rather than assuming it's automatically "normal."
-    recent_avg = statistics.mean(valid_eps[-min(5, len(valid_eps)):])
+    # Baseline excludes the current/latest year itself — averaging it in
+    # (the original v1 bug) partially dilutes the very distortion it's
+    # meant to correct for instead of measuring against an independent
+    # prior baseline.
+    baseline_years = valid_eps[:-1]
+    baseline_window = baseline_years[-min(5, len(baseline_years)):]
+    recent_avg = statistics.mean(baseline_window)
     if latest_eps is None or recent_avg == 0:
         return EarningsStateResult(
             state=EarningsState.NORMAL, normalized_eps=latest_eps, reliability_note=None,
             reason="Sin base suficiente para comparar contra el promedio reciente — se usa el EPS reportado.",
         )
     deviation_pct = (latest_eps - recent_avg) / abs(recent_avg) * 100
+    # A baseline window that mixes profit and loss years isn't a stable
+    # "normal" regime to average into a single figure — e.g. UBER's
+    # 2019-2021 losses and 2024 spike both stem from the same source
+    # (equity-method mark-to-market on Aurora/Didi/Grab, unrelated to core
+    # ride-hailing/delivery economics), so blending them produces a number
+    # that represents neither the loss years nor the current year
+    # honestly. Confirmed live 2026-08-12 investigating UBER's Fair Value.
+    baseline_mixed_regime = any(v <= 0 for v in baseline_window) and any(v > 0 for v in baseline_window)
     if deviation_pct >= 30:
+        if baseline_mixed_regime:
+            return EarningsStateResult(
+                state=EarningsState.ELEVATED, normalized_eps=None,
+                reliability_note=(
+                    f"EPS actual ({latest_eps}) está {deviation_pct:+.0f}% por encima del promedio de años previos, pero esos años "
+                    f"mezclan pérdidas y ganancias — no son un régimen estable del que derivar una base normalizada confiable. Se "
+                    f"reporta como ganancias elevadas sin normalizar en vez de promediar años que no son comparables entre sí."
+                ),
+                reason=f"EPS actual ({latest_eps}) está {deviation_pct:+.0f}% por encima del promedio de los últimos {len(baseline_window)} años previos — ganancias elevadas, base histórica no confiable para normalizar.",
+            )
         return EarningsStateResult(
             state=EarningsState.ELEVATED, normalized_eps=round(recent_avg, 2), reliability_note=None,
-            reason=f"EPS actual ({latest_eps}) está {deviation_pct:+.0f}% por encima del promedio de los últimos {min(5, len(valid_eps))} años — ganancias elevadas; se usa el promedio reciente como base normalizada.",
+            reason=f"EPS actual ({latest_eps}) está {deviation_pct:+.0f}% por encima del promedio de los últimos {len(baseline_window)} años previos — ganancias elevadas; se usa ese promedio como base normalizada.",
         )
     if deviation_pct <= -30:
+        if baseline_mixed_regime:
+            return EarningsStateResult(
+                state=EarningsState.DEPRESSED, normalized_eps=None,
+                reliability_note=(
+                    f"EPS actual ({latest_eps}) está {deviation_pct:+.0f}% por debajo del promedio de años previos, pero esos años "
+                    f"mezclan pérdidas y ganancias — no son un régimen estable del que derivar una base normalizada confiable. Se "
+                    f"reporta como ganancias deprimidas sin normalizar en vez de promediar años que no son comparables entre sí."
+                ),
+                reason=f"EPS actual ({latest_eps}) está {deviation_pct:+.0f}% por debajo del promedio de los últimos {len(baseline_window)} años previos — ganancias deprimidas, base histórica no confiable para normalizar.",
+            )
         return EarningsStateResult(
             state=EarningsState.DEPRESSED, normalized_eps=round(recent_avg, 2), reliability_note=None,
-            reason=f"EPS actual ({latest_eps}) está {deviation_pct:+.0f}% por debajo del promedio de los últimos {min(5, len(valid_eps))} años — ganancias deprimidas; se usa el promedio reciente como base normalizada.",
+            reason=f"EPS actual ({latest_eps}) está {deviation_pct:+.0f}% por debajo del promedio de los últimos {len(baseline_window)} años previos — ganancias deprimidas; se usa ese promedio como base normalizada.",
         )
     return EarningsStateResult(
         state=EarningsState.NORMAL, normalized_eps=round(latest_eps, 2), reliability_note=None,
-        reason=f"EPS actual ({latest_eps}) está en línea con el promedio de los últimos {min(5, len(valid_eps))} años ({deviation_pct:+.0f}%) — ganancias normales.",
+        reason=f"EPS actual ({latest_eps}) está en línea con el promedio de los últimos {len(baseline_window)} años previos ({deviation_pct:+.0f}%) — ganancias normales.",
     )
