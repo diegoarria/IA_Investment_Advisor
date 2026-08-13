@@ -37,6 +37,7 @@ from app.services.valuation.nuvos_engine.scenarios import build_scenarios, Scena
 from app.services.valuation.nuvos_engine.divergence import explain_divergence, DivergenceExplanation
 from app.services.valuation.nuvos_engine.reality_gate import run_reality_gate, RealityGateResult
 from app.services.valuation.confidence_engine import compute_confidence_meter_v4, compute_uncertainty_profile
+from app.services.valuation.outlier_detection_engine import detect_valuation_outliers
 
 _DEFAULT_MIN_CONFIDENCE_SCORE = 35.0  # matches undervalued_screener_service.py's existing _MIN_CONFIDENCE_SCORE gate
 
@@ -56,6 +57,7 @@ class NuvosFairValueResult:
     divergence: Optional[DivergenceExplanation] = None
     confidence_meter: Optional[dict] = None
     uncertainty_profile: Optional[dict] = None
+    outlier_flags: Optional[dict] = None
     provenance: Optional[ProvenanceLedger] = None
     insufficient_data_reason: Optional[str] = None
 
@@ -268,12 +270,26 @@ def compute_nuvos_fair_value(
             insufficient_data_reason=reason,
         )
 
+    # Phase 4 (2026-08-13) — purely advisory "does this look economically
+    # strange?" flags, never suppresses or changes the Fair Value above.
+    # GQV has no DCF/terminal-value or reverse-DCF concept, so those 2
+    # checks simply don't fire here (None inputs) — by design, not a gap.
+    outlier_flags = asdict(detect_valuation_outliers(
+        current_price=current_price,
+        fair_value_bear=scenarios.bear.fair_value_per_share, fair_value_base=scenarios.base.fair_value_per_share,
+        fair_value_bull=scenarios.bull.fair_value_per_share,
+        avg_roic_pct=avg_roic_pct, industry_median_roic_pct=industry_median_roic_pct,
+        implied_multiple=fair_pe_result.fair_pe if fair_pe_result else None,
+        historical_median_pe=historical_median_pe, peer_median_pe=peer_median_pe,
+    ))
+
     return NuvosFairValueResult(
         status="ok",
         classification=classification, earnings_state=earnings_state, growth_quality=growth_quality,
         fair_pe=fair_pe_result, peg=peg, pegy=pegy, fcf_quality=fcf_quality_result,
         scenarios=scenarios, reality_gate=reality_gate, divergence=divergence,
-        confidence_meter=confidence_meter, uncertainty_profile=uncertainty_profile, provenance=ledger,
+        confidence_meter=confidence_meter, uncertainty_profile=uncertainty_profile,
+        outlier_flags=outlier_flags, provenance=ledger,
     )
 
 

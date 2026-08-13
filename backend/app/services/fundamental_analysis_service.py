@@ -41,6 +41,7 @@ from app.services.valuation.confidence_engine import (
     _confidence_score, compute_confidence_meter_v3, compute_uncertainty_profile,
     compute_financial_statement_quality_score, compute_management_consistency_score,
 )
+from app.services.valuation.outlier_detection_engine import detect_valuation_outliers
 from app.services.quality.capital_allocation_engine import evaluate_dividend_consistency, evaluate_reinvestment_quality
 from app.services.valuation.growth_engine import compute_weighted_growth
 from app.services.quality.moat_engine import compute_moat_score
@@ -1247,6 +1248,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 "divergence": asdict(gqv_result.divergence) if gqv_result.divergence else None,
                 "confidence_meter": gqv_result.confidence_meter,
                 "uncertainty_profile": gqv_result.uncertainty_profile,
+                "outlier_flags": gqv_result.outlier_flags,
                 "data_provenance": {k: asdict(v) for k, v in (gqv_result.provenance.points if gqv_result.provenance else {}).items()},
                 "insufficient_data_reason": gqv_result.insufficient_data_reason,
             }
@@ -2640,6 +2642,23 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             "70": [round(center - half_spread * 0.6, 2), round(center + half_spread * 0.6, 2)],
             "50": [round(center - half_spread * 0.35, 2), round(center + half_spread * 0.35, 2)],
         }
+
+        # Phase 4 (2026-08-13) — purely advisory "does this look
+        # economically strange?" flags, never suppresses or changes any
+        # Fair Value/DCF/GQV output. See outlier_detection_engine.py.
+        dcf["outlier_flags"] = asdict(detect_valuation_outliers(
+            current_price=price,
+            fair_value_bear=pess_v, fair_value_base=dcf["scenarios"]["base"]["intrinsic_value_per_share"], fair_value_bull=opt_v,
+            avg_roic_pct=(dcf.get("growth_buildup") or {}).get("avg_roic_pct"),
+            industry_median_roic_pct=(dcf.get("industry_benchmarks") or {}).get("median_roic_pct"),
+            implied_multiple=((dcf.get("gqv_fair_value") or {}).get("fair_pe") or {}).get("fair_pe"),
+            historical_median_pe=(dcf.get("historical_valuation") or {}).get("historical_median_pe"),
+            peer_median_pe=(dcf.get("relative_valuation") or {}).get("peer_median_pe"),
+            pv_of_terminal_value=dcf.get("pv_of_terminal_value"),
+            enterprise_value=dcf.get("enterprise_value"),
+            regime_change_flag=(dcf.get("reverse_dcf_sanity_check") or {}).get("regime_change_flag"),
+            regime_change_detail=(dcf.get("reverse_dcf_sanity_check") or {}).get("detalle"),
+        ))
 
     # Real, multi-factor evidence per checklist dimension — handed to Claude
     # (see ai_service.generate_quick_valuation_summary/generate_candidate_blurb)
