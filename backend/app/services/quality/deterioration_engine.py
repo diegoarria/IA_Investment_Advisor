@@ -63,11 +63,19 @@ class DeteriorationResult:
         return any(f.direction is not None for f in self.factors)
 
 
-def _trend_direction(values: list[Optional[float]]) -> Optional[tuple[str, float]]:
+def trend_direction(values: list[Optional[float]]) -> Optional[tuple[str, float]]:
     """Real first-half-average vs. second-half-average comparison — needs
     at least 4 real (non-None) data points to split into two halves that
     mean anything; fewer than that returns None (no fabricated direction
-    off 2-3 noisy points)."""
+    off 2-3 noisy points).
+
+    Promoted from private `_trend_direction` (Nuvos Fair Value Engine V2,
+    Phase 2, 2026-08-12) — reused as-is by
+    `business_economics_engine.py` for capital-intensity/value-creation
+    direction instead of duplicating this technique a second time. The
+    private alias below keeps this module's own internal call and the
+    existing test import (`test_quality_deterioration_engine.py`)
+    unchanged."""
     valid = [v for v in values if v is not None]
     if len(valid) < 4:
         return None
@@ -84,6 +92,9 @@ def _trend_direction(values: list[Optional[float]]) -> Optional[tuple[str, float
     else:
         direction = "estable"
     return direction, round(change_pct, 1)
+
+
+_trend_direction = trend_direction  # backward-compat alias — see docstring above
 
 
 def compute_deterioration_signals(

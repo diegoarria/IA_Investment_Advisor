@@ -46,6 +46,7 @@ from app.services.valuation.growth_engine import compute_weighted_growth
 from app.services.quality.moat_engine import compute_moat_score
 from app.services.quality.deterioration_engine import compute_deterioration_signals
 from app.services.quality.moat_duration_engine import estimate_moat_duration, MoatDurationResult
+from app.services.quality.business_economics_engine import compute_business_economics
 from app.services.quality.quality_engine import compute_incremental_roic, compute_cagr_windows
 from app.services.valuation.nuvos_engine.engine import compute_nuvos_fair_value
 
@@ -1097,6 +1098,24 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     base_discount_rate, wacc_details = _calc_wacc(
         beta, risk_free_rate, market_cap, total_debt, latest_interest_expense, tax_rate, sector,
     )
+
+    # Nuvos Fair Value Engine V2, Phase 2 (2026-08-12) — purely additive
+    # signals (CROIC, capital intensity, multi-year value-creation
+    # consistency), computed unconditionally right after WACC is available
+    # so financial-sector/REIT tickers whose legacy `dcf` branch never runs
+    # still get a real result. NOT consumed by any Fair Value/DCF/GQV/Fair
+    # P/E/Classification/Moat Score output this phase — see
+    # /Users/diegoarria/.claude/plans/cosmic-munching-crown.md.
+    try:
+        business_economics_result = compute_business_economics(
+            roic_trend=roic_trend, nopat_trend=nopat_trend, invested_capital_trend=invested_capital_trend,
+            fcf_trend=fcf_trend, revenue_trend=revenue_trend, net_income_trend=net_income_trend,
+            avg_roic_pct=avg_roic, reinvestment_rate_anchor=reinvestment_rate_anchor,
+            cost_of_capital_pct=base_discount_rate * 100 if base_discount_rate is not None else None,
+        )
+    except Exception as e:
+        logger.info("get_fundamental_analysis(%s): business_economics not computable: %s", ticker, e)
+        business_economics_result = None
 
     # ── Quality score (0-10, matches the "Calidad del negocio: X.X/10" format) ──
     # Hoisted here (was previously computed much further down, near where
@@ -2654,6 +2673,9 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     }
 
     checklist_items_real = _build_checklist_items(dcf, thesis_scores, checklist_evidence) if dcf and thesis_scores else []
+
+    if dcf is not None:
+        dcf["business_economics"] = asdict(business_economics_result) if business_economics_result else None
 
     return {
         "ticker": ticker,
