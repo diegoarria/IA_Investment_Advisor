@@ -270,14 +270,26 @@ async def send_weekly_prep_push(tier_filter: str) -> None:
     uids = [r["user_id"] for r in prefs_res.data]
 
     tier_res = await run_query(
-        db.table("user_profiles").select("user_id,subscription_tier,preferred_language").in_("user_id", uids)
+        db.table("user_profiles")
+        .select("user_id,subscription_tier,trial_started_at,streak_bonus_premium_until,preferred_language")
+        .in_("user_id", uids)
     )
-    tier_map = {r["user_id"]: (r.get("subscription_tier") or "free") for r in (tier_res.data or [])}
+    # Bug fix (2026-08-12): this used to bucket users by raw
+    # subscription_tier=="premium", ignoring trial_started_at/
+    # streak_bonus_premium_until entirely — a trial user got the "free"
+    # variant of this push even while genuinely premium. Delegates to
+    # is_premium_active(), the single canonical trial-window check, same
+    # as every other premium gate in the app.
+    from app.core.subscription import is_premium_active
+    is_premium_map = {
+        r["user_id"]: is_premium_active(r.get("subscription_tier"), r.get("trial_started_at"), r.get("streak_bonus_premium_until"))
+        for r in (tier_res.data or [])
+    }
     lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (tier_res.data or [])}
 
     target_uids = [
         uid for uid in uids
-        if (tier_map.get(uid) == "premium") == (tier_filter == "premium")
+        if is_premium_map.get(uid, False) == (tier_filter == "premium")
     ]
 
     sent = 0

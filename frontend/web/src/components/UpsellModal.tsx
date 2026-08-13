@@ -42,7 +42,7 @@ function getOfferMeta(t: TFunction) {
 
 export default function UpsellModal({ offer, prices, triggerSource, onClose }: UpsellModalProps) {
   const { t } = useTranslation();
-  const { tier } = useSubscriptionStore();
+  const { tier, isTrialPremium } = useSubscriptionStore();
   const [loading, setLoading] = useState(false);
   const [variant, setVariant] = useState<"default" | "bundle">("default");
   const [duoVariant, setDuoVariant] = useState<"monthly" | "yearly">("monthly");
@@ -50,7 +50,11 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
   if (!offer) return null;
   const OFFER_META = getOfferMeta(t);
   const meta = OFFER_META[offer];
-  const isPremium = tier === "premium";
+  // Bug fix (2026-08-12): missing isTrialPremium meant a trial user got
+  // shown free-tier pricing here instead of their actual premium pricing —
+  // same class of bug found across ~8 places before this app consolidated
+  // onto is_premium_active() server-side; this frontend spot slipped through.
+  const isPremium = tier === "premium" || isTrialPremium;
 
   const displayPrice = offer === "family_plan"
     ? duoVariant === "monthly" ? `$${prices.monthly ?? 23.99}${t("upsellModal.perMonth")}` : `$${prices.yearly ?? 224.99}${t("upsellModal.perYear")}`

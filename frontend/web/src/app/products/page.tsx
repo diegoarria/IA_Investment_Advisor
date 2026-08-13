@@ -69,9 +69,13 @@ export default function ProductsPage() {
   const DUO_PLAN_FEATURES = getDuoPlanFeatures(t);
   const ONE_TIME_PRODUCTS = getOneTimeProducts(t);
   const COMING_SOON = getComingSoon(t);
-  const { tier: subTier } = useSubscriptionStore();
+  const { tier: subTier, isTrialPremium } = useSubscriptionStore();
   const { isAuthenticated } = useAuthStore();
-  const isPremium = subTier === "premium";
+  // Bug fix (2026-08-12): missing isTrialPremium meant a user inside their
+  // 30-day trial showed as not-premium on this exact page — same class of
+  // bug found across ~8 places before this app consolidated onto
+  // is_premium_active() server-side; this one frontend spot slipped through.
+  const isPremium = subTier === "premium" || isTrialPremium;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
