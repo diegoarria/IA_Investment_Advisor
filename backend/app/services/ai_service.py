@@ -3180,10 +3180,10 @@ async def generate_company_diagnostic_narrative(data: dict, diagnostic: dict, la
     .claude/plans/cosmic-munching-crown.md) — everything else in the card
     (scores, badges, moat points, competitor comparison) is deterministic,
     computed by `company_diagnostic_service.py`. This call only produces
-    the 3 fields that genuinely need synthesis across many real signals:
-    a short investment-thesis paragraph, a "what the market reacted to vs.
-    Nuvos's structural read" contrast, and an educational (never
-    prescriptive) action-plan note.
+    the 4 fields that genuinely need synthesis across many real signals: a
+    one-sentence hero pitch, a short investment-thesis paragraph, a "what
+    the market reacted to vs. Nuvos's structural read" contrast, and an
+    educational (never prescriptive) action-plan note.
 
     `actionPlan.strategy` is explicitly instructed below to describe fit,
     never an imperative buy/sell instruction ("compra en 2 tramos") — per
@@ -3217,10 +3217,11 @@ Puntos reales de foso competitivo (moat), ya calculados:
 Score general Nuvos: {diagnostic.get("score")}/100 ({diagnostic.get("scoreLabel")})
 Margen de seguridad real vs. valor intrínseco base: {diagnostic.get("valuation", {}).get("marginOfSafetyPercent")}%
 
-Escribe 3 piezas de texto, basadas ÚNICAMENTE en las cifras reales de arriba — nunca inventes números, nunca digas Comprar/No comprar/Mantener:
+Escribe 4 piezas de texto, basadas ÚNICAMENTE en las cifras reales de arriba — nunca inventes números, nunca digas Comprar/No comprar/Mantener:
 
 Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después):
 {{
+  "oneLinerPitch": "<1 sola oración EN EL IDIOMA INDICADO ARRIBA, la más punzante posible, resumiendo qué hace la empresa y por qué esta situación (calidad + precio) es notable ahora mismo. Cita 1-2 cifras reales exactas si ayudan (nunca inventadas).>",
   "investmentThesis": "<3-5 oraciones EN EL IDIOMA INDICADO ARRIBA sintetizando la tesis de inversión completa: el foso competitivo, la salud financiera, y por qué el negocio (o no) es una máquina de crecimiento compuesto. Cita cifras reales exactas del bloque de arriba (nunca inventadas).>",
   "noiseVsReality": {{
     "marketSaw": "<1-2 oraciones: qué explica la volatilidad o caída reciente del precio según los datos disponibles (ciclo, sector, resultados) — nunca inventado, basado en el estado de ganancias real si está disponible>",

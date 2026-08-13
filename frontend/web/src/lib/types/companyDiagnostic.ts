@@ -21,7 +21,10 @@ export interface ValuationScenarios {
   currentPrice: number;
   marginOfSafetyPercent: number;
   peCurrent: number;
-  peHistoricalAvg: number;
+  // Real historical P/E is legitimately missing for plenty of real tickers
+  // (confirmed live for CPRT/JPM/AAPL) — never gated server-side the way
+  // peCurrent/evFcf are, so this must stay nullable here too.
+  peHistoricalAvg: number | null;
   evFcf: number;
 }
 

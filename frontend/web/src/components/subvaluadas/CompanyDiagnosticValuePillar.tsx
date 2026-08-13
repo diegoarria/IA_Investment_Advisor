@@ -40,10 +40,11 @@ export function CompanyDiagnosticValuePillar({
   const { t } = useTranslation();
   const [selectedScenario, setSelectedScenario] = useState<ScenarioKey>("baseFairValue");
 
+  const fmtMultiple = (v: number | null) => (v != null ? `${v.toFixed(1)}x` : "N/D");
   const multiples: { explKey: string; value: string }[] = [
-    { explKey: "peCurrent", value: `${valuation.peCurrent.toFixed(1)}x` },
-    { explKey: "peHistorical", value: `${valuation.peHistoricalAvg.toFixed(1)}x` },
-    { explKey: "evFcf", value: `${valuation.evFcf.toFixed(1)}x` },
+    { explKey: "peCurrent", value: fmtMultiple(valuation.peCurrent) },
+    { explKey: "peHistorical", value: fmtMultiple(valuation.peHistoricalAvg) },
+    { explKey: "evFcf", value: fmtMultiple(valuation.evFcf) },
   ];
 
   const scenarios: { key: ScenarioKey; label: string; value: number; color: string }[] = [

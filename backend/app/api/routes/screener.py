@@ -1741,13 +1741,19 @@ async def company_diagnostic(query: str, lang: str | None = None, user_id: str =
     except Exception as exc:
         logger.warning("company_diagnostic(%s): narrative generation failed: %s", ticker, exc)
     if narrative:
+        diagnostic["oneLinerPitch"] = narrative.get("oneLinerPitch") or f"{diagnostic['companyName']} ({ticker}) — {diagnostic['scoreLabel']}."
         diagnostic["investmentThesis"] = narrative.get("investmentThesis")
         diagnostic["noiseVsReality"] = narrative.get("noiseVsReality")
         diagnostic["actionPlan"] = narrative.get("actionPlan")
     else:
-        # Never a fabricated placeholder — omit the narrative fields
-        # entirely (the frontend must treat them as optional) rather than
-        # show fake text when the AI call failed.
+        # oneLinerPitch is the one narrative-adjacent field the frontend
+        # always renders (never treated as optional) — when the AI call
+        # fails, fall back to a real, templated sentence built purely from
+        # already-real fields (never a fabricated number/claim), same
+        # discipline as badges/moatPoints. The other 3 fields stay None
+        # (never a fabricated placeholder) — the frontend must treat those
+        # as optional rather than show fake narrative.
+        diagnostic["oneLinerPitch"] = f"{diagnostic['companyName']} ({ticker}) — {diagnostic['scoreLabel']}."
         diagnostic["investmentThesis"] = None
         diagnostic["noiseVsReality"] = None
         diagnostic["actionPlan"] = None
