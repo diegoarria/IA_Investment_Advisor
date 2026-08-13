@@ -85,6 +85,8 @@ const _STATE_LABEL: Record<string, string> = {
   normal: "Normal", elevated: "Elevadas", depressed: "Deprimidas",
   cyclical_peak: "Pico de ciclo", cyclical_trough: "Valle de ciclo",
   recovery: "En recuperación", structurally_impaired: "Deterioro estructural",
+  // Phase 1 (Nuvos Fair Value Engine V2, 2026-08-12).
+  structurally_elevated: "Mejora estructural", structurally_depressed: "Deterioro estructural (ganancias)",
 };
 
 function ScenarioCard({ label, value, color }: { label: string; value: number | null; color: string }) {

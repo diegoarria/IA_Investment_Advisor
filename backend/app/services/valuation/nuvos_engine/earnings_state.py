@@ -27,6 +27,7 @@ from enum import Enum
 from typing import Optional
 
 from app.services.valuation.nuvos_engine.classification import LynchCategory
+from app.services.valuation.numeric_helpers import weighted_mean
 from app.services.quality.deterioration_engine import DeteriorationResult
 
 _MIN_YEARS_FOR_NORMALIZATION = 4
@@ -38,6 +39,20 @@ _MIN_YEARS_FOR_NORMALIZATION = 4
 _PEAK_PERCENTILE = 0.85
 _TROUGH_PERCENTILE = 0.15
 
+# Phase 1 (Nuvos Fair Value Engine V2, 2026-08-12) — which of
+# deterioration_engine's 5 tracked metrics actually prove a DURABLE change
+# in earnings power, as opposed to just moving. ROIC and margins measure
+# how much the business earns per dollar deployed/sold; revenue and
+# FCF-margin are deliberately excluded from this bar — revenue can grow
+# while economics get WORSE (subsidized/discounted growth), and FCF margin
+# can swing from working-capital timing or capex phasing unrelated to the
+# earnings-power question being asked here. Both stay available as
+# supporting color in the returned `reason` text, they just don't count
+# toward the evidence threshold below.
+_STRUCTURAL_METRICS = {"roic", "operating_margin", "net_margin"}
+_STRUCTURAL_MIN_MATCHING = 2   # of the 3 profitability metrics available
+_STRUCTURAL_MAX_CONTRADICTING = 0  # zero tolerance — this is a stricter bar than Turnaround's "more improving than deteriorating" above, since this decides whether to STOP mean-reverting, not just whether recovery is plausible
+
 
 class EarningsState(str, Enum):
     NORMAL = "normal"
@@ -47,6 +62,8 @@ class EarningsState(str, Enum):
     CYCLICAL_TROUGH = "cyclical_trough"
     RECOVERY = "recovery"
     STRUCTURALLY_IMPAIRED = "structurally_impaired"
+    STRUCTURALLY_ELEVATED = "structurally_elevated"
+    STRUCTURALLY_DEPRESSED = "structurally_depressed"
 
 
 @dataclass
@@ -55,11 +72,54 @@ class EarningsStateResult:
     normalized_eps: Optional[float]
     reliability_note: Optional[str]
     reason: str
+    # Phase 1 — how many of the 3 structural-profitability metrics actually
+    # backed a STRUCTURALLY_ELEVATED/DEPRESSED call, so Reality Gate can
+    # re-verify the claim instead of trusting the state tag on faith. None
+    # for every other state (never set defensively — its presence itself
+    # signals "this was a structural claim").
+    structural_evidence_count: Optional[int] = None
 
 
 def _percentile_rank(value: float, series: list[float]) -> float:
     below = sum(1 for v in series if v <= value)
     return below / len(series)
+
+
+def _structural_profitability_evidence(
+    deterioration: Optional[DeteriorationResult], direction: str,
+) -> tuple[int, int, list[str]]:
+    """Counts how many of {roic, operating_margin, net_margin} moved in
+    `direction` ("mejorando"/"deteriorando") vs. how many moved the
+    opposite way. Returns (matching, contradicting, matching_reasons) —
+    the reasons feed the caller's `reason` string so this is never a
+    silent flag with no evidence shown."""
+    if deterioration is None:
+        return 0, 0, []
+    opposite = "deteriorando" if direction == "mejorando" else "mejorando"
+    relevant = [f for f in deterioration.factors if f.name in _STRUCTURAL_METRICS]
+    matching = [f for f in relevant if f.direction == direction]
+    contradicting = [f for f in relevant if f.direction == opposite]
+    return len(matching), len(contradicting), [f.reason for f in matching]
+
+
+def _is_structural(deterioration: Optional[DeteriorationResult], direction: str) -> bool:
+    matching, contradicting, _ = _structural_profitability_evidence(deterioration, direction)
+    return matching >= _STRUCTURAL_MIN_MATCHING and contradicting <= _STRUCTURAL_MAX_CONTRADICTING
+
+
+def _recency_weighted_normalized_eps(values: list[float]) -> float:
+    """Linear-ramp recency weighting (oldest=1 ... newest=N) — the
+    simplest defensible tilt toward the years that actually belong to the
+    now-evidenced structural regime, without collapsing to "just use the
+    latest EPS" (which would defeat the point of normalizing at all). No
+    decay constant to justify beyond the linear ramp — an exponential
+    weighting would need one, with no backtested basis to anchor it yet;
+    same "honest v1, not backtested" disclosure as this module's other
+    thresholds."""
+    weighted = [(v, i + 1) for i, v in enumerate(values)]
+    result = weighted_mean(weighted)
+    assert result is not None  # weighted is never empty when this is called
+    return result
 
 
 def detect_earnings_state(
@@ -150,6 +210,37 @@ def detect_earnings_state(
     # honestly. Confirmed live 2026-08-12 investigating UBER's Fair Value.
     baseline_mixed_regime = any(v <= 0 for v in baseline_window) and any(v > 0 for v in baseline_window)
     if deviation_pct >= 30:
+        # Phase 1 (Nuvos Fair Value Engine V2) — before assuming this is a
+        # transient spike to be mean-reverted, ask whether the business's
+        # own economics (ROIC, margins) have genuinely, durably improved.
+        # This is the direct fix for the Copart-style case: a business that
+        # got structurally better must not get dragged back down to a
+        # historical average that no longer reflects its real earning
+        # power. Checked BEFORE baseline_mixed_regime deliberately — a
+        # mixed-regime baseline (loss years + profit years) can still
+        # coexist with real structural evidence (e.g. a genuine turnaround
+        # into sustainably higher ROIC), in which case only the loss years
+        # get excluded below, not the whole normalization.
+        if _is_structural(deterioration, "mejorando"):
+            matching, _, matching_reasons = _structural_profitability_evidence(deterioration, "mejorando")
+            window = baseline_window + [latest_eps]
+            eligible = [v for v in window if v > 0] if baseline_mixed_regime else window
+            normalized = round(_recency_weighted_normalized_eps(eligible), 2) if eligible else None
+            return EarningsStateResult(
+                state=EarningsState.STRUCTURALLY_ELEVATED, normalized_eps=normalized,
+                reliability_note=(
+                    "Base excluye años de pérdida de un régimen distinto — ver evidencia de mejora estructural en 'reason'."
+                    if baseline_mixed_regime and normalized is not None else None
+                ),
+                reason=(
+                    f"EPS actual ({latest_eps}) está {deviation_pct:+.0f}% por encima del promedio histórico, pero "
+                    f"{matching} de 3 métricas de rentabilidad (ROIC, margen operativo, margen neto) muestran mejora "
+                    f"estructural real, sin ninguna en dirección contraria: {' | '.join(matching_reasons)}. Se trata "
+                    f"como mejora estructural, no como pico transitorio — el EPS normalizado usa un promedio "
+                    f"ponderado hacia los años recientes en vez de revertir a la media histórica completa."
+                ),
+                structural_evidence_count=matching,
+            )
         if baseline_mixed_regime:
             return EarningsStateResult(
                 state=EarningsState.ELEVATED, normalized_eps=None,
@@ -165,6 +256,31 @@ def detect_earnings_state(
             reason=f"EPS actual ({latest_eps}) está {deviation_pct:+.0f}% por encima del promedio de los últimos {len(baseline_window)} años previos — ganancias elevadas; se usa ese promedio como base normalizada.",
         )
     if deviation_pct <= -30:
+        # Symmetric to the ELEVATED case above — a genuinely eroding
+        # business must not get mean-reverted UP to a stale historical
+        # average that no longer reflects its real (now worse) earning
+        # power.
+        if _is_structural(deterioration, "deteriorando"):
+            matching, _, matching_reasons = _structural_profitability_evidence(deterioration, "deteriorando")
+            window = baseline_window + [latest_eps]
+            eligible = [v for v in window if v > 0] if baseline_mixed_regime else window
+            normalized = round(_recency_weighted_normalized_eps(eligible), 2) if eligible else None
+            return EarningsStateResult(
+                state=EarningsState.STRUCTURALLY_DEPRESSED, normalized_eps=normalized,
+                reliability_note=(
+                    "Base excluye años de pérdida de un régimen distinto — ver evidencia de deterioro estructural en 'reason'."
+                    if baseline_mixed_regime and normalized is not None else None
+                ),
+                reason=(
+                    f"EPS actual ({latest_eps}) está {deviation_pct:+.0f}% por debajo del promedio histórico, pero "
+                    f"{matching} de 3 métricas de rentabilidad (ROIC, margen operativo, margen neto) muestran deterioro "
+                    f"estructural real, sin ninguna en dirección contraria: {' | '.join(matching_reasons)}. Se trata "
+                    f"como deterioro estructural, no como valle transitorio — el EPS normalizado usa un promedio "
+                    f"ponderado hacia los años recientes en vez de revertir a una media histórica que ya no refleja "
+                    f"la economía real del negocio."
+                ),
+                structural_evidence_count=matching,
+            )
         if baseline_mixed_regime:
             return EarningsStateResult(
                 state=EarningsState.DEPRESSED, normalized_eps=None,

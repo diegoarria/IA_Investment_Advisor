@@ -99,3 +99,39 @@ class TestPassRate:
         result = run_reality_gate(**_base_kwargs(fcf_divergence_flag="diverged", leverage_adjustment_applied=False))
         assert result.pass_rate < 100.0
         assert result.overall_pass is True  # still passes despite lower rate — advisory-only failures
+
+
+class TestStructuralStates:
+    """Phase 1 (Nuvos Fair Value Engine V2, 2026-08-12)."""
+
+    def test_structurally_elevated_without_normalization_blocks(self):
+        result = run_reality_gate(**_base_kwargs(earnings_state=EarningsState.STRUCTURALLY_ELEVATED, normalized_eps_used=False))
+        assert result.overall_pass is False
+
+    def test_structurally_depressed_without_normalization_blocks(self):
+        result = run_reality_gate(**_base_kwargs(earnings_state=EarningsState.STRUCTURALLY_DEPRESSED, normalized_eps_used=False))
+        assert result.overall_pass is False
+
+    def test_structurally_elevated_with_evidence_does_not_block(self):
+        result = run_reality_gate(**_base_kwargs(
+            earnings_state=EarningsState.STRUCTURALLY_ELEVATED, normalized_eps_used=True, structural_evidence_count=3,
+        ))
+        assert result.overall_pass is True
+        failed = [c.name for c in result.checks if not c.passed]
+        assert "structural_claim_evidenced" not in failed
+
+    def test_structurally_elevated_without_evidence_count_fails_advisory_check_but_does_not_block(self):
+        # A wiring gap (count never threaded through) shouldn't itself
+        # force insufficient_data — it's advisory, lowering confidence
+        # via pass_rate instead.
+        result = run_reality_gate(**_base_kwargs(
+            earnings_state=EarningsState.STRUCTURALLY_ELEVATED, normalized_eps_used=True, structural_evidence_count=None,
+        ))
+        assert result.overall_pass is True
+        failed = [c.name for c in result.checks if not c.passed]
+        assert "structural_claim_evidenced" in failed
+
+    def test_non_structural_state_is_unaffected_by_structural_evidence_count(self):
+        result = run_reality_gate(**_base_kwargs(earnings_state=EarningsState.NORMAL, structural_evidence_count=None))
+        failed = [c.name for c in result.checks if not c.passed]
+        assert "structural_claim_evidenced" not in failed

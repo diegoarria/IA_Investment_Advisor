@@ -8,14 +8,16 @@ configuration/function tests — no network, no DCF computation.
 """
 import pytest
 
-from app.services.fundamental_analysis_service import BEAR_BASE_BULL, bear_base_bull_growth_cap_pct
+from app.services.fundamental_analysis_service import (
+    BEAR_BASE_BULL, bear_base_bull_growth_cap_pct,
+    _HIGH_GROWTH_YEARS_BY_DURATION, high_growth_years_for_scenario,
+)
 
 _MONOTONIC_INCREASING_KEYS = [
     "growth_delta_pp",
     "operating_margin_start_delta_pp",
     "operating_margin_terminal_delta_pp",
     "exit_multiple_delta_fraction",
-    "high_growth_years",
 ]
 _MONOTONIC_DECREASING_KEYS = ["discount_rate_delta_pct"]
 
@@ -53,6 +55,44 @@ class TestBearBaseBullMonotonicity:
             v["operating_margin_start_delta_pp"] != v["operating_margin_terminal_delta_pp"]
             for v in BEAR_BASE_BULL.values()
         )
+
+
+class TestHighGrowthYearsByDuration:
+    """Phase 1 (Nuvos Fair Value Engine V2, 2026-08-12) — high_growth_years
+    moved out of BEAR_BASE_BULL's flat per-scenario values into a table
+    keyed by the real, evidence-derived Moat Duration bucket. See
+    /Users/diegoarria/.claude/plans/cosmic-munching-crown.md."""
+
+    def test_every_bucket_has_bear_base_bull(self):
+        for bucket, values in _HIGH_GROWTH_YEARS_BY_DURATION.items():
+            assert set(values.keys()) == {"bear", "base", "bull"}, bucket
+
+    def test_monotonic_bear_to_base_to_bull_within_every_bucket(self):
+        for bucket, values in _HIGH_GROWTH_YEARS_BY_DURATION.items():
+            assert values["bear"] <= values["base"] <= values["bull"], bucket
+
+    def test_monotonic_across_buckets_at_equal_scenario(self):
+        order = ["0_3", "3_5", "5_10", "10_15", "15_plus"]
+        for scenario in ("bear", "base", "bull"):
+            values = [_HIGH_GROWTH_YEARS_BY_DURATION[b][scenario] for b in order]
+            assert values == sorted(values)
+
+    def test_3_5_bucket_matches_the_old_flat_default(self):
+        # The no-evidence/thin-history fallback bucket must reproduce the
+        # exact pre-Phase-1 behavior (1/2/3) — no company should get a NEW
+        # untested default just because it has no real moat signal.
+        assert _HIGH_GROWTH_YEARS_BY_DURATION["3_5"] == {"bear": 1, "base": 2, "bull": 3}
+
+    def test_bull_never_reaches_dcf_projection_horizon(self):
+        # dcf_engine.project_driver_based_dcf requires high_growth_years <
+        # years (default 10) — a plateau covering the whole projection
+        # would leave no years for the fade to reach terminal growth.
+        for bucket, values in _HIGH_GROWTH_YEARS_BY_DURATION.items():
+            assert values["bull"] < 10, bucket
+
+    def test_none_duration_result_falls_back_to_3_5_bucket(self):
+        for scenario in ("bear", "base", "bull"):
+            assert high_growth_years_for_scenario(None, scenario) == _HIGH_GROWTH_YEARS_BY_DURATION["3_5"][scenario]
 
 
 class TestGrowthCapScalesWithQuality:

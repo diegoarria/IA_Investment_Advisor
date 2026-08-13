@@ -206,6 +206,7 @@ def compute_nuvos_fair_value(
         divergence=divergence,
         earnings_quality_warning=fcf_quality_result.earnings_quality_warning,
         earnings_quality_reason=fcf_quality_result.earnings_quality_reason,
+        structural_evidence_count=earnings_state.structural_evidence_count,
     )
 
     predictability_score = moat_result.stability_score

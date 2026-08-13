@@ -67,8 +67,9 @@ def run_reality_gate(
     divergence: DivergenceExplanation,
     earnings_quality_warning: bool = False,
     earnings_quality_reason: Optional[str] = None,
+    structural_evidence_count: Optional[int] = None,
 ) -> RealityGateResult:
-    """Single entry point — runs all 10 checks and returns the composite
+    """Single entry point — runs all 12 checks and returns the composite
     result. Each `GateCheck.detail` is meant to be shown to the user in
     plain language when the gate fails (Trust principle: never hide why a
     valuation was withheld)."""
@@ -105,7 +106,12 @@ def run_reality_gate(
     # symmetric DEPRESSED/CYCLICAL_TROUGH check below already existed for
     # the understated-earnings direction, so this closes the same gap for
     # overstated earnings rather than introducing a new kind of check.
-    peak_ok = not (earnings_state in (EarningsState.CYCLICAL_PEAK, EarningsState.ELEVATED) and not normalized_eps_used)
+    # STRUCTURALLY_ELEVATED added (Phase 1, 2026-08-12) — earnings_state.py
+    # can now resolve an elevated reading as genuine structural improvement
+    # rather than mean-reverting it, but the SAME guarantee must hold: if
+    # that path somehow produced no real normalized_eps, this must still
+    # catch it rather than silently exempting the new state.
+    peak_ok = not (earnings_state in (EarningsState.CYCLICAL_PEAK, EarningsState.ELEVATED, EarningsState.STRUCTURALLY_ELEVATED) and not normalized_eps_used)
     checks.append(GateCheck(
         "not_peak_earnings", peak_ok,
         "Ganancias normalizadas usadas correctamente." if peak_ok
@@ -113,7 +119,9 @@ def run_reality_gate(
     ))
 
     # 4. Not using abnormally depressed earnings as if sustainable.
-    trough_ok = not (earnings_state in (EarningsState.CYCLICAL_TROUGH, EarningsState.DEPRESSED) and not normalized_eps_used)
+    # STRUCTURALLY_DEPRESSED added (Phase 1, 2026-08-12) — same reasoning
+    # as check 3's STRUCTURALLY_ELEVATED addition.
+    trough_ok = not (earnings_state in (EarningsState.CYCLICAL_TROUGH, EarningsState.DEPRESSED, EarningsState.STRUCTURALLY_DEPRESSED) and not normalized_eps_used)
     checks.append(GateCheck(
         "not_depressed_earnings", trough_ok,
         "Ganancias normalizadas usadas correctamente." if trough_ok
@@ -197,6 +205,24 @@ def run_reality_gate(
     checks.append(GateCheck(
         "earnings_quality_ok", not earnings_quality_warning,
         earnings_quality_reason or "Sin señal de distorsión GAAP/SBC material.",
+        critical=False,
+    ))
+
+    # 12. Structural-improvement/deterioration claim actually evidenced
+    # (Phase 1, 2026-08-12) — re-verifies earnings_state.py's
+    # STRUCTURALLY_ELEVATED/DEPRESSED call at the gate layer instead of
+    # trusting the state tag on faith, using the evidence count threaded
+    # from EarningsStateResult.structural_evidence_count. Advisory, not
+    # critical — same "lowers confidence, doesn't block" pattern as checks
+    # 5-8/11: a value that fails this check likely reflects a wiring bug
+    # (the count wasn't passed through) rather than proof the underlying
+    # claim is wrong, so it shouldn't unilaterally force insufficient_data.
+    structural_states = (EarningsState.STRUCTURALLY_ELEVATED, EarningsState.STRUCTURALLY_DEPRESSED)
+    structural_ok = earnings_state not in structural_states or (structural_evidence_count is not None and structural_evidence_count >= 2)
+    checks.append(GateCheck(
+        "structural_claim_evidenced", structural_ok,
+        "Mejora/deterioro estructural respaldado por evidencia real de tendencia en rentabilidad." if structural_ok
+        else "Se marcó como cambio estructural pero la evidencia de respaldo no se pudo verificar en esta capa — revisar.",
         critical=False,
     ))
 

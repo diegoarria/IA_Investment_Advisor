@@ -70,6 +70,13 @@ def explain_divergence(
         causes.append("Ganancias actuales en pico/elevadas — el Fair Value usa ganancias normalizadas, más bajas que las reportadas hoy.")
     if earnings_state == EarningsState.RECOVERY:
         causes.append("Empresa en recuperación (Turnaround) — alta incertidumbre inherente al punto del ciclo de recuperación.")
+    # Phase 1 (2026-08-12) — distinguishes "mean-reverted" from
+    # "structurally re-anchored" explicitly, since the two mechanisms now
+    # produce meaningfully different normalized_eps values.
+    if earnings_state == EarningsState.STRUCTURALLY_ELEVATED:
+        causes.append("Ganancias actuales elevadas, pero con evidencia real de mejora estructural sostenida (ROIC/márgenes) — el Fair Value refleja un EPS normalizado ponderado hacia años recientes, no revertido a la media histórica completa.")
+    if earnings_state == EarningsState.STRUCTURALLY_DEPRESSED:
+        causes.append("Ganancias actuales deprimidas, con evidencia real de deterioro estructural sostenido (ROIC/márgenes) — el Fair Value no revierte a un promedio histórico que ya no refleja la economía real del negocio.")
 
     if historical_median_pe is not None and growth_based_multiple is not None:
         if abs(historical_median_pe - growth_based_multiple) / max(historical_median_pe, 1e-6) > 0.4:

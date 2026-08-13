@@ -45,6 +45,7 @@ from app.services.quality.capital_allocation_engine import evaluate_dividend_con
 from app.services.valuation.growth_engine import compute_weighted_growth
 from app.services.quality.moat_engine import compute_moat_score
 from app.services.quality.deterioration_engine import compute_deterioration_signals
+from app.services.quality.moat_duration_engine import estimate_moat_duration, MoatDurationResult
 from app.services.quality.quality_engine import compute_incremental_roic, compute_cagr_windows
 from app.services.valuation.nuvos_engine.engine import compute_nuvos_fair_value
 
@@ -354,7 +355,6 @@ BEAR_BASE_BULL = {
         "operating_margin_start_delta_pp": -2.0,
         "operating_margin_terminal_delta_pp": -3.0,
         "exit_multiple_delta_fraction": -0.15,
-        "high_growth_years": 1,
     },
     "base": {
         "growth_delta_pp": 0.0,
@@ -362,7 +362,6 @@ BEAR_BASE_BULL = {
         "operating_margin_start_delta_pp": 0.0,
         "operating_margin_terminal_delta_pp": 0.0,
         "exit_multiple_delta_fraction": 0.0,
-        "high_growth_years": 2,
     },
     "bull": {
         "growth_delta_pp": 4.0,
@@ -370,9 +369,33 @@ BEAR_BASE_BULL = {
         "operating_margin_start_delta_pp": 1.5,
         "operating_margin_terminal_delta_pp": 2.5,
         "exit_multiple_delta_fraction": 0.15,
-        "high_growth_years": 3,
     },
 }
+
+# Nuvos Fair Value Engine V2, Phase 1 (2026-08-12) — high_growth_years used
+# to be a flat 1/2/3 (bear/base/bull) for EVERY company, regardless of how
+# durable its actual competitive advantage is. Replaced with a table keyed
+# by the real, evidence-derived Moat Duration bucket (moat_duration_engine.
+# estimate_moat_duration) — a business with a deep, stable moat plausibly
+# holds elevated growth for longer than one with none. The "3_5" row is
+# deliberately IDENTICAL to the old flat 1/2/3 default: it's the
+# no-evidence/thin-history fallback bucket, so a company with no real moat
+# signal gets EXACTLY today's prior behavior, never a new untested one.
+# Bull values capped below dcf_engine._PROJECTION_YEARS=10. Honest v1 — not
+# backtested against real moat-duration outcomes, flagged explicitly like
+# every other tier table in this codebase.
+_HIGH_GROWTH_YEARS_BY_DURATION = {
+    "0_3":     {"bear": 0, "base": 1, "bull": 2},
+    "3_5":     {"bear": 1, "base": 2, "bull": 3},
+    "5_10":    {"bear": 2, "base": 4, "bull": 6},
+    "10_15":   {"bear": 3, "base": 6, "bull": 8},
+    "15_plus": {"bear": 4, "base": 7, "bull": 9},
+}
+
+
+def high_growth_years_for_scenario(duration_result: Optional[MoatDurationResult], scenario: str) -> int:
+    bucket = duration_result.bucket.value if duration_result is not None else "3_5"
+    return _HIGH_GROWTH_YEARS_BY_DURATION[bucket][scenario]
 
 
 def bear_base_bull_growth_cap_pct(business_quality_score: Optional[float], scenario: str) -> float:
@@ -2104,6 +2127,37 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                     )
                     revenue_cagr_windows = compute_cagr_windows(revenue_trend)
 
+                    # Nuvos Fair Value Engine V2, Phase 1 — a SECOND, refined
+                    # moat-score recompute using the real industry medians
+                    # (industry_benchmarks, only available here — the earlier
+                    # growth_engine_moat at the top of this function was
+                    # computed with industry_median_roic_pct=None because
+                    # compute_industry_benchmarks hadn't run yet at that
+                    # point). ROIC premium + margin premium are 60% of
+                    # moat_score's weight, so growth_engine_moat alone would
+                    # starve Moat Duration of its two heaviest inputs.
+                    # Deliberately scoped ONLY to this DCF/duration wiring —
+                    # growth_engine_moat (the weak version) still feeds
+                    # compute_nuvos_fair_value's GQV path unchanged above, to
+                    # avoid regression risk in that already-tested behavior.
+                    moat_duration_result: Optional[MoatDurationResult] = None
+                    try:
+                        _moat_refined = compute_moat_score(
+                            avg_roic_pct=avg_roic, roic_trend=roic_trend,
+                            avg_operating_margin_pct=operating_margin_anchor * 100 if operating_margin_anchor is not None else None,
+                            operating_margin_trend=operating_margin_trend,
+                            gross_margin_latest_pct=gross_margin_latest,
+                            industry_median_roic_pct=(industry_benchmarks or {}).get("median_roic_pct"),
+                            industry_median_operating_margin_pct=(industry_benchmarks or {}).get("median_operating_margin_pct"),
+                        )
+                        moat_duration_result = estimate_moat_duration(
+                            moat_result=_moat_refined,
+                            deterioration=growth_engine_deterioration,
+                            years_of_real_roic_history=sum(1 for v in roic_trend if v is not None),
+                        )
+                    except Exception as e:
+                        logger.info("get_fundamental_analysis(%s): moat duration not computable: %s", ticker, e)
+
                     nuvos_scenarios = {}
                     for name, deltas in BEAR_BASE_BULL.items():
                         growth_cap_pct = bear_base_bull_growth_cap_pct(business_quality_score, name)
@@ -2125,7 +2179,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                             discount_rate=dr,
                             net_cash=net_cash,
                             shares_out=projected_shares,
-                            high_growth_years=deltas["high_growth_years"],
+                            high_growth_years=high_growth_years_for_scenario(moat_duration_result, name),
                             exit_multiple=scenario_exit_multiple,
                             exit_metric=exit_metric,
                         )
@@ -2199,7 +2253,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                                         discount_rate=r,
                                         net_cash=net_cash,
                                         shares_out=projected_shares,
-                                        high_growth_years=BEAR_BASE_BULL["base"]["high_growth_years"],
+                                        high_growth_years=high_growth_years_for_scenario(moat_duration_result, "base"),
                                         exit_multiple=m,
                                         exit_metric=exit_metric,
                                     ).value_per_share
@@ -2221,6 +2275,12 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                         "operating_margin_factors": [asdict(f) for f in margin_assumption.factors],
                         "terminal_roic_factors": [asdict(f) for f in roic_assumption.factors],
                         "sensitivity_matrix": nuvos_sensitivity_matrix,
+                        # Phase 1 (2026-08-12) — the real, evidence-derived
+                        # duration bucket that now drives high_growth_years
+                        # above, surfaced so the UI/user can see WHY a
+                        # company got more or fewer high-growth years than
+                        # the old flat default.
+                        "moat_duration": asdict(moat_duration_result) if moat_duration_result else None,
                         # Reference bands for the "Modelo Completo" business-projection
                         # tab — real windows only (None when < window+1 years of history),
                         # never a fabricated CAGR off a partial series.
