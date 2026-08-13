@@ -1288,6 +1288,78 @@
       }
     }
   },
+  "companyDiagnostic": {
+    "header": {
+      "scoreLabel": "{{score}}/100"
+    },
+    "kpi": {
+      "currentPrice": "Precio Actual",
+      "fairValue": "Nuvos Fair Value",
+      "marginOfSafety": "Margen de Seguridad"
+    },
+    "thermometer": {
+      "title": "Termómetro de Valuación",
+      "priceToday": "Precio Hoy",
+      "conservative": "Conservador",
+      "baseFairValue": "Fair Value",
+      "optimistic": "Optimista",
+      "undervalued": "Infravalorada",
+      "overvalued": "Sobrevalorada",
+      "fair": "Valor razonable"
+    },
+    "pillars": {
+      "quality": {
+        "title": "Calidad",
+        "subtitle": "El negocio y su foso",
+        "revenueBreakdown": "Desglose de Ingresos",
+        "moatTitle": "Puntos Fuertes del Foso",
+        "competitorTitle": "Duelo de Titanes",
+        "vs": "vs.",
+        "conclusionLabel": "Conclusión Competitiva Nuvos"
+      },
+      "trust": {
+        "title": "Confianza",
+        "subtitle": "Salud financiera e integridad",
+        "longTermDebt": "Deuda a Largo Plazo",
+        "netCash": "Caja y Liquidez Neta",
+        "roic": "ROIC",
+        "operatingMargin": "Margen Operativo",
+        "netMargin": "Margen Neto",
+        "operatingCashFlow": "Flujo de Caja Operativo"
+      },
+      "value": {
+        "title": "Valor",
+        "subtitle": "Termómetro de valoración y escenarios",
+        "multiplesTitle": "Múltiplos de Valoración",
+        "peCurrent": "P/E Actual",
+        "peHistorical": "P/E Histórico",
+        "evFcf": "EV/FCF",
+        "modelsTitle": "Desglose de Modelos (Fair Value Engine)",
+        "conservative": "Escenario Conservador",
+        "baseFairValue": "Escenario Base / Fair Value",
+        "optimistic": "Escenario Optimista",
+        "marginOfSafety": "Margen de Seguridad",
+        "buyZoneTitle": "Mi Zona de Compra"
+      },
+      "simplicity": {
+        "title": "Simplicidad",
+        "subtitle": "El ruido vs. la realidad",
+        "marketSaw": "Lo que el Mercado vio",
+        "nuvosReality": "La Realidad Nuvos AI",
+        "actionPlanTitle": "Plan de Acción Sugerido",
+        "profile": "Perfil recomendado",
+        "strategy": "Estrategia de entrada"
+      }
+    },
+    "actions": {
+      "followZone": "Seguir Zona de Compra",
+      "markInvestable": "Marcar como Invertible",
+      "markedInvestable": "En tu Watchlist",
+      "analyzeWithArthur": "Analizar con Arthur",
+      "analyzePrompt": "Analiza a {{ticker}} ({{companyName}}) usando la metodología QSTV de Nuvos."
+    },
+    "disclaimer": "Nuvos AI es una herramienta educativa. Este contenido se basa en supuestos de un modelo y no constituye una recomendación de compra o venta regulada."
+  },
   "patrimonio": {
     "header": {
       "eyebrow": "Mi dinero",

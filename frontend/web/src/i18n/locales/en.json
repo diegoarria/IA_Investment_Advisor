@@ -1288,6 +1288,78 @@
       }
     }
   },
+  "companyDiagnostic": {
+    "header": {
+      "scoreLabel": "{{score}}/100"
+    },
+    "kpi": {
+      "currentPrice": "Current Price",
+      "fairValue": "Nuvos Fair Value",
+      "marginOfSafety": "Margin of Safety"
+    },
+    "thermometer": {
+      "title": "Valuation Thermometer",
+      "priceToday": "Price Today",
+      "conservative": "Conservative",
+      "baseFairValue": "Fair Value",
+      "optimistic": "Optimistic",
+      "undervalued": "Undervalued",
+      "overvalued": "Overvalued",
+      "fair": "Fairly valued"
+    },
+    "pillars": {
+      "quality": {
+        "title": "Quality",
+        "subtitle": "The business and its moat",
+        "revenueBreakdown": "Revenue Breakdown",
+        "moatTitle": "Moat Strengths",
+        "competitorTitle": "Head-to-Head",
+        "vs": "vs.",
+        "conclusionLabel": "Nuvos Competitive Conclusion"
+      },
+      "trust": {
+        "title": "Trust",
+        "subtitle": "Financial health and integrity",
+        "longTermDebt": "Long-Term Debt",
+        "netCash": "Net Cash & Liquidity",
+        "roic": "ROIC",
+        "operatingMargin": "Operating Margin",
+        "netMargin": "Net Margin",
+        "operatingCashFlow": "Operating Cash Flow"
+      },
+      "value": {
+        "title": "Value",
+        "subtitle": "Valuation thermometer and scenarios",
+        "multiplesTitle": "Valuation Multiples",
+        "peCurrent": "Current P/E",
+        "peHistorical": "Historical P/E",
+        "evFcf": "EV/FCF",
+        "modelsTitle": "Model Breakdown (Fair Value Engine)",
+        "conservative": "Conservative Scenario",
+        "baseFairValue": "Base / Fair Value Scenario",
+        "optimistic": "Optimistic Scenario",
+        "marginOfSafety": "Margin of Safety",
+        "buyZoneTitle": "My Buy Zone"
+      },
+      "simplicity": {
+        "title": "Simplicity",
+        "subtitle": "Noise vs. reality",
+        "marketSaw": "What the Market Saw",
+        "nuvosReality": "The Nuvos AI Reality",
+        "actionPlanTitle": "Suggested Action Plan",
+        "profile": "Recommended profile",
+        "strategy": "Entry strategy"
+      }
+    },
+    "actions": {
+      "followZone": "Follow Buy Zone",
+      "markInvestable": "Mark as Investable",
+      "markedInvestable": "In your Watchlist",
+      "analyzeWithArthur": "Analyze with Arthur",
+      "analyzePrompt": "Analyze {{ticker}} ({{companyName}}) using Nuvos's QSTV methodology."
+    },
+    "disclaimer": "Nuvos AI is an educational tool. This content is based on model assumptions and is not a regulated buy/sell recommendation."
+  },
   "patrimonio": {
     "header": {
       "eyebrow": "My money",
