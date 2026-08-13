@@ -18,7 +18,7 @@ this engine's Growth+Quality+Value framework is not applied to them.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Optional
 
 from app.services.quality.quality_engine import compute_cagr_windows
@@ -36,7 +36,7 @@ from app.services.valuation.nuvos_engine.fcf_quality import compute_fcf_conversi
 from app.services.valuation.nuvos_engine.scenarios import build_scenarios, ScenarioSet
 from app.services.valuation.nuvos_engine.divergence import explain_divergence, DivergenceExplanation
 from app.services.valuation.nuvos_engine.reality_gate import run_reality_gate, RealityGateResult
-from app.services.valuation.confidence_engine import compute_confidence_meter_v4
+from app.services.valuation.confidence_engine import compute_confidence_meter_v4, compute_uncertainty_profile
 
 _DEFAULT_MIN_CONFIDENCE_SCORE = 35.0  # matches undervalued_screener_service.py's existing _MIN_CONFIDENCE_SCORE gate
 
@@ -55,6 +55,7 @@ class NuvosFairValueResult:
     reality_gate: Optional[RealityGateResult] = None
     divergence: Optional[DivergenceExplanation] = None
     confidence_meter: Optional[dict] = None
+    uncertainty_profile: Optional[dict] = None
     provenance: Optional[ProvenanceLedger] = None
     insufficient_data_reason: Optional[str] = None
 
@@ -229,13 +230,30 @@ def compute_nuvos_fair_value(
         reality_gate_pass_rate=reality_gate.pass_rate,
     )
 
+    uncertainty_profile = asdict(compute_uncertainty_profile(
+        predictability_score=predictability_score,
+        years_available=years_available,
+        fair_value_range={
+            "base": scenarios.base.fair_value_per_share if scenarios else None,
+            "low": scenarios.bear.fair_value_per_share if scenarios else None,
+            "high": scenarios.bull.fair_value_per_share if scenarios else None,
+        },
+        business_quality_score=business_quality_score,
+        financial_statement_quality_score=financial_statement_quality_score,
+        classification_confidence=classification.confidence,
+        provenance_completeness=ledger.completeness_pct,
+        divergence_explained=divergence.explained if divergence.material else True,
+        reality_gate_pass_rate=reality_gate.pass_rate,
+    ))
+
     confidence_score = confidence_meter["score"] if confidence_meter else 0
     if scenarios is None:
         return NuvosFairValueResult(
             status="insufficient_data",
             classification=classification, earnings_state=earnings_state, growth_quality=growth_quality,
             fair_pe=fair_pe_result, peg=peg, pegy=pegy, fcf_quality=fcf_quality_result,
-            reality_gate=reality_gate, divergence=divergence, confidence_meter=confidence_meter, provenance=ledger,
+            reality_gate=reality_gate, divergence=divergence, confidence_meter=confidence_meter,
+            uncertainty_profile=uncertainty_profile, provenance=ledger,
             insufficient_data_reason="No hay un EPS normalizado ni reportado positivo disponible — no se puede construir un Fair Value confiable.",
         )
     if not reality_gate.overall_pass or confidence_score < min_confidence_score:
@@ -246,7 +264,7 @@ def compute_nuvos_fair_value(
             classification=classification, earnings_state=earnings_state, growth_quality=growth_quality,
             fair_pe=fair_pe_result, peg=peg, pegy=pegy, fcf_quality=fcf_quality_result,
             scenarios=scenarios, reality_gate=reality_gate, divergence=divergence,
-            confidence_meter=confidence_meter, provenance=ledger,
+            confidence_meter=confidence_meter, uncertainty_profile=uncertainty_profile, provenance=ledger,
             insufficient_data_reason=reason,
         )
 
@@ -255,7 +273,7 @@ def compute_nuvos_fair_value(
         classification=classification, earnings_state=earnings_state, growth_quality=growth_quality,
         fair_pe=fair_pe_result, peg=peg, pegy=pegy, fcf_quality=fcf_quality_result,
         scenarios=scenarios, reality_gate=reality_gate, divergence=divergence,
-        confidence_meter=confidence_meter, provenance=ledger,
+        confidence_meter=confidence_meter, uncertainty_profile=uncertainty_profile, provenance=ledger,
     )
 
 

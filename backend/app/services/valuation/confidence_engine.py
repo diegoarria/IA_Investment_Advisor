@@ -37,6 +37,7 @@ Historical vs. the new engine) and the mechanism already works.
 from __future__ import annotations
 
 import statistics
+from dataclasses import dataclass, field
 from typing import Optional
 
 from app.services.valuation.numeric_helpers import _score, weighted_mean
@@ -282,6 +283,143 @@ def compute_confidence_meter_v4(
     else: label = "Especulativo — rango amplio de incertidumbre"
     stars = max(1, min(5, round(score / 20)))
     return {"score": int(score), "label": label, "stars": stars, "dispersion_source": dispersion_source}
+
+
+def _trust_label(score: float) -> str:
+    if score >= 85: return "Alta confianza"
+    if score >= 65: return "Confianza moderada"
+    if score >= 45: return "Confianza baja"
+    return "Especulativo — rango amplio de incertidumbre"
+
+
+def _quality_label(score: float) -> str:
+    if score >= 80: return "Negocio de alta calidad"
+    if score >= 60: return "Calidad sólida"
+    if score >= 40: return "Calidad moderada"
+    return "Calidad débil"
+
+
+@dataclass
+class ConfidenceBucket:
+    score: Optional[float]
+    label: str
+    factors: list[str] = field(default_factory=list)
+
+
+@dataclass
+class UncertaintyProfile:
+    data_confidence: Optional[ConfidenceBucket]
+    valuation_confidence: Optional[ConfidenceBucket]
+    business_quality: Optional[ConfidenceBucket]
+
+
+def compute_uncertainty_profile(
+    *,
+    predictability_score: Optional[float],
+    years_available: int,
+    fair_value_range: dict,
+    business_quality_score: Optional[float] = None,
+    financial_statement_quality_score: Optional[float] = None,
+    method_values: Optional[list[Optional[float]]] = None,
+    classification_confidence: Optional[float] = None,
+    provenance_completeness: Optional[float] = None,
+    divergence_explained: Optional[bool] = None,
+    reality_gate_pass_rate: Optional[float] = None,
+) -> UncertaintyProfile:
+    """Nuvos Fair Value Engine V2, Phase 3 (2026-08-13) — decomposes the
+    same real, already-computed intermediate signals `compute_confidence_
+    meter_v3`/`v4` blend into ONE opaque score into 3 separate, explainable
+    buckets (Data Confidence / Valuation Confidence / Business Quality),
+    per the V2 spec's §23 Uncertainty Engine. Deliberately does NOT touch
+    `confidence_meter`'s own score/label/stars — this is a READ of the
+    same inputs, not a replacement; every ticker's existing confidence_
+    meter output stays byte-identical.
+
+    `completeness`/`agreement`/`divergence_component` are recomputed here
+    with the exact same formulas `compute_confidence_meter_v4` uses (same
+    `compute_cross_method_spread_pct` dispersion-source logic), so this
+    profile's numbers are consistent with, not a second disagreeing
+    measurement of, the blended score's own inputs.
+
+    Investment Attractiveness (the spec's 4th dimension) is deliberately
+    OUT of scope — it doesn't exist as a real signal anywhere in this
+    codebase today, and building one now would require inventing a new
+    formula (discount-to-fair-value × quality) that risks reading as
+    investment advice, which conflicts with Nuvos's standing "never
+    prescriptive, educational only" rule. See
+    /Users/diegoarria/.claude/plans/cosmic-munching-crown.md.
+
+    Deliberately excludes financial_strength_score/liquidity_ok/
+    management_consistency_score — none of them is cleanly Data/
+    Valuation/Business-Quality as those terms are already used elsewhere
+    in this codebase (financial strength already has its own real signal,
+    `checklist_evidence.financial_strength`); folding them in here would
+    be a new, undisclosed blend rather than a decomposition."""
+    completeness = min(100, round(years_available / 10 * 100))
+
+    cross_method_dispersion = compute_cross_method_spread_pct(method_values) if method_values else None
+    if cross_method_dispersion is not None:
+        dispersion_pct = cross_method_dispersion
+    else:
+        base, low, high = fair_value_range.get("base"), fair_value_range.get("low"), fair_value_range.get("high")
+        dispersion_pct = min(100, abs(high - low) / base * 100) if base and low is not None and high is not None and base > 0 else 50.0
+    agreement = 100 - dispersion_pct
+    divergence_component = None if divergence_explained is None else (100.0 if divergence_explained else 40.0)
+
+    data_score = weighted_mean([
+        (float(completeness), 0.444),
+        (financial_statement_quality_score, 0.296),
+        (provenance_completeness, 0.259),
+    ])
+    data_factors = [f"Años de datos reales: {years_available}/10"]
+    if financial_statement_quality_score is not None:
+        data_factors.append(f"Calidad de estados financieros: {financial_statement_quality_score:.0f}/100")
+    if provenance_completeness is not None:
+        data_factors.append(f"Trazabilidad de datos: {provenance_completeness:.0f}/100")
+    data_score_rounded = round(data_score) if data_score is not None else None
+    data_confidence = ConfidenceBucket(
+        score=data_score_rounded,
+        label=_trust_label(data_score_rounded) if data_score_rounded is not None else "Sin datos suficientes",
+        factors=data_factors,
+    )
+
+    valuation_confidence: Optional[ConfidenceBucket] = None
+    if predictability_score is not None:
+        valuation_score = weighted_mean([
+            (predictability_score, 0.16),
+            (agreement, 0.12),
+            (classification_confidence, 0.07),
+            (divergence_component, 0.03),
+            (reality_gate_pass_rate, 0.03),
+        ])
+        valuation_factors = [
+            f"Predictibilidad (estabilidad de FCF/ROIC): {predictability_score:.0f}/100",
+            f"Coherencia entre escenarios Bear/Base/Bull: {agreement:.0f}/100",
+        ]
+        if classification_confidence is not None:
+            valuation_factors.append(f"Confianza en la clasificación del negocio: {classification_confidence:.0f}/100")
+        if reality_gate_pass_rate is not None:
+            valuation_factors.append(f"Verificaciones de sanidad aprobadas: {reality_gate_pass_rate:.0f}/100")
+        valuation_score_rounded = round(valuation_score) if valuation_score is not None else None
+        valuation_confidence = ConfidenceBucket(
+            score=valuation_score_rounded,
+            label=_trust_label(valuation_score_rounded) if valuation_score_rounded is not None else "Sin datos suficientes",
+            factors=valuation_factors,
+        )
+
+    business_quality: Optional[ConfidenceBucket] = None
+    if business_quality_score is not None:
+        business_quality = ConfidenceBucket(
+            score=business_quality_score,
+            label=_quality_label(business_quality_score),
+            factors=[f"Calidad del negocio (ROIC, márgenes, crecimiento): {business_quality_score:.0f}/100"],
+        )
+
+    return UncertaintyProfile(
+        data_confidence=data_confidence,
+        valuation_confidence=valuation_confidence,
+        business_quality=business_quality,
+    )
 
 
 # ── v1 functions (Fase 1, Incremento 7 — Parte I: relocated verbatim from

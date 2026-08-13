@@ -38,7 +38,7 @@ from app.services.valuation.reverse_dcf_engine import (
     sanity_check_reverse_dcf,
 )
 from app.services.valuation.confidence_engine import (
-    _confidence_score, compute_confidence_meter_v3,
+    _confidence_score, compute_confidence_meter_v3, compute_uncertainty_profile,
     compute_financial_statement_quality_score, compute_management_consistency_score,
 )
 from app.services.quality.capital_allocation_engine import evaluate_dividend_consistency, evaluate_reinvestment_quality
@@ -1246,6 +1246,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 "reality_gate": asdict(gqv_result.reality_gate) if gqv_result.reality_gate else None,
                 "divergence": asdict(gqv_result.divergence) if gqv_result.divergence else None,
                 "confidence_meter": gqv_result.confidence_meter,
+                "uncertainty_profile": gqv_result.uncertainty_profile,
                 "data_provenance": {k: asdict(v) for k, v in (gqv_result.provenance.points if gqv_result.provenance else {}).items()},
                 "insufficient_data_reason": gqv_result.insufficient_data_reason,
             }
@@ -2535,6 +2536,17 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             financial_statement_quality_score=financial_statement_quality_score,
             management_consistency_score=management_consistency_score,
         )
+        # Phase 3 (2026-08-13) — decomposes the same inputs above into
+        # separate Data/Valuation/Business-Quality confidence buckets
+        # instead of one blended score; see confidence_engine.py's
+        # compute_uncertainty_profile docstring. Purely additive — does
+        # not change confidence_meter's own score/label/stars.
+        dcf["uncertainty_profile"] = asdict(compute_uncertainty_profile(
+            predictability_score=dcf.get("confidence_score"), years_available=n,
+            fair_value_range=dcf.get("fair_value_range") or {},
+            business_quality_score=business_quality_score,
+            financial_statement_quality_score=financial_statement_quality_score,
+        ))
 
         # Nuvos Fair Value Engine (Growth + Quality + Value) — see
         # _attach_gqv_fair_value's own docstring above. Rich call site: every

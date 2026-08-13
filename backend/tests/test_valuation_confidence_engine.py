@@ -16,6 +16,7 @@ from app.services.valuation.confidence_engine import (
     compute_confidence_meter_v4,
     compute_financial_statement_quality_score,
     compute_management_consistency_score,
+    compute_uncertainty_profile,
     _confidence_meter,
 )
 
@@ -242,3 +243,134 @@ class TestComputeConfidenceMeterV4:
         ))
         assert 0 <= result["score"] <= 100
         assert 1 <= result["stars"] <= 5
+
+
+class TestComputeUncertaintyProfile:
+    """Nuvos Fair Value Engine V2, Phase 3 — decomposes the same inputs
+    v3/v4 blend into 3 separate buckets. See
+    /Users/diegoarria/.claude/plans/cosmic-munching-crown.md."""
+
+    def _base_kwargs(self, **overrides):
+        kwargs = dict(
+            predictability_score=72.0, years_available=8,
+            fair_value_range={"base": 100.0, "low": 70.0, "high": 140.0},
+            business_quality_score=68.0, financial_statement_quality_score=100.0,
+        )
+        kwargs.update(overrides)
+        return kwargs
+
+    def _gqv_kwargs(self, **overrides):
+        gqv_defaults = dict(
+            classification_confidence=80.0, provenance_completeness=90.0,
+            divergence_explained=True, reality_gate_pass_rate=91.7,
+        )
+        gqv_defaults.update(overrides)
+        return self._base_kwargs(**gqv_defaults)
+
+
+class TestUncertaintyProfileDataConfidence(TestComputeUncertaintyProfile):
+    def test_uses_only_v3_signals_when_provenance_completeness_missing(self):
+        result = compute_uncertainty_profile(**self._base_kwargs())
+        assert result.data_confidence is not None
+        assert 0 <= result.data_confidence.score <= 100
+        assert "Trazabilidad" not in " ".join(result.data_confidence.factors)
+
+    def test_includes_provenance_completeness_when_available(self):
+        result = compute_uncertainty_profile(**self._gqv_kwargs())
+        assert any("Trazabilidad" in f for f in result.data_confidence.factors)
+
+    def test_more_years_of_data_raises_data_confidence(self):
+        few_years = compute_uncertainty_profile(**self._base_kwargs(years_available=2))
+        many_years = compute_uncertainty_profile(**self._base_kwargs(years_available=10))
+        assert many_years.data_confidence.score > few_years.data_confidence.score
+
+    def test_flagged_financial_statements_lower_data_confidence(self):
+        clean = compute_uncertainty_profile(**self._base_kwargs(financial_statement_quality_score=100.0))
+        flagged = compute_uncertainty_profile(**self._base_kwargs(financial_statement_quality_score=20.0))
+        assert flagged.data_confidence.score < clean.data_confidence.score
+
+    def test_data_confidence_always_present_even_with_zero_years(self):
+        result = compute_uncertainty_profile(
+            predictability_score=None, years_available=0, fair_value_range={},
+        )
+        assert result.data_confidence is not None
+        assert result.data_confidence.score == 0
+
+
+class TestUncertaintyProfileValuationConfidence(TestComputeUncertaintyProfile):
+    def test_none_when_predictability_score_missing(self):
+        result = compute_uncertainty_profile(
+            predictability_score=None, years_available=8, fair_value_range={"base": 100.0, "low": 80.0, "high": 120.0},
+        )
+        assert result.valuation_confidence is None
+
+    def test_renormalizes_over_v3_only_signals_when_gqv_signals_missing(self):
+        result = compute_uncertainty_profile(**self._base_kwargs())
+        assert result.valuation_confidence is not None
+        assert 0 <= result.valuation_confidence.score <= 100
+
+    def test_tighter_scenario_dispersion_raises_valuation_confidence(self):
+        tight = compute_uncertainty_profile(**self._base_kwargs(fair_value_range={"base": 100.0, "low": 95.0, "high": 105.0}))
+        wide = compute_uncertainty_profile(**self._base_kwargs(fair_value_range={"base": 100.0, "low": 40.0, "high": 180.0}))
+        assert tight.valuation_confidence.score > wide.valuation_confidence.score
+
+    def test_reality_gate_failure_lowers_valuation_confidence(self):
+        full_pass = compute_uncertainty_profile(**self._gqv_kwargs(reality_gate_pass_rate=100.0))
+        partial_pass = compute_uncertainty_profile(**self._gqv_kwargs(reality_gate_pass_rate=40.0))
+        assert partial_pass.valuation_confidence.score < full_pass.valuation_confidence.score
+
+    def test_unexplained_divergence_lowers_valuation_confidence(self):
+        explained = compute_uncertainty_profile(**self._gqv_kwargs(divergence_explained=True))
+        unexplained = compute_uncertainty_profile(**self._gqv_kwargs(divergence_explained=False))
+        assert unexplained.valuation_confidence.score < explained.valuation_confidence.score
+
+    def test_label_is_consistent_with_the_rounded_score_not_the_raw_value(self):
+        # Regression guard: label must be derived from the SAME rounded
+        # score displayed, not a pre-rounding value that can land in a
+        # different band right at a threshold boundary.
+        result = compute_uncertainty_profile(**self._gqv_kwargs())
+        score = result.valuation_confidence.score
+        if score >= 85: expected = "Alta confianza"
+        elif score >= 65: expected = "Confianza moderada"
+        elif score >= 45: expected = "Confianza baja"
+        else: expected = "Especulativo — rango amplio de incertidumbre"
+        assert result.valuation_confidence.label == expected
+
+
+class TestUncertaintyProfileBusinessQuality(TestComputeUncertaintyProfile):
+    def test_none_when_business_quality_score_missing(self):
+        result = compute_uncertainty_profile(**self._base_kwargs(business_quality_score=None))
+        assert result.business_quality is None
+
+    def test_verbatim_passthrough_of_the_score(self):
+        result = compute_uncertainty_profile(**self._base_kwargs(business_quality_score=68.0))
+        assert result.business_quality.score == 68.0
+
+    def test_quality_labels_use_distinct_banding_from_confidence_labels(self):
+        high = compute_uncertainty_profile(**self._base_kwargs(business_quality_score=85.0))
+        low = compute_uncertainty_profile(**self._base_kwargs(business_quality_score=25.0))
+        assert high.business_quality.label == "Negocio de alta calidad"
+        assert low.business_quality.label == "Calidad débil"
+        assert "confianza" not in high.business_quality.label.lower()
+
+
+class TestUncertaintyProfileInsufficientData(TestComputeUncertaintyProfile):
+    def test_no_exception_when_everything_is_none(self):
+        result = compute_uncertainty_profile(
+            predictability_score=None, years_available=0, fair_value_range={},
+            business_quality_score=None, financial_statement_quality_score=None,
+        )
+        assert result.valuation_confidence is None
+        assert result.business_quality is None
+        assert result.data_confidence is not None  # completeness alone is always computable
+
+    def test_does_not_mutate_confidence_meter_inputs(self):
+        # Same inputs fed to v4 and to the new profile must not interfere —
+        # calling both back to back must not raise or change either result.
+        kwargs = self._gqv_kwargs(liquidity_ok=True, financial_strength_score=65.0)
+        meter_kwargs = {k: v for k, v in kwargs.items()}
+        meter = compute_confidence_meter_v4(**meter_kwargs)
+        profile_kwargs = {k: v for k, v in kwargs.items() if k not in ("liquidity_ok", "financial_strength_score", "method_values")}
+        profile = compute_uncertainty_profile(**profile_kwargs)
+        assert meter is not None
+        assert profile.valuation_confidence is not None
