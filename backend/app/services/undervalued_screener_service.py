@@ -34,6 +34,16 @@ from app.core.cache import cache_set, cache_get_with_ts
 
 logger = logging.getLogger(__name__)
 
+# v4 — bumped for Nuvos Fair Value Engine V2 Phases 1-4 (2026-08-12/13, see
+# /Users/diegoarria/.claude/plans/cosmic-munching-crown.md): Phase 1 changed
+# REAL fair-value outputs for real tickers (structural earnings states now
+# reclassify several companies from "elevated" to "structurally_elevated",
+# changing `high_growth_years`/moat duration and the resulting Bear/Base/
+# Bull scenarios — e.g. MELI, TDG, FICO, WMT, META); Phases 2-4 added new
+# fields entirely absent from any older cached entry (`business_economics`,
+# `uncertainty_profile`, `outlier_flags`). A v3 entry has none of this —
+# without this bump, Oportunidades keeps serving pre-Phase-1 fair values and
+# is missing every Phase 2-4 field for up to 8 more days (this cache's TTL).
 # v2 — bumped for the Nuvos Fair Value Engine (Growth + Quality + Value)
 # becoming PRIMARY over the DCF (see /Users/diegoarria/.claude/plans/
 # cosmic-munching-crown.md): `_build_candidate` now sources
@@ -42,7 +52,7 @@ logger = logging.getLogger(__name__)
 # scenarios unconditionally. A v1 cache entry was built by the old logic —
 # without this bump, Oportunidades keeps serving DCF-only candidates for up
 # to 8 more days (this cache's TTL) after the code changed.
-CACHE_KEY = "undervalued_screener:v3"
+CACHE_KEY = "undervalued_screener:v4"
 CACHE_TTL = 8 * 24 * 3600      # slightly over a week — one missed weekly run doesn't go stale/empty
 BOOTSTRAP_TTL = 24 * 3600      # short-lived — the next full weekly/startup refresh supersedes this
 _BOOTSTRAP_LIMIT = 44          # small subset so a cold-cache request stays reasonably fast — ~4 per GICS sector via _diverse_bootstrap_sample, now that UNIVERSE is the full S&P 500 (bumped from 20, which was fine for the old ~183-ticker curated list but too thin for real sector spread here)

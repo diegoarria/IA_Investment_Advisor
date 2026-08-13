@@ -971,6 +971,17 @@ _QUICK_ANALYSIS_CACHE_TTL = 90 * 24 * 3600  # 3 months — a ceiling, not the re
 
 
 def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
+    # v9 — bumped for Nuvos Fair Value Engine V2 Phases 1-4 (2026-08-12/13,
+    # see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md): Phase 1
+    # changed REAL fair-value outputs for real tickers (structural earnings
+    # states now reclassify several companies from "elevated" to
+    # "structurally_elevated", changing `high_growth_years`/moat duration
+    # and the resulting Bear/Base/Bull scenarios); Phases 2-4 added new
+    # fields entirely absent from any older cached entry
+    # (`business_economics`, `uncertainty_profile`, `outlier_flags`). A v8
+    # entry has none of this — without this bump, previously-viewed tickers
+    # keep serving pre-Phase-1 fair values and are missing every Phase 2-4
+    # field for up to 90 more days.
     # v7 — bumped for the Nuvos Fair Value Engine (Growth + Quality + Value)
     # becoming PRIMARY over the DCF (see /Users/diegoarria/.claude/plans/
     # cosmic-munching-crown.md and the methodology audit that followed it):
@@ -1019,7 +1030,7 @@ def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
     # the "summary"/"blurb" schema's hardcoded "español" instruction was
     # fixed (it silently overrode the top-level language directive) doesn't
     # keep serving Spanish text under an English UI for its remaining TTL.
-    return f"quick_analysis:v8:{lang}:{ticker}"
+    return f"quick_analysis:v9:{lang}:{ticker}"
 
 
 async def _build_quick_analysis(ticker: str, lang: str) -> dict:
@@ -1581,6 +1592,11 @@ _NIF_DASHBOARD_CACHE_TTL = _QUICK_ANALYSIS_CACHE_TTL  # same ceiling philosophy 
 
 
 def _nif_dashboard_cache_key(ticker: str, lang: str) -> str:
+    # v5 — same reason as _quick_analysis_cache_key's v9 bump: the Valuation
+    # pillar/Confidence Score both derive from nuvos_fair_value, which Nuvos
+    # Fair Value Engine V2 Phases 1-4 changed (real reclassifications from
+    # Phase 1, new business_economics/uncertainty_profile/outlier_flags
+    # fields from Phases 2-4).
     # v4 — same reason as _quick_analysis_cache_key's v6 bump: the Valuation
     # pillar/Confidence Score both derive from nuvos_fair_value, which the
     # avg_roic recency-weighting fix changed (sometimes from None to a real
@@ -1592,7 +1608,7 @@ def _nif_dashboard_cache_key(ticker: str, lang: str) -> str:
     # v2 — same reason as _quick_analysis_cache_key's v3 bump: the NIF
     # dashboard's Valuation pillar and Confidence Score both derive from
     # the DCF the Nuvos AI Fair Value Engine redesign rewrote end to end.
-    return f"nif_dashboard:v4:{lang}:{ticker}"
+    return f"nif_dashboard:v5:{lang}:{ticker}"
 
 
 @router.get("/nif-dashboard")
