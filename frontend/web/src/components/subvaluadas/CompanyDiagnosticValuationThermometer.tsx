@@ -12,7 +12,7 @@
 
 import { useTranslation } from "react-i18next";
 import { fmtPrice } from "@/lib/types/stock";
-import { _SCENARIO_COLOR, _valuationStatus, _VERDICT_COLOR, _VERDICT_EMOJI } from "@/components/subvaluadas/shared";
+import { _SCENARIO_COLOR } from "@/components/subvaluadas/shared";
 import type { ValuationScenarios } from "@/lib/types/companyDiagnostic";
 
 export function CompanyDiagnosticValuationThermometer({ scenarios }: { scenarios: ValuationScenarios }) {
@@ -33,44 +33,29 @@ export function CompanyDiagnosticValuationThermometer({ scenarios }: { scenarios
     { key: "optimistic", label: t("companyDiagnostic.thermometer.optimistic"), value: optimistic, color: _SCENARIO_COLOR.bull },
   ];
 
-  const status = _valuationStatus(baseFairValue, currentPrice);
-
   return (
     <div className="mt-2">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
-          {t("companyDiagnostic.thermometer.title")}
-        </p>
-        {status && (
-          <span className="flex items-center gap-1 text-[11px] font-bold" style={{ color: _VERDICT_COLOR[status.verdict] }}>
-            {_VERDICT_EMOJI[status.verdict]}
-            {status.verdict === "undervalued"
-              ? t("companyDiagnostic.thermometer.undervalued")
-              : status.verdict === "overvalued"
-                ? t("companyDiagnostic.thermometer.overvalued")
-                : t("companyDiagnostic.thermometer.fair")}
-            {" "}({status.pct.toFixed(1)}%)
-          </span>
-        )}
-      </div>
+      <p className="text-[13px] font-bold uppercase tracking-wide mb-3" style={{ color: "var(--muted)" }}>
+        {t("companyDiagnostic.thermometer.title")}
+      </p>
 
-      <div className="relative mt-6 mb-12">
+      <div className="relative mt-7 mb-14">
         <div
-          className="h-2 rounded-full"
+          className="h-2.5 rounded-full"
           style={{ background: `linear-gradient(90deg, ${_SCENARIO_COLOR.bear}, ${_SCENARIO_COLOR.base}, ${_SCENARIO_COLOR.bull})` }}
         />
         {markers.map((m) => (
           <div key={m.key} className="absolute top-0 -translate-x-1/2 flex flex-col items-center" style={{ left: `${pctOf(m.value)}%` }}>
-            <div className="w-0.5 h-2 rounded-full" style={{ background: "rgba(0,0,0,0.25)" }} />
-            <p className="text-[9px] font-bold whitespace-nowrap mt-1" style={{ color: "var(--muted)" }}>{m.label}</p>
-            <p className="text-[10px] font-black tabular-nums whitespace-nowrap" style={{ color: "var(--text)" }}>{fmtPrice(m.value)}</p>
+            <div className="w-0.5 h-2.5 rounded-full" style={{ background: "rgba(0,0,0,0.25)" }} />
+            <p className="text-[12px] font-bold whitespace-nowrap mt-1.5" style={{ color: "var(--muted)" }}>{m.label}</p>
+            <p className="text-[13px] font-black tabular-nums whitespace-nowrap" style={{ color: "var(--text)" }}>{fmtPrice(m.value)}</p>
           </div>
         ))}
-        <div className="absolute -top-6 -translate-x-1/2 flex flex-col items-center" style={{ left: `${pctOf(currentPrice)}%` }}>
-          <span className="text-[10px] font-black tabular-nums rounded-full px-2 py-0.5 whitespace-nowrap" style={{ background: "var(--text)", color: "var(--card)" }}>
+        <div className="absolute -top-7 -translate-x-1/2 flex flex-col items-center" style={{ left: `${pctOf(currentPrice)}%` }}>
+          <span className="text-[13px] font-black tabular-nums rounded-full px-2.5 py-1 whitespace-nowrap" style={{ background: "var(--text)", color: "var(--card)" }}>
             {t("companyDiagnostic.thermometer.priceToday")} {fmtPrice(currentPrice)}
           </span>
-          <div className="w-0.5 h-3" style={{ background: "var(--text)" }} />
+          <div className="w-0.5 h-3.5" style={{ background: "var(--text)" }} />
         </div>
       </div>
     </div>

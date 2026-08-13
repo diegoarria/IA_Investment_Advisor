@@ -9,7 +9,7 @@ import { mockCopartData } from "@/lib/types/companyDiagnostic";
 
 export default function CompanyDiagnosticDevPage() {
   return (
-    <div className="min-h-screen" style={{ background: "var(--bg)" }}>
+    <div className="h-screen overflow-y-auto" style={{ background: "var(--bg)" }}>
       <div className="max-w-[720px] mx-auto px-4 py-6 sm:px-6">
         <CompanyDiagnosticCard data={mockCopartData} />
       </div>

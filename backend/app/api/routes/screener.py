@@ -1666,6 +1666,97 @@ async def nif_dashboard(query: str, lang: str | None = None, user_id: str = Depe
     return _with_live_price(result, ticker)
 
 
+_COMPANY_DIAGNOSTIC_CACHE_TTL = _QUICK_ANALYSIS_CACHE_TTL  # same 90-day ceiling philosophy
+
+
+def _company_diagnostic_cache_key(ticker: str, lang: str) -> str:
+    return f"company_diagnostic:v1:{lang}:{ticker}"
+
+
+@router.get("/company-diagnostic")
+async def company_diagnostic(query: str, lang: str | None = None, user_id: str = Depends(get_current_user_id)):
+    """CompanyDiagnosticCard's real-data backing (see /Users/diegoarria/
+    .claude/plans/cosmic-munching-crown.md) — real deterministic scores/
+    badges/moat-points/competitor-comparison from `company_diagnostic_
+    service.py`, plus ONE new on-demand AI call (`ai_service.generate_
+    company_diagnostic_narrative`) for the thesis/noise-vs-reality/action-
+    plan narrative fields.
+
+    Premium-only, same reasoning as /nif-dashboard: this endpoint is called
+    in parallel with /quick-analysis for the same search, and gating it
+    behind Premium (rather than the free-tier weekly-search counter) avoids
+    decrementing that counter twice for what the user experiences as one
+    search action.
+
+    Cached per (ticker, lang) for up to 90 days, same earnings-period
+    freshness re-check as /quick-analysis and /nif-dashboard — this is a
+    genuinely on-demand endpoint, never called from the weekly full-universe
+    screener refresh (see company_diagnostic_service.py's own docstring for
+    the cost reasoning)."""
+    from app.api.routes.chat import _is_premium
+    profile = await _get_user_profile_safe(user_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
+    if not _is_premium(profile):
+        raise HTTPException(status_code=403, detail={
+            "code": "premium_required",
+            "message": "La Ficha de Diagnóstico Nuvos AI es exclusiva para Premium.",
+        })
+
+    if not query or not query.strip():
+        raise HTTPException(status_code=400, detail="Escribe un ticker o nombre de empresa")
+
+    if lang not in ("es", "en"):
+        lang = getattr(profile, "preferred_language", None) or "es"
+
+    ticker = await asyncio.to_thread(_resolve_quick_ticker, query)
+    if not ticker:
+        raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
+
+    cache_key = _company_diagnostic_cache_key(ticker, lang)
+    cached = cache_get(cache_key)
+    if cached:
+        current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
+        cached_period = cached.get("_earnings_period")
+        if not current_period or current_period == cached_period:
+            return cached
+
+    from app.services.fundamental_analysis_service import get_fundamental_analysis
+    from app.services.company_diagnostic_service import build_company_diagnostic
+    from app.services.ai_service import generate_company_diagnostic_narrative
+
+    data = await asyncio.to_thread(get_fundamental_analysis, ticker)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para diagnosticar {ticker}")
+
+    diagnostic = await asyncio.to_thread(build_company_diagnostic, ticker, data)
+    if not diagnostic:
+        raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para diagnosticar {ticker}")
+
+    narrative = None
+    try:
+        narrative = await generate_company_diagnostic_narrative(
+            data=data, diagnostic=diagnostic, lang=lang, user_id=user_id,
+        )
+    except Exception as exc:
+        logger.warning("company_diagnostic(%s): narrative generation failed: %s", ticker, exc)
+    if narrative:
+        diagnostic["investmentThesis"] = narrative.get("investmentThesis")
+        diagnostic["noiseVsReality"] = narrative.get("noiseVsReality")
+        diagnostic["actionPlan"] = narrative.get("actionPlan")
+    else:
+        # Never a fabricated placeholder — omit the narrative fields
+        # entirely (the frontend must treat them as optional) rather than
+        # show fake text when the AI call failed.
+        diagnostic["investmentThesis"] = None
+        diagnostic["noiseVsReality"] = None
+        diagnostic["actionPlan"] = None
+
+    diagnostic["_earnings_period"] = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
+    cache_set(cache_key, diagnostic, _COMPANY_DIAGNOSTIC_CACHE_TTL)
+    return diagnostic
+
+
 def _log_thesis_event(user_id: str, ticker: str, result: dict) -> None:
     """Investment Graph — every time a user views this ticker's valuation
     (whether freshly computed or served from cache), it's logged as a

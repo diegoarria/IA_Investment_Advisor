@@ -457,6 +457,8 @@ export const screenerApi = {
     api.get("/api/market/screener/quick-analysis", { params: { query, lang }, timeout: 25000 }),
   nifDashboard: (query: string, lang?: string) =>
     api.get("/api/market/screener/nif-dashboard", { params: { query, lang }, timeout: 25000 }),
+  companyDiagnostic: (query: string, lang?: string) =>
+    api.get("/api/market/screener/company-diagnostic", { params: { query, lang }, timeout: 25000 }),
   getValuationBacktest: () => api.get("/api/market/screener/valuation-backtest"),
 };
 

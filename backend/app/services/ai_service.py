@@ -3175,6 +3175,77 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown fuera del JSON, sin texto
     }
 
 
+async def generate_company_diagnostic_narrative(data: dict, diagnostic: dict, lang: str = "es", user_id: Optional[str] = None) -> Optional[dict]:
+    """CompanyDiagnosticCard's ONE new AI call (see /Users/diegoarria/
+    .claude/plans/cosmic-munching-crown.md) — everything else in the card
+    (scores, badges, moat points, competitor comparison) is deterministic,
+    computed by `company_diagnostic_service.py`. This call only produces
+    the 3 fields that genuinely need synthesis across many real signals:
+    a short investment-thesis paragraph, a "what the market reacted to vs.
+    Nuvos's structural read" contrast, and an educational (never
+    prescriptive) action-plan note.
+
+    `actionPlan.strategy` is explicitly instructed below to describe fit,
+    never an imperative buy/sell instruction ("compra en 2 tramos") — per
+    Diego's own explicit choice when this feature was scoped, to keep this
+    field consistent with Nuvos's "never an investment advisor" rule.
+
+    Haiku-tier, same cost class as `generate_quick_valuation_summary`.
+    Calls `log_llm_usage()` explicitly (unlike that function and
+    `generate_candidate_blurb`, which don't) — this is new, on-demand,
+    per-ticker-view cost surface with no existing budget cap anywhere in
+    this codebase, so it must be visible in `/admin/llm-usage` from day
+    one, not silently invisible like the two existing narrative calls.
+
+    Returns None (never fabricated placeholder text) if the model's JSON
+    doesn't parse — the caller must omit these 3 fields rather than show
+    fake narrative."""
+    from app.services.fundamental_analysis_service import format_fundamental_analysis_for_prompt
+
+    data_block = format_fundamental_analysis_for_prompt(data)
+    moat_points_block = "\n".join(f"- {p}" for p in diagnostic.get("moatPoints") or [])
+    ticker = data.get("ticker", diagnostic.get("ticker"))
+    company_name = data.get("company_name", diagnostic.get("companyName", ticker))
+
+    prompt = f"""{_output_language_directive(lang)}Aquí tienes datos financieros y de valoración REALES y ya calculados de {company_name} ({ticker}):
+
+{data_block}
+
+Puntos reales de foso competitivo (moat), ya calculados:
+{moat_points_block or "(sin señal de moat clara en los datos disponibles)"}
+
+Score general Nuvos: {diagnostic.get("score")}/100 ({diagnostic.get("scoreLabel")})
+Margen de seguridad real vs. valor intrínseco base: {diagnostic.get("valuation", {}).get("marginOfSafetyPercent")}%
+
+Escribe 3 piezas de texto, basadas ÚNICAMENTE en las cifras reales de arriba — nunca inventes números, nunca digas Comprar/No comprar/Mantener:
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después):
+{{
+  "investmentThesis": "<3-5 oraciones EN EL IDIOMA INDICADO ARRIBA sintetizando la tesis de inversión completa: el foso competitivo, la salud financiera, y por qué el negocio (o no) es una máquina de crecimiento compuesto. Cita cifras reales exactas del bloque de arriba (nunca inventadas).>",
+  "noiseVsReality": {{
+    "marketSaw": "<1-2 oraciones: qué explica la volatilidad o caída reciente del precio según los datos disponibles (ciclo, sector, resultados) — nunca inventado, basado en el estado de ganancias real si está disponible>",
+    "nuvosReality": "<1-2 oraciones: si esa caída/volatilidad parece temporal/cíclica o un problema estructural real, según la evidencia de moat/márgenes/ROIC de arriba>"
+  }},
+  "actionPlan": {{
+    "profile": "<máx 8 palabras: el tipo de inversor al que este perfil de negocio suele encajar, ej. 'Core Compounding / Value (horizonte largo)' — describe el encaje, no una instrucción>",
+    "strategy": "<máx 25 palabras: contexto EDUCATIVO sobre cómo este tipo de situación (calidad + descuento/prima) suele abordarse en general, en tercera persona descriptiva — NUNCA una instrucción imperativa como 'compra ahora' o 'espera a que baje más'. Ej. 'Este tipo de negocio de alta calidad con descuento real suele encajar con una acumulación gradual en vez de una decisión de una sola vez.'>"
+  }}
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1200,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    asyncio.create_task(log_llm_usage(user_id, "company_diagnostic_narrative", "claude-haiku-4-5-20251001", response.usage))
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if not parsed or "investmentThesis" not in parsed:
+        _log.warning("generate_company_diagnostic_narrative(%s): JSON parse failed", ticker)
+        return None
+    return parsed
+
+
 async def generate_business_quality_explanation(data: dict, lang: str = "es") -> Optional[dict]:
     """NIF (Nuvos Investment Framework) — Business Quality pillar. Unlike
     generate_quick_valuation_summary's single ~70-word moat/quality blob,

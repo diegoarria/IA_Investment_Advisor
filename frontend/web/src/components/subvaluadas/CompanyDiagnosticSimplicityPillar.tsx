@@ -6,11 +6,13 @@
 import { useTranslation } from "react-i18next";
 import { Lightbulb } from "lucide-react";
 import { ExpandableSection } from "@/components/ui/ExpandableSection";
+import { CompanyDiagnosticSectionScore } from "@/components/subvaluadas/CompanyDiagnosticSectionScore";
 import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
 export function CompanyDiagnosticSimplicityPillar({
-  noiseVsReality, actionPlan,
+  score, noiseVsReality, actionPlan,
 }: {
+  score: number;
   noiseVsReality: CompanyDiagnosticData["noiseVsReality"];
   actionPlan: CompanyDiagnosticData["actionPlan"];
 }) {
@@ -19,34 +21,45 @@ export function CompanyDiagnosticSimplicityPillar({
   return (
     <ExpandableSection
       title={t("companyDiagnostic.pillars.simplicity.title")}
-      icon={<Lightbulb className="w-4 h-4" style={{ color: "#f59e0b" }} />}
+      icon={<Lightbulb className="w-5 h-5" style={{ color: "#f59e0b" }} />}
+      headline={
+        <CompanyDiagnosticSectionScore
+          score={score}
+          label={t("companyDiagnostic.explanations.scoreSimplicity.title")}
+          explanation={t("companyDiagnostic.explanations.scoreSimplicity.body")}
+        />
+      }
     >
-      <div className="space-y-2">
-        <div className="rounded-xl p-3" style={{ background: "#ef44441a", border: "1px solid #ef4444" }}>
-          <p className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "#ef4444" }}>
-            🔴 {t("companyDiagnostic.pillars.simplicity.marketSaw")}
-          </p>
-          <p className="text-[11px] leading-relaxed" style={{ color: "var(--text)" }}>{noiseVsReality.marketSaw}</p>
+      {noiseVsReality && (
+        <div className="space-y-3">
+          <div className="rounded-xl p-4" style={{ background: "#ef44441a", border: "1px solid #ef4444" }}>
+            <p className="text-[13px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "#ef4444" }}>
+              🔴 {t("companyDiagnostic.pillars.simplicity.marketSaw")}
+            </p>
+            <p className="text-[14px] leading-relaxed" style={{ color: "var(--text)" }}>{noiseVsReality.marketSaw}</p>
+          </div>
+          <div className="rounded-xl p-4" style={{ background: "#22c55e1a", border: "1px solid #22c55e" }}>
+            <p className="text-[13px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "#22c55e" }}>
+              🟢 {t("companyDiagnostic.pillars.simplicity.nuvosReality")}
+            </p>
+            <p className="text-[14px] leading-relaxed" style={{ color: "var(--text)" }}>{noiseVsReality.nuvosReality}</p>
+          </div>
         </div>
-        <div className="rounded-xl p-3" style={{ background: "#22c55e1a", border: "1px solid #22c55e" }}>
-          <p className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "#22c55e" }}>
-            🟢 {t("companyDiagnostic.pillars.simplicity.nuvosReality")}
-          </p>
-          <p className="text-[11px] leading-relaxed" style={{ color: "var(--text)" }}>{noiseVsReality.nuvosReality}</p>
-        </div>
-      </div>
+      )}
 
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "var(--muted)" }}>
-          {t("companyDiagnostic.pillars.simplicity.actionPlanTitle")}
-        </p>
-        <div className="rounded-xl p-3" style={{ background: "var(--raised)" }}>
-          <p className="text-[10px]" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.pillars.simplicity.profile")}</p>
-          <p className="text-[12px] font-bold mb-2" style={{ color: "var(--text)" }}>{actionPlan.profile}</p>
-          <p className="text-[10px]" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.pillars.simplicity.strategy")}</p>
-          <p className="text-[12px] font-bold" style={{ color: "var(--text)" }}>{actionPlan.strategy}</p>
+      {actionPlan && (
+        <div>
+          <p className="text-[13px] font-bold uppercase tracking-wide mb-2.5" style={{ color: "var(--muted)" }}>
+            {t("companyDiagnostic.pillars.simplicity.actionPlanTitle")}
+          </p>
+          <div className="rounded-xl p-4" style={{ background: "var(--raised)" }}>
+            <p className="text-[12px]" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.pillars.simplicity.profile")}</p>
+            <p className="text-[15px] font-bold mb-2.5" style={{ color: "var(--text)" }}>{actionPlan.profile}</p>
+            <p className="text-[12px]" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.pillars.simplicity.strategy")}</p>
+            <p className="text-[15px] font-bold" style={{ color: "var(--text)" }}>{actionPlan.strategy}</p>
+          </div>
         </div>
-      </div>
+      )}
     </ExpandableSection>
   );
 }

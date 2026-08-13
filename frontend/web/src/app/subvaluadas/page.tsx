@@ -24,6 +24,8 @@ import {
 import { ValuationBacktestPanel } from "@/components/subvaluadas/ValuationBacktestPanel";
 import { FollowAlertPanel } from "@/components/subvaluadas/FollowAlertPanel";
 import { GqvFairValuePanel, type GqvFairValueData } from "@/components/subvaluadas/GqvFairValuePanel";
+import { CompanyDiagnosticCard } from "@/components/subvaluadas/CompanyDiagnosticCard";
+import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 import { FinancialReverseValuationCard, FinancialSensitivityTable } from "@/components/subvaluadas/FinancialEngineExtras";
 import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -230,6 +232,24 @@ function SubvaluadasPageInner() {
     return () => { cancelled = true; };
   }, [ticker, isPremium, searchTriggered, i18n.language, t]);
 
+  // CompanyDiagnosticCard's real data — Premium-only (same reasoning as
+  // /nif-dashboard: called in parallel with quick-analysis for the same
+  // search, gating it behind Premium instead of the free-tier weekly-search
+  // counter avoids decrementing that counter twice for one search action).
+  // A failure/insufficient_data here must never block the page — it just
+  // falls back to the existing GqvFairValuePanel/FairValueScenariosPanel
+  // path below, exactly like before this feature existed.
+  const [companyDiagnostic, setCompanyDiagnostic] = useState<CompanyDiagnosticData | null>(null);
+  useEffect(() => {
+    if (!isPremium) { setCompanyDiagnostic(null); return; }
+    let cancelled = false;
+    setCompanyDiagnostic(null);
+    screenerApi.companyDiagnostic(ticker, i18n.language)
+      .then((res) => { if (!cancelled) setCompanyDiagnostic(res.data); })
+      .catch(() => { if (!cancelled) setCompanyDiagnostic(null); });
+    return () => { cancelled = true; };
+  }, [ticker, isPremium, searchTriggered, i18n.language]);
+
   const { minMarginOfSafetyPct } = usePersonalizationStore();
 
   const handleSearch = () => {
@@ -384,12 +404,15 @@ function SubvaluadasPageInner() {
                     )}
                   </div>
 
-                  {/* Nuvos Fair Value Engine — LA tarjeta principal de la
-                      pantalla. Growth + Quality + Value cuando produjo un
-                      resultado confiable para este ticker; si no, cae al
-                      modelo DCF + exit-multiple (mismo fallback que aplica
-                      el backend en el screener de Oportunidades). */}
-                  {gqvIsPrimary ? (
+                  {/* CompanyDiagnosticCard — LA tarjeta principal de la
+                      pantalla cuando el diagnóstico real (Premium-only) está
+                      disponible para este ticker; si no (usuario free, sin
+                      datos suficientes, o falla el endpoint), cae al panel
+                      GQV/DCF de siempre — el usuario nunca se queda sin
+                      valoración por culpa de esta tarjeta nueva. */}
+                  {companyDiagnostic ? (
+                    <CompanyDiagnosticCard data={companyDiagnostic} />
+                  ) : gqvIsPrimary ? (
                     <GqvFairValuePanel data={data.gqv_fair_value} />
                   ) : (
                     data.nuvos_fair_value && (

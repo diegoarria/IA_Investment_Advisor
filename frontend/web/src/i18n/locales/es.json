@@ -1358,7 +1358,85 @@
       "analyzeWithArthur": "Analizar con Arthur",
       "analyzePrompt": "Analiza a {{ticker}} ({{companyName}}) usando la metodología QSTV de Nuvos."
     },
-    "disclaimer": "Nuvos AI es una herramienta educativa. Este contenido se basa en supuestos de un modelo y no constituye una recomendación de compra o venta regulada."
+    "disclaimer": "Nuvos AI es una herramienta educativa. Este contenido se basa en supuestos de un modelo y no constituye una recomendación de compra o venta regulada.",
+    "explanations": {
+      "scoreOverall": {
+        "title": "Score Nuvos AI",
+        "body": "Una calificación de 0 a 100 que resume qué tan atractiva es esta empresa combinando 4 dimensiones: la calidad del negocio y su foso competitivo, la salud financiera, qué tan barata o cara cotiza, y qué tan claro es el caso de inversión. No es una recomendación de compra — es un resumen de lo que dicen los datos."
+      },
+      "scoreQuality": {
+        "title": "Score de Calidad",
+        "body": "Mide qué tan fuerte es el negocio en sí: sus ventajas competitivas (foso), la diversificación de sus ingresos, y qué tan bien se defiende frente a su competencia directa. Un score alto significa un negocio difícil de replicar o desplazar."
+      },
+      "scoreTrust": {
+        "title": "Score de Confianza",
+        "body": "Mide la salud financiera y la integridad del balance: nivel de deuda, caja disponible, rentabilidad sobre el capital invertido (ROIC) y márgenes. Un score alto significa una empresa financieramente sólida, con bajo riesgo de quiebra o dilución."
+      },
+      "scoreValue": {
+        "title": "Score de Valor",
+        "body": "Mide qué tan atractivo es el precio actual frente al valor intrínseco estimado por Nuvos AI. Un score alto significa un mayor margen de seguridad — estás pagando menos de lo que el negocio probablemente vale."
+      },
+      "scoreSimplicity": {
+        "title": "Score de Simplicidad",
+        "body": "Mide qué tan fácil es entender la tesis de inversión: si la caída o volatilidad reciente tiene una explicación clara y temporal, y si existe un plan de acción concreto. Un score alto significa una tesis simple de seguir y defender."
+      },
+      "roic": {
+        "title": "ROIC (Retorno sobre Capital Invertido)",
+        "body": "Mide cuánta utilidad genera una empresa por cada dólar de capital que ha invertido en el negocio (deuda + patrimonio). Un ROIC alto y sostenido (>15-20%) es la huella digital de un foso competitivo real: la empresa gana mucho más de lo que le cuesta financiarse."
+      },
+      "longTermDebt": {
+        "title": "Deuda a Largo Plazo",
+        "body": "El total de obligaciones financieras que la empresa debe pagar en más de un año. Menos deuda significa menos riesgo financiero, más flexibilidad para invertir o recomprar acciones, y menor vulnerabilidad ante subidas de tasas de interés."
+      },
+      "netCash": {
+        "title": "Caja y Liquidez Neta",
+        "body": "El efectivo disponible menos toda la deuda de la empresa. Cuando es positivo (\"caja neta\"), la empresa podría pagar toda su deuda hoy y aún le sobraría dinero — una posición defensiva muy fuerte frente a crisis o desaceleraciones."
+      },
+      "operatingMargin": {
+        "title": "Margen Operativo",
+        "body": "El porcentaje de cada dólar de ingresos que queda como utilidad operativa, antes de intereses e impuestos. Un margen alto y estable indica poder de fijación de precios y eficiencia operativa frente a la competencia."
+      },
+      "netMargin": {
+        "title": "Margen Neto",
+        "body": "El porcentaje de cada dólar de ingresos que se convierte en utilidad neta final, después de todos los gastos, intereses e impuestos. Es la medida más completa de la rentabilidad real del negocio."
+      },
+      "operatingCashFlow": {
+        "title": "Flujo de Caja Operativo",
+        "body": "El efectivo real que genera el negocio del día a día, antes de inversiones de capital. A diferencia de la utilidad contable, el flujo de caja es más difícil de manipular contablemente — es el dinero real que entra a la empresa."
+      },
+      "peCurrent": {
+        "title": "P/E Actual",
+        "body": "Precio/Utilidad — cuántas veces la utilidad anual por acción está pagando el mercado hoy por cada acción. Un P/E más bajo, en igualdad de condiciones, generalmente significa una acción más barata relativa a sus propias ganancias."
+      },
+      "peHistorical": {
+        "title": "P/E Histórico",
+        "body": "El múltiplo P/E promedio al que esta empresa ha cotizado en años anteriores. Sirve como referencia: si el P/E actual está muy por debajo del histórico sin que el negocio haya empeorado estructuralmente, puede ser una señal de que el mercado la está subvalorando."
+      },
+      "evFcf": {
+        "title": "EV/FCF",
+        "body": "Valor de Empresa (capitalización de mercado + deuda − caja) dividido entre el Flujo de Caja Libre anual. A diferencia del P/E, este múltiplo incorpora la deuda y la caja del balance, dando una foto más completa de qué tan cara está la empresa en relación al efectivo real que genera."
+      },
+      "marginOfSafety": {
+        "title": "Margen de Seguridad",
+        "body": "Qué tan por debajo del valor intrínseco estimado cotiza el precio actual, expresado en porcentaje. Un margen de seguridad amplio actúa como colchón ante errores en las proyecciones — comprar con margen es la esencia de la inversión en valor."
+      }
+    },
+    "methodology": {
+      "title": "¿Cómo se calculan estos valores?",
+      "subtitle": "Un resumen honesto de la metodología detrás de los escenarios Conservador, Base y Optimista",
+      "paragraphs": [
+        "Nuvos AI primero clasifica el tipo de negocio (compounder, cíclico, de crecimiento, etc.) y normaliza sus ganancias — es decir, distingue si las utilidades actuales son representativas del negocio o están temporalmente infladas o deprimidas por el ciclo económico.",
+        "Con eso, ancla un múltiplo P/E justificado a partir del ROIC real, el crecimiento evidenciado (histórico + consenso de analistas) y la duración estimada de la ventaja competitiva — nunca un múltiplo genérico de sector.",
+        "En paralelo, se corre un DCF (flujo de caja descontado) basado en supuestos explícitos de crecimiento, margen y reinversión, como verificación cruzada independiente del múltiplo justificado.",
+        "Los escenarios Conservador, Base y Optimista no mueven todas las variables al extremo al mismo tiempo — representan combinaciones internamente coherentes de lo que razonablemente podría pasar si la tesis se debilita, se cumple como se espera, o se cumple mejor de lo esperado.",
+        "Estos valores son la salida de un modelo con supuestos explícitos, no una garantía ni una promesa de retorno — siempre revisa el razonamiento detrás de cada número antes de tomar una decisión."
+      ]
+    },
+    "thesis": {
+      "title": "Tesis Final",
+      "subtitle": "El resumen de inversión de Nuvos AI en una sola idea"
+    },
+    "badgesTitle": "Lo Destacado"
   },
   "patrimonio": {
     "header": {

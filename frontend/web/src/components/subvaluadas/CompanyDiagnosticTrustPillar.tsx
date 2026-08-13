@@ -1,42 +1,62 @@
 "use client";
 
-// Pilar 2 (Confianza) — a clean metrics grid for financial health, wrapped
-// in the shared ExpandableSection accordion.
+// Pilar 2 (Confianza) — a clean metrics grid for financial health, each
+// label wrapped in ExplainableValue so every concept (ROIC, deuda,
+// márgenes...) has a real (i) explanation, wrapped in the shared
+// ExpandableSection accordion.
 
 import { useTranslation } from "react-i18next";
 import { Shield } from "lucide-react";
 import { ExpandableSection } from "@/components/ui/ExpandableSection";
 import { RaisedBlock } from "@/components/ui/Card";
+import { ExplainableValue } from "@/components/ui/ExplainableValue";
+import { CompanyDiagnosticSectionScore } from "@/components/subvaluadas/CompanyDiagnosticSectionScore";
 import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
 export function CompanyDiagnosticTrustPillar({
-  financialHealth,
+  score, financialHealth,
 }: {
+  score: number;
   financialHealth: CompanyDiagnosticData["financialHealth"];
 }) {
   const { t } = useTranslation();
 
-  const rows: { label: string; value: string }[] = [
-    { label: t("companyDiagnostic.pillars.trust.longTermDebt"), value: financialHealth.longTermDebt },
-    { label: t("companyDiagnostic.pillars.trust.netCash"), value: financialHealth.netCash },
-    { label: t("companyDiagnostic.pillars.trust.roic"), value: financialHealth.roic },
-    { label: t("companyDiagnostic.pillars.trust.operatingMargin"), value: financialHealth.operatingMargin },
-    { label: t("companyDiagnostic.pillars.trust.netMargin"), value: financialHealth.netMargin },
-    { label: t("companyDiagnostic.pillars.trust.operatingCashFlow"), value: financialHealth.operatingCashFlow },
+  const rows: { explKey: string; value: string }[] = [
+    { explKey: "longTermDebt", value: financialHealth.longTermDebt },
+    { explKey: "netCash", value: financialHealth.netCash },
+    { explKey: "roic", value: financialHealth.roic },
+    { explKey: "operatingMargin", value: financialHealth.operatingMargin },
+    { explKey: "netMargin", value: financialHealth.netMargin },
+    { explKey: "operatingCashFlow", value: financialHealth.operatingCashFlow },
   ];
 
   return (
     <ExpandableSection
       title={t("companyDiagnostic.pillars.trust.title")}
-      icon={<Shield className="w-4 h-4" style={{ color: "#6366F1" }} />}
+      icon={<Shield className="w-5 h-5" style={{ color: "#6366F1" }} />}
+      headline={
+        <CompanyDiagnosticSectionScore
+          score={score}
+          label={t("companyDiagnostic.explanations.scoreTrust.title")}
+          explanation={t("companyDiagnostic.explanations.scoreTrust.body")}
+        />
+      }
     >
-      <div className="grid grid-cols-2 gap-2">
-        {rows.map((row) => (
-          <RaisedBlock key={row.label}>
-            <p className="text-[9px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--muted)" }}>{row.label}</p>
-            <p className="text-[13px] font-black tabular-nums" style={{ color: "var(--text)" }}>{row.value}</p>
-          </RaisedBlock>
-        ))}
+      <div className="grid grid-cols-2 gap-2.5">
+        {rows.map((row) => {
+          const label = t(`companyDiagnostic.pillars.trust.${row.explKey}`);
+          return (
+            <RaisedBlock key={row.explKey}>
+              <ExplainableValue
+                label={t(`companyDiagnostic.explanations.${row.explKey}.title`)}
+                content={{ summary: t(`companyDiagnostic.explanations.${row.explKey}.body`) }}
+              >
+                <span className="block text-[12px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{label}</span>
+              </ExplainableValue>
+              <p className="text-[17px] font-black tabular-nums mt-1" style={{ color: "var(--text)" }}>{row.value}</p>
+            </RaisedBlock>
+          );
+        })}
       </div>
     </ExpandableSection>
   );

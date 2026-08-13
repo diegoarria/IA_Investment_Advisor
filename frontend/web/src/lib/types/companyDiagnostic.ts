@@ -32,15 +32,28 @@ export interface CompanyDiagnosticData {
   exchange: string;
   score: number; // 0-100
   scoreLabel: string;
+  pillarScores: {
+    quality: number; // 0-100
+    trust: number; // 0-100
+    value: number; // 0-100
+    simplicity: number; // 0-100
+  };
   badges: string[];
   oneLinerPitch: string;
+  // Real, on-demand AI narrative — null when the underlying model call
+  // failed (never a fabricated placeholder; see ai_service.generate_
+  // company_diagnostic_narrative's own docstring).
+  investmentThesis: string | null;
   revenueBreakdown: { category: string; percentage: number }[];
   moatPoints: string[];
+  // Optional: omitted when no real peer could be found for this ticker
+  // (a pre-existing sector/industry-taxonomy gap upstream, not fabricated
+  // as "no competitor exists") — see company_diagnostic_service.py.
   competitorComparison: {
     competitorName: string;
     rows: CompetitorComparison[];
     conclusion: string;
-  };
+  } | null;
   financialHealth: {
     longTermDebt: string;
     netCash: string;
@@ -53,11 +66,11 @@ export interface CompanyDiagnosticData {
   noiseVsReality: {
     marketSaw: string;
     nuvosReality: string;
-  };
+  } | null;
   actionPlan: {
     profile: string;
     strategy: string;
-  };
+  } | null;
 }
 
 export const mockCopartData: CompanyDiagnosticData = {
@@ -67,8 +80,10 @@ export const mockCopartData: CompanyDiagnosticData = {
   exchange: "NASDAQ",
   score: 88,
   scoreLabel: "Calidad Máxima + Descuento",
+  pillarScores: { quality: 95, trust: 98, value: 80, simplicity: 85 },
   badges: ["Moat Impenetrable", "Cero Deuda", "Líder Indiscutible"],
   oneLinerPitch: "El gigante de las subastas de vehículos en EE. UU., con $3,400M en caja y sin deuda, cotizando a su múltiplo más bajo en una década por un ajuste temporal del sector.",
+  investmentThesis: "Copart mantiene un monopolio virtual (duopolio) con un profundo foso competitivo basado en el efecto de red de su plataforma global y la propiedad masiva de terrenos estratégicos, beneficiándose de tendencias estructurales como la creciente complejidad vehicular y tasas más altas de pérdida total; con un crecimiento de ingresos del 9.7%, márgenes netos superiores al 33%, cero deuda a largo plazo y cerca de $2.8 mil millones en caja líquida, la empresa representa una máquina compounding de alta calidad, resistente a recesiones y con un balance impenetrable capaz de financiar su expansión futura sin dilución.",
   revenueBreakdown: [
     { category: "Servicios de Subasta (VB3)", percentage: 85 },
     { category: "Venta Directa de Vehículos", percentage: 15 },
