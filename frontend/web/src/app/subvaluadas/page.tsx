@@ -425,6 +425,27 @@ function SubvaluadasPageInner() {
                     )
                   )}
 
+                  {/* Cuando CompanyDiagnosticCard es el panel principal, es
+                      autocontenido — su propio pilar de Valor ya incluye su
+                      propia "Mi Zona de Compra". Todo el detalle del motor
+                      viejo de abajo (FollowAlertPanel independiente,
+                      Supuestos, Reverse DCF, Sensibilidad, Modelo Completo)
+                      quedaría redundante/confuso debajo de ella, así que se
+                      omite por completo — solo el pie mínimo (Actualizado/
+                      Seguir/Analizar) se muestra, reutilizando exactamente
+                      los mismos componentes que ya usa el flujo viejo. */}
+                  {companyDiagnostic ? (
+                    <>
+                      <div className="space-y-3 mt-8">
+                        <GeneratedAtNote generatedAt={data.generated_at} />
+                      </div>
+                      <div className="flex gap-2 mt-6">
+                        <FollowButton ticker={data.ticker} watchlisted={watchlisted} onFollow={handleFollow} />
+                        <AnalyzeButton onAnalyze={handleAnalyze} />
+                      </div>
+                    </>
+                  ) : (
+                    <>
                   {/* "Seguir {ticker}" — zona de compra: crea una alerta de
                       precio anclada al valor intrínseco Base (no un precio
                       absoluto arbitrario), con presets de margen de
@@ -572,6 +593,8 @@ function SubvaluadasPageInner() {
                     <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                     <span><b style={{ color: "var(--sub)" }}>{t("subvaluadas.detail.disclaimer.bold")}</b> {t("subvaluadas.detail.disclaimer.text")}</span>
                   </div>
+                    </>
+                  )}
                 </>
               )}
 

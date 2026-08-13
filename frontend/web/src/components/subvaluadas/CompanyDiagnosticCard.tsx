@@ -1,28 +1,28 @@
 "use client";
 
-// CompanyDiagnosticCard — Nuvos AI "Ficha de Diagnóstico." 3-layer
-// progressive-disclosure card: Capa 1 (hero, always visible), Capa 2 (4
-// collapsible pillars — Calidad/Confianza/Valor/Simplicidad), Capa 3
-// (sticky action bar + legal footer). Pure presentation: accepts
-// `CompanyDiagnosticData` as a prop — see lib/types/companyDiagnostic.ts
-// for why this isn't wired to real backend data yet.
+// CompanyDiagnosticCard — Nuvos AI "Ficha de Diagnóstico." Self-contained
+// through Capa 2 (hero + 4 collapsible pillars) plus Tesis Final, la guía
+// de metodología y el disclaimer legal. No trailing action bar/footer —
+// the caller (app/subvaluadas/page.tsx) renders the standard "Actualizado
+// hoy / Seguir / Analizar con Arthur" row right after this card, reusing
+// the exact same GeneratedAtNote/FollowButton/AnalyzeButton it already
+// uses for the legacy DCF/GQV panel, instead of this component duplicating
+// that with its own bespoke sticky bar. Pure presentation: accepts
+// `CompanyDiagnosticData` as a prop.
 
 import type { ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { Bell, Star, MessageCircle, BookOpen, Target } from "lucide-react";
+import { BookOpen, Target } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { scoreColor } from "@/components/ui/Badge";
 import { ExplainableValue } from "@/components/ui/ExplainableValue";
-import { useWatchlistStore } from "@/lib/store";
 import { fmtPrice } from "@/lib/types/stock";
 import { _valuationStatus, _VERDICT_COLOR, _VERDICT_EMOJI } from "@/components/subvaluadas/shared";
-import { CompanyDiagnosticSectionScore } from "@/components/subvaluadas/CompanyDiagnosticSectionScore";
 import { CompanyDiagnosticValuationThermometer } from "@/components/subvaluadas/CompanyDiagnosticValuationThermometer";
 import { CompanyDiagnosticQualityPillar } from "@/components/subvaluadas/CompanyDiagnosticQualityPillar";
 import { CompanyDiagnosticTrustPillar } from "@/components/subvaluadas/CompanyDiagnosticTrustPillar";
-import { CompanyDiagnosticValuePillar, COMPANY_DIAGNOSTIC_VALUE_PILLAR_ID } from "@/components/subvaluadas/CompanyDiagnosticValuePillar";
+import { CompanyDiagnosticValuePillar } from "@/components/subvaluadas/CompanyDiagnosticValuePillar";
 import { CompanyDiagnosticSimplicityPillar } from "@/components/subvaluadas/CompanyDiagnosticSimplicityPillar";
 import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
@@ -42,29 +42,12 @@ function renderWithBoldNumbers(text: string): ReactNode[] {
 
 export function CompanyDiagnosticCard({ data }: { data: CompanyDiagnosticData }) {
   const { t } = useTranslation();
-  const router = useRouter();
-  const watchlist = useWatchlistStore();
-  const isInvestable = watchlist.has(data.ticker);
-
-  const toggleInvestable = () => {
-    if (isInvestable) watchlist.remove(data.ticker);
-    else watchlist.add(data.ticker, data.companyName);
-  };
-
-  const scrollToBuyZone = () => {
-    document.getElementById(COMPANY_DIAGNOSTIC_VALUE_PILLAR_ID)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  const analyzeWithArthur = () => {
-    const prompt = t("companyDiagnostic.actions.analyzePrompt", { ticker: data.ticker, companyName: data.companyName });
-    router.push(`/chat?msg=${encodeURIComponent(prompt)}&autosend=1`);
-  };
 
   const methodologyParagraphs = t("companyDiagnostic.methodology.paragraphs", { returnObjects: true }) as string[];
   const verdictStatus = _valuationStatus(data.valuation.baseFairValue, data.valuation.currentPrice);
 
   return (
-    <div className="pb-28">
+    <div>
       {/* Capa 1 — Hero */}
       <Card padding="p-6 sm:p-7">
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -188,41 +171,12 @@ export function CompanyDiagnosticCard({ data }: { data: CompanyDiagnosticData })
         </div>
       </Card>
 
-      {/* Disclaimer */}
+      {/* Disclaimer — donde termina esta tarjeta. El pie (Actualizado hoy /
+          Seguir / Analizar con Arthur) lo agrega el caller, no este
+          componente — ver la nota al inicio del archivo. */}
       <p className="text-[12px] leading-relaxed mt-5 text-center" style={{ color: "var(--dim)" }}>
         {t("companyDiagnostic.disclaimer")}
       </p>
-
-      {/* Capa 3 — Sticky action bar */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-30 px-3 py-3 flex items-center justify-center gap-2"
-        style={{ background: "var(--card)", borderTop: "1px solid var(--border)" }}
-      >
-        <button
-          onClick={scrollToBuyZone}
-          className="flex-1 max-w-[200px] flex items-center justify-center gap-1.5 rounded-xl py-3 text-[14px] font-bold"
-          style={{ background: "var(--accent)", color: "#fff" }}
-        >
-          <Bell className="w-4 h-4" />
-          <span className="truncate">{t("companyDiagnostic.actions.followZone")}</span>
-        </button>
-        <button
-          onClick={toggleInvestable}
-          className="flex items-center justify-center gap-1.5 rounded-xl py-3 px-3.5 text-[14px] font-bold shrink-0"
-          style={{ background: "var(--raised)", color: isInvestable ? "#eab308" : "var(--text)" }}
-          title={isInvestable ? t("companyDiagnostic.actions.markedInvestable") : t("companyDiagnostic.actions.markInvestable")}
-        >
-          <Star className="w-4 h-4" fill={isInvestable ? "#eab308" : "none"} />
-        </button>
-        <button
-          onClick={analyzeWithArthur}
-          className="flex items-center justify-center gap-1.5 rounded-xl py-3 px-3.5 text-[14px] font-bold shrink-0"
-          style={{ background: "var(--raised)", color: "var(--text)" }}
-          title={t("companyDiagnostic.actions.analyzeWithArthur")}
-        >
-          <MessageCircle className="w-4 h-4" />
-        </button>
-      </div>
     </div>
   );
 }
