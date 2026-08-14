@@ -83,7 +83,7 @@ class TestPillarScores:
         return base
 
     def test_computes_all_four_pillars(self):
-        data = {"thesis_scores": {"business_quality": 85, "financial_strength": 90}}
+        data = {"business_quality_score": 85, "financial_strength_score": 90}
         result = _pillar_scores(data, self._scenarios())
         assert result["quality"] == 85
         assert result["trust"] == 90
@@ -91,27 +91,27 @@ class TestPillarScores:
         assert result["simplicity"] == 85  # mean(80, 90)
 
     def test_value_clamped_at_0_and_100(self):
-        data = {"thesis_scores": {"business_quality": 50, "financial_strength": 50}}
+        data = {"business_quality_score": 50, "financial_strength_score": 50}
         high = _pillar_scores(data, self._scenarios(margin_of_safety_pct=200))
         low = _pillar_scores(data, self._scenarios(margin_of_safety_pct=-200))
         assert high["value"] == 100
         assert low["value"] == 0
 
     def test_simplicity_falls_back_to_single_signal(self):
-        data = {"thesis_scores": {"business_quality": 50, "financial_strength": 50}}
+        data = {"business_quality_score": 50, "financial_strength_score": 50}
         result = _pillar_scores(data, self._scenarios(reality_gate_pass_rate=None))
         assert result["simplicity"] == 80  # data_confidence only
 
     def test_none_when_quality_missing(self):
-        data = {"thesis_scores": {"business_quality": None, "financial_strength": 90}}
+        data = {"business_quality_score": None, "financial_strength_score": 90}
         assert _pillar_scores(data, self._scenarios()) is None
 
     def test_none_when_margin_of_safety_missing(self):
-        data = {"thesis_scores": {"business_quality": 85, "financial_strength": 90}}
+        data = {"business_quality_score": 85, "financial_strength_score": 90}
         assert _pillar_scores(data, self._scenarios(margin_of_safety_pct=None)) is None
 
     def test_none_when_no_simplicity_signal_at_all(self):
-        data = {"thesis_scores": {"business_quality": 85, "financial_strength": 90}}
+        data = {"business_quality_score": 85, "financial_strength_score": 90}
         result = _pillar_scores(data, self._scenarios(uncertainty_profile={}, reality_gate_pass_rate=None))
         assert result is None
 

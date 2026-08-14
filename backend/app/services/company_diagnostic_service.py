@@ -92,9 +92,16 @@ def _primary_scenarios(dcf: dict) -> Optional[dict]:
 
 
 def _pillar_scores(data: dict, scenarios: dict) -> Optional[dict]:
-    thesis_scores = data.get("thesis_scores") or {}
-    quality = thesis_scores.get("business_quality")
-    trust = thesis_scores.get("financial_strength")
+    # Read from the unconditional top-level keys (real, always computed),
+    # not `thesis_scores` — that dict is only built when the LEGACY DCF
+    # produced its own `scenarios` (see fundamental_analysis_service.py's
+    # own comment at that gate), which silently excluded every ticker on
+    # the GQV-without-DCF fallback path (capital-intensive names like
+    # utilities, whose average FCF margin is often negative, plus MU/
+    # Micron-style single-bad-year cyclicals) — confirmed live for
+    # NEE/SO/DUK during this feature's broader rollout testing.
+    quality = data.get("business_quality_score")
+    trust = data.get("financial_strength_score")
     if quality is None or trust is None:
         return None
 
@@ -306,8 +313,15 @@ def build_company_diagnostic(ticker: str, data: dict) -> Optional[dict]:
         "peHistoricalAvg": historical_median_pe,
         "evFcf": data.get("ev_fcf"),
     }
-    # None-safe: valuation numbers must all be real before this card is shown.
-    if any(valuation[k] is None for k in ("conservative", "baseFairValue", "optimistic", "peCurrent", "evFcf")):
+    # None-safe: the core scenario/price numbers must always be real before
+    # this card is shown. evFcf is deliberately NOT required here — it's
+    # structurally inapplicable to banks/financials (they don't report a
+    # traditional operating-company "free cash flow"), so requiring it was
+    # silently excluding every financial-sector ticker (confirmed live for
+    # GS/WFC) even when everything else about the diagnostic was real and
+    # complete; peHistoricalAvg is optional for the same "genuinely often
+    # missing, not a data-quality problem" reason (see its own type comment).
+    if any(valuation[k] is None for k in ("conservative", "baseFairValue", "optimistic", "peCurrent")):
         return None
 
     sector = data.get("sector")

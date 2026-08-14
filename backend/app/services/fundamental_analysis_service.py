@@ -2777,6 +2777,18 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         "liquidity_gate": liquidity_gate,
         "data_validation": data_validation,
         "sector_model_note": sector_model_note,
+        # Real, already-computed above (line ~1156/1164) unconditionally —
+        # previously only reachable via `thesis_scores`, which is gated on
+        # `dcf.get("scenarios")` (the LEGACY DCF's own scenarios, not GQV's).
+        # That gate silently hid these two scores for every ticker that
+        # only has a real GQV result (Priority 3's GQV-without-DCF fallback
+        # path — capital-intensive names like utilities, whose average FCF
+        # margin is often negative, and MU/Micron-style single-bad-year
+        # cyclicals). Exposed here, unconditionally, so any caller that
+        # needs "is this a good business / a financially strong one" no
+        # longer has to depend on the legacy DCF having run at all.
+        "business_quality_score": business_quality_score,
+        "financial_strength_score": financial_strength_score,
     }
 
 

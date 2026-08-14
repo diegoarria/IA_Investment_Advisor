@@ -22,10 +22,13 @@ export interface ValuationScenarios {
   marginOfSafetyPercent: number;
   peCurrent: number;
   // Real historical P/E is legitimately missing for plenty of real tickers
-  // (confirmed live for CPRT/JPM/AAPL) — never gated server-side the way
-  // peCurrent/evFcf are, so this must stay nullable here too.
+  // (confirmed live for CPRT/JPM/AAPL) — never gated server-side, so this
+  // must stay nullable here too.
   peHistoricalAvg: number | null;
-  evFcf: number;
+  // Structurally inapplicable to banks/financials (no traditional
+  // operating-company FCF) — confirmed live for GS/WFC. Not gated
+  // server-side, so nullable here too.
+  evFcf: number | null;
 }
 
 export interface CompanyDiagnosticData {
