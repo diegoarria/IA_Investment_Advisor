@@ -592,7 +592,10 @@ export default function WatchlistPage() {
   }, []);
 
   const handleAddTicker = async (ticker: string, name: string) => {
-    // Check free limit before even calling API
+    // Check free limit before even calling API — a soft, client-side-only
+    // pre-check to skip an obviously-pointless request; the real decision
+    // always comes from the backend's own fresh DB check below, never from
+    // this locally-cached flag alone (see the retry loop's own comment).
     if (!isPremium && items.length >= FREE_LIMIT) {
       setPaywallOpen(true);
       return;
@@ -605,9 +608,24 @@ export default function WatchlistPage() {
     // Retried with backoff before ever showing an error — a transient
     // network blip or a momentary DB hiccup on the tier-check query used to
     // surface as "Error al agregar" even though a second attempt would have
-    // gone through fine. 409 (already in list) and 403 (free-tier limit) are
-    // real outcomes, not transient failures, so they short-circuit the retry
-    // loop immediately.
+    // gone through fine. 409 (already in list) is a real outcome, not a
+    // transient failure, so it short-circuits the retry loop immediately.
+    //
+    // A 403 is classified from the RESPONSE BODY's own `code` field (the
+    // backend's fresh, authoritative check against the real subscription
+    // row), never from this component's own locally-cached `isPremium` —
+    // that flag starts `false` by default and only updates once the
+    // subscription store's own async fetch resolves (see useSubscriptionStore
+    // in lib/store.ts), so trusting it here could misclassify a REAL
+    // premium user's 403 as "not a limit issue" and burn the retry loop on
+    // a call that was never going to succeed differently, ending in the
+    // generic "Error al agregar" toast instead of ever explaining what
+    // happened — exactly the "premium must never fail" bug this closes.
+    // On a genuine `limit_reached` 403, force one fresh subscription-status
+    // refetch before trusting it: if that confirms the account really is
+    // premium (the local flag was just stale), retry the add once more
+    // instead of showing the free-tier paywall to a paying user.
+    let revalidatedPremium = false;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         await watchlistApi.add(ticker, name);
@@ -615,11 +633,19 @@ export default function WatchlistPage() {
         return;
       } catch (err: unknown) {
         const status = (err as { response?: { status?: number } })?.response?.status;
+        const code = (err as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail?.code;
         if (status === 409) {
           showToast(t("watchlist.toast.alreadyInWatchlist", { ticker }));
           return;
         }
-        if (status === 403 && !isPremium) {
+        if (status === 403 && code === "limit_reached") {
+          if (!revalidatedPremium) {
+            revalidatedPremium = true;
+            await useSubscriptionStore.getState().fetchStatus();
+            const freshTier = useSubscriptionStore.getState().tier;
+            const freshIsTrialPremium = useSubscriptionStore.getState().isTrialPremium;
+            if (freshTier === "premium" || freshIsTrialPremium) continue; // was stale — retry the add for real
+          }
           setPaywallOpen(true);
           return;
         }
