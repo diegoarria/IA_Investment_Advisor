@@ -1335,7 +1335,9 @@
         "title": "Value",
         "subtitle": "Valuation thermometer and scenarios",
         "multiplesTitle": "Valuation Multiples",
-        "peCurrent": "Current P/E",
+        "peCurrent": "Current P/E (TTM)",
+        "peForward": "Forward P/E (NTM)",
+        "peNormalized": "Adjusted P/E",
         "peHistorical": "Historical P/E",
         "evFcf": "EV/FCF",
         "modelsTitle": "Model Breakdown (Fair Value Engine)",
@@ -1409,8 +1411,16 @@
         "body": "The real cash the day-to-day business generates, before capital investments. Unlike accounting profit, cash flow is harder to manipulate on paper — it's the actual money coming into the company."
       },
       "peCurrent": {
-        "title": "Current P/E",
-        "body": "Price/Earnings — how many times annual earnings per share the market is paying today for each share. A lower P/E, all else equal, generally means a cheaper stock relative to its own earnings."
+        "title": "Current P/E (TTM)",
+        "body": "Price/Earnings — how many times annual reported earnings per share (trailing 12 months, GAAP) the market is paying today for each share. A lower P/E, all else equal, generally means a cheaper stock relative to its own earnings."
+      },
+      "peForward": {
+        "title": "Forward P/E (NTM)",
+        "body": "The same Price/Earnings multiple, but using EXPECTED earnings per share for the next 12 months instead of already-reported ones. If the Forward P/E is lower than the Current P/E, the market expects earnings to grow — useful for seeing whether today's price already reflects that growth."
+      },
+      "peNormalized": {
+        "title": "Adjusted P/E",
+        "body": "P/E calculated on a normalized earnings-per-share figure, which smooths out one-off years of unusually high or low earnings (e.g. a one-time accounting gain that won't repeat). When it differs from the Current P/E, that's a signal the latest reported year doesn't represent the business's real earnings power well."
       },
       "peHistorical": {
         "title": "Historical P/E",

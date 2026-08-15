@@ -41,8 +41,14 @@ export function CompanyDiagnosticValuePillar({
   const [selectedScenario, setSelectedScenario] = useState<ScenarioKey>("baseFairValue");
 
   const fmtMultiple = (v: number | null) => (v != null ? `${v.toFixed(1)}x` : "N/D");
+  // P/E Actual (TTM), P/E Forward (NTM) and P/E Ajustado shown as standard,
+  // side by side, for every company — not just when they happen to differ
+  // (per Diego's explicit request that Forward P/E be a standard field in
+  // the Value box, not tucked into an optional "ver supuestos" toggle).
   const multiples: { explKey: string; value: string }[] = [
     { explKey: "peCurrent", value: fmtMultiple(valuation.peCurrent) },
+    { explKey: "peForward", value: fmtMultiple(valuation.peForward) },
+    { explKey: "peNormalized", value: fmtMultiple(valuation.peNormalized) },
     { explKey: "peHistorical", value: fmtMultiple(valuation.peHistoricalAvg) },
     { explKey: "evFcf", value: fmtMultiple(valuation.evFcf) },
   ];

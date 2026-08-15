@@ -1335,7 +1335,9 @@
         "title": "Valor",
         "subtitle": "Termómetro de valoración y escenarios",
         "multiplesTitle": "Múltiplos de Valoración",
-        "peCurrent": "P/E Actual",
+        "peCurrent": "P/E Actual (TTM)",
+        "peForward": "P/E Forward (NTM)",
+        "peNormalized": "P/E Ajustado",
         "peHistorical": "P/E Histórico",
         "evFcf": "EV/FCF",
         "modelsTitle": "Desglose de Modelos (Fair Value Engine)",
@@ -1409,8 +1411,16 @@
         "body": "El efectivo real que genera el negocio del día a día, antes de inversiones de capital. A diferencia de la utilidad contable, el flujo de caja es más difícil de manipular contablemente — es el dinero real que entra a la empresa."
       },
       "peCurrent": {
-        "title": "P/E Actual",
-        "body": "Precio/Utilidad — cuántas veces la utilidad anual por acción está pagando el mercado hoy por cada acción. Un P/E más bajo, en igualdad de condiciones, generalmente significa una acción más barata relativa a sus propias ganancias."
+        "title": "P/E Actual (TTM)",
+        "body": "Precio/Utilidad — cuántas veces la utilidad anual por acción reportada (últimos 12 meses, GAAP) está pagando el mercado hoy por cada acción. Un P/E más bajo, en igualdad de condiciones, generalmente significa una acción más barata relativa a sus propias ganancias."
+      },
+      "peForward": {
+        "title": "P/E Forward (NTM)",
+        "body": "El mismo múltiplo Precio/Utilidad, pero usando la utilidad por acción ESPERADA para los próximos 12 meses en vez de la ya reportada. Si el P/E Forward es más bajo que el P/E Actual, el mercado espera que las ganancias crezcan — útil para ver si el precio de hoy ya refleja ese crecimiento."
+      },
+      "peNormalized": {
+        "title": "P/E Ajustado",
+        "body": "El P/E calculado sobre una utilidad por acción normalizada, que suaviza años puntuales de ganancias inusualmente altas o bajas (por ejemplo, una ganancia contable extraordinaria que no se repetirá). Cuando difiere del P/E Actual, es una señal de que ese último año reportado no representa bien el poder de generar utilidades del negocio."
       },
       "peHistorical": {
         "title": "P/E Histórico",
