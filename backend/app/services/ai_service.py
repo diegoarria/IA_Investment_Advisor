@@ -3173,6 +3173,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown fuera del JSON, sin texto
         max_tokens=2600,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "quick_valuation_summary", "claude-haiku-4-5-20251001", response.usage))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and "summary" in parsed:
@@ -3332,6 +3333,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1200,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "nif_business_quality", "claude-haiku-4-5-20251001", response.usage))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and isinstance(parsed.get("sub_factors"), list) and parsed["sub_factors"]:
@@ -3400,6 +3402,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=900,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "nif_management_quality", "claude-haiku-4-5-20251001", response.usage))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and isinstance(parsed.get("sub_factors"), list) and parsed["sub_factors"]:
@@ -3465,6 +3468,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=2200,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "nif_moat_deep_dive", "claude-haiku-4-5-20251001", response.usage))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and isinstance(parsed.get("moat_types"), list) and parsed["moat_types"]:
@@ -3519,6 +3523,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1400,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "nif_management_deep_dive", "claude-haiku-4-5-20251001", response.usage))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and parsed.get("guidance_track_record"):
@@ -3565,6 +3570,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1600,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "nif_catalysts", "claude-haiku-4-5-20251001", response.usage))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and isinstance(parsed.get("catalysts"), list):
