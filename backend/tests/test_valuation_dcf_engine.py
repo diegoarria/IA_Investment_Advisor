@@ -198,6 +198,70 @@ class TestProjectDriverBasedDcf:
         assert result.assumptions["gordon_sanity_check_ratio"] is None
 
 
+class TestSharesPathPerShareMode:
+    """Mandatory per-share Fair Value Engine (methodology audit round 5, see
+    /Users/diegoarria/.claude/plans/cosmic-munching-crown.md) — dividing
+    each projected year's aggregate FCF by that year's real, shrinking
+    share count before discounting."""
+
+    def _base_kwargs(self, **overrides):
+        kwargs = dict(
+            revenue_0=10_000.0,
+            revenue_growth_1=0.12,
+            terminal_growth=0.025,
+            operating_margin_anchor_pct=0.25,
+            terminal_operating_margin_pct=0.22,
+            tax_rate=0.21,
+            reinvestment_rate_anchor_pct=0.30,
+            terminal_roic_pct=0.15,
+            discount_rate=0.09,
+        )
+        kwargs.update(overrides)
+        return kwargs
+
+    def test_omitted_is_byte_for_byte_identical_to_before(self):
+        a = project_driver_based_dcf(**self._base_kwargs())
+        b = project_driver_based_dcf(**self._base_kwargs(shares_path=None))
+        assert a.enterprise_value == b.enterprise_value
+        assert a.value_per_share == b.value_per_share
+
+    def test_constant_shares_path_equals_simple_division(self):
+        aggregate = project_driver_based_dcf(**self._base_kwargs())
+        per_share = project_driver_based_dcf(**self._base_kwargs(shares_path=[100.0] * 10))
+        assert per_share.enterprise_value == pytest.approx(aggregate.enterprise_value / 100.0, rel=1e-6)
+
+    def test_net_cash_bridged_per_share_not_divided_twice(self):
+        result = project_driver_based_dcf(**self._base_kwargs(
+            shares_path=[100.0] * 10, net_cash=500.0, shares_out=100.0,
+        ))
+        expected = result.enterprise_value + 500.0 / 100.0
+        assert result.value_per_share == pytest.approx(expected, abs=0.01)
+        # "Equity value" as one aggregate dollar figure has no meaning once
+        # everything is already per-share — left unset, not a mixed unit.
+        assert result.equity_value is None
+
+    def test_shrinking_share_count_increases_value_vs_flat_average(self):
+        shrinking = [100.0 * (0.97 ** t) for t in range(1, 11)]
+        flat_average = [sum(shrinking) / len(shrinking)] * 10
+        result_shrinking = project_driver_based_dcf(**self._base_kwargs(shares_path=shrinking))
+        result_flat = project_driver_based_dcf(**self._base_kwargs(shares_path=flat_average))
+        assert result_shrinking.enterprise_value > result_flat.enterprise_value
+
+    def test_wrong_length_raises(self):
+        with pytest.raises(ValueError):
+            project_driver_based_dcf(**self._base_kwargs(shares_path=[100.0] * 5))
+
+    def test_incompatible_with_exit_multiple(self):
+        with pytest.raises(ValueError):
+            project_driver_based_dcf(**self._base_kwargs(
+                shares_path=[100.0] * 10, exit_multiple=15.0, exit_metric="ev_ebit",
+            ))
+
+    def test_requires_shares_out_for_net_cash_bridge(self):
+        with pytest.raises(ValueError):
+            project_driver_based_dcf(**self._base_kwargs(shares_path=[100.0] * 10, net_cash=500.0, shares_out=None))
+
+
 class TestHybridExitMultipleTerminalValue:
     """Nuvos AI Fair Value Engine redesign, Incremento 2 — see
     /Users/diegoarria/.claude/plans/stateful-painting-flurry.md."""

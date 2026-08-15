@@ -20,7 +20,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-GrowthSource = str  # "forward_consensus" | "historical_eps_cagr" | "historical_revenue_cagr" | "normalized_growth" | "insufficient"
+from app.services.valuation.numeric_helpers import compound_per_share_growth
+
+GrowthSource = str  # "per_share_compounded" | "forward_consensus" | "historical_eps_cagr" | "historical_revenue_cagr" | "normalized_growth" | "insufficient"
 
 
 @dataclass
@@ -36,8 +38,15 @@ def resolve_growth_evidence(
     eps_cagr_pct: Optional[float] = None,
     revenue_cagr_pct: Optional[float] = None,
     normalized_growth_pct: Optional[float] = None,
+    shares_cagr_pct: Optional[float] = None,
 ) -> GrowthEvidenceResult:
-    """Single entry point. Hierarchy (spec, plan §1):
+    """Single entry point. Hierarchy (mandatory per-share Fair Value Engine,
+    methodology audit round 5 — see /Users/diegoarria/.claude/plans/cosmic-
+    munching-crown.md):
+    0. Per-share compounded growth (real revenue CAGR × real historical
+       buyback yield), when BOTH real inputs are available — Diego's
+       mandated methodology, takes priority over forward consensus since
+       it's the company's own real history, not an external estimate.
     1. Forward EPS growth consensus, when real.
     2. Historical EPS CAGR.
     3. Historical revenue CAGR.
@@ -45,6 +54,14 @@ def resolve_growth_evidence(
        real signals — recent trend, incremental ROIC, moat stability,
        deterioration direction, capital allocation, industry comparison).
     5. None — `source="insufficient"`. Never invents a rate."""
+    if revenue_cagr_pct is not None and shares_cagr_pct is not None:
+        buyback_yield_pct = -shares_cagr_pct  # shares_cagr_pct: negative = buybacks, positive = dilution — flip sign to a "yield" (positive when shares shrink)
+        g_ps = compound_per_share_growth(revenue_cagr_pct, buyback_yield_pct)
+        return GrowthEvidenceResult(
+            round(g_ps, 1), "per_share_compounded",
+            f"Crecimiento por acción compuesto: ingresos ({revenue_cagr_pct:+.1f}%) × yield de recompra real "
+            f"({buyback_yield_pct:+.1f}%) = {g_ps:+.1f}%.",
+        )
     if forward_consensus_pct is not None:
         return GrowthEvidenceResult(
             forward_consensus_pct, "forward_consensus",

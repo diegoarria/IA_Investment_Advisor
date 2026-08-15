@@ -232,6 +232,7 @@ def project_driver_based_dcf(
     high_growth_years: int = 0,
     exit_multiple: Optional[float] = None,
     exit_metric: Optional[str] = None,
+    shares_path: Optional[list[float]] = None,
 ) -> DriverBasedDcfResult:
     """The core driver-based DCF: projects Revenue -> Operating Margin ->
     EBIT -> Tax -> NOPAT -> Reinvestment -> FCF for `years`, discounts
@@ -282,7 +283,36 @@ def project_driver_based_dcf(
     rather than silently compute a nonsensical reinvestment rate (this
     still governs the reinvestment-rate fade in exit-multiple mode too,
     independent of which terminal-value formula is used).
+
+    `shares_path` (mandatory per-share Fair Value Engine, methodology audit
+    round 5 — see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md):
+    an optional real per-year projected diluted-share-count series (length
+    `years`, built from the company's own historical buyback yield
+    compounding forward, never invented). Revenue/margin/EBIT/NOPAT stay
+    AGGREGATE (corporate-level concepts with no per-share analogue) but
+    each year's resulting FCF is divided by THAT YEAR's real, shrinking
+    share count BEFORE discounting — the buyback-driven denominator
+    compounds year over year, instead of today's default (aggregate FCF
+    discounted, divided by one static/averaged share count at the very
+    end). When given, `pv_of_fcf_sum`/`terminal_value`/`enterprise_value`/
+    `value_per_share` all become PER-SHARE dollar figures, and `net_cash`
+    is bridged in per Diego's NFPps formula (`net_cash / shares_out`, using
+    TODAY's real share count — net cash is a snapshot, not a growing
+    stream — added directly, never divided again; `shares_out` is only
+    REQUIRED alongside `shares_path` when `net_cash` is also given, same
+    as the existing aggregate-mode bridge below). Only valid in
+    Gordon-growth terminal-value mode (`exit_multiple=None`) — exit
+    multiples are aggregate market comparables (EV/Sales, EV/EBIT) with no
+    clean per-share equivalent. Omitted (None, the default): byte-for-byte
+    identical aggregate-dollar behavior for every existing caller.
     """
+    if shares_path is not None and exit_multiple is not None:
+        raise ValueError("shares_path (modo per-share) no es compatible con exit_multiple — los múltiplos de salida son comparables agregados, sin equivalente por acción.")
+    if shares_path is not None and len(shares_path) != years:
+        raise ValueError(f"shares_path debe tener exactamente {years} elementos (uno por año proyectado), recibido {len(shares_path)}.")
+    if shares_path is not None and net_cash is not None and not validate_positive_shares(shares_out):
+        raise ValueError("shares_path (modo per-share) con net_cash requiere un shares_out real y positivo — necesario para el ajuste de caja neta por acción (NFPps).")
+
     if exit_multiple is None:
         validate_discount_beats_terminal_growth(discount_rate, terminal_growth)
     elif exit_metric not in _EXIT_METRICS:
@@ -305,6 +335,11 @@ def project_driver_based_dcf(
         )
     terminal_reinvestment_rate = terminal_growth / terminal_roic_pct
 
+    # Per-share mode (shares_path given) produces small per-share dollar
+    # figures (cents matter) — rounding to whole units, appropriate for
+    # aggregate corporate dollars, would collapse all precision.
+    _round_ndigits = 2 if shares_path is not None else 0
+
     yearly: list[YearlyDriverRow] = []
     revenue_prev = revenue_0
     pv_sum = 0.0
@@ -320,7 +355,12 @@ def project_driver_based_dcf(
         reinvestment = nopat * reinvestment_rate
         fcf = nopat - reinvestment
 
-        discounted_fcf = fcf / ((1 + discount_rate) ** yr)
+        # Per-share denominator shrinks year over year via the REAL
+        # buyback-yield-derived shares_path when given (see docstring) —
+        # `fcf` itself stays the real aggregate figure in `yearly` for
+        # transparency; only what gets discounted changes.
+        fcf_for_discounting = (fcf / shares_path[yr - 1]) if shares_path is not None else fcf
+        discounted_fcf = fcf_for_discounting / ((1 + discount_rate) ** yr)
         pv_sum += discounted_fcf
 
         yearly.append(YearlyDriverRow(
@@ -334,18 +374,19 @@ def project_driver_based_dcf(
             reinvestment_rate_pct=round(reinvestment_rate * 100, 2),
             reinvestment=round(reinvestment, 0),
             fcf=round(fcf, 0),
-            discounted_fcf=round(discounted_fcf, 0),
+            discounted_fcf=round(discounted_fcf, _round_ndigits),
         ))
         revenue_prev = revenue
 
     final_row = yearly[-1]
-    final_fcf = final_row.fcf
+    final_fcf = final_row.fcf  # always aggregate — used for the (aggregate) implied FCF margin below regardless of mode
 
     gordon_terminal_value: Optional[float] = None
     gordon_sanity_check_ratio: Optional[float] = None
     if exit_multiple is None:
         terminal_value_method = "gordon"
-        terminal_value = final_fcf * (1 + terminal_growth) / (discount_rate - terminal_growth)
+        final_fcf_for_terminal = (final_fcf / shares_path[-1]) if shares_path is not None else final_fcf
+        terminal_value = final_fcf_for_terminal * (1 + terminal_growth) / (discount_rate - terminal_growth)
     else:
         terminal_value_method = "exit_multiple"
         metric_value = {"ev_sales": final_row.revenue, "ev_ebit": final_row.ebit, "ev_fcf": final_fcf}[exit_metric]
@@ -374,10 +415,10 @@ def project_driver_based_dcf(
 
     result = DriverBasedDcfResult(
         yearly=yearly,
-        pv_of_fcf_sum=round(pv_sum, 0),
-        terminal_value=round(terminal_value, 0),
-        pv_of_terminal_value=round(pv_terminal, 0),
-        enterprise_value=round(enterprise_value, 0),
+        pv_of_fcf_sum=round(pv_sum, _round_ndigits),
+        terminal_value=round(terminal_value, _round_ndigits),
+        pv_of_terminal_value=round(pv_terminal, _round_ndigits),
+        enterprise_value=round(enterprise_value, _round_ndigits),
         assumptions={
             "revenue_growth_1_pct": round(revenue_growth_1 * 100, 2),
             "high_growth_years": high_growth_years,
@@ -398,10 +439,20 @@ def project_driver_based_dcf(
     )
 
     if net_cash is not None and validate_positive_shares(shares_out):
-        equity_value = enterprise_value + net_cash
-        result.equity_value = round(equity_value, 0)
-        value_per_share = safe_divide(equity_value, shares_out)
-        result.value_per_share = round(value_per_share, 2) if value_per_share is not None else None
+        if shares_path is not None:
+            # `enterprise_value` here is already a PER-SHARE dollar figure
+            # (see docstring) — add net cash per share directly (Diego's
+            # NFPps formula), never divide by shares_out again. "Equity
+            # value" as one aggregate dollar figure has no meaning in this
+            # mode, so it's left unset rather than reporting a mixed unit.
+            net_cash_per_share = net_cash / shares_out
+            value_per_share = enterprise_value + net_cash_per_share
+            result.value_per_share = round(value_per_share, 2)
+        else:
+            equity_value = enterprise_value + net_cash
+            result.equity_value = round(equity_value, 0)
+            value_per_share = safe_divide(equity_value, shares_out)
+            result.value_per_share = round(value_per_share, 2) if value_per_share is not None else None
 
     return result
 

@@ -1010,6 +1010,12 @@ _QUICK_ANALYSIS_CACHE_TTL = 90 * 24 * 3600  # 3 months — a ceiling, not the re
 
 
 def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
+    # v13 — bumped for methodology audit round 5 — mandatory per-share Fair
+    # Value Engine (see /Users/diegoarria/.claude/plans/cosmic-munching-
+    # crown.md): GQV's growth-evidence hierarchy has a new top-priority
+    # per-share-compounded tier (real revenue CAGR × real buyback yield),
+    # and the legacy DCF/Reverse DCF now use a real per-year shrinking
+    # share count. A v12 entry predates all of this.
     # v11 — bumped for methodology audit round 2 (see /Users/diegoarria/
     # .claude/plans/cosmic-munching-crown.md): net cash now includes Long
     # Term Investments (real liquidity was understated for companies
@@ -1087,7 +1093,7 @@ def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
     # capital fallback (buyback-compressed equity), and the AI narrative
     # prompt now cites the real GQV-first fair value instead of the legacy
     # DCF number. A v11 entry predates both.
-    return f"quick_analysis:v12:{lang}:{ticker}"
+    return f"quick_analysis:v13:{lang}:{ticker}"
 
 
 async def _build_quick_analysis(ticker: str, lang: str) -> dict:
@@ -1727,6 +1733,11 @@ _COMPANY_DIAGNOSTIC_CACHE_TTL = _QUICK_ANALYSIS_CACHE_TTL  # same 90-day ceiling
 
 
 def _company_diagnostic_cache_key(ticker: str, lang: str) -> str:
+    # v5 — bumped for methodology audit round 5 — mandatory per-share Fair
+    # Value Engine (see /Users/diegoarria/.claude/plans/cosmic-munching-
+    # crown.md): GQV's growth-evidence hierarchy has a new top-priority
+    # per-share-compounded tier, and the legacy DCF/Reverse DCF now use a
+    # real per-year shrinking share count. A v4 entry predates this.
     # v4 — bumped for methodology audit round 3 (see /Users/diegoarria/
     # .claude/plans/cosmic-munching-crown.md): ROIC operating-invested-
     # capital fallback + roicAdjustedForBuybacks flag, AI narrative now
@@ -1739,7 +1750,7 @@ def _company_diagnostic_cache_key(ticker: str, lang: str) -> str:
     # (see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md,
     # methodology audit) — this endpoint's valuation fields derive from the
     # same gqv_fair_value output that changed. A v1 entry predates the fix.
-    return f"company_diagnostic:v4:{lang}:{ticker}"
+    return f"company_diagnostic:v5:{lang}:{ticker}"
 
 
 @router.get("/company-diagnostic")

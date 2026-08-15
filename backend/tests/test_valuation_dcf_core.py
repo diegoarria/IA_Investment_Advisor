@@ -32,7 +32,7 @@ from app.services.fundamental_analysis_service import (
     _DEFAULT_TERMINAL_GROWTH,
     _DEFAULT_CYCLICALITY_DAMPENER,
 )
-from app.services.valuation.numeric_helpers import derive_fcf, split_maintenance_growth_capex, combine_cash_and_long_term_investments, compute_roic_with_fallback
+from app.services.valuation.numeric_helpers import derive_fcf, split_maintenance_growth_capex, combine_cash_and_long_term_investments, compute_roic_with_fallback, compound_per_share_growth
 
 
 # ── _project_path ──────────────────────────────────────────────────────────
@@ -96,6 +96,41 @@ class TestRunDcf:
         # guarded version has a clear "before" to diff against.
         with pytest.raises(ZeroDivisionError):
             _run_dcf(1000.0, 0.08, 0.03, 0.03)
+
+
+# Mandatory per-share Fair Value Engine (methodology audit round 5, see
+# /Users/diegoarria/.claude/plans/cosmic-munching-crown.md) — _run_dcf's
+# optional shares_path, converting aggregate FCF into a per-share value by
+# dividing each projected year's cash flow by that year's real, shrinking
+# share count before discounting.
+class TestRunDcfSharesPath:
+    def test_omitted_is_byte_for_byte_identical_to_before(self):
+        # Regression pin: every existing caller (no shares_path) must see
+        # EXACTLY the same result as before this feature existed.
+        with_none = _run_dcf(1000.0, 0.10, 0.09, 0.03)
+        without_param = _run_dcf(base_fcf=1000.0, growth_1=0.10, discount_rate=0.09, terminal_growth=0.03)
+        assert with_none == without_param
+
+    def test_constant_shares_path_equals_simple_division(self):
+        # A flat (no-buyback) shares_path of constant value S must produce
+        # exactly the aggregate result divided by S at every year.
+        aggregate = _run_dcf(1000.0, 0.10, 0.09, 0.03)
+        per_share = _run_dcf(1000.0, 0.10, 0.09, 0.03, shares_path=[100.0] * 10)
+        assert per_share["enterprise_value"] == pytest.approx(aggregate["enterprise_value"] / 100.0, rel=1e-9)
+
+    def test_shrinking_share_count_increases_per_share_value_vs_flat_average(self):
+        # The literal fix for the reported symptom: a real buyback program
+        # should show a HIGHER per-share value once shares genuinely shrink
+        # year over year, vs. dividing by one flat/averaged share count.
+        shrinking = [100.0 * (0.97 ** t) for t in range(1, 11)]  # 3%/yr real buyback
+        flat_average = [sum(shrinking) / len(shrinking)] * 10
+        result_shrinking = _run_dcf(1000.0, 0.08, 0.09, 0.03, shares_path=shrinking)
+        result_flat = _run_dcf(1000.0, 0.08, 0.09, 0.03, shares_path=flat_average)
+        assert result_shrinking["enterprise_value"] > result_flat["enterprise_value"]
+
+    def test_wrong_length_shares_path_raises(self):
+        with pytest.raises(ValueError):
+            _run_dcf(1000.0, 0.10, 0.09, 0.03, shares_path=[100.0] * 5)
 
     def test_discount_rate_below_terminal_growth_yields_negative_terminal_value(self):
         # Also currently unguarded — economically nonsensical (gt >= r) but
@@ -275,6 +310,30 @@ class TestNumericHelpers:
 
     def test_calc_margin_of_safety_negative_when_overpriced(self):
         assert calc_margin_of_safety(80.0, 100.0) == pytest.approx(-25.0, abs=0.1)
+
+
+# Mandatory per-share Fair Value Engine (methodology audit round 5, see
+# /Users/diegoarria/.claude/plans/cosmic-munching-crown.md) — Diego's exact
+# formula: g_ps = (1 + g_organic) × (1 + y_buyback) − 1.
+class TestCompoundPerShareGrowth:
+    def test_matches_diego_formula_exactly(self):
+        # (1.199 * 1.026 - 1) * 100 = 23.0246
+        result = compound_per_share_growth(19.9, 2.6)
+        assert result == pytest.approx(23.02, abs=0.01)
+
+    def test_zero_buyback_yield_is_a_no_op(self):
+        assert compound_per_share_growth(10.0, 0.0) == pytest.approx(10.0, abs=0.001)
+
+    def test_negative_buyback_yield_dilution_reduces_growth(self):
+        result = compound_per_share_growth(10.0, -3.0)
+        assert result < 10.0
+        # (1.10 * 0.97 - 1) * 100 = 6.7
+        assert result == pytest.approx(6.7, abs=0.01)
+
+    def test_symmetric_formula_handles_negative_organic_growth_too(self):
+        result = compound_per_share_growth(-5.0, 5.0)
+        # (0.95 * 1.05 - 1) * 100 = -0.25
+        assert result == pytest.approx(-0.25, abs=0.01)
 
 
 # Methodology audit round 3 (see /Users/diegoarria/.claude/plans/cosmic-

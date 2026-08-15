@@ -162,6 +162,10 @@ def compute_nuvos_fair_value(
         eps_cagr_pct=growth_quality.eps_cagr_pct,
         revenue_cagr_pct=growth_quality.revenue_cagr_pct,
         normalized_growth_pct=normalized_growth_pct,
+        # Mandatory per-share Fair Value Engine (methodology audit round 5)
+        # — real historical shares-outstanding CAGR, already computed by
+        # decompose_eps_growth above (negative = buybacks).
+        shares_cagr_pct=growth_quality.shares_cagr_pct,
     )
 
     _fcf_margin_source = fcf_normalized_trend if fcf_normalized_trend else fcf_trend
@@ -201,7 +205,14 @@ def compute_nuvos_fair_value(
     )
 
     buyback_share = None
-    if growth_quality.from_buybacks_pct is not None and growth_quality.eps_cagr_pct:
+    # Mandatory per-share Fair Value Engine (methodology audit round 5) —
+    # this Reality Gate check exists to flag EPS-CAGR-based growth that's
+    # mostly buyback-driven (a real data-quality risk for that path). When
+    # growth instead came from the new per-share-compounded tier, buybacks
+    # are the INTENDED, explicitly-credited methodology, not a risk to
+    # flag — skip the check (None passes it unconditionally) rather than
+    # penalizing the exact behavior Diego mandated.
+    if growth_evidence.source != "per_share_compounded" and growth_quality.from_buybacks_pct is not None and growth_quality.eps_cagr_pct:
         buyback_share = abs(growth_quality.from_buybacks_pct) / abs(growth_quality.eps_cagr_pct) * 100
 
     reality_gate = run_reality_gate(

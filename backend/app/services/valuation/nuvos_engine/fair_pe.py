@@ -170,7 +170,17 @@ def compute_fair_pe(
     evidence` resolved, so the growth adjustment is never silently zero
     just because one specific, often-unavailable data source was missing."""
     expected_eps_growth_pct = growth_evidence.growth_pct if growth_evidence else None
-    discounted_growth = _growth_input_for_adjustment(expected_eps_growth_pct, growth_quality)
+    # Mandatory per-share Fair Value Engine (methodology audit round 5) —
+    # when growth came from the new per-share-compounded tier, buybacks are
+    # ALREADY explicitly and fully credited via the compounding formula
+    # itself (real revenue CAGR × real buyback yield) — discounting it
+    # again here would double-penalize the same buyback program. The
+    # discount stays in place for the OLD eps_cagr_pct-based fallback path
+    # (when per-share evidence isn't available), unchanged.
+    if growth_evidence and growth_evidence.source == "per_share_compounded":
+        discounted_growth = expected_eps_growth_pct
+    else:
+        discounted_growth = _growth_input_for_adjustment(expected_eps_growth_pct, growth_quality)
 
     base = sector_base_multiple(sector)
     adjustments = [

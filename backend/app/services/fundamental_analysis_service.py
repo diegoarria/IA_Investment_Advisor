@@ -1512,18 +1512,27 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
 
         # Projected share count path — gradual reduction if the company has a
         # real, sustained buyback track record (never assumed constant when
-        # real buybacks are happening). Average of the projected path over
-        # the projection horizon is used as the per-share denominator instead
-        # of today's static share count, since the EV/terminal-value split is
-        # aggregate (not year-by-year), so a single representative share
-        # count is needed — the average is a reasonable middle ground between
-        # "ignore future buybacks entirely" (today's count) and "assume all
-        # value crystallizes only at the terminal year" (year-10 count).
-        if buyback_rate > 0:
-            shares_path = [shares_out * ((1 - buyback_rate) ** t) for t in range(1, _PROJECTION_YEARS + 1)]
-            projected_shares = statistics.mean(shares_path)
-        else:
-            projected_shares = shares_out
+        # real buybacks are happening). buyback_rate=0 makes every year equal
+        # shares_out, so no special-casing is needed.
+        #
+        # `shares_path_full` (mandatory per-share Fair Value Engine,
+        # methodology audit round 5 — see /Users/diegoarria/.claude/plans/
+        # cosmic-munching-crown.md) is the REAL per-year path, now passed
+        # directly into _run_dcf/project_driver_based_dcf's `shares_path`
+        # param for the PRIMARY scenarios and Reverse DCF below — each
+        # year's aggregate FCF divided by THAT YEAR's real, shrinking share
+        # count before discounting, letting the buyback-driven denominator
+        # compound year over year through the whole projection.
+        #
+        # `projected_shares` (the OLD average-into-one-scalar approach)
+        # stays as the per-share denominator ONLY for the secondary/
+        # diagnostic what-if calculations below (moat impact, WACC impact,
+        # margin-normalization impact, sensitivity table, driver-based
+        # valuation, Monte Carlo, Expectations Investing) — converting
+        # those to the full per-share mechanism too is real future work,
+        # not done in this pass; disclosed here rather than silently mixed.
+        shares_path_full = [shares_out * ((1 - buyback_rate) ** t) for t in range(1, _PROJECTION_YEARS + 1)]
+        projected_shares = statistics.mean(shares_path_full)
         # Raw (unclamped) quality-adjusted growth rate — clamping happens PER
         # SCENARIO below, each with its own ceiling. Clamping here first (to
         # the base scenario's own ceiling) before applying the optimistic/
@@ -1540,17 +1549,35 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             rev_cap = assumptions["revenue_growth_cap_pct"] / 100
             fcf_cap = assumptions["fcf_growth_cap_pct"] / 100
             g1_fcf = min(g1_rev_raw * mult, fcf_cap)
-            dcf_result = _run_dcf(base_fcf, g1_fcf, dr, terminal_growth)
-            ev = dcf_result["enterprise_value"]
-            equity_value = ev - total_debt + cash_latest
-            intrinsic_per_share = equity_value / projected_shares
+            # Mandatory per-share Fair Value Engine (methodology audit round
+            # 5): base_fcf/g1_fcf stay AGGREGATE (revenue-driven growth is a
+            # corporate-level concept), but shares_path_full makes _run_dcf
+            # divide each projected year's FCF by that year's real,
+            # shrinking share count before discounting — enterprise_value
+            # below is therefore already PER-SHARE. Net cash is bridged in
+            # per Diego's NFPps formula (today's real shares_out, not a
+            # projected count — net cash is a snapshot, not a growing
+            # stream), added directly rather than dividing an aggregate
+            # equity value by an averaged share count.
+            dcf_result = _run_dcf(base_fcf, g1_fcf, dr, terminal_growth, shares_path=shares_path_full)
+            ev_per_share = dcf_result["enterprise_value"]
+            net_cash_per_share = net_cash / shares_out
+            intrinsic_per_share = ev_per_share + net_cash_per_share
+            # Aggregate FCF path kept separately (via a plain _project_path
+            # call, not the per-share _run_dcf result) purely for the
+            # fcf_year1/fcf_year5 DISPLAY fields below — those are shown to
+            # users/AI-narrative as real company-level dollar figures
+            # ("FCF proyectado: $94,500M"); silently switching them to tiny
+            # per-share numbers under the same label would be confusing,
+            # not an improvement.
+            fcf_path_aggregate = _project_path(base_fcf, g1_fcf, terminal_growth)
 
             scenario = {
                 "stage1_growth_pct": round(g1_fcf * 100, 1),
                 "discount_rate_pct": round(dr * 100, 1),
                 "intrinsic_value_per_share": round(intrinsic_per_share, 2),
-                "fcf_year1": dcf_result["fcf_path"][0],
-                "fcf_year5": dcf_result["fcf_path"][_PROJECTION_YEARS - 1],
+                "fcf_year1": fcf_path_aggregate[0],
+                "fcf_year5": fcf_path_aggregate[_PROJECTION_YEARS - 1],
             }
             if latest_rev:
                 g1_rev = min(g1_rev_raw * mult, rev_cap)
@@ -1564,9 +1591,14 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
 
         base_scenario = scenarios["base"]
 
-        # Year-by-year audit table (Nivel 3 / "Ver modelo completo") — real
-        # numbers straight from the same _run_dcf the base scenario itself
-        # used, not a re-derivation that could drift from the headline value.
+        # Year-by-year audit table (Nivel 3 / "Ver modelo completo") — the
+        # real AGGREGATE (company-level) FCF path at the base scenario's own
+        # growth/discount rate, for transparency. Deliberately re-run in
+        # aggregate mode (no shares_path) even though the headline
+        # intrinsic_per_share above now comes from the per-share _run_dcf
+        # call — this table's whole purpose is showing real dollar-level
+        # cash flows, not per-share ones (same reasoning as fcf_year1/
+        # fcf_year5 above).
         base_g1 = base_scenario["stage1_growth_pct"] / 100
         base_dr_for_detail = base_scenario["discount_rate_pct"] / 100
         base_run_detail = _run_dcf(base_fcf, base_g1, base_dr_for_detail, terminal_growth)
@@ -1618,6 +1650,16 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 operating_margin_anchor is not None and reinvestment_rate_anchor is not None
                 and avg_roic is not None and avg_roic > 0
             ):
+                # Mandatory per-share Fair Value Engine (methodology audit
+                # round 5) — shares_out is TODAY's real count (required for
+                # the per-share net-cash bridge), shares_path_full is the
+                # real buyback-yield-derived per-year share count. Passing
+                # both makes this solve for the ORGANIC growth rate needed
+                # to justify the price, holding the company's REAL,
+                # already-known buyback yield fixed — instead of implicitly
+                # demanding the entire return come from organic growth
+                # alone. This is the literal fix for the "system falsely
+                # claims 20%+ growth is needed" complaint.
                 implied_growth_pct = _implied_growth_rate(
                     revenue_0=latest_rev,
                     operating_margin_anchor_pct=operating_margin_anchor,
@@ -1628,9 +1670,10 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                     discount_rate=base_discount_rate,
                     terminal_growth=terminal_growth,
                     net_cash=net_cash,
-                    shares_out=projected_shares,
+                    shares_out=shares_out,
                     target_price=price,
                     high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
+                    shares_path=shares_path_full,
                 )
 
             # Mandatory sanity check — never present the implied growth
@@ -1662,9 +1705,10 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                     discount_rate=base_discount_rate,
                     terminal_growth=terminal_growth,
                     net_cash=net_cash,
-                    shares_out=projected_shares,
+                    shares_out=shares_out,
                     target_price=price,
                     high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
+                    shares_path=shares_path_full,
                 )
             # ── Reverse DCF 2.0 — Fase 1.5, Incremento 12: three more implied
             # variables (operating margin, terminal ROIC, base revenue), same
@@ -1694,9 +1738,10 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                     discount_rate=base_discount_rate,
                     terminal_growth=terminal_growth,
                     net_cash=net_cash,
-                    shares_out=projected_shares,
+                    shares_out=shares_out,
                     target_price=price,
                     high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
+                    shares_path=shares_path_full,
                 )
                 implied_terminal_roic_pct = _implied_terminal_roic(
                     revenue_0=latest_rev,
@@ -1708,9 +1753,10 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                     discount_rate=base_discount_rate,
                     terminal_growth=terminal_growth,
                     net_cash=net_cash,
-                    shares_out=projected_shares,
+                    shares_out=shares_out,
                     target_price=price,
                     high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
+                    shares_path=shares_path_full,
                 )
                 implied_base_revenue = _implied_base_revenue(
                     revenue_0_estimate=latest_rev,
@@ -1723,9 +1769,10 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                     discount_rate=base_discount_rate,
                     terminal_growth=terminal_growth,
                     net_cash=net_cash,
-                    shares_out=projected_shares,
+                    shares_out=shares_out,
                     target_price=price,
                     high_growth_years=_DEFAULT_HIGH_GROWTH_YEARS,
+                    shares_path=shares_path_full,
                 )
                 if implied_margin_pct is not None:
                     implied_fcf_year_1 = round(implied_margin_pct / 100 * latest_rev * (1 + driver_based_base_g1), 0)
@@ -3212,10 +3259,24 @@ def format_fundamental_analysis_for_prompt(data: dict) -> str:
                 lines.append(f"  - Tasa de descuento {rate_pct}%: valor intrínseco/acción ${val}")
         implied = dcf.get("implied_growth_pct")
         if implied is not None:
+            _buyback_yield_pct = gb.get("buyback_rate_pct", 0) if gb else 0
+            # Mandatory per-share Fair Value Engine (methodology audit round
+            # 5) — this figure is now solved holding the company's REAL
+            # buyback yield fixed (see _implied_growth_rate's shares_path
+            # param), so it's the ORGANIC growth needed, not the total
+            # return. Discloses that explicitly rather than silently
+            # changing what the number means — the direct fix for
+            # overstating "needed" growth for real buyback-heavy names.
+            _buyback_disclosure = (
+                f" (este {implied}% es solo la parte ORGÁNICA — ya excluye el yield de recompra real de "
+                f"{_buyback_yield_pct}%/año, que se suma aparte gracias a la reducción real de acciones en circulación)."
+                if _buyback_yield_pct and _buyback_yield_pct > 0 else "."
+            )
             lines.append(
                 f"DCF INVERSO — qué está pagando el mercado hoy: manteniendo el mismo WACC ({dcf['base_discount_rate_pct']}%) "
                 f"y crecimiento terminal ({dcf['terminal_growth_pct']}%) fijos, el precio actual (${dcf['current_price']}) "
-                f"implica un crecimiento de FCF en el año 1 de **{implied}%** para que el DCF cuadre con ese precio. "
+                f"implica un crecimiento de FCF en el año 1 de **{implied}%** para que el DCF cuadre con ese precio"
+                f"{_buyback_disclosure} "
                 f"Compara este {implied}% contra el CAGR de FCF/ingresos real de la empresa (arriba) para explicarle al "
                 f"usuario qué tan optimista o realista es esa expectativa — esto es lo que el inversionista está comprando: "
                 f"la apuesta de que la empresa va a crecer a ese ritmo, no solo un número de 'cara/barata'."

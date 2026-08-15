@@ -34,6 +34,16 @@ from app.core.cache import cache_set, cache_get_with_ts
 
 logger = logging.getLogger(__name__)
 
+# v8 — bumped for methodology audit round 5 — mandatory per-share Fair
+# Value Engine (see /Users/diegoarria/.claude/plans/cosmic-munching-
+# crown.md): GQV's growth-evidence hierarchy now has a new top-priority
+# per-share-compounded tier (real revenue CAGR × real buyback yield),
+# replacing the old EPS-CAGR-based buyback discount for companies with
+# real share-count history — changes `fair_pe`/Bear-Base-Bull scenarios
+# for real tickers, especially buyback-heavy ones (AAPL, META, ACN). Also
+# the legacy DCF scenarios and Reverse DCF now use a real per-year
+# shrinking share count instead of one averaged scalar. A v7 entry
+# predates all of this.
 # v7 — bumped for methodology audit round 3 (see /Users/diegoarria/.claude/
 # plans/cosmic-munching-crown.md): ROIC now falls back to operating
 # invested capital when buyback-compressed equity would otherwise blow it
@@ -70,7 +80,7 @@ logger = logging.getLogger(__name__)
 # scenarios unconditionally. A v1 cache entry was built by the old logic —
 # without this bump, Oportunidades keeps serving DCF-only candidates for up
 # to 8 more days (this cache's TTL) after the code changed.
-CACHE_KEY = "undervalued_screener:v7"
+CACHE_KEY = "undervalued_screener:v8"
 CACHE_TTL = 8 * 24 * 3600      # slightly over a week — one missed weekly run doesn't go stale/empty
 BOOTSTRAP_TTL = 24 * 3600      # short-lived — the next full weekly/startup refresh supersedes this
 _BOOTSTRAP_LIMIT = 44          # small subset so a cold-cache request stays reasonably fast — ~4 per GICS sector via _diverse_bootstrap_sample, now that UNIVERSE is the full S&P 500 (bumped from 20, which was fine for the old ~183-ticker curated list but too thin for real sector spread here)

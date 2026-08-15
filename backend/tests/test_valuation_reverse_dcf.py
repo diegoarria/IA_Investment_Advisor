@@ -316,3 +316,80 @@ class TestSanityCheckReverseDcf:
         result = sanity_check_reverse_dcf(implied_growth_pct=10.0, fcf_base=1000.0, historical_fcf_cagr_pct=-5.0)
         assert result["vs_cagr_historico_propio"] == "mayor"
         assert result["regime_change_flag"] is False
+
+
+# Mandatory per-share Fair Value Engine (methodology audit round 5, see
+# /Users/diegoarria/.claude/plans/cosmic-munching-crown.md) — Reverse DCF
+# now solves for ORGANIC growth only, holding the company's real, already-
+# known buyback yield fixed (via shares_path) — the literal fix for
+# "the system falsely claims 20%+ growth is needed" for buyback-heavy names.
+class TestImpliedGrowthRateSharesPath:
+    def test_recovers_organic_growth_when_shares_path_matches(self):
+        known_organic_growth = 0.10
+        shrinking = [100.0 * (0.97 ** t) for t in range(1, 11)]  # 3%/yr real buyback
+        fwd = project_driver_based_dcf(
+            revenue_growth_1=known_organic_growth, shares_path=shrinking,
+            **_DRIVER_KWARGS,
+        )
+        target_price = fwd.value_per_share
+
+        implied = _implied_growth_rate(
+            revenue_0=_DRIVER_KWARGS["revenue_0"],
+            operating_margin_anchor_pct=_DRIVER_KWARGS["operating_margin_anchor_pct"],
+            terminal_operating_margin_pct=_DRIVER_KWARGS["terminal_operating_margin_pct"],
+            tax_rate=_DRIVER_KWARGS["tax_rate"],
+            reinvestment_rate_anchor_pct=_DRIVER_KWARGS["reinvestment_rate_anchor_pct"],
+            terminal_roic_pct=_DRIVER_KWARGS["terminal_roic_pct"],
+            discount_rate=_DRIVER_KWARGS["discount_rate"],
+            terminal_growth=_DRIVER_KWARGS["terminal_growth"],
+            net_cash=_DRIVER_KWARGS["net_cash"],
+            shares_out=_DRIVER_KWARGS["shares_out"],
+            target_price=target_price,
+            shares_path=shrinking,
+        )
+        assert implied == pytest.approx(known_organic_growth * 100, abs=0.2)
+
+    def test_ignoring_the_real_buyback_yield_overstates_required_growth(self):
+        # The literal bug being fixed: for the SAME real target price (built
+        # with a real buyback program baked in), solving WITHOUT crediting
+        # that buyback yield (shares_path=None, old behavior) must demand a
+        # HIGHER organic growth rate than solving WITH it — since none of
+        # the buyback-driven return gets credited, 100% of the gap must be
+        # explained by organic growth alone.
+        known_organic_growth = 0.10
+        shrinking = [100.0 * (0.97 ** t) for t in range(1, 11)]
+        fwd = project_driver_based_dcf(
+            revenue_growth_1=known_organic_growth, shares_path=shrinking,
+            **_DRIVER_KWARGS,
+        )
+        target_price = fwd.value_per_share
+
+        implied_with_buyback_credit = _implied_growth_rate(
+            revenue_0=_DRIVER_KWARGS["revenue_0"],
+            operating_margin_anchor_pct=_DRIVER_KWARGS["operating_margin_anchor_pct"],
+            terminal_operating_margin_pct=_DRIVER_KWARGS["terminal_operating_margin_pct"],
+            tax_rate=_DRIVER_KWARGS["tax_rate"],
+            reinvestment_rate_anchor_pct=_DRIVER_KWARGS["reinvestment_rate_anchor_pct"],
+            terminal_roic_pct=_DRIVER_KWARGS["terminal_roic_pct"],
+            discount_rate=_DRIVER_KWARGS["discount_rate"],
+            terminal_growth=_DRIVER_KWARGS["terminal_growth"],
+            net_cash=_DRIVER_KWARGS["net_cash"],
+            shares_out=_DRIVER_KWARGS["shares_out"],
+            target_price=target_price,
+            shares_path=shrinking,
+        )
+        implied_without_buyback_credit = _implied_growth_rate(
+            revenue_0=_DRIVER_KWARGS["revenue_0"],
+            operating_margin_anchor_pct=_DRIVER_KWARGS["operating_margin_anchor_pct"],
+            terminal_operating_margin_pct=_DRIVER_KWARGS["terminal_operating_margin_pct"],
+            tax_rate=_DRIVER_KWARGS["tax_rate"],
+            reinvestment_rate_anchor_pct=_DRIVER_KWARGS["reinvestment_rate_anchor_pct"],
+            terminal_roic_pct=_DRIVER_KWARGS["terminal_roic_pct"],
+            discount_rate=_DRIVER_KWARGS["discount_rate"],
+            terminal_growth=_DRIVER_KWARGS["terminal_growth"],
+            net_cash=_DRIVER_KWARGS["net_cash"],
+            shares_out=_DRIVER_KWARGS["shares_out"],
+            target_price=target_price,
+            # shares_path omitted — old aggregate-only behavior
+        )
+        assert implied_without_buyback_credit > implied_with_buyback_credit

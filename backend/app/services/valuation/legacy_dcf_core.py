@@ -20,6 +20,8 @@ bearing module rather than deleted.
 
 from __future__ import annotations
 
+from typing import Optional
+
 _PROJECTION_YEARS = 10
 
 
@@ -37,12 +39,36 @@ def _project_path(base_value: float, growth_1: float, terminal_growth: float, ye
     return path
 
 
-def _run_dcf(base_fcf: float, growth_1: float, discount_rate: float, terminal_growth: float) -> dict:
+def _run_dcf(
+    base_fcf: float, growth_1: float, discount_rate: float, terminal_growth: float,
+    shares_path: Optional[list[float]] = None,
+) -> dict:
     """Two-stage DCF: growth fades linearly from `growth_1` (year 1) to the
     terminal growth rate by year _PROJECTION_YEARS, then a Gordon-growth
     terminal value. Returns enterprise-value components only — caller adds
-    cash/debt to get equity value."""
+    cash/debt to get equity value.
+
+    `shares_path` (mandatory per-share engine, methodology audit round 5 —
+    see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md): an
+    optional real per-year projected diluted-share-count series (length
+    _PROJECTION_YEARS, built from the company's own historical buyback
+    yield compounding forward — see fundamental_analysis_service.py). When
+    given, `base_fcf`/`growth_1` stay AGGREGATE (revenue-driven growth is a
+    corporate-level, not per-share, concept) but each projected year's
+    aggregate FCF is divided by THAT YEAR's real, shrinking share count
+    BEFORE discounting — so the every return value here (`fcf_path`,
+    `pv_of_fcf_sum`, `terminal_value`, `enterprise_value`) becomes a
+    PER-SHARE dollar figure, with the buyback-driven denominator shrinkage
+    compounding year over year, instead of today's default (aggregate
+    dollars, divided by one averaged share count at the very end by the
+    caller). Omitted (None, the default): byte-for-byte identical
+    aggregate-dollar behavior for every existing caller — this is
+    additive, never a breaking change."""
     path = _project_path(base_fcf, growth_1, terminal_growth)
+    if shares_path is not None:
+        if len(shares_path) != len(path):
+            raise ValueError(f"shares_path debe tener {len(path)} elementos (uno por año proyectado), recibido {len(shares_path)}.")
+        path = [cf / sh for cf, sh in zip(path, shares_path)]
     pv_sum = sum(cf / ((1 + discount_rate) ** yr) for yr, cf in enumerate(path, start=1))
     final_cf = path[-1]
     terminal_value = final_cf * (1 + terminal_growth) / (discount_rate - terminal_growth)

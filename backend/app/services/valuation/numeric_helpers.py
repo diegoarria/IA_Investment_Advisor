@@ -84,6 +84,30 @@ def derive_fcf(cfo: Optional[float], capex: Optional[float]) -> Optional[float]:
     return round(cfo + capex, 2)
 
 
+def compound_per_share_growth(g_organic_pct: float, buyback_yield_pct: float) -> float:
+    """Per-share value growth rate — mandatory per-share Fair Value Engine
+    (methodology audit round 5, see /Users/diegoarria/.claude/plans/
+    cosmic-munching-crown.md). Diego's explicit formula:
+    `g_ps = (1 + g_organic) × (1 + y_buyback) − 1`.
+
+    Used ONLY by the GQV engine's growth-evidence tier (nuvos_engine/
+    growth_evidence.py) — a single forward-looking growth NUMBER, not a
+    multi-year projection. The two DCF engines (legacy_dcf_core.py,
+    dcf_engine.py) achieve the mathematically equivalent result a
+    different way: dividing each projected year's real (organic-growth-
+    only) aggregate FCF by that year's real, shrinking share count before
+    discounting — see their own `shares_path` parameter docs. Both
+    approaches converge to the same thing (to first order, (1+g)/(1-y) ≈
+    (1+g)(1+y) for small y) but the DCF's share-count-divisor mechanism
+    avoids needing a separate growth-rate concept there.
+
+    `buyback_yield_pct` is expected as a POSITIVE number when shares are
+    shrinking (the real, historical buyback yield) — negative values
+    (net share issuance/dilution) are handled correctly too, since the
+    formula is symmetric."""
+    return ((1 + g_organic_pct / 100) * (1 + buyback_yield_pct / 100) - 1) * 100
+
+
 def combine_cash_and_long_term_investments(
     cash_and_short_term: Optional[float], long_term_investments: Optional[float],
 ) -> float:

@@ -71,13 +71,24 @@ def _implied_growth_rate(
     shares_out: float,
     target_price: float,
     high_growth_years: int = 0,
+    shares_path: Optional[list[float]] = None,
 ) -> Optional[float]:
     """Reverse DCF: holding every OTHER real input fixed at Nuvos's own
     estimates, solves (Brent's method) for the year-1 revenue growth rate
     that would make the driver-based DCF's value per share equal today's
     actual market price. Returns None if no growth rate in a wide, sane
     search range reconciles the two (e.g. the market price implies a
-    genuinely absurd/impossible growth rate)."""
+    genuinely absurd/impossible growth rate).
+
+    `shares_path` (mandatory per-share Fair Value Engine, methodology audit
+    round 5 — see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md):
+    when given (the company's real, historical-buyback-yield-derived
+    shrinking share count per year), this solves for the ORGANIC growth
+    rate needed to justify the price, holding the REAL, already-known
+    buyback yield fixed — instead of implicitly demanding the entire
+    return come from organic growth alone. This is the literal fix for
+    "the system falsely claims 20%+ aggregate FCF growth is needed" when a
+    real buyback program already provides part of that return."""
     def equity_at(g: float) -> Optional[float]:
         result = project_driver_based_dcf(
             revenue_0=revenue_0,
@@ -92,6 +103,7 @@ def _implied_growth_rate(
             net_cash=net_cash,
             shares_out=shares_out,
             high_growth_years=high_growth_years,
+            shares_path=shares_path,
         )
         return result.value_per_share
 
@@ -116,6 +128,7 @@ def _implied_fcf_margin_at_fixed_growth(
     shares_out: float,
     target_price: float,
     high_growth_years: int = 0,
+    shares_path: Optional[list[float]] = None,
 ) -> Optional[float]:
     """The complementary reverse-DCF question — not "what growth is priced
     in" (growth pinned at Nuvos's own real trend estimate here), but
@@ -157,6 +170,7 @@ def _implied_fcf_margin_at_fixed_growth(
             net_cash=net_cash,
             shares_out=shares_out,
             high_growth_years=high_growth_years,
+            shares_path=shares_path,
         )
         year_1 = result.yearly[0]
         implied_margin = year_1.fcf / year_1.revenue if year_1.revenue else None
@@ -193,6 +207,7 @@ def _implied_operating_margin(
     shares_out: float,
     target_price: float,
     high_growth_years: int = 0,
+    shares_path: Optional[list[float]] = None,
 ) -> Optional[float]:
     """Fase 1.5, Incremento 12 — third reverse-DCF question: holding growth
     AND reinvestment intensity fixed at Nuvos's own real estimates, what
@@ -228,6 +243,7 @@ def _implied_operating_margin(
             net_cash=net_cash,
             shares_out=shares_out,
             high_growth_years=high_growth_years,
+            shares_path=shares_path,
         )
         return result.value_per_share
 
@@ -252,6 +268,7 @@ def _implied_terminal_roic(
     shares_out: float,
     target_price: float,
     high_growth_years: int = 0,
+    shares_path: Optional[list[float]] = None,
 ) -> Optional[float]:
     """Fase 1.5, Incremento 12 — fourth reverse-DCF question: holding
     growth, margin, and the YEAR-1 reinvestment rate fixed at Nuvos's own
@@ -284,6 +301,7 @@ def _implied_terminal_roic(
             net_cash=net_cash,
             shares_out=shares_out,
             high_growth_years=high_growth_years,
+            shares_path=shares_path,
         )
         return result.value_per_share
 
@@ -309,6 +327,7 @@ def _implied_base_revenue(
     shares_out: float,
     target_price: float,
     high_growth_years: int = 0,
+    shares_path: Optional[list[float]] = None,
 ) -> Optional[float]:
     """Fase 1.5, Incremento 12 — fifth reverse-DCF question, genuinely
     different in kind from the other four: instead of "what assumption
@@ -343,6 +362,7 @@ def _implied_base_revenue(
             net_cash=net_cash,
             shares_out=shares_out,
             high_growth_years=high_growth_years,
+            shares_path=shares_path,
         )
         return result.value_per_share
 
@@ -356,6 +376,7 @@ def _implied_base_revenue(
 
 def _constant_growth_enterprise_value(
     base_fcf: float, growth: float, discount_rate: float, terminal_growth: float, years: int = _PROJECTION_YEARS,
+    shares_path: Optional[list[float]] = None,
 ) -> float:
     """Expectations Investing (Rappaport): FCF grows at a CONSTANT rate
     every explicit year (never fading, unlike the driver-based waterfall's
@@ -363,12 +384,20 @@ def _constant_growth_enterprise_value(
     beyond year `years`. Relocated verbatim from
     `legacy_dcf_core._run_dcf_constant_growth` — see this module's
     docstring for why `_implied_constant_growth_rate` keeps this simple
-    formula instead of the driver-based waterfall."""
+    formula instead of the driver-based waterfall.
+
+    `shares_path` (mandatory per-share Fair Value Engine, methodology audit
+    round 5): same real, shrinking-share-count mechanism as
+    `legacy_dcf_core._run_dcf` — when given, divides each year's aggregate
+    FCF by that year's real share count before discounting, making every
+    return value here per-share. Omitted: unchanged aggregate behavior."""
     v = base_fcf
     path = []
     for _ in range(years):
         v *= (1 + growth)
         path.append(v)
+    if shares_path is not None:
+        path = [cf / sh for cf, sh in zip(path, shares_path)]
     pv_sum = sum(cf / ((1 + discount_rate) ** yr) for yr, cf in enumerate(path, start=1))
     final_cf = path[-1]
     terminal_value = final_cf * (1 + terminal_growth) / (discount_rate - terminal_growth)
@@ -379,6 +408,7 @@ def _constant_growth_enterprise_value(
 def _implied_constant_growth_rate(
     base_fcf: float, discount_rate: float, terminal_growth: float,
     total_debt: float, cash: float, shares_out: float, target_price: float,
+    shares_path: Optional[list[float]] = None,
 ) -> Optional[float]:
     """Reverse DCF for Expectations Investing: solves (Brent's method) for
     the CONSTANT annual growth rate (not a year-1 rate that fades to
@@ -386,9 +416,16 @@ def _implied_constant_growth_rate(
     "what growth rate, sustained flat for 10 years, justifies this price."
     Returns None if no rate in a sane range reconciles the price. See this
     module's docstring for why this variant does not use the driver-based
-    waterfall the other two now use."""
+    waterfall the other two now use.
+
+    `shares_path` (methodology audit round 5): when given, solves for the
+    ORGANIC growth rate only, holding the real historical buyback yield
+    fixed (baked into the shrinking share-count path) — same fix as the
+    driver-based root-finders above."""
     def equity_at(g: float) -> float:
-        ev = _constant_growth_enterprise_value(base_fcf, g, discount_rate, terminal_growth)
+        ev = _constant_growth_enterprise_value(base_fcf, g, discount_rate, terminal_growth, shares_path=shares_path)
+        if shares_path is not None:
+            return ev + cash / shares_out - total_debt / shares_out
         return (ev - total_debt + cash) / shares_out
 
     lo, hi = -0.30, 1.50
