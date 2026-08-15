@@ -4053,26 +4053,17 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
     return None
 
 
-async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
-    """One-liner (~15-25 words) for a single undervalued-screener candidate —
-    called once per real candidate PER LANGUAGE during the weekly refresh
-    (see undervalued_screener_service.refresh_undervalued_screener), never
-    live per-request. Deliberately lean prompt (compact evidence lines, no
-    full data block) since this runs ~60-90 times per refresh per language —
-    keeps the weekly cost small, but each of the 7 checklist items still
-    gets a real, multi-factor-grounded ~70-word reason (see
-    _CHECKLIST_INSTRUCTIONS).
-
-    Returns {"blurb": str, "business_understanding_stars": int(1-5)|None,
-    "business_understanding_reason": str, "checklist_reasons": dict}."""
-    ts = entry.get("thesis_scores") or {}
-    evidence_block = _format_checklist_evidence_for_prompt(entry.get("checklist_items_real") or [], entry.get("sector"), None)
-    prompt = f"""{_output_language_directive(lang)}{entry.get('company_name') or entry['ticker']} ({entry['ticker']}, sector {entry.get('sector') or 'N/D'}): precio real ${entry.get('price')}, valor intrínseco real ${entry.get('intrinsic_value_base')}, margen de seguridad real +{entry.get('margin_of_safety_pct')}%. Business Quality {ts.get('business_quality', 'N/D')}/100, Financial Strength {ts.get('financial_strength', 'N/D')}/100.
-
-Evidencia real por dimensión del checklist (ítems 2-7):
-{evidence_block}
-
-{_CHECKLIST_INSTRUCTIONS}
+# Cost optimization (see /Users/diegoarria/.claude/plans/cosmic-munching-
+# crown.md) — everything in the candidate-blurb prompt that's IDENTICAL
+# across every (candidate, language) call: the checklist-reasoning rules
+# plus the JSON output schema, zero per-candidate data. Extracted so it can
+# be sent as one `system` block with `cache_control: {"type": "ephemeral"}`
+# (same pattern already used 7x in Arthur's chat prompts) — this function
+# previously sent NO system prompt at all, paying full price for this
+# ~2,500-character instruction block on every single one of the ~60-110
+# calls a weekly refresh makes. Combined with the JSON schema below it
+# clears Haiku's 2048-token minimum cacheable-block size on its own.
+_BLURB_STATIC_INSTRUCTIONS = f"""{_CHECKLIST_INSTRUCTIONS}
 
 Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta estructura exacta:
 {{
@@ -4089,20 +4080,105 @@ Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta est
   }}
 }}"""
 
-    response = await _claude(
-        model="claude-haiku-4-5-20251001",
-        # Same rationale as generate_quick_valuation_summary above — 1
-        # blurb + business_understanding_reason + 6 checklist reasons is
-        # too much content for the old 1000-token budget.
-        max_tokens=2400,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    text = response.content[0].text.strip()
-    parsed = _parse_json_response(text)
+_BLURB_MODEL = "claude-haiku-4-5-20251001"
+_BLURB_MAX_TOKENS = 2400  # 1 blurb + business_understanding_reason + 6 checklist reasons — too much content for a smaller budget (confirmed: an older 1000-token cap truncated JSON mid-object)
+
+
+def _build_blurb_prompt(entry: dict, lang: str) -> str:
+    """The per-candidate, per-language DYNAMIC half of the blurb prompt —
+    real evidence only, no static instructions (those live in
+    `_BLURB_STATIC_INSTRUCTIONS`, sent as a separate cached `system` block)."""
+    ts = entry.get("thesis_scores") or {}
+    evidence_block = _format_checklist_evidence_for_prompt(entry.get("checklist_items_real") or [], entry.get("sector"), None)
+    return f"""{_output_language_directive(lang)}{entry.get('company_name') or entry['ticker']} ({entry['ticker']}, sector {entry.get('sector') or 'N/D'}): precio real ${entry.get('price')}, valor intrínseco real ${entry.get('intrinsic_value_base')}, margen de seguridad real +{entry.get('margin_of_safety_pct')}%. Business Quality {ts.get('business_quality', 'N/D')}/100, Financial Strength {ts.get('financial_strength', 'N/D')}/100.
+
+Evidencia real por dimensión del checklist (ítems 2-7):
+{evidence_block}"""
+
+
+def _parse_blurb_response_text(text: str, ticker: str = "") -> dict:
+    """Shared parse/fallback logic for both the single-call path
+    (`generate_candidate_blurb`) and the Batch API path
+    (`parse_candidate_blurb_batch_results`) — one place, so they can never
+    silently drift apart."""
+    parsed = _parse_json_response(text.strip())
     if parsed and "blurb" in parsed:
         parsed.setdefault("checklist_reasons", {})
         return parsed
-    _log.warning("generate_candidate_blurb(%s): JSON parse failed, response likely truncated (%d chars)", entry.get("ticker"), len(text))
+    _log.warning("candidate blurb(%s): JSON parse failed, response likely truncated (%d chars)", ticker, len(text))
     return {"blurb": "", "business_understanding_stars": None, "business_understanding_reason": "", "checklist_reasons": {}}
+
+
+async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
+    """One-liner (~15-25 words) for a single undervalued-screener candidate.
+    Kept as a real, working single-call path (e.g. for on-demand re-
+    generation of one candidate) even though the weekly refresh itself now
+    goes through `submit_candidate_blurb_batch` instead of calling this in
+    a loop — see undervalued_screener_service.refresh_undervalued_screener.
+
+    Returns {"blurb": str, "business_understanding_stars": int(1-5)|None,
+    "business_understanding_reason": str, "checklist_reasons": dict}."""
+    response = await _claude(
+        model=_BLURB_MODEL,
+        max_tokens=_BLURB_MAX_TOKENS,
+        system=[{"type": "text", "text": _BLURB_STATIC_INSTRUCTIONS, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": _build_blurb_prompt(entry, lang)}],
+    )
+    return _parse_blurb_response_text(response.content[0].text, entry.get("ticker", ""))
+
+
+async def submit_candidate_blurb_batch(entries: list[dict], langs: tuple[str, ...] = ("es", "en")) -> str:
+    """Submits ONE Anthropic Message Batch covering every (entry, lang)
+    pair for the weekly Oportunidades refresh — 50% cheaper than the
+    sequential per-call loop it replaces, and since every request shares
+    the identical `_BLURB_STATIC_INSTRUCTIONS` system block (cached), the
+    batch also gets prompt-caching's ~90%-off reads after the first
+    request primes the cache. `custom_id` is `"{ticker}:{lang}"` — unique
+    per request, used by `parse_candidate_blurb_batch_results` to map
+    results back to the right candidate/language.
+
+    Returns the batch ID immediately — a batch is NOT synchronous (can
+    take minutes to hours to complete), so the caller must poll
+    `client.messages.batches.retrieve(batch_id).processing_status` and
+    only call `parse_candidate_blurb_batch_results` once it's `"ended"`."""
+    requests = [
+        {
+            "custom_id": f"{entry.get('ticker', '')}:{lang}",
+            "params": {
+                "model": _BLURB_MODEL,
+                "max_tokens": _BLURB_MAX_TOKENS,
+                "system": [{"type": "text", "text": _BLURB_STATIC_INSTRUCTIONS, "cache_control": {"type": "ephemeral"}}],
+                "messages": [{"role": "user", "content": _build_blurb_prompt(entry, lang)}],
+            },
+        }
+        for entry in entries
+        for lang in langs
+    ]
+    batch = await client.messages.batches.create(requests=requests)
+    _log.info("submit_candidate_blurb_batch: submitted batch %s with %d requests (%d candidates x %d langs)", batch.id, len(requests), len(entries), len(langs))
+    return batch.id
+
+
+async def parse_candidate_blurb_batch_results(batch_id: str) -> dict[str, dict]:
+    """Fetches a COMPLETED batch's results (caller must confirm
+    `processing_status == "ended"` first — this doesn't check itself) and
+    parses each one back into the same shape `generate_candidate_blurb`
+    returns, keyed by `custom_id` ("{ticker}:{lang}") so the caller can
+    merge them onto the right candidate/language. A per-request failure
+    (`result.type != "succeeded"` — e.g. "errored"/"canceled"/"expired")
+    is logged and simply omitted from the returned dict — never crashes
+    the whole finalize step over one bad candidate; the caller's merge
+    step should treat a missing key the same as `generate_candidate_blurb`
+    itself failing (leave that field unset, never a fabricated blurb)."""
+    results: dict[str, dict] = {}
+    async for item in client.messages.batches.results(batch_id):
+        custom_id = item.custom_id
+        if item.result.type != "succeeded":
+            _log.warning("candidate blurb batch %s: request %s did not succeed (%s)", batch_id, custom_id, item.result.type)
+            continue
+        ticker = custom_id.split(":", 1)[0] if ":" in custom_id else custom_id
+        text = item.result.message.content[0].text
+        results[custom_id] = _parse_blurb_response_text(text, ticker)
+    return results
 
 

@@ -30,7 +30,7 @@ import copy
 import logging
 from typing import Optional
 
-from app.core.cache import cache_set, cache_get_with_ts
+from app.core.cache import cache_set, cache_get_with_ts, cache_get, cache_delete
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +83,13 @@ logger = logging.getLogger(__name__)
 CACHE_KEY = "undervalued_screener:v8"
 CACHE_TTL = 8 * 24 * 3600      # slightly over a week — one missed weekly run doesn't go stale/empty
 BOOTSTRAP_TTL = 24 * 3600      # short-lived — the next full weekly/startup refresh supersedes this
+# Cost optimization (see /Users/diegoarria/.claude/plans/cosmic-munching-
+# crown.md) — holds {batch_id, all_results} between submitting the weekly
+# blurb Batch and the poll job finalizing it. TTL is generous (48h, well
+# above Anthropic's worst-case 24h batch SLA) so a slow batch never loses
+# its pending state before it completes.
+_PENDING_BATCH_CACHE_KEY = "undervalued_screener:pending_batch:v1"
+_PENDING_BATCH_TTL = 48 * 3600
 _BOOTSTRAP_LIMIT = 44          # small subset so a cold-cache request stays reasonably fast — ~4 per GICS sector via _diverse_bootstrap_sample, now that UNIVERSE is the full S&P 500 (bumped from 20, which was fine for the old ~183-ticker curated list but too thin for real sector spread here)
 _MAX_PER_SECTOR = 5            # never more than 5 candidates from the same sector in the results shown
 
@@ -448,6 +455,39 @@ def _rotate_featured_order(results: list[dict]) -> list[dict]:
     return featured + remaining_pool + rest
 
 
+_REUSABLE_EARNINGS_FIELDS = (
+    "relative_valuation", "historical_valuation", "momentum",
+    "blurb_by_lang", "business_understanding_by_lang", "checklist_reasons_by_lang",
+)
+
+
+def _partition_featured_by_earnings(featured: list[dict], old_by_ticker: dict[str, dict], get_earnings_period_fn) -> list[dict]:
+    """Mutates each entry in `featured` in place: reuses last refresh's
+    relative/historical valuation, momentum, and AI blurb (both languages)
+    verbatim for any ticker that hasn't reported new earnings since then,
+    stamping `_earnings_period` either way. Returns the subset that still
+    needs full recomputation (no old entry, no real earnings-period data,
+    or the period genuinely changed) — extracted standalone so this
+    decision is unit-testable without mocking `_scan`/Finnhub/Claude."""
+    to_recompute: list[dict] = []
+    for entry in featured:
+        old = old_by_ticker.get(entry["ticker"])
+        try:
+            current_period = get_earnings_period_fn(entry["ticker"])
+        except Exception as exc:
+            logger.warning("undervalued_screener_service: earnings-period check failed for %s: %s", entry["ticker"], exc)
+            current_period = None
+        if old is not None and current_period is not None and old.get("_earnings_period") == current_period and old.get("blurb_by_lang"):
+            for field in _REUSABLE_EARNINGS_FIELDS:
+                if field in old:
+                    entry[field] = old[field]
+            entry["_earnings_period"] = current_period
+        else:
+            entry["_earnings_period"] = current_period
+            to_recompute.append(entry)
+    return to_recompute
+
+
 async def refresh_undervalued_screener() -> None:
     """Full weekly refresh — the entire curated universe (now the real S&P
     500, see screener.py's UNIVERSE). Caches EVERY real positive-margin-of-
@@ -470,13 +510,33 @@ async def refresh_undervalued_screener() -> None:
     of either always seeing Spanish or paying for a live translation call
     per read. Nothing is finalized into a single "checklist" here — that
     merge happens per-request, per-language, in get_undervalued()."""
-    from app.api.routes.screener import UNIVERSE
+    from app.api.routes.screener import UNIVERSE, _latest_reported_earnings_period
     analysis_cache: dict[str, Optional[dict]] = {}
     all_results = _scan(UNIVERSE, analysis_cache=analysis_cache)
     featured = _cap_per_sector(all_results, _MAX_PER_SECTOR)
     featured_tickers = {r["ticker"] for r in featured}
     for entry in all_results:
         entry["featured"] = entry["ticker"] in featured_tickers
+
+    # Cost optimization (see /Users/diegoarria/.claude/plans/cosmic-
+    # munching-crown.md) — a featured candidate that hasn't reported new
+    # earnings since the LAST real refresh gets its relative/historical
+    # valuation, momentum, and AI blurb (all 3, both languages) reused
+    # VERBATIM from last week instead of recomputed. `_latest_reported_
+    # earnings_period` (screener.py, real Finnhub call, 12h-cached) is the
+    # same mechanism /quick-analysis and /company-diagnostic already use
+    # for "has this company reported since we last cached it" — reused
+    # here, not reinvented. Never a guess: only reused when the real
+    # period key genuinely matches; a ticker with no real period data
+    # (`current_period is None`) always gets recomputed rather than risk
+    # silently going stale forever.
+    old_results, _ = cache_get_with_ts(CACHE_KEY)
+    old_by_ticker = {r["ticker"]: r for r in (old_results or []) if r.get("ticker")}
+    to_recompute = _partition_featured_by_earnings(featured, old_by_ticker, _latest_reported_earnings_period)
+    logger.info(
+        "undervalued_screener_service: %d/%d featured candidates reused verbatim (no new earnings since last refresh), %d recomputed",
+        len(featured) - len(to_recompute), len(featured), len(to_recompute),
+    )
 
     # Relative/Historical Valuation — deliberately only run here, on the
     # featured (per-sector-capped, ~30-55 tickers) subset, never in the live
@@ -490,7 +550,7 @@ async def refresh_undervalued_screener() -> None:
     from app.services.historical_valuation_service import compute_historical_valuation
     from app.services.fundamental_analysis_service import get_financials
 
-    for entry in featured:
+    for entry in to_recompute:
         try:
             candidate_data = analysis_cache.get(entry["ticker"]) or {}
             dcf = candidate_data.get("dcf") or {}
@@ -556,16 +616,72 @@ async def refresh_undervalued_screener() -> None:
             logger.warning("undervalued_screener_service: momentum failed for %s: %s", entry["ticker"], exc)
             entry["momentum"] = None
 
+    # Cost optimization (see /Users/diegoarria/.claude/plans/cosmic-
+    # munching-crown.md) — blurb generation for `to_recompute` now goes
+    # through the Anthropic Message Batches API (50% cheaper, plus prompt-
+    # caching reads across the batch) instead of a sequential per-call
+    # loop. A batch is NOT synchronous — it can take minutes to hours to
+    # complete — so this function SUBMITS and returns; a separate poll job
+    # (worker.py's job_poll_undervalued_screener_batch, calling
+    # `poll_and_finalize_undervalued_screener_batch` below) finalizes the
+    # actual CACHE_KEY once the batch is done. Until then, `get_undervalued`
+    # keeps serving last week's real cached data — never a half-updated or
+    # empty-blurb result.
+    batch_pending = False
+    if to_recompute:
+        from app.services.ai_service import submit_candidate_blurb_batch
+        try:
+            batch_id = await submit_candidate_blurb_batch(to_recompute)
+            cache_set(_PENDING_BATCH_CACHE_KEY, {"batch_id": batch_id, "all_results": all_results}, _PENDING_BATCH_TTL)
+            logger.info(
+                "undervalued_screener_service: submitted blurb batch %s for %d candidates — refresh will finalize once it completes",
+                batch_id, len(to_recompute),
+            )
+            batch_pending = True
+        except Exception as exc:
+            # Batch submission itself failed (network/API outage) — fall
+            # back to the old sequential path so a Batch API hiccup never
+            # blocks the whole weekly refresh from completing at all.
+            logger.error("undervalued_screener_service: batch submission failed (%s), falling back to sequential blurb calls", exc)
+            await _fill_blurbs_sequentially(to_recompute)
+
+    if not batch_pending:
+        all_results = _rotate_featured_order(all_results)
+        cache_set(CACHE_KEY, all_results, CACHE_TTL)
+        logger.info(
+            "undervalued_screener_service: refreshed, %d/%d tickers had a real positive margin of safety "
+            "(%d featured/enriched)", len(all_results), len(UNIVERSE), len(featured),
+        )
+    # else: CACHE_KEY is finalized later by poll_and_finalize_undervalued_
+    # screener_batch once the pending batch completes — the code below
+    # (valuation backtest refresh) is independent of blurbs and still runs
+    # now regardless.
+
+    # Valuation Backtest panel ("What $10,000 became") — reuses THIS scan's
+    # own analysis_cache (every ticker in UNIVERSE, not just the positive-MoS
+    # survivors kept in `results`), so it costs zero extra get_fundamental_
+    # analysis calls. See valuation_backtest_service.py's module docstring
+    # for why this is real-data-honest despite not being a true point-in-time
+    # backtest. Its own failure must never affect the screener refresh above.
+    try:
+        from app.services.valuation_backtest_service import refresh_valuation_backtest
+        await refresh_valuation_backtest(analysis_cache)
+    except Exception as exc:
+        logger.warning("undervalued_screener_service: valuation backtest refresh failed: %s", exc)
+
+
+async def _fill_blurbs_sequentially(entries: list[dict]) -> None:
+    """The OLD per-call loop, kept as the fallback path for when Batch API
+    submission itself fails (network/API outage) — a Batch API hiccup must
+    never block the whole weekly refresh from completing at all. Mutates
+    `entries` in place, same shape `poll_and_finalize_undervalued_screener_
+    batch`'s merge step produces."""
     from app.services.ai_service import generate_candidate_blurb
-    for entry in featured:
+    for entry in entries:
         for lang in _SUPPORTED_LANGS:
             # One retry on a genuine failure (network hiccup, rate limit) —
-            # get_undervalued used to silently fall back to the Spanish
-            # blurb when the English one was simply missing here, showing
-            # Spanish text under an English UI with no indication. Retrying
-            # once means that gap is rare, and get_undervalued no longer
-            # crosses languages at all (see its own fix below), so a
-            # still-missing blurb now shows nothing rather than the wrong
+            # see poll_and_finalize's own merge step for why a still-
+            # missing blurb after this shows nothing rather than the wrong
             # language.
             for attempt in range(2):
                 try:
@@ -582,24 +698,64 @@ async def refresh_undervalued_screener() -> None:
                 except Exception as exc:
                     logger.warning("undervalued_screener_service: blurb (%s) attempt %d failed for %s: %s", lang, attempt + 1, entry["ticker"], exc)
 
+
+async def poll_and_finalize_undervalued_screener_batch() -> bool:
+    """Called frequently by worker.py's job_poll_undervalued_screener_batch
+    (cost optimization, see /Users/diegoarria/.claude/plans/cosmic-
+    munching-crown.md). Checks whether a blurb batch is pending; if it's
+    done, merges its results onto the stored candidate list and finalizes
+    CACHE_KEY — this is the second half of refresh_undervalued_screener,
+    split out because a Batch can take minutes to hours and must never
+    block a synchronous cron tick.
+
+    Returns True if a pending batch was found (whether finalized this call
+    or still processing — the caller only needs to know whether there WAS
+    something to check), False if there was nothing pending."""
+    pending = cache_get(_PENDING_BATCH_CACHE_KEY)
+    if not pending:
+        return False
+
+    batch_id = pending.get("batch_id")
+    all_results = pending.get("all_results") or []
+    from app.services.ai_service import client, parse_candidate_blurb_batch_results
+
+    try:
+        batch = await client.messages.batches.retrieve(batch_id)
+    except Exception as exc:
+        logger.error("undervalued_screener_service: failed to check batch %s status: %s", batch_id, exc)
+        return True
+    if batch.processing_status != "ended":
+        logger.info("undervalued_screener_service: batch %s still processing (%s)", batch_id, batch.processing_status)
+        return True
+
+    try:
+        results_by_key = await parse_candidate_blurb_batch_results(batch_id)
+    except Exception as exc:
+        logger.error("undervalued_screener_service: failed to parse batch %s results: %s", batch_id, exc)
+        cache_delete(_PENDING_BATCH_CACHE_KEY)
+        return True
+
+    for entry in all_results:
+        if not entry.get("featured"):
+            continue
+        for lang in _SUPPORTED_LANGS:
+            result = results_by_key.get(f"{entry['ticker']}:{lang}")
+            if not result:
+                continue  # missing/failed batch item — leave whatever was there (reused or empty), never fabricate
+            entry["blurb_by_lang"][lang] = result.get("blurb")
+            entry["business_understanding_by_lang"][lang] = {
+                "key": "business_understanding",
+                "name": "Entender el negocio" if lang == "es" else "Understanding the business",
+                "stars": result.get("business_understanding_stars"),
+                "reason": result.get("business_understanding_reason", ""),
+            }
+            entry["checklist_reasons_by_lang"][lang] = result.get("checklist_reasons") or {}
+
     all_results = _rotate_featured_order(all_results)
     cache_set(CACHE_KEY, all_results, CACHE_TTL)
-    logger.info(
-        "undervalued_screener_service: refreshed, %d/%d tickers had a real positive margin of safety "
-        "(%d featured/enriched)", len(all_results), len(UNIVERSE), len(featured),
-    )
-
-    # Valuation Backtest panel ("What $10,000 became") — reuses THIS scan's
-    # own analysis_cache (every ticker in UNIVERSE, not just the positive-MoS
-    # survivors kept in `results`), so it costs zero extra get_fundamental_
-    # analysis calls. See valuation_backtest_service.py's module docstring
-    # for why this is real-data-honest despite not being a true point-in-time
-    # backtest. Its own failure must never affect the screener refresh above.
-    try:
-        from app.services.valuation_backtest_service import refresh_valuation_backtest
-        await refresh_valuation_backtest(analysis_cache)
-    except Exception as exc:
-        logger.warning("undervalued_screener_service: valuation backtest refresh failed: %s", exc)
+    cache_delete(_PENDING_BATCH_CACHE_KEY)
+    logger.info("undervalued_screener_service: finalized blurb batch %s — screener cache updated", batch_id)
+    return True
 
 
 async def refresh_if_empty_on_startup() -> None:

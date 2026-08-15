@@ -2321,6 +2321,25 @@ async def job_refresh_undervalued_screener():
         logger.error("job_refresh_undervalued_screener failed: %s", e)
 
 
+async def job_poll_undervalued_screener_batch():
+    """Every 10 minutes — cost optimization (see /Users/diegoarria/.claude/
+    plans/cosmic-munching-crown.md): the weekly Oportunidades refresh now
+    SUBMITS its candidate-blurb generation as one Anthropic Message Batch
+    (50% cheaper, plus prompt-caching reads) instead of looping ~60-110
+    sequential Claude calls inline — a batch can take minutes to hours to
+    complete, so it can't be awaited inside the Sunday cron tick itself.
+    This job just checks whether a batch is pending and, once Anthropic
+    reports it `ended`, finalizes the Oportunidades cache. A no-op (near-
+    instant) on every tick where nothing is pending — which is almost
+    always, since a refresh only submits a batch when at least one
+    featured candidate has new earnings to reflect."""
+    from app.services.undervalued_screener_service import poll_and_finalize_undervalued_screener_batch
+    try:
+        await poll_and_finalize_undervalued_screener_batch()
+    except Exception as e:
+        logger.error("job_poll_undervalued_screener_batch failed: %s", e)
+
+
 async def job_refresh_macro_calendar():
     """6:00 AM ET daily — refreshes the Watchlist calendar's macro-economic
     events layer (FOMC, CPI, NFP, GDP, PMIs, jobless claims, etc.) from FMP's
@@ -4756,6 +4775,12 @@ async def main():
     # DCF engine) — no notification, just keeps the in-app Oportunidades
     # screen's data current. Separate pipeline from Screener Semanal above.
     scheduler.add_job(job_refresh_undervalued_screener, "cron", day_of_week="sun", hour=12,  minute=5,     timezone="America/New_York")
+
+    # ── Every 10 min: finalize the Oportunidades blurb Batch once Anthropic
+    # reports it done (cost optimization — see /Users/diegoarria/.claude/
+    # plans/cosmic-munching-crown.md). Near-instant no-op when nothing is
+    # pending, which is almost always.
+    scheduler.add_job(job_poll_undervalued_screener_batch, "interval", minutes=10)
 
     # ── Daily 6:00am ET: macro-economic events calendar refresh (Watchlist
     # calendar's macro layer) — before market open, no notification. ─────────

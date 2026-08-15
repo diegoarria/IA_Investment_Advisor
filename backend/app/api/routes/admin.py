@@ -116,18 +116,36 @@ async def test_price_alert_why(ticker: str, pct: float = 5.0, user: dict = Depen
 
 @router.post("/refresh-undervalued-screener")
 async def admin_refresh_undervalued_screener(user: dict = Depends(get_current_user)):
-    """Forces the weekly "Oportunidades" screener cache to rebuild right now,
-    instead of waiting for the Sunday 12:05pm ET cron
-    (job_refresh_undervalued_screener in worker.py). Useful right after a
-    backend deploy that changes what a cached entry looks like — e.g. a bug
-    where a partial failure in one candidate's relative/historical valuation
-    step wiped its DCF-calculator inputs to None, which only a fresh
-    refresh_undervalued_screener() run (not the empty-cache-only bootstrap
-    path) can repair for already-cached entries."""
+    """Forces the weekly "Oportunidades" screener refresh right now, instead
+    of waiting for the Sunday 12:05pm ET cron (job_refresh_undervalued_
+    screener in worker.py). Useful right after a backend deploy that
+    changes what a cached entry looks like.
+
+    Cost optimization (see /Users/diegoarria/.claude/plans/cosmic-
+    munching-crown.md): candidate blurbs for tickers with new earnings now
+    go through the Anthropic Message Batches API, which is NOT synchronous
+    — this call returns as soon as the batch is SUBMITTED (or immediately,
+    if every featured candidate's earnings were already reflected last
+    week and nothing needed recomputing), not once it's fully done. The
+    screener cache finalizes automatically within ~10 minutes of the batch
+    completing (worker.py's job_poll_undervalued_screener_batch runs every
+    10 min) — use /admin/poll-undervalued-screener-batch below to check/
+    force that step immediately instead of waiting for the next tick."""
     await _require_admin(user)
     from app.services.undervalued_screener_service import refresh_undervalued_screener
     await refresh_undervalued_screener()
-    return {"status": "ok"}
+    return {"status": "ok", "note": "Submitted — see /admin/poll-undervalued-screener-batch to check completion."}
+
+
+@router.post("/poll-undervalued-screener-batch")
+async def admin_poll_undervalued_screener_batch(user: dict = Depends(get_current_user)):
+    """Manually checks/finalizes a pending Oportunidades blurb batch right
+    now, instead of waiting for worker.py's job_poll_undervalued_screener_
+    batch's next 10-minute tick — same function that job calls."""
+    await _require_admin(user)
+    from app.services.undervalued_screener_service import poll_and_finalize_undervalued_screener_batch
+    was_pending = await poll_and_finalize_undervalued_screener_batch()
+    return {"status": "ok", "was_pending": was_pending}
 
 
 @router.post("/refresh-macro-calendar")

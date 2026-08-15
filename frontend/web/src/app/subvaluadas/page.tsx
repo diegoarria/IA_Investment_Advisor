@@ -30,6 +30,7 @@ import { FinancialReverseValuationCard, FinancialSensitivityTable } from "@/comp
 import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { projectDriverBasedDcf } from "@/lib/driverBasedDcf";
+import { resolveValuationPanelMode } from "@/lib/valuationPanelMode";
 import dynamic from "next/dynamic";
 import { screenerApi, watchlist } from "@/lib/api";
 import { useSubscriptionStore, useThemeStore, usePersonalizationStore } from "@/lib/store";
@@ -277,6 +278,11 @@ function SubvaluadasPageInner() {
   // history) — same fallback the backend screener already applies. See
   // /Users/diegoarria/.claude/plans/cosmic-munching-crown.md.
   const gqvIsPrimary = data?.gqv_fair_value?.status === "ok" && !!data?.gqv_fair_value?.scenarios;
+  // Which valuation panel renders — CompanyDiagnosticCard always first
+  // when available, never falls back to the retired legacy DCF panel
+  // design (see resolveValuationPanelMode's own doc comment for why this
+  // is a pure, separately-tested function rather than inline JSX).
+  const valuationPanelMode = resolveValuationPanelMode(!!companyDiagnostic, gqvIsPrimary);
   const primaryFairValue = gqvIsPrimary
     ? data!.gqv_fair_value!.scenarios!.base.fair_value_per_share
     : data?.nuvos_fair_value?.scenarios.base.fair_value_per_share ?? null;
@@ -410,9 +416,9 @@ function SubvaluadasPageInner() {
                       datos suficientes, o falla el endpoint), cae al panel
                       GQV/DCF de siempre — el usuario nunca se queda sin
                       valoración por culpa de esta tarjeta nueva. */}
-                  {companyDiagnostic ? (
-                    <CompanyDiagnosticCard data={companyDiagnostic} />
-                  ) : gqvIsPrimary ? (
+                  {valuationPanelMode === "diagnostic" ? (
+                    <CompanyDiagnosticCard data={companyDiagnostic!} />
+                  ) : valuationPanelMode === "gqv" ? (
                     <GqvFairValuePanel data={data.gqv_fair_value} />
                   ) : (
                     // Ni el diagnóstico ni el motor GQV pudieron generar un
@@ -444,7 +450,7 @@ function SubvaluadasPageInner() {
                       omite por completo — solo el pie mínimo (Actualizado/
                       Seguir/Analizar) se muestra, reutilizando exactamente
                       los mismos componentes que ya usa el flujo viejo. */}
-                  {companyDiagnostic || !gqvIsPrimary ? (
+                  {valuationPanelMode !== "gqv" ? (
                     // Minimal footer — used both when CompanyDiagnosticCard
                     // is primary (self-contained, no legacy detail needed
                     // below it) AND when NEITHER new engine could produce a
