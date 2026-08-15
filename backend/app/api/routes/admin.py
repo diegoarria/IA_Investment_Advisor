@@ -261,9 +261,19 @@ async def llm_usage_summary(
     """Cost-optimization recommendation #19: cost per user, aggregated from
     llm_usage_log (#18). Without user_id, returns the top spenders in the
     window — this is what answers "does a Premium user's usage exceed what
-    their subscription covers" before it becomes a margin surprise at scale."""
+    their subscription covers" before it becomes a margin surprise at scale.
+
+    Also returns `unit_economics` (Aug 15 pricing-decision follow-up,
+    real-money incident) — average/median REAL LLM cost per active user,
+    split Premium vs free, plus `automatic_cost_usd` (rows with no
+    user_id — cron jobs like the weekly screener refresh or NIF prewarm,
+    a shared platform cost that doesn't belong to any one user's margin).
+    This is LLM cost ONLY — real per-user unit economics also needs data-
+    provider (FMP/Finnhub/fiscal.ai) and hosting cost, which this table
+    doesn't track."""
     await _require_admin(user)
     from datetime import datetime, timedelta, timezone
+    from app.core.subscription import is_premium_active
 
     db = get_supabase()
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
@@ -291,9 +301,52 @@ async def llm_usage_summary(
     for a in ranked:
         a["cost_usd"] = round(a["cost_usd"], 4)
 
+    unit_economics = None
+    if not user_id:
+        automatic = by_user.pop("unknown", None)
+        real_user_ids = list(by_user.keys())
+        by_tier = {
+            "premium": {"user_count": 0, "total_cost_usd": 0.0},
+            "free": {"user_count": 0, "total_cost_usd": 0.0},
+        }
+        if real_user_ids:
+            profiles_res = await run_query(
+                db.table("user_profiles")
+                .select("user_id,subscription_tier,trial_started_at,streak_bonus_premium_until")
+                .in_("user_id", real_user_ids)
+            )
+            tier_by_uid = {
+                p["user_id"]: is_premium_active(
+                    p.get("subscription_tier"), p.get("trial_started_at"), p.get("streak_bonus_premium_until"),
+                )
+                for p in (profiles_res.data or [])
+            }
+            for uid, agg in by_user.items():
+                tier = "premium" if tier_by_uid.get(uid) else "free"
+                by_tier[tier]["user_count"] += 1
+                by_tier[tier]["total_cost_usd"] += agg["cost_usd"]
+
+        costs = sorted(agg["cost_usd"] for agg in by_user.values())
+        n = len(costs)
+        median = (costs[n // 2] if n % 2 else (costs[n // 2 - 1] + costs[n // 2]) / 2) if n else 0.0
+        for tier in by_tier.values():
+            tier["total_cost_usd"] = round(tier["total_cost_usd"], 4)
+            tier["avg_cost_per_user_usd"] = round(tier["total_cost_usd"] / tier["user_count"], 4) if tier["user_count"] else 0.0
+
+        unit_economics = {
+            "note": "LLM cost only — add data-provider (FMP/Finnhub/fiscal.ai) and hosting cost for full unit economics",
+            "active_user_count": n,
+            "avg_cost_per_active_user_usd": round(sum(costs) / n, 4) if n else 0.0,
+            "median_cost_per_active_user_usd": round(median, 4),
+            "automatic_cost_usd": round((automatic or {}).get("cost_usd", 0.0), 4),
+            "automatic_cost_note": "cron jobs with no user_id (weekly screener refresh, NIF/quick-analysis prewarm) — a shared platform cost, not attributable to one user's margin",
+            "by_tier": by_tier,
+        }
+
     return {
         "window_days": days,
         "total_cost_usd": round(sum(a["cost_usd"] for a in ranked), 4),
         "total_calls": len(rows),
+        "unit_economics": unit_economics,
         "by_user": ranked if user_id else ranked[:100],
     }
