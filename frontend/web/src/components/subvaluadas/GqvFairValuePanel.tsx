@@ -75,6 +75,19 @@ export interface GqvFairValueData {
   divergence: { divergence_pct: number; material: boolean; explained: boolean; causes: string[]; reason: string } | null;
   confidence_meter: ConfidenceMeterData | null;
   insufficient_data_reason: string | null;
+  // Methodology-audit transparency (see /Users/diegoarria/.claude/plans/
+  // cosmic-munching-crown.md) — how the model actually got to this number.
+  fcf_assumptions: {
+    fcf_reported: number | null;
+    fcf_normalized: number | null;
+    maintenance_capex_estimate: number | null;
+    growth_capex_estimate: number | null;
+    methodology_note: string;
+  } | null;
+  wacc_details: {
+    method: string;
+    wacc_pct: number | null;
+  } | null;
 }
 
 const _CATEGORY_LABEL: Record<string, string> = {
@@ -172,6 +185,47 @@ export function GqvFairValuePanel({ data }: { data: GqvFairValueData | null | un
               </li>
             ))}
           </ul>
+        </details>
+      )}
+
+      {(data.fcf_assumptions || data.wacc_details) && (
+        <details className="mt-3">
+          <summary className="text-[10.5px] cursor-pointer" style={{ color: "var(--muted)" }}>
+            Ver supuestos del modelo
+          </summary>
+          <div className="mt-2 space-y-1.5 text-[10.5px]" style={{ color: "var(--sub)" }}>
+            {data.fcf_assumptions && (
+              <>
+                <p>
+                  Flujo de caja libre reportado:{" "}
+                  <span style={{ color: "var(--text)", fontWeight: 700 }}>
+                    {data.fcf_assumptions.fcf_reported != null ? `$${(data.fcf_assumptions.fcf_reported / 1e6).toFixed(0)}M` : "—"}
+                  </span>
+                  {" · "}Normalizado (sin CapEx de crecimiento):{" "}
+                  <span style={{ color: "var(--accent-l)", fontWeight: 700 }}>
+                    {data.fcf_assumptions.fcf_normalized != null ? `$${(data.fcf_assumptions.fcf_normalized / 1e6).toFixed(0)}M` : "—"}
+                  </span>
+                </p>
+                {data.fcf_assumptions.growth_capex_estimate != null && data.fcf_assumptions.growth_capex_estimate > 0 && (
+                  <p>
+                    CapEx de crecimiento estimado este año:{" "}
+                    <span style={{ color: "var(--text)", fontWeight: 700 }}>
+                      ${(data.fcf_assumptions.growth_capex_estimate / 1e6).toFixed(0)}M
+                    </span>
+                  </p>
+                )}
+              </>
+            )}
+            {data.wacc_details?.wacc_pct != null && (
+              <p>
+                Tasa de descuento (WACC) usada:{" "}
+                <span style={{ color: "var(--text)", fontWeight: 700 }}>{data.wacc_details.wacc_pct.toFixed(1)}%</span>
+              </p>
+            )}
+            {data.fcf_assumptions?.methodology_note && (
+              <p style={{ color: "var(--dim)" }}>{data.fcf_assumptions.methodology_note}</p>
+            )}
+          </div>
         </details>
       )}
     </Card>

@@ -117,6 +117,47 @@ export function CompanyDiagnosticCard({ data }: { data: CompanyDiagnosticData })
         )}
 
         <CompanyDiagnosticValuationThermometer scenarios={data.valuation} />
+
+        {(data.valuation.fcfAssumptions || data.valuation.waccDetails) && (
+          <details className="mt-3">
+            <summary className="text-[11px] cursor-pointer" style={{ color: "var(--muted)" }}>
+              Ver supuestos del modelo
+            </summary>
+            <div className="mt-2 space-y-1.5 text-[11px]" style={{ color: "var(--sub)" }}>
+              {data.valuation.fcfAssumptions && (
+                <>
+                  <p>
+                    Flujo de caja libre reportado:{" "}
+                    <span style={{ color: "var(--text)", fontWeight: 700 }}>
+                      {data.valuation.fcfAssumptions.fcf_reported != null ? `$${(data.valuation.fcfAssumptions.fcf_reported / 1e6).toFixed(0)}M` : "—"}
+                    </span>
+                    {" · "}Normalizado (sin CapEx de crecimiento):{" "}
+                    <span style={{ color: "var(--accent-l)", fontWeight: 700 }}>
+                      {data.valuation.fcfAssumptions.fcf_normalized != null ? `$${(data.valuation.fcfAssumptions.fcf_normalized / 1e6).toFixed(0)}M` : "—"}
+                    </span>
+                  </p>
+                  {data.valuation.fcfAssumptions.growth_capex_estimate != null && data.valuation.fcfAssumptions.growth_capex_estimate > 0 && (
+                    <p>
+                      CapEx de crecimiento estimado este año:{" "}
+                      <span style={{ color: "var(--text)", fontWeight: 700 }}>
+                        ${(data.valuation.fcfAssumptions.growth_capex_estimate / 1e6).toFixed(0)}M
+                      </span>
+                    </p>
+                  )}
+                </>
+              )}
+              {data.valuation.waccDetails?.wacc_pct != null && (
+                <p>
+                  Tasa de descuento (WACC) usada:{" "}
+                  <span style={{ color: "var(--text)", fontWeight: 700 }}>{data.valuation.waccDetails.wacc_pct.toFixed(1)}%</span>
+                </p>
+              )}
+              {data.valuation.fcfAssumptions?.methodology_note && (
+                <p style={{ color: "var(--dim)" }}>{data.valuation.fcfAssumptions.methodology_note}</p>
+              )}
+            </div>
+          </details>
+        )}
       </Card>
 
       {/* Capa 2 — 4 pilares */}

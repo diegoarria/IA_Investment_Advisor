@@ -30,7 +30,7 @@ from app.services.valuation.robustness import UnstableGordonGrowthError, clamp
 # original names so every internal call site below (`_run_dcf(...)`,
 # `_num(...)`, etc.) keeps working completely unchanged — see each new
 # module's docstring for the full rationale.
-from app.services.valuation.numeric_helpers import _num, _cagr, _score, _coefficient_of_variation, calc_margin_of_safety
+from app.services.valuation.numeric_helpers import _num, _cagr, _score, _coefficient_of_variation, calc_margin_of_safety, split_maintenance_growth_capex
 from app.services.valuation.legacy_dcf_core import _project_path, _run_dcf, _run_dcf_constant_growth
 from app.services.valuation.reverse_dcf_engine import (
     _implied_growth_rate, _implied_fcf_margin_at_fixed_growth, _implied_constant_growth_rate,
@@ -827,6 +827,14 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
 
     # ── Per-year trends: revenue, FCF, net income, margins, ROIC/ROE/ROA ──
     revenue_trend, fcf_trend, net_income_trend = [], [], []
+    # FCF normalized for maintenance-vs-growth CapEx (methodology audit,
+    # see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md).
+    # `fcf_trend` above is kept as-is ("FCF Reported") — this is the
+    # separate, additive "FCF Normalized" series used where a CapEx-heavy
+    # growth ramp shouldn't be read as deteriorating cash economics.
+    fcf_normalized_trend: list[Optional[float]] = []
+    maintenance_capex_trend: list[Optional[float]] = []
+    growth_capex_trend: list[Optional[float]] = []
     gross_margin_trend, operating_margin_trend, net_margin_trend = [], [], []
     roic_trend, roe_trend, roa_trend = [], [], []
     owner_earnings_trend = []
@@ -866,6 +874,16 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         fcf_i = ocf - abs(capex) if ocf is not None and capex is not None else None
         fcf_trend.append(fcf_i)
 
+        # Maintenance-vs-growth CapEx split (methodology audit — see
+        # /Users/diegoarria/.claude/plans/cosmic-munching-crown.md).
+        # Computed here (before Owner Earnings below) since both need D&A.
+        da_i = _num(cf.get("Depreciation And Amortization")) or _num(inc.get("Depreciation And Amortization"))
+        maintenance_capex_i, growth_capex_i = split_maintenance_growth_capex(capex, da_i)
+        fcf_normalized_i = ocf - maintenance_capex_i if (ocf is not None and maintenance_capex_i is not None) else None
+        fcf_normalized_trend.append(fcf_normalized_i)
+        maintenance_capex_trend.append(maintenance_capex_i)
+        growth_capex_trend.append(growth_capex_i)
+
         div_paid = _num(cf.get("Dividends Paid"))
         dividends_paid_trend.append(abs(div_paid) if div_paid is not None else None)
 
@@ -883,8 +901,10 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         # Owner Earnings (Buffett's definition): Net Income + D&A - CapEx -
         # Δ Working Capital. CapEx here is treated as maintenance capex (no
         # growth/maintenance split is available from any provider) — a
-        # standard simplification, disclosed as such in the prompt.
-        da = _num(cf.get("Depreciation And Amortization")) or _num(inc.get("Depreciation And Amortization"))
+        # standard simplification, disclosed as such in the prompt. (`da`
+        # reuses `da_i`, computed above alongside the maintenance/growth
+        # CapEx split — same value, no need to refetch it twice.)
+        da = da_i
         working_capital = _num(bal.get("Working Capital"))
         delta_wc = (working_capital - prev_working_capital) if (working_capital is not None and prev_working_capital is not None) else None
         if ni is not None and da is not None and capex is not None:
@@ -994,7 +1014,16 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     # any single outlier year — the newest year alone is never the entire
     # signal, but it's no longer diluted equally against years that may no
     # longer represent the business.
-    fcf_margin_pairs = [(i, f / r) for i, (f, r) in enumerate(zip(fcf_trend, revenue_trend)) if f is not None and r]
+    #
+    # Uses fcf_normalized_trend (maintenance-capex-only), not raw fcf_trend
+    # — methodology audit fix (see /Users/diegoarria/.claude/plans/cosmic-
+    # munching-crown.md): a business mid-ramp on heavy GROWTH capex (data
+    # centers, AI infra) was previously read as having deteriorating cash
+    # economics by this exact "capex supercycle" scenario the comment above
+    # already described, even though growth capex isn't a quality signal
+    # this formula should penalize. `fcf_trend` (FCF Reported) is still
+    # kept and surfaced separately for the assumptions-transparency toggle.
+    fcf_margin_pairs = [(i, f / r) for i, (f, r) in enumerate(zip(fcf_normalized_trend, revenue_trend)) if f is not None and r]
     if fcf_margin_pairs:
         weight_sum = sum(i + 1 for i, _ in fcf_margin_pairs)
         avg_fcf_margin = sum((i + 1) * m for i, m in fcf_margin_pairs) / weight_sum
@@ -1213,7 +1242,8 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 sector=sector, industry=None, is_financial_sector=_gqv_is_financial_sector,
                 current_price=price, latest_eps=_gqv_latest_eps,
                 eps_trend=eps_trend, revenue_trend=revenue_trend, net_margin_trend=net_margin_trend,
-                fcf_trend=fcf_trend, net_income_trend=net_income_trend, implied_shares_trend=implied_shares_trend,
+                fcf_trend=fcf_trend, fcf_normalized_trend=fcf_normalized_trend,
+                net_income_trend=net_income_trend, implied_shares_trend=implied_shares_trend,
                 deterioration_result=growth_engine_deterioration, moat_result=growth_engine_moat,
                 management_score=extras.get("management_consistency_score"),
                 avg_roic_pct=avg_roic, cost_of_capital_pct=base_discount_rate * 100,
@@ -1251,6 +1281,25 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 "outlier_flags": gqv_result.outlier_flags,
                 "data_provenance": {k: asdict(v) for k, v in (gqv_result.provenance.points if gqv_result.provenance else {}).items()},
                 "insufficient_data_reason": gqv_result.insufficient_data_reason,
+                # Methodology-audit transparency (see /Users/diegoarria/
+                # .claude/plans/cosmic-munching-crown.md, point 4) — lets the
+                # UI show "FCF Reportado" vs. "FCF Normalizado" (maintenance-
+                # capex-only) plus the real WACC assumption, instead of the
+                # model's inputs being a black box. `wacc_details` was
+                # already computed above as a sibling key on `dcf`; also
+                # attached here so gqv_fair_value is self-contained.
+                "fcf_assumptions": {
+                    "fcf_reported": fcf_trend[-1] if fcf_trend else None,
+                    "fcf_normalized": fcf_normalized_trend[-1] if fcf_normalized_trend else None,
+                    "maintenance_capex_estimate": maintenance_capex_trend[-1] if maintenance_capex_trend else None,
+                    "growth_capex_estimate": growth_capex_trend[-1] if growth_capex_trend else None,
+                    "methodology_note": (
+                        "CapEx de mantenimiento estimado como el menor entre el CapEx total y la "
+                        "Depreciación y Amortización — una heurística estándar, no un dato reportado "
+                        "directamente por la empresa."
+                    ),
+                },
+                "wacc_details": {**wacc_details, "wacc_pct": round(base_discount_rate * 100, 2) if base_discount_rate is not None else None},
             }
         except Exception as e:
             logger.info("get_fundamental_analysis(%s): gqv_fair_value not computable: %s", ticker, e)

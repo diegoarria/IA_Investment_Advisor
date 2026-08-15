@@ -971,6 +971,13 @@ _QUICK_ANALYSIS_CACHE_TTL = 90 * 24 * 3600  # 3 months — a ceiling, not the re
 
 
 def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
+    # v10 — bumped for the FCF maintenance/growth-CapEx normalization fix
+    # (see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md,
+    # methodology audit): `_fcf_margin_adjustment`'s input now uses
+    # maintenance-capex-only FCF instead of OCF-minus-total-CapEx, changing
+    # the Fair P/E and Fair Value scenarios for capex-heavy tickers, plus a
+    # new `fcf_assumptions`/`wacc_details` transparency block inside
+    # `gqv_fair_value`. A v9 entry has neither.
     # v9 — bumped for Nuvos Fair Value Engine V2 Phases 1-4 (2026-08-12/13,
     # see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md): Phase 1
     # changed REAL fair-value outputs for real tickers (structural earnings
@@ -1030,7 +1037,7 @@ def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
     # the "summary"/"blurb" schema's hardcoded "español" instruction was
     # fixed (it silently overrode the top-level language directive) doesn't
     # keep serving Spanish text under an English UI for its remaining TTL.
-    return f"quick_analysis:v9:{lang}:{ticker}"
+    return f"quick_analysis:v10:{lang}:{ticker}"
 
 
 async def _build_quick_analysis(ticker: str, lang: str) -> dict:
@@ -1670,7 +1677,11 @@ _COMPANY_DIAGNOSTIC_CACHE_TTL = _QUICK_ANALYSIS_CACHE_TTL  # same 90-day ceiling
 
 
 def _company_diagnostic_cache_key(ticker: str, lang: str) -> str:
-    return f"company_diagnostic:v1:{lang}:{ticker}"
+    # v2 — bumped for the FCF maintenance/growth-CapEx normalization fix
+    # (see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md,
+    # methodology audit) — this endpoint's valuation fields derive from the
+    # same gqv_fair_value output that changed. A v1 entry predates the fix.
+    return f"company_diagnostic:v2:{lang}:{ticker}"
 
 
 @router.get("/company-diagnostic")

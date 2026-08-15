@@ -34,6 +34,13 @@ from app.core.cache import cache_set, cache_get_with_ts
 
 logger = logging.getLogger(__name__)
 
+# v5 — bumped for the FCF maintenance/growth-CapEx normalization fix (see
+# /Users/diegoarria/.claude/plans/cosmic-munching-crown.md, methodology
+# audit of the external feedback email): `_fcf_margin_adjustment`'s input
+# now uses maintenance-capex-only FCF instead of OCF-minus-total-CapEx,
+# which changes the Fair P/E — and therefore the Fair Value scenarios —
+# for any capex-heavy candidate (e.g. AI-infra/data-center names). A v4
+# entry was built with the old, undifferentiated FCF margin.
 # v4 — bumped for Nuvos Fair Value Engine V2 Phases 1-4 (2026-08-12/13, see
 # /Users/diegoarria/.claude/plans/cosmic-munching-crown.md): Phase 1 changed
 # REAL fair-value outputs for real tickers (structural earnings states now
@@ -52,7 +59,7 @@ logger = logging.getLogger(__name__)
 # scenarios unconditionally. A v1 cache entry was built by the old logic —
 # without this bump, Oportunidades keeps serving DCF-only candidates for up
 # to 8 more days (this cache's TTL) after the code changed.
-CACHE_KEY = "undervalued_screener:v4"
+CACHE_KEY = "undervalued_screener:v5"
 CACHE_TTL = 8 * 24 * 3600      # slightly over a week — one missed weekly run doesn't go stale/empty
 BOOTSTRAP_TTL = 24 * 3600      # short-lived — the next full weekly/startup refresh supersedes this
 _BOOTSTRAP_LIMIT = 44          # small subset so a cold-cache request stays reasonably fast — ~4 per GICS sector via _diverse_bootstrap_sample, now that UNIVERSE is the full S&P 500 (bumped from 20, which was fine for the old ~183-ticker curated list but too thin for real sector spread here)

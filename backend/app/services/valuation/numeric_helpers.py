@@ -84,6 +84,32 @@ def derive_fcf(cfo: Optional[float], capex: Optional[float]) -> Optional[float]:
     return round(cfo + capex, 2)
 
 
+def split_maintenance_growth_capex(capex: Optional[float], da: Optional[float]) -> tuple[Optional[float], float]:
+    """Splits one year's total CapEx into (maintenance, growth) estimates —
+    methodology audit fix (see /Users/diegoarria/.claude/plans/cosmic-
+    munching-crown.md): `fundamental_analysis_service.py` previously treated
+    ALL CapEx as maintenance when computing FCF, which read a business
+    mid-ramp on heavy GROWTH CapEx (data centers, AI infra) as having
+    deteriorating cash economics.
+
+    Standard practitioner heuristic: maintenance capex ≈ min(total capex,
+    D&A) — capex beyond what's needed to replace this year's depreciating
+    assets is presumed growth investment. Not a reported field on any
+    provider here, disclosed as a heuristic (same "honest v1, not
+    backtested" convention as this package's other thresholds, e.g.
+    earnings_state.py's structural-evidence checks).
+
+    `capex` is expected as a raw (possibly negative) value; this returns
+    both legs as positive magnitudes. Falls back to (abs(capex), 0.0) when
+    D&A is unavailable — today's undifferentiated behavior, unchanged."""
+    if capex is None:
+        return None, 0.0
+    capex_abs = abs(capex)
+    if da is None or da <= 0:
+        return capex_abs, 0.0
+    return min(capex_abs, da), max(capex_abs - da, 0.0)
+
+
 def _coefficient_of_variation(values: list[Optional[float]]) -> Optional[float]:
     """Real (not eyeballed) measure of how volatile a series is: stdev/|mean|.
     Used so 'is this company's FCF stable or all over the place' is a

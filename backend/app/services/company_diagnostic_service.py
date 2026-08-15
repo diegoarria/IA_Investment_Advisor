@@ -75,6 +75,11 @@ def _primary_scenarios(dcf: dict) -> Optional[dict]:
             "uncertainty_profile": gqv.get("uncertainty_profile"),
             "reality_gate_pass_rate": (gqv.get("reality_gate") or {}).get("pass_rate"),
             "source": "gqv",
+            # Methodology-audit transparency (see /Users/diegoarria/.claude/
+            # plans/cosmic-munching-crown.md, point 4) — only real on the
+            # GQV path (the legacy DCF branch below has no equivalent).
+            "fcf_assumptions": gqv.get("fcf_assumptions"),
+            "wacc_details": gqv.get("wacc_details"),
         }
     legacy = dcf.get("scenarios")
     if legacy and (legacy.get("base") or {}).get("intrinsic_value_per_share") is not None:
@@ -312,6 +317,8 @@ def build_company_diagnostic(ticker: str, data: dict) -> Optional[dict]:
         "peCurrent": data.get("pe_ratio"),
         "peHistoricalAvg": historical_median_pe,
         "evFcf": data.get("ev_fcf"),
+        "fcfAssumptions": scenarios.get("fcf_assumptions"),
+        "waccDetails": scenarios.get("wacc_details"),
     }
     # None-safe: the core scenario/price numbers must always be real before
     # this card is shown. evFcf is deliberately NOT required here — it's

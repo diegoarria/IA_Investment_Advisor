@@ -123,3 +123,83 @@ class TestConfidenceThreshold:
         result = compute_nuvos_fair_value(**_stalwart_fixture_kwargs(min_confidence_score=99.0))
         assert result.status == "insufficient_data"
         assert result.scenarios is not None  # computed, just withheld as the headline number
+
+
+# Methodology audit (see /Users/diegoarria/.claude/plans/cosmic-munching-
+# crown.md) — `fcf_normalized_trend` decouples the Fair P/E's fcf_margin
+# adjustment from raw (undifferentiated) CapEx, so a business mid-ramp on
+# heavy GROWTH CapEx isn't penalized as if its cash economics were
+# deteriorating.
+class TestFcfNormalizedTrend:
+    def test_omitting_it_falls_back_to_fcf_trend_unchanged(self):
+        # Backward-compat pin: no fcf_normalized_trend passed -> identical
+        # result to before this parameter existed.
+        baseline = compute_nuvos_fair_value(**_stalwart_fixture_kwargs())
+        explicit_same = compute_nuvos_fair_value(**_stalwart_fixture_kwargs(
+            fcf_normalized_trend=_stalwart_fixture_kwargs()["fcf_trend"],
+        ))
+        assert baseline.fair_pe.fair_pe == explicit_same.fair_pe.fair_pe
+        assert baseline.scenarios.base.fair_value_per_share == explicit_same.scenarios.base.fair_value_per_share
+
+    def test_higher_normalized_fcf_margin_raises_the_fair_pe_and_fair_value(self):
+        # Simulates a company whose reported FCF is depressed by a heavy
+        # GROWTH capex ramp — the normalized series (maintenance-capex-only)
+        # shows a materially healthier margin than the raw reported one.
+        kwargs = _stalwart_fixture_kwargs()
+        depressed_reported = [f * 0.3 for f in kwargs["fcf_trend"]]  # heavy capex ramp depresses reported FCF
+        baseline = compute_nuvos_fair_value(**{**kwargs, "fcf_trend": depressed_reported})
+        with_normalization = compute_nuvos_fair_value(**{
+            **kwargs, "fcf_trend": depressed_reported, "fcf_normalized_trend": kwargs["fcf_trend"],
+        })
+        assert with_normalization.fair_pe.fair_pe > baseline.fair_pe.fair_pe
+        assert with_normalization.scenarios.base.fair_value_per_share > baseline.scenarios.base.fair_value_per_share
+
+
+# Point 2 of the methodology audit — verifying (not re-implementing) that
+# the PRIMARY Fair Value already multiplies Fair P/E against earnings-
+# state-NORMALIZED EPS, not the raw latest EPS, when the latest year is
+# flagged ELEVATED/DEPRESSED. This was already true before the audit; this
+# test just pins it so it can't silently regress.
+class TestNormalizedEpsWiring:
+    def test_elevated_latest_year_uses_normalized_eps_not_raw_latest_eps(self):
+        # Same shape as test_nuvos_engine_earnings_state.py's own "elevated"
+        # fixture — flat net margin, EPS spikes far above its recent trend
+        # in the latest year alone (no ROIC/margin corroboration -> ELEVATED,
+        # mean-reverted, not STRUCTURALLY_ELEVATED).
+        eps_trend = [1.0, 1.05, 1.1, 1.15, 5.0]
+        revenue_trend = [80, 84, 88, 92, 96]
+        net_margin_trend = [10, 10, 10, 10, 10]
+        fcf_trend = [7, 7.3, 7.6, 8.0, 8.3]
+        net_income_trend = [8, 8.4, 8.8, 9.2, 9.6]
+        implied_shares_trend = [100, 99, 98, 97, 96]
+        roic_trend = [14, 14.1, 14, 14.2, 14.1]
+        om_trend = [15, 15.1, 15, 15.2, 15.1]
+
+        moat = compute_moat_score(
+            avg_roic_pct=14.1, roic_trend=roic_trend, avg_operating_margin_pct=15.1,
+            operating_margin_trend=om_trend, gross_margin_latest_pct=40.0,
+            industry_median_roic_pct=11.0, industry_median_operating_margin_pct=13.0,
+        )
+        det = compute_deterioration_signals(
+            roic_trend=roic_trend, operating_margin_trend=om_trend, net_margin_trend=net_margin_trend,
+            fcf_margin_trend=[f / r * 100 for f, r in zip(fcf_trend, revenue_trend)], revenue_trend=revenue_trend,
+        )
+        result = compute_nuvos_fair_value(
+            sector="Technology", industry="Software", is_financial_sector=False,
+            current_price=50.0, latest_eps=5.0, eps_trend=eps_trend, revenue_trend=revenue_trend,
+            net_margin_trend=net_margin_trend, fcf_trend=fcf_trend, net_income_trend=net_income_trend,
+            implied_shares_trend=implied_shares_trend, deterioration_result=det, moat_result=moat,
+            management_score=70.0, avg_roic_pct=14.1, cost_of_capital_pct=9.0,
+            net_debt_to_ebitda=1.0, interest_coverage=12.0, dividend_yield_pct=0.5,
+            industry_median_roic_pct=11.0, expected_eps_growth_pct=9.0, forward_pe=18.0,
+            historical_median_pe=20.0, peer_median_pe=19.0, years_available=5, liquidity_ok=True,
+            business_quality_score=75.0, financial_strength_score=80.0,
+        )
+        assert result.earnings_state.normalized_eps is not None
+        assert result.earnings_state.normalized_eps < 5.0  # normalized well below the spiked latest EPS
+        assert result.scenarios is not None
+        # The Base scenario's own EPS input must be the normalized figure,
+        # never the raw spiked latest_eps=5.0 — this is the actual
+        # regression guard for point 2 of the methodology audit.
+        assert result.scenarios.base.eps == result.earnings_state.normalized_eps
+        assert result.scenarios.base.eps < 5.0

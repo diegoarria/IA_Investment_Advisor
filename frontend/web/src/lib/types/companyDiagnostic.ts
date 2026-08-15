@@ -29,6 +29,17 @@ export interface ValuationScenarios {
   // operating-company FCF) — confirmed live for GS/WFC. Not gated
   // server-side, so nullable here too.
   evFcf: number | null;
+  // Methodology-audit transparency (see /Users/diegoarria/.claude/plans/
+  // cosmic-munching-crown.md) — only present on the GQV valuation path
+  // (null on the legacy DCF fallback, which has no equivalent).
+  fcfAssumptions: {
+    fcf_reported: number | null;
+    fcf_normalized: number | null;
+    maintenance_capex_estimate: number | null;
+    growth_capex_estimate: number | null;
+    methodology_note: string;
+  } | null;
+  waccDetails: { method: string; wacc_pct: number | null } | null;
 }
 
 export interface CompanyDiagnosticData {
@@ -157,6 +168,14 @@ export const mockCopartData: CompanyDiagnosticData = {
     peCurrent: 17.5,
     peHistoricalAvg: 32.5,
     evFcf: 16.0,
+    fcfAssumptions: {
+      fcf_reported: 1_800_000_000,
+      fcf_normalized: 1_950_000_000,
+      maintenance_capex_estimate: 220_000_000,
+      growth_capex_estimate: 40_000_000,
+      methodology_note: "CapEx de mantenimiento estimado como el menor entre el CapEx total y la Depreciación y Amortización — una heurística estándar, no un dato reportado directamente por la empresa.",
+    },
+    waccDetails: { method: "capm", wacc_pct: 9.2 },
   },
   noiseVsReality: {
     marketSaw: "Caída temporal en los volúmenes asignados por aseguradoras debido a primas de seguro récord y ajustes en precios de autos usados.",

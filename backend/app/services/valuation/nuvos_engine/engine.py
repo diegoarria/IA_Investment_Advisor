@@ -74,6 +74,16 @@ def compute_nuvos_fair_value(
     net_margin_trend: list[Optional[float]],
     fcf_trend: list[Optional[float]],
     net_income_trend: list[Optional[float]],
+    # Methodology audit (see /Users/diegoarria/.claude/plans/cosmic-
+    # munching-crown.md) — FCF normalized for maintenance-vs-growth CapEx
+    # (maintenance ≈ min(capex, D&A)). Used ONLY for the Fair P/E's
+    # fcf_margin adjustment below, so a business mid-ramp on heavy GROWTH
+    # capex isn't penalized as if its cash economics were deteriorating.
+    # `fcf_trend` (FCF Reported, unchanged) still drives CAGR windows and
+    # the FCF/Net-Income conversion-quality check — those are about actual
+    # reported cash, not a heuristic adjustment. Defaults to `fcf_trend`
+    # when not supplied, so existing callers/tests keep today's behavior.
+    fcf_normalized_trend: Optional[list[Optional[float]]] = None,
     implied_shares_trend: list[Optional[float]],
     deterioration_result: DeteriorationResult,
     moat_result: MoatScoreResult,
@@ -154,10 +164,11 @@ def compute_nuvos_fair_value(
         normalized_growth_pct=normalized_growth_pct,
     )
 
+    _fcf_margin_source = fcf_normalized_trend if fcf_normalized_trend else fcf_trend
     fair_pe_result = compute_fair_pe(
         category=classification.category, sector=sector,
         roic_pct=avg_roic_pct, cost_of_capital_pct=cost_of_capital_pct,
-        fcf_margin_pct=(fcf_trend[-1] / revenue_trend[-1] * 100) if fcf_trend and revenue_trend and fcf_trend[-1] is not None and revenue_trend[-1] else None,
+        fcf_margin_pct=(_fcf_margin_source[-1] / revenue_trend[-1] * 100) if _fcf_margin_source and revenue_trend and _fcf_margin_source[-1] is not None and revenue_trend[-1] else None,
         net_debt_to_ebitda=net_debt_to_ebitda, interest_coverage=interest_coverage,
         dividend_yield_pct=dividend_yield_pct, moat_score=moat_result.moat_score,
         management_score=management_score,

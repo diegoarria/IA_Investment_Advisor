@@ -32,7 +32,7 @@ from app.services.fundamental_analysis_service import (
     _DEFAULT_TERMINAL_GROWTH,
     _DEFAULT_CYCLICALITY_DAMPENER,
 )
-from app.services.valuation.numeric_helpers import derive_fcf
+from app.services.valuation.numeric_helpers import derive_fcf, split_maintenance_growth_capex
 
 
 # ── _project_path ──────────────────────────────────────────────────────────
@@ -275,6 +275,46 @@ class TestNumericHelpers:
 
     def test_calc_margin_of_safety_negative_when_overpriced(self):
         assert calc_margin_of_safety(80.0, 100.0) == pytest.approx(-25.0, abs=0.1)
+
+
+# Methodology audit (see /Users/diegoarria/.claude/plans/cosmic-munching-
+# crown.md) — maintenance-vs-growth CapEx split, the fix for the FCF-margin
+# bug that penalized capex-heavy growth companies (data centers, AI infra)
+# as if their cash economics were deteriorating.
+class TestSplitMaintenanceGrowthCapex:
+    def test_growth_heavy_year_capex_exceeds_da(self):
+        # $500M total capex, $200M D&A -> $200M maintenance, $300M growth.
+        maintenance, growth = split_maintenance_growth_capex(-500.0, 200.0)
+        assert maintenance == 200.0
+        assert growth == 300.0
+
+    def test_pure_maintenance_year_capex_below_da(self):
+        # $150M capex, $200M D&A -> all of it counts as maintenance, zero growth.
+        maintenance, growth = split_maintenance_growth_capex(-150.0, 200.0)
+        assert maintenance == 150.0
+        assert growth == 0.0
+
+    def test_missing_da_falls_back_to_old_undifferentiated_behavior(self):
+        maintenance, growth = split_maintenance_growth_capex(-300.0, None)
+        assert maintenance == 300.0
+        assert growth == 0.0
+
+    def test_zero_or_negative_da_falls_back_same_as_missing(self):
+        maintenance, growth = split_maintenance_growth_capex(-300.0, 0.0)
+        assert maintenance == 300.0
+        assert growth == 0.0
+
+    def test_missing_capex_returns_none_maintenance_zero_growth(self):
+        maintenance, growth = split_maintenance_growth_capex(None, 200.0)
+        assert maintenance is None
+        assert growth == 0.0
+
+    def test_handles_positive_capex_sign_convention_too(self):
+        # Some providers may report capex as a positive magnitude already —
+        # the split should be sign-agnostic (uses abs() internally).
+        maintenance, growth = split_maintenance_growth_capex(500.0, 200.0)
+        assert maintenance == 200.0
+        assert growth == 300.0
 
     def test_calc_margin_of_safety_none_for_non_positive_intrinsic_value(self):
         assert calc_margin_of_safety(0.0, 100.0) is None
