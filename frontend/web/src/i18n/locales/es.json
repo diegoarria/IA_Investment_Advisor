@@ -3759,7 +3759,30 @@
     "analyzingWithAi": "Analizando con IA...",
     "aiAnalysisLabel": "Análisis IA",
     "aiAnalysisPremiumLabel": "Análisis IA · Premium",
-    "assets": "activos"
+    "assets": "activos",
+    "macro": {
+      "label": "Macro",
+      "whyItMatters": "Por qué importa",
+      "impact": { "VERY_HIGH": "Muy Alto", "HIGH": "Alto", "MEDIUM": "Medio" },
+      "eventTypes": {
+        "fomc_rate_decision": "Decisión de Tasas (Fed)",
+        "cpi": "Inflación (CPI)",
+        "core_cpi": "Inflación Subyacente (Core CPI)",
+        "pce": "PCE",
+        "core_pce": "PCE Subyacente",
+        "nfp": "Nómina No Agrícola (NFP)",
+        "unemployment_rate": "Tasa de Desempleo",
+        "gdp": "PIB",
+        "ism_manufacturing_pmi": "PMI Manufacturero (ISM)",
+        "ism_services_pmi": "PMI Servicios (ISM)",
+        "retail_sales": "Ventas Minoristas",
+        "initial_jobless_claims": "Solicitudes de Desempleo",
+        "ppi": "Inflación al Productor (PPI)",
+        "jolts": "Vacantes JOLTS",
+        "fed_speaker": "Discurso de la Fed",
+        "housing_starts": "Construcción de Viviendas"
+      }
+    }
   },
   "research": {
     "title": "Nuvos Deep Research",

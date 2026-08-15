@@ -486,6 +486,22 @@ async def get_earnings_calendar(
     return {"earnings": results}
 
 
+@router.get("/calendar/macro")
+async def get_macro_calendar(
+    days_ahead: int = 30,
+    lang: str = "es",
+    user_id: str = Depends(get_current_user_id),
+):
+    """US macro-economic events (FOMC, CPI, NFP, GDP, PMIs, jobless claims,
+    etc.) for the Watchlist calendar's macro layer — display only, no
+    notifications. Read-through cache/DB (see macro_calendar_service.py);
+    never calls the external data source from this request path."""
+    from app.services.macro_calendar_service import get_macro_events
+    lang = lang if lang in ("es", "en") else "es"
+    events = await get_macro_events(days_ahead=min(max(days_ahead, 1), 180), lang=lang)
+    return {"events": events}
+
+
 def _render_analysis_text(analysis: dict, lang: str) -> str:
     """Plain-text rendering of the structured analysis dict, for the OLD
     consumers (EarningsPanel.tsx and the mobile earnings panels embedded in

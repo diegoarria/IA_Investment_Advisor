@@ -5,18 +5,25 @@ import type { LucideIcon } from "lucide-react";
 import {
   ChevronLeft, ChevronRight, Calendar, Loader2,
   Zap, Briefcase, Eye,
-  BarChart2, Scissors, DollarSign,
+  BarChart2, Scissors, DollarSign, Landmark,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { earningsApi } from "@/lib/api";
 
-type EventType = "earnings" | "ex_dividend" | "dividend";
+type TickerEventType = "earnings" | "ex_dividend" | "dividend";
+type ImpactLevel = "VERY_HIGH" | "HIGH" | "MEDIUM";
+type MacroEventType =
+  | "fomc_rate_decision" | "cpi" | "core_cpi" | "pce" | "core_pce" | "nfp"
+  | "unemployment_rate" | "gdp" | "ism_manufacturing_pmi" | "ism_services_pmi"
+  | "retail_sales" | "initial_jobless_claims" | "ppi" | "jolts"
+  | "fed_speaker" | "housing_starts";
 
-interface CalendarEvent {
+interface TickerCalendarEvent {
+  kind: "ticker";
   ticker: string;
   event_date: string | null;
-  event_type: EventType;
+  event_type: TickerEventType;
   status: "upcoming" | "today" | "past" | "unknown";
   // earnings fields
   eps_estimate?: number | null;
@@ -26,6 +33,27 @@ interface CalendarEvent {
   dividend_amount?: number | null;
   dividend_yield?: number | null;
 }
+
+// Raw shape returned by GET /api/earnings/calendar/macro — display-only,
+// no notifications. Never invented: date/impact/speaker all come straight
+// from the backend, which sources them from a real economic-calendar API.
+interface MacroCalendarEvent {
+  kind: "macro";
+  event_type: MacroEventType;
+  event_name: string;
+  date_et: string;   // "YYYY-MM-DD"
+  time_et: string;   // "HH:MM"
+  country: string;
+  impact_level: ImpactLevel;
+  status: "upcoming" | "today" | "past";
+  why_it_matters: string;
+  actual_value?: string | null;
+  estimate_value?: string | null;
+  previous_value?: string | null;
+  speaker_name?: string | null;
+}
+
+type AnyCalendarEvent = TickerCalendarEvent | MacroCalendarEvent;
 
 interface Props {
   watchlistTickers: string[];
@@ -66,12 +94,25 @@ function toDateStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-function getEventMeta(t: TFunction): Record<EventType, { icon: LucideIcon; label: string; bg: string; color: string; bgPortfolio: string; colorPortfolio: string }> {
+function getEventMeta(t: TFunction): Record<TickerEventType, { icon: LucideIcon; label: string; bg: string; color: string; bgPortfolio: string; colorPortfolio: string }> {
   return {
     earnings:    { icon: BarChart2,   label: t("watchlistEarningsCalendar.eventTypes.earnings"),    bg: "rgba(59,130,246,0.22)",   color: "#60a5fa", bgPortfolio: "rgba(0,168,94,0.22)",  colorPortfolio: "var(--accent-l)" },
     ex_dividend: { icon: Scissors,    label: t("watchlistEarningsCalendar.eventTypes.exDividend"), bg: "rgba(245,158,11,0.22)",   color: "#f59e0b", bgPortfolio: "rgba(245,158,11,0.28)", colorPortfolio: "#f59e0b" },
     dividend:    { icon: DollarSign,  label: t("watchlistEarningsCalendar.eventTypes.dividend"),    bg: "rgba(168,85,247,0.22)",   color: "#a855f7", bgPortfolio: "rgba(168,85,247,0.28)", colorPortfolio: "#a855f7" },
   };
+}
+
+// Impact-coded, not ticker-coded — macro events have no ticker, so they're
+// visually distinguished from company events by color + a landmark icon.
+const IMPACT_COLOR: Record<ImpactLevel, { bg: string; color: string }> = {
+  VERY_HIGH: { bg: "rgba(239,68,68,0.22)",  color: "#f87171" },
+  HIGH:      { bg: "rgba(249,115,22,0.22)", color: "#fb923c" },
+  MEDIUM:    { bg: "rgba(234,179,8,0.20)",  color: "#facc15" },
+};
+
+function macroEventLabel(t: TFunction, eventType: string): string {
+  const label = t(`watchlistEarningsCalendar.macro.eventTypes.${eventType}`);
+  return label.startsWith("watchlistEarningsCalendar.macro.eventTypes.") ? eventType : label;
 }
 
 export default function WatchlistEarningsCalendar({
@@ -84,7 +125,8 @@ export default function WatchlistEarningsCalendar({
   const DAYS = getDays(t);
   const MONTHS = getMonths(t);
   const EVENT_META = getEventMeta(t);
-  const [events, setEvents]       = useState<CalendarEvent[]>([]);
+  const [tickerEvents, setTickerEvents] = useState<TickerCalendarEvent[]>([]);
+  const [macroEvents, setMacroEvents]   = useState<MacroCalendarEvent[]>([]);
   const [loading, setLoading]     = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [viewDate, setViewDate]   = useState(() => new Date());
@@ -96,12 +138,25 @@ export default function WatchlistEarningsCalendar({
   const portfolioSet = new Set(portfolioTickers);
 
   const loadEvents = () => {
-    if (allTickers.length === 0) return;
     setLoading(true);
     setLoadError(false);
-    earningsApi
-      .getCalendar(allTickers)
-      .then((res) => setEvents(res.data.earnings || []))
+    const tickerPromise = allTickers.length > 0
+      ? earningsApi.getCalendar(allTickers).then((res) =>
+          (res.data.earnings || []).map((e: Omit<TickerCalendarEvent, "kind">) => ({ ...e, kind: "ticker" as const }))
+        )
+      : Promise.resolve<TickerCalendarEvent[]>([]);
+    // Macro events are watchlist-independent (US market-wide) — fetched
+    // regardless of whether the user has any tickers added, and never
+    // blocks/gets blocked by the ticker-events request.
+    const macroPromise = earningsApi.getMacroCalendar(45, i18n.language).then((res) =>
+      (res.data.events || []).map((e: Omit<MacroCalendarEvent, "kind">) => ({ ...e, kind: "macro" as const }))
+    ).catch(() => [] as MacroCalendarEvent[]);
+
+    Promise.all([tickerPromise, macroPromise])
+      .then(([tEvents, mEvents]) => {
+        setTickerEvents(tEvents);
+        setMacroEvents(mEvents);
+      })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   };
@@ -109,13 +164,18 @@ export default function WatchlistEarningsCalendar({
   useEffect(() => {
     loadEvents();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allTickers.join(",")]);
+  }, [allTickers.join(","), i18n.language]);
 
-  // date → events map
-  const eventMap: Record<string, CalendarEvent[]> = {};
-  for (const e of events) {
+  // date → events map (ticker events keyed by event_date, macro events by date_et — both "YYYY-MM-DD")
+  const eventMap: Record<string, AnyCalendarEvent[]> = {};
+  for (const e of tickerEvents) {
     if (e.event_date) {
       (eventMap[e.event_date] ??= []).push(e);
+    }
+  }
+  for (const e of macroEvents) {
+    if (e.date_et) {
+      (eventMap[e.date_et] ??= []).push(e);
     }
   }
 
@@ -237,6 +297,25 @@ export default function WatchlistEarningsCalendar({
               {/* Event badges */}
               <div className="flex flex-col gap-0.5 items-center">
                 {dayEvents.slice(0, 2).map((e, ei) => {
+                  if (e.kind === "macro") {
+                    const colors = IMPACT_COLOR[e.impact_level] ?? IMPACT_COLOR.MEDIUM;
+                    return (
+                      <span
+                        key={`macro-${e.event_type}-${ei}`}
+                        className="text-[7px] font-black px-1 py-px rounded leading-tight flex items-center gap-px"
+                        style={{
+                          background: colors.bg,
+                          color: colors.color,
+                          maxWidth: "calc(100% - 2px)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        <Landmark className="w-2.5 h-2.5 inline-block mr-0.5" /> {macroEventLabel(t, e.event_type)}
+                      </span>
+                    );
+                  }
                   const meta = EVENT_META[e.event_type] ?? EVENT_META.earnings;
                   const isPortfolio = portfolioSet.has(e.ticker);
                   return (
@@ -280,6 +359,52 @@ export default function WatchlistEarningsCalendar({
           </div>
           <div className="divide-y" style={{ borderColor: "var(--border)" }}>
             {selectedEntries.map((entry, ei) => {
+              if (entry.kind === "macro") {
+                const colors = IMPACT_COLOR[entry.impact_level] ?? IMPACT_COLOR.MEDIUM;
+                return (
+                  <div key={`macro-${entry.event_type}-${ei}`} className="px-4 py-2.5">
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      <Landmark className="w-4 h-4" style={{ color: colors.color }} />
+                      <span className="text-xs font-black" style={{ color: "var(--text)" }}>
+                        {macroEventLabel(t, entry.event_type)}
+                      </span>
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                            style={{ background: "rgba(96,165,250,0.14)", color: "#60a5fa" }}>
+                        🇺🇸 {entry.country}
+                      </span>
+                      <span className="inline-flex text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                            style={{ background: colors.bg, color: colors.color }}>
+                        {t(`watchlistEarningsCalendar.macro.impact.${entry.impact_level}`)}
+                      </span>
+                      <span className="ml-auto text-[9px]"
+                            style={{ color: entry.status === "upcoming" || entry.status === "today" ? "var(--accent-l)" : "var(--muted)" }}>
+                        {entry.time_et} ET · {entry.status === "today" ? t("watchlistEarningsCalendar.status.today") : entry.status === "upcoming" ? t("watchlistEarningsCalendar.status.upcoming") : t("watchlistEarningsCalendar.status.completed")}
+                      </span>
+                    </div>
+                    <p className="text-[10px] mb-1" style={{ color: "var(--dim)" }}>{entry.event_name}</p>
+                    {(entry.actual_value != null || entry.estimate_value != null || entry.previous_value != null) && (
+                      <div className="text-[10px] mb-1.5 flex gap-3 flex-wrap" style={{ color: "var(--sub)" }}>
+                        {entry.actual_value != null && <span>{t("watchlistEarningsCalendar.status.completed")}: <strong style={{ color: "#60a5fa" }}>{entry.actual_value}</strong></span>}
+                        {entry.estimate_value != null && <span>Est.: <strong style={{ color: "#60a5fa" }}>{entry.estimate_value}</strong></span>}
+                        {entry.previous_value != null && <span>Prev.: <strong style={{ color: "var(--muted)" }}>{entry.previous_value}</strong></span>}
+                      </div>
+                    )}
+                    {entry.speaker_name && (
+                      <p className="text-[10px] mb-1" style={{ color: "var(--sub)" }}>{entry.speaker_name}</p>
+                    )}
+                    {entry.why_it_matters && (
+                      <div className="text-[11px] leading-relaxed p-2.5 rounded-xl"
+                           style={{ background: "var(--raised)", color: "var(--sub)" }}>
+                        <span className="font-semibold" style={{ color: "var(--text)" }}>
+                          {t("watchlistEarningsCalendar.macro.whyItMatters")}:
+                        </span>{" "}
+                        {entry.why_it_matters}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
               const meta = EVENT_META[entry.event_type] ?? EVENT_META.earnings;
               const isPortfolio = portfolioSet.has(entry.ticker);
               return (
@@ -411,6 +536,10 @@ export default function WatchlistEarningsCalendar({
         <div className="flex items-center gap-1">
           <DollarSign className="w-2.5 h-2.5" style={{ color: "#a855f7" }} />
           <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("watchlistEarningsCalendar.eventTypes.dividend")}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Landmark className="w-2.5 h-2.5" style={{ color: "#f87171" }} />
+          <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("watchlistEarningsCalendar.macro.label")}</span>
         </div>
         {allTickers.length > 0 && (
           <span className="text-[10px] ml-auto" style={{ color: "var(--dim)" }}>

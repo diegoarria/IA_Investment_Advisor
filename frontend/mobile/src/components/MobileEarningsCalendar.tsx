@@ -9,12 +9,19 @@ import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { earningsApi } from "../lib/api";
 
-type EventType = "earnings" | "ex_dividend" | "dividend";
+type TickerEventType = "earnings" | "ex_dividend" | "dividend";
+type ImpactLevel = "VERY_HIGH" | "HIGH" | "MEDIUM";
+type MacroEventType =
+  | "fomc_rate_decision" | "cpi" | "core_cpi" | "pce" | "core_pce" | "nfp"
+  | "unemployment_rate" | "gdp" | "ism_manufacturing_pmi" | "ism_services_pmi"
+  | "retail_sales" | "initial_jobless_claims" | "ppi" | "jolts"
+  | "fed_speaker" | "housing_starts";
 
-interface CalendarEvent {
+interface TickerCalendarEvent {
+  kind: "ticker";
   ticker: string;
   event_date: string | null;
-  event_type: EventType;
+  event_type: TickerEventType;
   status: "upcoming" | "today" | "past" | "unknown";
   eps_estimate?: number | null;
   eps_range?: string | null;
@@ -22,6 +29,25 @@ interface CalendarEvent {
   dividend_amount?: number | null;
   dividend_yield?: number | null;
 }
+
+// Display-only, no notifications — mirrors web's WatchlistEarningsCalendar.
+interface MacroCalendarEvent {
+  kind: "macro";
+  event_type: MacroEventType;
+  event_name: string;
+  date_et: string;
+  time_et: string;
+  country: string;
+  impact_level: ImpactLevel;
+  status: "upcoming" | "today" | "past";
+  why_it_matters: string;
+  actual_value?: string | null;
+  estimate_value?: string | null;
+  previous_value?: string | null;
+  speaker_name?: string | null;
+}
+
+type AnyCalendarEvent = TickerCalendarEvent | MacroCalendarEvent;
 
 interface Props {
   watchlistTickers: string[];
@@ -46,11 +72,23 @@ const getMonths = (t: TFunction): string[] => [
   t("mobileEarningsCalendar.months.oct"), t("mobileEarningsCalendar.months.nov"), t("mobileEarningsCalendar.months.dec"),
 ];
 
-const getEventMeta = (t: TFunction): Record<EventType, { icon: string; label: string; bg: string; color: string; bgPortfolio: string; colorPortfolio: string }> => ({
+const getEventMeta = (t: TFunction): Record<TickerEventType, { icon: string; label: string; bg: string; color: string; bgPortfolio: string; colorPortfolio: string }> => ({
   earnings:    { icon: "bar-chart-outline",  label: t("mobileEarningsCalendar.eventTypes.earnings"),   bg: "rgba(59,130,246,0.22)",  color: "#60a5fa", bgPortfolio: "rgba(0,168,94,0.22)",  colorPortfolio: "#00d47e" },
   ex_dividend: { icon: "cut-outline",        label: t("mobileEarningsCalendar.eventTypes.exDividend"), bg: "rgba(245,158,11,0.22)",  color: "#f59e0b", bgPortfolio: "rgba(245,158,11,0.28)", colorPortfolio: "#f59e0b" },
   dividend:    { icon: "cash-outline",       label: t("mobileEarningsCalendar.eventTypes.dividend"),   bg: "rgba(168,85,247,0.22)",  color: "#a855f7", bgPortfolio: "rgba(168,85,247,0.28)", colorPortfolio: "#a855f7" },
 });
+
+// Impact-coded (not ticker-coded) — macro events have no ticker.
+const IMPACT_COLOR: Record<ImpactLevel, { bg: string; color: string }> = {
+  VERY_HIGH: { bg: "rgba(239,68,68,0.22)",  color: "#f87171" },
+  HIGH:      { bg: "rgba(249,115,22,0.22)", color: "#fb923c" },
+  MEDIUM:    { bg: "rgba(234,179,8,0.20)",  color: "#facc15" },
+};
+
+function macroEventLabel(t: TFunction, eventType: string): string {
+  const label = t(`mobileEarningsCalendar.macro.eventTypes.${eventType}`);
+  return label.startsWith("mobileEarningsCalendar.macro.eventTypes.") ? eventType : label;
+}
 
 function toDateStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -67,7 +105,8 @@ export default function MobileEarningsCalendar({
   const DAYS = getDays(t);
   const MONTHS = getMonths(t);
   const EVENT_META = getEventMeta(t);
-  const [events, setEvents]         = useState<CalendarEvent[]>([]);
+  const [tickerEvents, setTickerEvents] = useState<TickerCalendarEvent[]>([]);
+  const [macroEvents, setMacroEvents]   = useState<MacroCalendarEvent[]>([]);
   const [loading, setLoading]       = useState(false);
   const [viewDate, setViewDate]     = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -78,21 +117,37 @@ export default function MobileEarningsCalendar({
   const portfolioSet = new Set(portfolioTickers);
 
   useEffect(() => {
-    if (allTickers.length === 0) return;
     setLoading(true);
-    earningsApi
-      .getCalendar(allTickers)
-      .then((res) => setEvents(res.data.earnings || []))
+    const tickerPromise = allTickers.length > 0
+      ? earningsApi.getCalendar(allTickers).then((res) =>
+          (res.data.earnings || []).map((e: Omit<TickerCalendarEvent, "kind">) => ({ ...e, kind: "ticker" as const }))
+        )
+      : Promise.resolve<TickerCalendarEvent[]>([]);
+    // Macro events are US market-wide, not tied to the user's tickers.
+    const macroPromise = earningsApi.getMacroCalendar(45, i18n.language).then((res) =>
+      (res.data.events || []).map((e: Omit<MacroCalendarEvent, "kind">) => ({ ...e, kind: "macro" as const }))
+    ).catch(() => [] as MacroCalendarEvent[]);
+
+    Promise.all([tickerPromise, macroPromise])
+      .then(([tEvents, mEvents]) => {
+        setTickerEvents(tEvents);
+        setMacroEvents(mEvents);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allTickers.join(",")]);
+  }, [allTickers.join(","), i18n.language]);
 
-  // date → events map
-  const eventMap: Record<string, CalendarEvent[]> = {};
-  for (const e of events) {
+  // date → events map (ticker events keyed by event_date, macro by date_et — both "YYYY-MM-DD")
+  const eventMap: Record<string, AnyCalendarEvent[]> = {};
+  for (const e of tickerEvents) {
     if (e.event_date) {
       (eventMap[e.event_date] ??= []).push(e);
+    }
+  }
+  for (const e of macroEvents) {
+    if (e.date_et) {
+      (eventMap[e.date_et] ??= []).push(e);
     }
   }
 
@@ -182,11 +237,6 @@ export default function MobileEarningsCalendar({
               const isSel    = selectedDay === dateStr;
               const hasEvent = dayEvents.length > 0;
 
-              // Pick dominant color for the dot (priority: earnings > ex_div > div)
-              const dominantEvent = dayEvents.find(e => e.event_type === "earnings")
-                ?? dayEvents.find(e => e.event_type === "ex_dividend")
-                ?? dayEvents[0];
-
               return (
                 <TouchableOpacity
                   key={dateStr}
@@ -214,6 +264,16 @@ export default function MobileEarningsCalendar({
 
                   {/* Event badges — show up to 2, each with its own color */}
                   {dayEvents.slice(0, 2).map((e, idx) => {
+                    if (e.kind === "macro") {
+                      const colorSet = IMPACT_COLOR[e.impact_level] ?? IMPACT_COLOR.MEDIUM;
+                      return (
+                        <View key={`macro-${e.event_type}-${idx}`} style={[s.tickerBadge, { backgroundColor: colorSet.bg }]}>
+                          <Text style={[s.tickerBadgeText, { color: colorSet.color }]} numberOfLines={1}>
+                            {macroEventLabel(t, e.event_type)}
+                          </Text>
+                        </View>
+                      );
+                    }
                     const meta = EVENT_META[e.event_type];
                     const isPortfolio = portfolioSet.has(e.ticker);
                     const bg = isPortfolio ? meta.bgPortfolio : meta.bg;
@@ -233,10 +293,6 @@ export default function MobileEarningsCalendar({
                       </Text>
                     </View>
                   )}
-                  {/* Small color dot for dominant event type */}
-                  {hasEvent && !dayEvents.slice(0, 2).length && dominantEvent && (
-                    <View style={[s.eventDot, { backgroundColor: EVENT_META[dominantEvent.event_type].color }]} />
-                  )}
                 </TouchableOpacity>
               );
             })}
@@ -253,6 +309,69 @@ export default function MobileEarningsCalendar({
             })}
           </Text>
           {selectedEntries.map((entry, idx) => {
+            if (entry.kind === "macro") {
+              const colorSet = IMPACT_COLOR[entry.impact_level] ?? IMPACT_COLOR.MEDIUM;
+              return (
+                <View
+                  key={`macro-${entry.event_type}-${idx}`}
+                  style={[
+                    s.detailRow,
+                    idx > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255,255,255,0.06)" },
+                  ]}
+                >
+                  <View style={[s.eventStripe, { backgroundColor: colorSet.color }]} />
+                  <View style={{ flex: 1 }}>
+                    <View style={s.detailHeader}>
+                      <Ionicons name="business-outline" size={13} color={colorSet.color} />
+                      <Text style={[s.detailTicker, { color: colors.text }]}>{macroEventLabel(t, entry.event_type)}</Text>
+                      <View style={[s.eventTypeBadge, { backgroundColor: colorSet.bg }]}>
+                        <Text style={[s.eventTypeText, { color: colorSet.color }]}>
+                          {t(`mobileEarningsCalendar.macro.impact.${entry.impact_level}`)}
+                        </Text>
+                      </View>
+                      <Text style={[s.statusText, { color: entry.status === "upcoming" || entry.status === "today" ? colorSet.color : colors.textMuted }]}>
+                        {entry.time_et} ET
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 10, color: colors.textDim, marginBottom: 6 }}>{entry.event_name}</Text>
+                    {(entry.actual_value != null || entry.estimate_value != null || entry.previous_value != null) && (
+                      <View style={s.metaRow}>
+                        {entry.actual_value != null && (
+                          <View style={[s.metaChip, { backgroundColor: colors.bgRaised }]}>
+                            <Text style={[s.metaChipLabel, { color: colors.textDim }]}>{t("mobileEarningsCalendar.statusReported")}</Text>
+                            <Text style={[s.metaChipVal, { color: colors.text }]}>{entry.actual_value}</Text>
+                          </View>
+                        )}
+                        {entry.estimate_value != null && (
+                          <View style={[s.metaChip, { backgroundColor: colors.bgRaised }]}>
+                            <Text style={[s.metaChipLabel, { color: colors.textDim }]}>Est.</Text>
+                            <Text style={[s.metaChipVal, { color: colors.text }]}>{entry.estimate_value}</Text>
+                          </View>
+                        )}
+                        {entry.previous_value != null && (
+                          <View style={[s.metaChip, { backgroundColor: colors.bgRaised }]}>
+                            <Text style={[s.metaChipLabel, { color: colors.textDim }]}>Prev.</Text>
+                            <Text style={[s.metaChipVal, { color: colors.text }]}>{entry.previous_value}</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                    {entry.speaker_name && (
+                      <Text style={{ fontSize: 10, color: colors.textSub, marginBottom: 6 }}>{entry.speaker_name}</Text>
+                    )}
+                    {entry.why_it_matters && (
+                      <View style={[s.analysisBox, { backgroundColor: colors.bgRaised }]}>
+                        <Text style={[s.analysisText, { color: colors.textSub }]}>
+                          <Text style={{ fontWeight: "700", color: colors.text }}>{t("mobileEarningsCalendar.macro.whyItMatters")}: </Text>
+                          {entry.why_it_matters}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              );
+            }
+
             const meta = EVENT_META[entry.event_type];
             const isPortfolio = portfolioSet.has(entry.ticker);
             const accentColor = isPortfolio ? meta.colorPortfolio : meta.color;
@@ -390,6 +509,10 @@ export default function MobileEarningsCalendar({
         <View style={s.legendItem}>
           <View style={[s.legendDot, { backgroundColor: "#a855f7" }]} />
           <Text style={[s.legendText, { color: colors.textMuted }]}>{t("mobileEarningsCalendar.eventTypes.dividend")}</Text>
+        </View>
+        <View style={s.legendItem}>
+          <View style={[s.legendDot, { backgroundColor: "#f87171" }]} />
+          <Text style={[s.legendText, { color: colors.textMuted }]}>{t("mobileEarningsCalendar.macro.label")}</Text>
         </View>
         {allTickers.length > 0 && (
           <Text style={[s.legendCount, { color: colors.textDim }]}>

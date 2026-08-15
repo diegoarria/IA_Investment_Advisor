@@ -2321,6 +2321,19 @@ async def job_refresh_undervalued_screener():
         logger.error("job_refresh_undervalued_screener failed: %s", e)
 
 
+async def job_refresh_macro_calendar():
+    """6:00 AM ET daily — refreshes the Watchlist calendar's macro-economic
+    events layer (FOMC, CPI, NFP, GDP, PMIs, jobless claims, etc.) from FMP's
+    economic-calendar API into macro_economic_events + the read cache. No
+    notification of any kind — display-only data refresh, mirrors
+    job_refresh_undervalued_screener's shape."""
+    from app.services.macro_calendar_service import refresh_macro_calendar
+    try:
+        await refresh_macro_calendar()
+    except Exception as e:
+        logger.error("job_refresh_macro_calendar failed: %s", e)
+
+
 _QUICK_ANALYSIS_PREWARM_TICKER = "AAPL"
 
 
@@ -4744,6 +4757,10 @@ async def main():
     # screen's data current. Separate pipeline from Screener Semanal above.
     scheduler.add_job(job_refresh_undervalued_screener, "cron", day_of_week="sun", hour=12,  minute=5,     timezone="America/New_York")
 
+    # ── Daily 6:00am ET: macro-economic events calendar refresh (Watchlist
+    # calendar's macro layer) — before market open, no notification. ─────────
+    scheduler.add_job(job_refresh_macro_calendar, "cron", hour=6, minute=0, timezone="America/New_York")
+
     # ── Sunday 7:05pm ET: index futures just came online for the week (5 min
     # after market.py's futures window opens at 7pm ET) ──────────────────────
     scheduler.add_job(job_futures_weekly_push,           "cron", day_of_week="sun", hour=19, minute=5,  timezone="America/New_York")
@@ -4802,6 +4819,11 @@ async def main():
     # scheduled Sunday run to have real data for users to see.
     from app.services.undervalued_screener_service import refresh_if_empty_on_startup
     asyncio.create_task(refresh_if_empty_on_startup())
+
+    # Populate the macro-economic events calendar immediately if empty
+    # (fresh deploy, first-ever run) — same self-heal shape as above.
+    from app.services.macro_calendar_service import refresh_if_empty_on_startup as refresh_macro_if_empty
+    asyncio.create_task(refresh_macro_if_empty())
 
     scheduler.start()
     logger.info("Worker started — %d jobs scheduled", len(scheduler.get_jobs()))

@@ -130,6 +130,17 @@ async def admin_refresh_undervalued_screener(user: dict = Depends(get_current_us
     return {"status": "ok"}
 
 
+@router.post("/refresh-macro-calendar")
+async def admin_refresh_macro_calendar(user: dict = Depends(get_current_user)):
+    """Forces the Watchlist calendar's macro-economic-events data to rebuild
+    right now, instead of waiting for the 6am ET daily cron
+    (job_refresh_macro_calendar in worker.py)."""
+    await _require_admin(user)
+    from app.services.macro_calendar_service import refresh_macro_calendar
+    count = await refresh_macro_calendar()
+    return {"status": "ok", "events_upserted": count}
+
+
 @router.post("/test-market-open")
 async def test_market_open(user: dict = Depends(get_current_user)):
     """Fires the REAL market-open data fetch (live Finnhub ^GSPC/^IXIC quotes,

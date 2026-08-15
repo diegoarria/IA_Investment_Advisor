@@ -3295,7 +3295,30 @@
     "analyzingWithAI": "Analyzing with AI...",
     "aiAnalysis": "AI Analysis",
     "aiAnalysisPremium": "AI Analysis · Premium",
-    "assetsCount": "{{count}} assets"
+    "assetsCount": "{{count}} assets",
+    "macro": {
+      "label": "Macro",
+      "whyItMatters": "Why it matters",
+      "impact": { "VERY_HIGH": "Very High", "HIGH": "High", "MEDIUM": "Medium" },
+      "eventTypes": {
+        "fomc_rate_decision": "Fed Rate Decision",
+        "cpi": "Inflation (CPI)",
+        "core_cpi": "Core CPI",
+        "pce": "PCE",
+        "core_pce": "Core PCE",
+        "nfp": "Nonfarm Payrolls (NFP)",
+        "unemployment_rate": "Unemployment Rate",
+        "gdp": "GDP",
+        "ism_manufacturing_pmi": "ISM Manufacturing PMI",
+        "ism_services_pmi": "ISM Services PMI",
+        "retail_sales": "Retail Sales",
+        "initial_jobless_claims": "Jobless Claims",
+        "ppi": "Producer Prices (PPI)",
+        "jolts": "JOLTS Openings",
+        "fed_speaker": "Fed Speaker",
+        "housing_starts": "Housing Starts"
+      }
+    }
   },
   "paywallModal": {
     "plans": {
