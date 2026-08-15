@@ -628,7 +628,22 @@ async def refresh_undervalued_screener() -> None:
     # keeps serving last week's real cached data — never a half-updated or
     # empty-blurb result.
     batch_pending = False
-    if to_recompute:
+    already_pending = cache_get(_PENDING_BATCH_CACHE_KEY)
+    if already_pending:
+        # Real duplicate-spend guard: a manual /admin/refresh-undervalued-
+        # screener trigger (or two redeploys close together) while a
+        # previous batch hasn't finalized yet would otherwise submit a
+        # SECOND full batch and silently orphan the first one's cost —
+        # never double-pay for the same candidates. The existing pending
+        # batch is left to finish; this run's blurb generation is skipped
+        # entirely (CACHE_KEY keeps serving last week's real data either
+        # way, same as the normal pending-batch path below).
+        logger.warning(
+            "undervalued_screener_service: batch %s already pending — skipping blurb (re)submission to avoid a duplicate batch",
+            already_pending.get("batch_id"),
+        )
+        batch_pending = True
+    elif to_recompute:
         from app.services.ai_service import submit_candidate_blurb_batch
         try:
             batch_id = await submit_candidate_blurb_batch(to_recompute)

@@ -250,3 +250,52 @@ class TestPollAndFinalizeUndervaluedScreenerBatch:
         assert finalized_key == screener_service.CACHE_KEY
         assert finalized_results[0]["blurb_by_lang"] == {"es": "buena empresa", "en": "good company"}
         assert cache_delete_calls == [(screener_service._PENDING_BATCH_CACHE_KEY,)]
+
+
+class TestRefreshUndervaluedScreenerSkipsDuplicateBatchSubmission:
+    """A real duplicate-spend risk found during audit: nothing previously
+    stopped refresh_undervalued_screener() from submitting a SECOND full
+    Batch API call (real Anthropic spend) while an earlier batch from this
+    same screener was still pending — e.g. an admin re-triggering
+    /admin/refresh-undervalued-screener before the first batch finalizes.
+    This locks in the guard that skips resubmission whenever
+    _PENDING_BATCH_CACHE_KEY is already occupied."""
+
+    async def test_skips_batch_submission_when_a_batch_is_already_pending(self, monkeypatch):
+        candidate = {"ticker": "AAPL", "sector": "Technology", "price": 200, "featured": True}
+
+        monkeypatch.setattr(screener_service, "_scan", lambda tickers, analysis_cache=None: [candidate])
+        monkeypatch.setattr(screener_service, "_cap_per_sector", lambda results, max_per_sector: results)
+        monkeypatch.setattr(screener_service, "cache_get_with_ts", lambda key: (None, None))
+
+        already_pending = {"batch_id": "batch_OLD", "all_results": [candidate]}
+        monkeypatch.setattr(screener_service, "cache_get", lambda key: already_pending)
+
+        import app.api.routes.screener as screener_routes
+        monkeypatch.setattr(screener_routes, "_latest_reported_earnings_period", lambda ticker: "2026Q2")
+        monkeypatch.setattr(screener_routes, "UNIVERSE", [{"ticker": "AAPL", "industry": "Software"}])
+
+        import app.services.fundamental_analysis_service as fundamental_analysis_service
+        monkeypatch.setattr(fundamental_analysis_service, "get_financials", lambda ticker, limit=10: {})
+        monkeypatch.setattr(screener_service, "_compute_momentum", lambda ticker, price: None)
+
+        submit_calls = []
+        async def _fake_submit(entries, langs=("es", "en")):
+            submit_calls.append(entries)
+            return "batch_NEW"
+        monkeypatch.setattr(ai_service, "submit_candidate_blurb_batch", _fake_submit)
+
+        cache_set_calls = []
+        monkeypatch.setattr(screener_service, "cache_set", lambda *a, **k: cache_set_calls.append(a))
+
+        async def _noop_backtest(analysis_cache):
+            return None
+        import app.services.valuation_backtest_service as valuation_backtest_service
+        monkeypatch.setattr(valuation_backtest_service, "refresh_valuation_backtest", _noop_backtest)
+
+        await screener_service.refresh_undervalued_screener()
+
+        assert submit_calls == []  # never submitted a second batch
+        # CACHE_KEY itself must NOT be finalized here either — the pending
+        # batch (whichever candidates it covers) is still the source of truth.
+        assert all(call[0] != screener_service.CACHE_KEY for call in cache_set_calls)
