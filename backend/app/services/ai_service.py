@@ -3273,7 +3273,11 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
 
     response = await _claude(
         model="claude-haiku-4-5-20251001",
-        max_tokens=1200,
+        max_tokens=1800,  # was 1200 — the mandatory per-share Fair Value Engine rebuild
+        # (d9a6b018) added real buyback-yield/organic-growth disclosure text to the data
+        # block above, making this prompt longer; 1200 was tight enough that Tesis Final/
+        # Simplicidad started going missing across most tickers (JSON cut off mid-object,
+        # same failure class _BLURB_MAX_TOKENS was raised for below).
         messages=[{"role": "user", "content": prompt}],
     )
     asyncio.create_task(log_llm_usage(user_id, "company_diagnostic_narrative", "claude-haiku-4-5-20251001", response.usage))
