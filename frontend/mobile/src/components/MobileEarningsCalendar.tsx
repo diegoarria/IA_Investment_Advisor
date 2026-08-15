@@ -267,10 +267,8 @@ export default function MobileEarningsCalendar({
                     if (e.kind === "macro") {
                       const colorSet = IMPACT_COLOR[e.impact_level] ?? IMPACT_COLOR.MEDIUM;
                       return (
-                        <View key={`macro-${e.event_type}-${idx}`} style={[s.tickerBadge, { backgroundColor: colorSet.bg }]}>
-                          <Text style={[s.tickerBadgeText, { color: colorSet.color }]} numberOfLines={1}>
-                            {macroEventLabel(t, e.event_type)}
-                          </Text>
+                        <View key={`macro-${e.event_type}-${idx}`} style={[s.macroDot, { backgroundColor: colorSet.bg }]}>
+                          <Ionicons name="business-outline" size={8} color={colorSet.color} />
                         </View>
                       );
                     }
@@ -577,6 +575,11 @@ function makeStyles(_colors: unknown) {
     },
     tickerBadgeText: { fontSize: 8, fontWeight: "800" },
     eventDot: { width: 5, height: 5, borderRadius: 2.5, marginTop: 2 },
+    macroDot: {
+      width: 14, height: 14, borderRadius: 7,
+      alignItems: "center", justifyContent: "center",
+      marginTop: 1,
+    },
 
     detailWrap: {
       borderTopWidth: StyleSheet.hairlineWidth,

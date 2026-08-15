@@ -302,17 +302,11 @@ export default function WatchlistEarningsCalendar({
                     return (
                       <span
                         key={`macro-${e.event_type}-${ei}`}
-                        className="text-[7px] font-black px-1 py-px rounded leading-tight flex items-center gap-px"
-                        style={{
-                          background: colors.bg,
-                          color: colors.color,
-                          maxWidth: "calc(100% - 2px)",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
+                        title={macroEventLabel(t, e.event_type)}
+                        className="w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0"
+                        style={{ background: colors.bg }}
                       >
-                        <Landmark className="w-2.5 h-2.5 inline-block mr-0.5" /> {macroEventLabel(t, e.event_type)}
+                        <Landmark className="w-2 h-2" style={{ color: colors.color }} />
                       </span>
                     );
                   }
