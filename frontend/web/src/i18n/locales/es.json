@@ -642,6 +642,10 @@
   },
   "subvaluadas": {
     "title": "Mejores Oportunidades",
+    "valuationUnavailable": {
+      "title": "Valoración no disponible por ahora",
+      "subtitle": "No pudimos calcular un valor confiable para esta empresa en este momento — puede ser por datos insuficientes o una fuente externa fallando temporalmente. Intenta de nuevo en unos minutos."
+    },
     "nif": {
       "overallScoreLabel": "Nuvos Investment Framework",
       "weakestPillar": "Pilar más débil: {{pillar}} ({{score}}/100)",

@@ -415,14 +415,24 @@ function SubvaluadasPageInner() {
                   ) : gqvIsPrimary ? (
                     <GqvFairValuePanel data={data.gqv_fair_value} />
                   ) : (
-                    data.nuvos_fair_value && (
-                      <FairValueScenariosPanel
-                        data={data.nuvos_fair_value}
-                        price={price}
-                        relativeValuation={data.relative_valuation}
-                        analystPriceTarget={data.analyst_price_target}
-                      />
-                    )
+                    // Ni el diagnóstico ni el motor GQV pudieron generar un
+                    // valor confiable para este ticker en este momento (datos
+                    // insuficientes o una API externa fallando) — nunca cae
+                    // al panel de diseño antiguo; muestra un aviso honesto en
+                    // su lugar, nunca un número inventado.
+                    <Card padding="p-6">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "var(--muted)" }} />
+                        <div>
+                          <p className="text-[14px] font-bold" style={{ color: "var(--text)" }}>
+                            {t("subvaluadas.valuationUnavailable.title")}
+                          </p>
+                          <p className="text-[13px] mt-1" style={{ color: "var(--sub)" }}>
+                            {t("subvaluadas.valuationUnavailable.subtitle")}
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
                   )}
 
                   {/* Cuando CompanyDiagnosticCard es el panel principal, es
@@ -434,7 +444,17 @@ function SubvaluadasPageInner() {
                       omite por completo — solo el pie mínimo (Actualizado/
                       Seguir/Analizar) se muestra, reutilizando exactamente
                       los mismos componentes que ya usa el flujo viejo. */}
-                  {companyDiagnostic ? (
+                  {companyDiagnostic || !gqvIsPrimary ? (
+                    // Minimal footer — used both when CompanyDiagnosticCard
+                    // is primary (self-contained, no legacy detail needed
+                    // below it) AND when NEITHER new engine could produce a
+                    // reliable result (the "no disponible" card above
+                    // already said so; the old DCF cascade below — Follow
+                    // Alert anchored to a legacy value, Supuestos, Reverse
+                    // DCF, Sensitivity, Modelo Completo — must not render
+                    // here either, or it would silently contradict that
+                    // message with numbers from the very engine that just
+                    // failed).
                     <>
                       <div className="space-y-3 mt-8">
                         <GeneratedAtNote generatedAt={data.generated_at} />

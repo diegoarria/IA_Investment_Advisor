@@ -642,6 +642,10 @@
   },
   "subvaluadas": {
     "title": "Top Opportunities",
+    "valuationUnavailable": {
+      "title": "Valuation unavailable right now",
+      "subtitle": "We couldn't compute a reliable value for this company at the moment — it could be insufficient data or an external source failing temporarily. Try again in a few minutes."
+    },
     "nif": {
       "overallScoreLabel": "Nuvos Investment Framework",
       "weakestPillar": "Weakest pillar: {{pillar}} ({{score}}/100)",
