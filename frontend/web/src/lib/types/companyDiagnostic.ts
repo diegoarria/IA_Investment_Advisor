@@ -86,6 +86,11 @@ export interface CompanyDiagnosticData {
     netMargin: string;
     operatingCashFlow: string;
   };
+  // Methodology audit round 3 (see /Users/diegoarria/.claude/plans/cosmic-
+  // munching-crown.md) — true when buybacks compressed Stockholders Equity
+  // enough that ROIC's denominator switched to operating invested capital
+  // (Total Assets - Current Liabilities) instead of the standard one.
+  roicAdjustedForBuybacks: boolean;
   valuation: ValuationScenarios;
   noiseVsReality: {
     marketSaw: string;
@@ -166,6 +171,7 @@ export const mockCopartData: CompanyDiagnosticData = {
     netMargin: "33.4%",
     operatingCashFlow: "~$1,800 M USD",
   },
+  roicAdjustedForBuybacks: false,
   valuation: {
     currentPrice: 29.00,
     conservative: 34.50,

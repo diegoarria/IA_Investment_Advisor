@@ -30,7 +30,7 @@ from app.services.valuation.robustness import UnstableGordonGrowthError, clamp
 # original names so every internal call site below (`_run_dcf(...)`,
 # `_num(...)`, etc.) keeps working completely unchanged — see each new
 # module's docstring for the full rationale.
-from app.services.valuation.numeric_helpers import _num, _cagr, _score, _coefficient_of_variation, calc_margin_of_safety, split_maintenance_growth_capex, combine_cash_and_long_term_investments
+from app.services.valuation.numeric_helpers import _num, _cagr, _score, _coefficient_of_variation, calc_margin_of_safety, split_maintenance_growth_capex, combine_cash_and_long_term_investments, compute_roic_with_fallback
 from app.services.valuation.legacy_dcf_core import _project_path, _run_dcf, _run_dcf_constant_growth
 from app.services.valuation.reverse_dcf_engine import (
     _implied_growth_rate, _implied_fcf_margin_at_fixed_growth, _implied_constant_growth_rate,
@@ -837,6 +837,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     growth_capex_trend: list[Optional[float]] = []
     gross_margin_trend, operating_margin_trend, net_margin_trend = [], [], []
     roic_trend, roe_trend, roa_trend = [], [], []
+    roic_adjusted_trend: list[bool] = []  # methodology audit round 3 — see roic_i comment below
     owner_earnings_trend = []
     fcf_per_share_trend, implied_shares_trend = [], []
     reinvestment_rate_trend = []
@@ -940,11 +941,16 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         if oi is not None and equity is not None:
             nopat = oi * (1 - tax_rate)
             inv_cap = equity + lt_debt + st_debt - cash
-            roic_trend.append(round(nopat / inv_cap * 100, 1) if inv_cap > 0 else None)
+            roic_i, roic_adjusted_i = compute_roic_with_fallback(
+                nopat, inv_cap, assets, _num(bal.get("Current Liabilities")),
+            )
+            roic_trend.append(roic_i)
+            roic_adjusted_trend.append(roic_adjusted_i)
             nopat_trend.append(round(nopat, 0))
             invested_capital_trend.append(round(inv_cap, 0) if inv_cap > 0 else None)
         else:
             roic_trend.append(None)
+            roic_adjusted_trend.append(False)
             nopat_trend.append(None)
             invested_capital_trend.append(None)
         roe_trend.append(round(ni / equity * 100, 1) if ni is not None and equity else None)
@@ -2829,6 +2835,11 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         "operating_margin_trend": operating_margin_trend,
         "net_margin_trend": net_margin_trend,
         "roic_trend": roic_trend,
+        # True if ANY year's ROIC used the operating-invested-capital
+        # fallback (methodology audit round 3) instead of the standard
+        # equity-based denominator — surfaced so the UI can disclose it
+        # rather than silently showing a swapped-methodology number.
+        "roic_adjusted_for_buybacks": any(roic_adjusted_trend),
         "roe_trend": roe_trend,
         "roa_trend": roa_trend,
         "nopat_trend": nopat_trend,

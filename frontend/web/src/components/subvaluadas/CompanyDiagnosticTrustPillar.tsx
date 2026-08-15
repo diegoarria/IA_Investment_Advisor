@@ -14,10 +14,11 @@ import { CompanyDiagnosticSectionScore } from "@/components/subvaluadas/CompanyD
 import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
 export function CompanyDiagnosticTrustPillar({
-  score, financialHealth,
+  score, financialHealth, roicAdjustedForBuybacks,
 }: {
   score: number;
   financialHealth: CompanyDiagnosticData["financialHealth"];
+  roicAdjustedForBuybacks?: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -54,6 +55,11 @@ export function CompanyDiagnosticTrustPillar({
                 <span className="block text-[12px] font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{label}</span>
               </ExplainableValue>
               <p className="text-[17px] font-black tabular-nums mt-1" style={{ color: "var(--text)" }}>{row.value}</p>
+              {row.explKey === "roic" && roicAdjustedForBuybacks && (
+                <p className="text-[9.5px] mt-1" style={{ color: "var(--muted)" }}>
+                  Ajustado: las recompras de acciones comprimieron el patrimonio contable, así que se usó capital invertido operativo.
+                </p>
+              )}
             </RaisedBlock>
           );
         })}

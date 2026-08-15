@@ -101,6 +101,35 @@ def combine_cash_and_long_term_investments(
     return (cash_and_short_term or 0) + (long_term_investments or 0)
 
 
+def compute_roic_with_fallback(
+    nopat: Optional[float], inv_cap: Optional[float],
+    assets: Optional[float], current_liabilities: Optional[float],
+) -> tuple[Optional[float], bool]:
+    """Real ROIC, with a sanity fallback for buyback-compressed equity —
+    methodology audit round 3 (see /Users/diegoarria/.claude/plans/cosmic-
+    munching-crown.md). The standard `inv_cap = equity + debt - cash`
+    denominator is only gated by `inv_cap > 0`, so aggressive buybacks that
+    compress Stockholders Equity toward zero (Apple's real pattern) can
+    blow ROIC up to an unbounded, meaningless figure (a real case showed
+    1500%+) even though the gate technically holds. When the result exceeds
+    a 100% sanity ceiling, this recomputes against "Total Assets - Current
+    Liabilities" instead — the same operating-invested-capital denominator
+    `quality_engine.py` already uses for ROCE, not a new estimate.
+
+    Returns (roic_pct, was_adjusted) — `was_adjusted=True` means the
+    fallback fired, so the caller can disclose it rather than silently
+    swap methodologies."""
+    if nopat is None or inv_cap is None or inv_cap <= 0:
+        return None, False
+    roic_pct = round(nopat / inv_cap * 100, 1)
+    if roic_pct <= 100 or assets is None or current_liabilities is None:
+        return roic_pct, False
+    operating_inv_cap = assets - current_liabilities
+    if operating_inv_cap <= 0:
+        return roic_pct, False
+    return round(nopat / operating_inv_cap * 100, 1), True
+
+
 def split_maintenance_growth_capex(capex: Optional[float], da: Optional[float]) -> tuple[Optional[float], float]:
     """Splits one year's total CapEx into (maintenance, growth) estimates —
     methodology audit fix (see /Users/diegoarria/.claude/plans/cosmic-

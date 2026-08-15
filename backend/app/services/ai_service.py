@@ -3121,8 +3121,26 @@ async def generate_quick_valuation_summary(data: dict, lang: str = "es") -> dict
     data_block = format_fundamental_analysis_for_prompt(data)
     evidence_block = _format_checklist_evidence_for_prompt(data.get("checklist_items_real") or [], data.get("sector"), data.get("dcf"))
 
-    prompt = f"""{_output_language_directive(lang)}Aquí tienes datos financieros y de valoración REALES y ya calculados de {data.get('company_name', data.get('ticker'))} ({data.get('ticker')}):
+    # Methodology audit round 3 (see /Users/diegoarria/.claude/plans/cosmic-
+    # munching-crown.md) — same fix as generate_company_diagnostic_narrative:
+    # format_fundamental_analysis_for_prompt only renders the legacy DCF's
+    # scenarios, never gqv_fair_value, so the GQV-first number the UI
+    # actually displays (company_diagnostic_service._primary_scenarios'
+    # priority) can silently diverge from what this prompt would otherwise
+    # tell the model to "use exactly."
+    from app.services.company_diagnostic_service import _primary_scenarios
+    _primary = _primary_scenarios(data.get("dcf") or {})
+    _real_fair_value_line = ""
+    if _primary and _primary.get("base") is not None:
+        _real_fair_value_line = (
+            f"\nValor intrínseco REAL (Escenario Base, el que se muestra en pantalla): ${_primary['base']:.2f}\n"
+            "Este es el ÚNICO valor intrínseco que puedes citar como 'el' valor razonable. Si el bloque de "
+            "datos de abajo menciona otra cifra de valor intrínseco/DCF, IGNÓRALA — está calculada con otra "
+            "metodología y no debe aparecer en tu resumen.\n"
+        )
 
+    prompt = f"""{_output_language_directive(lang)}Aquí tienes datos financieros y de valoración REALES y ya calculados de {data.get('company_name', data.get('ticker'))} ({data.get('ticker')}):
+{_real_fair_value_line}
 {data_block}
 
 Evidencia real por dimensión del checklist de inversión (para los ítems 2-7):
@@ -3132,7 +3150,7 @@ Evidencia real por dimensión del checklist de inversión (para los ítems 2-7):
 
 Responde ÚNICAMENTE con un JSON válido (sin markdown fuera del JSON, sin texto antes o después) con esta estructura exacta:
 {{
-  "summary": "<resumen breve, 80-130 palabras EN EL IDIOMA INDICADO ARRIBA (no necesariamente español), para una tarjeta compacta de búsqueda rápida — NO un análisis completo. SI el bloque de arriba incluye una '⚠️ ALERTA DE LIQUIDEZ REAL', tu resumen DEBE empezar con esa advertencia (en tus propias palabras, sin inventar cifras) antes de cualquier otra cosa — nunca la omitas ni la entierres al final. Después de eso (o si no hay alerta), escríbelo de forma NARRATIVA, conectando los datos con la tesis de inversión (no una lista de cifras sueltas) — ej. combina qué hace la empresa y por qué eso importa (marcas/posición/demanda), qué está descontando el mercado hoy según el DCF inverso, y qué tendría que pasar (crecimiento, rentabilidad) para que exista apreciación bajo el escenario base. Usa EXACTAMENTE el valor intrínseco (escenario base) y el margen de seguridad reales del bloque de arriba, nunca inventados ni redondeados distinto; nunca digas Comprar/No comprar/Mantener; cierra recordando que esto no es un semáforo de compra y que hay un análisis completo pidiéndole a Arthur 'analiza {data.get('ticker')}'. Texto plano en párrafos cortos, sin encabezados markdown (nada de #), sin bullets — como mucho **negrita** para 2-3 cifras clave.>",
+  "summary": "<resumen breve, 80-130 palabras EN EL IDIOMA INDICADO ARRIBA (no necesariamente español), para una tarjeta compacta de búsqueda rápida — NO un análisis completo. SI el bloque de arriba incluye una '⚠️ ALERTA DE LIQUIDEZ REAL', tu resumen DEBE empezar con esa advertencia (en tus propias palabras, sin inventar cifras) antes de cualquier otra cosa — nunca la omitas ni la entierres al final. Después de eso (o si no hay alerta), escríbelo de forma NARRATIVA, conectando los datos con la tesis de inversión (no una lista de cifras sueltas) — ej. combina qué hace la empresa y por qué eso importa (marcas/posición/demanda), qué está descontando el mercado hoy según el DCF inverso, y qué tendría que pasar (crecimiento, rentabilidad) para que exista apreciación bajo el escenario base. Usa EXACTAMENTE el 'Valor intrínseco REAL' indicado arriba (si aparece) y el margen de seguridad real del bloque de datos, nunca inventados ni redondeados distinto; nunca digas Comprar/No comprar/Mantener; cierra recordando que esto no es un semáforo de compra y que hay un análisis completo pidiéndole a Arthur 'analiza {data.get('ticker')}'. Texto plano en párrafos cortos, sin encabezados markdown (nada de #), sin bullets — como mucho **negrita** para 2-3 cifras clave.>",
   "business_understanding_stars": <entero 1-5 — ¿qué tan fácil es entender el modelo de negocio para un inversionista común (círculo de competencia de Buffett)? 5 = trivial de explicar, 1 = muy complejo/opaco. Tu juicio cualitativo, no un dato calculado>,
   "business_understanding_reason": "<explicación de máx 70 palabras: cómo gana dinero, qué podría destruir el negocio, si está dentro de un círculo de competencia razonable>",
   "checklist_reasons": {{
@@ -3207,8 +3225,28 @@ async def generate_company_diagnostic_narrative(data: dict, diagnostic: dict, la
     ticker = data.get("ticker", diagnostic.get("ticker"))
     company_name = data.get("company_name", diagnostic.get("companyName", ticker))
 
-    prompt = f"""{_output_language_directive(lang)}Aquí tienes datos financieros y de valoración REALES y ya calculados de {company_name} ({ticker}):
+    # Methodology audit round 3 (see /Users/diegoarria/.claude/plans/cosmic-
+    # munching-crown.md) — `format_fundamental_analysis_for_prompt` only
+    # ever renders the LEGACY DCF's `scenarios`, never `gqv_fair_value`.
+    # `diagnostic["valuation"]["baseFairValue"]` is GQV-first (same priority
+    # `company_diagnostic_service._primary_scenarios` used to build the
+    # number actually shown on screen) — those two can be genuinely
+    # different dollar figures. Without this explicit override the model
+    # would "faithfully" cite the legacy DCF number from the data block
+    # above while the UI shows the GQV one, a real reported bug.
+    _valuation = diagnostic.get("valuation") or {}
+    _real_fair_value_line = ""
+    if _valuation.get("baseFairValue") is not None:
+        _real_fair_value_line = (
+            f"\nValor razonable REAL (el que se muestra en pantalla, Escenario Base): "
+            f"${_valuation['baseFairValue']:.2f}\n"
+            "Este es el ÚNICO valor intrínseco/valor razonable que puedes citar. Si el bloque de "
+            "datos de abajo menciona otra cifra de \"valor intrínseco\" o DCF, IGNÓRALA por completo "
+            "— está calculada con una metodología distinta y NO debe aparecer en tu respuesta.\n"
+        )
 
+    prompt = f"""{_output_language_directive(lang)}Aquí tienes datos financieros y de valoración REALES y ya calculados de {company_name} ({ticker}):
+{_real_fair_value_line}
 {data_block}
 
 Puntos reales de foso competitivo (moat), ya calculados:

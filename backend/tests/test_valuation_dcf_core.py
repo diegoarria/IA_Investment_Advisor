@@ -32,7 +32,7 @@ from app.services.fundamental_analysis_service import (
     _DEFAULT_TERMINAL_GROWTH,
     _DEFAULT_CYCLICALITY_DAMPENER,
 )
-from app.services.valuation.numeric_helpers import derive_fcf, split_maintenance_growth_capex, combine_cash_and_long_term_investments
+from app.services.valuation.numeric_helpers import derive_fcf, split_maintenance_growth_capex, combine_cash_and_long_term_investments, compute_roic_with_fallback
 
 
 # ── _project_path ──────────────────────────────────────────────────────────
@@ -275,6 +275,46 @@ class TestNumericHelpers:
 
     def test_calc_margin_of_safety_negative_when_overpriced(self):
         assert calc_margin_of_safety(80.0, 100.0) == pytest.approx(-25.0, abs=0.1)
+
+
+# Methodology audit round 3 (see /Users/diegoarria/.claude/plans/cosmic-
+# munching-crown.md) — ROIC falls back to operating invested capital
+# (Total Assets - Current Liabilities) when buyback-compressed equity would
+# otherwise blow it up unbounded.
+class TestComputeRoicWithFallback:
+    def test_normal_case_no_fallback(self):
+        # $100 NOPAT / $1000 invested capital = 10% — well under the ceiling.
+        roic, adjusted = compute_roic_with_fallback(100.0, 1000.0, assets=2000.0, current_liabilities=500.0)
+        assert roic == 10.0
+        assert adjusted is False
+
+    def test_buyback_compressed_equity_triggers_fallback(self):
+        # $100 NOPAT / $5 invested capital (equity crushed by buybacks) = 2000% -> falls back.
+        roic, adjusted = compute_roic_with_fallback(100.0, 5.0, assets=2000.0, current_liabilities=500.0)
+        # Fallback: 100 / (2000 - 500) = 6.67%
+        assert roic == 6.7
+        assert adjusted is True
+
+    def test_missing_assets_or_liabilities_keeps_unbounded_value(self):
+        # Can't fall back without both real inputs — returns the raw (if extreme) value, never invents one.
+        roic, adjusted = compute_roic_with_fallback(100.0, 5.0, assets=None, current_liabilities=500.0)
+        assert roic == 2000.0
+        assert adjusted is False
+
+    def test_zero_or_negative_invested_capital_returns_none(self):
+        assert compute_roic_with_fallback(100.0, 0.0, assets=2000.0, current_liabilities=500.0) == (None, False)
+        assert compute_roic_with_fallback(100.0, -50.0, assets=2000.0, current_liabilities=500.0) == (None, False)
+
+    def test_negative_operating_invested_capital_keeps_unbounded_value(self):
+        # Current liabilities exceed total assets (rare, but real for some distressed names) -> can't fall back either.
+        roic, adjusted = compute_roic_with_fallback(100.0, 5.0, assets=400.0, current_liabilities=500.0)
+        assert roic == 2000.0
+        assert adjusted is False
+
+    def test_exactly_100_percent_does_not_trigger_fallback(self):
+        roic, adjusted = compute_roic_with_fallback(100.0, 100.0, assets=2000.0, current_liabilities=500.0)
+        assert roic == 100.0
+        assert adjusted is False
 
 
 # Methodology audit round 2 (see /Users/diegoarria/.claude/plans/cosmic-

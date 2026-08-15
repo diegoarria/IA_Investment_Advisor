@@ -804,6 +804,45 @@ def _with_live_price(result: dict, ticker: str) -> dict:
     return result
 
 
+def _with_live_price_diagnostic(cached: dict, ticker: str) -> dict:
+    """`_with_live_price`'s equivalent for `/company-diagnostic`'s nested
+    `CompanyDiagnosticData` shape (methodology audit round 3, see /Users/
+    diegoarria/.claude/plans/cosmic-munching-crown.md) — this endpoint's
+    cache-hit path previously returned the cached payload completely as-is,
+    with NO live-price overlay at all (unlike quick_analysis), so
+    `valuation.currentPrice`/`peCurrent`/`peNormalized`/`marginOfSafetyPercent`
+    could silently be stale for up to 90 days on repeat views of the same
+    ticker. `baseFairValue`/`conservative`/`optimistic` (the DCF scenario
+    values themselves) are NOT price-dependent and stay untouched, same
+    philosophy as `_with_live_price`. Falls back to the cached values
+    unchanged if the live quote is unavailable — never fabricates one."""
+    from app.services.valuation.numeric_helpers import calc_margin_of_safety
+
+    quote = fh_quote(ticker)
+    if not quote or not quote.get("price"):
+        return cached
+    price = quote["price"]
+    cached = dict(cached)
+    valuation = dict(cached.get("valuation") or {})
+    if not valuation:
+        return cached
+
+    valuation["currentPrice"] = price
+    base_fv = valuation.get("baseFairValue")
+    if base_fv is not None:
+        valuation["marginOfSafetyPercent"] = calc_margin_of_safety(base_fv, price)
+
+    eps_gaap = valuation.get("_epsGaap")
+    if eps_gaap and eps_gaap > 0:
+        valuation["peCurrent"] = round(price / eps_gaap, 1)
+    eps_normalized = valuation.get("_epsNormalized")
+    if eps_normalized and eps_normalized > 0:
+        valuation["peNormalized"] = round(price / eps_normalized, 1)
+
+    cached["valuation"] = valuation
+    return cached
+
+
 async def _get_user_profile_safe(user_id: str):
     """Wraps market._get_user_profile (a blocking sync DB call made directly
     inside async routes throughout this file) in a thread so it can never
@@ -1043,7 +1082,12 @@ def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
     # the "summary"/"blurb" schema's hardcoded "español" instruction was
     # fixed (it silently overrode the top-level language directive) doesn't
     # keep serving Spanish text under an English UI for its remaining TTL.
-    return f"quick_analysis:v11:{lang}:{ticker}"
+    # v12 — bumped for methodology audit round 3 (see /Users/diegoarria/
+    # .claude/plans/cosmic-munching-crown.md): ROIC operating-invested-
+    # capital fallback (buyback-compressed equity), and the AI narrative
+    # prompt now cites the real GQV-first fair value instead of the legacy
+    # DCF number. A v11 entry predates both.
+    return f"quick_analysis:v12:{lang}:{ticker}"
 
 
 async def _build_quick_analysis(ticker: str, lang: str) -> dict:
@@ -1683,6 +1727,11 @@ _COMPANY_DIAGNOSTIC_CACHE_TTL = _QUICK_ANALYSIS_CACHE_TTL  # same 90-day ceiling
 
 
 def _company_diagnostic_cache_key(ticker: str, lang: str) -> str:
+    # v4 — bumped for methodology audit round 3 (see /Users/diegoarria/
+    # .claude/plans/cosmic-munching-crown.md): ROIC operating-invested-
+    # capital fallback + roicAdjustedForBuybacks flag, AI narrative now
+    # cites the real GQV-first fair value, and new internal _epsGaap/
+    # _epsNormalized fields power the cache-hit live-price overlay.
     # v3 — bumped for methodology audit round 2 (see /Users/diegoarria/
     # .claude/plans/cosmic-munching-crown.md): net cash now includes Long
     # Term Investments, plus new peForward/peNormalized valuation fields.
@@ -1690,7 +1739,7 @@ def _company_diagnostic_cache_key(ticker: str, lang: str) -> str:
     # (see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md,
     # methodology audit) — this endpoint's valuation fields derive from the
     # same gqv_fair_value output that changed. A v1 entry predates the fix.
-    return f"company_diagnostic:v3:{lang}:{ticker}"
+    return f"company_diagnostic:v4:{lang}:{ticker}"
 
 
 @router.get("/company-diagnostic")
@@ -1739,7 +1788,7 @@ async def company_diagnostic(query: str, lang: str | None = None, user_id: str =
         current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
         cached_period = cached.get("_earnings_period")
         if not current_period or current_period == cached_period:
-            return cached
+            return await asyncio.to_thread(_with_live_price_diagnostic, cached, ticker)
 
     from app.services.fundamental_analysis_service import get_fundamental_analysis
     from app.services.company_diagnostic_service import build_company_diagnostic

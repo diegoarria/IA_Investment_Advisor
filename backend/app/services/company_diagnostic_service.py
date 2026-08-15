@@ -308,6 +308,11 @@ def build_company_diagnostic(ticker: str, data: dict) -> Optional[dict]:
         "netMargin": _fmt_pct((data.get("net_margin_trend") or [None])[-1] if data.get("net_margin_trend") else None),
         "operatingCashFlow": _fmt_money((data.get("fcf_trend") or [None])[-1] if data.get("fcf_trend") else None),
     }
+    # Methodology audit round 3 (see /Users/diegoarria/.claude/plans/
+    # cosmic-munching-crown.md) — True when at least one year's ROIC used
+    # the operating-invested-capital fallback (buyback-compressed equity
+    # made the standard denominator explode). Disclosed, never silent.
+    roic_adjusted_for_buybacks = bool(data.get("roic_adjusted_for_buybacks"))
 
     historical_median_pe = (dcf.get("historical_valuation") or {}).get("historical_median_pe")
     valuation = {
@@ -327,6 +332,15 @@ def build_company_diagnostic(ticker: str, data: dict) -> Optional[dict]:
         # alongside the raw GAAP peCurrent above rather than replacing it.
         "peForward": data.get("pe_ratio_forward"),
         "peNormalized": scenarios.get("pe_on_normalized_eps"),
+        # Internal (not part of the public CompanyDiagnosticData TS type,
+        # never rendered directly) — lets the read-time live-price overlay
+        # (screener.py's `_with_live_price_diagnostic`, methodology audit
+        # round 3) cheaply recompute peCurrent/peNormalized/marginOfSafety
+        # from a fresh quote without a second get_fundamental_analysis call.
+        "_epsGaap": data.get("latest_eps"),
+        "_epsNormalized": (
+            (dcf.get("gqv_fair_value") or {}).get("earnings_state") or {}
+        ).get("normalized_eps"),
     }
     # None-safe: the core scenario/price numbers must always be real before
     # this card is shown. evFcf is deliberately NOT required here — it's
@@ -366,6 +380,7 @@ def build_company_diagnostic(ticker: str, data: dict) -> Optional[dict]:
         "moatPoints": _moat_points(data, dcf),
         "competitorComparison": competitor_comparison,
         "financialHealth": financial_health,
+        "roicAdjustedForBuybacks": roic_adjusted_for_buybacks,
         "valuation": valuation,
         # investmentThesis / noiseVsReality / actionPlan attached by the caller.
     }
