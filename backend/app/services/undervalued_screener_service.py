@@ -654,11 +654,22 @@ async def refresh_undervalued_screener() -> None:
             )
             batch_pending = True
         except Exception as exc:
-            # Batch submission itself failed (network/API outage) — fall
-            # back to the old sequential path so a Batch API hiccup never
-            # blocks the whole weekly refresh from completing at all.
-            logger.error("undervalued_screener_service: batch submission failed (%s), falling back to sequential blurb calls", exc)
-            await _fill_blurbs_sequentially(to_recompute)
+            # Emergency fix (Aug 15, real-money incident) — this used to fall
+            # back to _fill_blurbs_sequentially(), a real per-call loop that
+            # (a) never called log_llm_usage, so it was 100% invisible to
+            # /admin/llm-usage, and (b) could fire automatically on every
+            # worker restart via refresh_if_empty_on_startup with ZERO real
+            # users involved, silently burning real Anthropic credits any
+            # time batch submission failed for any reason. Never again:
+            # a batch failure now just skips this run's blurb generation
+            # (featured candidates keep last week's real blurb or none —
+            # same "never fabricate" discipline as everywhere else) and
+            # logs loudly so an admin investigates, instead of silently
+            # spending money nobody can see.
+            logger.error(
+                "undervalued_screener_service: batch submission failed (%s) — skipping blurb generation this run "
+                "(NOT falling back to the sequential per-call loop, see Aug 15 incident)", exc,
+            )
 
     if not batch_pending:
         all_results = _rotate_featured_order(all_results)
@@ -683,35 +694,6 @@ async def refresh_undervalued_screener() -> None:
         await refresh_valuation_backtest(analysis_cache)
     except Exception as exc:
         logger.warning("undervalued_screener_service: valuation backtest refresh failed: %s", exc)
-
-
-async def _fill_blurbs_sequentially(entries: list[dict]) -> None:
-    """The OLD per-call loop, kept as the fallback path for when Batch API
-    submission itself fails (network/API outage) — a Batch API hiccup must
-    never block the whole weekly refresh from completing at all. Mutates
-    `entries` in place, same shape `poll_and_finalize_undervalued_screener_
-    batch`'s merge step produces."""
-    from app.services.ai_service import generate_candidate_blurb
-    for entry in entries:
-        for lang in _SUPPORTED_LANGS:
-            # One retry on a genuine failure (network hiccup, rate limit) —
-            # see poll_and_finalize's own merge step for why a still-
-            # missing blurb after this shows nothing rather than the wrong
-            # language.
-            for attempt in range(2):
-                try:
-                    blurb_result = await generate_candidate_blurb(entry, lang=lang)
-                    entry["blurb_by_lang"][lang] = blurb_result.get("blurb")
-                    entry["business_understanding_by_lang"][lang] = {
-                        "key": "business_understanding",
-                        "name": "Entender el negocio" if lang == "es" else "Understanding the business",
-                        "stars": blurb_result.get("business_understanding_stars"),
-                        "reason": blurb_result.get("business_understanding_reason", ""),
-                    }
-                    entry["checklist_reasons_by_lang"][lang] = blurb_result.get("checklist_reasons") or {}
-                    break
-                except Exception as exc:
-                    logger.warning("undervalued_screener_service: blurb (%s) attempt %d failed for %s: %s", lang, attempt + 1, entry["ticker"], exc)
 
 
 async def poll_and_finalize_undervalued_screener_batch() -> bool:
@@ -774,24 +756,36 @@ async def poll_and_finalize_undervalued_screener_batch() -> bool:
 
 
 async def refresh_if_empty_on_startup() -> None:
-    """Called once when worker.py boots — if EITHER this screener's own
-    cache OR the valuation-backtest cache (piggy-backed onto this same
-    refresh, see its tail above) is empty, do the FULL refresh immediately
-    instead of waiting for the next scheduled Sunday run. A no-op only when
-    both already have data — this is what lets a newly-added dependent
-    cache (like the backtest one) self-heal on the next worker restart
-    after a deploy, without needing an admin to manually trigger
-    /admin/refresh-undervalued-screener."""
-    from app.services.valuation_backtest_service import CACHE_KEY as _BACKTEST_CACHE_KEY
+    """Called once when worker.py boots. Emergency fix (Aug 15, real-money
+    incident): this USED TO run the FULL, AI-heavy screener refresh (real
+    Claude spend for every featured candidate) whenever EITHER this
+    screener's own cache OR the unrelated valuation-backtest cache was
+    empty — meaning a redeploy that had nothing to do with the screener
+    could still trigger real, repeated AI spend on every restart if the
+    backtest cache ever came up empty, with zero real users involved.
 
+    Now: the FULL AI-heavy refresh only fires when the screener's OWN
+    cache is genuinely empty (first-ever run, or an intentional CACHE_KEY
+    bump). A missing backtest cache alone gets a cheap, LLM-free repair —
+    `_scan()` never calls Claude — never drags the AI-heavy blurb path
+    along with it."""
     _, screener_ts = cache_get_with_ts(CACHE_KEY)
-    _, backtest_ts = cache_get_with_ts(_BACKTEST_CACHE_KEY)
-    if screener_ts and backtest_ts:
+    if screener_ts:
+        from app.services.valuation_backtest_service import CACHE_KEY as _BACKTEST_CACHE_KEY, refresh_valuation_backtest
+        _, backtest_ts = cache_get_with_ts(_BACKTEST_CACHE_KEY)
+        if backtest_ts:
+            return
+        logger.info("undervalued_screener_service: backtest cache empty at worker startup, repairing (no AI spend)")
+        from app.api.routes.screener import UNIVERSE
+        analysis_cache: dict[str, Optional[dict]] = {}
+        _scan(UNIVERSE, analysis_cache=analysis_cache)
+        try:
+            await refresh_valuation_backtest(analysis_cache)
+        except Exception as exc:
+            logger.warning("undervalued_screener_service: valuation backtest repair failed: %s", exc)
         return
-    logger.info(
-        "undervalued_screener_service: cache empty at worker startup (screener=%s, backtest=%s), refreshing now",
-        bool(screener_ts), bool(backtest_ts),
-    )
+
+    logger.info("undervalued_screener_service: screener cache empty at worker startup, refreshing now")
     await refresh_undervalued_screener()
 
 

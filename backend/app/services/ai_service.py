@@ -4134,6 +4134,7 @@ async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
         system=[{"type": "text", "text": _BLURB_STATIC_INSTRUCTIONS, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": _build_blurb_prompt(entry, lang)}],
     )
+    asyncio.create_task(log_llm_usage(None, "candidate_blurb", _BLURB_MODEL, response.usage))
     return _parse_blurb_response_text(response.content[0].text, entry.get("ticker", ""))
 
 
