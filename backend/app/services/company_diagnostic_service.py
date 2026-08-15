@@ -80,6 +80,8 @@ def _primary_scenarios(dcf: dict) -> Optional[dict]:
             # GQV path (the legacy DCF branch below has no equivalent).
             "fcf_assumptions": gqv.get("fcf_assumptions"),
             "wacc_details": gqv.get("wacc_details"),
+            "pe_on_normalized_eps": gqv.get("pe_on_normalized_eps"),
+            "pe_gaap": gqv.get("pe_gaap"),
         }
     legacy = dcf.get("scenarios")
     if legacy and (legacy.get("base") or {}).get("intrinsic_value_per_share") is not None:
@@ -319,6 +321,12 @@ def build_company_diagnostic(ticker: str, data: dict) -> Optional[dict]:
         "evFcf": data.get("ev_fcf"),
         "fcfAssumptions": scenarios.get("fcf_assumptions"),
         "waccDetails": scenarios.get("wacc_details"),
+        # Methodology audit round 2 (see /Users/diegoarria/.claude/plans/
+        # cosmic-munching-crown.md) — real forward P/E (Yahoo, when the live
+        # fetch succeeded) and P/E on earnings-state-normalized EPS, shown
+        # alongside the raw GAAP peCurrent above rather than replacing it.
+        "peForward": data.get("pe_ratio_forward"),
+        "peNormalized": scenarios.get("pe_on_normalized_eps"),
     }
     # None-safe: the core scenario/price numbers must always be real before
     # this card is shown. evFcf is deliberately NOT required here — it's

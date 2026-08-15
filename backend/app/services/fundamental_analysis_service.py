@@ -30,7 +30,7 @@ from app.services.valuation.robustness import UnstableGordonGrowthError, clamp
 # original names so every internal call site below (`_run_dcf(...)`,
 # `_num(...)`, etc.) keeps working completely unchanged — see each new
 # module's docstring for the full rationale.
-from app.services.valuation.numeric_helpers import _num, _cagr, _score, _coefficient_of_variation, calc_margin_of_safety, split_maintenance_growth_capex
+from app.services.valuation.numeric_helpers import _num, _cagr, _score, _coefficient_of_variation, calc_margin_of_safety, split_maintenance_growth_capex, combine_cash_and_long_term_investments
 from app.services.valuation.legacy_dcf_core import _project_path, _run_dcf, _run_dcf_constant_growth
 from app.services.valuation.reverse_dcf_engine import (
     _implied_growth_rate, _implied_fcf_margin_at_fixed_growth, _implied_constant_growth_rate,
@@ -920,7 +920,18 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         assets  = _num(bal.get("Total Assets"))
         lt_debt = _num(bal.get("Long Term Debt")) or 0
         st_debt = _num(bal.get("Short Term Debt")) or 0
-        cash    = _num(bal.get("Cash And Short Term Investments")) or _num(bal.get("Cash And Cash Equivalents")) or 0
+        # Includes Long Term Investments (methodology audit, see /Users/
+        # diegoarria/.claude/plans/cosmic-munching-crown.md) — a company
+        # like Apple holds a large share of its cash-like liquidity in
+        # longer-duration marketable securities, which FMP reports as a
+        # SEPARATE non-current balance-sheet line from "Cash And Short Term
+        # Investments." Omitting it understated real liquidity/invested
+        # capital for exactly these companies. The field was already
+        # fetched/mapped (financial_data_service.py) but never read here.
+        cash = combine_cash_and_long_term_investments(
+            _num(bal.get("Cash And Short Term Investments")) or _num(bal.get("Cash And Cash Equivalents")),
+            _num(bal.get("Long Term Investments")),
+        )
 
         if pretax and pretax > 0 and tax is not None and tax >= 0:
             tax_rate = min(max(tax / pretax, 0.0), 0.40)
@@ -1080,8 +1091,15 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     _long_debt_raw  = _num(latest_bal.get("Long Term Debt"))
     _short_debt_raw = _num(latest_bal.get("Short Term Debt"))
     _cash_raw       = _num(latest_bal.get("Cash And Short Term Investments")) or _num(latest_bal.get("Cash And Cash Equivalents"))
+    # Long Term Investments (methodology audit, see /Users/diegoarria/
+    # .claude/plans/cosmic-munching-crown.md) — see the identical comment on
+    # the per-year loop's `cash` above for why this matters (Apple-style
+    # long-duration marketable securities living in a separate balance-
+    # sheet line). Added to the headline "Caja Neta" figure, not just the
+    # per-year trend.
+    _lt_investments_raw = _num(latest_bal.get("Long Term Investments"))
     total_debt  = (_long_debt_raw or 0) + (_short_debt_raw or 0)
-    cash_latest = _cash_raw or 0
+    cash_latest = combine_cash_and_long_term_investments(_cash_raw, _lt_investments_raw)
     net_cash    = cash_latest - total_debt
     # Real "the field is genuinely zero" and "the provider didn't send this
     # field at all" look identical after the `or 0` above — but silently
@@ -1300,6 +1318,22 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                     ),
                 },
                 "wacc_details": {**wacc_details, "wacc_pct": round(base_discount_rate * 100, 2) if base_discount_rate is not None else None},
+                # P/E on normalized earnings alongside the raw GAAP figure
+                # (methodology audit) — computed purely from data already
+                # safe in this closure at BOTH call sites (`price`,
+                # `_gqv_latest_eps`, `gqv_result.earnings_state`), never the
+                # function-scope `pe_ratio`/`forward_pe_real` computed later
+                # in the pipeline (those aren't in scope yet at the
+                # Priority 3 fallback call site). Only meaningfully
+                # different from the plain GAAP P/E when the latest year
+                # was flagged ELEVATED/DEPRESSED/STRUCTURALLY_*.
+                "pe_on_normalized_eps": (
+                    round(price / gqv_result.earnings_state.normalized_eps, 1)
+                    if (price and gqv_result.earnings_state and gqv_result.earnings_state.normalized_eps
+                        and gqv_result.earnings_state.normalized_eps > 0)
+                    else None
+                ),
+                "pe_gaap": round(price / _gqv_latest_eps, 1) if (price and _gqv_latest_eps and _gqv_latest_eps > 0) else None,
             }
         except Exception as e:
             logger.info("get_fundamental_analysis(%s): gqv_fair_value not computable: %s", ticker, e)
@@ -2487,6 +2521,26 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     sbc_latest = _num(latest_cashflow_row.get("Stock Based Compensation"))
     market_cap = price * shares_out if price and shares_out else None
     pe_ratio = round(price / latest_eps, 1) if price and latest_eps and latest_eps > 0 else None
+
+    # Real forward P/E (methodology audit, see /Users/diegoarria/.claude/
+    # plans/cosmic-munching-crown.md) — reuses the same lightweight,
+    # already-proven `_fetch_quote_light` call earnings.py relies on
+    # (modules "price,summaryDetail,calendarEvents" — NOT the heavier
+    # `earningsTrend` module, which has been intermittently rate-limited).
+    # Best-effort: a failure here must never break the rest of this
+    # function. `forward_pe_real` is None (never a fabricated number, never
+    # the trailing-P/E stand-in mislabeled as forward) when the live fetch
+    # doesn't return a usable value.
+    forward_pe_real: Optional[float] = None
+    try:
+        from app.api.routes.market import _fetch_quote_light
+        _quote = _fetch_quote_light(ticker)
+        _fwd_pe_raw = ((_quote or {}).get("summaryDetail") or {}).get("forwardPE")
+        _fwd_pe_val = _fwd_pe_raw.get("raw") if isinstance(_fwd_pe_raw, dict) else _fwd_pe_raw
+        forward_pe_real = round(float(_fwd_pe_val), 1) if _fwd_pe_val else None
+    except Exception as e:
+        logger.debug("get_fundamental_analysis(%s): real forward P/E fetch failed: %s", ticker, e)
+
     ev_ebitda = (
         round((market_cap + total_debt - cash_latest) / latest_ebitda, 1)
         if market_cap and latest_ebitda and latest_ebitda > 0 else None
@@ -2616,10 +2670,11 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 "dividend_yield_pct": dividend_yield_pct,
                 "industry_median_roic_pct": (industry_benchmarks or {}).get("median_roic_pct"),
                 "expected_eps_growth_pct": (nuvos_fair_value or {}).get("wall_street_eps_growth_next_year_pct"),
-                # Trailing P/E used as a forward-P/E proxy — no real forward-EPS
-                # consensus is wired to this call site yet; documented
-                # simplification, not a fabricated forward multiple.
-                "forward_pe": pe_ratio,
+                # Real forward P/E when the live fetch succeeded (methodology
+                # audit); falls back to trailing P/E as a documented proxy
+                # only when it didn't — same "honest degraded case, never a
+                # silently wrong number" discipline as everywhere else here.
+                "forward_pe": forward_pe_real if forward_pe_real is not None else pe_ratio,
                 "historical_median_pe": (historical_valuation or {}).get("historical_median_pe"),
                 "peer_median_pe": (relative_valuation or {}).get("peer_median_pe"),
                 "financial_statement_quality_score": financial_statement_quality_score,
@@ -2811,6 +2866,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         "composite_score": _composite_ranking_score(thesis_scores, sector),
         "checklist_items_real": checklist_items_real,
         "pe_ratio": pe_ratio,
+        "pe_ratio_forward": forward_pe_real,
         "ev_ebitda": ev_ebitda,
         "peg_ratio": peg_ratio,
         "ev_fcf": ev_fcf,

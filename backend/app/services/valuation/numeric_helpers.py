@@ -84,6 +84,23 @@ def derive_fcf(cfo: Optional[float], capex: Optional[float]) -> Optional[float]:
     return round(cfo + capex, 2)
 
 
+def combine_cash_and_long_term_investments(
+    cash_and_short_term: Optional[float], long_term_investments: Optional[float],
+) -> float:
+    """Real total cash-like liquidity — methodology audit round 2 (see
+    /Users/diegoarria/.claude/plans/cosmic-munching-crown.md):
+    `fundamental_analysis_service.py` previously computed "Caja Neta" from
+    ONLY the "Cash And Short Term Investments" balance-sheet line, which
+    understates real liquidity for companies (Apple is the canonical
+    example) that hold a large share of their cash-like assets in
+    longer-duration marketable securities — a SEPARATE, non-current
+    balance-sheet line FMP reports as "Long Term Investments." That field
+    was already fetched/mapped but never read. None-safe: missing inputs
+    contribute 0, matching the prior `or 0` behavior when nothing at all is
+    available."""
+    return (cash_and_short_term or 0) + (long_term_investments or 0)
+
+
 def split_maintenance_growth_capex(capex: Optional[float], da: Optional[float]) -> tuple[Optional[float], float]:
     """Splits one year's total CapEx into (maintenance, growth) estimates —
     methodology audit fix (see /Users/diegoarria/.claude/plans/cosmic-

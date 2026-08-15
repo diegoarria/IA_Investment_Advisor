@@ -88,6 +88,11 @@ export interface GqvFairValueData {
     method: string;
     wacc_pct: number | null;
   } | null;
+  // Methodology audit round 2 — same fields as CompanyDiagnosticCard's
+  // peForward/peNormalized (see companyDiagnostic.ts for why both are kept
+  // alongside the raw GAAP figure rather than replacing it).
+  pe_on_normalized_eps: number | null;
+  pe_gaap: number | null;
 }
 
 const _CATEGORY_LABEL: Record<string, string> = {
@@ -188,7 +193,7 @@ export function GqvFairValuePanel({ data }: { data: GqvFairValueData | null | un
         </details>
       )}
 
-      {(data.fcf_assumptions || data.wacc_details) && (
+      {(data.fcf_assumptions || data.wacc_details || data.pe_on_normalized_eps != null) && (
         <details className="mt-3">
           <summary className="text-[10.5px] cursor-pointer" style={{ color: "var(--muted)" }}>
             Ver supuestos del modelo
@@ -220,6 +225,14 @@ export function GqvFairValuePanel({ data }: { data: GqvFairValueData | null | un
               <p>
                 Tasa de descuento (WACC) usada:{" "}
                 <span style={{ color: "var(--text)", fontWeight: 700 }}>{data.wacc_details.wacc_pct.toFixed(1)}%</span>
+              </p>
+            )}
+            {data.pe_gaap != null && data.pe_on_normalized_eps != null && Math.abs(data.pe_gaap - data.pe_on_normalized_eps) >= 0.1 && (
+              <p>
+                P/E actual (GAAP):{" "}
+                <span style={{ color: "var(--text)", fontWeight: 700 }}>{data.pe_gaap.toFixed(1)}x</span>
+                {" · "}P/E sobre ganancias normalizadas:{" "}
+                <span style={{ color: "var(--accent-l)", fontWeight: 700 }}>{data.pe_on_normalized_eps.toFixed(1)}x</span>
               </p>
             )}
             {data.fcf_assumptions?.methodology_note && (

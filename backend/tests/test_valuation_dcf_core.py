@@ -32,7 +32,7 @@ from app.services.fundamental_analysis_service import (
     _DEFAULT_TERMINAL_GROWTH,
     _DEFAULT_CYCLICALITY_DAMPENER,
 )
-from app.services.valuation.numeric_helpers import derive_fcf, split_maintenance_growth_capex
+from app.services.valuation.numeric_helpers import derive_fcf, split_maintenance_growth_capex, combine_cash_and_long_term_investments
 
 
 # ── _project_path ──────────────────────────────────────────────────────────
@@ -275,6 +275,28 @@ class TestNumericHelpers:
 
     def test_calc_margin_of_safety_negative_when_overpriced(self):
         assert calc_margin_of_safety(80.0, 100.0) == pytest.approx(-25.0, abs=0.1)
+
+
+# Methodology audit round 2 (see /Users/diegoarria/.claude/plans/cosmic-
+# munching-crown.md) — net cash now includes Long Term Investments, fixing
+# understated real liquidity for companies (Apple is the canonical example)
+# that hold long-duration marketable securities in a separate balance-sheet
+# line from "Cash And Short Term Investments."
+class TestCombineCashAndLongTermInvestments:
+    def test_adds_long_term_investments_to_short_term_cash(self):
+        assert combine_cash_and_long_term_investments(50.0, 30.0) == 80.0
+
+    def test_missing_long_term_investments_falls_back_to_old_behavior(self):
+        assert combine_cash_and_long_term_investments(50.0, None) == 50.0
+
+    def test_missing_short_term_cash_still_counts_long_term_investments(self):
+        assert combine_cash_and_long_term_investments(None, 30.0) == 30.0
+
+    def test_both_missing_returns_zero_never_none(self):
+        assert combine_cash_and_long_term_investments(None, None) == 0.0
+
+    def test_zero_long_term_investments_is_a_no_op(self):
+        assert combine_cash_and_long_term_investments(50.0, 0.0) == 50.0
 
 
 # Methodology audit (see /Users/diegoarria/.claude/plans/cosmic-munching-

@@ -118,7 +118,7 @@ export function CompanyDiagnosticCard({ data }: { data: CompanyDiagnosticData })
 
         <CompanyDiagnosticValuationThermometer scenarios={data.valuation} />
 
-        {(data.valuation.fcfAssumptions || data.valuation.waccDetails) && (
+        {(data.valuation.fcfAssumptions || data.valuation.waccDetails || data.valuation.peForward != null || data.valuation.peNormalized != null) && (
           <details className="mt-3">
             <summary className="text-[11px] cursor-pointer" style={{ color: "var(--muted)" }}>
               Ver supuestos del modelo
@@ -150,6 +150,20 @@ export function CompanyDiagnosticCard({ data }: { data: CompanyDiagnosticData })
                 <p>
                   Tasa de descuento (WACC) usada:{" "}
                   <span style={{ color: "var(--text)", fontWeight: 700 }}>{data.valuation.waccDetails.wacc_pct.toFixed(1)}%</span>
+                </p>
+              )}
+              {data.valuation.peNormalized != null && Math.abs(data.valuation.peNormalized - data.valuation.peCurrent) >= 0.1 && (
+                <p>
+                  P/E actual (GAAP):{" "}
+                  <span style={{ color: "var(--text)", fontWeight: 700 }}>{data.valuation.peCurrent.toFixed(1)}x</span>
+                  {" · "}P/E sobre ganancias normalizadas:{" "}
+                  <span style={{ color: "var(--accent-l)", fontWeight: 700 }}>{data.valuation.peNormalized.toFixed(1)}x</span>
+                </p>
+              )}
+              {data.valuation.peForward != null && (
+                <p>
+                  P/E Forward (próximos 12 meses):{" "}
+                  <span style={{ color: "var(--text)", fontWeight: 700 }}>{data.valuation.peForward.toFixed(1)}x</span>
                 </p>
               )}
               {data.valuation.fcfAssumptions?.methodology_note && (

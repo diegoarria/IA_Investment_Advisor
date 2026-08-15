@@ -40,6 +40,13 @@ export interface ValuationScenarios {
     methodology_note: string;
   } | null;
   waccDetails: { method: string; wacc_pct: number | null } | null;
+  // Methodology audit round 2 — real forward P/E (Yahoo, when the live
+  // fetch succeeds) and P/E on earnings-state-normalized EPS, shown
+  // alongside peCurrent (raw GAAP), never replacing it. Both nullable —
+  // forward P/E can genuinely be unavailable, and peNormalized only
+  // differs from peCurrent when the latest year was flagged as distorted.
+  peForward: number | null;
+  peNormalized: number | null;
 }
 
 export interface CompanyDiagnosticData {
@@ -176,6 +183,8 @@ export const mockCopartData: CompanyDiagnosticData = {
       methodology_note: "CapEx de mantenimiento estimado como el menor entre el CapEx total y la Depreciación y Amortización — una heurística estándar, no un dato reportado directamente por la empresa.",
     },
     waccDetails: { method: "capm", wacc_pct: 9.2 },
+    peForward: 16.8,
+    peNormalized: 17.5,
   },
   noiseVsReality: {
     marketSaw: "Caída temporal en los volúmenes asignados por aseguradoras debido a primas de seguro récord y ajustes en precios de autos usados.",
