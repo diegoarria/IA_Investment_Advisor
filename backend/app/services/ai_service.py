@@ -2033,6 +2033,7 @@ Formato visual y compacto. Termina con una línea de insight general."""
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "screen_stocks", "claude-haiku-4-5-20251001", response.usage))
     return response.content[0].text
 
 
@@ -2056,6 +2057,7 @@ Formato con emojis. Sin introducciones."""
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "alert_context", "claude-haiku-4-5-20251001", response.usage))
     return response.content[0].text
 
 
@@ -2087,6 +2089,7 @@ NO alarmes innecesariamente. Contextualiza con perspectiva histórica."""
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}]
     )
+    asyncio.create_task(log_llm_usage(None, "notification_insight", "claude-haiku-4-5-20251001", response.usage))
     return response.content[0].text
 
 
@@ -2107,6 +2110,7 @@ async def generate_simple_completion(
         max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "simple_completion", model, response.usage))
     return response.content[0].text
 
 
@@ -2327,6 +2331,7 @@ Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta est
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "analyze_earnings", settings.claude_model, response.usage))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and "headline" in parsed:
@@ -2550,6 +2555,7 @@ Sin texto fuera del JSON."""
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "weekly_picks", "claude-haiku-4-5-20251001", response.usage))
     raw = response.content[0].text.strip()
     try:
         result = json.loads(raw)
@@ -2658,6 +2664,7 @@ Usa los valores reales del portafolio para calcular estimaciones. Sin texto fuer
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "simulate_whatif", settings.claude_model, response.usage))
     raw = response.content[0].text.strip()
     try:
         return json.loads(raw)
@@ -2724,6 +2731,7 @@ Reglas: score honesto; tickers reales; solo JSON puro."""
             system=system_prompt,
             messages=[{"role": "user", "content": prompt}],
         )
+        asyncio.create_task(log_llm_usage(None, "portfolio_score", settings.claude_model, response.usage))
         raw = response.content[0].text.strip()
         # Strip potential markdown fences
         if raw.startswith("```"):
@@ -2830,6 +2838,7 @@ Sin texto fuera del JSON."""
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "decision_biases", settings.claude_model, response.usage))
     raw = response.content[0].text.strip()
     try:
         return json.loads(raw)
@@ -2885,6 +2894,7 @@ No uses el formato de 4 secciones con emojis — esta es una respuesta corta y h
         max_tokens=520,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "summarize_news_article", "claude-haiku-4-5-20251001", response.usage))
     return response.content[0].text.strip()
 
 
@@ -2991,6 +3001,7 @@ Sé honesto, educativo y empático. No des consejos sobre acciones específicas.
         max_tokens=600,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "paper_portfolio", settings.claude_model, response.usage))
     text = response.content[0].text.strip()
     # Strip markdown code fences if model wraps it
     if text.startswith("```"):
@@ -3636,6 +3647,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1400,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "business_understanding", "claude-haiku-4-5-20251001", response.usage))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and parsed.get("how_it_makes_money"):
@@ -3704,6 +3716,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1600,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "competitive_intelligence", "claude-haiku-4-5-20251001", response.usage))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and parsed.get("direct_competitors"):
@@ -3761,6 +3774,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1400,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "industry_intelligence", "claude-haiku-4-5-20251001", response.usage))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and parsed.get("market_size_and_growth"):
@@ -3826,6 +3840,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1400,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "management_intelligence", "claude-haiku-4-5-20251001", response.usage))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and parsed.get("strategic_priorities") and parsed.get("strategy_change_classification") in _STRATEGY_CHANGE_CLASSIFICATIONS:
@@ -3894,6 +3909,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1400,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "change_interpretation", "claude-haiku-4-5-20251001", response.usage))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and isinstance(parsed.get("events"), list):
@@ -3947,6 +3963,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1800,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "thesis_draft", "claude-haiku-4-5-20251001", response.usage))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and parsed.get("thesis_summary") and parsed.get("confidence") in _THESIS_CONFIDENCE_LEVELS:
@@ -3991,6 +4008,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1800,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "bull_bear_case", "claude-haiku-4-5-20251001", response.usage))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and isinstance(parsed.get("bull_points"), list) and isinstance(parsed.get("bear_points"), list):
@@ -4055,6 +4073,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=2200,
         messages=[{"role": "user", "content": prompt}],
     )
+    asyncio.create_task(log_llm_usage(None, "thesis_review", "claude-haiku-4-5-20251001", response.usage))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and parsed.get("updated_thesis_summary") and parsed.get("what_changed"):
