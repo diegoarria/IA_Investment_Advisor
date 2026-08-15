@@ -299,3 +299,100 @@ class TestRefreshUndervaluedScreenerSkipsDuplicateBatchSubmission:
         # CACHE_KEY itself must NOT be finalized here either — the pending
         # batch (whichever candidates it covers) is still the source of truth.
         assert all(call[0] != screener_service.CACHE_KEY for call in cache_set_calls)
+
+
+class TestBatchFailureNeverFallsBackToRealClaudeCalls:
+    """The Aug 15 real-money incident: when submit_candidate_blurb_batch
+    failed for any reason, this used to silently fall back to a real,
+    unlogged, per-call Claude loop (_fill_blurbs_sequentially) — meaning a
+    Batch API hiccup on ANY worker restart, with zero real users involved,
+    could burn real Anthropic credits nobody could see. That fallback
+    function no longer exists in this module at all, and this test proves
+    it structurally: it fails loudly (AssertionError from the tracking
+    stub, not a silent pass) if `_claude` — the one chokepoint every real
+    Anthropic call in this codebase goes through — is ever invoked during
+    a failed batch submission."""
+
+    async def test_no_fallback_function_exists_in_the_module(self):
+        assert not hasattr(screener_service, "_fill_blurbs_sequentially")
+
+    async def test_batch_submission_failure_makes_zero_real_claude_calls(self, monkeypatch):
+        candidate = {"ticker": "AAPL", "sector": "Technology", "price": 200, "featured": True}
+
+        monkeypatch.setattr(screener_service, "_scan", lambda tickers, analysis_cache=None: [candidate])
+        monkeypatch.setattr(screener_service, "_cap_per_sector", lambda results, max_per_sector: results)
+        monkeypatch.setattr(screener_service, "cache_get_with_ts", lambda key: (None, None))
+        monkeypatch.setattr(screener_service, "cache_get", lambda key: None)  # nothing pending
+
+        import app.api.routes.screener as screener_routes
+        monkeypatch.setattr(screener_routes, "_latest_reported_earnings_period", lambda ticker: "2026Q2")
+        monkeypatch.setattr(screener_routes, "UNIVERSE", [{"ticker": "AAPL", "industry": "Software"}])
+
+        import app.services.fundamental_analysis_service as fundamental_analysis_service
+        monkeypatch.setattr(fundamental_analysis_service, "get_financials", lambda ticker, limit=10: {})
+        monkeypatch.setattr(screener_service, "_compute_momentum", lambda ticker, price: None)
+
+        async def _fake_submit_that_fails(entries, langs=("es", "en")):
+            raise RuntimeError("simulated Batch API outage")
+        monkeypatch.setattr(ai_service, "submit_candidate_blurb_batch", _fake_submit_that_fails)
+
+        real_claude_calls = []
+        async def _tracking_claude_stub(**kwargs):
+            real_claude_calls.append(kwargs)
+            raise AssertionError("a real Claude call happened after a failed batch submission — the Aug 15 bug is back")
+        monkeypatch.setattr(ai_service, "_claude", _tracking_claude_stub)
+
+        cache_set_calls = []
+        monkeypatch.setattr(screener_service, "cache_set", lambda *a, **k: cache_set_calls.append(a))
+
+        async def _noop_backtest(analysis_cache):
+            return None
+        import app.services.valuation_backtest_service as valuation_backtest_service
+        monkeypatch.setattr(valuation_backtest_service, "refresh_valuation_backtest", _noop_backtest)
+
+        await screener_service.refresh_undervalued_screener()
+
+        assert real_claude_calls == []
+        # the refresh must still finish and cache SOMETHING (candidates
+        # keep whatever blurb they had — reused or none) instead of hanging
+        # or crashing the whole weekly refresh over one batch outage.
+        assert any(call[0] == screener_service.CACHE_KEY for call in cache_set_calls)
+
+
+class TestStartupSelfHealNeverTriggersAISpendForBacktestAlone:
+    """The other half of the Aug 15 incident: refresh_if_empty_on_startup()
+    used to run the FULL, AI-heavy screener refresh whenever the UNRELATED
+    valuation-backtest cache was empty, even if the screener's own cache
+    was fine — meaning a redeploy that had nothing to do with the screener
+    could still trigger real, repeated Claude spend on every restart, with
+    zero real users involved. This proves the AI-heavy path
+    (refresh_undervalued_screener) is never called when only the backtest
+    cache is missing — only the cheap, LLM-free repair runs."""
+
+    async def test_backtest_cache_empty_alone_never_calls_the_ai_heavy_refresh(self, monkeypatch):
+        # Screener's own cache IS populated (truthy timestamp) — only the
+        # backtest cache is empty, e.g. right after this feature was added.
+        monkeypatch.setattr(screener_service, "cache_get_with_ts", lambda key: (
+            (["fake", "screener", "data"], 1234567890.0) if key == screener_service.CACHE_KEY else (None, None)
+        ))
+
+        ai_heavy_refresh_calls = []
+        async def _tracking_refresh():
+            ai_heavy_refresh_calls.append(True)
+        monkeypatch.setattr(screener_service, "refresh_undervalued_screener", _tracking_refresh)
+
+        monkeypatch.setattr(screener_service, "_scan", lambda tickers, analysis_cache=None: [])
+
+        import app.api.routes.screener as screener_routes
+        monkeypatch.setattr(screener_routes, "UNIVERSE", [])
+
+        backtest_repair_calls = []
+        async def _tracking_backtest_repair(analysis_cache):
+            backtest_repair_calls.append(True)
+        import app.services.valuation_backtest_service as valuation_backtest_service
+        monkeypatch.setattr(valuation_backtest_service, "refresh_valuation_backtest", _tracking_backtest_repair)
+
+        await screener_service.refresh_if_empty_on_startup()
+
+        assert ai_heavy_refresh_calls == []  # the expensive, AI-spending path was never touched
+        assert backtest_repair_calls == [True]  # only the cheap, LLM-free repair ran
