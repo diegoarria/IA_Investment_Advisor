@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from fastapi.responses import StreamingResponse
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
-from app.models.user import ChatRequest, UserProfile
+from app.models.user import ChatRequest, UserProfile, coerce_profile_row
 from app.services import ai_service, investor_progress_service
 from app.services.market_data_service import (
     get_market_context_for_message,
@@ -209,7 +209,7 @@ async def _get_user_profile(user_id: str) -> UserProfile | None:
         db = get_supabase()
         result = await run_query(db.table("user_profiles").select("*").eq("user_id", user_id))
         if result.data:
-            return UserProfile(**result.data[0])
+            return UserProfile(**coerce_profile_row(result.data[0]))
     except Exception:
         pass
     return None

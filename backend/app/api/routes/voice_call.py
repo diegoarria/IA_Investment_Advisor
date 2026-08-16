@@ -39,7 +39,7 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from app.api.deps import _resolve_user_token, get_current_user_id
 from app.core.cache import cache_get, cache_set, cache_delete
 from app.core.database import get_supabase, run_query
-from app.models.user import ChatMessage, UserProfile
+from app.models.user import ChatMessage, UserProfile, coerce_profile_row
 from app.services import ai_service, investor_progress_service
 from app.services.voice_service import transcribe_audio_bytes, synthesize_speech_bytes
 
@@ -86,7 +86,7 @@ async def _load_profile(user_id: str) -> UserProfile | None:
     try:
         db = get_supabase()
         res = await run_query(db.table("user_profiles").select("*").eq("user_id", user_id))
-        return UserProfile(**res.data[0]) if res.data else None
+        return UserProfile(**coerce_profile_row(res.data[0])) if res.data else None
     except Exception:
         return None
 

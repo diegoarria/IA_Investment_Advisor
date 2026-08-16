@@ -2,17 +2,32 @@ import re
 import json
 import asyncio
 import base64
+import logging
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id, get_current_user
 from app.core.database import get_supabase, run_query
-from app.models.user import UserProfile, UserProfileCreate, UserProfileUpdate, AvatarUpload
+from app.models.user import UserProfile, UserProfileCreate, UserProfileUpdate, AvatarUpload, coerce_profile_row
 from app.services import ai_service
 from app.core.cache import cache_get, cache_set, cache_delete
 from app.core.config import settings
 from datetime import datetime, timezone
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/profile", tags=["profile"])
+
+
+def _to_user_profile(row: dict) -> UserProfile:
+    """Builds the response `UserProfile`, coercing known DB/model gaps
+    (see `coerce_profile_row`) and degrading to a clean, retryable 503
+    instead of a raw crash if construction still fails for any other
+    reason — every route in this file should return through this rather
+    than calling `UserProfile(**row)` directly."""
+    try:
+        return UserProfile(**coerce_profile_row(row))
+    except Exception as exc:
+        logger.error("_to_user_profile: failed to build UserProfile from row (user_id=%s): %s", row.get("user_id"), exc)
+        raise HTTPException(status_code=503, detail="No se pudo cargar tu perfil. Intenta de nuevo en unos segundos.")
 
 _AVATAR_MAX_SIDE = 512  # px — avatars are only ever shown small (comment threads, sidebar)
 
@@ -222,7 +237,7 @@ async def create_profile(
         except Exception:
             pass
     cache_delete(f"profile:{user_id}")
-    return UserProfile(**result.data[0])
+    return _to_user_profile(result.data[0])
 
 
 @router.get("", response_model=UserProfile)
@@ -241,7 +256,7 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
         fresh = await fetch_fresh_subscription_fields(user_id)
         if fresh:
             cached = {**cached, **fresh}
-        return UserProfile(**cached)
+        return _to_user_profile(cached)
 
     db = get_supabase()
     result = await run_query(db.table("user_profiles").select("*").eq("user_id", user_id))
@@ -268,7 +283,7 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
         except Exception:
             pass
     cache_set(cache_key, data, ttl=120)
-    return UserProfile(**data)
+    return _to_user_profile(data)
 
 
 @router.get("/insights")
@@ -426,7 +441,7 @@ async def update_profile(
         if not result.data:
             raise HTTPException(status_code=503, detail="No se pudieron guardar los cambios. Intenta de nuevo en unos segundos.")
     cache_delete(f"profile:{user_id}")
-    return UserProfile(**result.data[0])
+    return _to_user_profile(result.data[0])
 
 
 # ─── Avatar ───────────────────────────────────────────────────────────────────

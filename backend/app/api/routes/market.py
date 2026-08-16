@@ -18,7 +18,7 @@ import time as time
 from app.api.deps import get_current_user_id
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
-from app.models.user import UserProfile
+from app.models.user import UserProfile, coerce_profile_row
 from app.services import market_service, ai_service
 from app.core.cache import cache_get, cache_set, cache_incr, cache_delete, acquire_lock, release_lock
 from app.core.limiter import limiter
@@ -87,7 +87,7 @@ def _get_user_profile(user_id: str) -> UserProfile | None:
     result = db.table("user_profiles").select("*").eq("user_id", user_id).execute()
     if result.data:
         try:
-            return UserProfile(**result.data[0])
+            return UserProfile(**coerce_profile_row(result.data[0]))
         except Exception:
             return None
     return None

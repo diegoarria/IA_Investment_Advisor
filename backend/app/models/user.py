@@ -122,6 +122,23 @@ class UserProfile(BaseModel):
     updated_at: Optional[str] = None
 
 
+def coerce_profile_row(row: dict) -> dict:
+    """Real production bug (Aug 16) — 'Internal server error' on the last
+    step of onboarding, reported by multiple users, and the same crash
+    risk existed at every other `UserProfile(**row)` call site in the
+    backend (chat.py, market.py, voice_call.py, notification_service.py).
+    Root cause: `risk_tolerance` is a required `str` with no default, but
+    the shortened 2026 onboarding never collects it and relies on the DB
+    COLUMN's own default ('moderate') to fill it in — Pydantic has no
+    knowledge of that DB-level default, so any row where Supabase returns
+    `risk_tolerance: None` (a column default that was never applied, an
+    older row, a migration gap — the exact cause doesn't matter here)
+    raised an unguarded ValidationError. Every call site should wrap its
+    row dict with this before constructing `UserProfile`, instead of
+    trusting a DB-level default Pydantic can't see."""
+    return {**row, "risk_tolerance": row.get("risk_tolerance") or "moderate"}
+
+
 # Base64 inflates size ~4/3, so this caps the actual decoded image at ~5MB —
 # matches Anthropic's own hard limit for images sent to Claude (larger ones
 # fail the API call outright instead of getting a clean upfront rejection),

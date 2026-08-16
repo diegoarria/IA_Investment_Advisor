@@ -3,7 +3,7 @@ from app.core.database import get_supabase, run_query
 from app.services.market_service import get_market_summary, get_upcoming_earnings
 from app.services import ai_service
 from app.services.push_service import send_streak_danger
-from app.models.user import UserProfile
+from app.models.user import UserProfile, coerce_profile_row
 
 
 NOTIFICATION_TYPES = {
@@ -66,7 +66,7 @@ async def scan_and_notify_all_users():
         profile = None
         if profile_result.data:
             try:
-                profile = UserProfile(**profile_result.data)
+                profile = UserProfile(**coerce_profile_row(profile_result.data))
             except Exception:
                 pass
 
