@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     frontend_url: str = "*"
     environment: str = "production"  # set to "development" locally to enable /docs
     claude_model: str = "claude-sonnet-4-6"
+    # Real-money incident, Aug 15 — a hard circuit breaker on top of every
+    # other cost fix from that day: once TODAY's real, logged Claude spend
+    # (across the whole platform, all users, all cron jobs) crosses this
+    # many dollars, _claude() in ai_service.py stops making new calls until
+    # midnight ET, regardless of cause. This is deliberately generous
+    # relative to the ~$0.50-2/day normal baseline — it exists to make a
+    # repeat of the Aug 15 $10.51 spike structurally impossible, not to
+    # throttle normal operation. Override via DAILY_LLM_SPEND_CAP_USD.
+    daily_llm_spend_cap_usd: float = 5.0
     # OpenAI — routes standalone, non-personalized educational Q&A (see
     # app.services.generic_qa_cache) away from Claude. Optional: if unset,
     # that traffic just falls back to the existing Haiku path.

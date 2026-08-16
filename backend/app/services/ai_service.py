@@ -42,12 +42,53 @@ _OPENAI_COST_PER_MTOK: dict[str, tuple[float, float]] = {
     "gpt-5.4-mini": (0.75, 4.50),
 }
 
+def _today_et_date() -> str:
+    import zoneinfo
+    return datetime.now(zoneinfo.ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+
+
+def _daily_spend_cache_key() -> str:
+    return f"llm_daily_spend:{_today_et_date()}"
+
+
+class LLMDailySpendCapExceeded(Exception):
+    """Real-money incident, Aug 15 — raised by `_claude()` once today's
+    real, tracked spend crosses `settings.daily_llm_spend_cap_usd`. Every
+    real call site in this codebase already has error handling that
+    degrades gracefully (a templated fallback message, a None return, a
+    503) rather than crashing the user-facing request — this is safe to
+    raise instead of silently making the call."""
+
+
 async def _claude(**kwargs):
-    """Wrapper that enforces the concurrency cap on every Anthropic call and logs cost."""
+    """Wrapper that enforces the concurrency cap and the daily spend
+    circuit breaker on every Anthropic call, and logs cost.
+
+    The circuit breaker (Aug 15) is platform-wide, not per-user — once
+    TODAY's real spend (tracked in Redis, incremented after every real
+    call below, reset at ET midnight via the cache key rolling over)
+    crosses the configured cap, EVERY new Claude call blocks until
+    tomorrow, regardless of which feature/user triggered it. Deliberately
+    global and deliberately generous (default $5, vs. a ~$0.50-2/day
+    normal baseline) — this exists to make a repeat of Aug 15's $10.51
+    spike structurally impossible, not to throttle normal operation."""
     import inspect as _inspect
+    from app.core.cache import cache_get, cache_incr_float
     frame = _inspect.currentframe()
     caller = frame.f_back.f_code.co_name if frame and frame.f_back else "?"
     kwargs.pop("_fn", None)  # remove internal tag if passed
+
+    spend_key = _daily_spend_cache_key()
+    current_spend = cache_get(spend_key) or 0.0
+    if current_spend >= settings.daily_llm_spend_cap_usd:
+        _log.error(
+            "LLM daily spend cap exceeded: $%.2f >= $%.2f cap — blocking call from fn=%s",
+            current_spend, settings.daily_llm_spend_cap_usd, caller,
+        )
+        raise LLMDailySpendCapExceeded(
+            f"Daily LLM spend cap (${settings.daily_llm_spend_cap_usd:.2f}) reached (currently ${current_spend:.2f})"
+        )
+
     async with _claude_sem:
         resp = await client.messages.create(**kwargs)
         model = kwargs.get("model", "unknown")
@@ -55,8 +96,9 @@ async def _claude(**kwargs):
         out_tok = getattr(resp.usage, "output_tokens", 0)
         in_cost, out_cost = _COST_PER_MTOK.get(model, (3.00, 15.00))
         cost = in_tok / 1e6 * in_cost + out_tok / 1e6 * out_cost
-        _log.info("LLM call: model=%s fn=%s in=%d out=%d cost=$%.5f",
-                  model, caller, in_tok, out_tok, cost)
+        new_total = cache_incr_float(spend_key, cost, ttl=26 * 3600)
+        _log.info("LLM call: model=%s fn=%s in=%d out=%d cost=$%.5f (today's total: $%.4f)",
+                  model, caller, in_tok, out_tok, cost, new_total)
         return resp
 
 SYSTEM_PROMPT_BASE = """Eres Nuvos, mentor y educador de inversiones de élite, radicalmente diferente a cualquier chatbot financiero. Tu superpoder es detectar la brecha entre lo que el usuario *cree* que es como inversionista y lo que *realmente* es bajo presión — y usarla para hacerlo crecer.
@@ -4171,6 +4213,17 @@ async def submit_candidate_blurb_batch(entries: list[dict], langs: tuple[str, ..
     take minutes to hours to complete), so the caller must poll
     `client.messages.batches.retrieve(batch_id).processing_status` and
     only call `parse_candidate_blurb_batch_results` once it's `"ended"`."""
+    # Same daily circuit breaker _claude() enforces (Aug 15) — batches
+    # bypass _claude() entirely (no synchronous usage/cost to log at
+    # submit time), so this is a separate, explicit check rather than
+    # something inherited for free.
+    from app.core.cache import cache_get
+    current_spend = cache_get(_daily_spend_cache_key()) or 0.0
+    if current_spend >= settings.daily_llm_spend_cap_usd:
+        raise LLMDailySpendCapExceeded(
+            f"Daily LLM spend cap (${settings.daily_llm_spend_cap_usd:.2f}) reached (currently ${current_spend:.2f}) — refusing to submit a new batch"
+        )
+
     requests = [
         {
             "custom_id": f"{entry.get('ticker', '')}:{lang}",

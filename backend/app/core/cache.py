@@ -132,6 +132,31 @@ def cache_incr(key: str, ttl: int) -> int:
     return count
 
 
+def cache_incr_float(key: str, amount: float, ttl: int) -> float:
+    """Same contract as `cache_incr`, but for a dollar-amount running total
+    (Aug 15 real-money incident — the daily LLM spend circuit breaker in
+    `ai_service._claude()` needs to accumulate fractional-cent real costs,
+    not just count events)."""
+    r = _get_redis()
+    if r:
+        try:
+            pipe = r.pipeline()
+            pipe.incrbyfloat(key, amount)
+            pipe.expire(key, ttl, nx=True)
+            total, _ = pipe.execute()
+            return float(total)
+        except Exception:
+            pass
+    entry = _mem.get(key)
+    now = time.time()
+    if entry is None or now > entry[1]:
+        _mem[key] = (amount, now + ttl)
+        return amount
+    total = float(entry[0]) + amount
+    _mem[key] = (total, entry[1])
+    return total
+
+
 _RELEASE_LUA = """
 if redis.call("get", KEYS[1]) == ARGV[1] then
   return redis.call("del", KEYS[1])
