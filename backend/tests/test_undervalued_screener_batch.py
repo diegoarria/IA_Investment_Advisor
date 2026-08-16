@@ -5,51 +5,75 @@ decision for the weekly Oportunidades refresh, and the Batch API
 submit/parse functions that replaced the sequential per-call blurb loop.
 None of these hit a real Finnhub or Anthropic call — the earnings-period
 lookup and the Anthropic batch client are both faked/mocked.
+
+Also covers the Aug 15 math/blurb cache split (Diego's request: tuning
+the Fair Value formula bumps CACHE_KEY often right now, and that must
+never force the AI blurb to regenerate too) — the math partition
+(_partition_featured_by_earnings, tied to CACHE_KEY's old_by_ticker) and
+the blurb partition (_partition_featured_by_blurb_cache, its own
+CACHE_KEY-independent cache) are now two separate, independently-tested
+decisions.
 """
 import app.services.ai_service as ai_service
 import app.services.undervalued_screener_service as screener_service
 from app.services.undervalued_screener_service import (
     _partition_featured_by_earnings,
-    _REUSABLE_EARNINGS_FIELDS,
+    _partition_featured_by_blurb_cache,
+    _REUSABLE_MATH_FIELDS,
+    _REUSABLE_BLURB_FIELDS,
+    _blurb_cache_key,
     poll_and_finalize_undervalued_screener_batch,
 )
 
 
 class TestPartitionFeaturedByEarnings:
+    """MATH ONLY — deliberately tied to CACHE_KEY's own old_by_ticker,
+    since a CACHE_KEY bump means the math methodology changed."""
+
     def test_reuses_old_entry_verbatim_when_earnings_period_unchanged(self):
         old_by_ticker = {
             "AAPL": {
                 "ticker": "AAPL",
                 "_earnings_period": "2026Q2",
-                "blurb_by_lang": {"es": "old blurb"},
                 "relative_valuation": {"score": 42},
                 "historical_valuation": {"score": 7},
                 "momentum": {"trend": "up"},
-                "business_understanding_by_lang": {"es": "old"},
-                "checklist_reasons_by_lang": {"es": {}},
             }
         }
         featured = [{"ticker": "AAPL", "price": 200}]
         to_recompute = _partition_featured_by_earnings(featured, old_by_ticker, lambda t: "2026Q2")
 
         assert to_recompute == []
-        assert featured[0]["blurb_by_lang"] == {"es": "old blurb"}
         assert featured[0]["relative_valuation"] == {"score": 42}
         assert featured[0]["_earnings_period"] == "2026Q2"
 
-    def test_recomputes_when_earnings_period_changed(self):
+    def test_never_touches_blurb_fields_even_when_present_in_old_entry(self):
+        # The math partition must be blind to blurb state entirely — that's
+        # the whole point of the split. An old entry WITH a real blurb
+        # still only contributes math fields here.
         old_by_ticker = {
             "AAPL": {
                 "ticker": "AAPL",
-                "_earnings_period": "2026Q1",
+                "_earnings_period": "2026Q2",
+                "relative_valuation": {"score": 42},
                 "blurb_by_lang": {"es": "old blurb"},
             }
         }
         featured = [{"ticker": "AAPL", "price": 200}]
         to_recompute = _partition_featured_by_earnings(featured, old_by_ticker, lambda t: "2026Q2")
 
-        assert to_recompute == featured
+        assert to_recompute == []
         assert "blurb_by_lang" not in featured[0]
+
+    def test_recomputes_when_earnings_period_changed(self):
+        old_by_ticker = {
+            "AAPL": {"ticker": "AAPL", "_earnings_period": "2026Q1", "relative_valuation": {"score": 42}},
+        }
+        featured = [{"ticker": "AAPL", "price": 200}]
+        to_recompute = _partition_featured_by_earnings(featured, old_by_ticker, lambda t: "2026Q2")
+
+        assert to_recompute == featured
+        assert "relative_valuation" not in featured[0]
         assert featured[0]["_earnings_period"] == "2026Q2"
 
     def test_recomputes_when_no_old_entry(self):
@@ -60,7 +84,7 @@ class TestPartitionFeaturedByEarnings:
         assert featured[0]["_earnings_period"] == "2026Q2"
 
     def test_recomputes_when_earnings_period_lookup_fails(self):
-        old_by_ticker = {"AAPL": {"ticker": "AAPL", "_earnings_period": "2026Q2", "blurb_by_lang": {"es": "x"}}}
+        old_by_ticker = {"AAPL": {"ticker": "AAPL", "_earnings_period": "2026Q2", "relative_valuation": {"score": 42}}}
         featured = [{"ticker": "AAPL", "price": 200}]
 
         def _boom(ticker):
@@ -71,21 +95,12 @@ class TestPartitionFeaturedByEarnings:
         assert to_recompute == featured
         assert featured[0]["_earnings_period"] is None
 
-    def test_recomputes_when_old_entry_never_got_a_blurb(self):
-        old_by_ticker = {
-            "AAPL": {"ticker": "AAPL", "_earnings_period": "2026Q2", "blurb_by_lang": None},
-        }
-        featured = [{"ticker": "AAPL", "price": 200}]
-        to_recompute = _partition_featured_by_earnings(featured, old_by_ticker, lambda t: "2026Q2")
-
-        assert to_recompute == featured
-
     def test_reusable_fields_never_leak_non_reusable_state(self):
         old_by_ticker = {
             "AAPL": {
                 "ticker": "AAPL",
                 "_earnings_period": "2026Q2",
-                "blurb_by_lang": {"es": "x"},
+                "relative_valuation": {"score": 42},
                 "price": 999,
                 "dcf_assumptions": {"stale": True},
             }
@@ -95,10 +110,81 @@ class TestPartitionFeaturedByEarnings:
 
         assert featured[0]["price"] == 200
         assert "dcf_assumptions" not in featured[0]
-        assert set(_REUSABLE_EARNINGS_FIELDS) == {
-            "relative_valuation", "historical_valuation", "momentum",
-            "blurb_by_lang", "business_understanding_by_lang", "checklist_reasons_by_lang",
+        assert set(_REUSABLE_MATH_FIELDS) == {"relative_valuation", "historical_valuation", "momentum"}
+
+
+class TestPartitionFeaturedByBlurbCache:
+    """AI BLURB ONLY — the Aug 15 fix. Independent of CACHE_KEY entirely,
+    so a formula/CACHE_KEY bump (math changed) never forces a real Claude
+    call to regenerate blurb text that never changed."""
+
+    def test_reuses_blurb_from_independent_cache_regardless_of_cache_key(self, monkeypatch):
+        cached_blurb = {
+            "_earnings_period": "2026Q2",
+            "blurb_by_lang": {"es": "buena empresa"},
+            "business_understanding_by_lang": {"es": "old"},
+            "checklist_reasons_by_lang": {"es": {}},
         }
+        monkeypatch.setattr(screener_service, "cache_get", lambda key: cached_blurb if key == _blurb_cache_key("AAPL") else None)
+
+        featured = [{"ticker": "AAPL", "price": 200}]
+        to_recompute = _partition_featured_by_blurb_cache(featured, lambda t: "2026Q2", screener_service.cache_get)
+
+        assert to_recompute == []
+        assert featured[0]["blurb_by_lang"] == {"es": "buena empresa"}
+
+    def test_recomputes_when_earnings_period_changed_even_if_blurb_cache_has_an_entry(self, monkeypatch):
+        cached_blurb = {"_earnings_period": "2026Q1", "blurb_by_lang": {"es": "old"}}
+        monkeypatch.setattr(screener_service, "cache_get", lambda key: cached_blurb)
+
+        featured = [{"ticker": "AAPL", "price": 200}]
+        to_recompute = _partition_featured_by_blurb_cache(featured, lambda t: "2026Q2", screener_service.cache_get)
+
+        assert to_recompute == featured
+        assert "blurb_by_lang" not in featured[0]
+
+    def test_recomputes_when_nothing_cached(self, monkeypatch):
+        monkeypatch.setattr(screener_service, "cache_get", lambda key: None)
+        featured = [{"ticker": "NEW", "price": 50}]
+        to_recompute = _partition_featured_by_blurb_cache(featured, lambda t: "2026Q2", screener_service.cache_get)
+
+        assert to_recompute == featured
+
+    def test_recomputes_when_earnings_period_lookup_fails(self, monkeypatch):
+        monkeypatch.setattr(screener_service, "cache_get", lambda key: {"_earnings_period": "2026Q2", "blurb_by_lang": {"es": "x"}})
+        featured = [{"ticker": "AAPL", "price": 200}]
+
+        def _boom(ticker):
+            raise RuntimeError("finnhub down")
+
+        to_recompute = _partition_featured_by_blurb_cache(featured, _boom, screener_service.cache_get)
+
+        assert to_recompute == featured
+
+    def test_survives_a_cache_key_bump_the_whole_point_of_the_split(self, monkeypatch):
+        # Simulates Diego's exact scenario: the Fair Value FORMULA changed
+        # (so the math partition — a separate call — would recompute this
+        # ticker from scratch), but the blurb partition, being fully
+        # independent of CACHE_KEY, still reuses the real blurb generated
+        # under the OLD CACHE_KEY days ago. Zero Claude spend for this
+        # ticker's blurb despite the formula change.
+        cached_blurb = {
+            "_earnings_period": "2026Q2",
+            "blurb_by_lang": {"es": "buena empresa", "en": "good company"},
+            "business_understanding_by_lang": {"es": {}, "en": {}},
+            "checklist_reasons_by_lang": {"es": {}, "en": {}},
+        }
+        monkeypatch.setattr(screener_service, "cache_get", lambda key: cached_blurb)
+
+        # Math partition sees an EMPTY old_by_ticker (new CACHE_KEY, no data yet)
+        featured = [{"ticker": "AAPL", "price": 200}]
+        math_to_recompute = _partition_featured_by_earnings(featured, {}, lambda t: "2026Q2")
+        assert math_to_recompute == featured  # math genuinely needs recompute
+
+        # Blurb partition still reuses — unaffected by the CACHE_KEY bump
+        blurb_to_recompute = _partition_featured_by_blurb_cache(featured, lambda t: "2026Q2", screener_service.cache_get)
+        assert blurb_to_recompute == []
+        assert featured[0]["blurb_by_lang"] == {"es": "buena empresa", "en": "good company"}
 
 
 class _FakeBatch:
@@ -245,10 +331,20 @@ class TestPollAndFinalizeUndervaluedScreenerBatch:
         result = await poll_and_finalize_undervalued_screener_batch()
 
         assert result is True
-        assert len(cache_set_calls) == 1
-        finalized_key, finalized_results = cache_set_calls[0][0], cache_set_calls[0][1]
-        assert finalized_key == screener_service.CACHE_KEY
+        # Two writes now: the independent per-ticker blurb cache (Aug 15
+        # split, survives future CACHE_KEY bumps) AND the finalized
+        # CACHE_KEY list itself.
+        assert len(cache_set_calls) == 2
+        keys_written = {call[0] for call in cache_set_calls}
+        assert keys_written == {screener_service.CACHE_KEY, screener_service._blurb_cache_key("AAPL")}
+
+        cache_key_call = next(c for c in cache_set_calls if c[0] == screener_service.CACHE_KEY)
+        finalized_results = cache_key_call[1]
         assert finalized_results[0]["blurb_by_lang"] == {"es": "buena empresa", "en": "good company"}
+
+        blurb_cache_call = next(c for c in cache_set_calls if c[0] == screener_service._blurb_cache_key("AAPL"))
+        assert blurb_cache_call[1]["blurb_by_lang"] == {"es": "buena empresa", "en": "good company"}
+
         assert cache_delete_calls == [(screener_service._PENDING_BATCH_CACHE_KEY,)]
 
 

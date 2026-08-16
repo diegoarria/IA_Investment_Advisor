@@ -90,6 +90,24 @@ BOOTSTRAP_TTL = 24 * 3600      # short-lived — the next full weekly/startup re
 # its pending state before it completes.
 _PENDING_BATCH_CACHE_KEY = "undervalued_screener:pending_batch:v1"
 _PENDING_BATCH_TTL = 48 * 3600
+
+# Diego's explicit request (Aug 15) — the Fair Value formula (DCF/GQV
+# methodology) is being tuned frequently right now, and EVERY tuning pass
+# used to bump CACHE_KEY, which forced the AI blurb to regenerate too
+# (real Claude spend) even though the blurb's own prompt/logic never
+# changed — the blurb just happened to live bundled in the same versioned
+# cache entry as the math. This per-ticker cache is independent of
+# CACHE_KEY entirely: it survives any number of formula/CACHE_KEY bumps,
+# and is only invalidated by the same real signal as everywhere else in
+# this file — the company actually reporting new earnings. Bump
+# _BLURB_CACHE_VERSION (separately from CACHE_KEY) only when the BLURB
+# PROMPT ITSELF changes.
+_BLURB_CACHE_VERSION = "v1"
+_BLURB_CACHE_TTL = 100 * 24 * 3600  # long-lived ceiling — real invalidation is the earnings-period check, not this TTL
+
+
+def _blurb_cache_key(ticker: str) -> str:
+    return f"undervalued_screener:blurb:{_BLURB_CACHE_VERSION}:{ticker}"
 _BOOTSTRAP_LIMIT = 44          # small subset so a cold-cache request stays reasonably fast — ~4 per GICS sector via _diverse_bootstrap_sample, now that UNIVERSE is the full S&P 500 (bumped from 20, which was fine for the old ~183-ticker curated list but too thin for real sector spread here)
 _MAX_PER_SECTOR = 5            # never more than 5 candidates from the same sector in the results shown
 
@@ -455,20 +473,21 @@ def _rotate_featured_order(results: list[dict]) -> list[dict]:
     return featured + remaining_pool + rest
 
 
-_REUSABLE_EARNINGS_FIELDS = (
-    "relative_valuation", "historical_valuation", "momentum",
-    "blurb_by_lang", "business_understanding_by_lang", "checklist_reasons_by_lang",
-)
+_REUSABLE_MATH_FIELDS = ("relative_valuation", "historical_valuation", "momentum")
+_REUSABLE_BLURB_FIELDS = ("blurb_by_lang", "business_understanding_by_lang", "checklist_reasons_by_lang")
 
 
 def _partition_featured_by_earnings(featured: list[dict], old_by_ticker: dict[str, dict], get_earnings_period_fn) -> list[dict]:
-    """Mutates each entry in `featured` in place: reuses last refresh's
-    relative/historical valuation, momentum, and AI blurb (both languages)
-    verbatim for any ticker that hasn't reported new earnings since then,
-    stamping `_earnings_period` either way. Returns the subset that still
-    needs full recomputation (no old entry, no real earnings-period data,
-    or the period genuinely changed) — extracted standalone so this
-    decision is unit-testable without mocking `_scan`/Finnhub/Claude."""
+    """MATH ONLY (relative/historical valuation, momentum) — deliberately
+    tied to `old_by_ticker`, i.e. to CACHE_KEY's own version, because a
+    CACHE_KEY bump means the math methodology itself changed, so old math
+    genuinely can't be trusted. Mutates each entry in place, stamps
+    `_earnings_period` either way. Returns the subset needing real
+    recomputation. AI blurb reuse is a SEPARATE, CACHE_KEY-independent
+    decision — see `_partition_featured_by_blurb_cache` below (Diego's
+    Aug 15 request: tuning the Fair Value formula, which bumps CACHE_KEY
+    often right now, must never force the AI blurb to regenerate too —
+    the blurb didn't change just because the math did)."""
     to_recompute: list[dict] = []
     for entry in featured:
         old = old_by_ticker.get(entry["ticker"])
@@ -477,13 +496,40 @@ def _partition_featured_by_earnings(featured: list[dict], old_by_ticker: dict[st
         except Exception as exc:
             logger.warning("undervalued_screener_service: earnings-period check failed for %s: %s", entry["ticker"], exc)
             current_period = None
-        if old is not None and current_period is not None and old.get("_earnings_period") == current_period and old.get("blurb_by_lang"):
-            for field in _REUSABLE_EARNINGS_FIELDS:
+        if old is not None and current_period is not None and old.get("_earnings_period") == current_period:
+            for field in _REUSABLE_MATH_FIELDS:
                 if field in old:
                     entry[field] = old[field]
             entry["_earnings_period"] = current_period
         else:
             entry["_earnings_period"] = current_period
+            to_recompute.append(entry)
+    return to_recompute
+
+
+def _partition_featured_by_blurb_cache(featured: list[dict], get_earnings_period_fn, cache_get_fn) -> list[dict]:
+    """AI BLURB ONLY — reused from the independent per-ticker
+    `_blurb_cache_key` cache (survives any number of CACHE_KEY/formula
+    bumps) whenever the real earnings period still matches, regardless of
+    whether the math for that ticker was just recomputed under a new
+    CACHE_KEY. Mutates `featured` entries in place with the 3 blurb
+    fields when reused. Returns the subset that still needs a real Claude
+    call — this, not the math-recompute list, is what
+    `refresh_undervalued_screener` submits to the Batch API."""
+    to_recompute: list[dict] = []
+    for entry in featured:
+        ticker = entry["ticker"]
+        try:
+            current_period = get_earnings_period_fn(ticker)
+        except Exception as exc:
+            logger.warning("undervalued_screener_service: earnings-period check failed for %s (blurb cache): %s", ticker, exc)
+            current_period = None
+        cached_blurb = cache_get_fn(_blurb_cache_key(ticker)) if current_period is not None else None
+        if cached_blurb is not None and cached_blurb.get("_earnings_period") == current_period and cached_blurb.get("blurb_by_lang"):
+            for field in _REUSABLE_BLURB_FIELDS:
+                if field in cached_blurb:
+                    entry[field] = cached_blurb[field]
+        else:
             to_recompute.append(entry)
     return to_recompute
 
@@ -534,8 +580,21 @@ async def refresh_undervalued_screener() -> None:
     old_by_ticker = {r["ticker"]: r for r in (old_results or []) if r.get("ticker")}
     to_recompute = _partition_featured_by_earnings(featured, old_by_ticker, _latest_reported_earnings_period)
     logger.info(
-        "undervalued_screener_service: %d/%d featured candidates reused verbatim (no new earnings since last refresh), %d recomputed",
+        "undervalued_screener_service: %d/%d featured candidates' math reused verbatim (no new earnings since last refresh), %d recomputed",
         len(featured) - len(to_recompute), len(featured), len(to_recompute),
+    )
+
+    # AI blurb reuse — deliberately a SEPARATE decision from the math
+    # above, sourced from its own CACHE_KEY-independent cache (Diego's
+    # Aug 15 request: the Fair Value formula is being tuned frequently
+    # right now, and every tuning pass bumps CACHE_KEY — that must never
+    # force a real Claude spend to regenerate blurb text that never
+    # changed). A ticker whose math just got recomputed under a new
+    # CACHE_KEY can still reuse its blurb here if earnings haven't moved.
+    to_recompute_blurb = _partition_featured_by_blurb_cache(featured, _latest_reported_earnings_period, cache_get)
+    logger.info(
+        "undervalued_screener_service: %d/%d featured candidates' AI blurb reused from the independent blurb cache, %d recomputed",
+        len(featured) - len(to_recompute_blurb), len(featured), len(to_recompute_blurb),
     )
 
     # Relative/Historical Valuation — deliberately only run here, on the
@@ -617,11 +676,12 @@ async def refresh_undervalued_screener() -> None:
             entry["momentum"] = None
 
     # Cost optimization (see /Users/diegoarria/.claude/plans/cosmic-
-    # munching-crown.md) — blurb generation for `to_recompute` now goes
-    # through the Anthropic Message Batches API (50% cheaper, plus prompt-
-    # caching reads across the batch) instead of a sequential per-call
-    # loop. A batch is NOT synchronous — it can take minutes to hours to
-    # complete — so this function SUBMITS and returns; a separate poll job
+    # munching-crown.md) — blurb generation for `to_recompute_blurb` (the
+    # CACHE_KEY-independent partition, NOT the math one) now goes through
+    # the Anthropic Message Batches API (50% cheaper, plus prompt-caching
+    # reads across the batch) instead of a sequential per-call loop. A
+    # batch is NOT synchronous — it can take minutes to hours to complete
+    # — so this function SUBMITS and returns; a separate poll job
     # (worker.py's job_poll_undervalued_screener_batch, calling
     # `poll_and_finalize_undervalued_screener_batch` below) finalizes the
     # actual CACHE_KEY once the batch is done. Until then, `get_undervalued`
@@ -643,14 +703,14 @@ async def refresh_undervalued_screener() -> None:
             already_pending.get("batch_id"),
         )
         batch_pending = True
-    elif to_recompute:
+    elif to_recompute_blurb:
         from app.services.ai_service import submit_candidate_blurb_batch
         try:
-            batch_id = await submit_candidate_blurb_batch(to_recompute)
+            batch_id = await submit_candidate_blurb_batch(to_recompute_blurb)
             cache_set(_PENDING_BATCH_CACHE_KEY, {"batch_id": batch_id, "all_results": all_results}, _PENDING_BATCH_TTL)
             logger.info(
                 "undervalued_screener_service: submitted blurb batch %s for %d candidates — refresh will finalize once it completes",
-                batch_id, len(to_recompute),
+                batch_id, len(to_recompute_blurb),
             )
             batch_pending = True
         except Exception as exc:
@@ -735,10 +795,12 @@ async def poll_and_finalize_undervalued_screener_batch() -> bool:
     for entry in all_results:
         if not entry.get("featured"):
             continue
+        got_any_result = False
         for lang in _SUPPORTED_LANGS:
             result = results_by_key.get(f"{entry['ticker']}:{lang}")
             if not result:
                 continue  # missing/failed batch item — leave whatever was there (reused or empty), never fabricate
+            got_any_result = True
             entry["blurb_by_lang"][lang] = result.get("blurb")
             entry["business_understanding_by_lang"][lang] = {
                 "key": "business_understanding",
@@ -747,6 +809,17 @@ async def poll_and_finalize_undervalued_screener_batch() -> bool:
                 "reason": result.get("business_understanding_reason", ""),
             }
             entry["checklist_reasons_by_lang"][lang] = result.get("checklist_reasons") or {}
+        if got_any_result:
+            # Independent of CACHE_KEY — see _blurb_cache_key's docstring.
+            # This is what lets a future formula/CACHE_KEY bump reuse this
+            # exact blurb instead of re-paying Claude for text that never
+            # changed.
+            cache_set(_blurb_cache_key(entry["ticker"]), {
+                "_earnings_period": entry.get("_earnings_period"),
+                "blurb_by_lang": entry.get("blurb_by_lang"),
+                "business_understanding_by_lang": entry.get("business_understanding_by_lang"),
+                "checklist_reasons_by_lang": entry.get("checklist_reasons_by_lang"),
+            }, _BLURB_CACHE_TTL)
 
     all_results = _rotate_featured_order(all_results)
     cache_set(CACHE_KEY, all_results, CACHE_TTL)
