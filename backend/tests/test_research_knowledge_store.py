@@ -14,12 +14,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from datetime import datetime, timedelta, timezone
+
 from app.services.research.knowledge_store import (
     save_snapshot,
     get_latest_snapshot,
     get_snapshot_history,
     save_timeline_event,
     get_company_timeline,
+    is_snapshot_fresh,
     _headline_hash,
 )
 
@@ -156,6 +159,37 @@ class TestSaveTimelineEvent:
             mock_run.side_effect = ConnectionError("db down")
             with pytest.raises(ConnectionError):
                 await save_timeline_event("AAPL", "ceo_change", "New CEO named")
+
+
+class TestIsSnapshotFresh:
+    """Aug 15 cost-control fix — Research Engine routes had zero caching,
+    so any repeated request re-paid for real Claude calls. This gate is
+    what lets the route serve a recent snapshot instead."""
+
+    def test_none_snapshot_is_never_fresh(self):
+        assert is_snapshot_fresh(None, max_age_hours=24) is False
+
+    def test_missing_created_at_is_never_fresh(self):
+        assert is_snapshot_fresh({"content": {}}, max_age_hours=24) is False
+
+    def test_fresh_within_window(self):
+        recent = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        assert is_snapshot_fresh({"created_at": recent}, max_age_hours=24) is True
+
+    def test_stale_outside_window(self):
+        old = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+        assert is_snapshot_fresh({"created_at": old}, max_age_hours=24) is False
+
+    def test_right_at_the_boundary_is_stale(self):
+        exactly_at_limit = (datetime.now(timezone.utc) - timedelta(hours=24, seconds=1)).isoformat()
+        assert is_snapshot_fresh({"created_at": exactly_at_limit}, max_age_hours=24) is False
+
+    def test_handles_z_suffix_timestamps(self):
+        recent = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+        assert is_snapshot_fresh({"created_at": recent}, max_age_hours=24) is True
+
+    def test_malformed_timestamp_degrades_to_not_fresh_not_a_crash(self):
+        assert is_snapshot_fresh({"created_at": "not-a-real-timestamp"}, max_age_hours=24) is False
 
 
 class TestGetCompanyTimeline:

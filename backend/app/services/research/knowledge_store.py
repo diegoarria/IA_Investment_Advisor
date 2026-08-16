@@ -72,6 +72,27 @@ async def save_snapshot(
     return res.data[0] if res.data else {}
 
 
+def is_snapshot_fresh(snapshot: Optional[dict], max_age_hours: float) -> bool:
+    """Real cost-control gate (Aug 15 audit — the Research Engine routes had
+    NO caching at all: every GET recomputed 1-5 real Claude calls, with no
+    rate limit or Premium gate either, so any user re-requesting the same
+    company's dossier repeatedly paid for a fresh AI call every single
+    time). True when `snapshot` exists and its `created_at` is within
+    `max_age_hours` of now — the caller should skip the real recompute and
+    serve `snapshot["content"]` directly when this is True."""
+    if not snapshot or not snapshot.get("created_at"):
+        return False
+    try:
+        created = datetime.fromisoformat(snapshot["created_at"].replace("Z", "+00:00"))
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        age_hours = (datetime.now(timezone.utc) - created).total_seconds() / 3600
+        return age_hours < max_age_hours
+    except Exception as exc:
+        logger.warning("is_snapshot_fresh: failed to parse created_at %r: %s", snapshot.get("created_at"), exc)
+        return False
+
+
 async def get_latest_snapshot(ticker: str, section: str) -> Optional[dict]:
     """The most recent snapshot for (ticker, section), or None if this
     company/section has never been researched — the caller (e.g. Business

@@ -27,13 +27,26 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.api.deps import get_current_user_id
+from app.core.limiter import limiter
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/research-engine", tags=["research-engine"])
+
+# Real cost-control fix (Aug 15 audit) — these routes had ZERO caching, no
+# rate limit, and no Premium gate: every GET recomputed 1-5 real Claude
+# calls from scratch, so simply re-requesting the same company (page
+# refresh, a frontend bug re-mounting the component, a scripted loop)
+# paid for fresh AI calls every single time with no ceiling. A company's
+# competitive position/industry/management strategy genuinely doesn't
+# change hour to hour, so a real recompute is only worth paying for once
+# per day per (ticker, section) — the rate limit below is the backstop
+# for genuine abuse within that window.
+_MIN_REFRESH_HOURS = 24
+_RATE_LIMIT = "10/minute"
 
 
 async def _get_fundamental_data_or_404(ticker: str) -> dict:
@@ -46,24 +59,116 @@ async def _get_fundamental_data_or_404(ticker: str) -> dict:
     return data
 
 
+async def _fresh_section_content(ticker: str, section: str) -> dict | None:
+    from app.services.research.knowledge_store import get_latest_snapshot, is_snapshot_fresh
+
+    snapshot = await get_latest_snapshot(ticker, section)
+    if is_snapshot_fresh(snapshot, _MIN_REFRESH_HOURS):
+        return snapshot["content"]
+    return None
+
+
 @router.get("/company/{ticker}/dossier")
-async def get_research_dossier(ticker: str, lang: str = "es", user_id: str = Depends(get_current_user_id)):
+@limiter.limit(_RATE_LIMIT)
+async def get_research_dossier(request: Request, ticker: str, lang: str = "es", user_id: str = Depends(get_current_user_id)):
     """The full Company Research Dossier — Business/Competitive/Industry/
     Management Intelligence + real Quality/Moat/Conviction scores + the
-    current Nuvos thesis draft, all in one call. Expensive (multiple real
-    evidence-gathering + AI calls) — the frontend should prefer the
-    per-section routes below when only one card needs refreshing."""
-    from app.services.research.research_orchestrator import compose_research_dossier
+    current Nuvos thesis draft, all in one call.
 
-    result = await compose_research_dossier(ticker, lang)
-    if not result:
+    Cost control: if ALL FOUR knowledge sections already have a snapshot
+    younger than `_MIN_REFRESH_HOURS`, this assembles the response from
+    those cached snapshots (plus the cheap, non-AI quality/moat/conviction
+    scores, recomputed fresh every time — real math, not cached) instead
+    of calling `compose_research_dossier`, which would otherwise re-pay
+    for 4-5 real Claude calls. The thesis draft itself is NOT cached here
+    (different persistence table, `research_thesis_drafts`, one row per
+    ticker) — it still recomputes on every dossier call, but that's 1 real
+    Claude call instead of 5, and both paths are now rate-limited."""
+    from app.services.fundamental_analysis_service import get_fundamental_analysis
+    from app.services.quality.quality_engine import build_quality_score_from_analysis
+    from app.services.quality.industry_engine import compute_industry_benchmarks
+    from app.services.quality.moat_engine import compute_moat_score
+    from app.services.quality.conviction_engine import compute_conviction_score
+    from app.services.research.knowledge_store import get_latest_snapshot, is_snapshot_fresh
+    from app.services.research.thesis_engine import compute_and_save_thesis_draft
+    from app.services.research.research_orchestrator import compose_research_dossier
+    import asyncio
+
+    business_snap, competitive_snap, industry_snap, management_snap = await asyncio.gather(
+        get_latest_snapshot(ticker, "business_understanding"),
+        get_latest_snapshot(ticker, "competitive"),
+        get_latest_snapshot(ticker, "industry"),
+        get_latest_snapshot(ticker, "management"),
+    )
+    all_fresh = all(
+        is_snapshot_fresh(s, _MIN_REFRESH_HOURS) for s in (business_snap, competitive_snap, industry_snap, management_snap)
+    )
+    if not all_fresh:
+        result = await compose_research_dossier(ticker, lang)
+        if not result:
+            raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para investigar {ticker}")
+        return result
+
+    data = await asyncio.to_thread(get_fundamental_analysis, ticker)
+    if not data or not data.get("dcf"):
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para investigar {ticker}")
-    return result
+
+    company_name = data.get("company_name") or ticker
+    sector = data.get("sector")
+    dcf = data.get("dcf") or {}
+
+    quality_result = build_quality_score_from_analysis(data)
+    quality_score = quality_result.quality_score if quality_result.has_any_signal else None
+    industry_benchmarks = await asyncio.to_thread(compute_industry_benchmarks, ticker, sector, None)
+    growth_buildup = dcf.get("growth_buildup") or {}
+    op_margin_trend = data.get("operating_margin_trend") or []
+    op_margin_valid = [v for v in op_margin_trend if v is not None]
+    avg_operating_margin_pct = round(sum(op_margin_valid) / len(op_margin_valid), 1) if op_margin_valid else None
+    gross_margin_trend = data.get("gross_margin_trend") or []
+    gross_margin_latest_pct = next((v for v in reversed(gross_margin_trend) if v is not None), None)
+    moat_result = compute_moat_score(
+        avg_roic_pct=growth_buildup.get("avg_roic_pct"), roic_trend=data.get("roic_trend") or [],
+        avg_operating_margin_pct=avg_operating_margin_pct, operating_margin_trend=op_margin_trend,
+        gross_margin_latest_pct=gross_margin_latest_pct,
+        industry_median_roic_pct=(industry_benchmarks.median_roic_pct if industry_benchmarks else None),
+        industry_median_operating_margin_pct=(industry_benchmarks.median_operating_margin_pct if industry_benchmarks else None),
+    )
+    moat_score = moat_result.moat_score if moat_result.has_any_signal else None
+    conviction_result = compute_conviction_score(
+        quality_score=quality_score, moat_score=moat_score, stability_score=moat_result.stability_score,
+        beta=(dcf.get("wacc_details") or {}).get("beta"),
+    )
+    conviction_score = conviction_result.conviction_score if conviction_result.has_any_signal else None
+    margin_of_safety_pct = dcf.get("margin_of_safety_pct")
+    fair_value_range = dcf.get("fair_value_range")
+
+    from app.services.safe_call import safe_call
+    thesis_draft = await safe_call(
+        compute_and_save_thesis_draft(
+            ticker, company_name, quality_score, moat_score, conviction_score, margin_of_safety_pct, fair_value_range, lang,
+        ),
+        None, "thesis_draft", context=ticker,
+    )
+
+    return {
+        "ticker": data["ticker"], "company_name": company_name, "sector": sector,
+        "quality_score": quality_score, "moat_score": moat_score, "conviction_score": conviction_score,
+        "business_understanding": business_snap["content"],
+        "competitive_intelligence": competitive_snap["content"],
+        "industry_intelligence": industry_snap["content"],
+        "management_intelligence": management_snap["content"],
+        "thesis_draft": thesis_draft.to_row() if thesis_draft and thesis_draft.has_any_signal else None,
+    }
 
 
 @router.get("/company/{ticker}/business-understanding")
-async def get_business_understanding(ticker: str, lang: str = "es", user_id: str = Depends(get_current_user_id)):
+@limiter.limit(_RATE_LIMIT)
+async def get_business_understanding(request: Request, ticker: str, lang: str = "es", user_id: str = Depends(get_current_user_id)):
     from app.services.research.business_understanding import compute_and_save_business_understanding
+
+    cached = await _fresh_section_content(ticker, "business_understanding")
+    if cached is not None:
+        return cached
 
     data = await _get_fundamental_data_or_404(ticker)
     result = await compute_and_save_business_understanding(
@@ -73,9 +178,14 @@ async def get_business_understanding(ticker: str, lang: str = "es", user_id: str
 
 
 @router.get("/company/{ticker}/competitive-intelligence")
-async def get_competitive_intelligence(ticker: str, lang: str = "es", user_id: str = Depends(get_current_user_id)):
+@limiter.limit(_RATE_LIMIT)
+async def get_competitive_intelligence(request: Request, ticker: str, lang: str = "es", user_id: str = Depends(get_current_user_id)):
     from app.services.research.competitive_intelligence import compute_and_save_competitive_intelligence
     from app.services.quality.quality_engine import build_quality_score_from_analysis
+
+    cached = await _fresh_section_content(ticker, "competitive")
+    if cached is not None:
+        return cached
 
     data = await _get_fundamental_data_or_404(ticker)
     quality_result = build_quality_score_from_analysis(data)
@@ -87,8 +197,13 @@ async def get_competitive_intelligence(ticker: str, lang: str = "es", user_id: s
 
 
 @router.get("/company/{ticker}/industry-intelligence")
-async def get_industry_intelligence(ticker: str, lang: str = "es", user_id: str = Depends(get_current_user_id)):
+@limiter.limit(_RATE_LIMIT)
+async def get_industry_intelligence(request: Request, ticker: str, lang: str = "es", user_id: str = Depends(get_current_user_id)):
     from app.services.research.industry_intelligence import compute_and_save_industry_intelligence
+
+    cached = await _fresh_section_content(ticker, "industry")
+    if cached is not None:
+        return cached
 
     data = await _get_fundamental_data_or_404(ticker)
     result = await compute_and_save_industry_intelligence(ticker, data.get("company_name") or ticker, data.get("sector"), None, lang)
@@ -96,10 +211,15 @@ async def get_industry_intelligence(ticker: str, lang: str = "es", user_id: str 
 
 
 @router.get("/company/{ticker}/management-intelligence")
-async def get_management_intelligence(ticker: str, lang: str = "es", user_id: str = Depends(get_current_user_id)):
+@limiter.limit(_RATE_LIMIT)
+async def get_management_intelligence(request: Request, ticker: str, lang: str = "es", user_id: str = Depends(get_current_user_id)):
     from app.services.research.management_intelligence import compute_and_save_management_intelligence
     from app.services.fundamental_analysis_service import get_fundamental_analysis
     import asyncio
+
+    cached = await _fresh_section_content(ticker, "management")
+    if cached is not None:
+        return cached
 
     # Only the company name is needed here — a lighter fetch than the
     # other section routes, but still real (never guessed).
