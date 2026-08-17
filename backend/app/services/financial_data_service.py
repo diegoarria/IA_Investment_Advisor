@@ -47,7 +47,16 @@ _REQ_HEADERS = {
 
 _TTL_FMP = 86_400       # 24 h  — FMP posts end-of-day updates
 _TTL_YF = 43_200        # 12 h  — yfinance
-_TTL_EMPTY = 3_600      # 1 h   — cache empty results to avoid hammering on bad tickers
+_TTL_EMPTY = 120        # 2 min — cache empty results to avoid hammering on bad tickers.
+# Was 1h — confirmed live (2026-08-17) this was masking real, VALID tickers
+# (JNJ/UBER/AMZN/GOOGL, not typos/delisted symbols) that hit a transient
+# provider failure: the empty result got cached for a full hour, so every
+# retry within that hour silently served the same stale empty response
+# without EVER re-attempting a provider — including retries made specifically
+# to see if a fix had landed, which made this look unfixable when the
+# underlying providers may have already recovered. 2 minutes still protects
+# against hammering a genuinely bad/delisted ticker, but lets a real retry
+# actually retry.
 
 # ─── Thread-safe request deduplication ───────────────────────────────────────
 
