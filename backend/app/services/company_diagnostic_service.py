@@ -399,7 +399,21 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
     # GS/WFC) even when everything else about the diagnostic was real and
     # complete; peHistoricalAvg is optional for the same "genuinely often
     # missing, not a data-quality problem" reason (see its own type comment).
-    if any(valuation[k] is None for k in ("conservative", "baseFairValue", "optimistic", "peCurrent")):
+    #
+    # peCurrent specifically used to be hard-required too, but it's
+    # `data.get("pe_ratio")` — None whenever trailing GAAP EPS is <= 0
+    # (fundamental_analysis_service.py), which is an ordinary state for a
+    # large, normal population of tickers (recent IPOs, names with a
+    # one-off GAAP loss/gain, cyclicals in a down year — UBER hit this
+    # live: real bear/base/bull fair-value scenarios, but a None peCurrent
+    # silently killed the whole card). peForward/peNormalized are real,
+    # EPS-sign-independent alternatives already computed above — accept
+    # any ONE of the three P/E fields rather than requiring peCurrent by
+    # name, same "optional, not gating" treatment evFcf/peHistoricalAvg
+    # already get.
+    if any(valuation[k] is None for k in ("conservative", "baseFairValue", "optimistic")):
+        return None
+    if valuation["peCurrent"] is None and valuation["peForward"] is None and valuation["peNormalized"] is None:
         return None
 
     sector = data.get("sector")

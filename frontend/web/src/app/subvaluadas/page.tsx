@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { Loader2, Lock, Search, X, AlertTriangle, ChevronRight } from "lucide-react";
+import { Loader2, Lock, Search, X, AlertTriangle } from "lucide-react";
 import posthog from "posthog-js";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
@@ -17,32 +17,18 @@ import {
   type ReverseDcfSanityCheckData, type ExpectationsInvestingData,
   type NuvosFairValueData, type RelativeValuationData, type AnalystPriceTargetData,
   type NifMoatData, type NifDeteriorationData,
-  GeneratedAtNote, LiquidityWarning,
+  GeneratedAtNote,
   FollowButton, AnalyzeButton,
-  FairValueScenariosPanel, _SupuestosSection, _ValuationFlowDiagram, _ReverseDcfCard, _SensitivityStars,
-  deriveBaseInputs, _SCENARIO_COLOR,
+  _SCENARIO_COLOR,
 } from "@/components/subvaluadas/shared";
 import { ValuationBacktestPanel } from "@/components/subvaluadas/ValuationBacktestPanel";
-import { FollowAlertPanel } from "@/components/subvaluadas/FollowAlertPanel";
-import { GqvFairValuePanel, type GqvFairValueData } from "@/components/subvaluadas/GqvFairValuePanel";
+import type { GqvFairValueData } from "@/components/subvaluadas/GqvFairValuePanel";
 import { CompanyDiagnosticCard } from "@/components/subvaluadas/CompanyDiagnosticCard";
 import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
-import { FinancialReverseValuationCard, FinancialSensitivityTable } from "@/components/subvaluadas/FinancialEngineExtras";
 import { Card } from "@/components/ui/Card";
-import { SectionHeader } from "@/components/ui/SectionHeader";
-import { projectDriverBasedDcf } from "@/lib/driverBasedDcf";
 import { resolveValuationPanelMode } from "@/lib/valuationPanelMode";
-import dynamic from "next/dynamic";
 import { screenerApi, watchlist } from "@/lib/api";
-import { useSubscriptionStore, useThemeStore, usePersonalizationStore } from "@/lib/store";
-
-// Fase 4, Incremento 13 (Cierre, Parte M) — split into its own chunk so it
-// never risks layout shift on a free user's initial load (isPremium-gated).
-const InvestmentChecklistPanel = dynamic(() => import("@/components/subvaluadas/InvestmentChecklistPanel").then((m) => m.InvestmentChecklistPanel));
-
-// Modelo Completo — interactive DCF builder (see stateful-painting-flurry.md).
-// Only loaded when the user actually opens it, same reasoning as the checklist above.
-const FullModelPanel = dynamic(() => import("@/components/subvaluadas/FullModelPanel").then((m) => m.FullModelPanel));
+import { useSubscriptionStore, useThemeStore } from "@/lib/store";
 
 export interface QuickAnalysisResult {
   ticker: string;
@@ -160,7 +146,6 @@ function SubvaluadasPageInner() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const [fullModelOpen, setFullModelOpen] = useState(false);
 
   // Marks the home checklist's "view 1 opportunity" step done — landing here
   // at all counts, since this screen's whole purpose is showing an opportunity.
@@ -262,8 +247,6 @@ function SubvaluadasPageInner() {
     return () => { cancelled = true; };
   }, [ticker, isPremium, searchTriggered, i18n.language]);
 
-  const { minMarginOfSafetyPct } = usePersonalizationStore();
-
   const handleSearch = () => {
     if (!query.trim()) return;
     setWatchlisted(false);
@@ -275,47 +258,11 @@ function SubvaluadasPageInner() {
   const suggestedR = data?.dcf_assumptions?.suggested_r ?? 9;
   const suggestedGt = data?.dcf_assumptions?.suggested_gt ?? 3;
 
-  const price = data?.price ?? 0;
-
-  // Real DCF inputs for the Base scenario — powers the 3 sections promoted
-  // out of the "Modelo Completo" drawer onto the main scroll ("¿Cómo
-  // llegamos a este valor?", Reverse DCF, Sensibilidad). Always Base, same
-  // consistent default `FairValueScenariosPanel`/`FullModelPanel` open on.
-  // Nuvos Fair Value Engine (Growth + Quality + Value) is PRIMARY whenever
-  // it produced a real, gate-passed result for this ticker; the DCF +
-  // exit-multiple engine (nuvos_fair_value) becomes a secondary cross-check
-  // panel in that case, or stays primary as a fallback when GQV alone
-  // couldn't value this ticker (negative EPS, financial sector, short
-  // history) — same fallback the backend screener already applies. See
-  // /Users/diegoarria/.claude/plans/cosmic-munching-crown.md.
-  const gqvIsPrimary = data?.gqv_fair_value?.status === "ok" && !!data?.gqv_fair_value?.scenarios;
-  // Which valuation panel renders — CompanyDiagnosticCard always first
-  // when available, never falls back to the retired legacy DCF panel
-  // design (see resolveValuationPanelMode's own doc comment for why this
-  // is a pure, separately-tested function rather than inline JSX).
-  const valuationPanelMode = resolveValuationPanelMode(!!companyDiagnostic, gqvIsPrimary, companyDiagnosticLoading);
-  const primaryFairValue = gqvIsPrimary
-    ? data!.gqv_fair_value!.scenarios!.base.fair_value_per_share
-    : data?.nuvos_fair_value?.scenarios.base.fair_value_per_share ?? null;
-
-  const isFinancialSector = !!data?.nuvos_fair_value?.is_financial_sector;
-  const defaultScenario = data?.nuvos_fair_value?.scenarios.base ?? null;
-  // deriveBaseInputs assumes the FCF driver-based `yearly` row shape
-  // (revenue/margin/EBIT/FCF) — a financial-sector scenario's `yearly` rows
-  // are Book Value/ROE/Residual Income instead (same field NAMES reused for
-  // frontend-shape compatibility, see financial_engine.py's module
-  // docstring, but NOT the same meaning), so this must never be run on a
-  // financial-sector scenario — it wouldn't return null, it would silently
-  // extract nonsense ("book value" read as "revenue").
-  const baseInputs = useMemo(
-    () => (defaultScenario && !isFinancialSector ? deriveBaseInputs(defaultScenario) : null),
-    [defaultScenario, isFinancialSector],
-  );
-  const flowResult = useMemo(() => {
-    if (!baseInputs) return null;
-    try { return projectDriverBasedDcf(baseInputs); } catch { return null; }
-  }, [baseInputs]);
-  const flowFv = flowResult?.valuePerShare ?? defaultScenario?.fair_value_per_share ?? null;
+  // Which valuation panel renders — CompanyDiagnosticCard always first when
+  // available; the retired legacy DCF/GQV panel is no longer reachable at
+  // all (Diego, "siempre siempre siempre" — see resolveValuationPanelMode's
+  // own doc comment).
+  const valuationPanelMode = resolveValuationPanelMode(!!companyDiagnostic, companyDiagnosticLoading);
 
   const handleFollow = async () => {
     if (!data || watchlisted) return;
@@ -421,32 +368,25 @@ function SubvaluadasPageInner() {
                     )}
                   </div>
 
-                  {/* CompanyDiagnosticCard — LA tarjeta principal de la
-                      pantalla cuando el diagnóstico real (Premium-only) está
-                      disponible para este ticker; si no (usuario free, sin
-                      datos suficientes, o falla el endpoint), cae al panel
-                      GQV/DCF de siempre — el usuario nunca se queda sin
-                      valoración por culpa de esta tarjeta nueva. */}
+                  {/* CompanyDiagnosticCard — LA ÚNICA tarjeta de valoración
+                      de esta pantalla (Diego, "siempre siempre siempre").
+                      El viejo panel GQV/DCF y todo su detalle en cascada
+                      (FollowAlertPanel legacy, Supuestos, Reverse DCF,
+                      Sensibilidad, Modelo Completo, Checklist) quedaron
+                      retirados por completo — nunca vuelven a ser
+                      alcanzables, ni siquiera como fallback. Cuando el
+                      diagnóstico real no está disponible (Premium-only,
+                      cargando, o datos insuficientes) se muestra un estado
+                      honesto en su lugar, nunca el diseño antiguo. */}
                   {valuationPanelMode === "diagnostic" ? (
                     <CompanyDiagnosticCard data={companyDiagnostic!} />
                   ) : valuationPanelMode === "loading" ? (
-                    // The diagnostic card is still on its way (Premium-only,
-                    // slower separate fetch) — show a real loading state
-                    // instead of flashing the retired gqv panel and then
-                    // swapping it out a moment later.
                     <Card padding="p-10">
                       <div className="flex items-center justify-center">
                         <Loader2 className="w-6 h-6 animate-spin" style={{ color: GOLD }} />
                       </div>
                     </Card>
-                  ) : valuationPanelMode === "gqv" ? (
-                    <GqvFairValuePanel data={data.gqv_fair_value} />
                   ) : (
-                    // Ni el diagnóstico ni el motor GQV pudieron generar un
-                    // valor confiable para este ticker en este momento (datos
-                    // insuficientes o una API externa fallando) — nunca cae
-                    // al panel de diseño antiguo; muestra un aviso honesto en
-                    // su lugar, nunca un número inventado.
                     <Card padding="p-6">
                       <div className="flex items-start gap-3">
                         <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "var(--muted)" }} />
@@ -462,186 +402,13 @@ function SubvaluadasPageInner() {
                     </Card>
                   )}
 
-                  {/* Cuando CompanyDiagnosticCard es el panel principal, es
-                      autocontenido — su propio pilar de Valor ya incluye su
-                      propia "Mi Zona de Compra". Todo el detalle del motor
-                      viejo de abajo (FollowAlertPanel independiente,
-                      Supuestos, Reverse DCF, Sensibilidad, Modelo Completo)
-                      quedaría redundante/confuso debajo de ella, así que se
-                      omite por completo — solo el pie mínimo (Actualizado/
-                      Seguir/Analizar) se muestra, reutilizando exactamente
-                      los mismos componentes que ya usa el flujo viejo. */}
-                  {valuationPanelMode !== "gqv" ? (
-                    // Minimal footer — used both when CompanyDiagnosticCard
-                    // is primary (self-contained, no legacy detail needed
-                    // below it) AND when NEITHER new engine could produce a
-                    // reliable result (the "no disponible" card above
-                    // already said so; the old DCF cascade below — Follow
-                    // Alert anchored to a legacy value, Supuestos, Reverse
-                    // DCF, Sensitivity, Modelo Completo — must not render
-                    // here either, or it would silently contradict that
-                    // message with numbers from the very engine that just
-                    // failed).
-                    <>
-                      <div className="space-y-3 mt-8">
-                        <GeneratedAtNote generatedAt={data.generated_at} />
-                      </div>
-                      <div className="flex gap-2 mt-6">
-                        <FollowButton ticker={data.ticker} watchlisted={watchlisted} onFollow={handleFollow} />
-                        <AnalyzeButton onAnalyze={handleAnalyze} />
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                  {/* "Seguir {ticker}" — zona de compra: crea una alerta de
-                      precio anclada al valor intrínseco Base (no un precio
-                      absoluto arbitrario), con presets de margen de
-                      seguridad. Backend (price_alerts.py) ya existía; esta
-                      es su primera UI real. */}
-                  {primaryFairValue != null && (
-                    <FollowAlertPanel
-                      ticker={data.ticker}
-                      companyName={data.company_name}
-                      price={price}
-                      intrinsicValue={primaryFairValue}
-                      defaultMarginPct={minMarginOfSafetyPct}
-                    />
-                  )}
-
-                  {/* Supuestos — 1 tarjeta, 5 filas (Crecimiento/Márgenes/ROIC/WACC/
-                      Múltiplo), cada una comparando Histórico/Wall Street/Nuvos. */}
-                  {data.nuvos_fair_value && (
-                    <div className="mt-8">
-                      <SectionHeader title={t("subvaluadas.nuvosFairValue.supuestosToggle")} />
-                      <div className="mt-3">
-                        <_SupuestosSection data={data.nuvos_fair_value} />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* DCF + exit-multiple — demovido a verificación cruzada
-                      cuando el motor Growth + Quality + Value es el
-                      principal (ver arriba); sigue siendo el principal en
-                      los tickers donde GQV no pudo generar un resultado
-                      confiable. */}
-                  {gqvIsPrimary && data.nuvos_fair_value && (
-                    <div className="mt-8">
-                      <FairValueScenariosPanel
-                        data={data.nuvos_fair_value}
-                        price={price}
-                        titleOverride={t("subvaluadas.nuvosFairValue.crossCheckTitle")}
-                        subtitleOverride={t("subvaluadas.nuvosFairValue.crossCheckSubtitle")}
-                      />
-                    </div>
-                  )}
-
-                  {/* "¿Cómo llegamos a este valor?" — promovida del drawer "Modelo
-                      Completo" al scroll principal (rediseño visual). */}
-                  {baseInputs && (
-                    <div className="mt-8">
-                      <Card>
-                        <SectionHeader title={t("subvaluadas.fullModel.tabs.template")} />
-                        <div className="mt-3">
-                          <_ValuationFlowDiagram result={flowResult} fv={flowFv} />
-                        </div>
-                      </Card>
-                    </div>
-                  )}
-
-                  {/* Reverse DCF — "no esconder esta sección", una de las funciones
-                      más poderosas. También promovida al scroll principal.
-                      Empresas financieras usan la versión de ROE implícito
-                      en vez de crecimiento de FCF implícito (ver
-                      FinancialEngineExtras.tsx). */}
-                  {baseInputs && (
-                    <div className="mt-8">
-                      <_ReverseDcfCard baseInputs={baseInputs} price={price} />
-                    </div>
-                  )}
-                  {isFinancialSector && data.nuvos_fair_value && (
-                    <div className="mt-8">
-                      <FinancialReverseValuationCard data={data.nuvos_fair_value} />
-                    </div>
-                  )}
-
-                  {/* Sensibilidad — ranking real de qué supuesto mueve más el valor.
-                      Empresas financieras usan la grilla Costo de Equity x
-                      P/B terminal, ya calculada por el backend. */}
-                  {baseInputs && (
-                    <div className="mt-8">
-                      <Card>
-                        <SectionHeader title={t("subvaluadas.fullModel.sensitivity.title")} />
-                        <div className="mt-3">
-                          <_SensitivityStars baseInputs={baseInputs} />
-                        </div>
-                      </Card>
-                    </div>
-                  )}
-                  {isFinancialSector && data.nuvos_fair_value && (
-                    <div className="mt-8">
-                      <FinancialSensitivityTable data={data.nuvos_fair_value} />
-                    </div>
-                  )}
-
-                  {/* Modelo completo — colapsable, para usuarios avanzados: sliders
-                      editables, desglose EV→Equity, contribución DCF/terminal,
-                      puente Mercado vs. Nuvos, calidad de la valuación. */}
-                  {data.nuvos_fair_value && (
-                    <div className="mt-8">
-                      <button
-                        onClick={() => setFullModelOpen(true)}
-                        className="w-full flex items-center justify-between gap-3 rounded-xl px-4 py-3 transition-colors duration-200 hover:opacity-80"
-                        style={{ background: "var(--raised)" }}
-                      >
-                        <div className="text-left">
-                          <p className="text-[12px] font-bold" style={{ color: "var(--text)" }}>{t("subvaluadas.fullModel.openCta")}</p>
-                          <p className="text-[10.5px]" style={{ color: "var(--muted)" }}>{t("subvaluadas.fullModel.subtitle")}</p>
-                        </div>
-                        <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
-                      </button>
-                      {fullModelOpen && (
-                        <FullModelPanel
-                          data={data.nuvos_fair_value}
-                          price={price}
-                          ticker={data.ticker}
-                          companyName={data.company_name}
-                          onClose={() => setFullModelOpen(false)}
-                          yearsAvailable={data.years_available}
-                          beta={data.beta}
-                          moatEngine={data.moat_engine}
-                          deteriorationEngine={data.deterioration_engine}
-                          confidenceMeter={data.confidence_meter}
-                        />
-                      )}
-                    </div>
-                  )}
-
-                  {isPremium && (
-                    <div className="mt-8">
-                      <InvestmentChecklistPanel
-                        ticker={data.ticker}
-                        marginOfSafetyPct={data.margin_of_safety_pct}
-                        minMarginOfSafetyPct={minMarginOfSafetyPct}
-                      />
-                    </div>
-                  )}
-
                   <div className="space-y-3 mt-8">
                     <GeneratedAtNote generatedAt={data.generated_at} />
-                    {data.liquidity_gate && <LiquidityWarning gate={data.liquidity_gate} />}
                   </div>
-
                   <div className="flex gap-2 mt-6">
                     <FollowButton ticker={data.ticker} watchlisted={watchlisted} onFollow={handleFollow} />
                     <AnalyzeButton onAnalyze={handleAnalyze} />
                   </div>
-
-                  <div className="flex items-start gap-2.5 mt-6 p-4 rounded-xl text-xs leading-relaxed" style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--muted)" }}>
-                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                    <span><b style={{ color: "var(--sub)" }}>{t("subvaluadas.detail.disclaimer.bold")}</b> {t("subvaluadas.detail.disclaimer.text")}</span>
-                  </div>
-                    </>
-                  )}
                 </>
               )}
 

@@ -3,47 +3,37 @@ import { resolveValuationPanelMode } from "./valuationPanelMode";
 
 // Regression guard for Diego's explicit "siempre siempre siempre" ask —
 // CompanyDiagnosticCard must always render when available, and the
-// retired legacy DCF panel design must never be reachable through this
-// function's output (only "diagnostic" | "gqv" | "unavailable" exist).
+// retired legacy GQV/DCF panel design must never be reachable through this
+// function's output (only "diagnostic" | "loading" | "unavailable" exist —
+// no "gqv" escape hatch, ever).
 describe("resolveValuationPanelMode", () => {
-  it("prefers CompanyDiagnosticCard whenever it's available, regardless of GQV status", () => {
+  it("prefers CompanyDiagnosticCard whenever it's available", () => {
+    expect(resolveValuationPanelMode(true)).toBe("diagnostic");
     expect(resolveValuationPanelMode(true, true)).toBe("diagnostic");
-    expect(resolveValuationPanelMode(true, false)).toBe("diagnostic");
   });
 
-  it("falls back to the GQV panel only when CompanyDiagnosticCard is unavailable", () => {
-    expect(resolveValuationPanelMode(false, true)).toBe("gqv");
-  });
-
-  it("shows the honest unavailable state when neither engine produced a reliable result", () => {
+  it("shows the honest unavailable state when the diagnostic isn't available and nothing is loading", () => {
+    expect(resolveValuationPanelMode(false)).toBe("unavailable");
     expect(resolveValuationPanelMode(false, false)).toBe("unavailable");
   });
 
-  it("shows a loading state instead of flashing the gqv panel while the diagnostic is still in flight", () => {
-    expect(resolveValuationPanelMode(false, true, true)).toBe("loading");
-    expect(resolveValuationPanelMode(false, false, true)).toBe("loading");
+  it("shows a loading state while the diagnostic is still in flight, instead of ever falling back to a legacy panel", () => {
+    expect(resolveValuationPanelMode(false, true)).toBe("loading");
   });
 
-  it("prefers the diagnostic over loading once it actually arrives, even if the flag is stale", () => {
-    expect(resolveValuationPanelMode(true, true, true)).toBe("diagnostic");
+  it("defaults isDiagnosticLoading to false", () => {
+    expect(resolveValuationPanelMode(false)).toBe("unavailable");
   });
 
-  it("defaults isDiagnosticLoading to false, preserving old callers' behavior", () => {
-    expect(resolveValuationPanelMode(false, true)).toBe("gqv");
-    expect(resolveValuationPanelMode(false, false)).toBe("unavailable");
-  });
-
-  it("never returns anything other than the 4 known modes (no legacy-panel escape hatch)", () => {
+  it("never returns anything other than the 3 known modes (no legacy-panel escape hatch)", () => {
     const allOutcomes = [
+      resolveValuationPanelMode(true),
       resolveValuationPanelMode(true, true),
-      resolveValuationPanelMode(true, false),
       resolveValuationPanelMode(false, true),
       resolveValuationPanelMode(false, false),
-      resolveValuationPanelMode(false, true, true),
-      resolveValuationPanelMode(false, false, true),
     ];
     for (const outcome of allOutcomes) {
-      expect(["diagnostic", "loading", "gqv", "unavailable"]).toContain(outcome);
+      expect(["diagnostic", "loading", "unavailable"]).toContain(outcome);
     }
   });
 });
