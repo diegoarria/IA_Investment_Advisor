@@ -1473,6 +1473,23 @@
       "fcfNormalized": "Normalizado (sin CapEx de crecimiento)",
       "growthCapex": "CapEx de crecimiento estimado este año",
       "wacc": "Tasa de descuento (WACC) usada"
+    },
+    "selfCheckQuiz": {
+      "title": "Ponte a prueba",
+      "subtitle": "Opcional — responde antes de decidir. Tus respuestas se guardan en tu Diario de Decisiones para que las revises cuando quieras.",
+      "optionalBadge": "Opcional",
+      "questions": [
+        "¿Cómo gana dinero?",
+        "¿Cuál es su producto principal?",
+        "¿Cuál es su ventaja competitiva?",
+        "¿Qué impulsa su crecimiento?",
+        "¿Cuál es uno de sus principales riesgos?"
+      ],
+      "placeholder": "Escribe tu respuesta...",
+      "saveButton": "Guardar en mi Diario de Decisiones",
+      "saving": "Guardando...",
+      "saved": "Guardado en tu Diario de Decisiones ✓",
+      "saveError": "No se pudo guardar. Intenta de nuevo."
     }
   },
   "patrimonio": {
@@ -3220,6 +3237,7 @@
   "diarioDecisiones": {
     "headerTitle": "Diario de Sesgos",
     "headerSubtitle": "Registra tus movimientos y descubre tus sesgos",
+    "viewQuizAnswers": "Ver mis respuestas ({{count}})",
     "tabDiary": "Diario",
     "tabBiases": "Análisis de sesgos",
     "noDecisions": "Sin decisiones registradas aún.",

@@ -1473,6 +1473,23 @@
       "fcfNormalized": "Normalized (excluding growth CapEx)",
       "growthCapex": "Estimated growth CapEx this year",
       "wacc": "Discount rate (WACC) used"
+    },
+    "selfCheckQuiz": {
+      "title": "Self-Check",
+      "subtitle": "Optional — answer before you decide. Your answers save to your Decisions Journal so you can revisit them whenever you want.",
+      "optionalBadge": "Optional",
+      "questions": [
+        "How does it make money?",
+        "What's its main product?",
+        "What's its competitive advantage?",
+        "What drives its growth?",
+        "What's one of its main risks?"
+      ],
+      "placeholder": "Write your answer...",
+      "saveButton": "Save to my Decisions Journal",
+      "saving": "Saving...",
+      "saved": "Saved to your Decisions Journal ✓",
+      "saveError": "Couldn't save. Try again."
     }
   },
   "patrimonio": {
@@ -3220,6 +3237,7 @@
   "diarioDecisiones": {
     "headerTitle": "Bias Diary",
     "headerSubtitle": "Log your moves and discover your biases",
+    "viewQuizAnswers": "View my answers ({{count}})",
     "tabDiary": "Diary",
     "tabBiases": "Bias analysis",
     "noDecisions": "No decisions logged yet.",

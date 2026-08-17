@@ -46,6 +46,7 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
 
   const [tab, setTab]               = useState<"diary" | "biases">("diary");
   const [decisions, setDecisions]   = useState<any[]>([]);
+  const [expandedQuiz, setExpandedQuiz] = useState<string | null>(null);
   const [biases, setBiases]         = useState<any>(null);
   const [loadingD, setLoadingD]     = useState(false);
   const [loadingB, setLoadingB]     = useState(false);
@@ -223,6 +224,29 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
                           </Text>
                         )}
                         {d.notes && <Text style={[s.decNotes, { color: colors.textSub }]}>{d.notes}</Text>}
+                        {d.quiz_answers && d.quiz_answers.length > 0 && (
+                          <View style={{ marginTop: 4 }}>
+                            <TouchableOpacity
+                              onPress={() => setExpandedQuiz((cur) => (cur === d.id ? null : d.id ?? null))}
+                              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                            >
+                              <Ionicons name={expandedQuiz === d.id ? "chevron-up" : "chevron-down"} size={11} color={TOOL_COLOR} />
+                              <Text style={{ fontSize: 10, fontWeight: "600", color: TOOL_COLOR }}>
+                                {t("mobileDecisionDiary.viewQuizAnswers", { count: d.quiz_answers.length })}
+                              </Text>
+                            </TouchableOpacity>
+                            {expandedQuiz === d.id && (
+                              <View style={{ marginTop: 6, gap: 6 }}>
+                                {d.quiz_answers.map((qa: { question: string; answer: string }, qi: number) => (
+                                  <View key={qi}>
+                                    <Text style={{ fontSize: 11, fontWeight: "600", color: colors.text }}>{qa.question}</Text>
+                                    <Text style={{ fontSize: 11, color: colors.textSub }}>{qa.answer}</Text>
+                                  </View>
+                                ))}
+                              </View>
+                            )}
+                          </View>
+                        )}
                       </View>
                       <View style={{ alignItems: "flex-end", gap: 6 }}>
                         <Text style={[s.decDate, { color: colors.textDim }]}>

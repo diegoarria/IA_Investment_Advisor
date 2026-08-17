@@ -1,11 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, Loader2, TrendingUp, TrendingDown, CheckCircle, RefreshCw, AlertTriangle, Brain, BookMarked, BarChart2, Target, Trash2, RotateCw } from "lucide-react";
+import { BookOpen, Loader2, TrendingUp, TrendingDown, CheckCircle, RefreshCw, AlertTriangle, Brain, BookMarked, BarChart2, Target, Trash2, RotateCw, ChevronDown, ChevronUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import PremiumToolLocked from "@/components/PremiumToolLocked";
 import { decisionsApi } from "@/lib/api";
+
+interface QuizAnswer {
+  question: string;
+  answer: string;
+}
 
 interface Decision {
   id?: string;
@@ -13,6 +18,7 @@ interface Decision {
   ticker: string;
   trigger?: string;
   notes?: string;
+  quiz_answers?: QuizAnswer[] | null;
   price_at_action?: number;
   created_at?: string;
 }
@@ -94,6 +100,7 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
   const [loadingB, setLoadingB]   = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [clearingAll, setClearingAll] = useState(false);
+  const [expandedQuiz, setExpandedQuiz] = useState<string | null>(null);
 
   const fetchDecisions = async () => {
     setLoadingD(true);
@@ -231,6 +238,28 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
                       )}
                       {d.notes && (
                         <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>{d.notes}</p>
+                      )}
+                      {d.quiz_answers && d.quiz_answers.length > 0 && (
+                        <div className="mt-1.5">
+                          <button
+                            onClick={() => setExpandedQuiz((cur) => (cur === d.id ? null : (d.id ?? null)))}
+                            className="flex items-center gap-1 text-[10px] font-semibold"
+                            style={{ color: "#a78bfa" }}
+                          >
+                            {expandedQuiz === d.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            {t("diarioDecisiones.viewQuizAnswers", { count: d.quiz_answers.length })}
+                          </button>
+                          {expandedQuiz === d.id && (
+                            <div className="mt-1.5 space-y-2">
+                              {d.quiz_answers.map((qa, qi) => (
+                                <div key={qi}>
+                                  <p className="text-[11px] font-semibold" style={{ color: "var(--text)" }}>{qa.question}</p>
+                                  <p className="text-[11px]" style={{ color: "var(--sub)" }}>{qa.answer}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">

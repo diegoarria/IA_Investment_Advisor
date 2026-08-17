@@ -24,6 +24,7 @@ import {
   ChecklistDisplay, ActionButtons, NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
   ReverseDcfPanel, FinalResultPanel, FairValueScenariosPanel,
 } from "../../src/components/subvaluadas/shared";
+import { SelfCheckQuiz } from "../../src/components/subvaluadas/SelfCheckQuiz";
 
 // Gold/teal/coral is this screen's fixed brand identity (Valor Intrínseco),
 // kept constant in both themes — RN has no CSS custom properties, so this
@@ -614,6 +615,8 @@ export default function SubvaluadasScreen() {
               <Text style={{ fontWeight: "700", color: viColors.textSub }}>{t("subvaluadas.detail.disclaimer.bold")}</Text> {t("subvaluadas.detail.disclaimer.text")}
             </Text>
           </View>
+
+          {data && <SelfCheckQuiz ticker={data.ticker} colors={viColors} />}
         </ScrollView>
       )}
 

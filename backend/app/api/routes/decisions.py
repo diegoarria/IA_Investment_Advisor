@@ -34,8 +34,12 @@ async def _log_decision(user_id: str, decision: dict) -> dict:
         "ticker":         decision.get("ticker", ""),
         "price_at_action": decision.get("price_at_action"),
         "portfolio_value_at_action": decision.get("portfolio_value_at_action"),
-        "trigger":        decision.get("trigger", ""),         # manual|alert|mentor|fomo|panic
+        "trigger":        decision.get("trigger", ""),         # manual|alert|mentor|fomo|panic|research
         "notes":          decision.get("notes", ""),
+        # Optional structured Q&A from the Oportunidades self-check quiz —
+        # [{"question": "...", "answer": "..."}, ...]. None for every other
+        # entry type (chat action chips, etc.), which never sets this key.
+        "quiz_answers":   decision.get("quiz_answers"),
         "created_at":     datetime.utcnow().isoformat(),
     }
     result = await run_query(db.table("investment_decisions").insert(row))

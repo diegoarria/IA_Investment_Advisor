@@ -828,6 +828,22 @@
       "title": "THIS IS NOT INVESTMENT ADVICE",
       "subtitle": "For a more detailed analysis, go to Arthur."
     },
+    "selfCheckQuiz": {
+      "title": "Self-Check",
+      "subtitle": "Optional — answer before you decide. Your answers save to your Decisions Journal so you can revisit them whenever you want.",
+      "questions": [
+        "How does it make money?",
+        "What's its main product?",
+        "What's its competitive advantage?",
+        "What drives its growth?",
+        "What's one of its main risks?"
+      ],
+      "placeholder": "Write your answer...",
+      "saveButton": "Save to my Decisions Journal",
+      "saving": "Saving...",
+      "saved": "Saved to your Decisions Journal ✓",
+      "saveError": "Couldn't save. Try again."
+    },
     "search": {
       "label": "Search any stock",
       "placeholder": "Ticker or company name (e.g. AAPL, Nike)",
@@ -3224,6 +3240,7 @@
     "daysHolding": "{{count}} days holding"
   },
   "mobileDecisionDiary": {
+    "viewQuizAnswers": "View my answers ({{count}})",
     "heroTitle": "Bias Diary",
     "heroTagline": "Discover which biases are costing you money",
     "feature1": "Diary of every buy/sell decision",

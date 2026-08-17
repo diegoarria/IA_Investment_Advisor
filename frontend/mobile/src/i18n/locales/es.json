@@ -828,6 +828,22 @@
       "title": "ESTO NO ES RECOMENDACIÓN DE INVERSIÓN",
       "subtitle": "Para un análisis más detallado, ve a Arthur."
     },
+    "selfCheckQuiz": {
+      "title": "Ponte a prueba",
+      "subtitle": "Opcional — responde antes de decidir. Tus respuestas se guardan en tu Diario de Decisiones para que las revises cuando quieras.",
+      "questions": [
+        "¿Cómo gana dinero?",
+        "¿Cuál es su producto principal?",
+        "¿Cuál es su ventaja competitiva?",
+        "¿Qué impulsa su crecimiento?",
+        "¿Cuál es uno de sus principales riesgos?"
+      ],
+      "placeholder": "Escribe tu respuesta...",
+      "saveButton": "Guardar en mi Diario de Decisiones",
+      "saving": "Guardando...",
+      "saved": "Guardado en tu Diario de Decisiones ✓",
+      "saveError": "No se pudo guardar. Intenta de nuevo."
+    },
     "search": {
       "label": "Buscar cualquier acción",
       "placeholder": "Ticker o nombre (ej. AAPL, Nike)",
@@ -3224,6 +3240,7 @@
     "daysHolding": "{{count}} días manteniendo"
   },
   "mobileDecisionDiary": {
+    "viewQuizAnswers": "Ver mis respuestas ({{count}})",
     "heroTitle": "Diario de Sesgos",
     "heroTagline": "Descubre qué sesgos te cuestan dinero",
     "feature1": "Diario de cada decisión de compra/venta",

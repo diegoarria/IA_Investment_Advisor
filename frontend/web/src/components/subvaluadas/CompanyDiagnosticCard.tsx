@@ -24,6 +24,7 @@ import { CompanyDiagnosticQualityPillar } from "@/components/subvaluadas/Company
 import { CompanyDiagnosticTrustPillar } from "@/components/subvaluadas/CompanyDiagnosticTrustPillar";
 import { CompanyDiagnosticValuePillar } from "@/components/subvaluadas/CompanyDiagnosticValuePillar";
 import { CompanyDiagnosticSimplicityPillar } from "@/components/subvaluadas/CompanyDiagnosticSimplicityPillar";
+import { CompanyDiagnosticSelfCheckQuiz } from "@/components/subvaluadas/CompanyDiagnosticSelfCheckQuiz";
 import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
 // Bolds every dollar-amount ("$2.8 mil millones", "$3,400M") and percentage
@@ -211,6 +212,10 @@ export function CompanyDiagnosticCard({ data }: { data: CompanyDiagnosticData })
           ))}
         </div>
       </Card>
+
+      {/* Self-Check — hasta abajo del todo, después de la guía de
+          metodología y antes del disclaimer legal (Diego). */}
+      <CompanyDiagnosticSelfCheckQuiz ticker={data.ticker} />
 
       {/* Disclaimer — donde termina esta tarjeta. El pie (Actualizado hoy /
           Seguir / Analizar con Arthur) lo agrega el caller, no este
