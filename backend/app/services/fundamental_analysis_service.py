@@ -739,6 +739,10 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     cashflow = fin.get("cashFlow", {}).get("annual", [])
     n = min(len(income), len(balance), len(cashflow))
     if n < _MIN_YEARS:
+        logger.warning(
+            "get_fundamental_analysis(%s): only %d years of statements (need %d) — income=%d balance=%d cashflow=%d",
+            ticker, n, _MIN_YEARS, len(income), len(balance), len(cashflow),
+        )
         return None
 
     income, balance, cashflow = income[-n:], balance[-n:], cashflow[-n:]

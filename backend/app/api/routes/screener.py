@@ -1849,9 +1849,19 @@ async def company_diagnostic(query: str, lang: str | None = None, user_id: str =
 
     data = await asyncio.to_thread(get_fundamental_analysis, ticker)
     if not data:
+        logger.warning("company_diagnostic(%s): get_fundamental_analysis returned falsy", ticker)
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para diagnosticar {ticker}")
 
-    diagnostic = await asyncio.to_thread(build_company_diagnostic, ticker, data, lang)
+    # Wrapped so an unexpected exception here (a real code bug hitting some
+    # ticker-specific data shape, not one of build_company_diagnostic's own
+    # deliberate None-return gates, which already log their own reason) logs
+    # loudly with a traceback instead of surfacing as an opaque, unlabeled
+    # 500 indistinguishable from every other failure on this endpoint.
+    try:
+        diagnostic = await asyncio.to_thread(build_company_diagnostic, ticker, data, lang)
+    except Exception:
+        logger.exception("company_diagnostic(%s): build_company_diagnostic raised", ticker)
+        raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para diagnosticar {ticker}")
     if not diagnostic:
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para diagnosticar {ticker}")
 

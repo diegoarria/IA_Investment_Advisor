@@ -328,16 +328,34 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
     narrative()`. Returns None (never a fabricated partial card) when the
     underlying data can't support a real diagnosis (no fair value
     scenarios, missing pillar inputs, etc.)."""
+    # Every early return below logs WHY before bailing — this endpoint's
+    # only failure signal used to be a generic 404 ("no hay suficientes
+    # datos"), identical whether the real cause was missing DCF, no GQV/
+    # legacy scenarios, a missing pillar score, or the P/E gate below.
+    # Confirmed live (2026-08) that some tickers users report failing
+    # (e.g. HD) build fine when tested directly with fresh data — these
+    # logs are what makes a future report like that actually diagnosable
+    # from Railway logs instead of needing a local repro every time.
     dcf = data.get("dcf")
     if not dcf:
+        logger.warning("company_diagnostic(%s): no dcf on fundamental_analysis result", ticker)
         return None
 
     scenarios = _primary_scenarios(dcf)
     if not scenarios or scenarios.get("current_price") is None:
+        logger.warning(
+            "company_diagnostic(%s): no primary scenarios (gqv_status=%s, legacy_dcf_present=%s)",
+            ticker, (dcf.get("gqv_fair_value") or {}).get("status"), bool(dcf.get("scenarios")),
+        )
         return None
 
     pillar_scores = _pillar_scores(data, scenarios)
     if not pillar_scores:
+        logger.warning(
+            "company_diagnostic(%s): no pillar scores (quality=%s, trust=%s, mos=%s)",
+            ticker, data.get("business_quality_score"), data.get("financial_strength_score"),
+            scenarios.get("margin_of_safety_pct"),
+        )
         return None
 
     overall_score = round(sum(pillar_scores.values()) / 4)
@@ -412,8 +430,13 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
     # name, same "optional, not gating" treatment evFcf/peHistoricalAvg
     # already get.
     if any(valuation[k] is None for k in ("conservative", "baseFairValue", "optimistic")):
+        logger.warning(
+            "company_diagnostic(%s): missing scenario value (conservative=%s, base=%s, optimistic=%s)",
+            ticker, valuation["conservative"], valuation["baseFairValue"], valuation["optimistic"],
+        )
         return None
     if valuation["peCurrent"] is None and valuation["peForward"] is None and valuation["peNormalized"] is None:
+        logger.warning("company_diagnostic(%s): all 3 P/E fields are None (peCurrent/peForward/peNormalized)", ticker)
         return None
 
     sector = data.get("sector")
