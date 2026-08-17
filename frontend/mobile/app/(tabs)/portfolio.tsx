@@ -698,19 +698,17 @@ function fmtChartDate(s: string, full = false) {
   } catch { return s.slice(5, 10); }
 }
 
-function smoothBezierMobile(pts: { x: number; y: number }[], t = 0.3): string {
+// Was a Catmull-Rom-style bezier spline through every point — same fix as
+// the web chart's straightLine(): the underlying data is already real
+// per-day closing prices, and smoothing a curve through them rounded off
+// the real day-to-day zigzag into gentle, artificial-looking arcs (Diego:
+// "se ve muy lisa, quiero que se vea más irregular como Robinhood").
+// Robinhood's own chart is a plain point-to-point polyline, no spline.
+function straightLineMobile(pts: { x: number; y: number }[]): string {
   if (pts.length < 2) return "";
   let d = `M ${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[Math.max(0, i - 1)];
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
-    const p3 = pts[Math.min(pts.length - 1, i + 2)];
-    const cp1x = p1.x + (p2.x - p0.x) * t;
-    const cp1y = p1.y + (p2.y - p0.y) * t;
-    const cp2x = p2.x - (p3.x - p1.x) * t;
-    const cp2y = p2.y - (p3.y - p1.y) * t;
-    d += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) {
+    d += ` L ${pts[i].x.toFixed(1)},${pts[i].y.toFixed(1)}`;
   }
   return d;
 }
@@ -777,7 +775,7 @@ function PortfolioHistoryChart({
   if (history.length < 2) return null;
 
   const pts   = history.map((h, i) => ({ x: toX(i), y: toY(h.value) }));
-  const lineD = smoothBezierMobile(pts);
+  const lineD = straightLineMobile(pts);
   const lx    = toX(history.length - 1);
   const ly    = toY(endV);
   const by    = PT + cH;
