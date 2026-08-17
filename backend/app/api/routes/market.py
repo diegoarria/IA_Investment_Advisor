@@ -1151,6 +1151,35 @@ class _PortfolioReturnsRequest(_BaseModel):
     inception_date: _Opt[str] = None
 
 
+def _phased_bench_value(
+    lots: list[tuple[float, "_pd.Timestamp"]], bench: str, close: "_pd.DataFrame", bench_current: float,
+) -> "_Opt[float]":
+    """The S&P 500 comparison used to price the WHOLE current cost basis as
+    if it had been a single lump sum invested on day one — wrong for a
+    real portfolio built via separate contributions over time (Diego,
+    2026-08-18: "yo no invertí $1865.98 desde el día 1, fui haciendo
+    distintos aportes"). This buys the equivalent DOLLAR AMOUNT of `bench`
+    on each lot's own effective date instead — a real dollar-cost-averaged
+    benchmark, phased exactly like the portfolio side already is. Returns
+    None (never a fabricated number) when no lot could be priced against
+    the benchmark at all."""
+    if bench not in close.columns or bench_current <= 0:
+        return None
+    total_bench_shares = 0.0
+    any_priced = False
+    for cost, eff_date in lots:
+        if cost <= 0:
+            continue
+        subset = close[close.index >= eff_date]
+        if subset.empty:
+            continue
+        bench_price = _safe_price(subset.iloc[0], bench)
+        if bench_price and bench_price > 0:
+            total_bench_shares += cost / bench_price
+            any_priced = True
+    return total_bench_shares * bench_current if any_priced else None
+
+
 def _infer_purchase_date(ticker: str, avg_price: float, close_df: "_pd.DataFrame") -> "_Opt[str]":
     """Find the most recent date where closing price was within 5% of avg_price."""
     if ticker not in close_df.columns or avg_price <= 0:
@@ -1535,6 +1564,7 @@ def _compute_portfolio_returns(
             cost_by_ticker: dict[str, float] = {}
             gain_by_ticker: dict[str, float] = {}
             oldest_date_str: _Opt[str] = None
+            bench_lots: list[tuple[float, "_pd.Timestamp"]] = []
 
             for i, p in enumerate(positions):
                 t = p.ticker.upper()
@@ -1556,8 +1586,17 @@ def _compute_portfolio_returns(
                     total_gain += gain
                     cost_by_ticker[t] = cost_by_ticker.get(t, 0.0) + cost
                     gain_by_ticker[t] = gain_by_ticker.get(t, 0.0) + gain
+                    bench_lots.append((cost, cutoff))
                     if oldest_date_str is None or pd_str < oldest_date_str:
                         oldest_date_str = pd_str
+
+            # Realized lots (already sold) contribute to the phased benchmark
+            # too, using their own real purchase date when known — a closed
+            # position's original contribution was still made on its own
+            # date, not lumped into day one either.
+            for c in closed_positions:
+                if c.purchase_date and c.shares and c.avg_price:
+                    bench_lots.append((c.shares * c.avg_price, _pd.Timestamp(c.purchase_date)))
 
             breakdown = {
                 t: round(gain_by_ticker[t] / cost_by_ticker[t] * 100, 2)
@@ -1573,16 +1612,13 @@ def _compute_portfolio_returns(
             # The displayed anchor date is the frozen inception date the client
             # sends (set once, the first position ever added) — not whichever
             # currently-held position happens to be oldest, which would shift
-            # every time an older position is edited or sold.
+            # every time an older position is edited or sold. Still used as
+            # the display label; no longer as a lump-sum benchmark anchor.
             benchmark_date = inception_date or oldest_date_str
-            spy_start_buy = 0.0
-            if benchmark_date and _BENCH in close.columns:
-                bench_subset = close[close.index >= _pd.Timestamp(benchmark_date)]
-                if not bench_subset.empty:
-                    spy_start_buy = _safe_price(bench_subset.iloc[0], _BENCH)
 
             if total_cost > 0:
-                spy_pct_buy = round((spy_current - spy_start_buy) / spy_start_buy * 100, 2) if spy_start_buy > 0 else None
+                spy_equiv_value = _phased_bench_value(bench_lots, _BENCH, close, spy_current)
+                spy_pct_buy = round((spy_equiv_value - total_cost) / total_cost * 100, 2) if spy_equiv_value is not None else None
                 avg_pct = round(sum(breakdown.values()) / len(breakdown), 2) if breakdown else None
                 results["since_purchase"] = {
                     "pct": round(total_gain / total_cost * 100, 2),
@@ -1618,6 +1654,7 @@ def _compute_portfolio_returns(
             end_value  = 0.0
             cost_by_ticker: dict[str, float] = {}
             value_by_ticker: dict[str, float] = {}
+            bench_lots: list[tuple[float, "_pd.Timestamp"]] = []
             for i, p in enumerate(positions):
                 t = p.ticker.upper()
                 if t not in close.columns and t not in rt_prices:
@@ -1625,9 +1662,11 @@ def _compute_portfolio_returns(
                 shares = p.shares
                 cp = _cp(t)
                 pd_str = lot_purchase_date[i]
+                eff_date = cutoff
                 if not short_period and pd_str and _pd.Timestamp(pd_str) > cutoff:
                     # Bought mid-period (only for periods > 5D): cost is what we actually paid
-                    mid_subset = close[close.index >= _pd.Timestamp(pd_str)] if not close.empty else _pd.DataFrame()
+                    eff_date = _pd.Timestamp(pd_str)
+                    mid_subset = close[close.index >= eff_date] if not close.empty else _pd.DataFrame()
                     sp = (p.avg_price if p.avg_price and p.avg_price > 0 else None) \
                         or (_safe_price(mid_subset.iloc[0], t) if not mid_subset.empty else 0.0)
                 else:
@@ -1640,6 +1679,7 @@ def _compute_portfolio_returns(
                     end_value  += value
                     cost_by_ticker[t]  = cost_by_ticker.get(t, 0.0) + cost
                     value_by_ticker[t] = value_by_ticker.get(t, 0.0) + value
+                    bench_lots.append((cost, eff_date))
 
             if start_cost <= 0:
                 continue
@@ -1649,12 +1689,15 @@ def _compute_portfolio_returns(
                 for t in cost_by_ticker if cost_by_ticker[t] > 0
             }
 
-            # S&P 500 benchmark (always from period start, independent of positions)
+            # S&P 500 benchmark — phased per-lot at each lot's own effective
+            # date (period start, or its real purchase date if bought
+            # mid-period), matching how start_cost itself is phased above.
+            # Was a single lump-sum comparison from period start regardless
+            # of when each position was actually bought.
             spy_pct = None
-            if spy_current > 0 and _BENCH in close.columns:
-                spy_start = _safe_price(start_row, _BENCH)
-                if spy_start > 0:
-                    spy_pct = round((spy_current - spy_start) / spy_start * 100, 2)
+            spy_equiv = _phased_bench_value(bench_lots, _BENCH, close, spy_current)
+            if spy_equiv is not None:
+                spy_pct = round((spy_equiv - start_cost) / start_cost * 100, 2)
 
             results[key] = {
                 "pct":    round((end_value - start_cost) / start_cost * 100, 2),
