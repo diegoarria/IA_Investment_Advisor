@@ -305,7 +305,15 @@
   },
   "morningBrief": {
     "read": "Leído",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "title": "Morning Brief",
+    "portfolioLabel": "Tu portafolio",
+    "topMoverLabel": "Lo más importante para tu portafolio",
+    "impactLabel": "de impacto",
+    "newsLabel": "Noticias de tus empresas",
+    "watchTodayLabel": "Hoy vigila",
+    "seeFullPortfolio": "Ver mi portafolio completo",
+    "empty": "Todavía no hay Morning Brief disponible hoy."
   },
   "explainButton": {
     "cta": "Explícame esto",

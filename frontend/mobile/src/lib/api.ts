@@ -490,6 +490,10 @@ export const weeklyRitualsApi = {
   getPortfolioReview: () => api.get("/api/weekly-rituals/portfolio-review"),
 };
 
+export const morningBriefFullApi = {
+  get: () => api.get("/api/morning-brief"),
+};
+
 export const voiceCallsApi = {
   list: () => api.get("/api/voice/calls"),
   get: (id: string) => api.get(`/api/voice/calls/${id}`),

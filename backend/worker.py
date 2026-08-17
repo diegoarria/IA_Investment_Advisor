@@ -4176,6 +4176,82 @@ async def job_sunday_portfolio_review():
         logger.error("job_sunday_portfolio_review failed: %s", e)
 
 
+async def job_morning_brief():
+    """9:15 AM ET weekdays — Diego's "Morning Brief" (Aug 16): portfolio
+    value + day change + S&P, today's top-impact position, real news for
+    held tickers, and today's real calendar events with impact level —
+    Premium only (reuses push_portfolio_alerts, same toggle Sunday
+    Portfolio Review uses, so no new preference column/migration).
+
+    Deliberately zero Claude calls end to end — see
+    morning_brief_service.py's module docstring. Push body stays short
+    (title + 1-line $ summary); the full breakdown lives in the flashcard
+    the push deep-links to."""
+    if not _is_market_open_today():
+        logger.info("job_morning_brief: market closed today — skipping")
+        return
+
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from app.services.morning_brief_service import build_morning_brief
+    from app.core.subscription import is_premium_active
+
+    db = get_supabase()
+    try:
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,push_portfolio_alerts")
+        )
+        eligible = {p["user_id"] for p in (prefs_res.data or []) if p.get("push_portfolio_alerts", True)}
+        if not eligible:
+            return
+
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,subscription_tier,trial_started_at,streak_bonus_premium_until,preferred_language")
+            .in_("user_id", list(eligible))
+        )
+        sent = 0
+        for prof in (prof_res.data or []):
+            uid = prof["user_id"]
+            if not is_premium_active(prof.get("subscription_tier"), prof.get("trial_started_at"), prof.get("streak_bonus_premium_until")):
+                continue
+            is_en = (prof.get("preferred_language") or "es") == "en"
+            try:
+                brief = await build_morning_brief(uid, lang="en" if is_en else "es")
+                if brief is None:
+                    continue
+
+                change_usd = brief.get("change_usd")
+                change_pct = brief.get("change_pct")
+                if change_usd is not None and change_pct is not None:
+                    sign = "+" if change_usd >= 0 else ""
+                    body = (
+                        f"${brief['portfolio_value']:,.0f} ({sign}${change_usd:,.0f}, {sign}{change_pct:.1f}%)"
+                    )
+                else:
+                    body = f"${brief['portfolio_value']:,.0f}"
+
+                await send_push(
+                    uid, "morning_brief",
+                    "🧠 Morning Brief" if is_en else "🧠 Morning Brief",
+                    body,
+                    # Deliberately minimal — the flashcard recomputes the full
+                    # brief live (free, no AI) when opened; cramming the full
+                    # news/events payload in here risks APNs/FCM/web-push's
+                    # ~4KB data-payload limit.
+                    {"screen": "morning-brief"},
+                    db,
+                )
+                sent += 1
+                await asyncio.sleep(random.uniform(0.05, 0.2))
+            except Exception as e:
+                logger.warning("job_morning_brief failed for %s: %s", uid, e)
+
+        logger.info("Morning Brief: %d sent", sent)
+    except Exception as e:
+        logger.error("job_morning_brief failed: %s", e)
+
+
 _BENCHMARK_MIN_SAMPLE = 5  # never store/serve a cohort distribution smaller than this — privacy floor
 
 
@@ -4757,6 +4833,7 @@ async def main():
     scheduler.add_job(job_events_alerts,        "cron", day_of_week="mon-fri", hour=8,       minute=0,     timezone="America/New_York")
     scheduler.add_job(job_dividend_income,      "cron", hour=9,       minute=0,     timezone="America/New_York")
     scheduler.add_job(job_earnings_bmo,         "cron", day_of_week="mon-fri", hour=9,       minute=15,    timezone="America/New_York")
+    scheduler.add_job(job_morning_brief,        "cron", day_of_week="mon-fri", hour=9,       minute=15,    timezone="America/New_York")
     scheduler.add_job(job_market_open,          "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")
     scheduler.add_job(job_holiday_midday,       "cron", day_of_week="mon-fri", hour=12,      minute=0,     timezone="America/New_York")
     # Market opens 9:30 ET — first two runs (9:30, 9:35) get their own cron

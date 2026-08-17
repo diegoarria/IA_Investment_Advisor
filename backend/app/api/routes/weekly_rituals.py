@@ -9,13 +9,19 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_current_user_id
-from app.api.routes.market import _get_user_profile
 
 router = APIRouter(prefix="/weekly-rituals", tags=["weekly_rituals"])
 
 
 async def _profile_lang_and_tier(user_id: str) -> tuple[str, bool]:
-    from app.api.routes.chat import _is_premium
+    # Real production bug (found Aug 16 while building the Morning Brief
+    # route): this used to import market.py's `_get_user_profile`, which
+    # is a SYNC function — `await`-ing its result raised
+    # "TypeError: object UserProfile can't be used in 'await' expression"
+    # on every single call since this feature shipped, 500-ing both
+    # /weekly-rituals/question and /weekly-rituals/sunday-prep
+    # unconditionally. chat.py's version is the real async one.
+    from app.api.routes.chat import _is_premium, _get_user_profile
 
     profile = await _get_user_profile(user_id)
     lang = getattr(profile, "preferred_language", None) or "es"

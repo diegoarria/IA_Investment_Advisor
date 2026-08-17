@@ -157,6 +157,12 @@ function AppStack() {
         // Nuvos Weekly Rituals — daily question, Sunday prep, Saturday
         // reflection (see backend/app/services/weekly_rituals_service.py).
         router.navigate(`/${data.screen}` as any);
+      } else if (data.screen === "morning-brief") {
+        // Morning Brief (Diego's Aug 16 spec) — Mon-Fri 9:15am ET push,
+        // see backend/app/services/morning_brief_service.py. Distinct
+        // from the dismissible home-screen teaser card (same feature
+        // name, different, richer full-screen flashcard).
+        router.navigate("/morning-brief");
       }
     });
     return () => sub.remove();
@@ -226,6 +232,7 @@ function AppStack() {
       <Stack.Screen name="stock/[ticker]" options={{ headerShown: false }} />
       <Stack.Screen name="earnings" options={{ headerShown: false }} />
       <Stack.Screen name="subvaluadas" options={{ headerShown: false }} />
+      <Stack.Screen name="morning-brief" options={{ headerShown: false }} />
       <Stack.Screen
         name="profile/edit"
         options={{

@@ -422,6 +422,14 @@ export const weeklyRitualsApi = {
   getPortfolioReview: () => api.get("/api/weekly-rituals/portfolio-review"),
 };
 
+// Distinct from `notifications.getMorningBrief` (the dismissible home-
+// screen teaser card, /api/notifications/morning-brief) — this is
+// Diego's richer Aug 16 spec: portfolio+S&P, top mover, news, today's
+// events, reached via its own 9:15am ET push + full flashcard screen.
+export const morningBriefFullApi = {
+  get: () => api.get("/api/morning-brief"),
+};
+
 export const feedbackApi = {
   status: () => api.get("/api/feedback/status"),
   seen:   () => api.post("/api/feedback/seen"),
