@@ -351,7 +351,13 @@ export default function SubvaluadasScreen() {
     if (!query.trim()) return;
     setWatchlisted(false);
     setSearchTriggered(true);
-    setTicker(query.trim().toUpperCase());
+    // Was `.toUpperCase()` — silently broke every company-name search, same
+    // bug as the web version (see its own comment). The backend only
+    // trusts a query as a literal ticker when it arrives already in caps,
+    // to tell "AAPL" apart from "Apple" — forcing uppercase here made every
+    // name search look like a deliberate ticker and skip the real name
+    // lookup. Send exactly what the user typed.
+    setTicker(query.trim());
   };
 
   const hasData = data?.current_fcf != null && data?.net_cash != null && data?.shares_outstanding != null && data?.price != null;

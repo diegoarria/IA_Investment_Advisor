@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import random
+import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -890,9 +891,64 @@ async def _get_user_profile_safe(user_id: str):
             await asyncio.sleep(0.3)
 
 
+_NAME_STOPWORDS_RE = re.compile(r"\b(inc|incorporated|corp|corporation|co|company|the|ltd|plc|group|holdings?|class [a-z])\b")
+
+
+def _normalize_company_name(s: str) -> str:
+    s = s.lower().replace("&", " and ")
+    s = re.sub(r"\([^)]*\)", " ", s)  # "Coca-Cola Company (The)" -> drop "(The)"
+    s = re.sub(r"[.,'’-]", " ", s)    # hyphen -> space so "Coca-Cola" matches "coca cola"
+    s = _NAME_STOPWORDS_RE.sub(" ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _match_universe(query: str) -> str | None:
+    """Tries the curated UNIVERSE list (real, well-known US tickers this app
+    already screens — see UNIVERSE above) BEFORE ever hitting an external
+    search provider. Confirmed live (2026-08-18) that Finnhub/Yahoo's global
+    symbol search happily returns a same-named but wrong-exchange/wrong-
+    company ticker for extremely common searches — "nike" -> NIKE.WA
+    (Warsaw), "visa" -> VISA.TO (Toronto), "ford" -> FORD.VI (Vienna),
+    "coca cola" -> EMBONOR-B.SN (a Chilean bottler) — all real tickers, all
+    NOT what a user typing a plain company name into a US-stock screener
+    means. Matching the curated list first makes the ~550 tickers this app
+    is actually built around resolve correctly and consistently every time,
+    no matter how the external search providers are behaving that day;
+    anything outside that list still falls through to the existing
+    Finnhub/Yahoo chain below exactly as before."""
+    q_upper = query.strip().upper()
+    for entry in UNIVERSE:
+        if entry["ticker"].upper() == q_upper:
+            return entry["ticker"]
+
+    q_norm = _normalize_company_name(query)
+    if not q_norm:
+        return None
+    best_ticker, best_score = None, 0
+    for entry in UNIVERSE:
+        name_norm = _normalize_company_name(entry["name"])
+        if not name_norm:
+            continue
+        if name_norm == q_norm:
+            score = 100
+        elif name_norm.startswith(q_norm + " ") or q_norm.startswith(name_norm + " "):
+            score = 90
+        elif re.search(rf"\b{re.escape(q_norm)}\b", name_norm):
+            score = 60
+        else:
+            continue
+        if score > best_score:
+            best_ticker, best_score = entry["ticker"], score
+    return best_ticker
+
+
 def _resolve_quick_ticker(query: str) -> str | None:
     """Resolves free-text (a ticker or a company name) to a real ticker
     symbol for the quick-analysis search below."""
+    universe_match = _match_universe(query)
+    if universe_match:
+        return universe_match
+
     stripped = query.strip()
     candidate = stripped.upper()
     looks_like_ticker = candidate.replace(".", "").replace("-", "").isalpha() and 1 <= len(candidate) <= 6

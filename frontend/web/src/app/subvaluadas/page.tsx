@@ -268,7 +268,17 @@ function SubvaluadasPageInner() {
     if (!query.trim()) return;
     setWatchlisted(false);
     setSearchTriggered(true);
-    setTicker(query.trim().toUpperCase());
+    // Was `.toUpperCase()` — silently broke every company-name search.
+    // The backend's `_resolve_quick_ticker` deliberately trusts a query as
+    // a literal ticker ONLY when the user typed it already in caps
+    // (`stripped == candidate`, see its own doc comment) — that's exactly
+    // how it tells "AAPL" (a deliberate ticker) apart from "Apple" (a name
+    // that needs a real Finnhub/Yahoo name search). Forcing every query to
+    // uppercase here made "apple"/"Apple" arrive as "APPLE", which trivially
+    // satisfies that same-case check and short-circuits straight past the
+    // name search — so a plain company name failed unless it happened to
+    // already equal its own ticker. Send exactly what the user typed.
+    setTicker(query.trim());
   };
 
   const suggestedG = data?.dcf_assumptions?.suggested_g ?? 7;
