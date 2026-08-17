@@ -47,12 +47,13 @@ async function writeExplainCache(key: string, text: string, audio: string | null
 export default function ExplainButton({
   screen,
   context,
-  bottomOffset = 24,
+  bottomOffset = 12,
 }: {
   screen: string;
   context: Record<string, unknown>;
   // Distance from the screen's bottom edge — tab screens need extra room to
   // clear the bottom tab bar; stack screens (no tab bar) can sit lower.
+  // Was 24 — Diego wanted the button lower on all 4 screens it appears on.
   bottomOffset?: number;
 }) {
   const { t, i18n } = useTranslation();
