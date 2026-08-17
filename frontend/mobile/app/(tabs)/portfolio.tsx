@@ -1150,6 +1150,23 @@ export default function PortfolioScreen() {
   const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
   const [loadingReturns, setLoadingReturns] = useState(false);
 
+  // Matches web's getPeriodGainLoss (frontend/web/src/app/portfolio/page.tsx)
+  // — was missing here entirely, so every position row always showed its
+  // since-purchase return no matter which period tab (1D/5D/1M/...) was
+  // selected. periodReturns[period].breakdown already carries each
+  // ticker's real return for that period; this just wires it to the row.
+  const getPeriodGainLoss = useCallback((ticker: string, currentVal: number | null, investedVal: number | null) => {
+    const bd = selectedPeriod !== "since_purchase" ? periodReturns[selectedPeriod]?.breakdown?.[ticker] : undefined;
+    if (bd != null && currentVal != null) {
+      const startVal = currentVal / (1 + bd / 100);
+      return { pct: bd, diff: currentVal - startVal };
+    }
+    if (currentVal != null && investedVal != null && investedVal > 0) {
+      return { pct: ((currentVal - investedVal) / investedVal) * 100, diff: currentVal - investedVal };
+    }
+    return { pct: null as number | null, diff: null as number | null };
+  }, [selectedPeriod, periodReturns]);
+
   // Chart state
   type ChartData = { history: ChartPoint[]; period_pct: number; period_amount: number };
   const [chartData, setChartData] = useState<ChartData | null>(null);
@@ -2960,8 +2977,7 @@ export default function PortfolioScreen() {
                   const hasCost = pos.avgPrice > 0;
                   const currentVal = cp ? pos.totalShares * cp : null;
                   const investedVal = hasCost ? pos.totalShares * pos.avgPrice * fxRate : null;
-                  const diff = currentVal !== null && investedVal !== null ? currentVal - investedVal : null;
-                  const pct = diff !== null && investedVal! > 0 ? (diff / investedVal!) * 100 : null;
+                  const { pct, diff } = getPeriodGainLoss(pos.ticker, currentVal, investedVal);
                   const isUp = diff !== null ? diff >= 0 : null;
                   const gainColor = isUp === true ? "#00d47e" : isUp === false ? "#ff5c5c" : colors.textMuted;
                   const sharesLabel = `${pos.totalShares % 1 === 0 ? pos.totalShares : pos.totalShares.toFixed(3)} ${t("portfolio.preview.sharesAbbrev")}`;
