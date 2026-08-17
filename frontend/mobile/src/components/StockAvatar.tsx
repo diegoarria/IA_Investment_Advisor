@@ -26,8 +26,13 @@ export default function StockAvatar({ ticker, logoUrl, size = 40 }: Props) {
       <View style={[s.imgWrap, { width: size, height: size, borderRadius: radius }]}>
         <Image
           source={{ uri: activeSrc }}
-          style={[s.img, { width: size - 8, height: size - 8 }]}
-          resizeMode="contain"
+          // Was `size - 8` with resizeMode "contain" — logos whose own
+          // artwork doesn't reach its image bounds (MU, CAT, ...) left the
+          // dark container background visible in the circle's corners.
+          // Filling the full circle with "cover" crops slightly instead of
+          // letterboxing, matching how ASML/GEV/META et al already looked.
+          style={[s.img, { width: size, height: size, borderRadius: radius }]}
+          resizeMode="cover"
           onError={() => setFailedCount((c) => c + 1)}
         />
       </View>
