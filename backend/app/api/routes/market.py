@@ -1542,16 +1542,32 @@ def _compute_portfolio_returns(
     # All cutoffs use timezone-naive today (index is also timezone-naive from _build_close_df)
     ytd_start = _pd.Timestamp(f"{today.year}-01-01")
 
+    # Month/year periods used a padded day-count (e.g. 35 days for "1mo")
+    # instead of a real calendar month — meant as fetch-window slack, but
+    # `subset.iloc[0]` then took the padded cutoff itself as the period
+    # START, landing several real calendar days before the period actually
+    # began. Confirmed live (2026-08-18) against Google Finance's own S&P
+    # 500 numbers: real 1mo was +3.85% (from exactly Jul 17), this backend
+    # showed +3.06% (from the padded Jul 13) — a real, meaningful gap
+    # during a week the market moved sharply, not rounding noise. Precise
+    # calendar arithmetic matches how every standard "1M/3M/6M/1Y" period
+    # is actually defined.
+    from dateutil.relativedelta import relativedelta
+    _PERIOD_RELATIVEDELTA = {
+        "1mo": relativedelta(months=1), "3mo": relativedelta(months=3), "6mo": relativedelta(months=6),
+        "1y": relativedelta(years=1), "3y": relativedelta(years=3), "5y": relativedelta(years=5),
+    }
+
     PERIODS: list[tuple[str, _td | None]] = [
         ("1d",  _td(days=2)),
         ("5d",  _td(days=8)),
-        ("1mo", _td(days=35)),
-        ("3mo", _td(days=95)),
-        ("6mo", _td(days=185)),
+        ("1mo", None),
+        ("3mo", None),
+        ("6mo", None),
         ("ytd", None),
-        ("1y",  _td(days=370)),
-        ("3y",  _td(days=1100)),
-        ("5y",  _td(days=1835)),
+        ("1y",  None),
+        ("3y",  None),
+        ("5y",  None),
     ]
 
     results: dict[str, dict] = {}
@@ -1649,17 +1665,42 @@ def _compute_portfolio_returns(
                     continue
                 start_row = prior_close.iloc[-1]
                 cutoff = start_row.name
+                close_for_period = close
             else:
                 if key == "ytd":
                     cutoff = ytd_start
+                elif key in _PERIOD_RELATIVEDELTA:
+                    cutoff = _pd.Timestamp(today - _PERIOD_RELATIVEDELTA[key])
                 else:
                     cutoff = _pd.Timestamp(today - delta)
+                # Midnight-normalize BEFORE using it for both the fetch
+                # window and the `.index >= cutoff` row filter below. Was
+                # `datetime.now() - relativedelta(...)`, which carries
+                # today's current hour/minute/second (e.g. "2026-07-17
+                # 15:34:25") — the DataFrame's own index is midnight-
+                # normalized per day, so "2026-07-17 00:00:00 >= 2026-07-17
+                # 15:34:25" is False and that day's own row got silently
+                # excluded, shifting the effective period start to the next
+                # available trading day (2026-07-20, a day the market had
+                # already risen) and changing the computed 1mo return from
+                # the real 3.85% to 4.05% — confirmed live 2026-08-18.
+                cutoff = cutoff.normalize()
+                period_start_ts = int(cutoff.timestamp())
 
-                subset = close[close.index >= cutoff]
+                # Fetch a window scoped tightly to THIS period instead of
+                # slicing the wide multi-year `close` fetched above for
+                # since_purchase/date-inference — a fresh request avoids any
+                # chance of the wide fetch's own caching/window returning
+                # different adjusted-close values for the same date.
+                period_close, _ = _build_close_df(all_tickers, period_start_ts, today_ts, interval="1d")
+                if period_close.empty:
+                    continue
+                subset = period_close[period_close.index >= cutoff]
                 if subset.empty:
                     continue
 
                 start_row = subset.iloc[0]
+                close_for_period = period_close
 
             # For each position, use its own cost basis:
             # - Bought BEFORE period start → price at period start (normal)
@@ -1673,19 +1714,19 @@ def _compute_portfolio_returns(
             value_by_ticker: dict[str, float] = {}
             for i, p in enumerate(positions):
                 t = p.ticker.upper()
-                if t not in close.columns and t not in rt_prices:
+                if t not in close_for_period.columns and t not in rt_prices:
                     continue
                 shares = p.shares
                 cp = _cp(t)
                 pd_str = lot_purchase_date[i]
                 if not short_period and pd_str and _pd.Timestamp(pd_str) > cutoff:
                     # Bought mid-period (only for periods > 5D): cost is what we actually paid
-                    mid_subset = close[close.index >= _pd.Timestamp(pd_str)] if not close.empty else _pd.DataFrame()
+                    mid_subset = close_for_period[close_for_period.index >= _pd.Timestamp(pd_str)] if not close_for_period.empty else _pd.DataFrame()
                     sp = (p.avg_price if p.avg_price and p.avg_price > 0 else None) \
                         or (_safe_price(mid_subset.iloc[0], t) if not mid_subset.empty else 0.0)
                 else:
                     # Use price at start of period (always for 1D/5D)
-                    sp = _safe_price(start_row, t) if not close.empty else 0.0
+                    sp = _safe_price(start_row, t) if not close_for_period.empty else 0.0
                 if sp > 0 and cp > 0:
                     cost = shares * sp
                     value = shares * cp
@@ -1716,7 +1757,7 @@ def _compute_portfolio_returns(
             # "since_purchase" above, which has no fixed calendar meaning to
             # begin with — it's inherently about the user's own timeline.
             spy_pct = None
-            if spy_current > 0 and _BENCH in close.columns:
+            if spy_current > 0 and _BENCH in close_for_period.columns:
                 spy_start = _safe_price(start_row, _BENCH)
                 if spy_start > 0:
                     spy_pct = round((spy_current - spy_start) / spy_start * 100, 2)
@@ -1803,23 +1844,31 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
         close, rt_prices = _build_close_df(fetch_tickers, start_ts, today_ts, interval=interval)
         intraday = False
     else:
-        PERIOD_CFG: dict[str, tuple[int, str]] = {
-            "1mo": (35,   "1d"),
-            "3mo": (95,   "1d"),
-            "6mo": (185,  "1d"),
-            "ytd": (0,    "1d"),   # days=0 handled below
-            "1y":  (370,  "1d"),
-            "3y":  (1100, "1wk"),
-            "5y":  (1835, "1wk"),
-            "max": (9999, "1mo"),
+        # Was a padded day-count per period (e.g. 35 days for "1mo") instead
+        # of a real calendar month/year — `close.iloc[0]` (the padded
+        # fetch's first row) became the period's start reference, landing
+        # several real calendar days before the period actually began.
+        # Confirmed live (2026-08-18) against Google Finance's own S&P 500
+        # numbers: real 1mo was +3.85% (from exactly Jul 17), this endpoint
+        # showed +3.06% (from the padded Jul 13) — a real gap during a week
+        # the market moved sharply, not rounding noise. Same fix as
+        # _compute_portfolio_returns's PERIODS cutoff, applied here too
+        # since this endpoint has its own separate fetch-window logic.
+        from dateutil.relativedelta import relativedelta
+        PERIOD_RELATIVEDELTA = {
+            "1mo": relativedelta(months=1), "3mo": relativedelta(months=3), "6mo": relativedelta(months=6),
+            "1y": relativedelta(years=1), "3y": relativedelta(years=3), "5y": relativedelta(years=5),
         }
-        days_back, interval = PERIOD_CFG.get(period, (370, "1d"))
+        PERIOD_INTERVAL: dict[str, str] = {"3y": "1wk", "5y": "1wk", "max": "1mo"}
+        interval = PERIOD_INTERVAL.get(period, "1d")
         if period == "ytd":
             start_ts = int(_dt(today.year, 1, 1).timestamp())
         elif period == "max":
             start_ts = int(_dt(1993, 1, 1).timestamp())
+        elif period in PERIOD_RELATIVEDELTA:
+            start_ts = int((today - PERIOD_RELATIVEDELTA[period]).timestamp())
         else:
-            start_ts = int((today - _td(days=days_back)).timestamp())
+            start_ts = int((today - _td(days=370)).timestamp())
         close, rt_prices = _build_close_df(fetch_tickers, start_ts, today_ts, interval=interval)
         intraday = False
 
