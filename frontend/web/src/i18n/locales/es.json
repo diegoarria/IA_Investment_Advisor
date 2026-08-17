@@ -1146,7 +1146,20 @@
         "nuvos": "Estimación Nuvos",
         "peers": "Mediana de pares"
       },
-      "sectorModelNoteTitle": "Cómo valora Nuvos a esta empresa"
+      "sectorModelNoteTitle": "Cómo valora Nuvos a esta empresa",
+      "earningsLabel": "Ganancias:",
+      "fairPeLabel": "Fair P/E",
+      "modelConfidenceLabel": "Confianza del modelo:",
+      "divergenceUnexplained": "Diferencia grande entre Fair Value y precio sin una causa real identificada — tratar este resultado con cautela adicional.",
+      "realityGateToggle": "Ver verificaciones ({{passed}}/{{total}} aprobadas)",
+      "peGaapLabel": "P/E actual (GAAP):",
+      "peNormalizedLabel": "P/E sobre ganancias normalizadas:",
+      "earningsStateLabel": {
+        "normal": "Normal", "elevated": "Elevadas", "depressed": "Deprimidas",
+        "cyclical_peak": "Pico de ciclo", "cyclical_trough": "Valle de ciclo",
+        "recovery": "En recuperación", "structurally_impaired": "Deterioro estructural",
+        "structurally_elevated": "Mejora estructural", "structurally_depressed": "Deterioro estructural (ganancias)"
+      }
     },
     "financialReverseValuation": {
       "title": "¿Qué está descontando el mercado?",
@@ -1330,7 +1343,8 @@
         "roic": "ROIC",
         "operatingMargin": "Margen Operativo",
         "netMargin": "Margen Neto",
-        "operatingCashFlow": "Flujo de Caja Operativo"
+        "operatingCashFlow": "Flujo de Caja Operativo",
+        "roicAdjustedNote": "Ajustado: las recompras de acciones comprimieron el patrimonio contable, así que se usó capital invertido operativo."
       },
       "value": {
         "title": "Valor",
@@ -1346,7 +1360,8 @@
         "baseFairValue": "Escenario Base / Fair Value",
         "optimistic": "Escenario Optimista",
         "marginOfSafety": "Margen de Seguridad",
-        "buyZoneTitle": "Mi Zona de Compra"
+        "buyZoneTitle": "Mi Zona de Compra",
+        "notAvailable": "N/D"
       },
       "simplicity": {
         "title": "Simplicidad",
@@ -1451,7 +1466,14 @@
       "title": "Tesis Final",
       "subtitle": "El resumen de inversión de Nuvos AI en una sola idea"
     },
-    "badgesTitle": "Lo Destacado"
+    "badgesTitle": "Lo Destacado",
+    "modelAssumptions": {
+      "toggle": "Ver supuestos del modelo",
+      "fcfReported": "Flujo de caja libre reportado",
+      "fcfNormalized": "Normalizado (sin CapEx de crecimiento)",
+      "growthCapex": "CapEx de crecimiento estimado este año",
+      "wacc": "Tasa de descuento (WACC) usada"
+    }
   },
   "patrimonio": {
     "header": {
@@ -1883,6 +1905,23 @@
     },
     "toolsTab": {
       "subtitle": "Herramientas de análisis avanzado para tu portafolio"
+    },
+    "cash": {
+      "title": "Efectivo disponible para invertir",
+      "instrument": { "cetes": "CETES", "bank": "Banco", "bonds": "Bonos", "other": "Otro" },
+      "annualRate": "% anual",
+      "amountPlaceholder": "Monto ({{currency}})",
+      "notePlaceholder": "Nota (opcional)",
+      "ratePlaceholder": "Tasa anual de tu efectivo (opcional)",
+      "rateHintAuto": "Si lo dejas vacío, usamos la tasa real de hoy automáticamente.",
+      "rateHintManual": "Solo si sabes la tasa anual que te paga (ej. tu banco).",
+      "cancel": "Cancelar",
+      "saving": "Guardando...",
+      "saveChanges": "Guardar cambios",
+      "save": "Guardar",
+      "addCash": "+ Agregar efectivo",
+      "cashSummary": "{{amount}} en efectivo",
+      "dividendSummary": "{{amount}} en dividendos recibidos"
     }
   },
   "academy": {

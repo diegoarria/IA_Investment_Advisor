@@ -13,10 +13,12 @@ the caller (the API route), not here — this module's own output is a
 complete, valid `CompanyDiagnosticData` shape MINUS those 3 narrative
 fields, which the caller fills in afterward.
 
-Every templated string here is Spanish-only, matching the rest of this
-codebase's deterministic-reasoning layer (`moat_engine.py`'s `MoatFactor.
-reason`, `outlier_detection_engine.py`'s `detail` strings, etc. are all
-Spanish-only too — only AI-generated narrative text goes through `lang`).
+Every templated string here has an English variant selected by `lang`
+(default "es") — this is the one deterministic-reasoning module in the
+codebase whose output renders directly in the UI's own language toggle
+(`CompanyDiagnosticCard.tsx`), unlike `outlier_detection_engine.py`'s
+`detail` strings etc., which stay Spanish-only because nothing downstream
+of them is locale-aware.
 """
 
 from __future__ import annotations
@@ -31,18 +33,33 @@ from app.services.quality.moat_engine import compute_moat_score
 
 logger = logging.getLogger(__name__)
 
-_COMPETITOR_METRICS = [
+_COMPETITOR_METRICS_ES = [
     ("Deuda Financiera", "total_debt"),
     ("Margen Operativo", "operating_margin_pct"),
     ("Margen Neto", "net_margin_pct"),
     ("ROIC", "roic_pct"),
     ("Crecimiento de Ingresos", "revenue_cagr_pct"),
 ]
+_COMPETITOR_METRICS_EN = [
+    ("Financial Debt", "total_debt"),
+    ("Operating Margin", "operating_margin_pct"),
+    ("Net Margin", "net_margin_pct"),
+    ("ROIC", "roic_pct"),
+    ("Revenue Growth", "revenue_cagr_pct"),
+]
 
 
-def _fmt_money(v: Optional[float]) -> str:
+def _competitor_metrics(lang: str) -> list[tuple[str, str]]:
+    return _COMPETITOR_METRICS_EN if lang == "en" else _COMPETITOR_METRICS_ES
+
+
+def _na(lang: str) -> str:
+    return "N/A" if lang == "en" else "N/D"
+
+
+def _fmt_money(v: Optional[float], lang: str = "es") -> str:
     if v is None:
-        return "N/D"
+        return _na(lang)
     if abs(v) >= 1e9:
         return f"${v / 1e9:.1f}B"
     if abs(v) >= 1e6:
@@ -50,8 +67,8 @@ def _fmt_money(v: Optional[float]) -> str:
     return f"${v:,.0f}"
 
 
-def _fmt_pct(v: Optional[float]) -> str:
-    return f"{v:.1f}%" if v is not None else "N/D"
+def _fmt_pct(v: Optional[float], lang: str = "es") -> str:
+    return f"{v:.1f}%" if v is not None else _na(lang)
 
 
 def _primary_scenarios(dcf: dict) -> Optional[dict]:
@@ -131,29 +148,50 @@ def _pillar_scores(data: dict, scenarios: dict) -> Optional[dict]:
     return {"quality": quality, "trust": trust, "value": value, "simplicity": simplicity}
 
 
-_SCORE_TIER_LABEL = [
+_SCORE_TIER_LABEL_ES = [
     (80, "Calidad Máxima"),
     (60, "Buen Negocio"),
     (40, "Calidad Moderada"),
     (0, "Calidad Débil"),
 ]
+_SCORE_TIER_LABEL_EN = [
+    (80, "Top Quality"),
+    (60, "Good Business"),
+    (40, "Moderate Quality"),
+    (0, "Weak Quality"),
+]
 
 
-def _score_label(overall_score: int, mos: Optional[float]) -> str:
-    tier = next(label for floor, label in _SCORE_TIER_LABEL if overall_score >= floor)
+def _score_label(overall_score: int, mos: Optional[float], lang: str = "es") -> str:
+    en = lang == "en"
+    tiers = _SCORE_TIER_LABEL_EN if en else _SCORE_TIER_LABEL_ES
+    tier = next(label for floor, label in tiers if overall_score >= floor)
     if mos is None:
         return tier
     if mos >= 5:
-        return f"{tier} + Descuento"
+        return f"{tier} + Discount" if en else f"{tier} + Descuento"
     if mos <= -5:
-        return f"{tier}, Cara"
-    return f"{tier}, Precio Justo"
+        return f"{tier}, Expensive" if en else f"{tier}, Cara"
+    return f"{tier}, Fair Price" if en else f"{tier}, Precio Justo"
 
 
-def _badges(*, data: dict, scenarios: dict, dcf: dict) -> list[str]:
+_BADGE_CATALOG_ES = {
+    "no_debt": "Cero Deuda", "net_cash": "Caja Neta Fuerte", "roic": "ROIC Excepcional",
+    "moat": "Moat Duradero", "margins": "Márgenes Líderes", "discount": "Descuento Significativo",
+    "recovery": "Recuperación en Curso", "cyclical": "Ajuste Cíclico Temporal",
+}
+_BADGE_CATALOG_EN = {
+    "no_debt": "Zero Debt", "net_cash": "Strong Net Cash", "roic": "Exceptional ROIC",
+    "moat": "Durable Moat", "margins": "Leading Margins", "discount": "Significant Discount",
+    "recovery": "Recovery Underway", "cyclical": "Temporary Cyclical Adjustment",
+}
+
+
+def _badges(*, data: dict, scenarios: dict, dcf: dict, lang: str = "es") -> list[str]:
     """Fixed catalog, real numeric triggers, top 3 by priority order — same
     'never ticker-specific' discipline as every engine built this session
     (no `if ticker == X` anywhere)."""
+    labels = _BADGE_CATALOG_EN if lang == "en" else _BADGE_CATALOG_ES
     total_debt = data.get("total_debt") or 0.0
     net_cash = data.get("net_cash") or 0.0
     shares_out = (dcf.get("shares_outstanding") or 0.0)
@@ -168,19 +206,19 @@ def _badges(*, data: dict, scenarios: dict, dcf: dict) -> list[str]:
     industry_om = industry_benchmarks.get("median_operating_margin_pct")
 
     candidates: list[tuple[bool, str]] = [
-        (market_cap is not None and total_debt < 0.02 * market_cap, "Cero Deuda"),
-        (market_cap is not None and net_cash > 0.10 * market_cap, "Caja Neta Fuerte"),
-        (avg_roic is not None and avg_roic > 20, "ROIC Excepcional"),
-        (moat_duration_bucket in ("10_15", "15_plus"), "Moat Duradero"),
-        (latest_om is not None and industry_om is not None and latest_om - industry_om > 10, "Márgenes Líderes"),
-        (mos is not None and mos >= 25, "Descuento Significativo"),
-        (earnings_state in ("recovery",), "Recuperación en Curso"),
-        (earnings_state in ("depressed", "cyclical_trough", "structurally_depressed"), "Ajuste Cíclico Temporal"),
+        (market_cap is not None and total_debt < 0.02 * market_cap, labels["no_debt"]),
+        (market_cap is not None and net_cash > 0.10 * market_cap, labels["net_cash"]),
+        (avg_roic is not None and avg_roic > 20, labels["roic"]),
+        (moat_duration_bucket in ("10_15", "15_plus"), labels["moat"]),
+        (latest_om is not None and industry_om is not None and latest_om - industry_om > 10, labels["margins"]),
+        (mos is not None and mos >= 25, labels["discount"]),
+        (earnings_state in ("recovery",), labels["recovery"]),
+        (earnings_state in ("depressed", "cyclical_trough", "structurally_depressed"), labels["cyclical"]),
     ]
     return [name for fires, name in candidates if fires][:3]
 
 
-def _moat_points(data: dict, dcf: dict) -> list[str]:
+def _moat_points(data: dict, dcf: dict, lang: str = "es") -> list[str]:
     industry_benchmarks = dcf.get("industry_benchmarks") or {}
     roic_trend = data.get("roic_trend") or []
     operating_margin_trend = data.get("operating_margin_trend") or []
@@ -197,6 +235,7 @@ def _moat_points(data: dict, dcf: dict) -> list[str]:
         gross_margin_latest_pct=latest_gm,
         industry_median_roic_pct=industry_benchmarks.get("median_roic_pct"),
         industry_median_operating_margin_pct=industry_benchmarks.get("median_operating_margin_pct"),
+        lang=lang,
     )
     return [f.reason for f in result.factors if f.reason][:3]
 
@@ -212,7 +251,7 @@ def _competitor_metric_values(data: dict, dcf: dict, scenarios: Optional[dict]) 
     }
 
 
-def _competitor_comparison(ticker: str, data: dict, dcf: dict, scenarios: Optional[dict], sector: Optional[str], industry: Optional[str]) -> Optional[dict]:
+def _competitor_comparison(ticker: str, data: dict, dcf: dict, scenarios: Optional[dict], sector: Optional[str], industry: Optional[str], lang: str = "es") -> Optional[dict]:
     """Picks the first same-industry peer from `_find_peers()` (not a
     market-cap-nearest search across the whole peer group — that would mean
     fetching every peer's real financials just to rank them, real extra
@@ -234,18 +273,19 @@ def _competitor_comparison(ticker: str, data: dict, dcf: dict, scenarios: Option
     target_vals = _competitor_metric_values(data, dcf, scenarios)
     competitor_vals = _competitor_metric_values(competitor_data, competitor_dcf, None)
 
+    en = lang == "en"
     rows = []
     target_wins = 0
     total_compared = 0
-    for label, key in _COMPETITOR_METRICS:
+    for label, key in _competitor_metrics(lang):
         t_val, c_val = target_vals.get(key), competitor_vals.get(key)
         if key == "total_debt":
-            t_str, c_str = _fmt_money(t_val), _fmt_money(c_val)
+            t_str, c_str = _fmt_money(t_val, lang), _fmt_money(c_val, lang)
             higher_is_better = False
         else:
-            t_str, c_str = _fmt_pct(t_val), _fmt_pct(c_val)
+            t_str, c_str = _fmt_pct(t_val, lang), _fmt_pct(c_val, lang)
             higher_is_better = True
-        note = "Datos insuficientes para comparar este renglón."
+        note = "Not enough data to compare this row." if en else "Datos insuficientes para comparar este renglón."
         if t_val is not None and c_val is not None:
             total_compared += 1
             target_better = (t_val < c_val) if not higher_is_better else (t_val > c_val)
@@ -253,21 +293,30 @@ def _competitor_comparison(ticker: str, data: dict, dcf: dict, scenarios: Option
                 target_wins += 1
             delta = abs(t_val - c_val)
             winner = ticker.upper() if target_better else competitor_ticker
-            note = f"{winner} tiene ventaja en {label.lower()} — diferencia real de {delta:,.1f}{'%' if higher_is_better else ''}."
+            pct_suffix = "%" if higher_is_better else ""
+            note = (
+                f"{winner} has the edge in {label.lower()} — a real difference of {delta:,.1f}{pct_suffix}." if en else
+                f"{winner} tiene ventaja en {label.lower()} — diferencia real de {delta:,.1f}{pct_suffix}."
+            )
         rows.append({
             "metricName": label, "targetCompanyValue": t_str, "competitorValue": c_str,
             "competitorName": competitor_ticker, "nuvosAdvantageNote": note,
         })
 
-    conclusion = (
-        f"{ticker.upper()} supera a {competitor_ticker} en {target_wins} de {total_compared} métricas reales comparadas."
-        if total_compared else
-        f"No hay suficientes datos reales para comparar {ticker.upper()} contra {competitor_ticker} en este momento."
-    )
+    if total_compared:
+        conclusion = (
+            f"{ticker.upper()} beats {competitor_ticker} on {target_wins} of {total_compared} real metrics compared." if en else
+            f"{ticker.upper()} supera a {competitor_ticker} en {target_wins} de {total_compared} métricas reales comparadas."
+        )
+    else:
+        conclusion = (
+            f"Not enough real data to compare {ticker.upper()} against {competitor_ticker} right now." if en else
+            f"No hay suficientes datos reales para comparar {ticker.upper()} contra {competitor_ticker} en este momento."
+        )
     return {"competitorName": competitor_ticker, "rows": rows, "conclusion": conclusion}
 
 
-def build_company_diagnostic(ticker: str, data: dict) -> Optional[dict]:
+def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optional[dict]:
     """Single entry point. `data` is an already-fetched `get_fundamental_
     analysis(ticker)` result — the CALLER fetches it once (the route also
     needs the same `data` for `generate_company_diagnostic_narrative`'s
@@ -301,12 +350,12 @@ def build_company_diagnostic(ticker: str, data: dict) -> Optional[dict]:
     ]
 
     financial_health = {
-        "longTermDebt": _fmt_money(data.get("total_debt")),
-        "netCash": _fmt_money(data.get("net_cash")),
-        "roic": _fmt_pct((dcf.get("growth_buildup") or {}).get("avg_roic_pct")),
-        "operatingMargin": _fmt_pct((data.get("operating_margin_trend") or [None])[-1] if data.get("operating_margin_trend") else None),
-        "netMargin": _fmt_pct((data.get("net_margin_trend") or [None])[-1] if data.get("net_margin_trend") else None),
-        "operatingCashFlow": _fmt_money((data.get("fcf_trend") or [None])[-1] if data.get("fcf_trend") else None),
+        "longTermDebt": _fmt_money(data.get("total_debt"), lang),
+        "netCash": _fmt_money(data.get("net_cash"), lang),
+        "roic": _fmt_pct((dcf.get("growth_buildup") or {}).get("avg_roic_pct"), lang),
+        "operatingMargin": _fmt_pct((data.get("operating_margin_trend") or [None])[-1] if data.get("operating_margin_trend") else None, lang),
+        "netMargin": _fmt_pct((data.get("net_margin_trend") or [None])[-1] if data.get("net_margin_trend") else None, lang),
+        "operatingCashFlow": _fmt_money((data.get("fcf_trend") or [None])[-1] if data.get("fcf_trend") else None, lang),
     }
     # Methodology audit round 3 (see /Users/diegoarria/.claude/plans/
     # cosmic-munching-crown.md) — True when at least one year's ROIC used
@@ -365,19 +414,19 @@ def build_company_diagnostic(ticker: str, data: dict) -> Optional[dict]:
     # when no real peer is found — same "insufficient_data per-field, never
     # block everything for one missing enrichment" discipline the rest of
     # this pipeline already uses for relative/historical valuation.
-    competitor_comparison = _competitor_comparison(ticker, data, dcf, scenarios, sector, industry)
+    competitor_comparison = _competitor_comparison(ticker, data, dcf, scenarios, sector, industry, lang)
 
     return {
         "ticker": ticker.upper(),
         "companyName": data.get("company_name") or ticker.upper(),
-        "sector": sector or "N/D",
-        "exchange": data.get("exchange") or "N/D",
+        "sector": sector or _na(lang),
+        "exchange": data.get("exchange") or _na(lang),
         "score": overall_score,
-        "scoreLabel": _score_label(overall_score, mos),
+        "scoreLabel": _score_label(overall_score, mos, lang),
         "pillarScores": pillar_scores,
-        "badges": _badges(data=data, scenarios=scenarios, dcf=dcf),
+        "badges": _badges(data=data, scenarios=scenarios, dcf=dcf, lang=lang),
         "revenueBreakdown": revenue_breakdown,
-        "moatPoints": _moat_points(data, dcf),
+        "moatPoints": _moat_points(data, dcf, lang),
         "competitorComparison": competitor_comparison,
         "financialHealth": financial_health,
         "roicAdjustedForBuybacks": roic_adjusted_for_buybacks,

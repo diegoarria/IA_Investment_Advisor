@@ -40,7 +40,7 @@ export function CompanyDiagnosticValuePillar({
   const { t } = useTranslation();
   const [selectedScenario, setSelectedScenario] = useState<ScenarioKey>("baseFairValue");
 
-  const fmtMultiple = (v: number | null) => (v != null ? `${v.toFixed(1)}x` : "N/D");
+  const fmtMultiple = (v: number | null) => (v != null ? `${v.toFixed(1)}x` : t("companyDiagnostic.pillars.value.notAvailable"));
   // P/E Actual (TTM), P/E Forward (NTM) and P/E Ajustado shown as standard,
   // side by side, for every company — not just when they happen to differ
   // (per Diego's explicit request that Forward P/E be a standard field in

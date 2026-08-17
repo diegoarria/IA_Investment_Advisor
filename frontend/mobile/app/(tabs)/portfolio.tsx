@@ -1512,10 +1512,23 @@ export default function PortfolioScreen() {
   };
 
   // ── Manual add ─────────────────────────────────────────────────────────
+  // A plain parseFloat truncates at the first comma ("150,50" -> 150),
+  // silently dropping the decimal for anyone typing with a comma
+  // separator — same locale issue fixed on the web form. Normalize before
+  // parsing instead of losing precision.
+  const parseLocaleNumber = (raw: string): number => {
+    const s = raw.trim();
+    if (!s) return NaN;
+    const hasComma = s.includes(",");
+    const hasDot = s.includes(".");
+    const normalized = hasComma && hasDot ? s.replace(/,/g, "") : hasComma ? s.replace(",", ".") : s;
+    return parseFloat(normalized);
+  };
+
   const handleAdd = async () => {
     const ticker = form.ticker.trim().toUpperCase();
-    const amount = parseFloat(form.amount);
-    const enteredPrice = parseFloat(form.avgPrice);
+    const amount = parseLocaleNumber(form.amount);
+    const enteredPrice = parseLocaleNumber(form.avgPrice);
     if (!ticker || !amount || !enteredPrice) { Alert.alert(t("portfolio.form.incompleteFields")); return; }
     if (!isPremiumAccess && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
     const shares = parseFloat((amount / enteredPrice).toFixed(6));
@@ -1538,8 +1551,8 @@ export default function PortfolioScreen() {
   // Adds another purchase lot for a ticker already shown in the "Historial
   // de compras" panel — same as handleAdd, but stays inside that panel.
   const handleAddLot = async (ticker: string) => {
-    const amount = parseFloat(lotForm.amount);
-    const enteredPrice = parseFloat(lotForm.avgPrice);
+    const amount = parseLocaleNumber(lotForm.amount);
+    const enteredPrice = parseLocaleNumber(lotForm.avgPrice);
     if (!amount || !enteredPrice) { Alert.alert(t("portfolio.form.incompleteFields")); return; }
     if (!isPremiumAccess && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
     const shares = parseFloat((amount / enteredPrice).toFixed(6));
@@ -2438,8 +2451,8 @@ export default function PortfolioScreen() {
                 keyboardType="decimal-pad"
               />
             </View>
-            {parseFloat(form.amount) > 0 && parseFloat(form.avgPrice) > 0 && (() => {
-              const calcShares = parseFloat(form.amount) / parseFloat(form.avgPrice);
+            {parseLocaleNumber(form.amount) > 0 && parseLocaleNumber(form.avgPrice) > 0 && (() => {
+              const calcShares = parseLocaleNumber(form.amount) / parseLocaleNumber(form.avgPrice);
               const isWhole = Math.abs(calcShares - Math.round(calcShares)) < 0.0005;
               return (
                 <Text style={{ fontSize: 11, color: "#00d47e", marginBottom: 10 }}>
@@ -3808,8 +3821,8 @@ export default function PortfolioScreen() {
                       placeholder={`Precio (${portfolioCurrency})`} placeholderTextColor={colors.textDim}
                     />
                   </View>
-                  {parseFloat(lotForm.amount) > 0 && parseFloat(lotForm.avgPrice) > 0 && (() => {
-                    const calcShares = parseFloat(lotForm.amount) / parseFloat(lotForm.avgPrice);
+                  {parseLocaleNumber(lotForm.amount) > 0 && parseLocaleNumber(lotForm.avgPrice) > 0 && (() => {
+                    const calcShares = parseLocaleNumber(lotForm.amount) / parseLocaleNumber(lotForm.avgPrice);
                     const isWhole = Math.abs(calcShares - Math.round(calcShares)) < 0.0005;
                     return (
                       <Text style={{ fontSize: 11, color: "#00d47e" }}>

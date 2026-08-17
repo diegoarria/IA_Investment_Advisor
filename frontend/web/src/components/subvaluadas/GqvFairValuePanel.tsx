@@ -99,13 +99,6 @@ const _CATEGORY_LABEL: Record<string, string> = {
   slow_grower: "Slow Grower", stalwart: "Stalwart", fast_grower: "Fast Grower",
   cyclical: "Cyclical", turnaround: "Turnaround", asset_play: "Asset Play", financial: "Financial",
 };
-const _STATE_LABEL: Record<string, string> = {
-  normal: "Normal", elevated: "Elevadas", depressed: "Deprimidas",
-  cyclical_peak: "Pico de ciclo", cyclical_trough: "Valle de ciclo",
-  recovery: "En recuperación", structurally_impaired: "Deterioro estructural",
-  // Phase 1 (Nuvos Fair Value Engine V2, 2026-08-12).
-  structurally_elevated: "Mejora estructural", structurally_depressed: "Deterioro estructural (ganancias)",
-};
 
 function ScenarioCard({ label, value, color }: { label: string; value: number | null; color: string }) {
   return (
@@ -140,12 +133,13 @@ export function GqvFairValuePanel({ data }: { data: GqvFairValueData | null | un
         )}
         {data.earnings_state && (
           <span className="text-[11px] px-2 py-1 rounded-md" style={{ background: "var(--raised)", color: "var(--sub)" }}>
-            Ganancias: {_STATE_LABEL[data.earnings_state.state] || data.earnings_state.state}
+            {t("subvaluadas.nuvosFairValue.earningsLabel")}{" "}
+            {t(`subvaluadas.nuvosFairValue.earningsStateLabel.${data.earnings_state.state}`, { defaultValue: data.earnings_state.state })}
           </span>
         )}
         {data.fair_pe && (
           <span className="text-[11px] px-2 py-1 rounded-md" style={{ background: "var(--raised)", color: "var(--sub)" }}>
-            Fair P/E {data.fair_pe.fair_pe.toFixed(1)}x
+            {t("subvaluadas.nuvosFairValue.fairPeLabel")} {data.fair_pe.fair_pe.toFixed(1)}x
           </span>
         )}
       </div>
@@ -160,7 +154,7 @@ export function GqvFairValuePanel({ data }: { data: GqvFairValueData | null | un
         <p className="text-[13px] mb-3">
           {_VERDICT_EMOJI[status.verdict]}{" "}
           <span style={{ color: _VERDICT_COLOR[status.verdict], fontWeight: 700 }}>
-            {status.verdict === "undervalued" ? "Infravalorada" : status.verdict === "overvalued" ? "Sobrevalorada" : "Valor razonable"}
+            {t(`subvaluadas.nuvosFairValue.verdictLabel.${status.verdict}`)}
           </span>{" "}
           <span style={{ color: "var(--muted)" }}>({status.pct.toFixed(1)}%)</span>
         </p>
@@ -168,20 +162,24 @@ export function GqvFairValuePanel({ data }: { data: GqvFairValueData | null | un
 
       {data.confidence_meter && (
         <p className="text-[11px] mb-2" style={{ color: "var(--muted)" }}>
-          Confianza del modelo: <span style={{ color: "var(--sub)", fontWeight: 700 }}>{data.confidence_meter.score}/100</span> — {data.confidence_meter.label}
+          {t("subvaluadas.nuvosFairValue.modelConfidenceLabel")}{" "}
+          <span style={{ color: "var(--sub)", fontWeight: 700 }}>{data.confidence_meter.score}/100</span> — {data.confidence_meter.label}
         </p>
       )}
 
       {data.divergence?.material && (
         <p className="text-[11px] mt-2 leading-relaxed" style={{ color: "var(--muted)" }}>
-          {data.divergence.explained ? data.divergence.causes.join(" ") : "Diferencia grande entre Fair Value y precio sin una causa real identificada — tratar este resultado con cautela adicional."}
+          {data.divergence.explained ? data.divergence.causes.join(" ") : t("subvaluadas.nuvosFairValue.divergenceUnexplained")}
         </p>
       )}
 
       {data.reality_gate && data.reality_gate.checks.some((c) => !c.passed) && (
         <details className="mt-3">
           <summary className="text-[10.5px] cursor-pointer" style={{ color: "var(--muted)" }}>
-            Ver verificaciones ({data.reality_gate.checks.filter((c) => c.passed).length}/{data.reality_gate.checks.length} aprobadas)
+            {t("subvaluadas.nuvosFairValue.realityGateToggle", {
+              passed: data.reality_gate.checks.filter((c) => c.passed).length,
+              total: data.reality_gate.checks.length,
+            })}
           </summary>
           <ul className="mt-2 space-y-1">
             {data.reality_gate.checks.filter((c) => !c.passed).map((c) => (
@@ -196,24 +194,24 @@ export function GqvFairValuePanel({ data }: { data: GqvFairValueData | null | un
       {(data.fcf_assumptions || data.wacc_details || data.pe_on_normalized_eps != null) && (
         <details className="mt-3">
           <summary className="text-[10.5px] cursor-pointer" style={{ color: "var(--muted)" }}>
-            Ver supuestos del modelo
+            {t("companyDiagnostic.modelAssumptions.toggle")}
           </summary>
           <div className="mt-2 space-y-1.5 text-[10.5px]" style={{ color: "var(--sub)" }}>
             {data.fcf_assumptions && (
               <>
                 <p>
-                  Flujo de caja libre reportado:{" "}
+                  {t("companyDiagnostic.modelAssumptions.fcfReported")}:{" "}
                   <span style={{ color: "var(--text)", fontWeight: 700 }}>
                     {data.fcf_assumptions.fcf_reported != null ? `$${(data.fcf_assumptions.fcf_reported / 1e6).toFixed(0)}M` : "—"}
                   </span>
-                  {" · "}Normalizado (sin CapEx de crecimiento):{" "}
+                  {" · "}{t("companyDiagnostic.modelAssumptions.fcfNormalized")}:{" "}
                   <span style={{ color: "var(--accent-l)", fontWeight: 700 }}>
                     {data.fcf_assumptions.fcf_normalized != null ? `$${(data.fcf_assumptions.fcf_normalized / 1e6).toFixed(0)}M` : "—"}
                   </span>
                 </p>
                 {data.fcf_assumptions.growth_capex_estimate != null && data.fcf_assumptions.growth_capex_estimate > 0 && (
                   <p>
-                    CapEx de crecimiento estimado este año:{" "}
+                    {t("companyDiagnostic.modelAssumptions.growthCapex")}:{" "}
                     <span style={{ color: "var(--text)", fontWeight: 700 }}>
                       ${(data.fcf_assumptions.growth_capex_estimate / 1e6).toFixed(0)}M
                     </span>
@@ -223,15 +221,15 @@ export function GqvFairValuePanel({ data }: { data: GqvFairValueData | null | un
             )}
             {data.wacc_details?.wacc_pct != null && (
               <p>
-                Tasa de descuento (WACC) usada:{" "}
+                {t("companyDiagnostic.modelAssumptions.wacc")}:{" "}
                 <span style={{ color: "var(--text)", fontWeight: 700 }}>{data.wacc_details.wacc_pct.toFixed(1)}%</span>
               </p>
             )}
             {data.pe_gaap != null && data.pe_on_normalized_eps != null && Math.abs(data.pe_gaap - data.pe_on_normalized_eps) >= 0.1 && (
               <p>
-                P/E actual (GAAP):{" "}
+                {t("subvaluadas.nuvosFairValue.peGaapLabel")}{" "}
                 <span style={{ color: "var(--text)", fontWeight: 700 }}>{data.pe_gaap.toFixed(1)}x</span>
-                {" · "}P/E sobre ganancias normalizadas:{" "}
+                {" · "}{t("subvaluadas.nuvosFairValue.peNormalizedLabel")}{" "}
                 <span style={{ color: "var(--accent-l)", fontWeight: 700 }}>{data.pe_on_normalized_eps.toFixed(1)}x</span>
               </p>
             )}

@@ -34,7 +34,7 @@
     },
     "nav": {
       "home": "Home",
-      "mentor": "AI Mentor",
+      "mentor": "Arthur",
       "patrimonio": "Net Worth",
       "patrimonioSub": {
         "portfolio": "Portfolio",
@@ -340,7 +340,7 @@
     },
     "language": "Language",
     "languagePickerTitle": "What language do you want to use Nuvos in?",
-    "languagePickerSubtitle": "Changes the language across the whole app, including the AI Mentor.",
+    "languagePickerSubtitle": "Changes the language across the whole app, including Arthur.",
     "noProfile": "No active profile",
     "header": "My Profile",
     "removePhoto": "Remove photo",
@@ -562,7 +562,7 @@
       "options": {
         "home": "Home",
         "patrimonio": "Net Worth",
-        "chat": "AI Mentor",
+        "chat": "Arthur",
         "notifications": "Notifications",
         "academy": "Learning"
       }
@@ -826,7 +826,7 @@
     },
     "disclaimer": {
       "title": "THIS IS NOT INVESTMENT ADVICE",
-      "subtitle": "For a more detailed analysis, go to Mentor AI."
+      "subtitle": "For a more detailed analysis, go to Arthur."
     },
     "search": {
       "label": "Search any stock",
@@ -861,11 +861,11 @@
       "following": "On your watchlist"
     },
     "analyze": {
-      "button": "Analyze with Mentor AI",
+      "button": "Analyze with Arthur",
       "prompt": "Analyze {{ticker}}"
     },
     "footer": {
-      "description": "All candidates with a real positive margin of safety, same DCF engine as Mentor AI.",
+      "description": "All candidates with a real positive margin of safety, same DCF engine as Arthur.",
       "updatedToday": "Updated today ({{date}}).",
       "updatedDaysAgo_one": "Updated {{count}} day ago ({{date}}).",
       "updatedDaysAgo_other": "Updated {{count}} days ago ({{date}}).",
@@ -2101,7 +2101,7 @@
     },
     "newChat": "New",
     "helloName": "Hi, {{name}}",
-    "mentorAiFallback": "AI Mentor",
+    "mentorAiFallback": "Arthur",
     "nuvosAi": "Nuvos AI",
     "you": "You",
     "mentorSub": "I'm Arthur, your mentor for building wealth.",
@@ -2117,7 +2117,7 @@
     "unlimitedPremium": "Activate Premium for unlimited messages",
     "unlimitedOrWait": "Activate Premium for unlimited chats or wait {{time}}",
     "msgsLeftToday": "You have {{count}} message{{plural}} left today · Activate Premium",
-    "voiceCallPremiumOnly": "Voice calls with the AI Mentor are Premium only.",
+    "voiceCallPremiumOnly": "Voice calls with Arthur are Premium only.",
     "inputPlaceholderWithImages": "Describe what to analyze (optional)...",
     "inputPlaceholderDefault": "How can I help you today?",
     "toolbarImage": "Image",
@@ -2724,7 +2724,7 @@
         "sub": "Your net worth and portfolio"
       },
       "chat": {
-        "label": "AI Mentor",
+        "label": "Arthur",
         "sub": "Ask whatever you want"
       },
       "notifications": {
@@ -2885,7 +2885,7 @@
         "tip": "💡 The \"Rising today\" section shows the 4 positions in your portfolio with the biggest gain of the day."
       },
       "chat": {
-        "title": "Chat with your AI Mentor",
+        "title": "Chat with Arthur",
         "subtitle": "Nuvos's main tool",
         "desc": "Ask about any company, ETF, concept, or strategy. The AI knows your risk profile, your actual portfolio, and your investor level, and detects when your decisions contradict them. Every conversation updates your behavioral maturity.",
         "tip": "💡 You can edit any of your messages by tapping the pencil icon that appears next to the text."
@@ -3114,7 +3114,7 @@
     },
     "connecting": "Calling...",
     "reconnecting": "Reconnecting...",
-    "mentorName": "AI Mentor"
+    "mentorName": "Arthur"
   },
   "stockFinancials": {
     "noStatements": "No financial statements",
@@ -3540,7 +3540,7 @@
     "simulator": "Simulator",
     "tabs": {
       "academy": "Learning",
-      "chat": "AI Mentor",
+      "chat": "Arthur",
       "home": "Home",
       "investors": "Investors",
       "learn": "Learn",

@@ -517,10 +517,6 @@ const PORTFOLIO_LEVEL_BOUNDS = [
   { min:51, max:63 }, { min:63, max:75 }, { min:75, max:88 }, { min:88, max:101 },
 ];
 
-const CASH_INSTRUMENT_LABEL: Record<string, string> = {
-  cetes: "CETES", bank: "Banco", bonds: "Bonos", other: "Otro",
-};
-
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 // "Avanzado" siempre activo, en cualquier dispositivo/ancho de ventana —
@@ -1646,10 +1642,26 @@ export default function PortfolioPage() {
   // ── Manual add ─────────────────────────────────────────────────────────
   const FREE_POSITION_LIMIT = 10;
 
+  // The amount/price inputs used to be type="number", which rejects a
+  // comma decimal separator outright in comma-locale browsers/keyboards —
+  // common across this app's LatAm audience. Typing "150,50" left the
+  // field stuck empty, parseFloat("") -> NaN, and handleAdd silently
+  // bailed on the "Completa todos los campos" toast no matter how many
+  // times the user retried. Inputs are now free text; this normalizes
+  // either separator before parsing.
+  const parseLocaleNumber = (raw: string): number => {
+    const s = raw.trim();
+    if (!s) return NaN;
+    const hasComma = s.includes(",");
+    const hasDot = s.includes(".");
+    const normalized = hasComma && hasDot ? s.replace(/,/g, "") : hasComma ? s.replace(",", ".") : s;
+    return parseFloat(normalized);
+  };
+
   const handleAdd = () => {
     const ticker = form.ticker.trim().toUpperCase();
-    const amount = parseFloat(form.amount);
-    const enteredPrice = parseFloat(form.avgPrice);
+    const amount = parseLocaleNumber(form.amount);
+    const enteredPrice = parseLocaleNumber(form.avgPrice);
     if (!ticker || !amount || !enteredPrice) { showToast("Completa todos los campos"); return; }
     if (!isPremium && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
     const shares = amount / enteredPrice;
@@ -1670,8 +1682,8 @@ export default function PortfolioPage() {
   // de compras" panel — same as handleAdd, but stays inside that panel
   // instead of routing to the top-level "Agregar posición" box.
   const handleAddLot = (ticker: string) => {
-    const amount = parseFloat(lotForm.amount);
-    const enteredPrice = parseFloat(lotForm.avgPrice);
+    const amount = parseLocaleNumber(lotForm.amount);
+    const enteredPrice = parseLocaleNumber(lotForm.avgPrice);
     if (!amount || !enteredPrice) { showToast("Completa el monto y el precio"); return; }
     if (!isPremium && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
     const shares = amount / enteredPrice;
@@ -2218,7 +2230,7 @@ export default function PortfolioPage() {
             <div className="rounded-2xl border p-3.5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}>
-                  💵 Efectivo disponible para invertir
+                  💵 {t("portfolio.cash.title")}
                 </span>
                 {cashList.length > 0 && (
                   <span className="text-xs font-black" style={{ color: "var(--accent-l)" }}>
@@ -2232,9 +2244,9 @@ export default function PortfolioPage() {
                     <div key={c.id} className="flex items-center justify-between text-xs rounded-lg px-2.5 py-1.5 cursor-pointer transition-opacity hover:opacity-80"
                          style={{ background: "var(--raised)" }} onClick={() => handleEditCash(c)}>
                       <span style={{ color: "var(--sub)" }}>
-                        {CASH_INSTRUMENT_LABEL[c.instrument]}{c.label ? ` · ${c.label}` : ""}
+                        {t(`portfolio.cash.instrument.${c.instrument}`)}{c.label ? ` · ${c.label}` : ""}
                         {c.rate_pct ? (
-                          <span className="ml-1.5 font-bold" style={{ color: "#22c55e" }}>· {c.rate_pct.toFixed(2)}% anual</span>
+                          <span className="ml-1.5 font-bold" style={{ color: "#22c55e" }}>· {c.rate_pct.toFixed(2)}{t("portfolio.cash.annualRate")}</span>
                         ) : null}
                       </span>
                       <div className="flex items-center gap-2">
@@ -2253,7 +2265,7 @@ export default function PortfolioPage() {
                   <div className="flex gap-2">
                     <input
                       type="number" min="0" step="any"
-                      placeholder={`Monto (${portfolioCurrency})`}
+                      placeholder={t("portfolio.cash.amountPlaceholder", { currency: portfolioCurrency })}
                       value={cashForm.amount}
                       onChange={(e) => setCashForm((f) => ({ ...f, amount: e.target.value }))}
                       className="flex-1 rounded-lg border px-2.5 py-1.5 text-sm outline-none"
@@ -2265,15 +2277,15 @@ export default function PortfolioPage() {
                       className="rounded-lg border px-2 py-1.5 text-sm outline-none"
                       style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
                     >
-                      <option value="cetes">CETES</option>
-                      <option value="bank">Banco</option>
-                      <option value="bonds">Bonos</option>
-                      <option value="other">Otro</option>
+                      <option value="cetes">{t("portfolio.cash.instrument.cetes")}</option>
+                      <option value="bank">{t("portfolio.cash.instrument.bank")}</option>
+                      <option value="bonds">{t("portfolio.cash.instrument.bonds")}</option>
+                      <option value="other">{t("portfolio.cash.instrument.other")}</option>
                     </select>
                   </div>
                   <input
                     type="text"
-                    placeholder="Nota (opcional)"
+                    placeholder={t("portfolio.cash.notePlaceholder")}
                     value={cashForm.label}
                     onChange={(e) => setCashForm((f) => ({ ...f, label: e.target.value }))}
                     className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
@@ -2282,7 +2294,7 @@ export default function PortfolioPage() {
                   <div>
                     <input
                       type="number" min="0" step="any"
-                      placeholder="Tasa anual de tu efectivo (opcional)"
+                      placeholder={t("portfolio.cash.ratePlaceholder")}
                       value={cashForm.rate}
                       onChange={(e) => setCashForm((f) => ({ ...f, rate: e.target.value }))}
                       className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
@@ -2290,25 +2302,25 @@ export default function PortfolioPage() {
                     />
                     <p className="text-[10px] mt-1" style={{ color: "var(--dim)" }}>
                       {cashForm.instrument === "cetes" || cashForm.instrument === "bonds"
-                        ? "Si lo dejas vacío, usamos la tasa real de hoy automáticamente."
-                        : "Solo si sabes la tasa anual que te paga (ej. tu banco)."}
+                        ? t("portfolio.cash.rateHintAuto")
+                        : t("portfolio.cash.rateHintManual")}
                     </p>
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => { setCashFormOpen(false); setCashEditingId(null); setCashForm({ amount: "", instrument: "bank", label: "", rate: "" }); }}
                             className="flex-1 py-2 rounded-lg border text-xs font-semibold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
-                      Cancelar
+                      {t("portfolio.cash.cancel")}
                     </button>
                     <button onClick={handleSaveCash} disabled={cashSaving || !cashForm.amount}
                             className="flex-[2] py-2 rounded-lg text-xs font-bold text-white disabled:opacity-40"
                             style={{ background: "var(--accent)" }}>
-                      {cashSaving ? "Guardando..." : cashEditingId ? "Guardar cambios" : "Guardar"}
+                      {cashSaving ? t("portfolio.cash.saving") : cashEditingId ? t("portfolio.cash.saveChanges") : t("portfolio.cash.save")}
                     </button>
                   </div>
                 </div>
               ) : (
                 <button onClick={() => setCashFormOpen(true)} className="text-xs font-bold mt-1" style={{ color: "var(--accent-l)" }}>
-                  + Agregar efectivo
+                  {t("portfolio.cash.addCash")}
                 </button>
               )}
             </div>
@@ -2425,23 +2437,23 @@ export default function PortfolioPage() {
                   <div className="grid grid-cols-2 gap-2 mb-2">
                     <div>
                       <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>¿Cuánto invertiste? ({portfolioCurrency})</label>
-                      <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                             type="number" min="0"
+                      <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^0-9.,]/g, "") })}
+                             type="text" inputMode="decimal"
                              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
                              style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
                              placeholder="500" />
                     </div>
                     <div>
                       <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Precio por acción ({portfolioCurrency})</label>
-                      <input value={form.avgPrice} onChange={(e) => setForm({ ...form, avgPrice: e.target.value })}
-                             type="number" min="0"
+                      <input value={form.avgPrice} onChange={(e) => setForm({ ...form, avgPrice: e.target.value.replace(/[^0-9.,]/g, "") })}
+                             type="text" inputMode="decimal"
                              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
                              style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
                              placeholder={portfolioCurrency === "USD" ? "150.00" : (150 * fxRate).toFixed(0)} />
                     </div>
                   </div>
-                  {parseFloat(form.amount) > 0 && parseFloat(form.avgPrice) > 0 && (() => {
-                    const calcShares = parseFloat(form.amount) / parseFloat(form.avgPrice);
+                  {parseLocaleNumber(form.amount) > 0 && parseLocaleNumber(form.avgPrice) > 0 && (() => {
+                    const calcShares = parseLocaleNumber(form.amount) / parseLocaleNumber(form.avgPrice);
                     const isWhole = Math.abs(calcShares - Math.round(calcShares)) < 0.0005;
                     return (
                       <p className="text-[11px] mb-2 px-0.5" style={{ color: "var(--accent-l)" }}>
@@ -2803,8 +2815,8 @@ export default function PortfolioPage() {
                               ) : (cashTotal > 0 || dividendTotal > 0) ? (
                                 <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
                                   {[
-                                    cashTotal > 0 ? `${currencySymbol}${cashTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} en efectivo` : null,
-                                    dividendTotal > 0 ? `${currencySymbol}${dividendTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })} en dividendos recibidos` : null,
+                                    cashTotal > 0 ? t("portfolio.cash.cashSummary", { amount: `${currencySymbol}${cashTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }) : null,
+                                    dividendTotal > 0 ? t("portfolio.cash.dividendSummary", { amount: `${currencySymbol}${dividendTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}` }) : null,
                                   ].filter(Boolean).join(" + ")}
                                 </p>
                               ) : null}
@@ -4090,23 +4102,23 @@ export default function PortfolioPage() {
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>¿Cuánto invertiste?</label>
-                        <input value={lotForm.amount} onChange={(e) => setLotForm({ ...lotForm, amount: e.target.value })}
-                               type="number" min="0" autoFocus
+                        <input value={lotForm.amount} onChange={(e) => setLotForm({ ...lotForm, amount: e.target.value.replace(/[^0-9.,]/g, "") })}
+                               type="text" inputMode="decimal" autoFocus
                                className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                                style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--text)" }}
                                placeholder="500" />
                       </div>
                       <div>
                         <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Precio/acción ({portfolioCurrency})</label>
-                        <input value={lotForm.avgPrice} onChange={(e) => setLotForm({ ...lotForm, avgPrice: e.target.value })}
-                               type="number" min="0"
+                        <input value={lotForm.avgPrice} onChange={(e) => setLotForm({ ...lotForm, avgPrice: e.target.value.replace(/[^0-9.,]/g, "") })}
+                               type="text" inputMode="decimal"
                                className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                                style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--text)" }}
                                placeholder="150.00" />
                       </div>
                     </div>
-                    {parseFloat(lotForm.amount) > 0 && parseFloat(lotForm.avgPrice) > 0 && (() => {
-                      const calcShares = parseFloat(lotForm.amount) / parseFloat(lotForm.avgPrice);
+                    {parseLocaleNumber(lotForm.amount) > 0 && parseLocaleNumber(lotForm.avgPrice) > 0 && (() => {
+                      const calcShares = parseLocaleNumber(lotForm.amount) / parseLocaleNumber(lotForm.avgPrice);
                       const isWhole = Math.abs(calcShares - Math.round(calcShares)) < 0.0005;
                       return (
                         <p className="text-[11px] px-0.5" style={{ color: "var(--accent-l)" }}>

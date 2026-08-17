@@ -2,7 +2,7 @@
   "common": {
     "nav": {
       "home": "Home",
-      "mentor": "AI Mentor",
+      "mentor": "Arthur",
       "patrimonio": "Wealth",
       "patrimonioSub": {
         "portfolio": "Portfolio",
@@ -254,7 +254,7 @@
     "portfolioNews": "News about your portfolio",
     "quickActions": {
       "askSomething": "Ask something",
-      "aiMentor": "AI Mentor",
+      "aiMentor": "Arthur",
       "myMoney": "My money",
       "patrimonio": "Wealth",
       "learn": "Learn",
@@ -263,7 +263,7 @@
       "stats": "Stats"
     },
     "mentorCta": {
-      "title": "Talk to your AI Mentor",
+      "title": "Talk to Arthur",
       "withPositions": "Analyze your {{count}} positions or get investment advice",
       "withoutPositions": "Chat about investing, stocks, or strategies"
     },
@@ -828,7 +828,7 @@
     },
     "disclaimer": {
       "title": "THIS IS NOT INVESTMENT ADVICE",
-      "subtitle": "For a more detailed analysis, go to Mentor AI."
+      "subtitle": "For a more detailed analysis, go to Arthur."
     },
     "search": {
       "label": "Search any stock",
@@ -863,11 +863,11 @@
       "following": "On your watchlist"
     },
     "analyze": {
-      "button": "Analyze with Mentor AI",
+      "button": "Analyze with Arthur",
       "prompt": "Analyze {{ticker}}"
     },
     "footer": {
-      "description": "All candidates with a real positive margin of safety, calculated with the same intrinsic-value engine as Mentor AI over the curated universe — updated weekly.",
+      "description": "All candidates with a real positive margin of safety, calculated with the same intrinsic-value engine as Arthur over the curated universe — updated weekly.",
       "updatedToday": "Updated today ({{date}}).",
       "updatedDaysAgo_one": "Updated {{count}} day ago ({{date}}).",
       "updatedDaysAgo_other": "Updated {{count}} days ago ({{date}}).",
@@ -1146,7 +1146,20 @@
         "nuvos": "Nuvos estimate",
         "peers": "Peer median"
       },
-      "sectorModelNoteTitle": "How Nuvos values this company"
+      "sectorModelNoteTitle": "How Nuvos values this company",
+      "earningsLabel": "Earnings:",
+      "fairPeLabel": "Fair P/E",
+      "modelConfidenceLabel": "Model confidence:",
+      "divergenceUnexplained": "Large gap between Fair Value and price with no real identified cause — treat this result with extra caution.",
+      "realityGateToggle": "View checks ({{passed}}/{{total}} passed)",
+      "peGaapLabel": "Current P/E (GAAP):",
+      "peNormalizedLabel": "P/E on normalized earnings:",
+      "earningsStateLabel": {
+        "normal": "Normal", "elevated": "Elevated", "depressed": "Depressed",
+        "cyclical_peak": "Cycle peak", "cyclical_trough": "Cycle trough",
+        "recovery": "Recovering", "structurally_impaired": "Structural impairment",
+        "structurally_elevated": "Structural improvement", "structurally_depressed": "Structural impairment (earnings)"
+      }
     },
     "financialReverseValuation": {
       "title": "What is the market pricing in?",
@@ -1330,7 +1343,8 @@
         "roic": "ROIC",
         "operatingMargin": "Operating Margin",
         "netMargin": "Net Margin",
-        "operatingCashFlow": "Operating Cash Flow"
+        "operatingCashFlow": "Operating Cash Flow",
+        "roicAdjustedNote": "Adjusted: share buybacks compressed book equity, so operating invested capital was used instead."
       },
       "value": {
         "title": "Value",
@@ -1346,7 +1360,8 @@
         "baseFairValue": "Base / Fair Value Scenario",
         "optimistic": "Optimistic Scenario",
         "marginOfSafety": "Margin of Safety",
-        "buyZoneTitle": "My Buy Zone"
+        "buyZoneTitle": "My Buy Zone",
+        "notAvailable": "N/A"
       },
       "simplicity": {
         "title": "Simplicity",
@@ -1451,7 +1466,14 @@
       "title": "Final Thesis",
       "subtitle": "The Nuvos AI investment case in one summary"
     },
-    "badgesTitle": "Highlights"
+    "badgesTitle": "Highlights",
+    "modelAssumptions": {
+      "toggle": "View model assumptions",
+      "fcfReported": "Reported free cash flow",
+      "fcfNormalized": "Normalized (excluding growth CapEx)",
+      "growthCapex": "Estimated growth CapEx this year",
+      "wacc": "Discount rate (WACC) used"
+    }
   },
   "patrimonio": {
     "header": {
@@ -1883,6 +1905,23 @@
     },
     "toolsTab": {
       "subtitle": "Advanced analysis tools for your portfolio"
+    },
+    "cash": {
+      "title": "Cash available to invest",
+      "instrument": { "cetes": "CETES", "bank": "Bank", "bonds": "Bonds", "other": "Other" },
+      "annualRate": "% annual",
+      "amountPlaceholder": "Amount ({{currency}})",
+      "notePlaceholder": "Note (optional)",
+      "ratePlaceholder": "Annual rate on your cash (optional)",
+      "rateHintAuto": "Leave it blank and we'll use today's real rate automatically.",
+      "rateHintManual": "Only if you know the annual rate it pays you (e.g. your bank).",
+      "cancel": "Cancel",
+      "saving": "Saving...",
+      "saveChanges": "Save changes",
+      "save": "Save",
+      "addCash": "+ Add cash",
+      "cashSummary": "{{amount}} in cash",
+      "dividendSummary": "{{amount}} in dividends received"
     }
   },
   "academy": {
@@ -2158,7 +2197,7 @@
     "notifPanelTitle": "Notifications",
     "notifPanelEmpty": "No notifications",
     "askMentor": "Ask my Mentor",
-    "mentorFallbackName": "AI Mentor",
+    "mentorFallbackName": "Arthur",
     "greeting": "Hi, {{name}}",
     "riskLabel": {
       "conservative": "Conservative",
@@ -2271,7 +2310,7 @@
     "toolbarVoice": "Voice",
     "toolbarTranscribing": "Transcribing...",
     "toolbarCall": "Call",
-    "callPremiumOnly": "Voice calls with the AI Mentor are Premium only.",
+    "callPremiumOnly": "Voice calls with Arthur are Premium only.",
     "enterToSend": "Enter to send · Shift+Enter for new line",
     "eduFooter": "Educational only · Does not replace professional financial advice",
     "recordingAudio": "Recording audio...",
@@ -2579,7 +2618,7 @@
         "sub": "Your wealth and portfolio"
       },
       "chat": {
-        "label": "AI Mentor",
+        "label": "Arthur",
         "sub": "Ask whatever you want"
       },
       "notifications": {
@@ -2636,7 +2675,7 @@
         "tip": "💡 The \"Trending up today\" section automatically shows the 4 positions in your portfolio with the biggest gain of the day."
       },
       "3": {
-        "title": "Chat with your AI Mentor",
+        "title": "Chat with Arthur",
         "subtitle": "Nuvos's main tool",
         "desc": "Ask about any company, ETF, concept, or strategy. The AI knows your risk profile, your real portfolio, and your investor level, and detects when your decisions contradict them. Every conversation updates your behavioral maturity bar.",
         "tip": "💡 You can edit any message by clicking the pencil icon that appears next to the text."
@@ -3265,7 +3304,7 @@
     }
   },
   "voiceCallModal": {
-    "aiMentor": "AI Mentor",
+    "aiMentor": "Arthur",
     "calling": "Calling...",
     "reconnecting": "Reconnecting...",
     "mute": "Mute",
@@ -3629,7 +3668,7 @@
       },
       "mentor": {
         "desc": "Ask anything about your investments. Clear, personalized answers, no jargon.",
-        "title": "AI Mentor always available"
+        "title": "Arthur always available"
       }
     },
     "privacy": "Privacy",

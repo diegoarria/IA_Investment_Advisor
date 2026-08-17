@@ -57,7 +57,7 @@ export function CompanyDiagnosticTrustPillar({
               <p className="text-[17px] font-black tabular-nums mt-1" style={{ color: "var(--text)" }}>{row.value}</p>
               {row.explKey === "roic" && roicAdjustedForBuybacks && (
                 <p className="text-[9.5px] mt-1" style={{ color: "var(--muted)" }}>
-                  Ajustado: las recompras de acciones comprimieron el patrimonio contable, así que se usó capital invertido operativo.
+                  {t("companyDiagnostic.pillars.trust.roicAdjustedNote")}
                 </p>
               )}
             </RaisedBlock>

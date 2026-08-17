@@ -75,12 +75,19 @@ def compute_moat_score(
     avg_operating_margin_pct: Optional[float], operating_margin_trend: list[Optional[float]],
     gross_margin_latest_pct: Optional[float],
     industry_median_roic_pct: Optional[float], industry_median_operating_margin_pct: Optional[float],
+    lang: str = "es",
 ) -> MoatScoreResult:
     """The single entry point for the deterministic Moat Score. All inputs
     are already-computed real values/trends (from `quality_engine` and
     `industry_engine`) — this function performs zero fetching, zero AI,
     and reuses `numeric_helpers` primitives (`_score`, `weighted_mean`,
-    `_coefficient_of_variation`) rather than re-deriving scoring math."""
+    `_coefficient_of_variation`) rather than re-deriving scoring math.
+
+    `lang` only affects the `MoatFactor.reason` templated strings (default
+    "es" so every existing caller keeps its current output byte-for-byte);
+    `company_diagnostic_service.py` is the one caller that passes the
+    user's real language through."""
+    en = lang == "en"
     factors: list[MoatFactor] = []
 
     roic_premium = (
@@ -88,48 +95,84 @@ def compute_moat_score(
         if avg_roic_pct is not None and industry_median_roic_pct is not None else None
     )
     roic_premium_score = _score(roic_premium, _ROIC_PREMIUM_TIERS) if roic_premium is not None else None
-    factors.append(MoatFactor(
-        "roic_premium_vs_industry", roic_premium, roic_premium_score,
-        f"ROIC promedio ({avg_roic_pct}%) vs. mediana real de la industria ({industry_median_roic_pct}%) → "
-        f"premium de {roic_premium:+.1f}pp." if roic_premium is not None
-        else "No hay suficientes peers reales en la industria para comparar ROIC — sin este factor.",
-    ))
+    if roic_premium is not None:
+        roic_reason = (
+            f"Average ROIC ({avg_roic_pct}%) vs. the industry's real median ({industry_median_roic_pct}%) → "
+            f"premium of {roic_premium:+.1f}pp." if en else
+            f"ROIC promedio ({avg_roic_pct}%) vs. mediana real de la industria ({industry_median_roic_pct}%) → "
+            f"premium de {roic_premium:+.1f}pp."
+        )
+    else:
+        roic_reason = (
+            "Not enough real industry peers to compare ROIC — this factor is excluded." if en else
+            "No hay suficientes peers reales en la industria para comparar ROIC — sin este factor."
+        )
+    factors.append(MoatFactor("roic_premium_vs_industry", roic_premium, roic_premium_score, roic_reason))
 
     margin_premium = (
         round(avg_operating_margin_pct - industry_median_operating_margin_pct, 1)
         if avg_operating_margin_pct is not None and industry_median_operating_margin_pct is not None else None
     )
     margin_premium_score = _score(margin_premium, _MARGIN_PREMIUM_TIERS) if margin_premium is not None else None
-    factors.append(MoatFactor(
-        "margin_premium_vs_industry", margin_premium, margin_premium_score,
-        f"Margen operativo promedio ({avg_operating_margin_pct}%) vs. mediana real de la industria "
-        f"({industry_median_operating_margin_pct}%) → premium de {margin_premium:+.1f}pp." if margin_premium is not None
-        else "No hay suficientes peers reales en la industria para comparar margen — sin este factor.",
-    ))
+    if margin_premium is not None:
+        margin_reason = (
+            f"Average operating margin ({avg_operating_margin_pct}%) vs. the industry's real median "
+            f"({industry_median_operating_margin_pct}%) → premium of {margin_premium:+.1f}pp." if en else
+            f"Margen operativo promedio ({avg_operating_margin_pct}%) vs. mediana real de la industria "
+            f"({industry_median_operating_margin_pct}%) → premium de {margin_premium:+.1f}pp."
+        )
+    else:
+        margin_reason = (
+            "Not enough real industry peers to compare margins — this factor is excluded." if en else
+            "No hay suficientes peers reales en la industria para comparar margen — sin este factor."
+        )
+    factors.append(MoatFactor("margin_premium_vs_industry", margin_premium, margin_premium_score, margin_reason))
 
     roic_cv = _coefficient_of_variation(roic_trend)
     margin_cv = _coefficient_of_variation(operating_margin_trend)
     roic_stability_score = _score(roic_cv, STABILITY_CV_TIERS) if roic_cv is not None else None
     margin_stability_score = _score(margin_cv, STABILITY_CV_TIERS) if margin_cv is not None else None
     stability_score = weighted_mean([(roic_stability_score, 0.5), (margin_stability_score, 0.5)])
+    if roic_cv is not None:
+        roic_stability_reason = (
+            f"A stable ROIC over the years is stronger evidence of a real, durable moat than an isolated spike — "
+            f"coefficient of variation {round(roic_cv, 2)}." if en else
+            "Un ROIC estable a lo largo de los años es más evidencia de un moat real y duradero que un pico aislado — "
+            f"coeficiente de variación {round(roic_cv, 2)}."
+        )
+    else:
+        roic_stability_reason = (
+            "Not enough history to assess ROIC stability." if en else
+            "Historial insuficiente para evaluar estabilidad del ROIC."
+        )
     factors.append(MoatFactor(
-        "roic_stability", round(roic_cv, 2) if roic_cv is not None else None, roic_stability_score,
-        "Un ROIC estable a lo largo de los años es más evidencia de un moat real y duradero que un pico aislado — "
-        f"coeficiente de variación {round(roic_cv, 2)}." if roic_cv is not None else "Historial insuficiente para evaluar estabilidad del ROIC.",
+        "roic_stability", round(roic_cv, 2) if roic_cv is not None else None, roic_stability_score, roic_stability_reason,
     ))
+    if margin_cv is not None:
+        margin_stability_reason = (
+            f"Operating margin stability over the years — coefficient of variation {round(margin_cv, 2)}." if en else
+            f"Estabilidad del margen operativo a lo largo de los años — coeficiente de variación {round(margin_cv, 2)}."
+        )
+    else:
+        margin_stability_reason = (
+            "Not enough history to assess margin stability." if en else
+            "Historial insuficiente para evaluar estabilidad del margen."
+        )
     factors.append(MoatFactor(
-        "margin_stability", round(margin_cv, 2) if margin_cv is not None else None, margin_stability_score,
-        f"Estabilidad del margen operativo a lo largo de los años — coeficiente de variación {round(margin_cv, 2)}."
-        if margin_cv is not None else "Historial insuficiente para evaluar estabilidad del margen.",
+        "margin_stability", round(margin_cv, 2) if margin_cv is not None else None, margin_stability_score, margin_stability_reason,
     ))
 
     gross_margin_score = _score(gross_margin_latest_pct, _GROSS_MARGIN_LEVEL_TIERS) if gross_margin_latest_pct is not None else None
-    factors.append(MoatFactor(
-        "gross_margin_level", gross_margin_latest_pct, gross_margin_score,
-        f"Margen bruto más reciente: {gross_margin_latest_pct}% — un margen bruto estructuralmente alto suele "
-        f"reflejar poder de fijación de precios (pricing power) real." if gross_margin_latest_pct is not None
-        else "Margen bruto no disponible.",
-    ))
+    if gross_margin_latest_pct is not None:
+        gross_margin_reason = (
+            f"Latest gross margin: {gross_margin_latest_pct}% — a structurally high gross margin usually "
+            f"reflects real pricing power." if en else
+            f"Margen bruto más reciente: {gross_margin_latest_pct}% — un margen bruto estructuralmente alto suele "
+            f"reflejar poder de fijación de precios (pricing power) real."
+        )
+    else:
+        gross_margin_reason = "Gross margin not available." if en else "Margen bruto no disponible."
+    factors.append(MoatFactor("gross_margin_level", gross_margin_latest_pct, gross_margin_score, gross_margin_reason))
 
     moat_score_raw = weighted_mean([
         (roic_premium_score, 0.35), (margin_premium_score, 0.25), (stability_score, 0.25), (gross_margin_score, 0.15),

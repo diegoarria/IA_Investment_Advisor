@@ -1755,6 +1755,12 @@ _COMPANY_DIAGNOSTIC_CACHE_TTL = _QUICK_ANALYSIS_CACHE_TTL  # same 90-day ceiling
 
 
 def _company_diagnostic_cache_key(ticker: str, lang: str) -> str:
+    # v6 — bumped because `company_diagnostic_service.py` (scoreLabel,
+    # badges, moatPoints, competitor comparison rows/conclusion,
+    # financialHealth "N/D" fallbacks) and `moat_engine.py`'s MoatFactor
+    # reasons were previously Spanish-only regardless of `lang` — English
+    # requests cached under v5 have Spanish text baked in. A v5 entry
+    # predates the real per-lang templated strings.
     # v5 — bumped for methodology audit round 5 — mandatory per-share Fair
     # Value Engine (see /Users/diegoarria/.claude/plans/cosmic-munching-
     # crown.md): GQV's growth-evidence hierarchy has a new top-priority
@@ -1772,7 +1778,7 @@ def _company_diagnostic_cache_key(ticker: str, lang: str) -> str:
     # (see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md,
     # methodology audit) — this endpoint's valuation fields derive from the
     # same gqv_fair_value output that changed. A v1 entry predates the fix.
-    return f"company_diagnostic:v5:{lang}:{ticker}"
+    return f"company_diagnostic:v6:{lang}:{ticker}"
 
 
 @router.get("/company-diagnostic")
@@ -1831,7 +1837,7 @@ async def company_diagnostic(query: str, lang: str | None = None, user_id: str =
     if not data:
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para diagnosticar {ticker}")
 
-    diagnostic = await asyncio.to_thread(build_company_diagnostic, ticker, data)
+    diagnostic = await asyncio.to_thread(build_company_diagnostic, ticker, data, lang)
     if not diagnostic:
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para diagnosticar {ticker}")
 
