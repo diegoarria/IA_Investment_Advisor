@@ -1195,14 +1195,22 @@ def build_deep_user_context(
     decisions: list[dict],
     watchlist: list[dict],
     quotes: dict[str, dict] | None = None,
+    reflections: list[dict] | None = None,
 ) -> str:
     """Build a rich mentor context from all available user data.
 
     `quotes` maps ticker -> fh_quote() result ({price, change_pct, ...}) for every
     position/watchlist ticker, fetched by the caller right before this runs so the
     mentor always reasons over current market value/P&L, not just cost basis.
+
+    `reflections` (Diego's request, Aug 16) — the user's own Saturday
+    weekly-ritual answers (weekly_reflections: qué salió bien / qué
+    aprendiste / qué harías diferente), most recent first. Real user
+    words, never AI-inferred — same "recuerda tus datos reales" discipline
+    as the decisions diary above it.
     """
     quotes = quotes or {}
+    reflections = reflections or []
     parts = ["\n## 🧬 LO QUE SABES DE ESTE USUARIO (úsalo en CADA respuesta — eres su mentor, no un chatbot):"]
 
     # ── Portfolio real ─────────────────────────────────────────────────────────
@@ -1330,6 +1338,21 @@ def build_deep_user_context(
             parts.append(f"  🔍 PATRÓN CONDUCTUAL DETECTADO: {' | '.join(behavioral)}")
     else:
         parts.append("\n### 📓 DIARIO DE DECISIONES: Sin decisiones registradas aún")
+
+    # ── Reflexiones semanales (ritual de sábado) ────────────────────────────────
+    if reflections:
+        parts.append(f"\n### 🪞 REFLEXIONES SEMANALES (últimas {len(reflections)}, en sus propias palabras):")
+        for r in reflections:
+            week = r.get("week_start_date", "")
+            bits = []
+            if r.get("went_well"):
+                bits.append(f"salió bien: {r['went_well'][:120]}")
+            if r.get("learned"):
+                bits.append(f"aprendió: {r['learned'][:120]}")
+            if r.get("would_do_differently"):
+                bits.append(f"haría diferente: {r['would_do_differently'][:120]}")
+            if bits:
+                parts.append(f"  - [semana del {week}] " + " | ".join(bits))
 
     # ── Perfil conductual profundo ─────────────────────────────────────────────
     ext_lines = []

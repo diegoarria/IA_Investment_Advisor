@@ -267,10 +267,15 @@ async def _get_memory_context(user_id: str) -> str | None:
 
 
 async def _get_mentor_deep_context(user_id: str) -> str | None:
-    """Fetch portfolio, decisions, watchlist and extended profile in parallel for the mentor."""
+    """Fetch portfolio, decisions, watchlist, extended profile, and recent
+    weekly reflections in parallel for the mentor. Diego's request (Aug
+    16): Arthur already had the buy/sell "Diario de Decisiones" — this
+    adds the Saturday ritual's own reflections (weekly_reflections: qué
+    salió bien / qué aprendiste / qué harías diferente), same real-data-
+    injection pattern, no new AI cost."""
     try:
         db = get_supabase()
-        portfolio_res, decisions_res, watchlist_res, extended_res = await asyncio.gather(
+        portfolio_res, decisions_res, watchlist_res, extended_res, reflections_res = await asyncio.gather(
             run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id)),
             run_query(
                 db.table("investment_decisions")
@@ -284,6 +289,13 @@ async def _get_mentor_deep_context(user_id: str) -> str | None:
                 db.table("user_profiles")
                 .select("behavioral_risk_score, maturity_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, investment_horizon, knowledge_level")
                 .eq("user_id", user_id)
+            ),
+            run_query(
+                db.table("weekly_reflections")
+                .select("week_start_date, went_well, learned, would_do_differently")
+                .eq("user_id", user_id)
+                .order("week_start_date", desc=True)
+                .limit(4)
             ),
             return_exceptions=True,
         )
@@ -299,6 +311,7 @@ async def _get_mentor_deep_context(user_id: str) -> str | None:
 
         decisions: list[dict] = [] if isinstance(decisions_res, Exception) else (decisions_res.data or [])
         watchlist: list[dict] = [] if isinstance(watchlist_res, Exception) else (watchlist_res.data or [])
+        reflections: list[dict] = [] if isinstance(reflections_res, Exception) else (reflections_res.data or [])
         extended: dict = {}
         if not isinstance(extended_res, Exception) and extended_res.data:
             extended = extended_res.data[0]
@@ -321,7 +334,7 @@ async def _get_mentor_deep_context(user_id: str) -> str | None:
                 if not isinstance(q, Exception) and q:
                     quotes[t] = q
 
-        return ai_service.build_deep_user_context(extended, positions, decisions, watchlist, quotes)
+        return ai_service.build_deep_user_context(extended, positions, decisions, watchlist, quotes, reflections)
     except Exception:
         return None
 
