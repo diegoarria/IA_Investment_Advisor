@@ -235,14 +235,31 @@ function SubvaluadasPageInner() {
   // fetch takes before swapping to the diagnostic card. See
   // valuationPanelMode.ts's own doc comment for the full reasoning.
   const [companyDiagnosticLoading, setCompanyDiagnosticLoading] = useState(false);
+  // Every failure (403 premium_required, 404 insufficient data, a 500 bug,
+  // a dropped request) used to collapse into the same silent `null` →
+  // "unavailable" card, with zero way to tell them apart from the UI —
+  // confirmed the hard way (Aug 17) chasing a "some tickers show nothing"
+  // report that turned out to need actual Railway log access to diagnose.
+  // Kept minimal (status + code only, never raw error text) so the
+  // "unavailable" card below can distinguish "you need Premium" from a
+  // real data gap without waiting on server logs next time.
+  const [companyDiagnosticError, setCompanyDiagnosticError] = useState<{ status?: number; code?: string } | null>(null);
   useEffect(() => {
-    if (!isPremium) { setCompanyDiagnostic(null); setCompanyDiagnosticLoading(false); return; }
+    if (!isPremium) { setCompanyDiagnostic(null); setCompanyDiagnosticError(null); setCompanyDiagnosticLoading(false); return; }
     let cancelled = false;
     setCompanyDiagnostic(null);
+    setCompanyDiagnosticError(null);
     setCompanyDiagnosticLoading(true);
     screenerApi.companyDiagnostic(ticker, i18n.language)
       .then((res) => { if (!cancelled) setCompanyDiagnostic(res.data); })
-      .catch(() => { if (!cancelled) setCompanyDiagnostic(null); })
+      .catch((err) => {
+        if (cancelled) return;
+        setCompanyDiagnostic(null);
+        const status = (err as { response?: { status?: number; data?: { detail?: { code?: string } | string } } })?.response?.status;
+        const detail = (err as { response?: { data?: { detail?: { code?: string } | string } } })?.response?.data?.detail;
+        const code = typeof detail === "object" ? detail?.code : undefined;
+        setCompanyDiagnosticError({ status, code });
+      })
       .finally(() => { if (!cancelled) setCompanyDiagnosticLoading(false); });
     return () => { cancelled = true; };
   }, [ticker, isPremium, searchTriggered, i18n.language]);
@@ -386,6 +403,20 @@ function SubvaluadasPageInner() {
                         <Loader2 className="w-6 h-6 animate-spin" style={{ color: GOLD }} />
                       </div>
                     </Card>
+                  ) : companyDiagnosticError?.status === 403 ? (
+                    <Card padding="p-6">
+                      <div className="flex items-start gap-3">
+                        <Lock className="w-5 h-5 shrink-0 mt-0.5" style={{ color: GOLD }} />
+                        <div>
+                          <p className="text-[14px] font-bold" style={{ color: "var(--text)" }}>
+                            {t("subvaluadas.premiumGate.title")}
+                          </p>
+                          <p className="text-[13px] mt-1" style={{ color: "var(--sub)" }}>
+                            {t("subvaluadas.premiumGate.desc")}
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
                   ) : (
                     <Card padding="p-6">
                       <div className="flex items-start gap-3">
@@ -397,6 +428,14 @@ function SubvaluadasPageInner() {
                           <p className="text-[13px] mt-1" style={{ color: "var(--sub)" }}>
                             {t("subvaluadas.valuationUnavailable.subtitle")}
                           </p>
+                          {companyDiagnosticError && (
+                            <p className="text-[11px] mt-2" style={{ color: "var(--dim)" }}>
+                              {t("subvaluadas.valuationUnavailable.debug", {
+                                status: companyDiagnosticError.status ?? "?",
+                                code: companyDiagnosticError.code ?? "unknown",
+                              })}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </Card>
