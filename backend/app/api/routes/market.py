@@ -1764,15 +1764,25 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     if not any(t in close.columns for t in tickers):
         return {"history": []}
 
-    # For 1D: keep only today's session (or last trading day)
+    # For 1D: keep ONLY today's real session — never silently substitute a
+    # different day's data. This used to fall back to whatever the last
+    # available trading day was (`elif len(close) > 0: last_day = ...`)
+    # whenever today's own bars weren't in the fetch yet, which is the
+    # common case on a Monday (today's Monday bars not posted yet at the
+    # time the user checks, but Friday's full session is right there in the
+    # same "2d" range fetch) — that silently plotted FRIDAY's real intraday
+    # swings under TODAY's time-of-day x-axis labels (13:30-20:00 UTC),
+    # while the separate /portfolio-returns endpoint correctly showed
+    # +0.00%/+$0 for today, producing the exact contradiction Diego
+    # reported (a chart with real movement next to 0% stat badges) — "esto
+    # solo se ve así los lunes", confirmed 2026-08-18. An honest empty
+    # history (the frontend already renders "Sin datos históricos para
+    # este período" for this) is correct here, never a stale day mislabeled
+    # as today.
     if period == "1d":
         today_str = today.strftime("%Y-%m-%d")
         mask = [str(idx)[:10] == today_str for idx in close.index]
-        if any(mask):
-            close = close.iloc[[i for i, m in enumerate(mask) if m]]
-        elif len(close) > 0:
-            last_day = str(close.index[-1])[:10]
-            close = close.iloc[[i for i, idx in enumerate(close.index) if str(idx)[:10] == last_day]]
+        close = close.iloc[[i for i, m in enumerate(mask) if m]] if any(mask) else close.iloc[0:0]
 
     if close.empty or len(close) < 2:
         return {"history": []}
