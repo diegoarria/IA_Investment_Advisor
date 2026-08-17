@@ -1091,13 +1091,26 @@ def get_financials(symbol: str, limit: int = 5) -> dict:
 
         def fetch_best(method_name: str, annual: bool, lim: int) -> tuple[list, str]:
             """Try each provider in registry order; return first non-empty result + provider name."""
+            failures = []
             for p in active_providers:
                 try:
                     result = getattr(p, method_name)(sym, annual=annual, limit=lim)
                     if result:
                         return result, p.name
+                    failures.append(f"{p.name}=empty")
                 except Exception as exc:
-                    logger.debug("%s failed for %s/%s: %s", p.name, method_name, sym, exc)
+                    failures.append(f"{p.name}={exc!r}")
+            # Was logger.debug (invisible at Railway's default level) — every
+            # provider returning empty/raising for a real, liquid ticker
+            # (confirmed live for JNJ/GOOGL, 2026-08-17: 0 years from every
+            # provider) is a production-affecting event, not routine noise,
+            # and this was the one place that swallowed the actual reason
+            # (bad/missing API key, quota exhausted, IP blocked) before it
+            # ever reached a log anyone could search.
+            if not active_providers:
+                logger.warning("get_financials(%s/%s): no active providers (all .available() are False)", sym, method_name)
+            elif failures:
+                logger.warning("get_financials(%s/%s): every provider failed — %s", sym, method_name, "; ".join(failures))
             return [], "none"
 
         income_a,  income_prov  = fetch_best("get_income",   annual=True,  lim=limit)
