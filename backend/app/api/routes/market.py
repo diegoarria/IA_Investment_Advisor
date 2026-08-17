@@ -1671,7 +1671,6 @@ def _compute_portfolio_returns(
             end_value  = 0.0
             cost_by_ticker: dict[str, float] = {}
             value_by_ticker: dict[str, float] = {}
-            bench_lots: list[tuple[float, "_pd.Timestamp"]] = []
             for i, p in enumerate(positions):
                 t = p.ticker.upper()
                 if t not in close.columns and t not in rt_prices:
@@ -1679,11 +1678,9 @@ def _compute_portfolio_returns(
                 shares = p.shares
                 cp = _cp(t)
                 pd_str = lot_purchase_date[i]
-                eff_date = cutoff
                 if not short_period and pd_str and _pd.Timestamp(pd_str) > cutoff:
                     # Bought mid-period (only for periods > 5D): cost is what we actually paid
-                    eff_date = _pd.Timestamp(pd_str)
-                    mid_subset = close[close.index >= eff_date] if not close.empty else _pd.DataFrame()
+                    mid_subset = close[close.index >= _pd.Timestamp(pd_str)] if not close.empty else _pd.DataFrame()
                     sp = (p.avg_price if p.avg_price and p.avg_price > 0 else None) \
                         or (_safe_price(mid_subset.iloc[0], t) if not mid_subset.empty else 0.0)
                 else:
@@ -1696,7 +1693,6 @@ def _compute_portfolio_returns(
                     end_value  += value
                     cost_by_ticker[t]  = cost_by_ticker.get(t, 0.0) + cost
                     value_by_ticker[t] = value_by_ticker.get(t, 0.0) + value
-                    bench_lots.append((cost, eff_date))
 
             if start_cost <= 0:
                 continue
@@ -1706,15 +1702,24 @@ def _compute_portfolio_returns(
                 for t in cost_by_ticker if cost_by_ticker[t] > 0
             }
 
-            # S&P 500 benchmark — phased per-lot at each lot's own effective
-            # date (period start, or its real purchase date if bought
-            # mid-period), matching how start_cost itself is phased above.
-            # Was a single lump-sum comparison from period start regardless
-            # of when each position was actually bought.
+            # S&P 500 benchmark — the REAL index return over this fixed
+            # calendar period (period start -> now), same for every user
+            # regardless of portfolio composition. Was briefly changed to a
+            # per-lot phased comparison (matching how the PORTFOLIO side's
+            # start_cost is phased) — wrong for a fixed-window period like
+            # YTD/1Y/6M: those have an objective, externally-verifiable
+            # answer ("what did the S&P 500 actually return this year"),
+            # and phasing it to the user's own contribution timing produces
+            # a different, lower, portfolio-specific number instead
+            # (confirmed live 2026-08-18: real YTD was 12.93%, the phased
+            # version showed 8.73%). Phasing stays correct ONLY for
+            # "since_purchase" above, which has no fixed calendar meaning to
+            # begin with — it's inherently about the user's own timeline.
             spy_pct = None
-            spy_equiv = _phased_bench_value(bench_lots, _BENCH, close, spy_current)
-            if spy_equiv is not None:
-                spy_pct = round((spy_equiv - start_cost) / start_cost * 100, 2)
+            if spy_current > 0 and _BENCH in close.columns:
+                spy_start = _safe_price(start_row, _BENCH)
+                if spy_start > 0:
+                    spy_pct = round((spy_current - spy_start) / spy_start * 100, 2)
 
             results[key] = {
                 "pct":    round((end_value - start_cost) / start_cost * 100, 2),
@@ -1917,45 +1922,37 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     # S&P 500 return over the exact same window, from the same fetch — real
     # data every time, never a placeholder or a separately-fetched number.
     #
-    # Was a flat lump-sum (spy_end vs. spy_start on the FIRST chart date)
-    # regardless of when each lot was actually bought — the same bug
-    # already fixed in _compute_portfolio_returns's spy_pct (see
-    # _phased_bench_value's own doc comment), but this endpoint has its own
-    # separate SPY calculation and was never fixed alongside it. Confirmed
-    # live (2026-08-18): mobile's Portfolio screen has no chartOverrides
-    # fallback to THIS endpoint's spy_pct (unlike web, which uses it for
-    # ytd/1mo/3mo/6mo), so mobile was already reading the correct phased
-    # number from /portfolio-returns while web's ytd/1mo/3mo/6mo badges
-    # were still silently using this lump-sum one — the two platforms
-    # disagreeing is what actually got reported as "mobile is wrong."
-    # Phased the same way the portfolio's own `base` above already is:
-    # lots held before the chart's first date count as one lump bought on
-    # that first date (matching `start_val`'s own treatment), lots bought
-    # mid-period count individually from their real purchase date.
+    # For a fixed calendar period (YTD/1Y/6M/3M/1M/...), this is the REAL
+    # index return over that window — the same, objective, externally-
+    # verifiable number for every user (confirmed live 2026-08-18: real
+    # YTD was 12.93%). A per-lot phased version was tried here briefly to
+    # match how the portfolio side's own `base` phases in mid-period
+    # purchases, but that answers a different question ("how would MY
+    # contributions have done in the S&P 500") and silently produced a
+    # lower, portfolio-specific number (8.73%) instead of the real index
+    # return — wrong for a period whose whole point is a fixed calendar
+    # window. Phasing stays correct ONLY for "since_purchase", which has
+    # no fixed calendar meaning to begin with (see below).
     spy_pct = None
     _bench = "^GSPC" if "^GSPC" in close.columns else ("SPY" if "SPY" in close.columns else None)
     if _bench and not close.empty:
-        bench_lots: list[tuple[float, "_pd.Timestamp"]] = []
         if period == "since_purchase":
+            bench_lots: list[tuple[float, "_pd.Timestamp"]] = []
             for i, p in enumerate(positions):
                 ts = lot_purchase_ts[i]
                 if ts is not None and p.avg_price and p.avg_price > 0:
                     bench_lots.append((p.shares * p.avg_price, ts))
+            spy_end = rt_prices.get(_bench) if (not intraday and rt_prices and _bench in rt_prices) else _safe_price(close.iloc[-1], _bench)
+            total_bench_cost = sum(c for c, _ in bench_lots)
+            if spy_end and spy_end > 0 and total_bench_cost > 0:
+                spy_equiv_value = _phased_bench_value(bench_lots, _bench, close, spy_end)
+                if spy_equiv_value is not None:
+                    spy_pct = round((spy_equiv_value - total_bench_cost) / total_bench_cost * 100, 2)
         else:
-            if first_chart_ts is not None and start_val > 0:
-                bench_lots.append((start_val, first_chart_ts))
-            for i, p in enumerate(positions):
-                ts = lot_purchase_ts[i]
-                if (ts is not None and first_chart_ts is not None and ts > first_chart_ts
-                        and p.avg_price and p.avg_price > 0):
-                    bench_lots.append((p.shares * p.avg_price, ts))
-
-        spy_end = rt_prices.get(_bench) if (not intraday and rt_prices and _bench in rt_prices) else _safe_price(close.iloc[-1], _bench)
-        total_bench_cost = sum(c for c, _ in bench_lots)
-        if spy_end and spy_end > 0 and total_bench_cost > 0:
-            spy_equiv_value = _phased_bench_value(bench_lots, _bench, close, spy_end)
-            if spy_equiv_value is not None:
-                spy_pct = round((spy_equiv_value - total_bench_cost) / total_bench_cost * 100, 2)
+            spy_start = _safe_price(close.iloc[0], _bench)
+            spy_end = rt_prices.get(_bench) if (not intraday and rt_prices and _bench in rt_prices) else _safe_price(close.iloc[-1], _bench)
+            if spy_start and spy_start > 0 and spy_end and spy_end > 0:
+                spy_pct = round((spy_end - spy_start) / spy_start * 100, 2)
 
     return {
         "history": history,
