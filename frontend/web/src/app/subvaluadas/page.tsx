@@ -243,13 +243,22 @@ function SubvaluadasPageInner() {
   // falls back to the existing GqvFairValuePanel/FairValueScenariosPanel
   // path below, exactly like before this feature existed.
   const [companyDiagnostic, setCompanyDiagnostic] = useState<CompanyDiagnosticData | null>(null);
+  // Premium-only, and slower than the main `data` fetch below (it's a
+  // separate request) — without tracking "still in flight" separately from
+  // "null", the page would render `data` first, see hasCompanyDiagnostic
+  // still false, and flash the retired gqv panel for however long this
+  // fetch takes before swapping to the diagnostic card. See
+  // valuationPanelMode.ts's own doc comment for the full reasoning.
+  const [companyDiagnosticLoading, setCompanyDiagnosticLoading] = useState(false);
   useEffect(() => {
-    if (!isPremium) { setCompanyDiagnostic(null); return; }
+    if (!isPremium) { setCompanyDiagnostic(null); setCompanyDiagnosticLoading(false); return; }
     let cancelled = false;
     setCompanyDiagnostic(null);
+    setCompanyDiagnosticLoading(true);
     screenerApi.companyDiagnostic(ticker, i18n.language)
       .then((res) => { if (!cancelled) setCompanyDiagnostic(res.data); })
-      .catch(() => { if (!cancelled) setCompanyDiagnostic(null); });
+      .catch(() => { if (!cancelled) setCompanyDiagnostic(null); })
+      .finally(() => { if (!cancelled) setCompanyDiagnosticLoading(false); });
     return () => { cancelled = true; };
   }, [ticker, isPremium, searchTriggered, i18n.language]);
 
@@ -284,7 +293,7 @@ function SubvaluadasPageInner() {
   // when available, never falls back to the retired legacy DCF panel
   // design (see resolveValuationPanelMode's own doc comment for why this
   // is a pure, separately-tested function rather than inline JSX).
-  const valuationPanelMode = resolveValuationPanelMode(!!companyDiagnostic, gqvIsPrimary);
+  const valuationPanelMode = resolveValuationPanelMode(!!companyDiagnostic, gqvIsPrimary, companyDiagnosticLoading);
   const primaryFairValue = gqvIsPrimary
     ? data!.gqv_fair_value!.scenarios!.base.fair_value_per_share
     : data?.nuvos_fair_value?.scenarios.base.fair_value_per_share ?? null;
@@ -420,6 +429,16 @@ function SubvaluadasPageInner() {
                       valoración por culpa de esta tarjeta nueva. */}
                   {valuationPanelMode === "diagnostic" ? (
                     <CompanyDiagnosticCard data={companyDiagnostic!} />
+                  ) : valuationPanelMode === "loading" ? (
+                    // The diagnostic card is still on its way (Premium-only,
+                    // slower separate fetch) — show a real loading state
+                    // instead of flashing the retired gqv panel and then
+                    // swapping it out a moment later.
+                    <Card padding="p-10">
+                      <div className="flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 animate-spin" style={{ color: GOLD }} />
+                      </div>
+                    </Card>
                   ) : valuationPanelMode === "gqv" ? (
                     <GqvFairValuePanel data={data.gqv_fair_value} />
                   ) : (

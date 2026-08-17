@@ -19,15 +19,31 @@ describe("resolveValuationPanelMode", () => {
     expect(resolveValuationPanelMode(false, false)).toBe("unavailable");
   });
 
-  it("never returns anything other than the 3 known modes (no legacy-panel escape hatch)", () => {
+  it("shows a loading state instead of flashing the gqv panel while the diagnostic is still in flight", () => {
+    expect(resolveValuationPanelMode(false, true, true)).toBe("loading");
+    expect(resolveValuationPanelMode(false, false, true)).toBe("loading");
+  });
+
+  it("prefers the diagnostic over loading once it actually arrives, even if the flag is stale", () => {
+    expect(resolveValuationPanelMode(true, true, true)).toBe("diagnostic");
+  });
+
+  it("defaults isDiagnosticLoading to false, preserving old callers' behavior", () => {
+    expect(resolveValuationPanelMode(false, true)).toBe("gqv");
+    expect(resolveValuationPanelMode(false, false)).toBe("unavailable");
+  });
+
+  it("never returns anything other than the 4 known modes (no legacy-panel escape hatch)", () => {
     const allOutcomes = [
       resolveValuationPanelMode(true, true),
       resolveValuationPanelMode(true, false),
       resolveValuationPanelMode(false, true),
       resolveValuationPanelMode(false, false),
+      resolveValuationPanelMode(false, true, true),
+      resolveValuationPanelMode(false, false, true),
     ];
     for (const outcome of allOutcomes) {
-      expect(["diagnostic", "gqv", "unavailable"]).toContain(outcome);
+      expect(["diagnostic", "loading", "gqv", "unavailable"]).toContain(outcome);
     }
   });
 });
