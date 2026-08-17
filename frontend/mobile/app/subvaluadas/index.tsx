@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  View, Text, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, TextInput, Modal,
+  View, Text, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, TextInput,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,25 +13,17 @@ import { screenerWeeklyApi, watchlistServerApi } from "../../src/lib/api";
 import PaywallModal from "../../src/components/PaywallModal";
 import StockAvatar from "../../src/components/StockAvatar";
 import ExplainButton from "../../src/components/ExplainButton";
-import {
-  type Checklist, type LiquidityGate, type FairValueRangeData, type ConfidenceMeterData, type MarketExpectationsData,
-  type DcfAssumptions, type YearlyDetailRow,
-  type NifDashboardData, type NifRow,
-  type SensitivityMatrixData, type NuvosSensitivityMatrixData,
-  type ReverseDcfSanityCheckData, type ExpectationsInvestingData,
-  type NuvosFairValueData,
-  GeneratedAtNote, LiquidityWarning, ConfidenceMeter, FairValueRangeDisplay, MarketExpectationsPanel, InsightBox,
-  ChecklistDisplay, ActionButtons, NifOverallScoreBanner, NifPillarCard, NifDashboardSkeleton,
-  ReverseDcfPanel, FinalResultPanel, FairValueScenariosPanel,
-} from "../../src/components/subvaluadas/shared";
-import { SelfCheckQuiz } from "../../src/components/subvaluadas/SelfCheckQuiz";
+import { GeneratedAtNote, ActionButtons } from "../../src/components/subvaluadas/shared";
+import { CompanyDiagnosticCard } from "../../src/components/subvaluadas/CompanyDiagnosticCard";
+import type { CompanyDiagnosticData } from "../../src/lib/types/companyDiagnostic";
 
-// Gold/teal/coral is this screen's fixed brand identity (Valor Intrínseco),
-// kept constant in both themes — RN has no CSS custom properties, so this
-// whole object is passed explicitly as the `colors` prop to the shared
-// display components. The neutrals, though, follow the app's own light/dark
-// palette (ThemeContext's `dark`/`light` exports) instead of being locked to
-// the dark "navy" look regardless of the user's theme toggle.
+// Mobile "Oportunidades" screen — full port of web's /subvaluadas redesign
+// (app/subvaluadas/page.tsx): CompanyDiagnosticCard is now the ONLY
+// valuation panel, exactly like web (Diego, "siempre siempre siempre" — see
+// web's valuationPanelMode.ts doc comment). The old GQV/DCF panel and its
+// whole cascade (NIF dashboard, Sensitivity Heatmap, Reverse DCF, Level 3
+// modal, mentor questions) are retired for good — never a fallback again.
+
 const viColorsDark = {
   bg: "#0A0F1A", bgRaised: "#16223A", card: "#111A2B", cardElevated: "#16223A",
   border: "rgba(255,255,255,0.08)", borderStrong: "#1C2B47",
@@ -60,182 +52,14 @@ interface QuickAnalysisResult {
   price: number | null;
   change_pct: number | null;
   exchange: string | null;
-  intrinsic_value_base: number | null;
-  expected_value_per_share: number | null;
-  margin_of_safety_pct: number | null;
-  implied_growth_pct: number | null;
-  composite_score: number | null;
-  fair_value_range: FairValueRangeData | null;
-  confidence_meter: ConfidenceMeterData | null;
-  market_expectations: MarketExpectationsData | null;
-  summary: string;
-  checklist: Checklist | null;
-  liquidity_gate: LiquidityGate | null;
   generated_at: number;
-  current_fcf: number | null;
-  net_cash: number | null;
-  shares_outstanding: number | null;
-  dcf_assumptions: DcfAssumptions | null;
-  yearly_detail: YearlyDetailRow[] | null;
-  pv_of_fcf_sum: number | null;
-  pv_of_terminal_value: number | null;
-  enterprise_value: number | null;
-  // Fase 1, Incremento 4 — mirror of the web QuickAnalysisResult additions.
-  sensitivity_matrix: SensitivityMatrixData | null;
-  reverse_dcf_sanity_check: ReverseDcfSanityCheckData | null;
-  expectations_investing: ExpectationsInvestingData | null;
-  sector_model_note: { sector_type: string; detalle: string } | null;
-  nuvos_fair_value: NuvosFairValueData | null;
 }
 
-function pct(v: number): string {
-  return `${v.toFixed(1)}%`;
-}
-
-function fmtMoney(v: number | null | undefined): string {
-  if (v === null || v === undefined || !isFinite(v)) return "N/D";
-  const abs = Math.abs(v);
-  if (abs >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
-  return `$${v.toFixed(2)}`;
-}
-
-function colorForRatio(ratio: number): string {
-  const coral = [221, 110, 99], gold = [212, 162, 76], teal = [79, 166, 149];
-  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-  let c: number[];
-  if (ratio <= 1.0) {
-    const t = clamp((ratio - 0.6) / 0.4, 0, 1);
-    c = coral.map((v, i) => Math.round(v + (gold[i] - v) * t));
-  } else {
-    const t = clamp((ratio - 1.0) / 0.5, 0, 1);
-    c = gold.map((v, i) => Math.round(v + (teal[i] - v) * t));
-  }
-  return `rgb(${c[0]},${c[1]},${c[2]})`;
-}
-
-// Fase 1, Incremento 4: renders the REAL matrix the backend computes
-// (`dcf.sensitivity_matrix`, 3 WACC rows x 4 growth columns, every cell a
-// real driver-based DCF run) instead of reimplementing its own 5x5 grid
-// client-side with the simpler `calcularValorIntrinseco`. See the web
-// version's identical comment for the full rationale — one DCF
-// implementation now, not two that could silently drift apart.
-// Nuvos AI Fair Value Engine redesign, Incremento 15 — re-fed from the new
-// engine: WACC x exit multiple, not WACC x growth. Mirrors the web version.
-function SensitivityHeatmap({ matrix, price }: { matrix: NuvosSensitivityMatrixData; price: number }) {
-  const { t } = useTranslation();
-  const { isDark } = useTheme();
-  const viColors = useViColors(isDark);
-  const mVals = matrix.multiple_cols;
-  const rVals = matrix.wacc_rows_pct;
-  const centerRi = Math.floor(rVals.length / 2);
-  const centerMi = Math.floor(mVals.length / 2);
-  const cellSize = 52;
-
-  return (
-    <View style={{ borderRadius: 14, backgroundColor: viColors.card, borderWidth: 1, borderColor: viColors.border, padding: 16, marginTop: 16 }}>
-      <Text style={{ fontSize: 15, fontWeight: "600", color: viColors.text, marginBottom: 4 }}>{t("subvaluadas.detail.heatmap.title")}</Text>
-      <Text style={{ fontSize: 11.5, lineHeight: 16, color: viColors.textSub, marginBottom: 10 }}>{t("subvaluadas.detail.heatmap.desc")}</Text>
-
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
-        <Text style={{ fontSize: 10, color: viColors.textMuted }}>{t("subvaluadas.detail.heatmap.lower")}</Text>
-        <View style={{ width: 80, height: 6, borderRadius: 3, backgroundColor: GOLD }} />
-        <Text style={{ fontSize: 10, color: viColors.textMuted }}>{t("subvaluadas.detail.heatmap.higher")}</Text>
-      </View>
-
-      <View style={{ flexDirection: "row" }}>
-        <View style={{ width: 38 }} />
-        {mVals.map((mv, i) => (
-          <View key={i} style={{ width: cellSize, alignItems: "center" }}>
-            <Text style={{ fontSize: 9, color: viColors.textMuted }}>{mv.toFixed(1)}x</Text>
-          </View>
-        ))}
-      </View>
-      {rVals.map((rv, ri) => (
-        <View key={ri} style={{ flexDirection: "row", marginTop: 3 }}>
-          <View style={{ width: 38, justifyContent: "center" }}>
-            <Text style={{ fontSize: 9, color: viColors.textMuted, textAlign: "right", paddingRight: 4 }}>{pct(rv)}</Text>
-          </View>
-          {mVals.map((mv, mi) => {
-            const val = matrix.values[ri][mi];
-            const isCenter = ri === centerRi && mi === centerMi;
-            const noSolution = val === null;
-            const ratio = val !== null && price ? val / price : 1;
-            return (
-              <View key={mi} style={{
-                width: cellSize, height: cellSize, marginHorizontal: 1.5, borderRadius: 8,
-                alignItems: "center", justifyContent: "center",
-                backgroundColor: noSolution ? viColors.borderStrong : colorForRatio(ratio),
-                borderWidth: isCenter ? 2 : 0, borderColor: "#EBEEF5",
-              }}>
-                <Text style={{ fontSize: 11, fontWeight: "800", color: noSolution ? viColors.textDim : "#0A0F1A" }}>
-                  {noSolution ? "N/D" : `$${val!.toFixed(0)}`}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
-      ))}
-
-      <View style={{ flexDirection: "row", gap: 8, marginTop: 14, padding: 10, borderRadius: 10, backgroundColor: viColors.bgRaised }}>
-        <Ionicons name="alert-circle-outline" size={14} color={GOLD} style={{ marginTop: 1 }} />
-        <Text style={{ flex: 1, fontSize: 11, lineHeight: 15, color: viColors.textSub }}>{t("subvaluadas.detail.heatmap.note")}</Text>
-      </View>
-    </View>
-  );
-}
-
-// Mirror of the web version in frontend/web/src/app/subvaluadas/page.tsx —
-// keep both in sync. Turns a NIF pillar's raw data/nuvos_estimate dicts into
-// the labeled rows NifPillarCard renders.
-function buildNifRows(pillarKey: string, d: Record<string, any>, isFinancialSector: boolean, t: (k: string, o?: any) => string): NifRow[] {
-  const num = (v: unknown): number | null => (typeof v === "number" && isFinite(v) ? v : null);
-  const label = (key: string) => t(`subvaluadas.nif.fields.${key}`);
-  const rows: NifRow[] = [];
-  const push = (key: string, value: string | null) => { if (value !== null) rows.push({ label: label(key), value }); };
-
-  if (pillarKey === "business_quality_data") {
-    push("roicPct", num(d.roic_pct) !== null ? pct(num(d.roic_pct)!) : null);
-    push("operatingMarginPct", num(d.operating_margin_pct) !== null ? pct(num(d.operating_margin_pct)!) : null);
-    push("netMarginPct", num(d.net_margin_pct) !== null ? pct(num(d.net_margin_pct)!) : null);
-    push("fcfMarginPct", num(d.fcf_margin_pct) !== null ? pct(num(d.fcf_margin_pct)!) : null);
-    push("revenueCagrPct", num(d.revenue_cagr_pct) !== null ? pct(num(d.revenue_cagr_pct)!) : null);
-  } else if (pillarKey === "business_quality_estimate") {
-    push("roicScore", num(d.roic_score)?.toString() ?? null);
-    push("marginScore", num(d.operating_margin_score)?.toString() ?? null);
-    push("growthScore", num(d.growth_score)?.toString() ?? null);
-  } else if (pillarKey === "financial_strength_data") {
-    push("totalDebt", fmtMoney(num(d.total_debt)));
-    push("cash", fmtMoney(num(d.cash)));
-    push("netCash", fmtMoney(num(d.net_cash)));
-  } else if (pillarKey === "financial_strength_estimate") {
-    push("interestCoverageScore", num(d.interest_coverage_score)?.toString() ?? null);
-    push("debtScore", num(d.net_debt_to_cash_score)?.toString() ?? null);
-  } else if (pillarKey === "management_quality_data") {
-    push("buybackRatePct", num(d.buyback_rate_pct) !== null ? pct(num(d.buyback_rate_pct)!) : null);
-    push("payoutRatioPct", num(d.payout_ratio_pct) !== null ? pct(num(d.payout_ratio_pct)!) : null);
-    const t12 = d.insider_trailing_12mo as { distinct_buyers?: number; distinct_sellers?: number } | null | undefined;
-    if (t12) {
-      push("insiderBuyers", String(t12.distinct_buyers ?? 0));
-      push("insiderSellers", String(t12.distinct_sellers ?? 0));
-    }
-    push("insiderSentiment", num(d.insider_sentiment_avg_mspr) !== null ? num(d.insider_sentiment_avg_mspr)!.toFixed(0) : null);
-  } else if (pillarKey === "valuation_data") {
-    push("currentPrice", num(d.current_price) !== null ? `$${num(d.current_price)!.toFixed(2)}` : null);
-    if (!isFinancialSector) {
-      push("peRatio", num(d.pe_ratio)?.toFixed(1) ?? null);
-      push("evEbitda", num(d.ev_ebitda)?.toFixed(1) ?? null);
-      push("pegRatio", num(d.peg_ratio)?.toFixed(2) ?? null);
-    }
-  } else if (pillarKey === "valuation_estimate") {
-    const fvr = d.fair_value_range as { low?: number; high?: number } | null | undefined;
-    if (fvr && num(fvr.low) !== null && num(fvr.high) !== null) {
-      push("fairValueRange", `$${num(fvr.low)!.toFixed(0)} - $${num(fvr.high)!.toFixed(0)}`);
-    }
-    push("marginOfSafetyPct", num(d.margin_of_safety_pct) !== null ? pct(num(d.margin_of_safety_pct)!) : null);
-    push("expectedValue", num(d.expected_value_per_share) !== null ? `$${num(d.expected_value_per_share)!.toFixed(2)}` : null);
-  }
-  return rows;
+type ValuationPanelMode = "diagnostic" | "loading" | "unavailable";
+function resolveValuationPanelMode(hasCompanyDiagnostic: boolean, isDiagnosticLoading: boolean): ValuationPanelMode {
+  if (hasCompanyDiagnostic) return "diagnostic";
+  if (isDiagnosticLoading) return "loading";
+  return "unavailable";
 }
 
 export default function SubvaluadasScreen() {
@@ -248,8 +72,6 @@ export default function SubvaluadasScreen() {
 
   const [paywallOpen, setPaywallOpen] = useState(false);
 
-  // Marks the home checklist's "view 1 opportunity" step done — landing here
-  // at all counts, since this screen's whole purpose is showing an opportunity.
   useEffect(() => { AsyncStorage.setItem("nuvos_opportunity_viewed", "1"); }, []);
 
   const [query, setQuery] = useState("");
@@ -259,10 +81,6 @@ export default function SubvaluadasScreen() {
   const [error, setError] = useState<string | null>(null);
   const [limitHit, setLimitHit] = useState(false);
   const [watchlisted, setWatchlisted] = useState(false);
-  const [level3Open, setLevel3Open] = useState(false);
-  // Free users get 2 searches/week (enforced server-side) — don't burn that on
-  // the default AAPL auto-load; only fetch once they've actually searched,
-  // or if a deep link named a ticker explicitly.
   const [searchTriggered, setSearchTriggered] = useState(() => !!params.ticker);
 
   useEffect(() => {
@@ -272,10 +90,6 @@ export default function SubvaluadasScreen() {
     setLimitHit(false);
 
     const run = async () => {
-      // Stale-while-revalidate: paint instantly from the last cached
-      // payload for this ticker+lang (AsyncStorage) while a fresh copy
-      // loads in the background — the screen's default ticker must never
-      // sit on a spinner when we already know the answer from a previous visit.
       let hadCache = false;
       try {
         const cached = await AsyncStorage.getItem(cacheKey);
@@ -289,10 +103,6 @@ export default function SubvaluadasScreen() {
 
       if (!hadCache && !cancelled) { setLoading(true); setError(null); }
 
-      // This screen must always open with a real result, not a spinner
-      // stuck on a transient network hiccup or a slow provider timeout —
-      // retry a couple of times with backoff before surfacing an error. A
-      // definite answer from the server (bad ticker, not premium) is never retried.
       const attempt = async (n: number): Promise<void> => {
         try {
           const res: any = await screenerWeeklyApi.quickAnalysis(ticker, i18n.language);
@@ -307,7 +117,7 @@ export default function SubvaluadasScreen() {
             await new Promise((r) => setTimeout(r, 800 * (n + 1)));
             return cancelled ? undefined : attempt(n + 1);
           }
-          if (cancelled || hadCache) return; // already showing the cached result — don't rip it away
+          if (cancelled || hadCache) return;
           if (status === 429) {
             setLimitHit(true);
             setError(err?.response?.data?.detail?.message || t("subvaluadas.freeGate.limitDesc"));
@@ -327,67 +137,46 @@ export default function SubvaluadasScreen() {
     return () => { cancelled = true; };
   }, [ticker, isPremium, searchTriggered, i18n.language, t]);
 
-  // Nuvos Investment Framework (NIF) dashboard — fired in parallel with the
-  // quick-analysis call above, own request/cache/failure domain. A NIF
-  // failure must never affect the existing Calculadora de Valor Intrínseco
-  // below it. Premium-only in this first phase.
-  const [nifData, setNifData] = useState<NifDashboardData | null>(null);
-  const [nifLoading, setNifLoading] = useState(true);
-  const [nifError, setNifError] = useState(false);
+  // CompanyDiagnosticCard's real data — Premium-only, fetched in parallel
+  // with quick-analysis. Mirror of web's page.tsx — see its own comment.
+  const [companyDiagnostic, setCompanyDiagnostic] = useState<CompanyDiagnosticData | null>(null);
+  const [companyDiagnosticLoading, setCompanyDiagnosticLoading] = useState(false);
+  const [companyDiagnosticError, setCompanyDiagnosticError] = useState<{ status?: number; code?: string } | null>(null);
 
   useEffect(() => {
-    if (!isPremium) { setNifLoading(false); return; }
+    if (!isPremium) { setCompanyDiagnostic(null); setCompanyDiagnosticError(null); setCompanyDiagnosticLoading(false); return; }
     let cancelled = false;
-    setNifLoading(true);
-    setNifError(false);
-    screenerWeeklyApi.nifDashboard(ticker, i18n.language)
-      .then((res: any) => { if (!cancelled) { setNifData(res.data); setNifError(false); } })
-      .catch(() => { if (!cancelled) { setNifData(null); setNifError(true); } })
-      .finally(() => { if (!cancelled) setNifLoading(false); });
+    setCompanyDiagnostic(null);
+    setCompanyDiagnosticError(null);
+    setCompanyDiagnosticLoading(true);
+    screenerWeeklyApi.companyDiagnostic(ticker, i18n.language)
+      .then((res: any) => { if (!cancelled) setCompanyDiagnostic(res.data); })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setCompanyDiagnostic(null);
+        const status = err?.response?.status;
+        const detail = err?.response?.data?.detail;
+        const code = typeof detail === "object" ? detail?.code : undefined;
+        setCompanyDiagnosticError({ status, code });
+      })
+      .finally(() => { if (!cancelled) setCompanyDiagnosticLoading(false); });
     return () => { cancelled = true; };
-  }, [ticker, isPremium, i18n.language]);
+  }, [ticker, isPremium, searchTriggered, i18n.language]);
+
+  const valuationPanelMode = resolveValuationPanelMode(!!companyDiagnostic, companyDiagnosticLoading);
 
   const handleSearch = () => {
     if (!query.trim()) return;
     setWatchlisted(false);
     setSearchTriggered(true);
-    // Was `.toUpperCase()` — silently broke every company-name search, same
-    // bug as the web version (see its own comment). The backend only
-    // trusts a query as a literal ticker when it arrives already in caps,
-    // to tell "AAPL" apart from "Apple" — forcing uppercase here made every
-    // name search look like a deliberate ticker and skip the real name
-    // lookup. Send exactly what the user typed.
     setTicker(query.trim());
   };
-
-  const hasData = data?.current_fcf != null && data?.net_cash != null && data?.shares_outstanding != null && data?.price != null;
-  const isFinancialSector = data?.dcf_assumptions?.methodology === "residual_income_justified_pb";
-
-  const fcf0 = hasData ? data!.current_fcf! / 1e6 : 0;
-  const netCash = hasData ? data!.net_cash! / 1e6 : 0;
-  const shares = hasData ? data!.shares_outstanding! / 1e6 : 0;
-  const horizon = data?.yearly_detail && data.yearly_detail.length > 0 ? data.yearly_detail.length : 10;
-
-  const suggestedG = data?.dcf_assumptions?.suggested_g ?? 7;
-  const suggestedR = data?.dcf_assumptions?.suggested_r ?? 9;
-  const suggestedGt = data?.dcf_assumptions?.suggested_gt ?? 3;
-
-  const price = data?.price ?? 0;
 
   const handleFollow = async () => {
     if (!data || watchlisted) return;
     try { await watchlistServerApi.add(data.ticker, data.company_name || undefined); setWatchlisted(true); } catch { /* idempotent */ }
   };
   const handleAnalyze = () => router.push(`/chat?msg=${encodeURIComponent(t("subvaluadas.analyze.prompt", { ticker }))}&autosend=1` as any);
-  const askMentor = (question: string) => router.push(`/chat?msg=${encodeURIComponent(question)}&autosend=1` as any);
-
-  const name = data?.company_name || ticker;
-  const mentorQuestions = [
-    { key: "why", text: t("subvaluadas.dcf.mentor.why", { ticker: name }) },
-    { key: "risk", text: t("subvaluadas.dcf.mentor.risk", { ticker: name }) },
-    { key: "sensitivity", text: t("subvaluadas.dcf.mentor.sensitivity", { ticker: name }) },
-    { key: "change", text: t("subvaluadas.dcf.mentor.change", { ticker: name }) },
-  ];
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: viColors.bg }}>
@@ -472,157 +261,46 @@ export default function SubvaluadasScreen() {
             )}
           </View>
 
-          {isPremium && (
-            nifLoading ? (
-              <NifDashboardSkeleton colors={viColors} />
-            ) : nifData && !nifError ? (
-              <View style={{ marginBottom: 4 }}>
-                <NifOverallScoreBanner overall={nifData.overall_nif_score} colors={viColors} />
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
-                  <View style={{ width: "47%" }}>
-                    <NifPillarCard
-                      titleKey="business_quality"
-                      score={nifData.pillars.business_quality.score}
-                      dataRows={buildNifRows("business_quality_data", nifData.pillars.business_quality.data, isFinancialSector, t)}
-                      estimateRows={buildNifRows("business_quality_estimate", nifData.pillars.business_quality.nuvos_estimate, isFinancialSector, t)}
-                      explanation={nifData.pillars.business_quality.explanation}
-                      colors={viColors}
-                    />
-                  </View>
-                  <View style={{ width: "47%" }}>
-                    <NifPillarCard
-                      titleKey="financial_strength"
-                      score={nifData.pillars.financial_strength.score}
-                      dataRows={buildNifRows("financial_strength_data", nifData.pillars.financial_strength.data, isFinancialSector, t)}
-                      estimateRows={buildNifRows("financial_strength_estimate", nifData.pillars.financial_strength.nuvos_estimate, isFinancialSector, t)}
-                      explanation={nifData.pillars.financial_strength.explanation}
-                      colors={viColors}
-                    />
-                  </View>
-                  <View style={{ width: "47%" }}>
-                    <NifPillarCard
-                      titleKey="management_quality"
-                      score={nifData.pillars.management_quality.score}
-                      dataRows={buildNifRows("management_quality_data", nifData.pillars.management_quality.data, isFinancialSector, t)}
-                      estimateRows={buildNifRows("management_quality_estimate", nifData.pillars.management_quality.nuvos_estimate, isFinancialSector, t)}
-                      explanation={nifData.pillars.management_quality.explanation}
-                      colors={viColors}
-                    />
-                  </View>
-                  <View style={{ width: "47%" }}>
-                    <NifPillarCard
-                      titleKey="valuation"
-                      score={nifData.pillars.valuation.score}
-                      dataRows={buildNifRows("valuation_data", nifData.pillars.valuation.data, isFinancialSector, t)}
-                      estimateRows={buildNifRows("valuation_estimate", nifData.pillars.valuation.nuvos_estimate, isFinancialSector, t)}
-                      explanation={nifData.pillars.valuation.explanation}
-                      colors={viColors}
-                    />
-                  </View>
-                </View>
+          {/* CompanyDiagnosticCard — LA ÚNICA tarjeta de valoración de esta
+              pantalla, igual que web (Diego, "siempre siempre siempre"). */}
+          {valuationPanelMode === "diagnostic" ? (
+            <CompanyDiagnosticCard data={companyDiagnostic!} colors={viColors} />
+          ) : valuationPanelMode === "loading" ? (
+            <View style={{ borderRadius: 16, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, paddingVertical: 40, alignItems: "center" }}>
+              <ActivityIndicator size="large" color={GOLD} />
+            </View>
+          ) : companyDiagnosticError?.status === 403 ? (
+            <View style={{ borderRadius: 16, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, padding: 16, flexDirection: "row", gap: 10 }}>
+              <Ionicons name="lock-closed-outline" size={18} color={GOLD} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13.5, fontWeight: "800", color: viColors.text }}>{t("subvaluadas.premiumGate.title")}</Text>
+                <Text style={{ fontSize: 12, color: viColors.textSub, marginTop: 4 }}>{t("subvaluadas.premiumGate.desc")}</Text>
               </View>
-            ) : null
-          )}
-
-          <View style={{ gap: 10, marginBottom: 22 }}>
-            <GeneratedAtNote generatedAt={data.generated_at} colors={viColors} />
-            {data.liquidity_gate && <LiquidityWarning gate={data.liquidity_gate} />}
-            <FinalResultPanel
-              intrinsicValue={data.expected_value_per_share ?? data.intrinsic_value_base}
-              price={data.price}
-              confidence={data.confidence_meter}
-              colors={viColors}
-            />
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-              {data.fair_value_range && <FairValueRangeDisplay range={data.fair_value_range} colors={viColors} />}
-              {data.confidence_meter && <ConfidenceMeter data={data.confidence_meter} colors={viColors} />}
-            </View>
-            {/* Nuvos AI Fair Value Engine redesign, Incremento 11 (THE FLIP) —
-                one engine, three scenarios (Bear/Base/Bull), now the primary
-                valuation panel, ungated, in the always-visible summary block. */}
-            {data.nuvos_fair_value && (
-              <FairValueScenariosPanel data={data.nuvos_fair_value} price={price} colors={viColors} />
-            )}
-            {data.market_expectations && <MarketExpectationsPanel data={data.market_expectations} colors={viColors} />}
-            {data.checklist && <ChecklistDisplay checklist={data.checklist} colors={viColors} />}
-            <InsightBox text={data.summary} colors={viColors} />
-          </View>
-
-          <Text style={{ fontSize: 24, fontWeight: "600", color: viColors.text, marginBottom: 6 }}>
-            {t("subvaluadas.detail.pageTitle.pre")} <Text style={{ fontStyle: "italic", color: GOLD }}>{t("subvaluadas.detail.pageTitle.em")}</Text>
-          </Text>
-          <Text style={{ fontSize: 13, lineHeight: 18, color: viColors.textSub, marginBottom: 16 }}>{t("subvaluadas.detail.pageSubtitle")}</Text>
-
-          {hasData && (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
-              {[
-                [t("subvaluadas.detail.chips.fcf"), fmtMoney(data.current_fcf)],
-                [t("subvaluadas.detail.chips.netCash"), fmtMoney(data.net_cash)],
-                [t("subvaluadas.detail.chips.shares"), `${(data.shares_outstanding! / 1e6).toFixed(0)}M`],
-              ].map(([label, value]) => (
-                <View key={label} style={{ borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: viColors.card, borderWidth: 1, borderColor: viColors.border, flexDirection: "row", gap: 5 }}>
-                  <Text style={{ fontSize: 11, color: viColors.textSub }}>{label}</Text>
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: viColors.text }}>{value}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {!hasData ? (
-            <View style={{ borderRadius: 12, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, padding: 14 }}>
-              <Text style={{ fontSize: 12, color: viColors.textSub }}>{t("subvaluadas.dcf.noData")}</Text>
-            </View>
-          ) : isFinancialSector ? (
-            <View style={{ borderRadius: 12, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, padding: 14 }}>
-              <Text style={{ fontSize: 12, color: viColors.textSub }}>{t("subvaluadas.dcf.financialSectorNote")}</Text>
             </View>
           ) : (
-            <>
-              {data.nuvos_fair_value?.sensitivity_matrix && price !== null && (
-                <SensitivityHeatmap matrix={data.nuvos_fair_value.sensitivity_matrix} price={price} />
-              )}
-
-              {(data.reverse_dcf_sanity_check || data.expectations_investing) && (
-                <View style={{ marginTop: 16 }}>
-                  <ReverseDcfPanel
-                    sanityCheck={data.reverse_dcf_sanity_check}
-                    expectationsInvesting={data.expectations_investing}
-                    colors={viColors}
-                  />
-                </View>
-              )}
-
-              <TouchableOpacity onPress={() => setLevel3Open(true)} style={{ marginTop: 14 }}>
-                <Text style={{ fontSize: 12, fontWeight: "700", textDecorationLine: "underline", color: viColors.textMuted }}>{t("subvaluadas.detail.level3Toggle")}</Text>
-              </TouchableOpacity>
-
-              <View style={{ marginTop: 20 }}>
-                <Text style={{ fontSize: 10, fontWeight: "700", textTransform: "uppercase", color: viColors.textMuted, marginBottom: 8 }}>{t("subvaluadas.dcf.mentor.title")}</Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {mentorQuestions.map((q) => (
-                    <TouchableOpacity key={q.key} onPress={() => askMentor(q.text)}
-                                      style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 18, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card }}>
-                      <Ionicons name="chatbubble-ellipses-outline" size={12} color={viColors.textSub} />
-                      <Text style={{ fontSize: 11, fontWeight: "600", color: viColors.textSub }}>{q.text}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+            <View style={{ borderRadius: 16, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, padding: 16, flexDirection: "row", gap: 10 }}>
+              <Ionicons name="alert-circle-outline" size={18} color={viColors.textMuted} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13.5, fontWeight: "800", color: viColors.text }}>{t("subvaluadas.valuationUnavailable.title")}</Text>
+                <Text style={{ fontSize: 12, color: viColors.textSub, marginTop: 4 }}>{t("subvaluadas.valuationUnavailable.subtitle")}</Text>
+                {companyDiagnosticError && (
+                  <Text style={{ fontSize: 10.5, color: viColors.textDim, marginTop: 6 }}>
+                    {t("subvaluadas.valuationUnavailable.debug", {
+                      status: companyDiagnosticError.status ?? "?",
+                      code: companyDiagnosticError.code ?? "unknown",
+                    })}
+                  </Text>
+                )}
               </View>
-            </>
+            </View>
           )}
 
-          <View style={{ marginTop: 22 }}>
+          <View style={{ marginTop: 18, gap: 10 }}>
+            <GeneratedAtNote generatedAt={data.generated_at} colors={viColors} />
+          </View>
+          <View style={{ marginTop: 14 }}>
             <ActionButtons watchlisted={watchlisted} onFollow={handleFollow} onAnalyze={handleAnalyze} colors={viColors} />
           </View>
-
-          <View style={{ flexDirection: "row", gap: 8, marginTop: 18, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.bg }}>
-            <Ionicons name="alert-circle-outline" size={14} color={viColors.textMuted} style={{ marginTop: 1 }} />
-            <Text style={{ flex: 1, fontSize: 11, lineHeight: 15, color: viColors.textMuted }}>
-              <Text style={{ fontWeight: "700", color: viColors.textSub }}>{t("subvaluadas.detail.disclaimer.bold")}</Text> {t("subvaluadas.detail.disclaimer.text")}
-            </Text>
-          </View>
-
-          {data && <SelfCheckQuiz ticker={data.ticker} colors={viColors} />}
         </ScrollView>
       )}
 
@@ -634,173 +312,20 @@ export default function SubvaluadasScreen() {
                 ticker: data.ticker,
                 company_name: data.company_name,
                 price: data.price,
-                fair_value_low: data.fair_value_range?.low ?? null,
-                fair_value_high: data.fair_value_range?.high ?? null,
-                margin_of_safety_pct: data.margin_of_safety_pct,
-                intrinsic_value_per_share: data.expected_value_per_share ?? data.intrinsic_value_base,
-                wacc_pct: suggestedR,
-                growth_pct: suggestedG,
-                terminal_growth_pct: suggestedGt,
-                summary: data.summary,
+                score: companyDiagnostic?.score ?? null,
+                fair_value: companyDiagnostic?.valuation?.baseFairValue ?? null,
               }
             : {
                 screen_purpose:
-                  "This screen shows whether a stock is cheap or expensive by comparing its " +
-                  "current price to its real value, estimated from the company's expected " +
-                  "future cash flows (a method called DCF — discounted cash flow). It helps " +
-                  "the user decide whether now looks like a good time to buy, letting them " +
-                  "adjust their own assumptions for growth and risk (WACC).",
+                  "This screen shows a full company diagnostic — quality, financial trust, " +
+                  "valuation (Bear/Base/Bull fair value scenarios), and the simplicity of the " +
+                  "investment thesis — to help the user decide whether now looks like a good " +
+                  "time to buy.",
               }
         }
       />
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={t("subvaluadas.premiumGate.paywallReason")} />
-
-      {level3Open && data && (
-        <Level3Modal
-          ticker={data.ticker} price={data.price} fcf0={fcf0} netCash={netCash} shares={shares}
-          g={suggestedG} r={suggestedR} gt={suggestedGt}
-          yearlyDetail={data.yearly_detail} pvOfFcfSum={data.pv_of_fcf_sum} pvOfTerminalValue={data.pv_of_terminal_value} enterpriseValue={data.enterprise_value}
-          onClose={() => setLevel3Open(false)}
-        />
-      )}
     </SafeAreaView>
-  );
-}
-
-function Level3Modal({ ticker, price, fcf0, netCash, shares, g, r, gt, yearlyDetail, pvOfFcfSum, pvOfTerminalValue, enterpriseValue, onClose }: {
-  ticker: string; price: number | null; fcf0: number; netCash: number; shares: number; g: number; r: number; gt: number;
-  yearlyDetail: YearlyDetailRow[] | null; pvOfFcfSum: number | null; pvOfTerminalValue: number | null; enterpriseValue: number | null;
-  onClose: () => void;
-}) {
-  const { t } = useTranslation();
-  const { isDark } = useTheme();
-  const viColors = useViColors(isDark);
-  const equityValue = enterpriseValue !== null ? enterpriseValue + netCash * 1e6 : null;
-  const perShare = equityValue !== null && shares > 0 ? equityValue / (shares * 1e6) : null;
-  const mos = perShare !== null && price ? ((perShare - price) / price) * 100 : null;
-
-  const handleExport = async () => {
-    const [XLSX, FileSystem, Sharing] = await Promise.all([
-      import("xlsx"),
-      import("expo-file-system/legacy"),
-      import("expo-sharing"),
-    ]);
-    const wb = XLSX.utils.book_new();
-    const inputsSheet = XLSX.utils.aoa_to_sheet([
-      [t("subvaluadas.detail.level3.inputs")],
-      [t("subvaluadas.detail.controls.growth"), pct(g)],
-      [t("subvaluadas.detail.controls.wacc"), pct(r)],
-      [t("subvaluadas.detail.controls.terminalGrowth"), pct(gt)],
-      ["FCF (TTM, M)", fcf0.toFixed(1)],
-      [t("subvaluadas.detail.level3.netCash") + " (M)", netCash.toFixed(1)],
-      [t("subvaluadas.detail.level3.shares") + " (M)", shares.toFixed(1)],
-      [t("subvaluadas.stats.price"), price ?? "N/D"],
-    ]);
-    XLSX.utils.book_append_sheet(wb, inputsSheet, "Inputs");
-    if (yearlyDetail && yearlyDetail.length > 0) {
-      const rows = [
-        [t("subvaluadas.detail.level3.year"), t("subvaluadas.detail.level3.fcf"), t("subvaluadas.detail.level3.discountFactor"), t("subvaluadas.detail.level3.presentValue")],
-        ...yearlyDetail.map((row) => [row.year, row.fcf, row.discount_factor, row.present_value]),
-      ];
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Proyeccion");
-    }
-    const bridgeSheet = XLSX.utils.aoa_to_sheet([
-      [t("subvaluadas.detail.level3.pvFcf"), pvOfFcfSum ?? "N/D"],
-      [t("subvaluadas.detail.level3.pvTerminal"), pvOfTerminalValue ?? "N/D"],
-      [t("subvaluadas.detail.level3.enterpriseValue"), enterpriseValue ?? "N/D"],
-      [t("subvaluadas.detail.level3.netCash"), netCash * 1e6],
-      [t("subvaluadas.detail.level3.equityValue"), equityValue ?? "N/D"],
-      [t("subvaluadas.detail.level3.shares"), shares * 1e6],
-      [t("subvaluadas.detail.level3.perShare"), perShare ?? "N/D"],
-    ]);
-    XLSX.utils.book_append_sheet(wb, bridgeSheet, "Valuacion");
-    const base64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
-    const path = (FileSystem.cacheDirectory ?? "") + `${ticker}_dcf_nuvos.xlsx`;
-    await FileSystem.writeAsStringAsync(path, base64, { encoding: FileSystem.EncodingType.Base64 });
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(path, { mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    }
-  };
-
-  return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.65)" }}>
-        <View style={{ maxHeight: "85%", borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: viColors.card }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: viColors.border }}>
-            <Text style={{ fontSize: 14, fontWeight: "700", color: viColors.text }}>{t("subvaluadas.detail.level3.title", { ticker })}</Text>
-            <TouchableOpacity onPress={onClose}><Ionicons name="close" size={20} color={viColors.textMuted} /></TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              {[
-                { label: t("subvaluadas.detail.controls.growth"), value: pct(g) },
-                { label: t("subvaluadas.detail.controls.wacc"), value: pct(r) },
-                { label: t("subvaluadas.detail.controls.terminalGrowth"), value: pct(gt) },
-              ].map((stat) => (
-                <View key={stat.label} style={{ flex: 1, borderRadius: 10, backgroundColor: viColors.bgRaised, padding: 8 }}>
-                  <Text style={{ fontSize: 9, fontWeight: "700", textTransform: "uppercase", color: viColors.textMuted }}>{stat.label}</Text>
-                  <Text style={{ fontSize: 13, fontWeight: "700", color: viColors.text }}>{stat.value}</Text>
-                </View>
-              ))}
-            </View>
-
-            {yearlyDetail && yearlyDetail.length > 0 && (
-              <View>
-                <Text style={{ fontSize: 11, fontWeight: "700", textTransform: "uppercase", color: viColors.textMuted, marginBottom: 6 }}>{t("subvaluadas.detail.level3.yearlyTable")}</Text>
-                <View style={{ borderRadius: 10, borderWidth: 1, borderColor: viColors.border, overflow: "hidden" }}>
-                  <View style={{ flexDirection: "row", backgroundColor: viColors.bgRaised, paddingVertical: 6, paddingHorizontal: 8 }}>
-                    <Text style={{ flex: 1, fontSize: 10, fontWeight: "700", color: viColors.textMuted }}>{t("subvaluadas.detail.level3.year")}</Text>
-                    <Text style={{ flex: 2, fontSize: 10, fontWeight: "700", color: viColors.textMuted, textAlign: "right" }}>{t("subvaluadas.detail.level3.fcf")}</Text>
-                    <Text style={{ flex: 2, fontSize: 10, fontWeight: "700", color: viColors.textMuted, textAlign: "right" }}>{t("subvaluadas.detail.level3.presentValue")}</Text>
-                  </View>
-                  {yearlyDetail.map((row) => (
-                    <View key={row.year} style={{ flexDirection: "row", paddingVertical: 6, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: viColors.border }}>
-                      <Text style={{ flex: 1, fontSize: 10.5, fontWeight: "700", color: viColors.text }}>{row.year}</Text>
-                      <Text style={{ flex: 2, fontSize: 10.5, color: viColors.textSub, textAlign: "right" }}>{fmtMoney(row.fcf)}</Text>
-                      <Text style={{ flex: 2, fontSize: 10.5, fontWeight: "700", color: viColors.text, textAlign: "right" }}>{fmtMoney(row.present_value)}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            <View>
-              <Text style={{ fontSize: 11, fontWeight: "700", textTransform: "uppercase", color: viColors.textMuted, marginBottom: 6 }}>{t("subvaluadas.detail.level3.pvFcf")}</Text>
-              <View style={{ borderRadius: 10, backgroundColor: viColors.bgRaised, padding: 10, gap: 6 }}>
-                {[
-                  [t("subvaluadas.detail.level3.pvFcf"), fmtMoney(pvOfFcfSum), false],
-                  [t("subvaluadas.detail.level3.pvTerminal"), fmtMoney(pvOfTerminalValue), false],
-                  [t("subvaluadas.detail.level3.enterpriseValue"), fmtMoney(enterpriseValue), true],
-                  [t("subvaluadas.detail.level3.netCash"), fmtMoney(netCash * 1e6), false],
-                  [t("subvaluadas.detail.level3.equityValue"), fmtMoney(equityValue), true],
-                  [t("subvaluadas.detail.level3.shares"), `${shares.toFixed(1)}M`, false],
-                ].map(([label, value, bold], i) => (
-                  <View key={i} style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                    <Text style={{ fontSize: 11, color: viColors.textSub }}>{label as string}</Text>
-                    <Text style={{ fontSize: 11, fontWeight: bold ? "700" : "400", color: viColors.text }}>{value as string}</Text>
-                  </View>
-                ))}
-                <View style={{ paddingTop: 6, marginTop: 4, borderTopWidth: 1, borderTopColor: viColors.border, flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ fontSize: 11, fontWeight: "700", color: viColors.textSub }}>{t("subvaluadas.detail.level3.perShare")}</Text>
-                  <Text style={{ fontSize: 11, fontWeight: "700", color: GOLD }}>{perShare !== null ? `$${perShare.toFixed(2)}` : "N/D"}</Text>
-                </View>
-                {mos !== null && (
-                  <Text style={{ fontSize: 11, color: mos >= 0 ? TEAL : CORAL }}>
-                    {t("subvaluadas.detail.marginOfSafety")}: {mos >= 0 ? "+" : ""}{mos.toFixed(1)}%
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            <TouchableOpacity onPress={handleExport}
-                              style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.bgRaised }}>
-              <Ionicons name="document-text-outline" size={15} color={viColors.text} />
-              <Text style={{ fontSize: 12, fontWeight: "700", color: viColors.text }}>{t("subvaluadas.detail.level3.export")}</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
   );
 }

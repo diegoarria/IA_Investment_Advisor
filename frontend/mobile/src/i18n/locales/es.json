@@ -1024,6 +1024,27 @@
         "wall_street": "Consenso de Wall Street",
         "business_quality": "Calidad del negocio"
       }
+    },
+    "followAlert": {
+      "title": "Seguir {{ticker}}",
+      "subtitle": "Recibe una notificación cuando baje el precio",
+      "badge": "Seguir zona de compra",
+      "belowLabel": "{{pct}}% por debajo del valor intrínseco",
+      "belowShort": "{{pct}}% por debajo",
+      "description": "Recibe una notificación cuando el precio baje a tu zona de compra",
+      "currentPrice": "Precio actual",
+      "intrinsicValue": "Valor intrínseco",
+      "marginOfSafety": "Margen de seguridad {{pct}}%",
+      "otherOptions": "O elige otro margen de seguridad",
+      "customOption": "Personalizado",
+      "customPlaceholder": "% personalizado",
+      "customApply": "Aplicar",
+      "createButton": "Crear alerta con {{pct}}% de margen",
+      "updateButton": "Actualizar alerta con {{pct}}% de margen",
+      "removeButton": "Eliminar alerta",
+      "creating": "Creando...",
+      "created": "¡Alerta creada!",
+      "error": "No se pudo crear la alerta. Intenta de nuevo."
     }
   },
   "patrimonio": {
@@ -3665,6 +3686,192 @@
       "empty": "Todavía no hay suficientes datos de tu portafolio para esta revisión.",
       "premiumCta": "Desbloquear el análisis de Arthur con Premium",
       "premiumReason": "Arthur ya analizó el desempeño de tu portafolio esta semana. Activa Premium para leer su conclusión."
+    }
+  },
+  "companyDiagnostic": {
+    "header": {
+      "scoreLabel": "{{score}}/100"
+    },
+    "kpi": {
+      "currentPrice": "Precio Actual",
+      "fairValue": "Nuvos Fair Value",
+      "marginOfSafety": "Margen de Seguridad"
+    },
+    "thermometer": {
+      "title": "Termómetro de Valuación",
+      "priceToday": "Precio Hoy",
+      "conservative": "Conservador",
+      "baseFairValue": "Fair Value",
+      "optimistic": "Optimista",
+      "undervalued": "Infravalorada",
+      "overvalued": "Sobrevalorada",
+      "fair": "Valor razonable"
+    },
+    "pillars": {
+      "quality": {
+        "title": "Calidad",
+        "subtitle": "El negocio y su foso",
+        "revenueBreakdown": "Desglose de Ingresos",
+        "moatTitle": "Puntos Fuertes del Foso",
+        "competitorTitle": "Duelo de Titanes",
+        "vs": "vs.",
+        "conclusionLabel": "Conclusión Competitiva Nuvos"
+      },
+      "trust": {
+        "title": "Confianza",
+        "subtitle": "Salud financiera e integridad",
+        "longTermDebt": "Deuda a Largo Plazo",
+        "netCash": "Caja y Liquidez Neta",
+        "roic": "ROIC",
+        "operatingMargin": "Margen Operativo",
+        "netMargin": "Margen Neto",
+        "operatingCashFlow": "Flujo de Caja Operativo",
+        "roicAdjustedNote": "Ajustado: las recompras de acciones comprimieron el patrimonio contable, así que se usó capital invertido operativo."
+      },
+      "value": {
+        "title": "Valor",
+        "subtitle": "Termómetro de valoración y escenarios",
+        "multiplesTitle": "Múltiplos de Valoración",
+        "peCurrent": "P/E Actual (TTM)",
+        "peForward": "P/E Forward (NTM)",
+        "peNormalized": "P/E Ajustado",
+        "peHistorical": "P/E Histórico",
+        "evFcf": "EV/FCF",
+        "modelsTitle": "Desglose de Modelos (Fair Value Engine)",
+        "conservative": "Escenario Conservador",
+        "baseFairValue": "Escenario Base / Fair Value",
+        "optimistic": "Escenario Optimista",
+        "marginOfSafety": "Margen de Seguridad",
+        "buyZoneTitle": "Mi Zona de Compra",
+        "notAvailable": "N/D"
+      },
+      "simplicity": {
+        "title": "Simplicidad",
+        "subtitle": "El ruido vs. la realidad",
+        "marketSaw": "Lo que el Mercado vio",
+        "nuvosReality": "La Realidad Nuvos AI",
+        "actionPlanTitle": "Plan de Acción Sugerido",
+        "profile": "Perfil recomendado",
+        "strategy": "Estrategia de entrada"
+      }
+    },
+    "actions": {
+      "followZone": "Seguir Zona de Compra",
+      "markInvestable": "Marcar como Invertible",
+      "markedInvestable": "En tu Watchlist",
+      "analyzeWithArthur": "Analizar con Arthur",
+      "analyzePrompt": "Analiza a {{ticker}} ({{companyName}}) usando la metodología QSTV de Nuvos."
+    },
+    "disclaimer": "Nuvos AI es una herramienta educativa. Este contenido se basa en supuestos de un modelo y no constituye una recomendación de compra o venta regulada.",
+    "explanations": {
+      "scoreOverall": {
+        "title": "Score Nuvos AI",
+        "body": "Una calificación de 0 a 100 que resume qué tan atractiva es esta empresa combinando 4 dimensiones: la calidad del negocio y su foso competitivo, la salud financiera, qué tan barata o cara cotiza, y qué tan claro es el caso de inversión. No es una recomendación de compra — es un resumen de lo que dicen los datos."
+      },
+      "scoreQuality": {
+        "title": "Score de Calidad",
+        "body": "Mide qué tan fuerte es el negocio en sí: sus ventajas competitivas (foso), la diversificación de sus ingresos, y qué tan bien se defiende frente a su competencia directa. Un score alto significa un negocio difícil de replicar o desplazar."
+      },
+      "scoreTrust": {
+        "title": "Score de Confianza",
+        "body": "Mide la salud financiera y la integridad del balance: nivel de deuda, caja disponible, rentabilidad sobre el capital invertido (ROIC) y márgenes. Un score alto significa una empresa financieramente sólida, con bajo riesgo de quiebra o dilución."
+      },
+      "scoreValue": {
+        "title": "Score de Valor",
+        "body": "Mide qué tan atractivo es el precio actual frente al valor intrínseco estimado por Nuvos AI. Un score alto significa un mayor margen de seguridad — estás pagando menos de lo que el negocio probablemente vale."
+      },
+      "scoreSimplicity": {
+        "title": "Score de Simplicidad",
+        "body": "Mide qué tan fácil es entender la tesis de inversión: si la caída o volatilidad reciente tiene una explicación clara y temporal, y si existe un plan de acción concreto. Un score alto significa una tesis simple de seguir y defender."
+      },
+      "roic": {
+        "title": "ROIC (Retorno sobre Capital Invertido)",
+        "body": "Mide cuánta utilidad genera una empresa por cada dólar de capital que ha invertido en el negocio (deuda + patrimonio). Un ROIC alto y sostenido (>15-20%) es la huella digital de un foso competitivo real: la empresa gana mucho más de lo que le cuesta financiarse."
+      },
+      "longTermDebt": {
+        "title": "Deuda a Largo Plazo",
+        "body": "El total de obligaciones financieras que la empresa debe pagar en más de un año. Menos deuda significa menos riesgo financiero, más flexibilidad para invertir o recomprar acciones, y menor vulnerabilidad ante subidas de tasas de interés."
+      },
+      "netCash": {
+        "title": "Caja y Liquidez Neta",
+        "body": "El efectivo disponible menos toda la deuda de la empresa. Cuando es positivo (\"caja neta\"), la empresa podría pagar toda su deuda hoy y aún le sobraría dinero — una posición defensiva muy fuerte frente a crisis o desaceleraciones."
+      },
+      "operatingMargin": {
+        "title": "Margen Operativo",
+        "body": "El porcentaje de cada dólar de ingresos que queda como utilidad operativa, antes de intereses e impuestos. Un margen alto y estable indica poder de fijación de precios y eficiencia operativa frente a la competencia."
+      },
+      "netMargin": {
+        "title": "Margen Neto",
+        "body": "El porcentaje de cada dólar de ingresos que se convierte en utilidad neta final, después de todos los gastos, intereses e impuestos. Es la medida más completa de la rentabilidad real del negocio."
+      },
+      "operatingCashFlow": {
+        "title": "Flujo de Caja Operativo",
+        "body": "El efectivo real que genera el negocio del día a día, antes de inversiones de capital. A diferencia de la utilidad contable, el flujo de caja es más difícil de manipular contablemente — es el dinero real que entra a la empresa."
+      },
+      "peCurrent": {
+        "title": "P/E Actual (TTM)",
+        "body": "Precio/Utilidad — cuántas veces la utilidad anual por acción reportada (últimos 12 meses, GAAP) está pagando el mercado hoy por cada acción. Un P/E más bajo, en igualdad de condiciones, generalmente significa una acción más barata relativa a sus propias ganancias."
+      },
+      "peForward": {
+        "title": "P/E Forward (NTM)",
+        "body": "El mismo múltiplo Precio/Utilidad, pero usando la utilidad por acción ESPERADA para los próximos 12 meses en vez de la ya reportada. Si el P/E Forward es más bajo que el P/E Actual, el mercado espera que las ganancias crezcan — útil para ver si el precio de hoy ya refleja ese crecimiento."
+      },
+      "peNormalized": {
+        "title": "P/E Ajustado",
+        "body": "El P/E calculado sobre una utilidad por acción normalizada, que suaviza años puntuales de ganancias inusualmente altas o bajas (por ejemplo, una ganancia contable extraordinaria que no se repetirá). Cuando difiere del P/E Actual, es una señal de que ese último año reportado no representa bien el poder de generar utilidades del negocio."
+      },
+      "peHistorical": {
+        "title": "P/E Histórico",
+        "body": "El múltiplo P/E promedio al que esta empresa ha cotizado en años anteriores. Sirve como referencia: si el P/E actual está muy por debajo del histórico sin que el negocio haya empeorado estructuralmente, puede ser una señal de que el mercado la está subvalorando."
+      },
+      "evFcf": {
+        "title": "EV/FCF",
+        "body": "Valor de Empresa (capitalización de mercado + deuda − caja) dividido entre el Flujo de Caja Libre anual. A diferencia del P/E, este múltiplo incorpora la deuda y la caja del balance, dando una foto más completa de qué tan cara está la empresa en relación al efectivo real que genera."
+      },
+      "marginOfSafety": {
+        "title": "Margen de Seguridad",
+        "body": "Qué tan por debajo del valor intrínseco estimado cotiza el precio actual, expresado en porcentaje. Un margen de seguridad amplio actúa como colchón ante errores en las proyecciones — comprar con margen es la esencia de la inversión en valor."
+      }
+    },
+    "methodology": {
+      "title": "¿Cómo se calculan estos valores?",
+      "subtitle": "Un resumen honesto de la metodología detrás de los escenarios Conservador, Base y Optimista",
+      "paragraphs": [
+        "Nuvos AI primero clasifica el tipo de negocio (compounder, cíclico, de crecimiento, etc.) y normaliza sus ganancias — es decir, distingue si las utilidades actuales son representativas del negocio o están temporalmente infladas o deprimidas por el ciclo económico.",
+        "Con eso, ancla un múltiplo P/E justificado a partir del ROIC real, el crecimiento evidenciado (histórico + consenso de analistas) y la duración estimada de la ventaja competitiva — nunca un múltiplo genérico de sector.",
+        "En paralelo, se corre un DCF (flujo de caja descontado) basado en supuestos explícitos de crecimiento, margen y reinversión, como verificación cruzada independiente del múltiplo justificado.",
+        "Los escenarios Conservador, Base y Optimista no mueven todas las variables al extremo al mismo tiempo — representan combinaciones internamente coherentes de lo que razonablemente podría pasar si la tesis se debilita, se cumple como se espera, o se cumple mejor de lo esperado.",
+        "Estos valores son la salida de un modelo con supuestos explícitos, no una garantía ni una promesa de retorno — siempre revisa el razonamiento detrás de cada número antes de tomar una decisión."
+      ]
+    },
+    "thesis": {
+      "title": "Tesis Final",
+      "subtitle": "El resumen de inversión de Nuvos AI en una sola idea"
+    },
+    "badgesTitle": "Lo Destacado",
+    "modelAssumptions": {
+      "toggle": "Ver supuestos del modelo",
+      "fcfReported": "Flujo de caja libre reportado",
+      "fcfNormalized": "Normalizado (sin CapEx de crecimiento)",
+      "growthCapex": "CapEx de crecimiento estimado este año",
+      "wacc": "Tasa de descuento (WACC) usada"
+    },
+    "selfCheckQuiz": {
+      "title": "Ponte a prueba",
+      "subtitle": "Opcional — responde antes de decidir. Tus respuestas se guardan en tu Diario de Decisiones para que las revises cuando quieras.",
+      "optionalBadge": "Opcional",
+      "questions": [
+        "¿Cómo gana dinero?",
+        "¿Cuál es su producto principal?",
+        "¿Cuál es su ventaja competitiva?",
+        "¿Qué impulsa su crecimiento?",
+        "¿Cuál es uno de sus principales riesgos?"
+      ],
+      "placeholder": "Escribe tu respuesta...",
+      "saveButton": "Guardar en mi Diario de Decisiones",
+      "saving": "Guardando...",
+      "saved": "Guardado en tu Diario de Decisiones ✓",
+      "saveError": "No se pudo guardar. Intenta de nuevo."
     }
   }
 }

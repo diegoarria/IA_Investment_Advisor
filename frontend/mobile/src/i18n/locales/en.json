@@ -1024,6 +1024,27 @@
         "wall_street": "Wall Street consensus",
         "business_quality": "Business quality"
       }
+    },
+    "followAlert": {
+      "title": "Follow {{ticker}}",
+      "subtitle": "Get notified when the price drops",
+      "badge": "Follow buy zone",
+      "belowLabel": "{{pct}}% below intrinsic value",
+      "belowShort": "{{pct}}% below",
+      "description": "Get notified when the price drops into your buy zone",
+      "currentPrice": "Current price",
+      "intrinsicValue": "Intrinsic value",
+      "marginOfSafety": "{{pct}}% margin of safety",
+      "otherOptions": "Or pick another margin of safety",
+      "customOption": "Custom",
+      "customPlaceholder": "custom %",
+      "customApply": "Apply",
+      "createButton": "Create alert with {{pct}}% margin",
+      "updateButton": "Update alert to {{pct}}% margin",
+      "removeButton": "Remove alert",
+      "creating": "Creating...",
+      "created": "Alert created!",
+      "error": "Couldn't create the alert. Try again."
     }
   },
   "patrimonio": {
@@ -3665,6 +3686,192 @@
       "empty": "Not enough portfolio data yet for this review.",
       "premiumCta": "Unlock Arthur's analysis with Premium",
       "premiumReason": "Arthur already analyzed how your portfolio did this week. Activate Premium to read his takeaway."
+    }
+  },
+  "companyDiagnostic": {
+    "header": {
+      "scoreLabel": "{{score}}/100"
+    },
+    "kpi": {
+      "currentPrice": "Current Price",
+      "fairValue": "Nuvos Fair Value",
+      "marginOfSafety": "Margin of Safety"
+    },
+    "thermometer": {
+      "title": "Valuation Thermometer",
+      "priceToday": "Price Today",
+      "conservative": "Conservative",
+      "baseFairValue": "Fair Value",
+      "optimistic": "Optimistic",
+      "undervalued": "Undervalued",
+      "overvalued": "Overvalued",
+      "fair": "Fairly valued"
+    },
+    "pillars": {
+      "quality": {
+        "title": "Quality",
+        "subtitle": "The business and its moat",
+        "revenueBreakdown": "Revenue Breakdown",
+        "moatTitle": "Moat Strengths",
+        "competitorTitle": "Head-to-Head",
+        "vs": "vs.",
+        "conclusionLabel": "Nuvos Competitive Conclusion"
+      },
+      "trust": {
+        "title": "Trust",
+        "subtitle": "Financial health and integrity",
+        "longTermDebt": "Long-Term Debt",
+        "netCash": "Net Cash & Liquidity",
+        "roic": "ROIC",
+        "operatingMargin": "Operating Margin",
+        "netMargin": "Net Margin",
+        "operatingCashFlow": "Operating Cash Flow",
+        "roicAdjustedNote": "Adjusted: share buybacks compressed book equity, so operating invested capital was used instead."
+      },
+      "value": {
+        "title": "Value",
+        "subtitle": "Valuation thermometer and scenarios",
+        "multiplesTitle": "Valuation Multiples",
+        "peCurrent": "Current P/E (TTM)",
+        "peForward": "Forward P/E (NTM)",
+        "peNormalized": "Adjusted P/E",
+        "peHistorical": "Historical P/E",
+        "evFcf": "EV/FCF",
+        "modelsTitle": "Model Breakdown (Fair Value Engine)",
+        "conservative": "Conservative Scenario",
+        "baseFairValue": "Base / Fair Value Scenario",
+        "optimistic": "Optimistic Scenario",
+        "marginOfSafety": "Margin of Safety",
+        "buyZoneTitle": "My Buy Zone",
+        "notAvailable": "N/A"
+      },
+      "simplicity": {
+        "title": "Simplicity",
+        "subtitle": "Noise vs. reality",
+        "marketSaw": "What the Market Saw",
+        "nuvosReality": "The Nuvos AI Reality",
+        "actionPlanTitle": "Suggested Action Plan",
+        "profile": "Recommended profile",
+        "strategy": "Entry strategy"
+      }
+    },
+    "actions": {
+      "followZone": "Follow Buy Zone",
+      "markInvestable": "Mark as Investable",
+      "markedInvestable": "In your Watchlist",
+      "analyzeWithArthur": "Analyze with Arthur",
+      "analyzePrompt": "Analyze {{ticker}} ({{companyName}}) using Nuvos's QSTV methodology."
+    },
+    "disclaimer": "Nuvos AI is an educational tool. This content is based on model assumptions and is not a regulated buy/sell recommendation.",
+    "explanations": {
+      "scoreOverall": {
+        "title": "Nuvos AI Score",
+        "body": "A 0-100 rating summarizing how attractive this company is by combining 4 dimensions: business quality and competitive moat, financial health, how cheap or expensive it trades, and how clear the investment case is. It's not a buy recommendation — it's a summary of what the data says."
+      },
+      "scoreQuality": {
+        "title": "Quality Score",
+        "body": "Measures how strong the business itself is: its competitive advantages (moat), how diversified its revenue is, and how well it holds up against its direct competitor. A high score means a business that's hard to replace or displace."
+      },
+      "scoreTrust": {
+        "title": "Trust Score",
+        "body": "Measures financial health and balance-sheet integrity: debt level, available cash, return on invested capital (ROIC), and margins. A high score means a financially solid company with low bankruptcy or dilution risk."
+      },
+      "scoreValue": {
+        "title": "Value Score",
+        "body": "Measures how attractive the current price is relative to Nuvos AI's estimated intrinsic value. A high score means a larger margin of safety — you're paying less than the business is likely worth."
+      },
+      "scoreSimplicity": {
+        "title": "Simplicity Score",
+        "body": "Measures how easy the investment thesis is to understand: whether the recent drop or volatility has a clear, temporary explanation, and whether there's a concrete action plan. A high score means an easy thesis to follow and defend."
+      },
+      "roic": {
+        "title": "ROIC (Return on Invested Capital)",
+        "body": "Measures how much profit a company generates for every dollar of capital invested in the business (debt + equity). A high, sustained ROIC (>15-20%) is the fingerprint of a real competitive moat: the company earns far more than it costs to fund itself."
+      },
+      "longTermDebt": {
+        "title": "Long-Term Debt",
+        "body": "Total financial obligations the company must pay back in more than a year. Less debt means less financial risk, more flexibility to invest or buy back stock, and lower vulnerability to rising interest rates."
+      },
+      "netCash": {
+        "title": "Net Cash & Liquidity",
+        "body": "Available cash minus all of the company's debt. When positive (\"net cash\"), the company could pay off all its debt today and still have money left over — a very strong defensive position against crises or slowdowns."
+      },
+      "operatingMargin": {
+        "title": "Operating Margin",
+        "body": "The percentage of every revenue dollar left as operating profit, before interest and taxes. A high, stable margin signals pricing power and operating efficiency relative to competitors."
+      },
+      "netMargin": {
+        "title": "Net Margin",
+        "body": "The percentage of every revenue dollar that becomes final net profit, after all expenses, interest, and taxes. It's the most complete measure of the business's real profitability."
+      },
+      "operatingCashFlow": {
+        "title": "Operating Cash Flow",
+        "body": "The real cash the day-to-day business generates, before capital investments. Unlike accounting profit, cash flow is harder to manipulate on paper — it's the actual money coming into the company."
+      },
+      "peCurrent": {
+        "title": "Current P/E (TTM)",
+        "body": "Price/Earnings — how many times annual reported earnings per share (trailing 12 months, GAAP) the market is paying today for each share. A lower P/E, all else equal, generally means a cheaper stock relative to its own earnings."
+      },
+      "peForward": {
+        "title": "Forward P/E (NTM)",
+        "body": "The same Price/Earnings multiple, but using EXPECTED earnings per share for the next 12 months instead of already-reported ones. If the Forward P/E is lower than the Current P/E, the market expects earnings to grow — useful for seeing whether today's price already reflects that growth."
+      },
+      "peNormalized": {
+        "title": "Adjusted P/E",
+        "body": "P/E calculated on a normalized earnings-per-share figure, which smooths out one-off years of unusually high or low earnings (e.g. a one-time accounting gain that won't repeat). When it differs from the Current P/E, that's a signal the latest reported year doesn't represent the business's real earnings power well."
+      },
+      "peHistorical": {
+        "title": "Historical P/E",
+        "body": "The average P/E multiple this company has traded at in prior years. It's a reference point: if today's P/E is well below the historical average without the business having structurally worsened, it can signal the market is undervaluing it."
+      },
+      "evFcf": {
+        "title": "EV/FCF",
+        "body": "Enterprise Value (market cap + debt − cash) divided by annual Free Cash Flow. Unlike P/E, this multiple accounts for the balance sheet's debt and cash, giving a fuller picture of how expensive the company is relative to the real cash it generates."
+      },
+      "marginOfSafety": {
+        "title": "Margin of Safety",
+        "body": "How far below the estimated intrinsic value the current price trades, as a percentage. A wide margin of safety acts as a cushion against forecasting errors — buying with a margin is the essence of value investing."
+      }
+    },
+    "methodology": {
+      "title": "How are these values calculated?",
+      "subtitle": "An honest summary of the methodology behind the Conservative, Base, and Optimistic scenarios",
+      "paragraphs": [
+        "Nuvos AI first classifies the type of business (compounder, cyclical, growth, etc.) and normalizes its earnings — that is, it determines whether current profits are representative of the business or temporarily inflated or depressed by the economic cycle.",
+        "From there, it anchors a justified P/E multiple based on real ROIC, evidenced growth (historical + analyst consensus), and the estimated duration of the competitive advantage — never a generic sector multiple.",
+        "In parallel, a DCF (discounted cash flow) is run using explicit growth, margin, and reinvestment assumptions, as an independent cross-check on the justified multiple.",
+        "The Conservative, Base, and Optimistic scenarios don't push every variable to an extreme at once — they represent internally coherent combinations of what could reasonably happen if the thesis weakens, plays out as expected, or plays out better than expected.",
+        "These values are the output of a model with explicit assumptions, not a guarantee or a promise of return — always review the reasoning behind each number before making a decision."
+      ]
+    },
+    "thesis": {
+      "title": "Final Thesis",
+      "subtitle": "The Nuvos AI investment case in one summary"
+    },
+    "badgesTitle": "Highlights",
+    "modelAssumptions": {
+      "toggle": "View model assumptions",
+      "fcfReported": "Reported free cash flow",
+      "fcfNormalized": "Normalized (excluding growth CapEx)",
+      "growthCapex": "Estimated growth CapEx this year",
+      "wacc": "Discount rate (WACC) used"
+    },
+    "selfCheckQuiz": {
+      "title": "Self-Check",
+      "subtitle": "Optional — answer before you decide. Your answers save to your Decisions Journal so you can revisit them whenever you want.",
+      "optionalBadge": "Optional",
+      "questions": [
+        "How does it make money?",
+        "What's its main product?",
+        "What's its competitive advantage?",
+        "What drives its growth?",
+        "What's one of its main risks?"
+      ],
+      "placeholder": "Write your answer...",
+      "saveButton": "Save to my Decisions Journal",
+      "saving": "Saving...",
+      "saved": "Saved to your Decisions Journal ✓",
+      "saveError": "Couldn't save. Try again."
     }
   }
 }
