@@ -22,6 +22,7 @@ export function CompanyDiagnosticSimplicityPillar({
     <ExpandableSection
       title={t("companyDiagnostic.pillars.simplicity.title")}
       icon={<Lightbulb className="w-5 h-5" style={{ color: "#f59e0b" }} />}
+      defaultExpanded
       headline={
         <CompanyDiagnosticSectionScore
           score={score}

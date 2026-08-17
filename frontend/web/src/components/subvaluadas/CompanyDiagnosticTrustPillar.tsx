@@ -35,6 +35,7 @@ export function CompanyDiagnosticTrustPillar({
     <ExpandableSection
       title={t("companyDiagnostic.pillars.trust.title")}
       icon={<Shield className="w-5 h-5" style={{ color: "#6366F1" }} />}
+      defaultExpanded
       headline={
         <CompanyDiagnosticSectionScore
           score={score}

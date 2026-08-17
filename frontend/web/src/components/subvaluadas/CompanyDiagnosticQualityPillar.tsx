@@ -38,6 +38,7 @@ export function CompanyDiagnosticQualityPillar({
     <ExpandableSection
       title={t("companyDiagnostic.pillars.quality.title")}
       icon={<Trophy className="w-5 h-5" style={{ color: "#eab308" }} />}
+      defaultExpanded
       headline={
         <CompanyDiagnosticSectionScore
           score={score}
