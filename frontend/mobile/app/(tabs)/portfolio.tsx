@@ -2654,12 +2654,33 @@ export default function PortfolioScreen() {
                           </View>
                         )}
                       </View>
-                      <View style={{ paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
-                        <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+                      <View style={{ paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                        <Text style={{ fontSize: 11.5, color: colors.textMuted, flexShrink: 1 }}>
                           {t("portfolio.totals.invested")}{" "}
                           <Text style={{ fontWeight: "700", color: colors.textMuted }}>{mask(`${currencySymbol}${totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}`)}</Text>
                           {histDate ? `  ·  ${t("portfolio.totals.since", { date: histDate })}` : ""}
                         </Text>
+                        {/* vs S&P 500 — was missing here on mobile (web shows
+                            it in this same "Invertido" row); the period-tabs
+                            card below already has its own, period-specific
+                            one, this is the fixed since-purchase comparison. */}
+                        {sp?.spy_pct !== undefined && histPct !== undefined && (() => {
+                          const diff = histPct - sp.spy_pct;
+                          const beats = diff >= 0;
+                          return (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                              <Text style={{ fontSize: 9.5, color: colors.textDim }}>{t("portfolio.chart.vsSp500")}</Text>
+                              <Text style={{ fontSize: 10.5, fontWeight: "800", color: sp.spy_pct >= 0 ? "#00d47e" : "#ff5c5c" }}>
+                                {sp.spy_pct >= 0 ? "+" : ""}{sp.spy_pct.toFixed(2)}%
+                              </Text>
+                              <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: beats ? "rgba(0,212,126,0.12)" : "rgba(255,92,92,0.12)", borderRadius: 20, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                <Text style={{ fontSize: 9.5, fontWeight: "800", color: beats ? "#00d47e" : "#ff5c5c" }}>
+                                  {beats ? "▲" : "▼"} {Math.abs(diff).toFixed(2)}%
+                                </Text>
+                              </View>
+                            </View>
+                          );
+                        })()}
                       </View>
                     </>
                   )}
