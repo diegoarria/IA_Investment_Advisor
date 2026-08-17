@@ -134,7 +134,8 @@ function AppStack() {
         router.navigate("/subvaluadas");
       } else if (data.screen === "portfolio") {
         // Market open/close, monthly report, re-engagement, risk-management,
-        // Sunday review, quarterly earnings digest — all point here.
+        // quarterly earnings digest — all point here. Sunday Portfolio
+        // Review has its own flashcard now — see the weekly-ritual/ branch below.
         router.navigate("/(tabs)/portfolio");
       } else if (data.screen === "watchlist") {
         // job_portfolio_alerts' price-mover push for a watchlist (not

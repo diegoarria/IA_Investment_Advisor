@@ -3299,7 +3299,11 @@
     "macro": {
       "label": "Macro",
       "whyItMatters": "Por qué importa",
-      "impact": { "VERY_HIGH": "Muy Alto", "HIGH": "Alto", "MEDIUM": "Medio" },
+      "impact": {
+        "VERY_HIGH": "Muy Alto",
+        "HIGH": "Alto",
+        "MEDIUM": "Medio"
+      },
       "eventTypes": {
         "fomc_rate_decision": "Decisión de Tasas (Fed)",
         "cpi": "Inflación (CPI)",
@@ -3615,6 +3619,14 @@
       "seeHistory": "Ver reflexiones pasadas",
       "historyTitle": "Tus reflexiones pasadas",
       "historyEmpty": "Todavía no tienes reflexiones guardadas."
+    },
+    "portfolioReview": {
+      "title": "Revisión de Portafolio Dominical",
+      "totalValueLabel": "Valor total",
+      "vsLastWeek": "vs. hace 7 días",
+      "topSectorLabel": "Sector principal",
+      "seeFullPortfolio": "Ver mi portafolio completo",
+      "empty": "Todavía no hay suficientes datos de tu portafolio para esta revisión."
     }
   }
 }

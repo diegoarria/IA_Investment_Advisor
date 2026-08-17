@@ -487,6 +487,7 @@ export const weeklyRitualsApi = {
   saveReflection: (body: { went_well?: string; learned?: string; would_do_differently?: string }) =>
     api.post("/api/weekly-rituals/reflection", body),
   getReflectionHistory: () => api.get("/api/weekly-rituals/reflection/history"),
+  getPortfolioReview: () => api.get("/api/weekly-rituals/portfolio-review"),
 };
 
 export const voiceCallsApi = {

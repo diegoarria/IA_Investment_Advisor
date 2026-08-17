@@ -4161,7 +4161,11 @@ async def job_sunday_portfolio_review():
                 uid, "sunday_portfolio_review",
                 "📅 Your week on Nuvos" if is_en else "📅 Tu semana en Nuvos",
                 body,
-                {"screen": "portfolio"},
+                # Diego's request (Aug 16): opens its own flashcard with this
+                # user's real numbers instead of the generic portfolio screen
+                # — see weekly_rituals_service.get_portfolio_review, which
+                # reuses this exact `body` (never regenerates it with Claude).
+                {"screen": "weekly-ritual/portfolio-review"},
                 db,
             )
             sent += 1

@@ -3299,7 +3299,11 @@
     "macro": {
       "label": "Macro",
       "whyItMatters": "Why it matters",
-      "impact": { "VERY_HIGH": "Very High", "HIGH": "High", "MEDIUM": "Medium" },
+      "impact": {
+        "VERY_HIGH": "Very High",
+        "HIGH": "High",
+        "MEDIUM": "Medium"
+      },
       "eventTypes": {
         "fomc_rate_decision": "Fed Rate Decision",
         "cpi": "Inflation (CPI)",
@@ -3615,6 +3619,14 @@
       "seeHistory": "See past reflections",
       "historyTitle": "Your past reflections",
       "historyEmpty": "You don't have any saved reflections yet."
+    },
+    "portfolioReview": {
+      "title": "Sunday Portfolio Review",
+      "totalValueLabel": "Total value",
+      "vsLastWeek": "vs. 7 days ago",
+      "topSectorLabel": "Main sector",
+      "seeFullPortfolio": "See my full portfolio",
+      "empty": "Not enough portfolio data yet for this review."
     }
   }
 }

@@ -447,3 +447,68 @@ async def get_reflection_history(user_id: str, limit: int = 26) -> list[dict]:
         .order("week_start_date", desc=True).limit(limit)
     )
     return res.data or []
+
+
+# ── Revisión de Portafolio Dominical ────────────────────────────────────────
+# Diego's request (Aug 16): tapping this push should open its own flashcard
+# with the user's real numbers, same as the other three rituals — it
+# previously deep-linked to the generic "portfolio" screen. Real cost
+# discipline (see today's Aug 15 spend-cap work): this NEVER calls Claude —
+# the numbers are recomputed live from fmg_portfolio_snapshots (free, real
+# math), and the AI-written sentence is read back verbatim from
+# notification_log (the exact text job_sunday_portfolio_review already
+# generated once and logged at send time), never regenerated on open.
+
+_PORTFOLIO_REVIEW_LOOKBACK_DAYS = 8  # generous: covers "opened the push a few days late"
+
+
+async def _portfolio_review_numbers(user_id: str) -> Optional[dict]:
+    db = get_supabase()
+    week_ago = (_today_et() - timedelta(days=7)).isoformat()
+    res = await run_query(
+        db.table("fmg_portfolio_snapshots")
+        .select("snapshot_date,total_value,top_sector")
+        .eq("user_id", user_id)
+        .order("snapshot_date", desc=True)
+        .limit(60)
+    )
+    rows = res.data or []
+    if not rows:
+        return None
+    latest = rows[0]
+    total = latest.get("total_value") or 0
+    if total <= 0:
+        return None
+    prev = next((r for r in rows if r["snapshot_date"] <= week_ago), None)
+    change_usd = change_pct = None
+    if prev and prev.get("total_value"):
+        change_usd = total - prev["total_value"]
+        change_pct = round(change_usd / prev["total_value"] * 100, 2) if prev["total_value"] else None
+    return {
+        "total_value": total,
+        "change_usd": change_usd,
+        "change_pct": change_pct,
+        "top_sector": latest.get("top_sector"),
+    }
+
+
+async def get_portfolio_review(user_id: str) -> Optional[dict]:
+    """Re-fetchable content for the Sunday Portfolio Review flashcard.
+    Returns None when this user has no real snapshot yet (never a
+    fabricated card)."""
+    numbers = await _portfolio_review_numbers(user_id)
+    if numbers is None:
+        return None
+
+    db = get_supabase()
+    since = (datetime.now(timezone.utc) - timedelta(days=_PORTFOLIO_REVIEW_LOOKBACK_DAYS)).isoformat()
+    log_res = await run_query(
+        db.table("notification_log")
+        .select("body,sent_at")
+        .eq("user_id", user_id).eq("category", "sunday_portfolio_review")
+        .gte("sent_at", since)
+        .order("sent_at", desc=True)
+        .limit(1)
+    )
+    insight = log_res.data[0]["body"] if log_res.data else None
+    return {**numbers, "insight": insight}
