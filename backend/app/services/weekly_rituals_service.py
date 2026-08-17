@@ -492,13 +492,19 @@ async def _portfolio_review_numbers(user_id: str) -> Optional[dict]:
     }
 
 
-async def get_portfolio_review(user_id: str) -> Optional[dict]:
+async def get_portfolio_review(user_id: str, is_premium: bool) -> Optional[dict]:
     """Re-fetchable content for the Sunday Portfolio Review flashcard.
     Returns None when this user has no real snapshot yet (never a
-    fabricated card)."""
+    fabricated card). Free users get the real numbers (never hidden —
+    they already own this data) but not `insight`, the AI-written
+    takeaway sentence, which is the Premium-only value-add (Diego's Aug 16
+    Free/Premium spec, §9: teaser only, never the full content)."""
     numbers = await _portfolio_review_numbers(user_id)
     if numbers is None:
         return None
+
+    if not is_premium:
+        return {**numbers, "insight": None, "is_premium": False}
 
     db = get_supabase()
     since = (datetime.now(timezone.utc) - timedelta(days=_PORTFOLIO_REVIEW_LOOKBACK_DAYS)).isoformat()
@@ -511,4 +517,4 @@ async def get_portfolio_review(user_id: str) -> Optional[dict]:
         .limit(1)
     )
     insight = log_res.data[0]["body"] if log_res.data else None
-    return {**numbers, "insight": insight}
+    return {**numbers, "insight": insight, "is_premium": True}

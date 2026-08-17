@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Star, Zap, TrendingUp, Shield, BarChart2, Brain, ChevronDown, ChevronUp, ArrowRight, Check } from "lucide-react";
+import posthog from "posthog-js";
 import { billing } from "@/lib/api";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -70,6 +71,15 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
   const [expandedFeature, setExpandedFeature] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Diego's Aug 16 Free/Premium spec, §17 — reuse the analytics infra
+  // that already exists (PostHog is wired but had zero custom events on
+  // web) rather than build a new system. Centralized here so every
+  // paywall in the app (existing and new: Morning Brief, Portfolio
+  // Review, Smart Alerts, Oportunidades) reports without a per-page call.
+  useEffect(() => {
+    if (visible) posthog.capture("premium_paywall_viewed", { reason: reason ?? null });
+  }, [visible, reason]);
+
   if (!visible) return null;
 
   const PLANS = getPlans(t);
@@ -78,6 +88,7 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
   const active = PLANS.find((p) => p.id === selectedPlan)!;
 
   const handleUpgrade = async () => {
+    posthog.capture("premium_paywall_clicked", { reason: reason ?? null, plan: selectedPlan });
     setLoading(true);
     try {
       const res = await billing.createCheckout(selectedPlan);

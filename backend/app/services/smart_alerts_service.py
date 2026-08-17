@@ -175,6 +175,21 @@ async def run_smart_alerts_check() -> None:
     lang_res = await run_query(db.table("user_profiles").select("user_id,preferred_language"))
     lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (lang_res.data or [])}
 
+    # Smart Alerts is 100% Premium (Diego's Aug 16 Free/Premium spec, §7) —
+    # state is still tracked for free users below (so a later upgrade
+    # doesn't dump a backlog of stale "new" alerts on them), but the push
+    # itself must never reach a free user.
+    from app.core.subscription import is_premium_active
+    tier_res = await run_query(
+        db.table("user_profiles")
+        .select("user_id,subscription_tier,trial_started_at,streak_bonus_premium_until")
+        .in_("user_id", list(prefs_by_user.keys()))
+    )
+    premium_user_ids = {
+        r["user_id"] for r in (tier_res.data or [])
+        if is_premium_active(r.get("subscription_tier"), r.get("trial_started_at"), r.get("streak_bonus_premium_until"))
+    }
+
     tickers = sorted({row["ticker"] for row in watchlist_rows})
     signals_list = await asyncio.gather(*[_gather_ticker_signals(t) for t in tickers])
     signals_by_ticker = dict(zip(tickers, signals_list))
@@ -261,10 +276,44 @@ async def run_smart_alerts_check() -> None:
         priority, ticker, category, copy_kwargs, _ = max(pushable, key=lambda c: c[0])
         lang = lang_map.get(user_id, "es")
         title, body = _alert_copy(ticker, category, copy_kwargs, lang)
+
+        if user_id not in premium_user_ids:
+            # Free: no push delivered (§7 — 100% Premium), but the real
+            # detection still gets a persisted, cross-process-readable
+            # record so the teaser ("Arthur detectó N cosas...") can source
+            # a real number from notification_log instead of a fabricated
+            # one — see get_smart_alerts_teaser below.
+            from app.services.notification_engine import _log_notification
+            try:
+                await _log_notification(db, user_id, "teaser", f"smart_alert_{category}", title, body, {"ticker": ticker}, "skipped")
+            except Exception as exc:
+                logger.warning("run_smart_alerts_check: teaser log failed for %s/%s/%s: %s", user_id, ticker, category, exc)
+            continue
+
         try:
             await send_push(user_id, f"smart_alert_{category}", title, body, {"screen": "subvaluadas", "ticker": ticker}, db)
         except Exception as exc:
             logger.warning("run_smart_alerts_check: push failed for %s/%s/%s: %s", user_id, ticker, category, exc)
+
+
+async def get_smart_alerts_teaser(user_id: str, days: int = 7) -> int:
+    """Real count of smart-alert-worthy detections (pushed to Premium
+    users, silently logged for Free — see run_smart_alerts_check above) in
+    the trailing `days` days. Never fabricated — 0 stays 0 (Diego's Aug 16
+    spec, §7: "0 alertas → no mostrar artificialmente un número")."""
+    from datetime import datetime, timedelta, timezone
+    from app.core.database import get_supabase, run_query
+
+    db = get_supabase()
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    res = await run_query(
+        db.table("notification_log")
+        .select("id", count="exact")
+        .eq("user_id", user_id)
+        .like("category", "smart_alert_%")
+        .gte("sent_at", since)
+    )
+    return res.count or 0
 
 
 def _alert_copy(ticker: str, category: str, kwargs: dict, lang: str) -> tuple[str, str]:

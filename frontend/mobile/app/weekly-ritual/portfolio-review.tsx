@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { weeklyRitualsApi } from "../../src/lib/api";
+import PaywallModal from "../../src/components/PaywallModal";
 
 interface PortfolioReviewData {
   total_value: number;
@@ -12,6 +13,7 @@ interface PortfolioReviewData {
   change_pct: number | null;
   top_sector: string | null;
   insight: string | null;
+  is_premium: boolean;
 }
 
 const fmtUsd = (n: number) =>
@@ -24,6 +26,7 @@ export default function WeeklyRitualPortfolioReviewScreen() {
   const [data, setData] = useState<PortfolioReviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
 
   useEffect(() => {
     weeklyRitualsApi.getPortfolioReview()
@@ -47,9 +50,17 @@ export default function WeeklyRitualPortfolioReviewScreen() {
           </View>
         ) : (
           <>
-            {data.insight && (
+            {data.insight ? (
               <Text style={{ fontSize: 14, lineHeight: 20, color: colors.text, marginBottom: 14 }}>{data.insight}</Text>
-            )}
+            ) : !data.is_premium ? (
+              <TouchableOpacity
+                onPress={() => setPaywallOpen(true)}
+                style={[st.premiumCta, { backgroundColor: colors.bgRaised, flexDirection: "row", justifyContent: "center", gap: 6, marginBottom: 14 }]}
+              >
+                <Ionicons name="lock-closed" size={14} color={colors.textMuted} />
+                <Text style={{ color: colors.textMuted, fontWeight: "800", fontSize: 13 }}>{t("weeklyRitual.portfolioReview.premiumCta")}</Text>
+              </TouchableOpacity>
+            ) : null}
 
             <View style={[st.valueCard, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
               <Text style={{ fontSize: 10, fontWeight: "800", letterSpacing: 0.5, color: colors.textMuted, marginBottom: 4 }}>
@@ -86,6 +97,13 @@ export default function WeeklyRitualPortfolioReviewScreen() {
           </>
         )}
       </ScrollView>
+      {data && !data.is_premium && (
+        <PaywallModal
+          visible={paywallOpen}
+          onClose={() => setPaywallOpen(false)}
+          reason={t("weeklyRitual.portfolioReview.premiumReason")}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -97,4 +115,5 @@ const st = StyleSheet.create({
   emptyCard: { borderRadius: 20, borderWidth: 1, padding: 32, alignItems: "center" },
   valueCard: { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12 },
   sectorCard: { borderRadius: 16, borderWidth: 1, padding: 14, flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  premiumCta: { paddingVertical: 12, borderRadius: 16 },
 });

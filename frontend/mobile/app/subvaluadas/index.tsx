@@ -6,6 +6,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { screenerWeeklyApi, watchlistServerApi } from "../../src/lib/api";
@@ -258,7 +259,7 @@ export default function SubvaluadasScreen() {
   const [limitHit, setLimitHit] = useState(false);
   const [watchlisted, setWatchlisted] = useState(false);
   const [level3Open, setLevel3Open] = useState(false);
-  // Free users get 1 search/week (enforced server-side) — don't burn that on
+  // Free users get 2 searches/week (enforced server-side) — don't burn that on
   // the default AAPL auto-load; only fetch once they've actually searched,
   // or if a deep link named a ticker explicitly.
   const [searchTriggered, setSearchTriggered] = useState(() => !!params.ticker);
@@ -309,6 +310,7 @@ export default function SubvaluadasScreen() {
           if (status === 429) {
             setLimitHit(true);
             setError(err?.response?.data?.detail?.message || t("subvaluadas.freeGate.limitDesc"));
+            posthog.capture("dcf_limit_reached", { ticker });
             return;
           }
           const detail = err?.response?.data?.detail;

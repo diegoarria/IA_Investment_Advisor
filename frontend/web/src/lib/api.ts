@@ -430,6 +430,10 @@ export const morningBriefFullApi = {
   get: () => api.get("/api/morning-brief"),
 };
 
+export const smartAlertsApi = {
+  getTeaser: () => api.get("/api/smart-alerts/teaser"),
+};
+
 export const feedbackApi = {
   status: () => api.get("/api/feedback/status"),
   seen:   () => api.post("/api/feedback/seen"),

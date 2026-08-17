@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { apiBase } from "@/lib/apiBase";
+import { useSubscriptionStore } from "@/lib/store";
+import PaywallModal from "@/components/PaywallModal";
 
 const API = apiBase();
 
@@ -18,9 +20,14 @@ function getPushToggles(t: TFunction) {
     { key: "push_ai_recommendations", label: t("notificationSettings.push.aiRecommendations.label"), desc: t("notificationSettings.push.aiRecommendations.desc") },
     { key: "push_milestones",         label: t("notificationSettings.push.milestones.label"),        desc: t("notificationSettings.push.milestones.desc") },
     { key: "push_volatility",         label: t("notificationSettings.push.volatility.label"),        desc: t("notificationSettings.push.volatility.desc") },
-    // Fase 4, Incremento 10 (Alertas Inteligentes, Parte J) — each bridges
-    // a real Fase 2/3 signal (Change Detection Engine / Deterioration
-    // Engine / DCF), never a new detection.
+  ];
+}
+// Fase 4, Incremento 10 (Alertas Inteligentes, Parte J) — each bridges a
+// real Fase 2/3 signal (Change Detection Engine / Deterioration Engine /
+// DCF), never a new detection. 100% Premium (Diego's Aug 16 Free/Premium
+// spec, §7) — rendered separately below, gated by isPremium.
+function getSmartAlertToggles(t: TFunction) {
+  return [
     { key: "push_thesis_changes",         label: t("notificationSettings.push.thesisChanges.label"),        desc: t("notificationSettings.push.thesisChanges.desc") },
     { key: "push_guidance_changes",       label: t("notificationSettings.push.guidanceChanges.label"),      desc: t("notificationSettings.push.guidanceChanges.desc") },
     { key: "push_roic_fcf_deterioration", label: t("notificationSettings.push.roicFcfDeterioration.label"), desc: t("notificationSettings.push.roicFcfDeterioration.desc") },
@@ -54,12 +61,17 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
 
 export default function NotificationSettingsPanel({ onClose }: Props) {
   const { t } = useTranslation();
+  const sub = useSubscriptionStore();
+  const isPremium = sub.tier === "premium" || sub.isTrialPremium;
   const PUSH_TOGGLES = getPushToggles(t);
+  const SMART_ALERT_TOGGLES = getSmartAlertToggles(t);
   const EMAIL_TOGGLES = getEmailToggles(t);
   const [prefs, setPrefs] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   const [saved,  setSaved]    = useState(false);
+  const [smartAlertsTeaser, setSmartAlertsTeaser] = useState<number | null>(null);
+  const [paywallOpen, setPaywallOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -72,6 +84,22 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
       setLoading(false);
     })();
   }, []);
+
+  useEffect(() => {
+    if (isPremium) return;
+    // Free: never fetch/show the raw toggles — just a real count of what
+    // Arthur already detected (Diego's Aug 16 spec, §7 — never a
+    // fabricated number, 0 stays 0).
+    (async () => {
+      try {
+        const res = await fetch(`${API}/api/smart-alerts/teaser`, { credentials: "include" });
+        const json = await res.json();
+        setSmartAlertsTeaser(typeof json.count === "number" ? json.count : 0);
+      } catch {
+        setSmartAlertsTeaser(0);
+      }
+    })();
+  }, [isPremium]);
 
   const toggle = (key: string) =>
     setPrefs((p) => (p ? { ...p, [key]: !p[key] } : p));
@@ -146,6 +174,44 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
                     </button>
                   ))}
                 </div>
+              </section>
+
+              {/* Smart Alerts — 100% Premium (Diego's Aug 16 spec, §7) */}
+              <section>
+                <p className="text-xs font-black uppercase tracking-widest mb-3"
+                   style={{ color: "var(--accent-l)", letterSpacing: "0.12em" }}>
+                  {t("notificationSettings.smartAlertsSection")}
+                </p>
+                {isPremium ? (
+                  <div className="space-y-1">
+                    {SMART_ALERT_TOGGLES.map(({ key, label, desc }) => (
+                      <button key={key} onClick={() => toggle(key)}
+                              className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/3 transition-colors"
+                              style={{ background: "var(--raised)" }}>
+                        <div className="text-left">
+                          <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{label}</p>
+                          <p className="text-xs mt-0.5" style={{ color: "var(--dim, #6b7280)" }}>{desc}</p>
+                        </div>
+                        <Toggle on={!!prefs[key]} onClick={() => toggle(key)} />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setPaywallOpen(true)}
+                    className="w-full flex items-center gap-3 p-4 rounded-xl text-left"
+                    style={{ background: "var(--raised)" }}
+                  >
+                    <Lock className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
+                    <p className="text-sm" style={{ color: "var(--text)" }}>
+                      {smartAlertsTeaser === null
+                        ? t("notificationSettings.smartAlertsLoading")
+                        : smartAlertsTeaser === 0
+                        ? t("notificationSettings.smartAlertsTeaserZero")
+                        : t("notificationSettings.smartAlertsTeaser", { count: smartAlertsTeaser })}
+                    </p>
+                  </button>
+                )}
               </section>
 
               {/* Email section */}
@@ -244,6 +310,17 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
           </button>
         </div>
       </div>
+      <PaywallModal
+        visible={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        reason={
+          smartAlertsTeaser === null
+            ? t("notificationSettings.smartAlertsSection")
+            : smartAlertsTeaser === 0
+            ? t("notificationSettings.smartAlertsTeaserZero")
+            : t("notificationSettings.smartAlertsTeaser", { count: smartAlertsTeaser })
+        }
+      />
     </div>
   );
 }

@@ -879,10 +879,10 @@ async def job_market_open():
 
         profiles_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,subscription_tier,trial_started_at,preferred_language").in_("user_id", uids)
+            .select("user_id,name,subscription_tier,trial_started_at,preferred_language,streak_bonus_premium_until").in_("user_id", uids)
         )
         name_map      = {r["user_id"]: (r.get("name") or "Inversor").split()[0] for r in (profiles_res.data or [])}
-        premium_map   = {r["user_id"]: _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at")) for r in (profiles_res.data or [])}
+        premium_map   = {r["user_id"]: _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at"), r.get("streak_bonus_premium_until")) for r in (profiles_res.data or [])}
         lang_map      = {r["user_id"]: (r.get("preferred_language") or "es") for r in (profiles_res.data or [])}
 
         # Bulk-load portfolios for all users (needed for portfolio % in premium body)
@@ -1086,13 +1086,13 @@ async def job_market_close():
         # anywhere below, so it's just removed rather than fetched a different way.
         profiles_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,subscription_tier,trial_started_at,preferred_language")
+            .select("user_id,name,subscription_tier,trial_started_at,preferred_language,streak_bonus_premium_until")
             .in_("user_id", list(set(uids) | push_capable))
         )
         profile_map = {
             r["user_id"]: {
                 "first":      (r.get("name") or "Inversor").split()[0],
-                "is_premium": _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at")),
+                "is_premium": _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at"), r.get("streak_bonus_premium_until")),
                 "language":   r.get("preferred_language") or "es",
             }
             for r in (profiles_res.data or [])
@@ -2013,12 +2013,12 @@ async def job_portfolio_alerts():
         all_uids  = list(user_tickers.keys())
         prof_res  = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,subscription_tier,trial_started_at,preferred_language")
+            .select("user_id,name,subscription_tier,trial_started_at,preferred_language,streak_bonus_premium_until")
             .in_("user_id", all_uids)
         )
         user_meta: dict[str, dict] = {
             r["user_id"]: {
-                "is_premium": _is_premium_user(r.get("subscription_tier", "free"), r.get("trial_started_at")),
+                "is_premium": _is_premium_user(r.get("subscription_tier", "free"), r.get("trial_started_at"), r.get("streak_bonus_premium_until")),
                 "language": r.get("preferred_language") or "es",
             }
             for r in (prof_res.data or [])
@@ -3615,7 +3615,7 @@ async def job_market_crash_alert():
 
         prof_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,subscription_tier,trial_started_at,preferred_language")
+            .select("user_id,subscription_tier,trial_started_at,preferred_language,streak_bonus_premium_until")
             .in_("user_id", uids)
         )
         prof_map = {r["user_id"]: r for r in (prof_res.data or [])}
@@ -3646,7 +3646,7 @@ async def job_market_crash_alert():
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
             prof = prof_map.get(uid, {})
-            is_prem = _is_premium_user(prof.get("subscription_tier", "free"), prof.get("trial_started_at"))
+            is_prem = _is_premium_user(prof.get("subscription_tier", "free"), prof.get("trial_started_at"), prof.get("streak_bonus_premium_until"))
             is_en   = (prof.get("preferred_language") or "es") == "en"
             if is_en:
                 title, body = (premium_title_en, premium_body_en) if is_prem else (free_title_en, free_body_en)
@@ -3798,7 +3798,7 @@ async def _job_earnings_dispatch(hour_filter: str):
     logger.info("job_earnings [%s]: %d tickers reported: %s", hour_filter, len(reported_tickers), reported_tickers)
 
     # 2. Load all users
-    users_res = await run_query(db.table("user_profiles").select("user_id,name,preferred_language,subscription_tier,trial_started_at"))
+    users_res = await run_query(db.table("user_profiles").select("user_id,name,preferred_language,subscription_tier,trial_started_at,streak_bonus_premium_until"))
     users = users_res.data or []
     if not users:
         return
@@ -3832,7 +3832,7 @@ async def _job_earnings_dispatch(hour_filter: str):
             continue
 
         language  = (u.get("preferred_language") or "es")
-        is_prem   = _is_premium_user(u.get("subscription_tier") or "free", u.get("trial_started_at"))
+        is_prem   = _is_premium_user(u.get("subscription_tier") or "free", u.get("trial_started_at"), u.get("streak_bonus_premium_until"))
         await asyncio.sleep(random.uniform(0, 0.05))
         for ticker in relevant:
             res  = results_map[ticker]
@@ -4100,7 +4100,7 @@ async def job_sunday_portfolio_review():
             return
         prof_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,subscription_tier,trial_started_at,investing_style,preferred_language")
+            .select("user_id,name,subscription_tier,trial_started_at,investing_style,preferred_language,streak_bonus_premium_until")
             .in_("user_id", uids)
         )
         prof_map = {r["user_id"]: r for r in (prof_res.data or [])}
@@ -4114,7 +4114,7 @@ async def job_sunday_portfolio_review():
                 continue
             prof  = prof_map.get(uid, {})
             first = (prof.get("name") or "Inversor").split()[0]
-            is_prem = _is_premium_user(prof.get("subscription_tier", "free"), prof.get("trial_started_at"))
+            is_prem = _is_premium_user(prof.get("subscription_tier", "free"), prof.get("trial_started_at"), prof.get("streak_bonus_premium_until"))
             is_en   = (prof.get("preferred_language") or "es") == "en"
 
             change_str = ""
@@ -4277,11 +4277,11 @@ async def job_compute_benchmarks():
     db = get_supabase()
     try:
         prof_res = await run_query(
-            db.table("user_profiles").select("user_id,risk_tolerance,subscription_tier,trial_started_at")
+            db.table("user_profiles").select("user_id,risk_tolerance,subscription_tier,trial_started_at,streak_bonus_premium_until")
         )
         candidates = [
             r for r in (prof_res.data or [])
-            if r.get("risk_tolerance") and _is_premium_user(r.get("subscription_tier", "free"), r.get("trial_started_at"))
+            if r.get("risk_tolerance") and _is_premium_user(r.get("subscription_tier", "free"), r.get("trial_started_at"), r.get("streak_bonus_premium_until"))
         ]
         if not candidates:
             return

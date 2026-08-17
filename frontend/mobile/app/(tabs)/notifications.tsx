@@ -8,7 +8,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
 import { useTranslation } from "react-i18next";
-import { notificationsApi, marketApi } from "../../src/lib/api";
+import { notificationsApi, marketApi, smartAlertsApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -84,6 +84,18 @@ export default function NotificationsScreen() {
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
   const [paywallOpen, setPaywallOpen] = useState(false);
+
+  // Smart Alerts — 100% Premium (Diego's Aug 16 Free/Premium spec, §7).
+  // Free sees a real, never-fabricated count of what Arthur already
+  // detected, never the alert content itself.
+  const [smartAlertsTeaser, setSmartAlertsTeaser] = useState<number | null>(null);
+  const [smartAlertsPaywallOpen, setSmartAlertsPaywallOpen] = useState(false);
+  useEffect(() => {
+    if (isPremiumAccess) return;
+    smartAlertsApi.getTeaser()
+      .then((res: { data: { count: number } }) => setSmartAlertsTeaser(res.data.count ?? 0))
+      .catch(() => setSmartAlertsTeaser(0));
+  }, [isPremiumAccess]);
 
   // Alert context modal
   const [alertModal, setAlertModal]     = useState<{ ticker: string; change_pct: number } | null>(null);
@@ -509,6 +521,29 @@ export default function NotificationsScreen() {
     );
   };
 
+  const SmartAlertsSection = () => {
+    if (isPremiumAccess) return null;
+    const zero = smartAlertsTeaser === 0;
+    return (
+      <TouchableOpacity
+        style={{ borderWidth: 1, borderRadius: 16, borderColor: colors.border, backgroundColor: colors.card, marginTop: 12 }}
+        onPress={() => setSmartAlertsPaywallOpen(true)}
+        activeOpacity={0.8}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", padding: 14, gap: 12 }}>
+          <Ionicons name="lock-closed" size={18} color={colors.textMuted} />
+          <Text style={{ flex: 1, fontSize: 13, color: colors.text, lineHeight: 18 }}>
+            {smartAlertsTeaser === null
+              ? t("notifications.smartAlerts.loading")
+              : zero
+              ? t("notifications.smartAlerts.teaserZero")
+              : t("notifications.smartAlerts.teaser", { count: smartAlertsTeaser })}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {unread > 0 && (
@@ -533,7 +568,7 @@ export default function NotificationsScreen() {
             tintColor="#22c55e"
           />
         }
-        ListHeaderComponent={<><NewsSection /><PortfolioTodaySection /></>}
+        ListHeaderComponent={<><NewsSection /><PortfolioTodaySection /><SmartAlertsSection /></>}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="notifications-outline" size={48} color={colors.textMuted} style={{ marginBottom: 16 }} />
@@ -549,6 +584,18 @@ export default function NotificationsScreen() {
         visible={paywallOpen}
         onClose={() => setPaywallOpen(false)}
         reason={t("notifications.news.paywallReason")}
+      />
+
+      <PaywallModal
+        visible={smartAlertsPaywallOpen}
+        onClose={() => setSmartAlertsPaywallOpen(false)}
+        reason={
+          smartAlertsTeaser === null
+            ? t("notifications.smartAlerts.teaserZero")
+            : smartAlertsTeaser === 0
+            ? t("notifications.smartAlerts.teaserZero")
+            : t("notifications.smartAlerts.teaser", { count: smartAlertsTeaser })
+        }
       />
 
       {/* AI News summary modal */}

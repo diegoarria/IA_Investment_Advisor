@@ -712,11 +712,27 @@ async def undervalued(
     send one (e.g. an older client build)."""
     from app.api.routes.chat import _is_premium
     profile = await _get_user_profile_safe(user_id)
-    if not _is_premium(profile):
-        raise HTTPException(status_code=403, detail="El screener de subvaluadas requiere Premium")
     if lang not in ("es", "en"):
         lang = getattr(profile, "preferred_language", None) or "es"
     from app.services.undervalued_screener_service import get_undervalued, bootstrap_fill_if_empty_sync
+
+    if not _is_premium(profile):
+        # 100% Premium (Diego's Aug 16 Free/Premium spec, §5) — no limited
+        # free version, no tickers/content leaked. Free gets a REAL count
+        # of how many candidates exist this week (never hardcoded, never
+        # fabricated), sourced from the same cache-only read Premium uses
+        # (per_sector_cap=None = full real universe, same as browse=true)
+        # — zero extra AI/API cost.
+        try:
+            full = get_undervalued(limit=10_000, sector=sector, lang=lang, per_sector_cap=None)
+            if not full["results"]:
+                await asyncio.to_thread(bootstrap_fill_if_empty_sync)
+                full = get_undervalued(limit=10_000, sector=sector, lang=lang, per_sector_cap=None)
+        except Exception as exc:
+            logger.error("undervalued(): teaser count failed: %s", exc, exc_info=True)
+            full = {"results": []}
+        return {"is_premium": False, "teaser_count": len(full["results"])}
+
     try:
         result = get_undervalued(limit=limit, sector=sector, lang=lang, **({"per_sector_cap": None} if browse else {}))
         if not result["results"]:
@@ -730,7 +746,7 @@ async def undervalued(
         # (but honest) list rather than a raw 500.
         logger.error("undervalued(): get_undervalued/bootstrap failed: %s", exc, exc_info=True)
         result = {"results": [], "generated_at": 0}
-    return result
+    return {"is_premium": True, **result}
 
 
 @router.get("/valuation-backtest")
@@ -1545,14 +1561,20 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
     return result
 
 
-_FREE_VI_SEARCH_LIMIT = 1
+_FREE_VI_SEARCH_LIMIT = 2
 _VI_SEARCH_WINDOW_HOURS = 24 * 7  # 1 week
 
 
 async def _check_and_increment_vi_search_limit(user_id: str, profile) -> None:
-    """Free users get 1 Valor Intrínseco search per rolling 7-day window;
-    Premium is unlimited — the caller checks _is_premium and skips this
-    entirely for a Premium user. Same counter+window pattern as chat.py's
+    """Free users get 2 Valor Intrínseco searches per rolling 7-day window
+    (Diego's Aug 16 Free/Premium spec, §4 — explicit final decision, do
+    NOT change to 5/month, 10/month, unlimited, or any more permissive
+    limit: "los usuarios que hacen análisis DCF con frecuencia son
+    exactamente los que tienen mayor intención de pago"), on top of the
+    always-free default Apple view (see `is_default_view` in
+    quick_analysis, which skips this check entirely). Premium is
+    unlimited — the caller checks _is_premium and skips this entirely for
+    a Premium user. Same counter+window pattern as chat.py's
     msg_count/msg_window_start free-message limit."""
     db = get_supabase()
     now = datetime.now(timezone.utc)
@@ -1579,7 +1601,7 @@ async def _check_and_increment_vi_search_limit(user_id: str, profile) -> None:
             status_code=429,
             detail={
                 "code": "vi_search_limit",
-                "message": f"Ya usaste tu búsqueda gratis de esta semana. Actívate Premium para búsquedas ilimitadas, o vuelve en {days_left} día(s).",
+                "message": f"Ya usaste tus {_FREE_VI_SEARCH_LIMIT} búsquedas gratis de esta semana. Actívate Premium para búsquedas ilimitadas, o vuelve en {days_left} día(s).",
                 "reset_in_days": days_left,
             },
         )

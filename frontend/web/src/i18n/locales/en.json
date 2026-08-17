@@ -558,6 +558,7 @@
       "title": "Personalized Weekly Screener",
       "desc": "Every Monday, our AI analyzes the market and picks 5 opportunities that fit your risk profile and investing philosophy exactly.",
       "reason": "Upgrade to Premium to get your personalized weekly screener.",
+      "teaser": "This week Nuvos found {{count}} companies that could be undervalued. Activate Premium to discover which ones.",
       "cta": "Upgrade to Premium"
     },
     "loading": "Analyzing the market for you...",
@@ -884,7 +885,7 @@
       "title": "Find out if a stock is cheap or expensive",
       "desc": "Type any ticker or company and we'll tell you if it's worth buying right now. Free, once a week.",
       "cta": "Search for free",
-      "limitTitle": "You've used this week's free search",
+      "limitTitle": "You've used both free searches this week",
       "limitDesc": "Come back next week, or go Premium for unlimited searches."
     },
     "emptyState": "No weekly screener data yet — check back later.",
@@ -2551,7 +2552,11 @@
     "newsLabel": "News from your companies",
     "watchTodayLabel": "Watch today",
     "seeFullPortfolio": "See my full portfolio",
-    "empty": "No Morning Brief available yet today."
+    "empty": "No Morning Brief available yet today.",
+    "premiumCta": "Unlock Morning Brief with Premium",
+    "premiumReason": "Arthur already reviewed {{newsCount}} news items and {{eventsCount}} relevant events for your portfolio today. Activate Premium to see them.",
+    "teaserNewsLabel": "Relevant news today",
+    "teaserEventsLabel": "Events to watch today"
   },
   "explainButton": {
     "cta": "Explain this",
@@ -3656,6 +3661,10 @@
     "title": "Notifications",
     "loadError": "Error loading preferences",
     "pushSection": "Push (Mobile)",
+    "smartAlertsSection": "Smart Alerts",
+    "smartAlertsLoading": "Loading...",
+    "smartAlertsTeaser": "Arthur detected {{count}} things that could matter for your portfolio. Activate Premium to get personalized smart alerts.",
+    "smartAlertsTeaserZero": "Arthur is watching your watchlist for relevant changes. Activate Premium to get personalized smart alerts the moment something matters.",
     "emailSection": "Emails",
     "limitsSection": "Limits",
     "maxPerDay": "Max. per day",
@@ -4105,7 +4114,9 @@
       "vsLastWeek": "vs. 7 days ago",
       "topSectorLabel": "Main sector",
       "seeFullPortfolio": "See my full portfolio",
-      "empty": "Not enough portfolio data yet for this review."
+      "empty": "Not enough portfolio data yet for this review.",
+      "premiumCta": "Unlock Arthur's analysis with Premium",
+      "premiumReason": "Arthur already analyzed how your portfolio did this week. Activate Premium to read his takeaway."
     }
   }
 }

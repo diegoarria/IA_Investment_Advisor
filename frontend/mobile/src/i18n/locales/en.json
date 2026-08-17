@@ -313,7 +313,11 @@
     "newsLabel": "News from your companies",
     "watchTodayLabel": "Watch today",
     "seeFullPortfolio": "See my full portfolio",
-    "empty": "No Morning Brief available yet today."
+    "empty": "No Morning Brief available yet today.",
+    "premiumCta": "Unlock Morning Brief with Premium",
+    "premiumReason": "Arthur already reviewed {{newsCount}} news items and {{eventsCount}} relevant events for your portfolio today. Activate Premium to see them.",
+    "teaserNewsLabel": "Relevant news today",
+    "teaserEventsLabel": "Events to watch today"
   },
   "explainButton": {
     "cta": "Explain this",
@@ -879,7 +883,7 @@
       "title": "Find out if a stock is cheap or expensive",
       "desc": "Type any ticker or company and we'll tell you if it's worth buying right now. Free, once a week.",
       "cta": "Search for free",
-      "limitTitle": "You've used this week's free search",
+      "limitTitle": "You've used both free searches this week",
       "limitDesc": "Come back next week, or go Premium for unlimited searches."
     },
     "emptyState": "No weekly screener data yet — check back later.",
@@ -1555,6 +1559,7 @@
         "title": "Weekly Screener",
         "tagline": "5 personalized opportunities every Sunday",
         "description": "Every Sunday the AI scans the market and selects 5 opportunities that match your risk profile, your mentor's philosophy, and the gaps in your portfolio.",
+        "teaser": "This week Nuvos found {{count}} companies that could be undervalued. Activate Premium to discover which ones.",
         "benefits": [
           "Filtered by your risk profile and mentor",
           "Concrete catalyst and risk for every pick",
@@ -1771,6 +1776,11 @@
       "gainers": "▲ Top gainers",
       "losers": "▼ Top losers",
       "default": "Normal"
+    },
+    "smartAlerts": {
+      "loading": "Loading...",
+      "teaser": "Arthur detected {{count}} things that could matter for your portfolio. Activate Premium to get personalized smart alerts.",
+      "teaserZero": "Arthur is watching your watchlist for relevant changes. Activate Premium to get personalized smart alerts the moment something matters."
     },
     "news": {
       "title": "News",
@@ -3634,7 +3644,9 @@
       "vsLastWeek": "vs. 7 days ago",
       "topSectorLabel": "Main sector",
       "seeFullPortfolio": "See my full portfolio",
-      "empty": "Not enough portfolio data yet for this review."
+      "empty": "Not enough portfolio data yet for this review.",
+      "premiumCta": "Unlock Arthur's analysis with Premium",
+      "premiumReason": "Arthur already analyzed how your portfolio did this week. Activate Premium to read his takeaway."
     }
   }
 }

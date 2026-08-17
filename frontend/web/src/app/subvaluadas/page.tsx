@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { Loader2, Lock, Search, X, AlertTriangle, ChevronRight } from "lucide-react";
+import posthog from "posthog-js";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
@@ -172,7 +173,7 @@ function SubvaluadasPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [limitHit, setLimitHit] = useState(false);
   const [watchlisted, setWatchlisted] = useState(false);
-  // Free users get 1 search/week (enforced server-side) — don't burn that on
+  // Free users get 2 searches/week (enforced server-side) — don't burn that on
   // the default AAPL auto-load; only fetch once they've actually searched,
   // or if the URL itself names a ticker (a shared link is an explicit ask).
   const [searchTriggered, setSearchTriggered] = useState(() => !!searchParams.get("ticker"));
@@ -223,6 +224,7 @@ function SubvaluadasPageInner() {
         if (status === 429) {
           setLimitHit(true);
           setError((rawDetail as { message?: string })?.message || t("subvaluadas.freeGate.limitDesc"));
+          posthog.capture("dcf_limit_reached", { ticker });
           return;
         }
         setError(typeof rawDetail === "string" ? rawDetail : t("subvaluadas.search.error"));

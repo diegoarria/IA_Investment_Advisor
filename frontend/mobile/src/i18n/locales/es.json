@@ -313,7 +313,11 @@
     "newsLabel": "Noticias de tus empresas",
     "watchTodayLabel": "Hoy vigila",
     "seeFullPortfolio": "Ver mi portafolio completo",
-    "empty": "Todavía no hay Morning Brief disponible hoy."
+    "empty": "Todavía no hay Morning Brief disponible hoy.",
+    "premiumCta": "Desbloquear Morning Brief con Premium",
+    "premiumReason": "Arthur ya revisó {{newsCount}} noticias y {{eventsCount}} eventos relevantes para tu portafolio hoy. Activa Premium para verlos.",
+    "teaserNewsLabel": "Noticias relevantes hoy",
+    "teaserEventsLabel": "Eventos que vigilar hoy"
   },
   "explainButton": {
     "cta": "Explícame esto",
@@ -879,7 +883,7 @@
       "title": "Descubre si una acción está barata o cara",
       "desc": "Escribe cualquier ticker o empresa y te decimos si conviene comprarla ahora. Gratis, 1 vez por semana.",
       "cta": "Buscar gratis",
-      "limitTitle": "Ya usaste tu búsqueda de esta semana",
+      "limitTitle": "Ya usaste tus 2 búsquedas de esta semana",
       "limitDesc": "Vuelve la próxima semana, o activa Premium para búsquedas ilimitadas."
     },
     "emptyState": "Todavía no hay datos del screener semanal — vuelve más tarde.",
@@ -1555,6 +1559,7 @@
         "title": "Screener Semanal",
         "tagline": "5 oportunidades personalizadas cada domingo",
         "description": "Cada domingo la IA escanea el mercado y selecciona 5 oportunidades que encajan con tu perfil de riesgo, filosofía de tu mentor y los huecos en tu portafolio.",
+        "teaser": "Esta semana Nuvos encontró {{count}} empresas que podrían estar infravaloradas. Activa Premium para descubrir cuáles son.",
         "benefits": [
           "Filtradas por tu perfil de riesgo y mentor",
           "Catalizador concreto y riesgo por cada pick",
@@ -1771,6 +1776,11 @@
       "gainers": "▲ Más subidas",
       "losers": "▼ Más caídas",
       "default": "Normal"
+    },
+    "smartAlerts": {
+      "loading": "Cargando...",
+      "teaser": "Arthur detectó {{count}} cosas que podrían importar a tu portafolio. Activa Premium para recibir alertas inteligentes personalizadas.",
+      "teaserZero": "Arthur está vigilando tu watchlist en busca de cambios relevantes. Activa Premium para recibir alertas inteligentes personalizadas en cuanto algo importe."
     },
     "news": {
       "title": "Noticias",
@@ -3634,7 +3644,9 @@
       "vsLastWeek": "vs. hace 7 días",
       "topSectorLabel": "Sector principal",
       "seeFullPortfolio": "Ver mi portafolio completo",
-      "empty": "Todavía no hay suficientes datos de tu portafolio para esta revisión."
+      "empty": "Todavía no hay suficientes datos de tu portafolio para esta revisión.",
+      "premiumCta": "Desbloquear el análisis de Arthur con Premium",
+      "premiumReason": "Arthur ya analizó el desempeño de tu portafolio esta semana. Activa Premium para leer su conclusión."
     }
   }
 }

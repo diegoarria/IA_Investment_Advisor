@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { Loader2, TrendingUp, TrendingDown, PieChart } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, PieChart, Lock } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
+import PaywallModal from "@/components/PaywallModal";
 import { weeklyRitualsApi } from "@/lib/api";
 
 interface PortfolioReviewData {
@@ -13,6 +14,7 @@ interface PortfolioReviewData {
   change_pct: number | null;
   top_sector: string | null;
   insight: string | null;
+  is_premium: boolean;
 }
 
 const fmtUsd = (n: number) =>
@@ -23,6 +25,7 @@ export default function WeeklyRitualPortfolioReviewPage() {
   const router = useRouter();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
   const [data, setData] = useState<PortfolioReviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -54,11 +57,20 @@ export default function WeeklyRitualPortfolioReviewPage() {
               </div>
 
               <div className="p-5 space-y-4">
-                {data.insight && (
+                {data.insight ? (
                   <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>
                     {data.insight}
                   </p>
-                )}
+                ) : !data.is_premium ? (
+                  <button
+                    onClick={() => setPaywallOpen(true)}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm"
+                    style={{ background: "var(--raised)", color: "var(--muted)" }}
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    {t("weeklyRitual.portfolioReview.premiumCta")}
+                  </button>
+                ) : null}
 
                 <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
                   <p className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--muted)" }}>
@@ -106,6 +118,13 @@ export default function WeeklyRitualPortfolioReviewPage() {
           )}
         </div>
       </main>
+      {data && !data.is_premium && (
+        <PaywallModal
+          visible={paywallOpen}
+          onClose={() => setPaywallOpen(false)}
+          reason={t("weeklyRitual.portfolioReview.premiumReason")}
+        />
+      )}
     </div>
   );
 }

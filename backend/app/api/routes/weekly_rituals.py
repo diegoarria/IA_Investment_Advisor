@@ -87,7 +87,8 @@ async def reflection_history_route(user_id: str = Depends(get_current_user_id)):
 async def portfolio_review_route(user_id: str = Depends(get_current_user_id)):
     from app.services.weekly_rituals_service import get_portfolio_review
 
-    result = await get_portfolio_review(user_id)
+    _, is_premium = await _profile_lang_and_tier(user_id)
+    result = await get_portfolio_review(user_id, is_premium)
     if result is None:
         raise HTTPException(status_code=404, detail="No hay datos de portafolio disponibles todavía")
     return result

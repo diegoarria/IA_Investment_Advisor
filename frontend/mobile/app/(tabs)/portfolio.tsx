@@ -14,7 +14,7 @@ import Svg, { Path, Defs, Stop, LinearGradient, Circle, Line as SvgLine } from "
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { marketApi, cashHoldingsApi, dividendsApi } from "../../src/lib/api";
+import { marketApi, cashHoldingsApi, dividendsApi, screenerWeeklyApi } from "../../src/lib/api";
 import { useFxRate } from "../../src/lib/useFxRate";
 import { posthog } from "../../src/config/posthog";
 import { useTheme } from "../../src/lib/ThemeContext";
@@ -941,6 +941,23 @@ export default function PortfolioScreen() {
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
   const [paywallOpen, setPaywallOpen] = useState(false);
+
+  // Oportunidades teaser — 100% Premium (Diego's Aug 16 spec, §5). Real,
+  // never-hardcoded count of undervalued candidates found this week; the
+  // backend returns this instead of the tickers/content for Free.
+  const [opportunitiesTeaserCount, setOpportunitiesTeaserCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (isPremiumAccess) return;
+    screenerWeeklyApi.getUndervalued(undefined, 10)
+      .then((res: { data: { is_premium: boolean; teaser_count?: number } }) => {
+        if (!res.data?.is_premium) {
+          const count = res.data?.teaser_count ?? 0;
+          setOpportunitiesTeaserCount(count);
+          posthog.capture("opportunities_teaser_viewed", { count });
+        }
+      })
+      .catch(() => setOpportunitiesTeaserCount(0));
+  }, [isPremiumAccess]);
   const [activeSection, setActiveSection] = useState<"portafolio" | "herramientas">("portafolio");
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
   const age = profile?.birth_date ? getAge(profile.birth_date) : 0;
@@ -1965,7 +1982,11 @@ export default function PortfolioScreen() {
               : <PremiumToolCard
                   title={t("portfolio.premiumTools.weeklyScreener.title")}
                   tagline={t("portfolio.premiumTools.weeklyScreener.tagline")}
-                  description={t("portfolio.premiumTools.weeklyScreener.description")}
+                  description={
+                    opportunitiesTeaserCount === null
+                      ? t("portfolio.premiumTools.weeklyScreener.description")
+                      : t("portfolio.premiumTools.weeklyScreener.teaser", { count: opportunitiesTeaserCount })
+                  }
                   icon="search-outline"
                   color="#8b5cf6"
                   benefits={[

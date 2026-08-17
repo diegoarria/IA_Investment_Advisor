@@ -11,10 +11,11 @@ these are two unrelated features that happen to share the English word
 "research."
 
 Every route follows `investment_graph.py`'s simpler style (auth-gated via
-`get_current_user_id`, no premium gating, no free-text ticker resolution)
-rather than `screener.py`'s heavier `/nif-dashboard` pattern — premium
-gating for this brand-new engine is a product decision left for later,
-not invented here.
+`get_current_user_id`, no free-text ticker resolution) rather than
+`screener.py`'s heavier `/nif-dashboard` pattern. Most routes here are
+free (research browsing, Nuvos's shared thesis draft, the user's own
+thesis read/write) — only `POST .../thesis/review` (Thesis Tracker) is
+Premium-gated, added Aug 16 per Diego's Free/Premium spec §8.
 
 The Dossier route composes everything at once
 (`research_orchestrator.compose_research_dossier`); every other route
@@ -378,7 +379,23 @@ async def get_thesis_history_route(ticker: str, user_id: str = Depends(get_curre
 async def review_thesis_route(ticker: str, lang: str = "es", user_id: str = Depends(get_current_user_id)):
     """Thesis Tracker: compares the user's current thesis against real
     events since it was created, creates a NEW version (never overwrites
-    the prior one), and records hypothesis outcomes."""
+    the prior one), and records hypothesis outcomes.
+
+    100% Premium (Diego's Aug 16 Free/Premium spec, §8 — "Seguimiento de
+    Tesis"). This is the one route in this file that gets gated: the rest
+    (dossier, business/competitive/industry/management intelligence,
+    Nuvos's shared thesis draft, the user's own hand-authored thesis
+    read/write) are the free chat/journal/research-browsing experience —
+    only the automatic comparison-against-real-events tracking is
+    Premium. Previously ungated entirely — this file's own docstring said
+    so explicitly ("premium gating... left for later, not invented here")."""
+    from app.api.routes.chat import _get_user_profile, _is_premium
+    from fastapi import HTTPException as _HTTPException
+
+    profile = await _get_user_profile(user_id)
+    if not _is_premium(profile):
+        raise _HTTPException(status_code=402, detail={"code": "premium_required", "feature": "thesis_tracking"})
+
     from app.services.research.thesis_tracker import compute_and_save_thesis_review
     from app.services.fundamental_analysis_service import get_fundamental_analysis
     from app.api.routes.screener import UNIVERSE

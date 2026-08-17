@@ -494,6 +494,10 @@ export const morningBriefFullApi = {
   get: () => api.get("/api/morning-brief"),
 };
 
+export const smartAlertsApi = {
+  getTeaser: () => api.get("/api/smart-alerts/teaser"),
+};
+
 export const voiceCallsApi = {
   list: () => api.get("/api/voice/calls"),
   get: (id: string) => api.get(`/api/voice/calls/${id}`),

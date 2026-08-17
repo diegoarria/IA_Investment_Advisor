@@ -128,6 +128,59 @@ class TestRunSmartAlertsCheck:
         mock_push.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_free_user_never_gets_a_push_but_state_and_teaser_log_still_happen(self):
+        """Diego's Aug 16 Free/Premium spec, §7 + §16: Smart Alerts is
+        100% Premium, enforced in the backend job itself, not just the
+        route layer — a free user's real detection must never trigger an
+        actual push, but a real (never fabricated) teaser record should
+        still be written so get_smart_alerts_teaser has something honest
+        to count."""
+        mock_db = MagicMock()
+        prefs_row = {
+            "user_id": "free_user", "push_thesis_changes": True, "push_guidance_changes": False,
+            "push_roic_fcf_deterioration": False, "push_new_risks": False, "push_price_in_range": False,
+        }
+        watchlist_rows = [{"user_id": "free_user", "ticker": "AAPL"}]
+        lang_rows = [{"user_id": "free_user", "preferred_language": "es"}]
+        tier_rows = [{"user_id": "free_user", "subscription_tier": "free", "trial_started_at": None, "streak_bonus_premium_until": None}]
+        state_rows: list[dict] = []
+
+        run_query_calls = {
+            "prefs": SimpleNamespace(data=[prefs_row]),
+            "watchlist": SimpleNamespace(data=watchlist_rows),
+            "lang": SimpleNamespace(data=lang_rows),
+            "tier": SimpleNamespace(data=tier_rows),
+            "state": SimpleNamespace(data=state_rows),
+        }
+        call_order = ["prefs", "watchlist", "lang", "tier", "state"]
+
+        async def run_query_side_effect(*_args, **_kwargs):
+            if call_order:
+                return run_query_calls[call_order.pop(0)]
+            return SimpleNamespace(data=[])
+
+        with patch("app.core.database.get_supabase", return_value=mock_db), \
+             patch("app.core.database.run_query", side_effect=run_query_side_effect), \
+             patch("app.services.notification_engine.send_push", new_callable=AsyncMock) as mock_push, \
+             patch("app.services.notification_engine._log_notification", new_callable=AsyncMock) as mock_log, \
+             patch(
+                 "app.services.smart_alerts_service._gather_ticker_signals",
+                 new_callable=AsyncMock,
+                 return_value={
+                     "thesis_change": ("evt-1", "AAPL shifted strategy toward services"),
+                     "guidance_change": None, "roic_fcf_deterioration": None,
+                     "new_risks_current": [], "price_in_range_current": None,
+                 },
+             ):
+            await run_smart_alerts_check()
+
+        mock_push.assert_not_called()
+        mock_log.assert_called_once()
+        args, _ = mock_log.call_args
+        assert args[1] == "free_user"
+        assert args[3] == "smart_alert_thesis_change"
+
+    @pytest.mark.asyncio
     async def test_new_thesis_change_event_triggers_exactly_one_push(self):
         mock_db = MagicMock()
         prefs_row = {
@@ -136,17 +189,19 @@ class TestRunSmartAlertsCheck:
         }
         watchlist_rows = [{"user_id": "user1", "ticker": "AAPL"}]
         lang_rows = [{"user_id": "user1", "preferred_language": "es"}]
+        tier_rows = [{"user_id": "user1", "subscription_tier": "premium", "trial_started_at": None, "streak_bonus_premium_until": None}]
         state_rows: list[dict] = []  # no prior state — this is a genuinely new event
 
         run_query_calls = {
             "prefs": SimpleNamespace(data=[prefs_row]),
             "watchlist": SimpleNamespace(data=watchlist_rows),
             "lang": SimpleNamespace(data=lang_rows),
+            "tier": SimpleNamespace(data=tier_rows),
             "state": SimpleNamespace(data=state_rows),
             "upsert": SimpleNamespace(data=[]),
         }
 
-        call_order = ["prefs", "watchlist", "lang", "state"]
+        call_order = ["prefs", "watchlist", "lang", "tier", "state"]
 
         async def run_query_side_effect(*_args, **_kwargs):
             if call_order:
@@ -182,14 +237,16 @@ class TestRunSmartAlertsCheck:
                      "push_roic_fcf_deterioration": False, "push_new_risks": False, "push_price_in_range": False}
         watchlist_rows = [{"user_id": "user1", "ticker": "AAPL"}]
         state_rows = [{"user_id": "user1", "ticker": "AAPL", "category": "thesis_change", "last_value": "evt-1"}]
+        tier_rows = [{"user_id": "user1", "subscription_tier": "premium", "trial_started_at": None, "streak_bonus_premium_until": None}]
 
         run_query_calls = {
             "prefs": SimpleNamespace(data=[prefs_row]),
             "watchlist": SimpleNamespace(data=watchlist_rows),
             "lang": SimpleNamespace(data=[]),
+            "tier": SimpleNamespace(data=tier_rows),
             "state": SimpleNamespace(data=state_rows),
         }
-        call_order = ["prefs", "watchlist", "lang", "state"]
+        call_order = ["prefs", "watchlist", "lang", "tier", "state"]
 
         async def run_query_side_effect(*_args, **_kwargs):
             if call_order:
@@ -211,3 +268,27 @@ class TestRunSmartAlertsCheck:
             await run_smart_alerts_check()
 
         mock_push.assert_not_called()
+
+
+class TestGetSmartAlertsTeaser:
+    @pytest.mark.asyncio
+    async def test_returns_real_count_from_notification_log(self):
+        from app.services.smart_alerts_service import get_smart_alerts_teaser
+
+        mock_db = MagicMock()
+        with patch("app.core.database.get_supabase", return_value=mock_db), \
+             patch("app.core.database.run_query", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = SimpleNamespace(data=[{"id": "1"}, {"id": "2"}, {"id": "3"}], count=3)
+            result = await get_smart_alerts_teaser("user1")
+        assert result == 3
+
+    @pytest.mark.asyncio
+    async def test_zero_detections_returns_zero_never_fabricated(self):
+        from app.services.smart_alerts_service import get_smart_alerts_teaser
+
+        mock_db = MagicMock()
+        with patch("app.core.database.get_supabase", return_value=mock_db), \
+             patch("app.core.database.run_query", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = SimpleNamespace(data=[], count=0)
+            result = await get_smart_alerts_teaser("user1")
+        assert result == 0

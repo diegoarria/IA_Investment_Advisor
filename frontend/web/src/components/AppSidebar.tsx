@@ -189,7 +189,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
 
   const orderedNav = navOrder.map((href) => MAIN_NAV.find((n) => n.href === href)!).filter(Boolean);
   const userLevel  = getUserLevel(profile);
-  const isPremium      = subStore.tier === "premium";
+  const isPremium      = subStore.tier === "premium" || subStore.isTrialPremium;
 
   const navigate = (href: string) => { router.push(href); onClose(); };
 

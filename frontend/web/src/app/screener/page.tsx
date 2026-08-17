@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Search, RefreshCw, Loader2, TrendingUp, TrendingDown, Star, Lock } from "lucide-react";
+import posthog from "posthog-js";
 import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
 import { screenerApi } from "@/lib/api";
@@ -39,6 +40,13 @@ interface UndervaluedResult {
   thesis_scores: Record<string, number> | null;
 }
 
+interface UndervaluedResponse {
+  is_premium: boolean;
+  results?: UndervaluedResult[];
+  generated_at?: number;
+  teaser_count?: number;
+}
+
 function getEtfByRisk(t: TFunction): Record<string, { ticker: string; name: string; desc: string; color: string }[]> {
   return {
     conservative: [
@@ -74,6 +82,7 @@ export default function ScreenerPage() {
   const [undervalued, setUndervalued] = useState<UndervaluedResult[]>([]);
   const [undervaluedGeneratedAt, setUndervaluedGeneratedAt] = useState<number>(0);
   const [undervaluedLoading, setUndervaluedLoading] = useState(false);
+  const [opportunitiesTeaserCount, setOpportunitiesTeaserCount] = useState<number | null>(null);
 
   const loadWeekly = useCallback(async () => {
     if (!isPremium) return;
@@ -90,12 +99,21 @@ export default function ScreenerPage() {
   useEffect(() => { loadWeekly(); }, [loadWeekly]);
 
   useEffect(() => {
-    if (!isPremium) return;
+    // Fetched regardless of tier now — 100% Premium (Diego's Aug 16 spec,
+    // §5), but Free must still see a REAL, never-hardcoded count of how
+    // many candidates exist this week; the backend returns a teaser-only
+    // shape (no tickers/content) for Free instead of 403ing.
     setUndervaluedLoading(true);
     screenerApi.getUndervalued(undefined, 10)
-      .then((res) => {
-        setUndervalued(res.data?.results || []);
-        setUndervaluedGeneratedAt(res.data?.generated_at || 0);
+      .then((res: { data: UndervaluedResponse }) => {
+        if (res.data?.is_premium) {
+          setUndervalued(res.data.results || []);
+          setUndervaluedGeneratedAt(res.data.generated_at || 0);
+        } else {
+          const count = res.data?.teaser_count ?? 0;
+          setOpportunitiesTeaserCount(count);
+          posthog.capture("opportunities_teaser_viewed", { count });
+        }
       })
       .catch(() => setUndervalued([]))
       .finally(() => setUndervaluedLoading(false));
@@ -174,7 +192,8 @@ export default function ScreenerPage() {
             )}
           </div>}
 
-          {/* Paywall gate — all free users */}
+          {/* Paywall gate — all free users. Real, never-hardcoded count
+              (§5/§11: "el número debe ser calculado dinámicamente"). */}
           {!isPremium && (
             <div className="rounded-2xl border p-8 text-center"
                  style={{ borderColor: "var(--border)", background: "var(--card)" }}>
@@ -184,9 +203,14 @@ export default function ScreenerPage() {
               </div>
               <h2 className="font-bold text-base mb-2" style={{ color: "var(--text)" }}>{t("screener.paywall.title")}</h2>
               <p className="text-sm mb-5 max-w-sm mx-auto" style={{ color: "var(--muted)" }}>
-                {t("screener.paywall.desc")}
+                {opportunitiesTeaserCount === null
+                  ? t("screener.paywall.desc")
+                  : t("screener.paywall.teaser", { count: opportunitiesTeaserCount })}
               </p>
-              <button onClick={() => handleUpgrade(t("screener.paywall.reason"))}
+              <button onClick={() => {
+                        posthog.capture("opportunities_upgrade_clicked", { count: opportunitiesTeaserCount });
+                        handleUpgrade(opportunitiesTeaserCount === null ? t("screener.paywall.reason") : t("screener.paywall.teaser", { count: opportunitiesTeaserCount }));
+                      }}
                       className="px-6 py-2.5 rounded-xl text-sm font-bold text-white"
                       style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
                 {t("screener.paywall.cta")}
