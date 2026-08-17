@@ -4212,7 +4212,7 @@ export default function PortfolioScreen() {
             ? Object.entries(diagnosis.sectorPcts).map(([sector, pct]) => ({ sector: SECTOR_LABELS[sector] ?? sector, pct }))
             : null,
         }}
-        bottomOffset={90}
+        bottomOffset={12}
       />
     </SafeAreaView>
   );

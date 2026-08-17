@@ -1928,7 +1928,7 @@ export default function HomeScreen() {
           top_gainers: movers.map((m) => ({ ticker: m.ticker, change_pct: m.chg })),
           top_losers: losers.map((m) => ({ ticker: m.ticker, change_pct: m.chg })),
         }}
-        bottomOffset={90}
+        bottomOffset={12}
       />
     </SafeAreaView>
   );

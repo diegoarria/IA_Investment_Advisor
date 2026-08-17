@@ -253,7 +253,7 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
         dividend_income_received: dividendTotalUSD > 0 ? dividendTotalUSD : null,
         currency: portfolioCurrency,
       }}
-      bottomOffset={90}
+      bottomOffset={12}
     />
     </View>
   );
