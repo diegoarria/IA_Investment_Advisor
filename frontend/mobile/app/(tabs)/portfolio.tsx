@@ -1144,7 +1144,9 @@ export default function PortfolioScreen() {
     { key: "max", label: t("portfolio.periods.max"),  premium: true  },
   ] as const;
   type PeriodKey = typeof PERIODS[number]["key"];
-  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("1mo");
+  // Matches web's default (frontend/web/src/app/portfolio/page.tsx) — was
+  // "1mo" here only, an unintentional mobile/web divergence.
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("since_purchase");
   const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
   const [loadingReturns, setLoadingReturns] = useState(false);
 
