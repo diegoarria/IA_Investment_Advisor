@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 # ─── Provider credentials ─────────────────────────────────────────────────────
 
-FMP_KEY = os.getenv("FMP_API_KEY", "")
+FMP_KEY = settings.fmp_api_key or os.getenv("FMP_API_KEY", "")
 FMP_BASE = "https://financialmodelingprep.com/stable"
 _REQ_HEADERS = {
     "User-Agent": "NuvosAI/1.0 research@nuvosai.app",
