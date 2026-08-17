@@ -3,20 +3,27 @@ Morning Brief — Diego's request (Aug 16): a personalized, Premium-only,
 Monday-Friday 9:15am ET pre-market push that opens its own flashcard
 (same pattern as the Weekly Rituals cards).
 
-Deliberately 100% deterministic — ZERO Claude calls, by Diego's explicit
-request to spend the minimum possible in tokens. Every number is real
-math (portfolio snapshots, Finnhub quotes), every news item is a real
-Finnhub headline scored by keyword against the exact priority list Diego
-gave (earnings > guidance/CEO/M&A > regulación/deuda), and every
-calendar event's impact level is the one macro_calendar_service already
-computed (`_classify`'s HIGH/MEDIUM/LOW) — nothing here is synthesized
-or written by a model.
+Deliberately near-zero Claude cost, by Diego's explicit request to spend
+the minimum possible in tokens. Every number is real math (portfolio
+snapshots, Finnhub quotes), every news item is a real Finnhub headline
+scored by keyword against the exact priority list Diego gave (earnings >
+guidance/CEO/M&A > regulación/deuda), and every calendar event's impact
+level is the one macro_calendar_service already computed (`_classify`'s
+VERY_HIGH/HIGH/MEDIUM) — none of that is synthesized or written by a
+model. The ONE real Claude usage (Aug 16 follow-up: Diego wants Spanish-
+language users to see headlines in Spanish, not Finnhub's native
+English) is a translation call, and only that — never a summary, never
+an opinion, never invented content — cached PER HEADLINE (not per user,
+not per day) via `_translate_headlines_to_spanish`, so the same real
+headline seen by every user holding a popular ticker is translated once,
+ever, not once per user per morning. English-language users trigger zero
+Claude calls, same as before.
 
-No new DB table, no persistence at all: since nothing here is AI-written
-(unlike Portfolio Review's one saved sentence), the flashcard just
+No new DB table, no persistence of the brief itself: the flashcard
 recomputes the same real, free math/Finnhub calls live when opened —
 same "cheap to redo, so don't bother persisting it" convention
-weekly_rituals_service.get_sunday_prep already uses. This also avoids a
+weekly_rituals_service.get_sunday_prep already uses (only the headline
+translations are cached, independently, forever). This also avoids a
 real risk the first draft of this feature had: cramming the full
 news/events payload into the push notification's `data` field risks
 hitting APNs/FCM/web-push's ~4KB payload limit — the push itself only
@@ -135,7 +142,63 @@ def _top_mover(positions: list[dict]) -> Optional[dict]:
     return best
 
 
-def _top_news_for_positions(tickers: list[str]) -> list[dict]:
+_HEADLINE_CACHE_TTL = 90 * 24 * 3600  # a headline's translation never changes — long-lived, cheap to keep
+
+
+def _headline_cache_key(headline: str) -> str:
+    import hashlib
+    return f"morning_brief:headline_es:{hashlib.md5(headline.encode('utf-8')).hexdigest()}"
+
+
+async def _translate_headlines_to_spanish(headlines: list[str]) -> dict[str, str]:
+    """Diego's request (Aug 16): Finnhub headlines are always in English;
+    Spanish-language users should see them in Spanish. Real Claude call —
+    but cached PER HEADLINE (not per user, not per day), so the same real
+    headline seen by every user holding a popular ticker only ever gets
+    translated once, ever, not once per user per morning. English-
+    language users never call this at all (see build_morning_brief).
+    Uncached headlines are batched into ONE call, never one call each."""
+    from app.core.cache import cache_get, cache_set
+
+    result: dict[str, str] = {}
+    to_translate: list[str] = []
+    for h in headlines:
+        cached = cache_get(_headline_cache_key(h))
+        if cached:
+            result[h] = cached
+        else:
+            to_translate.append(h)
+
+    if not to_translate:
+        return result
+
+    from app.services.ai_service import _claude, _parse_json_response
+
+    numbered = "\n".join(f"{i + 1}. {h}" for i, h in enumerate(to_translate))
+    prompt = (
+        "Traduce cada uno de estos titulares financieros al español, de forma natural y precisa, "
+        "sin agregar ni quitar información real. Responde ÚNICAMENTE con un JSON válido:\n"
+        '{"translations": ["<titular 1 traducido>", "<titular 2 traducido>", ...]} '
+        "— mismo orden, mismo número de elementos que la lista de abajo.\n\n" + numbered
+    )
+    try:
+        resp = await _claude(model="claude-haiku-4-5-20251001", max_tokens=500, messages=[{"role": "user", "content": prompt}])
+        parsed = _parse_json_response(resp.content[0].text.strip())
+        translations = (parsed or {}).get("translations") or []
+        if len(translations) != len(to_translate):
+            raise ValueError(f"expected {len(to_translate)} translations, got {len(translations)}")
+        for original, translated in zip(to_translate, translations):
+            cache_set(_headline_cache_key(original), translated, _HEADLINE_CACHE_TTL)
+            result[original] = translated
+    except Exception as exc:
+        logger.warning("morning_brief: headline translation failed, falling back to English: %s", exc)
+        for h in to_translate:
+            result[h] = h  # never block the brief over a translation hiccup
+
+    return result
+
+
+async def _top_news_for_positions(tickers: list[str], lang: str = "es") -> list[dict]:
     from app.services.price_alert_service import fetch_ticker_news
     scored: list[dict] = []
     for ticker in tickers:
@@ -154,6 +217,12 @@ def _top_news_for_positions(tickers: list[str]) -> list[dict]:
     top = scored[:_TOP_NEWS_LIMIT]
     for item in top:
         item.pop("_score", None)
+
+    if lang == "es" and top:
+        translated = await _translate_headlines_to_spanish([item["headline"] for item in top])
+        for item in top:
+            item["headline"] = translated.get(item["headline"], item["headline"])
+
     return top
 
 
@@ -238,7 +307,7 @@ async def build_morning_brief(user_id: str, lang: str = "es") -> Optional[dict]:
     tickers = sorted({p["ticker"] for p in positions if p.get("ticker")})
     sp500_change_pct = _sp500_day_change()
     top_mover = _top_mover(positions)
-    news = _top_news_for_positions(tickers)
+    news = await _top_news_for_positions(tickers, lang)
     events = await _today_events_for_user(tickers, lang)
 
     return {
