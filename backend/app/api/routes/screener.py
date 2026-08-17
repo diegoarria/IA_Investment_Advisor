@@ -1681,8 +1681,13 @@ async def _check_and_increment_vi_search_limit(user_id: str, profile) -> None:
     )
 
 
+_DEFAULT_VI_TICKER = "AAPL"
+
+
 @router.get("/quick-analysis")
-async def quick_analysis(query: str, lang: str | None = None, user_id: str = Depends(get_current_user_id)):
+async def quick_analysis(
+    query: str, lang: str | None = None, is_default_view: bool = False, user_id: str = Depends(get_current_user_id),
+):
     """Ad-hoc single-ticker valuation search — the real DCF engine (same one
     behind Arthur and the undervalued screener) plus a SHORT narrative
     summary (see ai_service.generate_quick_valuation_summary), for any
@@ -1709,9 +1714,16 @@ async def quick_analysis(query: str, lang: str | None = None, user_id: str = Dep
         raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
     # Free users get 1 search per week as a taste of the real feature —
     # Premium is unlimited. Checked here (not a flat block) so the search
-    # box itself is never fully behind a paywall.
+    # box itself is never fully behind a paywall. The screen's own default
+    # AAPL view (`is_default_view`, set by the frontend only for the
+    # auto-load on open, never for an explicit user search) is exempt from
+    # this counter entirely — Diego: Apple must always open, no matter
+    # what, same as web. Validated against the literal query (not the
+    # resolved ticker) so a client can't fake `is_default_view=true` for an
+    # arbitrary ticker to bypass the limit.
     if not _is_premium(profile):
-        await _check_and_increment_vi_search_limit(user_id, profile)
+        if not (is_default_view and query.strip().upper() == _DEFAULT_VI_TICKER):
+            await _check_and_increment_vi_search_limit(user_id, profile)
 
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Escribe un ticker o nombre de empresa")

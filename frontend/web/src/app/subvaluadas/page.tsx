@@ -164,10 +164,14 @@ function SubvaluadasPageInner() {
   const [searchTriggered, setSearchTriggered] = useState(() => !!searchParams.get("ticker"));
 
   useEffect(() => {
-    if (!isPremium && !searchTriggered) { setLoading(false); return; }
     let cancelled = false;
     const cacheKey = `vi_quick_analysis:${ticker}:${i18n.language}`;
     setLimitHit(false);
+    // Apple is always the free default view (Diego: "si o si") — exempt
+    // from the weekly free-search counter server-side via is_default_view,
+    // so it must load unconditionally, Premium or not. Only an explicit
+    // user search (searchTriggered) ever counts against that counter.
+    const isDefaultView = !searchTriggered;
 
     // Stale-while-revalidate: paint instantly from the last cached payload
     // for this ticker+lang (localStorage) while a fresh copy loads in the
@@ -192,7 +196,7 @@ function SubvaluadasPageInner() {
     // answer from the server (bad ticker, out of free searches) is never retried.
     const attempt = async (n: number): Promise<void> => {
       try {
-        const res = await screenerApi.quickAnalysis(ticker, i18n.language);
+        const res = await screenerApi.quickAnalysis(ticker, i18n.language, isDefaultView);
         if (cancelled) return;
         setData(res.data);
         setError(null);
@@ -341,18 +345,7 @@ function SubvaluadasPageInner() {
                 </button>
               </div>
 
-              {!isPremium && !searchTriggered && !data ? (
-                <div className="max-w-xl mx-auto rounded-2xl border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(212,162,76,0.12)" }}>
-                    <Search className="w-7 h-7" style={{ color: GOLD }} />
-                  </div>
-                  <h2 className="font-bold text-base mb-2" style={{ color: "var(--text)" }}>{t("subvaluadas.freeGate.title")}</h2>
-                  <p className="text-sm mb-5 max-w-sm mx-auto" style={{ color: "var(--muted)" }}>{t("subvaluadas.freeGate.desc")}</p>
-                  <button onClick={() => setPaywallOpen(true)} className="px-6 py-2.5 rounded-xl text-sm font-bold" style={{ background: GOLD, color: "#0A0F1A" }}>
-                    {t("subvaluadas.freeGate.cta")}
-                  </button>
-                </div>
-              ) : loading ? (
+              {loading ? (
                 <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 animate-spin" style={{ color: GOLD }} /></div>
               ) : limitHit ? (
                 <div className="max-w-xl mx-auto rounded-2xl border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>

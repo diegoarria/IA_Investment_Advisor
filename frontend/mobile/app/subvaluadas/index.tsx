@@ -84,10 +84,15 @@ export default function SubvaluadasScreen() {
   const [searchTriggered, setSearchTriggered] = useState(() => !!params.ticker);
 
   useEffect(() => {
-    if (!isPremium && !searchTriggered) { setLoading(false); return; }
     let cancelled = false;
     const cacheKey = `vi_quick_analysis:${ticker}:${i18n.language}`;
     setLimitHit(false);
+    // Apple is always the free default view (Diego: "si o si, tal como web
+    // app") — exempt from the weekly free-search counter server-side via
+    // is_default_view, so it must load unconditionally, Premium or not.
+    // Only an explicit user search (searchTriggered) ever counts against
+    // that counter.
+    const isDefaultView = !searchTriggered;
 
     const run = async () => {
       let hadCache = false;
@@ -105,7 +110,7 @@ export default function SubvaluadasScreen() {
 
       const attempt = async (n: number): Promise<void> => {
         try {
-          const res: any = await screenerWeeklyApi.quickAnalysis(ticker, i18n.language);
+          const res: any = await screenerWeeklyApi.quickAnalysis(ticker, i18n.language, isDefaultView);
           if (cancelled) return;
           setData(res.data);
           setError(null);
@@ -207,18 +212,7 @@ export default function SubvaluadasScreen() {
         </TouchableOpacity>
       )}
 
-      {!isPremium && !searchTriggered && !data ? (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: "rgba(212,162,76,0.12)", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-            <Ionicons name="search" size={26} color={GOLD} />
-          </View>
-          <Text style={{ fontSize: 15, fontWeight: "700", color: viColors.text, marginBottom: 6, textAlign: "center" }}>{t("subvaluadas.freeGate.title")}</Text>
-          <Text style={{ fontSize: 13, color: viColors.textMuted, textAlign: "center", marginBottom: 18 }}>{t("subvaluadas.freeGate.desc")}</Text>
-          <TouchableOpacity onPress={() => setPaywallOpen(true)} style={{ backgroundColor: GOLD, paddingHorizontal: 22, paddingVertical: 11, borderRadius: 12 }}>
-            <Text style={{ fontSize: 13, fontWeight: "800", color: "#0A0F1A" }}>{t("subvaluadas.freeGate.cta")}</Text>
-          </TouchableOpacity>
-        </View>
-      ) : loading ? (
+      {loading ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator size="large" color={GOLD} />
         </View>
