@@ -1916,13 +1916,46 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
 
     # S&P 500 return over the exact same window, from the same fetch — real
     # data every time, never a placeholder or a separately-fetched number.
+    #
+    # Was a flat lump-sum (spy_end vs. spy_start on the FIRST chart date)
+    # regardless of when each lot was actually bought — the same bug
+    # already fixed in _compute_portfolio_returns's spy_pct (see
+    # _phased_bench_value's own doc comment), but this endpoint has its own
+    # separate SPY calculation and was never fixed alongside it. Confirmed
+    # live (2026-08-18): mobile's Portfolio screen has no chartOverrides
+    # fallback to THIS endpoint's spy_pct (unlike web, which uses it for
+    # ytd/1mo/3mo/6mo), so mobile was already reading the correct phased
+    # number from /portfolio-returns while web's ytd/1mo/3mo/6mo badges
+    # were still silently using this lump-sum one — the two platforms
+    # disagreeing is what actually got reported as "mobile is wrong."
+    # Phased the same way the portfolio's own `base` above already is:
+    # lots held before the chart's first date count as one lump bought on
+    # that first date (matching `start_val`'s own treatment), lots bought
+    # mid-period count individually from their real purchase date.
     spy_pct = None
     _bench = "^GSPC" if "^GSPC" in close.columns else ("SPY" if "SPY" in close.columns else None)
     if _bench and not close.empty:
-        spy_start = _safe_price(close.iloc[0], _bench)
+        bench_lots: list[tuple[float, "_pd.Timestamp"]] = []
+        if period == "since_purchase":
+            for i, p in enumerate(positions):
+                ts = lot_purchase_ts[i]
+                if ts is not None and p.avg_price and p.avg_price > 0:
+                    bench_lots.append((p.shares * p.avg_price, ts))
+        else:
+            if first_chart_ts is not None and start_val > 0:
+                bench_lots.append((start_val, first_chart_ts))
+            for i, p in enumerate(positions):
+                ts = lot_purchase_ts[i]
+                if (ts is not None and first_chart_ts is not None and ts > first_chart_ts
+                        and p.avg_price and p.avg_price > 0):
+                    bench_lots.append((p.shares * p.avg_price, ts))
+
         spy_end = rt_prices.get(_bench) if (not intraday and rt_prices and _bench in rt_prices) else _safe_price(close.iloc[-1], _bench)
-        if spy_start and spy_start > 0 and spy_end and spy_end > 0:
-            spy_pct = round((spy_end - spy_start) / spy_start * 100, 2)
+        total_bench_cost = sum(c for c, _ in bench_lots)
+        if spy_end and spy_end > 0 and total_bench_cost > 0:
+            spy_equiv_value = _phased_bench_value(bench_lots, _bench, close, spy_end)
+            if spy_equiv_value is not None:
+                spy_pct = round((spy_equiv_value - total_bench_cost) / total_bench_cost * 100, 2)
 
     return {
         "history": history,
