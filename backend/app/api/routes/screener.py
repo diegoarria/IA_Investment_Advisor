@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import random
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
@@ -659,8 +661,20 @@ def _fetch_one(entry: dict) -> dict:
         return {**entry, "industry": entry.get("industry", ""), "price": None, "score": 0}
 
 
-def _fetch_batch(entries: list[dict]) -> list[dict]:
-    results = [_fetch_one(e) for e in entries]
+def _fetch_batch(entries: list[dict], max_workers: int = 20) -> list[dict]:
+    """Was a plain sequential `[_fetch_one(e) for e in entries]` — fine for
+    the 20-ticker /screen route, but deadly for the ~556-ticker UNIVERSE
+    scan both `weekly_picks()`'s on-demand fallback and worker.py's Sunday
+    `job_weekly_screener_generate` run: up to 2 sequential blocking Finnhub
+    calls PER ticker on a cold cache meant minutes of wall-clock time before
+    a single result came back (the "Screener Semanal se queda cargando"
+    bug). Bounded thread-pool concurrency instead — 20 in flight at once
+    (not unbounded, to stay under Finnhub's rate limit) cuts that to
+    roughly 1/20th of the sequential wall-clock time. Callers already wrap
+    this whole function in `asyncio.to_thread`, so running a thread pool
+    inside it doesn't block the event loop any more than before."""
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        results = list(pool.map(_fetch_one, entries))
     return [r for r in results if r.get("price") is not None]
 
 
@@ -1953,8 +1967,18 @@ async def weekly_picks(
     if cached:
         return cached
 
-    # Fetch all universe stocks (cached 4h by _fetch_one)
-    stocks = await asyncio.to_thread(_fetch_batch, UNIVERSE)
+    # Rare path (Sunday's job already pre-warms every Premium user's cache —
+    # see job_weekly_screener_generate) — but it still needs to answer FAST
+    # when it does happen, not stall the request on a full ~556-ticker scan.
+    # A random 200-ticker sample of UNIVERSE (bounded-parallel via
+    # _fetch_batch) gives generate_weekly_picks() a plenty-diverse candidate
+    # pool for one user's 5 picks without the full scan's worst-case
+    # latency; the Sunday job still uses the complete UNIVERSE for
+    # everyone's regular weekly cache, so no user permanently sees a
+    # smaller-than-intended universe.
+    sample_size = min(200, len(UNIVERSE))
+    universe_sample = random.sample(UNIVERSE, sample_size)
+    stocks = await asyncio.to_thread(_fetch_batch, universe_sample)
     stocks.sort(key=lambda x: x.get("score", 0), reverse=True)
 
     result = await _generate_weekly_picks_for_user(user_id, existing, stocks)

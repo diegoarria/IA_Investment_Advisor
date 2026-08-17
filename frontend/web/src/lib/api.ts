@@ -465,7 +465,11 @@ export const screenerApi = {
   screen: (sector: string | null, query: string) =>
     api.post("/api/market/screener", { sector, query }),
   getWeekly: (existingTickers: string[] = []) =>
-    api.get("/api/market/screener/weekly", { params: { tickers: existingTickers.join(",") } }),
+    // Explicit timeout so a cache-miss (rare — the backend pre-warms this
+    // weekly for every Premium user) fails fast into a real error state
+    // instead of spinning indefinitely, same reasoning as the other
+    // heavier screener calls below.
+    api.get("/api/market/screener/weekly", { params: { tickers: existingTickers.join(",") }, timeout: 25000 }),
   getUndervalued: (sector?: string, limit = 10, lang?: string, browse?: boolean) =>
     api.get("/api/market/screener/undervalued", { params: { sector, limit, lang, browse } }),
   quickAnalysis: (query: string, lang?: string) =>
