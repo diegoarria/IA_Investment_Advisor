@@ -1633,16 +1633,33 @@ def _compute_portfolio_returns(
 
     for key, delta in PERIODS:
         try:
-            if key == "ytd":
-                cutoff = ytd_start
+            if key == "1d":
+                # Was `cutoff = today - 2 calendar days` — on a Monday that
+                # window only contains TODAY's own row (Sat/Sun have no
+                # trading data), so `start_row` ended up being today's price
+                # compared against today's live price: an exact 0.00% for
+                # every single position, confirmed live (2026-08-18) even
+                # though the real intraday VAR% elsewhere showed genuine
+                # movement. A trading-session lookup (most recent close
+                # strictly before today) is immune to weekend/holiday gaps
+                # in a way a calendar-day cutoff never can be.
+                today_normalized = _pd.Timestamp(today.date())
+                prior_close = close[close.index < today_normalized]
+                if prior_close.empty:
+                    continue
+                start_row = prior_close.iloc[-1]
+                cutoff = start_row.name
             else:
-                cutoff = _pd.Timestamp(today - delta)
+                if key == "ytd":
+                    cutoff = ytd_start
+                else:
+                    cutoff = _pd.Timestamp(today - delta)
 
-            subset = close[close.index >= cutoff]
-            if subset.empty:
-                continue
+                subset = close[close.index >= cutoff]
+                if subset.empty:
+                    continue
 
-            start_row = subset.iloc[0]
+                start_row = subset.iloc[0]
 
             # For each position, use its own cost basis:
             # - Bought BEFORE period start → price at period start (normal)
