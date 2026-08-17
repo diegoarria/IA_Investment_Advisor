@@ -29,6 +29,7 @@ function getTabConfig(t: TFunction): Record<string, { icon: IoniconName; iconFil
     home:          { icon: "home-outline",            iconFilled: "home",            label: t("tabsLayout.tabs.home") },
     chat:          { icon: "sparkles-outline",        iconFilled: "sparkles",        label: t("tabsLayout.tabs.chat") },
     patrimonio:    { icon: "wallet-outline",          iconFilled: "wallet",          label: t("tabsLayout.tabs.patrimonio") },
+    oportunidades: { icon: "bookmark-outline",        iconFilled: "bookmark",        label: t("tabsLayout.tabs.oportunidades") },
     academy:       { icon: "school-outline",          iconFilled: "school",          label: t("tabsLayout.tabs.academy") },
     // ── Secondary screens (accessible from hub screens) ──
     portfolio:     { icon: "pie-chart-outline",       iconFilled: "pie-chart",       label: t("tabsLayout.tabs.portfolio") },
@@ -43,7 +44,7 @@ function getTabConfig(t: TFunction): Record<string, { icon: IoniconName; iconFil
   };
 }
 
-const FIXED_TABS = ["home", "chat", "patrimonio", "academy"] as const;
+const FIXED_TABS = ["home", "chat", "patrimonio", "oportunidades"] as const;
 
 function getGoalMap(t: TFunction): Record<string, { label: string; emoji: string }> {
   return {
@@ -401,11 +402,12 @@ export default function TabsLayout() {
       }}
     >
       {/* ── 4 primary hub tabs ────────────────────────────────────────── */}
-      <Tabs.Screen name="home"       options={{ headerShown: false }} />
-      <Tabs.Screen name="chat"       options={{ title: t("tabsLayout.tabs.chat"),      header: () => <MobileHeader title={t("tabsLayout.tabs.chat")} /> }} />
-      <Tabs.Screen name="patrimonio" options={{ headerShown: false }} />
-      <Tabs.Screen name="academy"    options={{ headerShown: false }} />
+      <Tabs.Screen name="home"          options={{ headerShown: false }} />
+      <Tabs.Screen name="chat"          options={{ title: t("tabsLayout.tabs.chat"),      header: () => <MobileHeader title={t("tabsLayout.tabs.chat")} /> }} />
+      <Tabs.Screen name="patrimonio"    options={{ headerShown: false }} />
+      <Tabs.Screen name="oportunidades" options={{ headerShown: false }} />
       {/* ── Secondary screens (accessible from hub pages) ─────────────── */}
+      <Tabs.Screen name="academy"    options={{ headerShown: false }} />
       <Tabs.Screen name="portfolio"     options={{ title: t("tabsLayout.tabs.portfolio"),    header: () => <MobileHeader title={t("tabsLayout.myPortfolio")} /> }} />
       <Tabs.Screen name="watchlist"     options={{ title: t("tabsLayout.tabs.watchlist"),     header: () => <MobileHeader title={t("tabsLayout.tabs.watchlist")} /> }} />
       <Tabs.Screen name="paper"         options={{ href: null, title: t("tabsLayout.simulator"), header: () => <MobileHeader title={t("tabsLayout.simulator")} /> }} />

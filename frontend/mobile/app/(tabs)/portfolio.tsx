@@ -2990,11 +2990,6 @@ export default function PortfolioScreen() {
                           <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }} numberOfLines={1}>
                             {pd?.name || sharesLabel}
                           </Text>
-                          {(showPre || showPost) && extPrice != null && (
-                            <Text style={{ fontSize: 10.5, color: extColor, marginTop: 1 }} numberOfLines={1}>
-                              {extLabel} {extPrice.toFixed(2)}{extPct != null ? ` (${extPct >= 0 ? "+" : ""}${extPct.toFixed(2)}%)` : ""}
-                            </Text>
-                          )}
                         </View>
 
                         {/* Value + P&L */}
@@ -3011,6 +3006,13 @@ export default function PortfolioScreen() {
                             </View>
                           ) : (
                             <Text style={{ fontSize: 11, color: colors.textDim, marginTop: 3 }}>—</Text>
+                          )}
+                          {/* AH/Pre-Market — small, right under the return %,
+                              not next to the ticker name (Diego, 2026-08-18). */}
+                          {(showPre || showPost) && extPrice != null && (
+                            <Text style={{ fontSize: 10, color: extColor, marginTop: 2 }} numberOfLines={1}>
+                              {extLabel} {extPct != null ? `${extPct >= 0 ? "+" : ""}${extPct.toFixed(2)}%` : extPrice.toFixed(2)}
+                            </Text>
                           )}
                         </View>
 
