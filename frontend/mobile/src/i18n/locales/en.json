@@ -894,12 +894,12 @@
       "paywallReason": "Undervalued stocks screener"
     },
     "freeGate": {
-      "banner": "You get 1 free search a week. Premium: unlimited.",
+      "banner": "You get 3 free searches a week. Premium: unlimited.",
       "bannerCta": "See Premium",
       "title": "Find out if a stock is cheap or expensive",
-      "desc": "Type any ticker or company and we'll tell you if it's worth buying right now. Free, once a week.",
+      "desc": "Type any ticker or company and we'll tell you if it's worth buying right now. Free, 3 times a week.",
       "cta": "Search for free",
-      "limitTitle": "You've used both free searches this week",
+      "limitTitle": "You've used all 3 free searches this week",
       "limitDesc": "Come back next week, or go Premium for unlimited searches."
     },
     "emptyState": "No weekly screener data yet — check back later.",
@@ -1639,7 +1639,7 @@
         "Full academy with lessons and quizzes",
         "See how your money is doing in the short term",
         "General market news",
-        "1 free search a week: find out if a stock is cheap or expensive"
+        "3 free searches a week: find out if a stock is cheap or expensive"
       ]
     },
     "premium": {
@@ -3429,7 +3429,7 @@
       },
       "f13": {
         "text": "Find out if a stock is cheap or expensive before you buy it",
-        "detail": "Type any ticker or company and we'll tell you if it's worth buying right now. The free plan gets 1 search a week — Premium is unlimited."
+        "detail": "Type any ticker or company and we'll tell you if it's worth buying right now. The free plan gets 3 searches a week — Premium is unlimited."
       }
     },
     "trust1": "Cancel anytime",

@@ -880,12 +880,12 @@
       "paywallReason": "Undervalued stocks screener"
     },
     "freeGate": {
-      "banner": "You get 1 free search a week. Premium: unlimited.",
+      "banner": "You get 3 free searches a week. Premium: unlimited.",
       "bannerCta": "See Premium",
       "title": "Find out if a stock is cheap or expensive",
-      "desc": "Type any ticker or company and we'll tell you if it's worth buying right now. Free, once a week.",
+      "desc": "Type any ticker or company and we'll tell you if it's worth buying right now. Free, 3 times a week.",
       "cta": "Search for free",
-      "limitTitle": "You've used both free searches this week",
+      "limitTitle": "You've used all 3 free searches this week",
       "limitDesc": "Come back next week, or go Premium for unlimited searches."
     },
     "emptyState": "No weekly screener data yet — check back later.",
@@ -2061,7 +2061,7 @@
       "Follow up to 25 stocks you're interested in",
       "Full Academy with lessons and quizzes",
       "AI remembers the basics from your conversations",
-      "1 free search a week: find out if a stock is cheap or expensive"
+      "3 free searches a week: find out if a stock is cheap or expensive"
     ],
     "premium": [
       "Chat with your AI mentor beyond the Free plan's limits",
@@ -3041,7 +3041,7 @@
     "feature12Text": "Nuvos gets to know you better over time — and remembers everything",
     "feature12Detail": "With Premium you build your complete financial memory: behavior patterns, decision timeline, and portfolio evolution. The free plan only stores 10 basic beliefs.",
     "feature13Text": "Find out if a stock is cheap or expensive before you buy it",
-    "feature13Detail": "Type any ticker or company and we'll tell you if it's worth buying right now. The free plan gets 1 search a week — Premium is unlimited.",
+    "feature13Detail": "Type any ticker or company and we'll tell you if it's worth buying right now. The free plan gets 3 searches a week — Premium is unlimited.",
     "premiumBadge": "Nuvos AI Premium",
     "headlineLine1": "Become a",
     "headlineLine2": "real investor",

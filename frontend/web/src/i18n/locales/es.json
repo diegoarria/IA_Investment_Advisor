@@ -880,12 +880,12 @@
       "paywallReason": "Screener de acciones subvaluadas"
     },
     "freeGate": {
-      "banner": "Tienes 1 búsqueda gratis por semana. Premium: ilimitadas.",
+      "banner": "Tienes 3 búsquedas gratis por semana. Premium: ilimitadas.",
       "bannerCta": "Ver Premium",
       "title": "Descubre si una acción está barata o cara",
-      "desc": "Escribe cualquier ticker o empresa y te decimos si conviene comprarla ahora. Gratis, 1 vez por semana.",
+      "desc": "Escribe cualquier ticker o empresa y te decimos si conviene comprarla ahora. Gratis, 3 veces por semana.",
       "cta": "Buscar gratis",
-      "limitTitle": "Ya usaste tus 2 búsquedas de esta semana",
+      "limitTitle": "Ya usaste tus 3 búsquedas de esta semana",
       "limitDesc": "Vuelve la próxima semana, o activa Premium para búsquedas ilimitadas."
     },
     "emptyState": "Todavía no hay datos del screener semanal — vuelve más tarde.",
@@ -2061,7 +2061,7 @@
       "Sigue hasta 25 acciones que te interesen",
       "Academia completa con lecciones y quizzes",
       "La IA recuerda lo básico de tus conversaciones",
-      "1 búsqueda gratis por semana: descubre si una acción está barata o cara"
+      "3 búsquedas gratis por semana: descubre si una acción está barata o cara"
     ],
     "premium": [
       "Chatea con tu mentor IA sin las limitaciones del plan Free",
@@ -3041,7 +3041,7 @@
     "feature12Text": "Nuvos te conoce mejor con el tiempo — y recuerda todo",
     "feature12Detail": "Con Premium construyes tu memoria financiera completa: patrones de comportamiento, timeline de decisiones y evolución de tu portafolio. El plan gratuito solo guarda 10 creencias básicas.",
     "feature13Text": "Descubre si una acción está barata o cara antes de comprarla",
-    "feature13Detail": "Escribe cualquier ticker o empresa y te decimos si conviene comprarla ahora. El plan gratuito tiene 1 búsqueda por semana — Premium es ilimitado.",
+    "feature13Detail": "Escribe cualquier ticker o empresa y te decimos si conviene comprarla ahora. El plan gratuito tiene 3 búsquedas por semana — Premium es ilimitado.",
     "premiumBadge": "Nuvos AI Premium",
     "headlineLine1": "Conviértete en",
     "headlineLine2": "inversionista de verdad",
