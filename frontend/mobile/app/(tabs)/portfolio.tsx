@@ -2779,7 +2779,7 @@ export default function PortfolioScreen() {
                               </Text>
                             ) : ret && !loadingReturns ? (
                               <Text style={{ fontSize: 9, fontWeight: "700", color: isSel ? "#04150e" : (isUp ? "#00d47e" : "#ff5c5c"), marginTop: 1, opacity: isSel ? 0.75 : 1 }}>
-                                {isUp ? "+" : ""}{ret.pct.toFixed(1)}%
+                                {isUp ? "+" : ""}{ret.pct.toFixed(2)}%
                               </Text>
                             ) : loadingReturns ? (
                               <Text style={{ fontSize: 9, color: colors.textDim, marginTop: 1 }}>···</Text>

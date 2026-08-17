@@ -2914,7 +2914,7 @@ export default function PortfolioPage() {
                                 <span className="text-[9px]" style={{ color: "var(--dim)" }}>···</span>
                               ) : ret ? (
                                 <span className="text-[10px] font-black leading-tight" style={{ color: tc }}>
-                                  {ret.pct >= 0 ? "+" : ""}{ret.pct.toFixed(1)}%
+                                  {ret.pct >= 0 ? "+" : ""}{ret.pct.toFixed(2)}%
                                 </span>
                               ) : (
                                 <span className="text-[9px]" style={{ color: "var(--dim)" }}>—</span>
