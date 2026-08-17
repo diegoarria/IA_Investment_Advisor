@@ -16,6 +16,11 @@ import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import MarketTicker from "../../src/components/MarketTicker";
 
+// Same real photo shown in the sidebar (Sidebar.tsx) — the chat tab is
+// Arthur specifically, not a generic "chat" feature, so it gets his actual
+// face instead of a sparkles glyph like every other tab.
+const ARTHUR_PHOTO = require("../../assets/images/mentors/arthur.jpg");
+
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
 function getTabConfig(t: TFunction): Record<string, { icon: IoniconName; iconFilled: IoniconName; label: string }> {
@@ -102,11 +107,21 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
               },
             ]} />
             <View style={[tabStyles.iconBox, focused && { backgroundColor: colors.accentGlow }]}>
-              <Ionicons
-                name={focused ? cfg.iconFilled : cfg.icon}
-                size={21}
-                color={focused ? colors.accentLight : colors.textDim}
-              />
+              {route.name === "chat" ? (
+                <Image
+                  source={ARTHUR_PHOTO}
+                  style={[
+                    tabStyles.arthurAvatar,
+                    { borderColor: focused ? colors.accentLight : "transparent" },
+                  ]}
+                />
+              ) : (
+                <Ionicons
+                  name={focused ? cfg.iconFilled : cfg.icon}
+                  size={21}
+                  color={focused ? colors.accentLight : colors.textDim}
+                />
+              )}
             </View>
             <Text style={[
               tabStyles.label,
@@ -142,6 +157,9 @@ const tabStyles = StyleSheet.create({
   iconBox: {
     width: 40, height: 32, borderRadius: 10,
     alignItems: "center", justifyContent: "center",
+  },
+  arthurAvatar: {
+    width: 24, height: 24, borderRadius: 12, borderWidth: 1.5,
   },
   label: {
     fontSize: 10, fontFamily: "DMSans_500Medium", letterSpacing: 0.1,
