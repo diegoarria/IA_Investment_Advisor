@@ -1001,8 +1001,20 @@ export default function PortfolioScreen() {
   const [cashForm, setCashForm] = useState<{ amount: string; instrument: CashHolding["instrument"]; label: string; rate: string }>({ amount: "", instrument: "bank", label: "", rate: "" });
   const [cashSaving, setCashSaving] = useState(false);
 
+  // A silent .catch(() => {}) here used to leave cashList stuck at [] for
+  // the rest of the mount on any transient failure (cold-start network not
+  // ready yet, token refresh in flight) — nothing ever retried, so the
+  // "efectivo disponible" card would randomly disappear and stay gone until
+  // the user left and re-entered the tab. Retry once before giving up.
   useEffect(() => {
-    cashHoldingsApi.list().then((res: any) => setCashList(res.data?.holdings ?? [])).catch(() => {});
+    let cancelled = false;
+    const load = (isRetry: boolean) => {
+      cashHoldingsApi.list()
+        .then((res: any) => { if (!cancelled) setCashList(res.data?.holdings ?? []); })
+        .catch(() => { if (!cancelled && !isRetry) setTimeout(() => load(true), 1500); });
+    };
+    load(false);
+    return () => { cancelled = true; };
   }, []);
 
   // Dividends actually paid (worker.py records these the day they're paid,

@@ -890,14 +890,33 @@ export default function PortfolioPage() {
     accrued_amount?: number; rate_pct?: number | null;
   }
   const [cashList, setCashList] = useState<CashHolding[]>([]);
+  const [cashListLoaded, setCashListLoaded] = useState(false);
   const [cashFormOpen, setCashFormOpen] = useState(false);
   const [cashEditingId, setCashEditingId] = useState<string | null>(null);
   const [cashForm, setCashForm] = useState({ amount: "", instrument: "bank" as CashHolding["instrument"], label: "", rate: "" });
   const [cashSaving, setCashSaving] = useState(false);
 
+  // Gated on isAuthenticated (not just on mount) so it never fires before
+  // the auth token is attached — an unguarded fetch used to 401 on
+  // login/remount, and the silent .catch() left cashList stuck at [],
+  // making the "efectivo disponible" card flicker in and out. Retries once
+  // on failure instead of giving up so a transient network blip doesn't
+  // permanently hide real cash data for the rest of the session.
   useEffect(() => {
-    cashHoldingsApi.list().then((res) => setCashList(res.data?.holdings ?? [])).catch(() => {});
-  }, []);
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    const load = (isRetry: boolean) => {
+      cashHoldingsApi.list()
+        .then((res) => { if (!cancelled) { setCashList(res.data?.holdings ?? []); setCashListLoaded(true); } })
+        .catch(() => {
+          if (cancelled) return;
+          if (!isRetry) setTimeout(() => load(true), 1500);
+          else setCashListLoaded(true);
+        });
+    };
+    load(false);
+    return () => { cancelled = true; };
+  }, [isAuthenticated]);
 
   // Dividends actually paid (worker.py records these the day they're paid,
   // forward-tracking only — see migrations/054_dividend_income.sql) — real
