@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
@@ -67,8 +67,25 @@ export default function ExplainButton({
   const [text, setText] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  // Was in-memory only (useState(false)) — dismissing just collapsed the
+  // button to a small tappable icon that came right back full-size on the
+  // next remount (navigating away and back, or reopening the app), which
+  // from the user's side looked exactly like the X doing nothing at all
+  // (Diego: "le he dado clic a la X mil veces... pero sigue apareciendo").
+  // Persisted per screen now, and null (not yet loaded) renders nothing so
+  // there's no flash of the full button before the stored value resolves.
+  const [dismissed, setDismissed] = useState<boolean | null>(null);
+  const dismissKey = `nuvos_explain_dismissed:${screen}`;
   const soundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(dismissKey)
+      .then((v) => { if (!cancelled) setDismissed(v === "1"); })
+      .catch(() => { if (!cancelled) setDismissed(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dismissKey]);
 
   const stop = async () => {
     if (soundRef.current) {
@@ -82,6 +99,7 @@ export default function ExplainButton({
   const handleDismiss = async () => {
     if (state === "playing") await stop();
     setDismissed(true);
+    AsyncStorage.setItem(dismissKey, "1").catch(() => {});
   };
 
   const playAudio = async (b64: string) => {
@@ -140,21 +158,11 @@ export default function ExplainButton({
 
   const brandGreen = colors.accentLight;
 
-  if (dismissed) {
-    return (
-      <TouchableOpacity
-        onPress={() => setDismissed(false)}
-        style={{
-          position: "absolute", bottom: bottomOffset, right: 16, zIndex: 30,
-          width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center",
-          backgroundColor: brandGreen,
-          shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4,
-        }}
-      >
-        <Text style={{ fontSize: 18 }}>{mentor?.emoji ?? "🎙️"}</Text>
-      </TouchableOpacity>
-    );
-  }
+  // dismissed === null: still reading the persisted value — render nothing
+  // rather than flash the full button and then hide it a beat later.
+  // dismissed === true: the user closed it on this screen before — gone
+  // for good, not just collapsed to a re-openable icon.
+  if (dismissed !== false) return null;
 
   return (
     <View style={{ position: "absolute", bottom: bottomOffset, right: 16, zIndex: 30 }}>

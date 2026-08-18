@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Square, Loader2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { explain as explainApi } from "@/lib/api";
@@ -60,7 +60,24 @@ export default function ExplainButton({
   const [text, setText] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  // Was in-memory only (useState(false)) — dismissing just collapsed the
+  // button to a small re-openable icon that came right back full-size on
+  // the next page load, which from the user's side looked exactly like the
+  // X doing nothing at all (Diego: "le he dado clic a la X mil veces...
+  // pero sigue apareciendo"). Persisted per screen now, and null (not yet
+  // loaded) renders nothing so there's no flash of the full button before
+  // the stored value resolves.
+  const [dismissed, setDismissed] = useState<boolean | null>(null);
+  const dismissKey = `nuvos_explain_dismissed:${screen}`;
+
+  useEffect(() => {
+    try {
+      setDismissed(localStorage.getItem(dismissKey) === "1");
+    } catch {
+      setDismissed(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dismissKey]);
 
   const stop = () => {
     getUnlockedAudioElement().pause();
@@ -70,6 +87,7 @@ export default function ExplainButton({
   const handleDismiss = () => {
     if (state === "playing") stop();
     setDismissed(true);
+    try { localStorage.setItem(dismissKey, "1"); } catch { /* ignore */ }
   };
 
   const handleClick = async () => {
@@ -122,18 +140,11 @@ export default function ExplainButton({
     }
   };
 
-  if (dismissed) {
-    return (
-      <button
-        onClick={() => setDismissed(false)}
-        aria-label={t("explainButton.cta") ?? undefined}
-        className={`fixed bottom-6 right-6 z-30 w-11 h-11 rounded-full flex items-center justify-center text-lg shadow-lg transition-opacity hover:opacity-80 ${className}`}
-        style={{ background: "var(--accent-l)" }}
-      >
-        {mentor?.emoji ?? "🎙️"}
-      </button>
-    );
-  }
+  // dismissed === null: still reading the persisted value — render nothing
+  // rather than flash the full button and then hide it a beat later.
+  // dismissed === true: the user closed it on this screen before — gone
+  // for good, not just collapsed to a re-openable icon.
+  if (dismissed !== false) return null;
 
   return (
     <>
