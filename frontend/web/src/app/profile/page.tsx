@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import {
   useAuthStore, useProfileStore, useSubscriptionStore, useNotificationStore,
-  useThemeStore, useLanguageStore, msgsRemaining, FREE_MSG_LIMIT, maturityLabel, maturitySignalI18nKey,
+  useThemeStore, useLanguageStore, useGuestGateStore, isGuestUser, msgsRemaining, FREE_MSG_LIMIT, maturityLabel, maturitySignalI18nKey,
 } from "@/lib/store";
 import { auth as authApi, billing, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi, voiceCallsApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
@@ -149,6 +149,7 @@ export default function ProfilePage() {
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile, maturityScore, maturityHistory, setProfile } = useProfileStore();
   const subStore = useSubscriptionStore();
+  const forceShowFlashcard = useGuestGateStore((s) => s.forceShowFlashcard);
   const { notifications } = useNotificationStore();
   const unreadCount = notifications.filter((n) => !n.read).length;
   const { theme, toggleTheme } = useThemeStore();
@@ -406,9 +407,10 @@ export default function ProfilePage() {
               <div className="flex flex-col items-center justify-center h-64 gap-4">
                 <User className="w-16 h-16" style={{ color: "var(--dim)" }} />
                 <p style={{ color: "var(--muted)" }}>{t("profile.noProfile")}</p>
-                <button onClick={() => router.push("/onboarding")}
-                        className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
-                        style={{ background: "var(--accent)" }}>
+                <button
+                  onClick={() => (isGuestUser() ? forceShowFlashcard() : router.push("/onboarding"))}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
+                  style={{ background: "var(--accent)" }}>
                   {t("profile.completeOnboarding")}
                 </button>
               </div>
