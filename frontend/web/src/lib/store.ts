@@ -19,12 +19,22 @@ import {
 // stuck showing "free" specifically on Safari, never recovering even after
 // a successful server fetch, because the write of that fetch's result back
 // to storage is what threw.
+// Resolves to the real userId when logged in; otherwise the stable
+// per-browser anonymous id (see getGuestId()) instead of the literal string
+// "guest" this used to fall back to. That literal made every guest on a
+// given browser share one bucket per store — harmless for watchlist/
+// portfolio (enterGuestMode() explicitly wipes those on every guest-mode
+// entry) but not for chat/profile/subscription-status/learn-store, which
+// weren't wiped: a device reused by a different guest inherited the
+// previous one's chat history, cached profile, etc. Doesn't change anything
+// for a real logged-in user — userId still wins whenever it's set.
+const _storageUid = () => useAuthStore.getState().userId ?? getGuestId() ?? "guest";
+
 const userStorage = createJSONStorage(() => ({
   getItem: (name: string) => {
     if (typeof window === "undefined") return null;
     try {
-      const uid = useAuthStore.getState().userId ?? "guest";
-      return localStorage.getItem(`${name}__${uid}`);
+      return localStorage.getItem(`${name}__${_storageUid()}`);
     } catch {
       return null;
     }
@@ -32,8 +42,7 @@ const userStorage = createJSONStorage(() => ({
   setItem: (name: string, value: string) => {
     if (typeof window === "undefined") return;
     try {
-      const uid = useAuthStore.getState().userId ?? "guest";
-      localStorage.setItem(`${name}__${uid}`, value);
+      localStorage.setItem(`${name}__${_storageUid()}`, value);
     } catch {
       // Safari Private Browsing / storage quota — the store still works
       // in-memory for this session, it just won't persist across reloads.
@@ -42,8 +51,7 @@ const userStorage = createJSONStorage(() => ({
   removeItem: (name: string) => {
     if (typeof window === "undefined") return;
     try {
-      const uid = useAuthStore.getState().userId ?? "guest";
-      localStorage.removeItem(`${name}__${uid}`);
+      localStorage.removeItem(`${name}__${_storageUid()}`);
     } catch {}
   },
 }));

@@ -162,8 +162,10 @@ export const chat = {
     images?: Array<{ data: string; type: string }> | null,
     notificationContext?: string | null,
     onActions?: (actions: Array<{ type: string; label: string; data: Record<string, unknown> }>) => void,
+    isGuest?: boolean,
+    guestId?: string,
   ) => {
-    const res = await api.post("/api/chat/message", {
+    const payload = {
       message,
       conversation_history: history,
       mentor: mentor ?? null,
@@ -171,7 +173,14 @@ export const chat = {
       image_type: imageType ?? null,
       images: images ?? [],
       notification_context: notificationContext ?? null,
-    });
+    };
+    // No-auth counterpart for guests ("Explorar sin cuenta") — same real
+    // Arthur, same dual-routing/Haiku tier a free account gets, gated by a
+    // much smaller weekly allowance (see the backend route's own
+    // docstring) instead of every message just 401ing like it used to.
+    const res = isGuest && guestId
+      ? await api.post("/api/chat/message/public", payload, { params: { guest_id: guestId } })
+      : await api.post("/api/chat/message", payload);
     const reply: string = res.data.reply ?? "";
     const assessment = res.data.risk_assessment ?? null;
     const tickers: string[] = res.data.tickers ?? [];

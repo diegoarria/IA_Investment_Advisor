@@ -10,7 +10,7 @@ import json
 
 logger = logging.getLogger("uvicorn.error")
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Query
 from fastapi.responses import StreamingResponse
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
@@ -23,6 +23,7 @@ from app.services.market_data_service import (
 )
 from app.core.finnhub import fh_quote, fh_search
 from app.core.limiter import limiter
+from app.core.cache import cache_get, cache_set
 
 FREE_MSG_LIMIT    = 15
 PREMIUM_MSG_LIMIT = 80
@@ -200,6 +201,51 @@ async def _check_and_increment_msg_limit(user_id: str, profile: UserProfile) -> 
                 "reset_in_minutes": mins,
             },
         )
+
+# Guest ("Explorar sin cuenta", no account at all) message allowance — a
+# real cache-backed counter, mirroring screener.py's _check_and_increment_
+# guest_vi_search_limit for the same reason: there's no user_profiles row to
+# key a DB-side counter on. Deliberately lower than FREE_MSG_LIMIT (15/24h,
+# for a logged-in free account) since a guest hasn't even created an
+# account — this is a taste of real Arthur, not a substitute for signing up.
+_GUEST_CHAT_MSG_LIMIT = 5
+_GUEST_CHAT_WINDOW_HOURS = 24 * 7
+
+
+def _guest_chat_msg_key(guest_id: str) -> str:
+    return f"guest_chat_msg:{guest_id}"
+
+
+async def _check_and_increment_guest_msg_limit(guest_id: str) -> None:
+    now = datetime.now(timezone.utc)
+    key = _guest_chat_msg_key(guest_id)
+    entry = cache_get(key)
+    window_start = None
+    if entry:
+        try:
+            window_start = datetime.fromisoformat(entry["window_start"])
+        except Exception:
+            window_start = None
+
+    if window_start is None or (now - window_start) >= timedelta(hours=_GUEST_CHAT_WINDOW_HOURS):
+        cache_set(key, {"count": 1, "window_start": now.isoformat()}, ttl=_GUEST_CHAT_WINDOW_HOURS * 3600)
+        return
+
+    count = entry.get("count", 0) if entry else 0
+    if count >= _GUEST_CHAT_MSG_LIMIT:
+        reset_at = window_start + timedelta(hours=_GUEST_CHAT_WINDOW_HOURS)
+        days_left = max(1, int((reset_at - now).total_seconds() / 86400))
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "guest_msg_limit",
+                "message": f"Ya usaste tus {_GUEST_CHAT_MSG_LIMIT} mensajes gratis con Arthur esta semana. Crea una cuenta gratis para seguir chateando, o vuelve en {days_left} día(s).",
+                "reset_in_days": days_left,
+            },
+        )
+
+    cache_set(key, {"count": count + 1, "window_start": window_start.isoformat()}, ttl=_GUEST_CHAT_WINDOW_HOURS * 3600)
+
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -711,6 +757,79 @@ async def chat_message(
                 user_id, _ticker, "question",
                 payload={"question": body.message[:500], "reply_excerpt": clean_reply[:500]},
             ))
+
+    return {"reply": clean_reply, "risk_assessment": bscore, "tickers": tickers, "actions": actions}
+
+
+@router.post("/message/public")
+@limiter.limit("10/minute")
+async def chat_message_public(
+    request: Request,
+    body: ChatRequest,
+    guest_id: str = Query(..., min_length=1),
+):
+    """No-auth counterpart of /message for guests ("Explorar sin cuenta")
+    browsing without an account — Diego wanted Chat with Arthur (guest
+    mode's own default landing screen, see enterGuestMode()'s callers) to
+    actually work instead of every message silently 401ing.
+
+    Deliberately minimal compared to the authenticated route: no profile
+    (there isn't one), no memory/deep/progress context (nothing to draw on
+    without an account), always the cheap dual-routing/Haiku tier a free
+    user gets (never Sonnet), and no Investment Graph logging (nothing to
+    attribute a question to). Gated by _check_and_increment_guest_msg_limit
+    instead of the DB-backed per-account counter — same cache-based pattern
+    as screener.py's guest search limit, for the same reason (no
+    user_profiles row to key a counter on)."""
+    guest_id = (guest_id or "").strip()
+    await _check_and_increment_guest_msg_limit(guest_id)
+
+    has_images = bool(body.images or body.image_data)
+
+    from app.services.generic_qa_cache import classify_and_cache_key, get_cached_answer, store_answer
+    cache_key = classify_and_cache_key(body.message, has_images, len(body.conversation_history))
+    if cache_key:
+        cached = get_cached_answer(cache_key)
+        if cached:
+            return {"reply": cached, "risk_assessment": None, "tickers": [], "actions": None}
+
+    if not _needs_claude_analysis(body.message, has_images):
+        generic_answer = await ai_service.generate_generic_answer(
+            body.message, conversation_history=body.conversation_history,
+        )
+        if generic_answer:
+            if cache_key:
+                store_answer(cache_key, generic_answer)
+            return {"reply": generic_answer, "risk_assessment": None, "tickers": [], "actions": None}
+
+    # Free-tier tier: always Haiku, same as an authenticated free user.
+    chat_model = "claude-haiku-4-5-20251001"
+
+    tickers  = await asyncio.to_thread(detect_tickers, body.message)
+    enriched = await asyncio.to_thread(_enrich_message, body.message, 2.5, False) if not has_images else body.message
+    images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
+    if not images and body.image_data:
+        images = [{"data": body.image_data, "type": body.image_type or "image/jpeg"}]
+
+    full = ""
+    async for chunk in ai_service.chat_stream(
+        message=enriched,
+        conversation_history=body.conversation_history,
+        profile=None,
+        mentor=body.mentor,
+        images=images,
+        memory_context=None,
+        notification_context=None,
+        deep_context=None,
+        progress_context=None,
+        is_premium=False,
+        model=chat_model,
+    ):
+        full += chunk
+    clean_reply, bscore = _extract_bscore(full)
+    clean_reply, actions = _extract_action(clean_reply)
+    if cache_key:
+        store_answer(cache_key, clean_reply)
 
     return {"reply": clean_reply, "risk_assessment": bscore, "tickers": tickers, "actions": actions}
 

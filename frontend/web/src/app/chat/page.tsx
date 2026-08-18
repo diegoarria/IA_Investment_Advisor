@@ -9,7 +9,8 @@ import remarkGfm from "remark-gfm";
 import { chat as chatApi, notifications as notifApi, decisionsApi } from "@/lib/api";
 import {
   useAuthStore, useProfileStore, useChatStore, useNotificationStore,
-  useThemeStore, useLanguageStore, useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT,
+  useThemeStore, useLanguageStore, useSubscriptionStore, useGuestGateStore, msgsRemaining, FREE_MSG_LIMIT,
+  isGuestUser, getGuestId,
 } from "@/lib/store";
 import { getMentorInfo } from "@/lib/mentorData";
 import { usePortfolioStore } from "@/lib/portfolioStore";
@@ -161,6 +162,7 @@ export default function ChatPage() {
   const { theme, toggleTheme } = useThemeStore();
   const { language } = useLanguageStore();
   const subStore = useSubscriptionStore();
+  const forceShowFlashcard = useGuestGateStore((s) => s.forceShowFlashcard);
   const { positions, loadFromServer: loadPortfolio } = usePortfolioStore();
   // Distinct holdings, not purchase lots — buying more of a ticker you
   // already own shouldn't inflate this count.
@@ -616,7 +618,11 @@ export default function ChatPage() {
     const msg = text || input.trim();
     if ((!msg && pendingImages.length === 0) || isStreaming) return;
 
-    if (remaining === 0) { setPaywallReason(undefined); setPaywallOpen(true); return; }
+    // The 15/24h FREE_MSG_LIMIT counter above only means anything for a real
+    // logged-in free account — a guest has their own, much smaller, weekly
+    // allowance enforced server-side (see chatApi.stream's isGuest branch
+    // and the 429 handler below), so this client-side gate doesn't apply.
+    if (remaining === 0 && !isGuestUser()) { setPaywallReason(undefined); setPaywallOpen(true); return; }
 
     const imagesToSend = [...pendingImages];
     setInput("");
@@ -634,7 +640,10 @@ export default function ChatPage() {
       images: imagesToSend.length > 0 ? imagesToSend.map((i) => ({ preview: i.preview })) : undefined,
     });
     localFingerprintsRef.current.add(fp("user", saveMsg));
-    chatApi.saveMessage("user", saveMsg, currentId).catch(() => {});
+    // A guest has no session to save server-side history against (would
+    // just 401) — the message still lands in the locally-persisted
+    // chat store above via addMessage(), which is all a guest gets.
+    if (!isGuestUser()) chatApi.saveMessage("user", saveMsg, currentId).catch(() => {});
     syncCursorRef.current = new Date().toISOString();
 
     // Advance guided tour to step 2 on first user message
@@ -676,7 +685,7 @@ export default function ChatPage() {
         () => {
           setStreaming(false);
           localFingerprintsRef.current.add(fp("assistant", fullResponse));
-          chatApi.saveMessage("assistant", fullResponse, currentId).catch(() => {});
+          if (!isGuestUser()) chatApi.saveMessage("assistant", fullResponse, currentId).catch(() => {});
           syncCursorRef.current = new Date().toISOString();
           if (voiceInputRef.current) {
             voiceInputRef.current = false;
@@ -696,12 +705,21 @@ export default function ChatPage() {
         imagesToSend.length > 0 ? imagesToSend.map((i) => ({ data: i.data, type: i.type })) : null,
         ctxToSend,
         (actions) => { setPendingActions(actions); setCommittedActions(new Set()); },
+        isGuestUser(),
+        getGuestId(),
       );
     } catch (err: unknown) {
       setStreaming(false);
       removeLastMessage();
       const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 429) { await subStore.fetchStatus(); upsellTrigger("msg_limit_hit"); setPaywallReason(undefined); setPaywallOpen(true); }
+      if (status === 429) {
+        // A guest's 429 ("Ya usaste tus 5 mensajes gratis...") means "create
+        // an account", not "upgrade to Premium" — they don't have an
+        // account to upgrade. Same flashcard SessionExpiredBanner and the
+        // empty-Profile "Completar onboarding" button already use.
+        if (isGuestUser()) { forceShowFlashcard(); }
+        else { await subStore.fetchStatus(); upsellTrigger("msg_limit_hit"); setPaywallReason(undefined); setPaywallOpen(true); }
+      }
       else { setSendError(t("chat.connectError")); }
     }
   };
@@ -788,7 +806,11 @@ export default function ChatPage() {
 
         {/* Right: actions */}
         <div className="flex items-center gap-1 shrink-0">
-          {!isPremium && remaining > 0 && (
+          {/* This counter is the 15/24h FREE_MSG_LIMIT a real free account
+              gets — meaningless for a guest, who has a separate, smaller
+              weekly allowance enforced server-side (see sendMessage's 429
+              handler), so it's hidden rather than showing the wrong number. */}
+          {!isPremium && remaining > 0 && !isGuestUser() && (
             <span className="hidden md:block text-[10px] font-semibold px-2 py-1 rounded-full"
                   style={{ background: "var(--raised)", color: "var(--dim)", border: "1px solid var(--border)" }}>
               {t("chat.msgCount", { count: remaining })}
@@ -963,7 +985,7 @@ export default function ChatPage() {
                           💼 {distinctPositionsCount !== 1 ? t("chat.positionsCount", { count: distinctPositionsCount }) : t("chat.positionsCountSingular", { count: distinctPositionsCount })}
                         </span>
                       )}
-                      {!isPremium && (
+                      {!isPremium && !isGuestUser() && (
                         <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full border ml-auto"
                               style={{ borderColor: "rgba(244,63,94,0.25)", color: "var(--down)", background: "rgba(244,63,94,0.05)" }}>
                           {t("chat.msgToday", { count: remaining })}
