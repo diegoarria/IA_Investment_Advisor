@@ -770,7 +770,7 @@ export default function HomePage() {
                   </button>
 
                   {isGuest && (
-                    <button onClick={() => router.push("/")}
+                    <button onClick={() => router.push("/?auth=1")}
                             className="w-full py-2 mt-2 text-xs font-semibold transition-all hover:opacity-70"
                             style={{ color: "var(--muted)" }}>
                       {t("home.beginnerCard.createFreeAccount")}

@@ -30,7 +30,11 @@ function JoinContent() {
     }
   }, [ref]);
 
-  const handleJoin = () => router.push("/");
+  // The referral code was just saved to sessionStorage above (nuvos_ref),
+  // applied on register in page.tsx's handleSubmit — landing this on bare
+  // "/" would now bounce straight into guest mode (see page.tsx) and skip
+  // the signup form entirely, silently dropping the referral.
+  const handleJoin = () => router.push("/?auth=1");
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12"

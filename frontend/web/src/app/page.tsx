@@ -1,7 +1,7 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -34,9 +34,26 @@ function getPillars(t: TFunction) {
 }
 
 export default function Home() {
+  return (
+    <Suspense>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeContent() {
   const { t } = useTranslation();
   const { language, setLanguage } = useLanguageStore();
   const PILLARS = getPillars(t);
+  // /?auth=1 is the one explicit "show me the login/register form" escape
+  // hatch — every internal link whose real intent is signing in or creating
+  // an account (the guest-mode "Crear cuenta gratis" card, PremiumBadge's
+  // logged-out state, the referral /join page) points here instead of bare
+  // "/", which now sends anyone without a session straight into guest
+  // exploration instead (Diego: "NO QUIERO QUE SE ABRA EL LOGIN... QUIERO
+  // QUE LOS USUARIOS QUE NO NOS CONOCEN... PUEDAN VER TODO EL VALOR").
+  const searchParams = useSearchParams();
+  const wantsAuthForm = searchParams.get("auth") === "1";
   const [mode, setMode]             = useState<"login" | "register" | "forgot">("login");
   const [email, setEmail]           = useState("");
   const [password, setPassword]     = useState("");
@@ -102,6 +119,19 @@ export default function Home() {
           // Valid session (the auth dependency already rejects an invalid
           // one with 401 before this can even 404), just no profile row yet.
           router.replace("/onboarding");
+          return;
+        }
+        // No valid session (or profileApi itself failed) — send straight
+        // into guest exploration instead of showing the login form, unless
+        // ?auth=1 explicitly asked for it (see the comment on wantsAuthForm
+        // above). Mirrors exactly what the "Explorar sin cuenta" button
+        // below already sets.
+        if (!wantsAuthForm) {
+          try {
+            localStorage.setItem("nuvos_ob", "1");
+            localStorage.setItem("nuvos_guest", "1");
+          } catch { /* ignore */ }
+          router.replace("/home");
           return;
         }
         setChecking(false);

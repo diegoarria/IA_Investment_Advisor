@@ -19,7 +19,7 @@ export default function PremiumBadge() {
   if (!isAuthenticated) {
     return (
       <button
-        onClick={() => router.push("/")}
+        onClick={() => router.push("/?auth=1")}
         className="flex items-center gap-1 px-2.5 py-1 rounded-lg transition-opacity hover:opacity-80"
         style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)" }}
         title={t("premiumBadge.login")}
