@@ -199,9 +199,16 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRe
             </Text>
           )}
           {showPostAdv && p?.post_market_price != null && (
-            <Text style={[rw.closeLabel, { color: "#818cf8" }]}>
-              {t("watchlist.row.postPrefix")} {fmtPrice(p.post_market_price, p?.currency)}{p?.post_market_change_pct != null ? ` (${fmtPct(p.post_market_change_pct)})` : ""}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
+              <View style={{ width: 15, height: 15, borderRadius: 7.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(125,211,252,0.16)" }}>
+                <Ionicons name="moon" size={8} color="#7dd3fc" />
+              </View>
+              {p?.post_market_change_pct != null && (
+                <Text style={{ fontSize: 12, fontWeight: "700", color: p.post_market_change_pct >= 0 ? "#00d47e" : "#ff5c5c", fontVariant: ["tabular-nums"] }}>
+                  {p.post_market_change_pct >= 0 ? "+" : ""}{p.post_market_change_pct.toFixed(2)}%
+                </Text>
+              )}
+            </View>
           )}
         </View>
       </TouchableOpacity>

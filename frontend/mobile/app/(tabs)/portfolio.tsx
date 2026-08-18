@@ -3045,8 +3045,21 @@ export default function PortfolioScreen() {
                             <Text style={{ fontSize: 11, color: colors.textDim, marginTop: 3 }}>—</Text>
                           )}
                           {/* AH/Pre-Market — small, right under the return %,
-                              not next to the ticker name (Diego, 2026-08-18). */}
-                          {(showPre || showPost) && extPrice != null && (
+                              not next to the ticker name (Diego, 2026-08-18).
+                              After Hours gets its own moon-badge + sign-colored
+                              % (Diego, 2026-08-19) — pre-market keeps the
+                              plain label treatment below. */}
+                          {showPost && extPct != null && (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
+                              <View style={{ width: 15, height: 15, borderRadius: 7.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(125,211,252,0.16)" }}>
+                                <Ionicons name="moon" size={8} color="#7dd3fc" />
+                              </View>
+                              <Text style={{ fontSize: 12, fontWeight: "700", color: extPct >= 0 ? "#00d47e" : "#ff5c5c", fontVariant: ["tabular-nums"] }} numberOfLines={1}>
+                                {extPct >= 0 ? "+" : ""}{extPct.toFixed(2)}%
+                              </Text>
+                            </View>
+                          )}
+                          {showPre && extPrice != null && (
                             <Text style={{ fontSize: 10, color: extColor, marginTop: 2 }} numberOfLines={1}>
                               {extLabel} {extPct != null ? `${extPct >= 0 ? "+" : ""}${extPct.toFixed(2)}%` : extPrice.toFixed(2)}
                             </Text>
