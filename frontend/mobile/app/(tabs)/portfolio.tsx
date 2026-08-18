@@ -1818,16 +1818,23 @@ export default function PortfolioScreen() {
         va = (prices[a.ticker]?.price ?? 0) * fxRate;
         vb = (prices[b.ticker]?.price ?? 0) * fxRate;
       } else if (sortField === "return") {
-        const cpA = (prices[a.ticker]?.price ?? 0) * fxRate;
-        const cpB = (prices[b.ticker]?.price ?? 0) * fxRate;
-        const costA = a.avgPrice * fxRate;
-        const costB = b.avgPrice * fxRate;
-        va = costA > 0 && cpA > 0 ? (cpA - costA) / costA * 100 : 0;
-        vb = costB > 0 && cpB > 0 ? (cpB - costB) / costB * 100 : 0;
+        // Was always the flat since-purchase return regardless of which
+        // period tab (1D/5D/1M/3M/6M/YTD) was selected — the row-level
+        // display already used getPeriodGainLoss for this, sorting just
+        // never did (Diego: "cuando ordeno rentabilidad tienen que
+        // ordenarse acorde a la rentabilidad de ese periodo de tiempo").
+        const cpA = prices[a.ticker]?.price;
+        const cpB = prices[b.ticker]?.price;
+        const currentValA = cpA ? a.totalShares * cpA * fxRate : null;
+        const currentValB = cpB ? b.totalShares * cpB * fxRate : null;
+        const investedValA = a.avgPrice > 0 ? a.totalShares * a.avgPrice * fxRate : null;
+        const investedValB = b.avgPrice > 0 ? b.totalShares * b.avgPrice * fxRate : null;
+        va = getPeriodGainLoss(a.ticker, currentValA, investedValA).pct ?? 0;
+        vb = getPeriodGainLoss(b.ticker, currentValB, investedValB).pct ?? 0;
       }
       return sortDir === "desc" ? vb - va : va - vb;
     });
-  }, [aggregatedPositions, prices, fxRate, sortField, sortDir]);
+  }, [aggregatedPositions, prices, fxRate, sortField, sortDir, getPeriodGainLoss]);
 
 
   return (
