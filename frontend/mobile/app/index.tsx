@@ -29,6 +29,11 @@ import { useTranslation } from "react-i18next";
 const IS_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 const HOME_SCREEN_KEY = "nuvos_home_screen";
+// Persists whatever the user has typed into the referral-code field so an
+// app kill/background mid-signup (very common — the field sits below the
+// password field, easy to fill in, switch apps to copy a code from a chat,
+// and come back) doesn't lose it before they even tap "Crear cuenta".
+const REFERRAL_CODE_KEY = "nuvos_ref";
 const SCREEN_ROUTES: Record<string, string> = {
   home:          "/(tabs)/home",
   chat:          "/(tabs)/chat",
@@ -94,6 +99,13 @@ export default function AuthScreen() {
   const [forgotNewPass, setForgotNewPass] = useState("");
   const [forgotDone, setForgotDone]       = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Restore a referral code the user already typed in a previous app
+  // session (see REFERRAL_CODE_KEY above) — persisted on every keystroke
+  // below so it survives an app kill/background mid-signup.
+  useEffect(() => {
+    AsyncStorage.getItem(REFERRAL_CODE_KEY).then((saved) => { if (saved) setRefCode(saved); }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (biometricReady && mode === "login" && !checking) {
@@ -354,7 +366,21 @@ export default function AuthScreen() {
       await afterAuth(res.data.access_token, res.data.refresh_token, res.data.user_id);
       if (mode === "register") {
         posthog.capture("user_signed_up", { method: "email", has_referral_code: !!refCode.trim() });
-        if (refCode.trim()) referralApi.applyCode(refCode.trim().toUpperCase()).catch(() => {});
+        const code = refCode.trim().toUpperCase();
+        if (code) {
+          referralApi.applyCode(code)
+            .then(() => AsyncStorage.removeItem(REFERRAL_CODE_KEY).catch(() => {}))
+            .catch((err: unknown) => {
+              // 400/404/409 are definitive (bad code, self-referral, already
+              // applied) — retrying can't help, so clear it. Anything else
+              // (network hiccup, session cookie not propagated yet) is worth
+              // retrying, so leave the code in AsyncStorage for next launch.
+              const status = (err as { response?: { status?: number } })?.response?.status;
+              if (status === 400 || status === 404 || status === 409) {
+                AsyncStorage.removeItem(REFERRAL_CODE_KEY).catch(() => {});
+              }
+            });
+        }
       } else {
         posthog.capture("user_logged_in", { method: "email" });
       }
@@ -687,7 +713,11 @@ export default function AuthScreen() {
                     <Text style={S.inputLabel}>{t("index.referralCodeLabel")}</Text>
                     <TextInput
                       style={S.input} value={refCode}
-                      onChangeText={(v) => setRefCode(v.toUpperCase())}
+                      onChangeText={(v) => {
+                        const upper = v.toUpperCase();
+                        setRefCode(upper);
+                        AsyncStorage.setItem(REFERRAL_CODE_KEY, upper).catch(() => {});
+                      }}
                       placeholder={t("index.referralPlaceholder")} placeholderTextColor={colors.placeholder}
                       autoCapitalize="characters" maxLength={8}
                     />

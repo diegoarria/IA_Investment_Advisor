@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useAuthStore, useProfileStore } from "@/lib/store";
 import { profile as profileApi, auth as authApi } from "@/lib/api";
+import { applyPendingReferralIfAny } from "@/lib/referral";
 
 export default function AuthCallback() {
   const router = useRouter();
@@ -20,6 +21,12 @@ export default function AuthCallback() {
       done = true;
       try { await authApi.setSession(session.access_token, session.refresh_token); } catch {}
       setAuth(session.access_token, session.user.id);
+      // Google sign-in never used to check for a referral code sitting in
+      // storage at all — anyone who clicked a referral link and then signed
+      // up with Google got their friend zero credit, silently. Harmless
+      // no-op for an existing user or one with no pending code (the backend
+      // claim is idempotent).
+      applyPendingReferralIfAny();
       try {
         const p = await profileApi.get();
         setProfile(p.data);

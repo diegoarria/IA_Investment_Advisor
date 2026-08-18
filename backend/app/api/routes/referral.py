@@ -125,7 +125,7 @@ async def _ensure_code(user_id: str) -> str:
 @router.get("/code")
 async def get_code(user_id: str = Depends(get_current_user_id)):
     code = await _ensure_code(user_id)
-    return {"code": code, "link": f"https://nuvosai.app/join?ref={code}"}
+    return {"code": code, "link": f"https://nuvosai.com/join?ref={code}"}
 
 
 @router.get("/stats")
@@ -142,7 +142,7 @@ async def get_stats(user_id: str = Depends(get_current_user_id)):
     count = int(data.get("referred_count") or 0)
     return {
         "code": code,
-        "link": f"https://nuvosai.app/join?ref={code}",
+        "link": f"https://nuvosai.com/join?ref={code}",
         "referred_count": count,
         "reward_tier": int(data.get("referral_reward_tier") or 0),
         "free_1on1_sessions": int(data.get("free_1on1_sessions") or 0),
@@ -176,22 +176,37 @@ async def apply_referral(body: dict, user_id: str = Depends(get_current_user_id)
     if referrer_id == user_id:
         raise HTTPException(status_code=400, detail="No puedes referirte a ti mismo")
 
-    # Claim the "not yet referred" slot atomically: the old code separately
-    # SELECTed referred_by, checked it was null, then UPDATEd it — two
-    # concurrent /referral/apply calls (trivially scriptable: apply two
-    # different friends' codes at once) could both pass the SELECT check
-    # before either UPDATE landed, so both referrers got credited and paid
-    # out real rewards even though only one referred_by value survives.
-    # Scoping the UPDATE's WHERE clause to `referred_by IS NULL` makes
-    # Postgres itself the arbiter: only the request that actually flips the
-    # column from null wins, and it does so as a single atomic statement —
-    # the loser's UPDATE matches zero rows and comes back empty.
+    # The frontend calls this immediately after register() succeeds — but the
+    # new user's user_profiles row doesn't exist yet at that point (it's only
+    # created when onboarding finishes, see profile.py's create_profile). The
+    # UPDATE-only version of this claim always matched zero rows for that
+    # near-universal case and raised the exact same 409 as "already referred",
+    # silently dropping the referral on essentially every real signup.
+    #
+    # Try an upsert first: if no row exists yet, this creates a minimal
+    # placeholder (just user_id + referred_by) that create_profile's own
+    # upsert(on_conflict="user_id") later fills in via its UPDATE branch —
+    # which never touches referred_by — without clobbering it.
+    # ignore_duplicates means a row that already exists (the common case for
+    # a user who already finished onboarding) makes this a no-op (empty
+    # data), so we fall through to the atomic UPDATE below for that case.
     claim = await run_query(
         db.table("user_profiles")
-        .update({"referred_by": referrer_id})
-        .eq("user_id", user_id)
-        .is_("referred_by", "null")
+        .upsert({"user_id": user_id, "referred_by": referrer_id}, on_conflict="user_id", ignore_duplicates=True)
     )
+    if not claim.data:
+        # Row already existed (or we lost a race creating it) — same atomic
+        # claim as before: scoping the UPDATE's WHERE clause to
+        # `referred_by IS NULL` makes Postgres itself the arbiter between
+        # concurrent /apply calls (two different friends' codes at once);
+        # only the request that actually flips the column from null wins,
+        # and the loser's UPDATE matches zero rows and comes back empty.
+        claim = await run_query(
+            db.table("user_profiles")
+            .update({"referred_by": referrer_id})
+            .eq("user_id", user_id)
+            .is_("referred_by", "null")
+        )
     if not claim.data:
         raise HTTPException(status_code=409, detail="Ya tienes un referido aplicado")
 

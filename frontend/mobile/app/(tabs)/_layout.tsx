@@ -383,6 +383,26 @@ export default function TabsLayout() {
   useEffect(() => {
     syncAllFromServer();
 
+    // Safety net for a referral code left behind by a failed apply attempt
+    // on the auth screen (network hiccup, etc.) — see REFERRAL_CODE_KEY in
+    // app/index.tsx. That screen never mounts again once logged in, so this
+    // is the one place that gets a real retry on next app open.
+    import("@react-native-async-storage/async-storage").then(({ default: AsyncStorage }) => {
+      AsyncStorage.getItem("nuvos_ref").then((code) => {
+        if (!code) return;
+        import("../../src/lib/api").then(({ referralApi }) => {
+          referralApi.applyCode(code)
+            .then(() => AsyncStorage.removeItem("nuvos_ref").catch(() => {}))
+            .catch((err: unknown) => {
+              const status = (err as { response?: { status?: number } })?.response?.status;
+              if (status === 400 || status === 404 || status === 409) {
+                AsyncStorage.removeItem("nuvos_ref").catch(() => {});
+              }
+            });
+        }).catch(() => {});
+      }).catch(() => {});
+    }).catch(() => {});
+
     const sub = AppState.addEventListener("change", (nextState) => {
       if (appState.current.match(/inactive|background/) && nextState === "active") {
         syncAllFromServer();

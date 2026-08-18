@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { auth, profile as profileApi, referral as referralApi } from "@/lib/api";
+import { auth, profile as profileApi } from "@/lib/api";
+import { applyPendingReferralIfAny } from "@/lib/referral";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useAuthStore, useProfileStore, useLanguageStore, enterGuestMode } from "@/lib/store";
 import { Eye, EyeOff, ArrowRight, User } from "lucide-react";
@@ -222,8 +223,7 @@ function HomeContent() {
         : await auth.register(email, password, language);
       setAuth(res.data.access_token, res.data.user_id);
       if (mode === "register") {
-        const refCode = sessionStorage.getItem("nuvos_ref");
-        if (refCode) { referralApi.applyCode(refCode).catch(() => {}); sessionStorage.removeItem("nuvos_ref"); }
+        applyPendingReferralIfAny();
       }
       try {
         const p = await profileApi.get();

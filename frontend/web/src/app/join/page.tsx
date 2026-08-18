@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { TrendingUp, Shield, Brain, ArrowRight, Users } from "lucide-react";
+import { setPendingReferralCode } from "@/lib/referral";
 
 function getFeatures(t: TFunction) {
   return [
@@ -25,15 +26,17 @@ function JoinContent() {
 
   useEffect(() => {
     if (ref) {
-      sessionStorage.setItem("nuvos_ref", ref.toUpperCase());
+      setPendingReferralCode(ref);
       setSaved(true);
     }
   }, [ref]);
 
-  // The referral code was just saved to sessionStorage above (nuvos_ref),
-  // applied on register in page.tsx's handleSubmit — landing this on bare
-  // "/" would now bounce straight into guest mode (see page.tsx) and skip
-  // the signup form entirely, silently dropping the referral.
+  // The referral code was just saved above (localStorage "nuvos_ref"),
+  // applied on register in page.tsx's handleSubmit, on Google OAuth in
+  // auth/callback/page.tsx, and as a safety net by ReferralApplyProvider —
+  // landing this on bare "/" would now bounce straight into guest mode (see
+  // page.tsx) and skip the signup form entirely, silently dropping the
+  // referral.
   const handleJoin = () => router.push("/?auth=1");
 
   return (
