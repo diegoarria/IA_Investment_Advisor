@@ -107,9 +107,16 @@ export function CompanyDiagnosticBacktestPanel({ colors }: { colors: any }) {
         if (res.data?.months?.length > 0) {
           setData(res.data);
           AsyncStorage.setItem(CACHE_KEY, JSON.stringify(res.data)).catch(() => {});
+        } else {
+          console.warn("CompanyDiagnosticBacktestPanel: valuation-backtest returned no data (worker cache not populated yet)", res.data);
         }
       })
-      .catch(() => {});
+      .catch((err: any) => {
+        // Was a silent no-op — made this panel impossible to debug when it
+        // just never appears. Logged (not surfaced in the UI: this panel
+        // stays optional/best-effort, same as web's version).
+        console.warn("CompanyDiagnosticBacktestPanel: getValuationBacktest failed", err?.response?.status, err?.message);
+      });
     return () => { cancelled = true; };
   }, []);
 
