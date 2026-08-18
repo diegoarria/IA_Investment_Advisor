@@ -91,19 +91,29 @@ export function CompanyDiagnosticBacktestPanel({ colors }: { colors: any }) {
   useEffect(() => {
     let cancelled = false;
     AsyncStorage.getItem(CACHE_KEY)
-      .then((cached) => { if (cached && !cancelled) setData(JSON.parse(cached)); })
+      .then((cached) => {
+        if (!cached || cancelled) return;
+        const parsed = JSON.parse(cached);
+        if (parsed?.months?.length > 0) setData(parsed);
+      })
       .catch(() => {});
     screenerWeeklyApi.getValuationBacktest()
       .then((res: any) => {
         if (cancelled) return;
-        setData(res.data);
-        AsyncStorage.setItem(CACHE_KEY, JSON.stringify(res.data)).catch(() => {});
+        // The endpoint returns {} (never a fabricated placeholder) when the
+        // weekly worker hasn't populated the cache yet — never adopt that
+        // as `data` (data.months would be undefined) and never persist it
+        // over a real cached payload from a previous visit.
+        if (res.data?.months?.length > 0) {
+          setData(res.data);
+          AsyncStorage.setItem(CACHE_KEY, JSON.stringify(res.data)).catch(() => {});
+        }
       })
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
-  if (!data || data.months.length === 0) return null;
+  if (!data || !data.months || data.months.length === 0) return null;
 
   const all = [...data.undervalued_series, ...data.overvalued_series, ...data.sp500_series];
   const min = Math.min(...all) * 0.92;
