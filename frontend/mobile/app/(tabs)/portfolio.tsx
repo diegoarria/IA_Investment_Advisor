@@ -2990,7 +2990,13 @@ export default function PortfolioScreen() {
                   // (this screen's price source) carries it too.
                   const ms = (pd?.market_state ?? "").toUpperCase();
                   const showPre  = (ms === "PRE"  || ms === "PREPRE")  && pd?.pre_market_price != null;
-                  const showPost = (ms === "POST" || ms === "POSTPOST") && pd?.post_market_price != null;
+                  // "CLOSED" is Yahoo's real marketState once the post-market
+                  // session itself ends (~8pm ET) — the AH move from that
+                  // just-finished session is still the relevant number to
+                  // show until pre-market opens again, not nothing (Diego:
+                  // "no veo los porcentajes del AH" while the ticker bar
+                  // read CLOSED, confirmed live).
+                  const showPost = (ms === "POST" || ms === "POSTPOST" || ms === "CLOSED") && pd?.post_market_price != null;
                   const extPrice = showPre ? pd!.pre_market_price! : showPost ? pd!.post_market_price! : null;
                   const extPct   = showPre ? pd?.pre_market_change_pct : showPost ? pd?.post_market_change_pct : null;
                   const extColor = showPre ? "#f59e0b" : "#818cf8";

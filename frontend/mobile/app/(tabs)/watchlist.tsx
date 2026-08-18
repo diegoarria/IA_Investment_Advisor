@@ -114,7 +114,12 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRe
   const dayCol = dayUp ? "#00d47e" : "#ff5c5c";
   const ms = (p?.market_state ?? "").toUpperCase();
   const showPre  = (ms === "PRE"  || ms === "PREPRE")  && !!p?.pre_market_price;
-  const showPost = (ms === "POST" || ms === "POSTPOST") && !!p?.post_market_price;
+  // "CLOSED" is Yahoo's real marketState once the post-market session
+  // itself ends (~8pm ET) — the AH move from that just-finished session is
+  // still the relevant number to show until pre-market opens again, not
+  // nothing (Diego: "no veo los porcentajes del AH" while the ticker bar
+  // read CLOSED, confirmed live).
+  const showPost = (ms === "POST" || ms === "POSTPOST" || ms === "CLOSED") && !!p?.post_market_price;
   // In advanced mode, also show pre/post even during regular hours if data is available
   const showPreAdv  = advanced && !showPre  && !showPost && !!p?.pre_market_price;
   const showPostAdv = advanced && !showPre  && !showPost && !showPreAdv && !!p?.post_market_price;
