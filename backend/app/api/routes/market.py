@@ -21,6 +21,7 @@ from app.core.database import get_supabase, run_query
 from app.models.user import UserProfile, coerce_profile_row
 from app.services import market_service, ai_service
 from app.core.cache import cache_get, cache_set, cache_incr, cache_delete, acquire_lock, release_lock
+from app.core.after_hours_cache import backfill_after_hours
 from app.core.limiter import limiter
 
 # Semaphore for the sync Anthropic call in the screenshot/pdf endpoints
@@ -411,7 +412,7 @@ async def get_prices(request: Request, body: dict, user_id: str = Depends(get_cu
         change_pct = 0.0
         if price and prev and prev != 0:
             change_pct = round((price - prev) / prev * 100, 2)
-        return symbol, {
+        result = {
             "price":      round(price, 4) if price else None,
             "change_pct": change_pct,
             "currency":   currency,
@@ -422,6 +423,8 @@ async def get_prices(request: Request, body: dict, user_id: str = Depends(get_cu
             "post_market_price": post_market_price,
             "post_market_change_pct": post_market_change_pct,
         }
+        backfill_after_hours(symbol, result)
+        return symbol, result
 
     _PRICE_TTL = 30
     cached_result: dict = {}

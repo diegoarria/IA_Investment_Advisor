@@ -22,6 +22,7 @@ import httpx
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
 from app.core.cache import cache_get, cache_set
+from app.core.after_hours_cache import backfill_after_hours
 
 router = APIRouter(prefix="/watchlist", tags=["watchlist"])
 
@@ -150,10 +151,12 @@ def _fetch_extended_price(ticker: str) -> dict:
                         (float(post_price) - float(base)) / float(base) * 100, 2
                     )
 
+            backfill_after_hours(ticker, result)
             return result
         except Exception:
             continue
 
+    backfill_after_hours(ticker, result)
     return result
 
 
