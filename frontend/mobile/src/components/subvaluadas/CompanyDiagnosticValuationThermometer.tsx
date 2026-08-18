@@ -5,11 +5,15 @@ import { SCENARIO_COLOR, fmtPrice } from "../../lib/types/companyDiagnostic";
 import type { ValuationScenarios } from "../../lib/types/companyDiagnostic";
 
 // Mirror of web's CompanyDiagnosticValuationThermometer.tsx — RN has no
-// CSS linear-gradient, so the bar uses a flat mid-tone instead of the bear
-// -> base -> bull gradient; the 3 scenario ticks + current-price marker
-// keep the same color language.
+// CSS linear-gradient, so the bar uses 3 flat segments instead of the
+// bear -> base -> bull gradient. Label anchors are clamped away from the
+// 0%/100% edges (`LABEL_MIN`/`LABEL_MAX`) so a scenario sitting at the very
+// end of the range never gets its price/name clipped off the edge of the
+// screen — only the tick mark itself stays at the true, unclamped position.
 
-const BAR_WIDTH_PCT = 100;
+const LABEL_MIN = 15;
+const LABEL_MAX = 85;
+const LABEL_WIDTH = 58;
 
 export function CompanyDiagnosticValuationThermometer({ scenarios, colors }: { scenarios: ValuationScenarios; colors: any }) {
   const { t } = useTranslation();
@@ -22,6 +26,7 @@ export function CompanyDiagnosticValuationThermometer({ scenarios, colors }: { s
   const max = rawMax + pad;
   const span = max - min || 1;
   const pctOf = (v: number) => Math.min(100, Math.max(0, ((v - min) / span) * 100));
+  const clampLabel = (pct: number) => Math.min(LABEL_MAX, Math.max(LABEL_MIN, pct));
 
   const markers: { key: string; label: string; value: number; color: string }[] = [
     { key: "conservative", label: t("companyDiagnostic.thermometer.conservative"), value: conservative, color: SCENARIO_COLOR.bear },
@@ -30,37 +35,43 @@ export function CompanyDiagnosticValuationThermometer({ scenarios, colors }: { s
   ];
 
   return (
-    <View style={{ marginTop: 8 }}>
-      <Text style={{ fontSize: 11, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 34 }}>
+    <View style={{ marginTop: 6 }}>
+      <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 30 }}>
         {t("companyDiagnostic.thermometer.title")}
       </Text>
 
-      <View style={{ height: 10, borderRadius: 5, backgroundColor: SCENARIO_COLOR.base, overflow: "visible" }}>
-        <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, flexDirection: "row", borderRadius: 5, overflow: "hidden" }}>
+      <View style={{ height: 8, borderRadius: 4, overflow: "visible" }}>
+        <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, flexDirection: "row", borderRadius: 4, overflow: "hidden" }}>
           <View style={{ flex: 1, backgroundColor: SCENARIO_COLOR.bear }} />
           <View style={{ flex: 1, backgroundColor: SCENARIO_COLOR.base }} />
           <View style={{ flex: 1, backgroundColor: SCENARIO_COLOR.bull }} />
         </View>
 
-        {markers.map((m) => (
-          <View key={m.key} style={{ position: "absolute", top: -2, alignItems: "center", left: `${pctOf(m.value)}%`, transform: [{ translateX: -1 }] }}>
-            <View style={{ width: 2, height: 14, borderRadius: 1, backgroundColor: "rgba(0,0,0,0.35)" }} />
-            <Text style={{ fontSize: 10, fontWeight: "800", color: colors.textMuted, marginTop: 24, position: "absolute", width: 70, left: -34, textAlign: "center" }}>{m.label}</Text>
-            <Text style={{ fontSize: 10.5, fontWeight: "900", color: colors.text, marginTop: 38, position: "absolute", width: 70, left: -34, textAlign: "center" }}>{fmtPrice(m.value)}</Text>
-          </View>
-        ))}
+        {markers.map((m) => {
+          const tickPct = pctOf(m.value);
+          const labelPct = clampLabel(tickPct);
+          return (
+            <React.Fragment key={m.key}>
+              <View style={{ position: "absolute", top: -2, left: `${tickPct}%`, width: 2, height: 12, borderRadius: 1, backgroundColor: "rgba(0,0,0,0.35)", transform: [{ translateX: -1 }] }} />
+              <View style={{ position: "absolute", top: 20, left: `${labelPct}%`, width: LABEL_WIDTH, marginLeft: -LABEL_WIDTH / 2, alignItems: "center" }}>
+                <Text style={{ fontSize: 9, fontWeight: "800", color: colors.textMuted, textAlign: "center" }} numberOfLines={1}>{m.label}</Text>
+                <Text style={{ fontSize: 9.5, fontWeight: "900", color: colors.text, textAlign: "center" }} numberOfLines={1}>{fmtPrice(m.value)}</Text>
+              </View>
+            </React.Fragment>
+          );
+        })}
 
-        <View style={{ position: "absolute", top: -34, alignItems: "center", left: `${pctOf(currentPrice)}%`, transform: [{ translateX: -1 }] }}>
-          <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: colors.text }}>
-            <Text style={{ fontSize: 10.5, fontWeight: "900", color: colors.card }}>
+        <View style={{ position: "absolute", top: -32, left: `${clampLabel(pctOf(currentPrice))}%`, alignItems: "center", transform: [{ translateX: -1 }] }}>
+          <View style={{ borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: colors.text }}>
+            <Text style={{ fontSize: 9.5, fontWeight: "900", color: colors.card }} numberOfLines={1}>
               {t("companyDiagnostic.thermometer.priceToday")} {fmtPrice(currentPrice)}
             </Text>
           </View>
-          <View style={{ width: 2, height: 12, backgroundColor: colors.text }} />
+          <View style={{ width: 2, height: 10, backgroundColor: colors.text }} />
         </View>
       </View>
 
-      <View style={{ height: 46 }} />
+      <View style={{ height: 40 }} />
     </View>
   );
 }

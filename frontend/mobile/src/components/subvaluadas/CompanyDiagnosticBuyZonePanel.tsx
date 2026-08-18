@@ -117,61 +117,61 @@ export function CompanyDiagnosticBuyZonePanel({ ticker, companyName, price, intr
   if (intrinsicValue == null || price == null) return null;
 
   return (
-    <View style={{ marginTop: 14, borderRadius: 16, padding: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingBottom: 14, marginBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        <View style={{ width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgRaised }}>
-          <Ionicons name="locate" size={18} color={ACCENT_GREEN} />
+    <View style={{ marginTop: 13, borderRadius: 16, padding: 14, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 9, paddingBottom: 12, marginBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <View style={{ width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgRaised }}>
+          <Ionicons name="locate" size={16} color={ACCENT_GREEN} />
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 14.5, fontWeight: "800", color: colors.text }}>{t("subvaluadas.followAlert.title", { ticker: ticker.toUpperCase() })}</Text>
-          <Text style={{ fontSize: 11.5, color: colors.textMuted }}>{t("subvaluadas.followAlert.subtitle")}</Text>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }} numberOfLines={1}>{t("subvaluadas.followAlert.title", { ticker: ticker.toUpperCase() })}</Text>
+          <Text style={{ fontSize: 10.5, color: colors.textMuted }} numberOfLines={1}>{t("subvaluadas.followAlert.subtitle")}</Text>
         </View>
       </View>
 
       {/* Primary card — currently selected margin */}
-      <View style={{ borderRadius: 16, padding: 14, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}>
-        <Text style={{ alignSelf: "flex-start", fontSize: 9.5, fontWeight: "800", textTransform: "uppercase", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, marginBottom: 10, color: ACCENT_GREEN, backgroundColor: `${ACCENT_GREEN}1f` }}>
+      <View style={{ borderRadius: 14, padding: 12, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}>
+        <Text style={{ alignSelf: "flex-start", fontSize: 8.5, fontWeight: "800", textTransform: "uppercase", paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, marginBottom: 9, color: ACCENT_GREEN, backgroundColor: `${ACCENT_GREEN}1f` }}>
           {t("subvaluadas.followAlert.badge")}
         </Text>
-        <Text style={{ fontSize: 17, fontWeight: "900", lineHeight: 22, color: colors.text }}>
+        <Text style={{ fontSize: 15, fontWeight: "900", lineHeight: 20, color: colors.text }}>
           {t("subvaluadas.followAlert.belowLabel", { pct: selectedPct })}
         </Text>
         {targetPrice != null && (
-          <Text style={{ fontSize: 12, marginTop: 3, color: colors.textDim }}>· {fmtPrice(targetPrice, currency)}</Text>
+          <Text style={{ fontSize: 11, marginTop: 3, color: colors.textDim }}>· {fmtPrice(targetPrice, currency)}</Text>
         )}
-        <Text style={{ fontSize: 12, marginTop: 8, lineHeight: 17, color: colors.textMuted }}>
+        <Text style={{ fontSize: 11, marginTop: 7, lineHeight: 15.5, color: colors.textMuted }}>
           {t("subvaluadas.followAlert.description")}
         </Text>
 
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-          <View style={{ flex: 1, minWidth: "45%", borderRadius: 10, padding: 10, backgroundColor: colors.card }}>
-            <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }}>{t("subvaluadas.followAlert.currentPrice")}</Text>
-            <Text style={{ fontSize: 14.5, fontWeight: "900", color: colors.text, marginTop: 2 }}>{fmtPrice(price, currency)}</Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 11 }}>
+          <View style={{ flex: 1, minWidth: "45%", borderRadius: 10, padding: 9, backgroundColor: colors.card }}>
+            <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>{t("subvaluadas.followAlert.currentPrice")}</Text>
+            <Text style={{ fontSize: 13, fontWeight: "900", color: colors.text, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>{fmtPrice(price, currency)}</Text>
           </View>
-          <View style={{ flex: 1, minWidth: "45%", borderRadius: 10, padding: 10, backgroundColor: colors.card }}>
-            <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }}>{t("subvaluadas.followAlert.intrinsicValue")}</Text>
-            <Text style={{ fontSize: 14.5, fontWeight: "900", color: colors.text, marginTop: 2 }}>{fmtPrice(intrinsicValue, currency)}</Text>
+          <View style={{ flex: 1, minWidth: "45%", borderRadius: 10, padding: 9, backgroundColor: colors.card }}>
+            <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>{t("subvaluadas.followAlert.intrinsicValue")}</Text>
+            <Text style={{ fontSize: 13, fontWeight: "900", color: colors.text, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>{fmtPrice(intrinsicValue, currency)}</Text>
           </View>
-          <View style={{ width: "100%", borderRadius: 10, padding: 10, backgroundColor: `${ACCENT_GREEN}14`, borderWidth: 1, borderColor: ACCENT_GREEN }}>
-            <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: ACCENT_GREEN }}>{t("subvaluadas.followAlert.marginOfSafety", { pct: selectedPct })}</Text>
-            <Text style={{ fontSize: 16, fontWeight: "900", color: ACCENT_GREEN, marginTop: 2 }}>{targetPrice != null ? fmtPrice(targetPrice, currency) : "—"}</Text>
+          <View style={{ width: "100%", borderRadius: 10, padding: 9, backgroundColor: `${ACCENT_GREEN}14`, borderWidth: 1, borderColor: ACCENT_GREEN }}>
+            <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", color: ACCENT_GREEN }} numberOfLines={1}>{t("subvaluadas.followAlert.marginOfSafety", { pct: selectedPct })}</Text>
+            <Text style={{ fontSize: 14.5, fontWeight: "900", color: ACCENT_GREEN, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>{targetPrice != null ? fmtPrice(targetPrice, currency) : "—"}</Text>
           </View>
         </View>
 
-        {error && <Text style={{ fontSize: 12, marginTop: 10, color: "#ef4444" }}>{error}</Text>}
+        {error && <Text style={{ fontSize: 11, marginTop: 9, color: "#ef4444" }}>{error}</Text>}
 
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 11 }}>
           <TouchableOpacity
             onPress={handleCreate}
             disabled={saving || loadingExisting}
-            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, paddingVertical: 12, backgroundColor: justSaved ? ACCENT_GREEN : colors.accent, opacity: saving || loadingExisting ? 0.6 : 1 }}
+            style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 6, backgroundColor: justSaved ? ACCENT_GREEN : colors.accent, opacity: saving || loadingExisting ? 0.6 : 1 }}
           >
             {saving ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Ionicons name={justSaved ? "checkmark" : "notifications"} size={14} color="#fff" />
+              <Ionicons name={justSaved ? "checkmark" : "notifications"} size={13} color="#fff" />
             )}
-            <Text style={{ fontSize: 12.5, fontWeight: "800", color: "#fff" }}>
+            <Text style={{ fontSize: 11, fontWeight: "800", color: "#fff", flexShrink: 1 }} numberOfLines={1} adjustsFontSizeToFit>
               {saving
                 ? t("subvaluadas.followAlert.creating")
                 : justSaved
@@ -185,29 +185,29 @@ export function CompanyDiagnosticBuyZonePanel({ ticker, companyName, price, intr
             <TouchableOpacity
               onPress={handleRemove}
               disabled={removing}
-              style={{ borderRadius: 12, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, opacity: removing ? 0.6 : 1 }}
+              style={{ borderRadius: 12, paddingHorizontal: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, opacity: removing ? 0.6 : 1 }}
             >
-              {removing ? <ActivityIndicator size="small" color={colors.textMuted} /> : <Ionicons name="trash-outline" size={16} color="#ef4444" />}
+              {removing ? <ActivityIndicator size="small" color={colors.textMuted} /> : <Ionicons name="trash-outline" size={15} color="#ef4444" />}
             </TouchableOpacity>
           )}
         </View>
       </View>
 
       {/* Other margin options */}
-      <View style={{ marginTop: 14 }}>
-        <Text style={{ fontSize: 10.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 8 }}>
+      <View style={{ marginTop: 13 }}>
+        <Text style={{ fontSize: 9.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 7 }}>
           {t("subvaluadas.followAlert.otherOptions")}
         </Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
           {otherPresets.map((pct) => (
             <TouchableOpacity
               key={pct}
               onPress={() => handleSelect(pct)}
-              style={{ width: "31%", minHeight: 68, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}
+              style={{ width: "31%", minHeight: 60, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}
             >
-              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{pct}%</Text>
+              <Text style={{ fontSize: 13, fontWeight: "900", color: colors.text }}>{pct}%</Text>
               {intrinsicValue != null && (
-                <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted, marginTop: 2 }}>
+                <Text style={{ fontSize: 9, fontWeight: "700", color: colors.textMuted, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>
                   {fmtPrice(intrinsicValue * (1 - pct / 100), currency)}
                 </Text>
               )}
@@ -216,13 +216,13 @@ export function CompanyDiagnosticBuyZonePanel({ ticker, companyName, price, intr
           {!customOpen ? (
             <TouchableOpacity
               onPress={() => setCustomOpen(true)}
-              style={{ width: "31%", minHeight: 68, borderRadius: 12, alignItems: "center", justifyContent: "center", gap: 4, borderWidth: 1, borderColor: colors.border, borderStyle: "dashed" }}
+              style={{ width: "31%", minHeight: 60, borderRadius: 12, alignItems: "center", justifyContent: "center", gap: 3, borderWidth: 1, borderColor: colors.border, borderStyle: "dashed" }}
             >
-              <Ionicons name="add" size={16} color={colors.textDim} />
-              <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted, textAlign: "center" }}>{t("subvaluadas.followAlert.customOption")}</Text>
+              <Ionicons name="add" size={14} color={colors.textDim} />
+              <Text style={{ fontSize: 9, fontWeight: "700", color: colors.textMuted, textAlign: "center" }} numberOfLines={1}>{t("subvaluadas.followAlert.customOption")}</Text>
             </TouchableOpacity>
           ) : (
-            <View style={{ width: "100%", borderRadius: 12, padding: 10, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}>
+            <View style={{ width: "100%", borderRadius: 12, padding: 9, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}>
               <TextInput
                 autoFocus
                 keyboardType="numeric"
@@ -231,10 +231,10 @@ export function CompanyDiagnosticBuyZonePanel({ ticker, companyName, price, intr
                 onSubmitEditing={handleCustomSubmit}
                 placeholder={t("subvaluadas.followAlert.customPlaceholder")}
                 placeholderTextColor={colors.placeholder ?? colors.textMuted}
-                style={{ flex: 1, fontSize: 13, color: colors.text, paddingVertical: 4 }}
+                style={{ flex: 1, fontSize: 12, color: colors.text, paddingVertical: 4 }}
               />
               <TouchableOpacity onPress={handleCustomSubmit}>
-                <Text style={{ fontSize: 12.5, fontWeight: "800", color: ACCENT_GREEN }}>{t("subvaluadas.followAlert.customApply")}</Text>
+                <Text style={{ fontSize: 11.5, fontWeight: "800", color: ACCENT_GREEN }}>{t("subvaluadas.followAlert.customApply")}</Text>
               </TouchableOpacity>
             </View>
           )}

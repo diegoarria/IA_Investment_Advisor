@@ -58,10 +58,10 @@ export function CompanyDiagnosticValuePillar({
         }
       >
         <View>
-          <Text style={{ fontSize: 11, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 8 }}>
+          <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 7 }}>
             {t("companyDiagnostic.pillars.value.multiplesTitle")}
           </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>
             {multiples.map((m) => (
               <DiagRaisedBlock key={m.explKey} colors={colors} style={{ width: "31%" }}>
                 <ExplainableValue
@@ -69,21 +69,21 @@ export function CompanyDiagnosticValuePillar({
                   summary={t(`companyDiagnostic.explanations.${m.explKey}.body`)}
                   colors={colors}
                 >
-                  <Text style={{ fontSize: 9.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }}>
+                  <Text style={{ fontSize: 8.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }} numberOfLines={2}>
                     {t(`companyDiagnostic.pillars.value.${m.explKey}`)}
                   </Text>
                 </ExplainableValue>
-                <Text style={{ fontSize: 13.5, fontWeight: "900", color: colors.text, marginTop: 4 }}>{m.value}</Text>
+                <Text style={{ fontSize: 12, fontWeight: "900", color: colors.text, marginTop: 4 }} numberOfLines={1} adjustsFontSizeToFit>{m.value}</Text>
               </DiagRaisedBlock>
             ))}
           </View>
         </View>
 
         <View>
-          <Text style={{ fontSize: 11, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 8, marginTop: 4 }}>
+          <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 7, marginTop: 4 }}>
             {t("companyDiagnostic.pillars.value.modelsTitle")}
           </Text>
-          <View style={{ flexDirection: "row", gap: 8 }}>
+          <View style={{ flexDirection: "row", gap: 7 }}>
             {scenarios.map((s) => {
               const isSelected = s.key === selectedScenario;
               return (
@@ -91,27 +91,29 @@ export function CompanyDiagnosticValuePillar({
                   key={s.key}
                   onPress={() => setSelectedScenario(s.key)}
                   style={{
-                    flex: 1, borderRadius: 12, padding: 10, alignItems: "center",
+                    flex: 1, minWidth: 0, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 4, alignItems: "center",
                     backgroundColor: `${s.color}${isSelected ? "33" : "1f"}`,
                     borderWidth: isSelected ? 2 : 1, borderColor: s.color,
                   }}
                 >
-                  <Text style={{ fontSize: 9.5, fontWeight: "800", textTransform: "uppercase", color: s.color }}>{s.label}</Text>
-                  <Text style={{ fontSize: 13.5, fontWeight: "900", color: colors.text, marginTop: 3 }}>{fmtPrice(s.value)}</Text>
+                  <Text style={{ fontSize: 8.5, fontWeight: "800", textTransform: "uppercase", color: s.color, textAlign: "center" }} numberOfLines={2}>{s.label}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: "900", color: colors.text, marginTop: 3 }} numberOfLines={1} adjustsFontSizeToFit>{fmtPrice(s.value)}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
-            <ExplainableValue
-              label={t("companyDiagnostic.explanations.marginOfSafety.title")}
-              summary={t("companyDiagnostic.explanations.marginOfSafety.body")}
-              colors={colors}
-            >
-              <Text style={{ fontSize: 12, color: colors.textMuted }}>{t("companyDiagnostic.pillars.value.marginOfSafety")}</Text>
-            </ExplainableValue>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <ExplainableValue
+                label={t("companyDiagnostic.explanations.marginOfSafety.title")}
+                summary={t("companyDiagnostic.explanations.marginOfSafety.body")}
+                colors={colors}
+              >
+                <Text style={{ fontSize: 11, color: colors.textMuted }} numberOfLines={1}>{t("companyDiagnostic.pillars.value.marginOfSafety")}</Text>
+              </ExplainableValue>
+            </View>
             {status && (
-              <Text style={{ fontSize: 14, fontWeight: "900", color: VERDICT_COLOR[status.verdict] }}>
+              <Text style={{ fontSize: 13, fontWeight: "900", color: VERDICT_COLOR[status.verdict] }} numberOfLines={1}>
                 {VERDICT_EMOJI[status.verdict]} {status.pct.toFixed(1)}%
               </Text>
             )}

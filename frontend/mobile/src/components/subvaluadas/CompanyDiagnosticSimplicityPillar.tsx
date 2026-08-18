@@ -34,31 +34,31 @@ export function CompanyDiagnosticSimplicityPillar({
     >
       {noiseVsReality && (
         <View style={{ gap: 8 }}>
-          <View style={{ borderRadius: 12, padding: 12, backgroundColor: "#ef44441a", borderWidth: 1, borderColor: "#ef4444" }}>
-            <Text style={{ fontSize: 11, fontWeight: "800", textTransform: "uppercase", color: "#ef4444", marginBottom: 5 }}>
+          <View style={{ borderRadius: 12, padding: 11, backgroundColor: "#ef44441a", borderWidth: 1, borderColor: "#ef4444" }}>
+            <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: "#ef4444", marginBottom: 5 }}>
               🔴 {t("companyDiagnostic.pillars.simplicity.marketSaw")}
             </Text>
-            <Text style={{ fontSize: 12.5, lineHeight: 18, color: colors.text }}>{noiseVsReality.marketSaw}</Text>
+            <Text style={{ fontSize: 11.5, lineHeight: 16.5, color: colors.text }}>{noiseVsReality.marketSaw}</Text>
           </View>
-          <View style={{ borderRadius: 12, padding: 12, backgroundColor: "#22c55e1a", borderWidth: 1, borderColor: "#22c55e" }}>
-            <Text style={{ fontSize: 11, fontWeight: "800", textTransform: "uppercase", color: "#22c55e", marginBottom: 5 }}>
+          <View style={{ borderRadius: 12, padding: 11, backgroundColor: "#22c55e1a", borderWidth: 1, borderColor: "#22c55e" }}>
+            <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: "#22c55e", marginBottom: 5 }}>
               🟢 {t("companyDiagnostic.pillars.simplicity.nuvosReality")}
             </Text>
-            <Text style={{ fontSize: 12.5, lineHeight: 18, color: colors.text }}>{noiseVsReality.nuvosReality}</Text>
+            <Text style={{ fontSize: 11.5, lineHeight: 16.5, color: colors.text }}>{noiseVsReality.nuvosReality}</Text>
           </View>
         </View>
       )}
 
       {actionPlan && (
         <View>
-          <Text style={{ fontSize: 11, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 8 }}>
+          <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 7 }}>
             {t("companyDiagnostic.pillars.simplicity.actionPlanTitle")}
           </Text>
-          <View style={{ borderRadius: 12, padding: 12, backgroundColor: colors.bgRaised }}>
-            <Text style={{ fontSize: 10.5, color: colors.textMuted }}>{t("companyDiagnostic.pillars.simplicity.profile")}</Text>
-            <Text style={{ fontSize: 13.5, fontWeight: "800", color: colors.text, marginBottom: 8 }}>{actionPlan.profile}</Text>
-            <Text style={{ fontSize: 10.5, color: colors.textMuted }}>{t("companyDiagnostic.pillars.simplicity.strategy")}</Text>
-            <Text style={{ fontSize: 13.5, fontWeight: "800", color: colors.text }}>{actionPlan.strategy}</Text>
+          <View style={{ borderRadius: 12, padding: 11, backgroundColor: colors.bgRaised }}>
+            <Text style={{ fontSize: 9.5, color: colors.textMuted }}>{t("companyDiagnostic.pillars.simplicity.profile")}</Text>
+            <Text style={{ fontSize: 12.5, fontWeight: "800", color: colors.text, marginBottom: 7 }}>{actionPlan.profile}</Text>
+            <Text style={{ fontSize: 9.5, color: colors.textMuted }}>{t("companyDiagnostic.pillars.simplicity.strategy")}</Text>
+            <Text style={{ fontSize: 12.5, fontWeight: "800", color: colors.text }}>{actionPlan.strategy}</Text>
           </View>
         </View>
       )}
