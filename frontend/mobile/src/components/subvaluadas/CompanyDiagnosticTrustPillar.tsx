@@ -41,7 +41,7 @@ export function CompanyDiagnosticTrustPillar({
         />
       }
     >
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {rows.map((row) => {
           const label = t(`companyDiagnostic.pillars.trust.${row.explKey}`);
           return (
@@ -51,11 +51,11 @@ export function CompanyDiagnosticTrustPillar({
                 summary={t(`companyDiagnostic.explanations.${row.explKey}.body`)}
                 colors={colors}
               >
-                <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>{label}</Text>
+                <Text style={{ fontSize: 10.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>{label}</Text>
               </ExplainableValue>
-              <Text style={{ fontSize: 13, fontWeight: "900", color: colors.text, marginTop: 4 }} numberOfLines={2} adjustsFontSizeToFit>{row.value}</Text>
+              <Text style={{ fontSize: 15.5, fontWeight: "900", color: colors.text, marginTop: 4 }} numberOfLines={2} adjustsFontSizeToFit>{row.value}</Text>
               {row.explKey === "roic" && roicAdjustedForBuybacks && (
-                <Text style={{ fontSize: 8, lineHeight: 11, color: colors.textMuted, marginTop: 4 }}>
+                <Text style={{ fontSize: 9.5, lineHeight: 13, color: colors.textMuted, marginTop: 4 }}>
                   {t("companyDiagnostic.pillars.trust.roicAdjustedNote")}
                 </Text>
               )}

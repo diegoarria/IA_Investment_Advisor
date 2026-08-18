@@ -11,9 +11,9 @@ import type { ValuationScenarios } from "../../lib/types/companyDiagnostic";
 // end of the range never gets its price/name clipped off the edge of the
 // screen — only the tick mark itself stays at the true, unclamped position.
 
-const LABEL_MIN = 15;
-const LABEL_MAX = 85;
-const LABEL_WIDTH = 58;
+const LABEL_MIN = 16;
+const LABEL_MAX = 84;
+const LABEL_WIDTH = 68;
 
 export function CompanyDiagnosticValuationThermometer({ scenarios, colors }: { scenarios: ValuationScenarios; colors: any }) {
   const { t } = useTranslation();
@@ -36,12 +36,12 @@ export function CompanyDiagnosticValuationThermometer({ scenarios, colors }: { s
 
   return (
     <View style={{ marginTop: 6 }}>
-      <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 30 }}>
+      <Text style={{ fontSize: 11, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 34 }}>
         {t("companyDiagnostic.thermometer.title")}
       </Text>
 
-      <View style={{ height: 8, borderRadius: 4, overflow: "visible" }}>
-        <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, flexDirection: "row", borderRadius: 4, overflow: "hidden" }}>
+      <View style={{ height: 9, borderRadius: 4.5, overflow: "visible" }}>
+        <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, flexDirection: "row", borderRadius: 4.5, overflow: "hidden" }}>
           <View style={{ flex: 1, backgroundColor: SCENARIO_COLOR.bear }} />
           <View style={{ flex: 1, backgroundColor: SCENARIO_COLOR.base }} />
           <View style={{ flex: 1, backgroundColor: SCENARIO_COLOR.bull }} />
@@ -52,18 +52,18 @@ export function CompanyDiagnosticValuationThermometer({ scenarios, colors }: { s
           const labelPct = clampLabel(tickPct);
           return (
             <React.Fragment key={m.key}>
-              <View style={{ position: "absolute", top: -2, left: `${tickPct}%`, width: 2, height: 12, borderRadius: 1, backgroundColor: "rgba(0,0,0,0.35)", transform: [{ translateX: -1 }] }} />
-              <View style={{ position: "absolute", top: 20, left: `${labelPct}%`, width: LABEL_WIDTH, marginLeft: -LABEL_WIDTH / 2, alignItems: "center" }}>
-                <Text style={{ fontSize: 9, fontWeight: "800", color: colors.textMuted, textAlign: "center" }} numberOfLines={1}>{m.label}</Text>
-                <Text style={{ fontSize: 9.5, fontWeight: "900", color: colors.text, textAlign: "center" }} numberOfLines={1}>{fmtPrice(m.value)}</Text>
+              <View style={{ position: "absolute", top: -2, left: `${tickPct}%`, width: 2, height: 13, borderRadius: 1, backgroundColor: "rgba(0,0,0,0.35)", transform: [{ translateX: -1 }] }} />
+              <View style={{ position: "absolute", top: 22, left: `${labelPct}%`, width: LABEL_WIDTH, marginLeft: -LABEL_WIDTH / 2, alignItems: "center" }}>
+                <Text style={{ fontSize: 10.5, fontWeight: "800", color: colors.textMuted, textAlign: "center" }} numberOfLines={1}>{m.label}</Text>
+                <Text style={{ fontSize: 11.5, fontWeight: "900", color: colors.text, textAlign: "center" }} numberOfLines={1} adjustsFontSizeToFit>{fmtPrice(m.value)}</Text>
               </View>
             </React.Fragment>
           );
         })}
 
-        <View style={{ position: "absolute", top: -32, left: `${clampLabel(pctOf(currentPrice))}%`, alignItems: "center", transform: [{ translateX: -1 }] }}>
-          <View style={{ borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: colors.text }}>
-            <Text style={{ fontSize: 9.5, fontWeight: "900", color: colors.card }} numberOfLines={1}>
+        <View style={{ position: "absolute", top: -34, left: `${clampLabel(pctOf(currentPrice))}%`, alignItems: "center", transform: [{ translateX: -1 }] }}>
+          <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: colors.text }}>
+            <Text style={{ fontSize: 11, fontWeight: "900", color: colors.card }} numberOfLines={1}>
               {t("companyDiagnostic.thermometer.priceToday")} {fmtPrice(currentPrice)}
             </Text>
           </View>
@@ -71,7 +71,7 @@ export function CompanyDiagnosticValuationThermometer({ scenarios, colors }: { s
         </View>
       </View>
 
-      <View style={{ height: 40 }} />
+      <View style={{ height: 46 }} />
     </View>
   );
 }

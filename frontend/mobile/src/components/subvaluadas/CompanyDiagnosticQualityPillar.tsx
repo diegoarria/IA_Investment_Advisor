@@ -15,7 +15,7 @@ function SubCard({ icon, title, children, colors }: { icon: React.ReactNode; tit
     <View style={{ borderRadius: 14, padding: 12, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
         {icon}
-        <Text style={{ fontSize: 12.5, fontWeight: "800", color: colors.text, flex: 1 }} numberOfLines={1}>{title}</Text>
+        <Text style={{ fontSize: 14, fontWeight: "800", color: colors.text, flex: 1 }} numberOfLines={1}>{title}</Text>
       </View>
       {children}
     </View>
@@ -29,32 +29,32 @@ function CompetitorTable({ competitorComparison, colors }: { competitorCompariso
   const { competitorName, rows, conclusion } = competitorComparison;
   return (
     <View>
-      <Text style={{ fontSize: 10.5, fontWeight: "600", color: colors.textMuted, marginBottom: 7 }} numberOfLines={1}>
+      <Text style={{ fontSize: 12, fontWeight: "600", color: colors.textMuted, marginBottom: 8 }} numberOfLines={1}>
         {t("companyDiagnostic.pillars.quality.vs")} {competitorName}
       </Text>
-      <View style={{ gap: 7 }}>
+      <View style={{ gap: 8 }}>
         {rows.map((row) => (
           <DiagRaisedBlock key={row.metricName} colors={{ bgRaised: colors.card }}>
-            <Text style={{ fontSize: 10.5, fontWeight: "800", color: colors.textMuted, marginBottom: 6 }} numberOfLines={1}>{row.metricName}</Text>
+            <Text style={{ fontSize: 12, fontWeight: "800", color: colors.textMuted, marginBottom: 7 }} numberOfLines={1}>{row.metricName}</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ fontSize: 8.5, fontWeight: "800", textTransform: "uppercase", color: NUVOS_ADVANTAGE_COLOR }} numberOfLines={1}>Nuvos</Text>
-                <Text style={{ fontSize: 11.5, fontWeight: "900", color: colors.text }} numberOfLines={1} adjustsFontSizeToFit>{row.targetCompanyValue}</Text>
+                <Text style={{ fontSize: 9.5, fontWeight: "800", textTransform: "uppercase", color: NUVOS_ADVANTAGE_COLOR }} numberOfLines={1}>Nuvos</Text>
+                <Text style={{ fontSize: 14, fontWeight: "900", color: colors.text }} numberOfLines={1} adjustsFontSizeToFit>{row.targetCompanyValue}</Text>
               </View>
               <View style={{ flex: 1, minWidth: 0, alignItems: "flex-end" }}>
-                <Text style={{ fontSize: 8.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>{competitorName}</Text>
-                <Text style={{ fontSize: 11.5, fontWeight: "700", color: colors.textSub }} numberOfLines={1} adjustsFontSizeToFit>{row.competitorValue}</Text>
+                <Text style={{ fontSize: 9.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>{competitorName}</Text>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.textSub }} numberOfLines={1} adjustsFontSizeToFit>{row.competitorValue}</Text>
               </View>
             </View>
-            <Text style={{ fontSize: 10, marginTop: 6, lineHeight: 14, color: colors.textDim }}>{row.nuvosAdvantageNote}</Text>
+            <Text style={{ fontSize: 11.5, marginTop: 6, lineHeight: 16, color: colors.textDim }}>{row.nuvosAdvantageNote}</Text>
           </DiagRaisedBlock>
         ))}
       </View>
-      <View style={{ marginTop: 10, borderRadius: 12, padding: 10, backgroundColor: `${NUVOS_ADVANTAGE_COLOR}1a`, borderWidth: 1, borderColor: NUVOS_ADVANTAGE_COLOR }}>
-        <Text style={{ fontSize: 9.5, fontWeight: "800", textTransform: "uppercase", color: NUVOS_ADVANTAGE_COLOR, marginBottom: 4 }}>
+      <View style={{ marginTop: 10, borderRadius: 12, padding: 11, backgroundColor: `${NUVOS_ADVANTAGE_COLOR}1a`, borderWidth: 1, borderColor: NUVOS_ADVANTAGE_COLOR }}>
+        <Text style={{ fontSize: 11, fontWeight: "800", textTransform: "uppercase", color: NUVOS_ADVANTAGE_COLOR, marginBottom: 4 }}>
           {t("companyDiagnostic.pillars.quality.conclusionLabel")}
         </Text>
-        <Text style={{ fontSize: 11.5, lineHeight: 16, color: colors.text }}>{conclusion}</Text>
+        <Text style={{ fontSize: 13, lineHeight: 18.5, color: colors.text }}>{conclusion}</Text>
       </View>
     </View>
   );
@@ -91,8 +91,8 @@ export function CompanyDiagnosticQualityPillar({
             {revenueBreakdown.map((r) => (
               <View key={r.category}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8, marginBottom: 5 }}>
-                  <Text style={{ flex: 1, minWidth: 0, fontSize: 11.5, fontWeight: "600", color: colors.text }} numberOfLines={1}>{r.category}</Text>
-                  <Text style={{ fontSize: 11.5, fontWeight: "900", color: colors.text }}>{r.percentage}%</Text>
+                  <Text style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: "600", color: colors.text }} numberOfLines={1}>{r.category}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: "900", color: colors.text }}>{r.percentage}%</Text>
                 </View>
                 <View style={{ height: 7, borderRadius: 4, backgroundColor: colors.border }}>
                   <View style={{ width: `${r.percentage}%`, height: 7, borderRadius: 4, backgroundColor: colors.accent }} />
@@ -106,7 +106,7 @@ export function CompanyDiagnosticQualityPillar({
           <View style={{ gap: 8 }}>
             {moatPoints.map((point, i) => (
               <View key={i} style={{ borderRadius: 10, padding: 10, backgroundColor: colors.card }}>
-                <Text style={{ fontSize: 11.5, lineHeight: 16.5, color: colors.text }}>{point}</Text>
+                <Text style={{ fontSize: 13, lineHeight: 18.5, color: colors.text }}>{point}</Text>
               </View>
             ))}
           </View>

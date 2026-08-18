@@ -46,11 +46,11 @@ export function ExpandableSection({
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
           {icon}
-          <Text style={{ fontSize: 12, fontWeight: "800", color: colors.text }} numberOfLines={1}>{title}</Text>
+          <Text style={{ fontSize: 14.5, fontWeight: "800", color: colors.text }} numberOfLines={1}>{title}</Text>
         </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 5, shrink: 0 } as any}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, shrink: 0 } as any}>
           {headline}
-          <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={14} color={colors.textMuted} />
+          <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
         </View>
       </TouchableOpacity>
       {expanded && <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 10 }}>{children}</View>}
@@ -73,7 +73,7 @@ export function ExplainableValue({
       <View style={{ flexDirection: "row", alignItems: "center", gap: 4, minWidth: 0 }}>
         <View style={{ flexShrink: 1, minWidth: 0 }}>{children}</View>
         <TouchableOpacity onPress={() => setOpen(true)} hitSlop={8}>
-          <Ionicons name="information-circle-outline" size={12} color={colors.textMuted} />
+          <Ionicons name="information-circle-outline" size={14} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -83,12 +83,12 @@ export function ExplainableValue({
             onPress={(e) => e.stopPropagation()}
           >
             <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-              <Text style={{ flex: 1, fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, color: colors.textMuted }}>{label}</Text>
+              <Text style={{ flex: 1, fontSize: 13, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3, color: colors.textMuted }}>{label}</Text>
               <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8}>
-                <Ionicons name="close" size={16} color={colors.textMuted} />
+                <Ionicons name="close" size={17} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
-            <Text style={{ fontSize: 13, lineHeight: 19, color: colors.textSub }}>{summary}</Text>
+            <Text style={{ fontSize: 14.5, lineHeight: 21, color: colors.textSub }}>{summary}</Text>
           </Pressable>
         </Pressable>
       </Modal>
@@ -100,8 +100,8 @@ export function DiagSectionScore({ score, label, explanation, colors }: { score:
   const color = scoreColor(score);
   return (
     <ExplainableValue label={label} summary={explanation} colors={colors}>
-      <Text style={{ fontSize: 13.5, fontWeight: "900", color }}>{score}</Text>
-      <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted }}>/100</Text>
+      <Text style={{ fontSize: 16, fontWeight: "900", color }}>{score}</Text>
+      <Text style={{ fontSize: 11.5, fontWeight: "700", color: colors.textMuted }}>/100</Text>
     </ExplainableValue>
   );
 }

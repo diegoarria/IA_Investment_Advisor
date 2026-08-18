@@ -34,8 +34,8 @@ function DiagSectionHeader({ title, subtitle, icon, colors }: { title: string; s
   return (
     <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }} numberOfLines={1}>{title}</Text>
-        {subtitle && <Text style={{ fontSize: 9.5, color: colors.textMuted, marginTop: 2 }} numberOfLines={2}>{subtitle}</Text>}
+        <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text }} numberOfLines={1}>{title}</Text>
+        {subtitle && <Text style={{ fontSize: 11.5, color: colors.textMuted, marginTop: 2 }} numberOfLines={2}>{subtitle}</Text>}
       </View>
       {icon}
     </View>
@@ -54,11 +54,11 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
       <View style={{ borderRadius: 18, padding: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
         <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", gap: 5 }}>
-              <Text style={{ fontSize: 19, fontWeight: "900", color: colors.text }}>{data.ticker}</Text>
-              <Text style={{ fontSize: 12, fontWeight: "600", color: colors.textSub, flexShrink: 1 }} numberOfLines={1}>{data.companyName}</Text>
+            <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", gap: 6 }}>
+              <Text style={{ fontSize: 23, fontWeight: "900", color: colors.text }}>{data.ticker}</Text>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: colors.textSub, flexShrink: 1 }} numberOfLines={1}>{data.companyName}</Text>
             </View>
-            <Text style={{ fontSize: 11, marginTop: 3, color: colors.textMuted }} numberOfLines={1}>{data.sector} · {data.exchange}</Text>
+            <Text style={{ fontSize: 12.5, marginTop: 3, color: colors.textMuted }} numberOfLines={1}>{data.sector} · {data.exchange}</Text>
           </View>
           <View style={{ alignItems: "flex-end" }}>
             <ExplainableValue
@@ -66,44 +66,44 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
               summary={t("companyDiagnostic.explanations.scoreOverall.body")}
               colors={colors}
             >
-              <Text style={{ fontSize: 28, fontWeight: "900", color: scoreColor(data.score) }}>{data.score}</Text>
-              <Text style={{ fontSize: 12, fontWeight: "800", color: colors.textMuted }}>/100</Text>
+              <Text style={{ fontSize: 34, fontWeight: "900", color: scoreColor(data.score) }}>{data.score}</Text>
+              <Text style={{ fontSize: 14, fontWeight: "800", color: colors.textMuted }}>/100</Text>
             </ExplainableValue>
-            <Text style={{ fontSize: 9.5, fontWeight: "800", textTransform: "uppercase", color: scoreColor(data.score), marginTop: 3, textAlign: "right" }} numberOfLines={2}>
+            <Text style={{ fontSize: 10.5, fontWeight: "800", textTransform: "uppercase", color: scoreColor(data.score), marginTop: 3, textAlign: "right" }} numberOfLines={2}>
               {data.scoreLabel}
             </Text>
           </View>
         </View>
 
-        <Text style={{ fontSize: 9.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 6 }}>
+        <Text style={{ fontSize: 10.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 7 }}>
           {t("companyDiagnostic.badgesTitle")}
         </Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 13 }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7, marginBottom: 15 }}>
           {data.badges.map((b) => (
-            <View key={b} style={{ paddingHorizontal: 9, paddingVertical: 6, borderRadius: 10, backgroundColor: "#6366F11f", borderWidth: 1, borderColor: "#6366F1" }}>
-              <Text style={{ fontSize: 9.5, fontWeight: "800", color: "#6366F1" }}>{b}</Text>
+            <View key={b} style={{ paddingHorizontal: 11, paddingVertical: 7, borderRadius: 11, backgroundColor: "#6366F11f", borderWidth: 1, borderColor: "#6366F1" }}>
+              <Text style={{ fontSize: 12, fontWeight: "800", color: "#6366F1" }}>{b}</Text>
             </View>
           ))}
         </View>
 
-        <View style={{ flexDirection: "row", gap: 8, marginBottom: 13 }}>
-          <View style={{ flex: 1, borderRadius: 12, padding: 10, backgroundColor: colors.bgRaised }}>
-            <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>{t("companyDiagnostic.kpi.currentPrice")}</Text>
-            <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>{fmtPrice(data.valuation.currentPrice)}</Text>
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 15 }}>
+          <View style={{ flex: 1, borderRadius: 12, padding: 11, backgroundColor: colors.bgRaised }}>
+            <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>{t("companyDiagnostic.kpi.currentPrice")}</Text>
+            <Text style={{ fontSize: 19, fontWeight: "900", color: colors.text, marginTop: 3 }} numberOfLines={1} adjustsFontSizeToFit>{fmtPrice(data.valuation.currentPrice)}</Text>
           </View>
-          <View style={{ flex: 1, borderRadius: 12, padding: 10, backgroundColor: colors.bgRaised }}>
-            <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>{t("companyDiagnostic.kpi.fairValue")}</Text>
-            <Text style={{ fontSize: 15, fontWeight: "900", color: "#4FA695", marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>{fmtPrice(data.valuation.baseFairValue)}</Text>
+          <View style={{ flex: 1, borderRadius: 12, padding: 11, backgroundColor: colors.bgRaised }}>
+            <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>{t("companyDiagnostic.kpi.fairValue")}</Text>
+            <Text style={{ fontSize: 19, fontWeight: "900", color: "#4FA695", marginTop: 3 }} numberOfLines={1} adjustsFontSizeToFit>{fmtPrice(data.valuation.baseFairValue)}</Text>
           </View>
         </View>
 
-        <View style={{ borderRadius: 12, padding: 10, marginBottom: 13, backgroundColor: colors.bgRaised, borderLeftWidth: 3, borderLeftColor: colors.accent }}>
-          <Text style={{ fontSize: 12, lineHeight: 17.5, color: colors.text, fontStyle: "italic" }}>&ldquo;{data.oneLinerPitch}&rdquo;</Text>
+        <View style={{ borderRadius: 12, padding: 12, marginBottom: 15, backgroundColor: colors.bgRaised, borderLeftWidth: 3, borderLeftColor: colors.accent }}>
+          <Text style={{ fontSize: 14, lineHeight: 20, color: colors.text, fontStyle: "italic" }}>&ldquo;{data.oneLinerPitch}&rdquo;</Text>
         </View>
 
         {verdictStatus && (
-          <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 8, marginBottom: 10 }}>
-            <Text style={{ fontSize: 16, fontWeight: "900", color: VERDICT_COLOR[verdictStatus.verdict], textAlign: "center" }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+          <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 9, marginBottom: 11 }}>
+            <Text style={{ fontSize: 19, fontWeight: "900", color: VERDICT_COLOR[verdictStatus.verdict], textAlign: "center" }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
               {VERDICT_EMOJI[verdictStatus.verdict]}{" "}
               {verdictStatus.verdict === "undervalued"
                 ? t("companyDiagnostic.thermometer.undervalued")
@@ -120,7 +120,7 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
         {(data.valuation.fcfAssumptions || data.valuation.waccDetails) && (
           <View style={{ marginTop: 8 }}>
             <TouchableOpacity onPress={() => setAssumptionsOpen((o) => !o)}>
-              <Text style={{ fontSize: 9.5, color: colors.textMuted, textDecorationLine: "underline" }}>
+              <Text style={{ fontSize: 11, color: colors.textMuted, textDecorationLine: "underline" }}>
                 {t("companyDiagnostic.modelAssumptions.toggle")}
               </Text>
             </TouchableOpacity>
@@ -128,7 +128,7 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
               <View style={{ marginTop: 8, gap: 6 }}>
                 {data.valuation.fcfAssumptions && (
                   <>
-                    <Text style={{ fontSize: 9.5, color: colors.textSub }}>
+                    <Text style={{ fontSize: 11, color: colors.textSub }}>
                       {t("companyDiagnostic.modelAssumptions.fcfReported")}:{" "}
                       <Text style={{ fontWeight: "800", color: colors.text }}>
                         {data.valuation.fcfAssumptions.fcf_reported != null ? `$${(data.valuation.fcfAssumptions.fcf_reported / 1e6).toFixed(0)}M` : "—"}
@@ -139,7 +139,7 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
                       </Text>
                     </Text>
                     {data.valuation.fcfAssumptions.growth_capex_estimate != null && data.valuation.fcfAssumptions.growth_capex_estimate > 0 && (
-                      <Text style={{ fontSize: 9.5, color: colors.textSub }}>
+                      <Text style={{ fontSize: 11, color: colors.textSub }}>
                         {t("companyDiagnostic.modelAssumptions.growthCapex")}:{" "}
                         <Text style={{ fontWeight: "800", color: colors.text }}>${(data.valuation.fcfAssumptions.growth_capex_estimate / 1e6).toFixed(0)}M</Text>
                       </Text>
@@ -147,13 +147,13 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
                   </>
                 )}
                 {data.valuation.waccDetails?.wacc_pct != null && (
-                  <Text style={{ fontSize: 9.5, color: colors.textSub }}>
+                  <Text style={{ fontSize: 11, color: colors.textSub }}>
                     {t("companyDiagnostic.modelAssumptions.wacc")}:{" "}
                     <Text style={{ fontWeight: "800", color: colors.text }}>{data.valuation.waccDetails.wacc_pct.toFixed(1)}%</Text>
                   </Text>
                 )}
                 {data.valuation.fcfAssumptions?.methodology_note && (
-                  <Text style={{ fontSize: 9.5, color: colors.textDim }}>{data.valuation.fcfAssumptions.methodology_note}</Text>
+                  <Text style={{ fontSize: 11, color: colors.textDim }}>{data.valuation.fcfAssumptions.methodology_note}</Text>
                 )}
               </View>
             )}
@@ -195,7 +195,7 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
             icon={<Ionicons name="locate" size={17} color={colors.accentLight} />}
             colors={colors}
           />
-          <Text style={{ fontSize: 12, lineHeight: 18, color: colors.textSub, marginTop: 6 }}>
+          <Text style={{ fontSize: 14, lineHeight: 20.5, color: colors.textSub, marginTop: 6 }}>
             {renderWithBoldNumbers(data.investmentThesis, colors)}
           </Text>
         </View>
@@ -211,7 +211,7 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
         />
         <View style={{ marginTop: 6, gap: 8 }}>
           {methodologyParagraphs.map((p, i) => (
-            <Text key={i} style={{ fontSize: 11.5, lineHeight: 17, color: colors.textSub }}>{p}</Text>
+            <Text key={i} style={{ fontSize: 13, lineHeight: 19, color: colors.textSub }}>{p}</Text>
           ))}
         </View>
       </View>
@@ -220,7 +220,7 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
       <SelfCheckQuiz ticker={data.ticker} colors={colors} />
 
       {/* Disclaimer */}
-      <Text style={{ fontSize: 10, lineHeight: 15, marginTop: 16, textAlign: "center", color: colors.textDim }}>
+      <Text style={{ fontSize: 11, lineHeight: 16, marginTop: 16, textAlign: "center", color: colors.textDim }}>
         {t("companyDiagnostic.disclaimer")}
       </Text>
     </View>
