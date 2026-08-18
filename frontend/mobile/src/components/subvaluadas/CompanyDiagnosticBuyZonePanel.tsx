@@ -164,7 +164,7 @@ export function CompanyDiagnosticBuyZonePanel({ ticker, companyName, price, intr
           <TouchableOpacity
             onPress={handleCreate}
             disabled={saving || loadingExisting}
-            style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 6, backgroundColor: justSaved ? ACCENT_GREEN : colors.accent, opacity: saving || loadingExisting ? 0.6 : 1 }}
+            style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 6, backgroundColor: justSaved ? ACCENT_GREEN : (colors.brandGreen ?? colors.accent), opacity: saving || loadingExisting ? 0.6 : 1 }}
           >
             {saving ? (
               <ActivityIndicator size="small" color="#fff" />

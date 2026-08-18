@@ -81,7 +81,7 @@ export function CompanyDiagnosticSelfCheckQuiz({ ticker }: { ticker: string }) {
           onClick={handleSave}
           disabled={!hasAnyAnswer || saving}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-40"
-          style={{ background: "var(--accent)" }}
+          style={{ background: "var(--brand-green)" }}
         >
           {saving ? (
             <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {t("companyDiagnostic.selfCheckQuiz.saving")}</>

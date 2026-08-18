@@ -28,6 +28,16 @@
   --accent-glow: rgba(0,185,109,0.18);
   --accent-pulse: rgba(0,232,135,0.08);
 
+  /* Platform brand green — same values as --accent/--accent-l, but under a
+     name pages never locally override (unlike /subvaluadas's `useViTheme`,
+     which repoints --accent to gold for that screen's own brand identity).
+     Use this instead of --accent for controls that must always read as the
+     platform's real green regardless of which page they're rendered on
+     (Diego: "cambiarles el color al verde de la plataforma... manteniendo
+     estandar de marca" for the VI screen's primary CTA buttons). */
+  --brand-green:   #00b96d;
+  --brand-green-l: #00e887;
+
   /* Status */
   --up:   #00e887;
   --down: #f43f5e;
@@ -62,6 +72,8 @@
   --accent-d: #007a44;
   --accent-glow: rgba(0,153,88,0.12);
   --accent-pulse: rgba(0,153,88,0.06);
+  --brand-green:   #009958;
+  --brand-green-l: #00b96d;
   --up:   #009958;
   --down: #e1173d;
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05);

@@ -176,7 +176,7 @@ export function CompanyDiagnosticBuyZonePanel({ ticker, companyName, price, intr
               onClick={handleCreate}
               disabled={saving || loadingExisting}
               className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3.5 text-[14px] font-bold disabled:opacity-60"
-              style={{ background: justSaved ? _ACCENT_GREEN : "var(--accent)", color: "#fff" }}
+              style={{ background: justSaved ? _ACCENT_GREEN : "var(--brand-green)", color: "#fff" }}
             >
               {saving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

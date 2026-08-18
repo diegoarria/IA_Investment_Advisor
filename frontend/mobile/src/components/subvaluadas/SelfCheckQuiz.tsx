@@ -85,7 +85,7 @@ export function SelfCheckQuiz({ ticker, colors }: { ticker: string; colors: any 
           style={{
             flexDirection: "row", alignItems: "center", gap: 6,
             paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12,
-            backgroundColor: colors.accent, opacity: !hasAnyAnswer || saving ? 0.4 : 1,
+            backgroundColor: colors.brandGreen ?? colors.accent, opacity: !hasAnyAnswer || saving ? 0.4 : 1,
           }}
         >
           {saving ? (

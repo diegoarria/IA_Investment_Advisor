@@ -636,7 +636,7 @@ export function ActionButtons({ watchlisted, onFollow, onAnalyze, colors }: {
           {watchlisted ? t("subvaluadas.follow.following") : t("subvaluadas.follow.button")}
         </Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={onAnalyze} style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.accent }}>
+      <TouchableOpacity onPress={onAnalyze} style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.brandGreen ?? colors.accent }}>
         <Ionicons name="chatbubble-ellipses-outline" size={13} color="#000" />
         <Text style={{ fontSize: 11, fontWeight: "900", color: "#000" }}>
           {t("subvaluadas.analyze.button")}

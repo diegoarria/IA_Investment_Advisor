@@ -1264,7 +1264,7 @@ export function AnalyzeButton({ onAnalyze }: { onAnalyze: () => void }) {
   return (
     <button onClick={onAnalyze}
             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-black"
-            style={{ background: "var(--accent)" }}>
+            style={{ background: "var(--brand-green)" }}>
       <MessageCircle className="w-3.5 h-3.5" />
       {t("subvaluadas.analyze.button")}
     </button>

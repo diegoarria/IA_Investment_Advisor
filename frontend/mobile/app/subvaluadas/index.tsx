@@ -40,6 +40,15 @@ function useViColors(isDark: boolean) {
     ...(isDark ? viColorsDark : viColorsLight),
     accent: "#D4A24C", accentLight: "#D4A24C", accentDark: "#A9793A",
     up: "#4FA695", down: "#DD6E63", info: "#4FA695",
+    // Platform brand green (same values as ThemeContext's real accent/
+    // accentLight) — kept separate from `accent` above, which this screen
+    // deliberately overrides to gold as its own brand identity. Primary CTA
+    // buttons (Buscar, Analizar con Arthur, Guardar en mi Diario de
+    // Decisiones, Actualizar alerta) must always read as the platform's
+    // real green regardless of that override (Diego: "cambiarles el color
+    // al verde de la plataforma... manteniendo estandar de marca").
+    brandGreen: isDark ? "#00b96d" : "#009958",
+    brandGreenLight: isDark ? "#00e887" : "#00b96d",
   }), [isDark]);
 }
 
@@ -200,7 +209,7 @@ export default function SubvaluadasScreen() {
           />
         </View>
         <TouchableOpacity onPress={handleSearch} disabled={!query.trim()}
-                          style={{ backgroundColor: GOLD, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, opacity: !query.trim() ? 0.5 : 1 }}>
+                          style={{ backgroundColor: viColors.brandGreen, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, opacity: !query.trim() ? 0.5 : 1 }}>
           <Text style={{ fontSize: 12, fontWeight: "800", color: "#0A0F1A" }}>{t("subvaluadas.search.button")}</Text>
         </TouchableOpacity>
       </View>

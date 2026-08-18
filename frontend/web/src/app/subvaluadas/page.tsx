@@ -340,7 +340,7 @@ function SubvaluadasPageInner() {
                 </div>
                 <button onClick={handleSearch} disabled={!query.trim()}
                         className="px-4 py-2.5 rounded-xl text-sm font-bold disabled:opacity-40"
-                        style={{ background: GOLD, color: "#0A0F1A" }}>
+                        style={{ background: "var(--brand-green)", color: "#0A0F1A" }}>
                   {t("subvaluadas.search.button")}
                 </button>
               </div>
