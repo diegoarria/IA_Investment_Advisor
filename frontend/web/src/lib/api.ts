@@ -28,6 +28,19 @@ api.interceptors.response.use(
     const status = error.response?.status;
     if (status !== 401 || original._retry) return Promise.reject(error);
 
+    // A true guest ("Explorar sin cuenta") gets an expected 401 on every
+    // authenticated call any page happens to fire (e.g.
+    // SubscriptionStatusProvider's fetchStatus on mount) — there was never a
+    // session to refresh or expire. Without this check, that ordinary 401
+    // fell through to the "refresh failed -> force logout" branch below,
+    // which calls clearAuth() and wipes the nuvos_guest flag — kicking every
+    // guest out of guest mode within moments of landing on any page.
+    try {
+      if (typeof window !== "undefined" && localStorage.getItem("nuvos_guest") === "1") {
+        return Promise.reject(error);
+      }
+    } catch {}
+
     if (isRefreshing) {
       return new Promise<void>((resolve, reject) => {
         failedQueue.push({ resolve, reject });
