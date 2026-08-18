@@ -7,6 +7,7 @@ import SubscriptionStatusProvider from "@/components/SubscriptionStatusProvider"
 import FeedbackBanner from "@/components/FeedbackBanner";
 import SessionExpiredBanner from "@/components/SessionExpiredBanner";
 import PostHogProvider from "@/components/PostHogProvider";
+import GuestSignupFlashcard from "@/components/GuestSignupFlashcard";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <UpsellProvider />
             <FeedbackBanner />
             <SessionExpiredBanner />
+            <GuestSignupFlashcard />
           </ThemeProvider>
         </PostHogProvider>
       </body>

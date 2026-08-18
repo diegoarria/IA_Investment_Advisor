@@ -11,7 +11,7 @@ import {
   TrendingUp, TrendingDown, Lock, Plus, GripVertical, Bell, BellOff,
 } from "lucide-react";
 import { watchlist as watchlistApi, market as marketApi, sync as syncApi, priceAlerts as priceAlertsApi } from "@/lib/api";
-import { useAuthStore, useSubscriptionStore, useProfileStore, usePersonalizationStore } from "@/lib/store";
+import { useAuthStore, useSubscriptionStore, useProfileStore, usePersonalizationStore, useGuestGateStore, isGuestUser } from "@/lib/store";
 import { getUserLevel } from "@/lib/userLevel";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
@@ -600,6 +600,7 @@ export default function WatchlistPage() {
       setPaywallOpen(true);
       return;
     }
+    if (isGuestUser() && !useGuestGateStore.getState().registerGuestAction()) return;
 
     setSearchQ("");
     setSearchOpen(false);

@@ -4187,5 +4187,22 @@
       "premiumCta": "Unlock Arthur's analysis with Premium",
       "premiumReason": "Arthur already analyzed how your portfolio did this week. Activate Premium to read his takeaway."
     }
+  },
+  "guestGate": {
+    "badge": "Guest mode",
+    "headlinePre": "Looks like",
+    "headlineGrad": "you're enjoying",
+    "headlinePost": "this 👀",
+    "body": "You've tried a couple of tools — and this is just a fraction of what Nuvos AI can do for your finances. Create your free account to save your progress and unlock everything.",
+    "pillars": {
+      "mentor": "Your 24/7 investment mentor",
+      "alerts": "Real-time smart alerts",
+      "save": "Save your portfolio and history"
+    },
+    "cta": "Create my free account",
+    "secondaryPre": "Already have an account?",
+    "secondaryCta": "Log in",
+    "trust": "🔐 No credit card · Under 2 minutes",
+    "close": "Close"
   }
 }

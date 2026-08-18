@@ -1165,3 +1165,49 @@ export const useBalanceVisibilityStore = create<BalanceVisibilityState>()(
     { name: "balance-visibility-store" }
   )
 );
+
+// ─── Guest action gate ──────────────────────────────────────────────────────
+// Diego: guests can browse freely, and get exactly 1 free action on
+// whichever feature they try — the 2nd action attempt of ANY kind (not
+// necessarily the same feature) blocks and shows the signup flashcard
+// instead of completing the action. `actionCount` alone is persisted
+// (survives a reload so a guest can't dodge the gate by refreshing) —
+// `flashcardOpen` is deliberately NOT persisted, so a reload never reopens
+// the modal on its own.
+interface GuestGateState {
+  actionCount: number;
+  flashcardOpen: boolean;
+  // Call before performing a guest-gated action. Returns true if the action
+  // should proceed; false means it was blocked and the flashcard opened —
+  // the caller must not perform the action in that case.
+  registerGuestAction: () => boolean;
+  closeFlashcard: () => void;
+}
+
+export const useGuestGateStore = create<GuestGateState>()(
+  persist(
+    (set, get) => ({
+      actionCount: 0,
+      flashcardOpen: false,
+      registerGuestAction: () => {
+        const next = get().actionCount + 1;
+        set({ actionCount: next });
+        if (next >= 2) {
+          set({ flashcardOpen: true });
+          return false;
+        }
+        return true;
+      },
+      closeFlashcard: () => set({ flashcardOpen: false }),
+    }),
+    {
+      name: "guest-gate-store",
+      partialize: (state) => ({ actionCount: state.actionCount }),
+    }
+  )
+);
+
+export function isGuestUser(): boolean {
+  if (typeof window === "undefined") return false;
+  try { return localStorage.getItem("nuvos_guest") === "1"; } catch { return false; }
+}

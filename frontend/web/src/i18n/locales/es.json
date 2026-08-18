@@ -4187,5 +4187,22 @@
       "premiumCta": "Desbloquear el análisis de Arthur con Premium",
       "premiumReason": "Arthur ya analizó el desempeño de tu portafolio esta semana. Activa Premium para leer su conclusión."
     }
+  },
+  "guestGate": {
+    "badge": "Modo invitado",
+    "headlinePre": "Se nota que",
+    "headlineGrad": "te está gustando",
+    "headlinePost": "esto 👀",
+    "body": "Ya probaste un par de herramientas — y esto es apenas una fracción de lo que Nuvos AI puede hacer por tus finanzas. Crea tu cuenta gratis para guardar tu progreso y desbloquear todo.",
+    "pillars": {
+      "mentor": "Tu mentor de inversión 24/7",
+      "alerts": "Alertas inteligentes en tiempo real",
+      "save": "Guarda tu portafolio y tu historial"
+    },
+    "cta": "Crear mi cuenta gratis",
+    "secondaryPre": "¿Ya tienes cuenta?",
+    "secondaryCta": "Inicia sesión",
+    "trust": "🔐 Sin tarjeta de crédito · Menos de 2 minutos",
+    "close": "Cerrar"
   }
 }
