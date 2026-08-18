@@ -28,7 +28,17 @@ import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 import { Card } from "@/components/ui/Card";
 import { resolveValuationPanelMode } from "@/lib/valuationPanelMode";
 import { screenerApi, watchlist } from "@/lib/api";
-import { useSubscriptionStore, useThemeStore, isGuestUser, getGuestId } from "@/lib/store";
+import { useSubscriptionStore, useThemeStore, useAuthStore, isGuestUser, getGuestId } from "@/lib/store";
+
+// Whether to call the no-auth /public routes instead of the authenticated
+// ones. isGuestUser() alone isn't enough — that flag is only ever set by
+// enterGuestMode() ("Explorar sin cuenta"), so anyone who reaches this page
+// without a real session AND without that flag (a stale/cleared flag, a
+// direct link, any edge case that isn't the guest-mode entry flow) would
+// otherwise fall through to the authenticated endpoint and get a guaranteed
+// 401. The one thing that actually determines whether the authenticated
+// call can possibly succeed is whether there's a real session at all.
+const shouldUsePublicApi = () => isGuestUser() || !useAuthStore.getState().userId;
 
 export interface QuickAnalysisResult {
   ticker: string;
@@ -201,7 +211,7 @@ function SubvaluadasPageInner() {
         // just identified by an anonymous guest_id instead (Diego:
         // "quiero que los free y los usuarios sin cuenta puedan tener
         // acceso a sus 3 búsquedas semanales en Oportunidades").
-        const res = isGuestUser()
+        const res = shouldUsePublicApi()
           ? await screenerApi.quickAnalysisPublic(ticker, getGuestId(), i18n.language, isDefaultView)
           : await screenerApi.quickAnalysis(ticker, i18n.language, isDefaultView);
         if (cancelled) return;
@@ -265,7 +275,7 @@ function SubvaluadasPageInner() {
     // usuarios si no mostramos valor") — the backend, not isPremium, is the
     // source of truth for whether this search is still within the free
     // allowance; a 403 here means it isn't.
-    const req = isGuestUser()
+    const req = shouldUsePublicApi()
       ? screenerApi.companyDiagnosticPublic(ticker, getGuestId(), i18n.language)
       : screenerApi.companyDiagnostic(ticker, i18n.language);
     req
