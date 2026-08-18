@@ -1631,16 +1631,14 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
     return result
 
 
-_FREE_VI_SEARCH_LIMIT = 2
+_FREE_VI_SEARCH_LIMIT = 3
 _VI_SEARCH_WINDOW_HOURS = 24 * 7  # 1 week
 
 
 async def _check_and_increment_vi_search_limit(user_id: str, profile) -> None:
-    """Free users get 2 Valor Intrínseco searches per rolling 7-day window
-    (Diego's Aug 16 Free/Premium spec, §4 — explicit final decision, do
-    NOT change to 5/month, 10/month, unlimited, or any more permissive
-    limit: "los usuarios que hacen análisis DCF con frecuencia son
-    exactamente los que tienen mayor intención de pago"), on top of the
+    """Free users get 3 Valor Intrínseco searches per rolling 7-day window
+    (raised from 2 to 3, Diego, 2026-08-19: explicit revision of the Aug 16
+    spec's original limit — "esas 3 búsquedas x semana"), on top of the
     always-free default Apple view (see `is_default_view` in
     quick_analysis, which skips this check entirely). Premium is
     unlimited — the caller checks _is_premium and skips this entirely for
