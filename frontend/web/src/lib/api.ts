@@ -487,6 +487,9 @@ export const screenerApi = {
     api.get("/api/market/screener/nif-dashboard", { params: { query, lang }, timeout: 25000 }),
   companyDiagnostic: (query: string, lang?: string) =>
     api.get("/api/market/screener/company-diagnostic", { params: { query, lang }, timeout: 25000 }),
+  // No-auth counterpart for guests, same real data as companyDiagnostic.
+  companyDiagnosticPublic: (query: string, guestId: string, lang?: string) =>
+    api.get("/api/market/screener/company-diagnostic/public", { params: { query, guest_id: guestId, lang }, timeout: 25000 }),
   getValuationBacktest: () => api.get("/api/market/screener/valuation-backtest"),
 };
 

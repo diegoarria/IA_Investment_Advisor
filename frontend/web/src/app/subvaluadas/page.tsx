@@ -256,12 +256,19 @@ function SubvaluadasPageInner() {
   // real data gap without waiting on server logs next time.
   const [companyDiagnosticError, setCompanyDiagnosticError] = useState<{ status?: number; code?: string } | null>(null);
   useEffect(() => {
-    if (!isPremium) { setCompanyDiagnostic(null); setCompanyDiagnosticError(null); setCompanyDiagnosticLoading(false); return; }
     let cancelled = false;
     setCompanyDiagnostic(null);
     setCompanyDiagnosticError(null);
     setCompanyDiagnosticLoading(true);
-    screenerApi.companyDiagnostic(ticker, i18n.language)
+    // Free/guest users get the same real diagnostic Premium sees for their
+    // first weekly free searches (Diego: "vamos a asustar a todos los
+    // usuarios si no mostramos valor") — the backend, not isPremium, is the
+    // source of truth for whether this search is still within the free
+    // allowance; a 403 here means it isn't.
+    const req = isGuestUser()
+      ? screenerApi.companyDiagnosticPublic(ticker, getGuestId(), i18n.language)
+      : screenerApi.companyDiagnostic(ticker, i18n.language);
+    req
       .then((res) => { if (!cancelled) setCompanyDiagnostic(res.data); })
       .catch((err) => {
         if (cancelled) return;
@@ -413,7 +420,7 @@ function SubvaluadasPageInner() {
                         <Loader2 className="w-6 h-6 animate-spin" style={{ color: GOLD }} />
                       </div>
                     </Card>
-                  ) : (!isPremium || companyDiagnosticError?.status === 403) ? (
+                  ) : companyDiagnosticError?.status === 403 ? (
                     <Card padding="p-6">
                       <div className="flex items-start gap-3">
                         <Lock className="w-5 h-5 shrink-0 mt-0.5" style={{ color: GOLD }} />

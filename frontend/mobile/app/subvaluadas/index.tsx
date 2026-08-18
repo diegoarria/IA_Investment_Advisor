@@ -159,7 +159,6 @@ export default function SubvaluadasScreen() {
   const [companyDiagnosticError, setCompanyDiagnosticError] = useState<{ status?: number; code?: string } | null>(null);
 
   useEffect(() => {
-    if (!isPremium) { setCompanyDiagnostic(null); setCompanyDiagnosticError(null); setCompanyDiagnosticLoading(false); return; }
     let cancelled = false;
     setCompanyDiagnostic(null);
     setCompanyDiagnosticError(null);
@@ -282,7 +281,7 @@ export default function SubvaluadasScreen() {
             <View style={{ borderRadius: 16, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, paddingVertical: 40, alignItems: "center" }}>
               <ActivityIndicator size="large" color={GOLD} />
             </View>
-          ) : (!isPremium || companyDiagnosticError?.status === 403) ? (
+          ) : companyDiagnosticError?.status === 403 ? (
             <View style={{ borderRadius: 16, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, padding: 16, flexDirection: "row", gap: 10 }}>
               <Ionicons name="lock-closed-outline" size={18} color={GOLD} />
               <View style={{ flex: 1 }}>

@@ -1680,6 +1680,34 @@ async def _check_and_increment_vi_search_limit(user_id: str, profile) -> None:
     )
 
 
+def _vi_search_limit_already_exceeded(profile) -> bool:
+    """Read-only twin of _check_and_increment_vi_search_limit — never
+    increments. company_diagnostic (below) is called in parallel with
+    quick_analysis for the same search action; quick_analysis is the one
+    that actually counts it against the weekly allowance, so
+    company_diagnostic must not double-charge the same search — it only
+    asks "has this profile already used up this week's free searches",
+    same window math, same limit, zero side effect.
+
+    Diego, 2026-08-19: "vamos a asustar a todos los usuarios si no
+    mostramos valor" — company_diagnostic (the real 4-pillar Ficha de
+    Diagnóstico) used to be a flat Premium-only 403 for every free/guest
+    request, showing nothing but an upsell card even on a search that was
+    well within the free weekly allowance. Free and guest users now get
+    the identical real diagnostic Premium sees, for their first
+    _FREE_VI_SEARCH_LIMIT searches each week."""
+    now = datetime.now(timezone.utc)
+    window_start = None
+    if profile.vi_search_window_start:
+        try:
+            window_start = datetime.fromisoformat(profile.vi_search_window_start.replace("Z", "+00:00"))
+        except Exception:
+            pass
+    if window_start is None or (now - window_start) >= timedelta(hours=_VI_SEARCH_WINDOW_HOURS):
+        return False
+    return profile.vi_search_count >= _FREE_VI_SEARCH_LIMIT
+
+
 # Guest (no account) equivalent of the counter above — same 3-per-7-days
 # rule, but a guest has no user_profiles row to store it on, so it lives in
 # the cache layer instead (Redis when configured, in-memory otherwise — see
@@ -1723,6 +1751,22 @@ async def _check_and_increment_guest_vi_search_limit(guest_id: str) -> None:
         )
 
     cache_set(key, {"count": count + 1, "window_start": window_start.isoformat()}, ttl=_VI_SEARCH_WINDOW_HOURS * 3600)
+
+
+def _guest_vi_search_limit_already_exceeded(guest_id: str) -> bool:
+    """Read-only twin of _check_and_increment_guest_vi_search_limit — see
+    _vi_search_limit_already_exceeded's own comment for why company-
+    diagnostic-public must never increment this counter itself."""
+    entry = cache_get(_guest_vi_search_key(guest_id))
+    if not entry:
+        return False
+    try:
+        window_start = datetime.fromisoformat(entry["window_start"])
+    except Exception:
+        return False
+    if (datetime.now(timezone.utc) - window_start) >= timedelta(hours=_VI_SEARCH_WINDOW_HOURS):
+        return False
+    return entry.get("count", 0) >= _FREE_VI_SEARCH_LIMIT
 
 
 _DEFAULT_VI_TICKER = "AAPL"
@@ -1958,41 +2002,15 @@ def _company_diagnostic_cache_key(ticker: str, lang: str) -> str:
     return f"company_diagnostic:v6:{lang}:{ticker}"
 
 
-@router.get("/company-diagnostic")
-async def company_diagnostic(query: str, lang: str | None = None, user_id: str = Depends(get_current_user_id)):
-    """CompanyDiagnosticCard's real-data backing (see /Users/diegoarria/
-    .claude/plans/cosmic-munching-crown.md) — real deterministic scores/
-    badges/moat-points/competitor-comparison from `company_diagnostic_
-    service.py`, plus ONE new on-demand AI call (`ai_service.generate_
-    company_diagnostic_narrative`) for the thesis/noise-vs-reality/action-
-    plan narrative fields.
-
-    Premium-only, same reasoning as /nif-dashboard: this endpoint is called
-    in parallel with /quick-analysis for the same search, and gating it
-    behind Premium (rather than the free-tier weekly-search counter) avoids
-    decrementing that counter twice for what the user experiences as one
-    search action.
-
-    Cached per (ticker, lang) for up to 90 days, same earnings-period
-    freshness re-check as /quick-analysis and /nif-dashboard — this is a
-    genuinely on-demand endpoint, never called from the weekly full-universe
-    screener refresh (see company_diagnostic_service.py's own docstring for
-    the cost reasoning)."""
-    from app.api.routes.chat import _is_premium
-    profile = await _get_user_profile_safe(user_id)
-    if profile is None:
-        raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
-    if not _is_premium(profile):
-        raise HTTPException(status_code=403, detail={
-            "code": "premium_required",
-            "message": "La Ficha de Diagnóstico Nuvos AI es exclusiva para Premium.",
-        })
-
+async def _company_diagnostic_result(query: str, lang: str | None, user_id: str | None) -> dict:
+    """Shared core for company_diagnostic (authenticated) and
+    company_diagnostic_public (guest) — identical real data for both, only
+    the caller's weekly-allowance check and thesis-logging differ."""
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Escribe un ticker o nombre de empresa")
 
     if lang not in ("es", "en"):
-        lang = getattr(profile, "preferred_language", None) or "es"
+        lang = lang or "es"
 
     ticker = await asyncio.to_thread(_resolve_quick_ticker, query)
     if not ticker:
@@ -2055,6 +2073,65 @@ async def company_diagnostic(query: str, lang: str | None = None, user_id: str =
 
     diagnostic["_earnings_period"] = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
     cache_set(cache_key, diagnostic, _COMPANY_DIAGNOSTIC_CACHE_TTL)
+    return diagnostic
+
+
+@router.get("/company-diagnostic")
+async def company_diagnostic(query: str, lang: str | None = None, user_id: str = Depends(get_current_user_id)):
+    """CompanyDiagnosticCard's real-data backing (see /Users/diegoarria/
+    .claude/plans/cosmic-munching-crown.md) — real deterministic scores/
+    badges/moat-points/competitor-comparison from `company_diagnostic_
+    service.py`, plus ONE new on-demand AI call (`ai_service.generate_
+    company_diagnostic_narrative`) for the thesis/noise-vs-reality/action-
+    plan narrative fields.
+
+    Free/guest users get the identical real diagnostic Premium sees, for
+    their first _FREE_VI_SEARCH_LIMIT searches each week (Diego, 2026-08-19:
+    "vamos a asustar a todos los usuarios si no mostramos valor" — a flat
+    Premium-only 403 showed nothing but an upsell card even on searches well
+    within the free weekly allowance). This endpoint is called in parallel
+    with /quick-analysis for the same search action; quick_analysis is the
+    one that actually increments the weekly counter, so this only performs a
+    READ-ONLY check (_vi_search_limit_already_exceeded) to avoid double-
+    charging the same search.
+
+    Cached per (ticker, lang) for up to 90 days, same earnings-period
+    freshness re-check as /quick-analysis and /nif-dashboard — this is a
+    genuinely on-demand endpoint, never called from the weekly full-universe
+    screener refresh (see company_diagnostic_service.py's own docstring for
+    the cost reasoning)."""
+    from app.api.routes.chat import _is_premium
+    profile = await _get_user_profile_safe(user_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
+    if not _is_premium(profile) and _vi_search_limit_already_exceeded(profile):
+        raise HTTPException(status_code=403, detail={
+            "code": "premium_required",
+            "message": "La Ficha de Diagnóstico Nuvos AI es exclusiva para Premium.",
+        })
+
+    if lang not in ("es", "en"):
+        lang = getattr(profile, "preferred_language", None) or "es"
+
+    diagnostic = await _company_diagnostic_result(query, lang, user_id)
+    return diagnostic
+
+
+@router.get("/company-diagnostic/public")
+@limiter.limit("20/minute")
+async def company_diagnostic_public(request: Request, query: str, guest_id: str = Query(..., min_length=1), lang: str | None = None):
+    """Guest (no account) equivalent of company_diagnostic — same real data,
+    same cache, gated by the same read-only weekly-allowance check keyed by
+    an anonymous client-generated guest_id (see _guest_vi_search_limit_
+    already_exceeded / quick_analysis_public for the identical pattern)."""
+    if _guest_vi_search_limit_already_exceeded(guest_id):
+        raise HTTPException(status_code=403, detail={
+            "code": "premium_required",
+            "message": "La Ficha de Diagnóstico Nuvos AI es exclusiva para Premium.",
+        })
+    if lang not in ("es", "en"):
+        lang = "es"
+    diagnostic = await _company_diagnostic_result(query, lang, None)
     return diagnostic
 
 
