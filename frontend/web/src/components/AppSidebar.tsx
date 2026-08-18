@@ -299,12 +299,12 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
           <div className="px-2 pb-1.5 shrink-0">
             <div className="rounded-xl p-2.5 space-y-1.5" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
               <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Nuvos AI</p>
-              <button onClick={() => navigate("/")}
+              <button onClick={() => navigate("/?auth=1")}
                       className="w-full py-1.5 rounded-lg text-[11px] font-bold text-white"
                       style={{ background: "var(--accent)" }}>
                 {t("common.login")}
               </button>
-              <button onClick={() => navigate("/?mode=register")}
+              <button onClick={() => navigate("/?auth=1&mode=register")}
                       className="w-full py-1.5 rounded-lg text-[11px] font-semibold border"
                       style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
                 {t("common.createAccount")}

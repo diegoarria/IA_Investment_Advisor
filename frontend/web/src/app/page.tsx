@@ -54,7 +54,12 @@ function HomeContent() {
   // QUE LOS USUARIOS QUE NO NOS CONOCEN... PUEDAN VER TODO EL VALOR").
   const searchParams = useSearchParams();
   const wantsAuthForm = searchParams.get("auth") === "1";
-  const [mode, setMode]             = useState<"login" | "register" | "forgot">("login");
+  // AppSidebar's guest CTA links to /?auth=1&mode=register for "Crear
+  // cuenta" — was already a no-op before (this page never read a `mode`
+  // param at all), now made real.
+  const [mode, setMode]             = useState<"login" | "register" | "forgot">(
+    () => (searchParams.get("mode") === "register" ? "register" : "login")
+  );
   const [email, setEmail]           = useState("");
   const [password, setPassword]     = useState("");
   const [showPass, setShowPass]     = useState(false);
