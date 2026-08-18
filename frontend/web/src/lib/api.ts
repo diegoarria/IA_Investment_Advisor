@@ -28,15 +28,30 @@ api.interceptors.response.use(
     const status = error.response?.status;
     if (status !== 401 || original._retry) return Promise.reject(error);
 
-    // A true guest ("Explorar sin cuenta") gets an expected 401 on every
-    // authenticated call any page happens to fire (e.g.
-    // SubscriptionStatusProvider's fetchStatus on mount) — there was never a
-    // session to refresh or expire. Without this check, that ordinary 401
-    // fell through to the "refresh failed -> force logout" branch below,
-    // which calls clearAuth() and wipes the nuvos_guest flag — kicking every
-    // guest out of guest mode within moments of landing on any page.
+    // Only chase a refresh (and the forced-logout fallback below) when the
+    // app actually believed it had a session — i.e. useAuthStore's
+    // persisted userId is set. A true guest, or the very first probe request
+    // that decides whether to enter guest mode (profileApi.get() on "/",
+    // SubscriptionStatusProvider's fetchStatus on mount), never had one, so
+    // this 401 is expected, not an expiring session.
+    //
+    // This used to be a raw `nuvos_guest === "1"` localStorage check instead,
+    // which lost a real race: entering guest mode (enterGuestMode()) itself
+    // calls clearAuth() and only sets nuvos_guest AFTER it resolves — but
+    // clearAuth() awaits several network calls (portfolio flush, logout,
+    // Supabase signOut), the same slow work this interceptor's own
+    // fire-and-forget clearAuth() call below does for the 401 that triggered
+    // guest mode in the first place. Whichever finished last would win, and
+    // the interceptor's call frequently finished after nuvos_guest was
+    // already set, wiping it right back out — guests were being silently
+    // kicked out of guest mode within moments of landing on any page.
+    // Gating on whether a session was ever believed to exist sidesteps the
+    // race instead of trying to win it: a real guest's userId is never set,
+    // so this branch is skipped every time, and clearAuth() is never called
+    // from here at all in that case.
     try {
-      if (typeof window !== "undefined" && localStorage.getItem("nuvos_guest") === "1") {
+      const { useAuthStore } = await import("./store");
+      if (!useAuthStore.getState().userId) {
         return Promise.reject(error);
       }
     } catch {}
