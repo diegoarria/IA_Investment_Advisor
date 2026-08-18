@@ -282,7 +282,7 @@ export default function SubvaluadasScreen() {
             <View style={{ borderRadius: 16, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, paddingVertical: 40, alignItems: "center" }}>
               <ActivityIndicator size="large" color={GOLD} />
             </View>
-          ) : companyDiagnosticError?.status === 403 ? (
+          ) : (!isPremium || companyDiagnosticError?.status === 403) ? (
             <View style={{ borderRadius: 16, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, padding: 16, flexDirection: "row", gap: 10 }}>
               <Ionicons name="lock-closed-outline" size={18} color={GOLD} />
               <View style={{ flex: 1 }}>

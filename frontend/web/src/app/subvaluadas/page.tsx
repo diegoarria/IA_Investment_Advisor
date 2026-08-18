@@ -406,7 +406,7 @@ function SubvaluadasPageInner() {
                         <Loader2 className="w-6 h-6 animate-spin" style={{ color: GOLD }} />
                       </div>
                     </Card>
-                  ) : companyDiagnosticError?.status === 403 ? (
+                  ) : (!isPremium || companyDiagnosticError?.status === 403) ? (
                     <Card padding="p-6">
                       <div className="flex items-start gap-3">
                         <Lock className="w-5 h-5 shrink-0 mt-0.5" style={{ color: GOLD }} />
