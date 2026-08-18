@@ -272,10 +272,16 @@ export default function HomePage() {
     setLoading(true);
     try {
       const tickers = positions.map((p) => p.ticker);
+      // A guest has no session cookie at all, so every one of these except
+      // indices would just 401 — indices alone has a real no-auth twin
+      // (market data is public info, not user data) so guests still see
+      // something real and live instead of an empty "Mercados en vivo"
+      // section (Diego: "esa pantalla de Inicio realmente no muestra nada").
+      const guest = typeof window !== "undefined" && localStorage.getItem("nuvos_guest") === "1";
       const [priceRes, idxRes, notifRes] = await Promise.allSettled([
         tickers.length ? marketApi.getPrices(tickers) : Promise.resolve({ data: {} }),
-        marketApi.getIndices(),
-        notifApi.getAll(),
+        guest ? marketApi.getIndicesPublic() : marketApi.getIndices(),
+        guest ? Promise.resolve({ data: {} }) : notifApi.getAll(),
       ]);
       if (priceRes.status === "fulfilled")  setPrices(priceRes.value.data ?? {});
       if (idxRes.status  === "fulfilled") { setIndices(idxRes.value.data ?? []); setLastRefresh(new Date()); }

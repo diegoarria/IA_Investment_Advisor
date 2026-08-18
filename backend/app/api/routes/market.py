@@ -276,6 +276,21 @@ async def get_indices(request: Request, user_id: str = Depends(get_current_user_
     return data
 
 
+@router.get("/indices/public")
+@limiter.limit("30/minute")
+async def get_indices_public(request: Request):
+    """Same real index data as /indices, deliberately with no auth
+    dependency — market indices are public information, not user data.
+    Powers the Home screen's "Mercados en vivo" section for guests browsing
+    without an account (Diego: "esa pantalla de Inicio realmente no muestra
+    nada" — every other section there needs a real user_id and 401s for a
+    guest, so this was the one section that could show real, live, honest
+    data instead of an empty state or fabricated numbers)."""
+    import asyncio
+    data = await asyncio.to_thread(_fetch_indices)
+    return data
+
+
 @router.get("/index-news")
 async def get_index_news(
     symbol: str = Query(..., description="Index symbol, e.g. ^GSPC"),

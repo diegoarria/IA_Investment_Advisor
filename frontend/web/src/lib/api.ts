@@ -166,6 +166,10 @@ export const chat = {
 export const market = {
   getSummary: () => api.get("/api/market/summary"),
   getIndices: () => api.get("/api/market/indices"),
+  // No-auth counterpart of getIndices — real index data (public info),
+  // used on Home for guests browsing without a session (see the backend
+  // route's own docstring).
+  getIndicesPublic: () => api.get("/api/market/indices/public"),
   getAsset: (symbol: string) => api.get(`/api/market/asset/${symbol}`),
   getPrices: (symbols: string[]) => api.post("/api/market/prices", { symbols }),
   analyzePortfolio: (positions: { ticker: string; shares: number; avg_price: number; name?: string; current_price?: number }[]) =>
