@@ -1156,10 +1156,15 @@
       "peGaapLabel": "Current P/E (GAAP):",
       "peNormalizedLabel": "P/E on normalized earnings:",
       "earningsStateLabel": {
-        "normal": "Normal", "elevated": "Elevated", "depressed": "Depressed",
-        "cyclical_peak": "Cycle peak", "cyclical_trough": "Cycle trough",
-        "recovery": "Recovering", "structurally_impaired": "Structural impairment",
-        "structurally_elevated": "Structural improvement", "structurally_depressed": "Structural impairment (earnings)"
+        "normal": "Normal",
+        "elevated": "Elevated",
+        "depressed": "Depressed",
+        "cyclical_peak": "Cycle peak",
+        "cyclical_trough": "Cycle trough",
+        "recovery": "Recovering",
+        "structurally_impaired": "Structural impairment",
+        "structurally_elevated": "Structural improvement",
+        "structurally_depressed": "Structural impairment (earnings)"
       }
     },
     "financialReverseValuation": {
@@ -1926,7 +1931,12 @@
     },
     "cash": {
       "title": "Cash available to invest",
-      "instrument": { "cetes": "CETES", "bank": "Bank", "bonds": "Bonds", "other": "Other" },
+      "instrument": {
+        "cetes": "CETES",
+        "bank": "Bank",
+        "bonds": "Bonds",
+        "other": "Other"
+      },
       "annualRate": "% annual",
       "amountPlaceholder": "Amount ({{currency}})",
       "notePlaceholder": "Note (optional)",
@@ -2620,7 +2630,8 @@
     "loading": "Generating...",
     "stop": "Stop",
     "paywallReason": "Explain this",
-    "dismiss": "Close"
+    "dismiss": "Close",
+    "error": "Couldn't generate the explanation. Try again."
   },
   "premiumToolLocked": {
     "unlockCta": "Unlock with Premium"

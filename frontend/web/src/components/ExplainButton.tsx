@@ -58,6 +58,7 @@ export default function ExplainButton({
 
   const [state, setState] = useState<"idle" | "loading" | "playing">("idle");
   const [text, setText] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
@@ -80,6 +81,7 @@ export default function ExplainButton({
     if (state === "playing") { stop(); return; }
 
     const cacheKey = `nuvos_explain:${screen}:${i18n.language}:${hashContext(context)}`;
+    setErrorMsg(null);
     const playAudio = async (b64: string) => {
       const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
       const blob = new Blob([bytes], { type: "audio/mpeg" });
@@ -110,7 +112,13 @@ export default function ExplainButton({
       if (!res.data?.audio) { setState("idle"); return; }
       await playAudio(res.data.audio);
     } catch {
+      // Was a silent revert to idle with zero feedback — a Premium user
+      // tapping this and getting nothing back couldn't tell "I tapped
+      // wrong" from "the paid feature just failed" (same fix already
+      // shipped on mobile's ExplainButton — this brings web to parity).
       setState("idle");
+      setErrorMsg(t("explainButton.error"));
+      setTimeout(() => setErrorMsg((cur) => (cur === null ? cur : null)), 4000);
     }
   };
 
@@ -155,12 +163,12 @@ export default function ExplainButton({
             <X className="w-3 h-3" />
           </button>
 
-          {text && state !== "idle" && (
+          {(errorMsg || (text && state !== "idle")) && (
             <div
               className="absolute z-20 bottom-full right-0 mb-2 w-64 rounded-xl p-3 text-xs leading-relaxed shadow-lg"
-              style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--sub)" }}
+              style={{ background: "var(--card)", border: `1px solid ${errorMsg ? "#ef4444" : "var(--border)"}`, color: errorMsg ? "#ef4444" : "var(--sub)" }}
             >
-              {text}
+              {errorMsg || text}
             </div>
           )}
         </div>

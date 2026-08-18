@@ -285,6 +285,25 @@ function WatchlistTab({ prices, loading }: { prices: PriceMap; loading: boolean 
 
   return (
     <div className="space-y-4">
+      {/* Was missing here — ExplainButton previously only rendered inside
+          PortfolioTab, so it silently disappeared on this sub-tab entirely
+          (Diego: "quiero que verifiquen que... funcionen SIEMPRE en todas
+          las pantallas"). Same pattern as PortfolioTab, own tab-appropriate
+          context instead of reusing portfolio totals that don't apply here. */}
+      <div className="flex justify-end">
+        <ExplainButton
+          screen="patrimonio"
+          context={{
+            watchlist_count: items.length,
+            watchlist: items.slice(0, 15).map((item) => ({
+              ticker: item.ticker,
+              name: item.name,
+              price: prices[item.ticker]?.price ?? null,
+              change_pct: prices[item.ticker]?.change_pct ?? null,
+            })),
+          }}
+        />
+      </div>
       <div
         className="rounded-xl border overflow-hidden"
         style={{ background: "var(--card)", borderColor: "var(--border)" }}
@@ -368,6 +387,20 @@ function SimuladorTab({ prices, loading }: { prices: PriceMap; loading: boolean 
 
   return (
     <div className="space-y-4">
+      {/* Was missing here too — see WatchlistTab's comment above. */}
+      <div className="flex justify-end">
+        <ExplainButton
+          screen="patrimonio"
+          context={{
+            paper_trading: true,
+            total_value: totalValue,
+            cash: cash,
+            gain_vs_initial: gain,
+            gain_vs_initial_pct: (gain / PAPER_INITIAL_CASH) * 100,
+            position_count: positions.length,
+          }}
+        />
+      </div>
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-3">
         <SummaryCard label={t("patrimonio.simulator.totalValueLabel")} value={fmtMoney(totalValue)} />

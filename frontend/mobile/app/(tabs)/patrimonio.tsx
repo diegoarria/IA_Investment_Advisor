@@ -266,6 +266,7 @@ function WatchlistTab({ prices, loading, colors }: { prices: PriceMap; loading: 
   const { items } = useWatchlistStore();
 
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 12 }}>
       <View style={[ss.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={[ss.cardHeader, { borderBottomColor: colors.border }]}>
@@ -322,6 +323,24 @@ function WatchlistTab({ prices, loading, colors }: { prices: PriceMap; loading: 
         <Text style={ss.btnText}>{t("patrimonio.watchlistTab.viewFull")}</Text>
       </TouchableOpacity>
     </ScrollView>
+
+    {/* Was missing here — ExplainButton previously only rendered inside
+        PortafolioTab, so it silently disappeared on this sub-tab entirely
+        (Diego: "verifica que... funcionen SIEMPRE en todas las pantallas"). */}
+    <ExplainButton
+      screen="patrimonio"
+      context={{
+        watchlist_count: items.length,
+        watchlist: items.slice(0, 15).map((item) => ({
+          ticker: item.ticker,
+          name: item.name,
+          price: prices[item.ticker]?.price ?? null,
+          change_pct: prices[item.ticker]?.change_pct ?? null,
+        })),
+      }}
+      bottomOffset={12}
+    />
+    </View>
   );
 }
 
@@ -341,6 +360,7 @@ function SimuladorTab({ prices, loading, colors }: { prices: PriceMap; loading: 
   const gainPct = (gain / PAPER_INITIAL_CASH) * 100;
 
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 12 }}>
       {/* Summary Row */}
       <View style={{ flexDirection: "row", gap: 8 }}>
@@ -424,6 +444,21 @@ function SimuladorTab({ prices, loading, colors }: { prices: PriceMap; loading: 
         <Text style={ss.btnText}>Abrir simulador →</Text>
       </TouchableOpacity>
     </ScrollView>
+
+    {/* Was missing here too — see WatchlistTab's comment above. */}
+    <ExplainButton
+      screen="patrimonio"
+      context={{
+        paper_trading: true,
+        total_value: totalValue,
+        cash: cash,
+        gain_vs_initial: gain,
+        gain_vs_initial_pct: gainPct,
+        position_count: positions.length,
+      }}
+      bottomOffset={12}
+    />
+    </View>
   );
 }
 

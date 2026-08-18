@@ -133,7 +133,7 @@ export default function ExplainButton({
       // user tapping "Explícame esto" and getting nothing back couldn't tell
       // "I tapped wrong" from "the paid feature just failed."
       setState("idle");
-      setErrorMsg(t("explainButton.error", "No se pudo generar la explicación. Intenta de nuevo."));
+      setErrorMsg(t("explainButton.error"));
       setTimeout(() => setErrorMsg((cur) => (cur === null ? cur : null)), 4000);
     }
   };

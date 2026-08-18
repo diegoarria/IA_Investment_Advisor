@@ -1156,10 +1156,15 @@
       "peGaapLabel": "P/E actual (GAAP):",
       "peNormalizedLabel": "P/E sobre ganancias normalizadas:",
       "earningsStateLabel": {
-        "normal": "Normal", "elevated": "Elevadas", "depressed": "Deprimidas",
-        "cyclical_peak": "Pico de ciclo", "cyclical_trough": "Valle de ciclo",
-        "recovery": "En recuperación", "structurally_impaired": "Deterioro estructural",
-        "structurally_elevated": "Mejora estructural", "structurally_depressed": "Deterioro estructural (ganancias)"
+        "normal": "Normal",
+        "elevated": "Elevadas",
+        "depressed": "Deprimidas",
+        "cyclical_peak": "Pico de ciclo",
+        "cyclical_trough": "Valle de ciclo",
+        "recovery": "En recuperación",
+        "structurally_impaired": "Deterioro estructural",
+        "structurally_elevated": "Mejora estructural",
+        "structurally_depressed": "Deterioro estructural (ganancias)"
       }
     },
     "financialReverseValuation": {
@@ -1926,7 +1931,12 @@
     },
     "cash": {
       "title": "Efectivo disponible para invertir",
-      "instrument": { "cetes": "CETES", "bank": "Banco", "bonds": "Bonos", "other": "Otro" },
+      "instrument": {
+        "cetes": "CETES",
+        "bank": "Banco",
+        "bonds": "Bonos",
+        "other": "Otro"
+      },
       "annualRate": "% anual",
       "amountPlaceholder": "Monto ({{currency}})",
       "notePlaceholder": "Nota (opcional)",
@@ -2620,7 +2630,8 @@
     "loading": "Generando...",
     "stop": "Detener",
     "paywallReason": "Explícame esto",
-    "dismiss": "Cerrar"
+    "dismiss": "Cerrar",
+    "error": "No se pudo generar la explicación. Intenta de nuevo."
   },
   "premiumToolLocked": {
     "unlockCta": "Desbloquear con Premium"
