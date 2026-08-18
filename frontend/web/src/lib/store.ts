@@ -1238,3 +1238,33 @@ export function isGuestUser(): boolean {
   if (typeof window === "undefined") return false;
   try { return localStorage.getItem("nuvos_guest") === "1"; } catch { return false; }
 }
+
+// The one real entry point into guest mode — both "Explorar sin cuenta" and
+// the automatic redirect on "/" for anyone without a session call this
+// instead of just setting the nuvos_guest flag directly.
+//
+// Portfolio/watchlist persist under `${key}__${uid}`, uid = the current
+// userId or else the literal string "guest" (see userStorage above) —
+// setting the guest flag alone left that uid resolution untouched, so
+// clicking "Explorar sin cuenta" *while still holding a real session*
+// (Diego testing it himself, or anyone on a device where he stayed logged
+// in) rendered his actual portfolio and watchlist straight from
+// localStorage, no server call involved (Diego: "ese es mío, no quiero que
+// nadie pueda verlo o tener acceso"). clearAuth() forces uid back to
+// "guest" (and ends the real session server-side — correct, since you
+// can't genuinely be "browsing without an account" while still holding a
+// valid one), and the two stores are wiped to their pristine empty shape
+// on top of that as a second guarantee, independent of whatever a past
+// "guest" bucket might already contain.
+export async function enterGuestMode(): Promise<void> {
+  await useAuthStore.getState().clearAuth();
+  try {
+    localStorage.setItem("nuvos_ob", "1");
+    localStorage.setItem("nuvos_guest", "1");
+  } catch { /* ignore */ }
+  useWatchlistStore.setState({ items: [] });
+  try {
+    const { usePortfolioStore } = await import("./portfolioStore");
+    usePortfolioStore.getState().resetForGuest();
+  } catch { /* ignore */ }
+}

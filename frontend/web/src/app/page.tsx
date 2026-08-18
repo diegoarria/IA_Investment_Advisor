@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { auth, profile as profileApi, referral as referralApi } from "@/lib/api";
 import { getSupabaseClient } from "@/lib/supabase";
-import { useAuthStore, useProfileStore, useLanguageStore } from "@/lib/store";
+import { useAuthStore, useProfileStore, useLanguageStore, enterGuestMode } from "@/lib/store";
 import { Eye, EyeOff, ArrowRight, User } from "lucide-react";
 
 function getPillars(t: TFunction) {
@@ -136,11 +136,7 @@ function HomeContent() {
         // no portfolio, no positions, nothing personal to already feel like
         // the real product.
         if (!wantsAuthForm) {
-          try {
-            localStorage.setItem("nuvos_ob", "1");
-            localStorage.setItem("nuvos_guest", "1");
-          } catch { /* ignore */ }
-          router.replace("/chat");
+          enterGuestMode().finally(() => router.replace("/chat"));
           return;
         }
         setChecking(false);
@@ -660,7 +656,7 @@ function HomeContent() {
                       style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: "var(--muted)" }}>
                 {t("landing.viewDemoAccount")}
               </button>
-              <button onClick={() => { localStorage.setItem("nuvos_ob", "1"); localStorage.setItem("nuvos_guest", "1"); router.push("/chat"); }}
+              <button onClick={() => enterGuestMode().finally(() => router.push("/chat"))}
                       className="text-xs py-2.5 rounded-xl text-center transition-all hover:opacity-80"
                       style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: "var(--muted)" }}>
                 {t("landing.exploreWithoutAccount")}

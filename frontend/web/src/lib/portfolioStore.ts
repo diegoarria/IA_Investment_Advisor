@@ -78,6 +78,14 @@ interface PortfolioStore {
   mergeTickerPosition: (ticker: string, totalShares: number, avgPrice: number, purchaseDate?: string) => Promise<void>;
   setPositions: (positions: Omit<Position, "id">[]) => void;
   clearPortfolio: () => void;
+  // Full wipe back to the pristine default shape — unlike clearPortfolio()
+  // (which only empties the ACTIVE portfolio's positions, leaving any other
+  // named portfolios in the list untouched), this drops every portfolio
+  // back to a single empty "Mi portafolio". Used only when entering guest
+  // mode, so a real account's data can never surface there even briefly —
+  // see the storage layer's own `${key}__${uid}` comment for why that was
+  // otherwise possible.
+  resetForGuest: () => void;
   retrySync: () => void;
   loadFromServer: () => Promise<void>;
   // Resolves once every push() currently queued/in-flight has landed (or
@@ -347,6 +355,18 @@ export const usePortfolioStore = create<PortfolioStore>()(
         },
 
         clearPortfolio: () => updateActive([]),
+
+        resetForGuest: () => set({
+          portfolios: [DEFAULT_PORTFOLIO],
+          activePortfolioId: "default",
+          positions: [],
+          closedPositions: [],
+          inceptionDate: null,
+          portfolioCurrency: "USD",
+          syncStatus: "idle",
+          pendingSync: false,
+          pendingSyncSetAt: null,
+        }),
 
         retrySync: () => {
           const active = getActive();
