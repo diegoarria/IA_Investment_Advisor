@@ -130,13 +130,17 @@ function HomeContent() {
         // into guest exploration instead of showing the login form, unless
         // ?auth=1 explicitly asked for it (see the comment on wantsAuthForm
         // above). Mirrors exactly what the "Explorar sin cuenta" button
-        // below already sets.
+        // below already sets. Chat with Arthur, not Home, is deliberately
+        // the first screen a stranger ever sees (Diego: "es la primera
+        // pantalla que quiero que vean") — it's the one screen that needs
+        // no portfolio, no positions, nothing personal to already feel like
+        // the real product.
         if (!wantsAuthForm) {
           try {
             localStorage.setItem("nuvos_ob", "1");
             localStorage.setItem("nuvos_guest", "1");
           } catch { /* ignore */ }
-          router.replace("/home");
+          router.replace("/chat");
           return;
         }
         setChecking(false);
@@ -656,7 +660,7 @@ function HomeContent() {
                       style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: "var(--muted)" }}>
                 {t("landing.viewDemoAccount")}
               </button>
-              <button onClick={() => { localStorage.setItem("nuvos_ob", "1"); localStorage.setItem("nuvos_guest", "1"); router.push("/home"); }}
+              <button onClick={() => { localStorage.setItem("nuvos_ob", "1"); localStorage.setItem("nuvos_guest", "1"); router.push("/chat"); }}
                       className="text-xs py-2.5 rounded-xl text-center transition-all hover:opacity-80"
                       style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: "var(--muted)" }}>
                 {t("landing.exploreWithoutAccount")}

@@ -1166,43 +1166,70 @@ export const useBalanceVisibilityStore = create<BalanceVisibilityState>()(
   )
 );
 
-// ─── Guest action gate ──────────────────────────────────────────────────────
-// Diego: guests can browse freely, and get exactly 1 free action on
-// whichever feature they try — the 2nd action attempt of ANY kind (not
-// necessarily the same feature) blocks and shows the signup flashcard
-// instead of completing the action. `actionCount` alone is persisted
-// (survives a reload so a guest can't dodge the gate by refreshing) —
-// `flashcardOpen` is deliberately NOT persisted, so a reload never reopens
-// the modal on its own.
+// ─── Guest signup nag ───────────────────────────────────────────────────────
+// Diego: guests browse completely freely (no action is ever blocked) —
+// instead, the signup flashcard surfaces on its own every 2 minutes of
+// being in the app. Accept it and it's done (they're headed to signup).
+// Reject/dismiss it and it comes back 2 minutes later, up to 5 times in one
+// calendar day; reject the 5th and it goes quiet until a different day.
+// `promptsShownToday`/`lastPromptDate` are persisted (survives a reload)
+// — `flashcardOpen` is deliberately NOT, so a reload never reopens the
+// modal on its own; the mount effect in GuestSignupFlashcard restarts its
+// own 2-minute countdown for that fresh session instead.
+export const GUEST_PROMPT_INTERVAL_MS = 2 * 60 * 1000;
+const GUEST_PROMPT_DAILY_LIMIT = 5;
+
+function localDateStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 interface GuestGateState {
-  actionCount: number;
+  promptsShownToday: number;
+  lastPromptDate: string;
   flashcardOpen: boolean;
-  // Call before performing a guest-gated action. Returns true if the action
-  // should proceed; false means it was blocked and the flashcard opened —
-  // the caller must not perform the action in that case.
-  registerGuestAction: () => boolean;
-  closeFlashcard: () => void;
+  // Called by the 2-minute timer. No-ops once today's 5-prompt cap is hit.
+  showFlashcard: () => void;
+  // User rejected/closed it — counts toward today's cap, and if still under
+  // the cap, schedules the next attempt 2 minutes from now.
+  dismissFlashcard: () => void;
+  // User accepted (clicked through to signup) — just closes, no reschedule
+  // and doesn't count toward the cap (there's no "again" if they said yes).
+  acceptFlashcard: () => void;
 }
 
 export const useGuestGateStore = create<GuestGateState>()(
   persist(
     (set, get) => ({
-      actionCount: 0,
+      promptsShownToday: 0,
+      lastPromptDate: "",
       flashcardOpen: false,
-      registerGuestAction: () => {
-        const next = get().actionCount + 1;
-        set({ actionCount: next });
-        if (next >= 2) {
-          set({ flashcardOpen: true });
-          return false;
-        }
-        return true;
+      showFlashcard: () => {
+        // Guards here too, not just at the call site — a reschedule timer
+        // from a prior dismissFlashcard() can still be pending in the
+        // background if the guest logs in before it fires; it must not
+        // pop this open for what's now a real authenticated user.
+        try { if (localStorage.getItem("nuvos_guest") !== "1") return; } catch { return; }
+        const today = localDateStr();
+        const s = get();
+        const promptsToday = s.lastPromptDate === today ? s.promptsShownToday : 0;
+        if (promptsToday >= GUEST_PROMPT_DAILY_LIMIT) return;
+        set({ flashcardOpen: true });
       },
-      closeFlashcard: () => set({ flashcardOpen: false }),
+      dismissFlashcard: () => {
+        const today = localDateStr();
+        const s = get();
+        const promptsToday = (s.lastPromptDate === today ? s.promptsShownToday : 0) + 1;
+        set({ flashcardOpen: false, lastPromptDate: today, promptsShownToday: promptsToday });
+        if (promptsToday < GUEST_PROMPT_DAILY_LIMIT) {
+          setTimeout(() => get().showFlashcard(), GUEST_PROMPT_INTERVAL_MS);
+        }
+      },
+      acceptFlashcard: () => set({ flashcardOpen: false }),
     }),
     {
       name: "guest-gate-store",
-      partialize: (state) => ({ actionCount: state.actionCount }),
+      partialize: (state) => ({ promptsShownToday: state.promptsShownToday, lastPromptDate: state.lastPromptDate }),
     }
   )
 );

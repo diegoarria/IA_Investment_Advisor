@@ -28,7 +28,7 @@ import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 import { Card } from "@/components/ui/Card";
 import { resolveValuationPanelMode } from "@/lib/valuationPanelMode";
 import { screenerApi, watchlist } from "@/lib/api";
-import { useSubscriptionStore, useThemeStore, useGuestGateStore, isGuestUser } from "@/lib/store";
+import { useSubscriptionStore, useThemeStore } from "@/lib/store";
 
 export interface QuickAnalysisResult {
   ticker: string;
@@ -270,7 +270,6 @@ function SubvaluadasPageInner() {
 
   const handleSearch = () => {
     if (!query.trim()) return;
-    if (isGuestUser() && !useGuestGateStore.getState().registerGuestAction()) return;
     setWatchlisted(false);
     setSearchTriggered(true);
     // Was `.toUpperCase()` — silently broke every company-name search.

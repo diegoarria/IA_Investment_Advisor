@@ -1,24 +1,37 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { X, ArrowRight, Brain, Bell, Zap } from "lucide-react";
-import { useGuestGateStore } from "@/lib/store";
+import { useGuestGateStore, isGuestUser, GUEST_PROMPT_INTERVAL_MS } from "@/lib/store";
 
-// Shown to a guest the moment their 2nd action attempt (of any kind) gets
-// blocked by useGuestGateStore.registerGuestAction() — see that store's own
-// comment for the exact 1-free-action rule. Design approved by Diego as-is
-// from a preview artifact before implementation; ported 1:1 (same copy,
-// gradient, orbs, icon cluster) rather than re-interpreted.
+// Surfaces on its own every 2 minutes a guest spends in the app — accept it
+// and it's done, reject/close it and it comes back 2 minutes later, up to 5
+// times a day (see useGuestGateStore's own comment for the exact rule).
+// Nothing is ever blocked to force this open; it's a standalone nag, not a
+// gate. Design approved by Diego as-is from a preview artifact before
+// implementation; ported 1:1 (same copy, gradient, orbs, icon cluster)
+// rather than re-interpreted.
 export default function GuestSignupFlashcard() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { flashcardOpen, closeFlashcard } = useGuestGateStore();
+  const { flashcardOpen, dismissFlashcard, acceptFlashcard, showFlashcard } = useGuestGateStore();
+
+  // Kicks off the very first prompt of this session — every prompt after
+  // that reschedules itself from dismissFlashcard(). Only guests get this
+  // timer at all; a real logged-in user never sees this component fire.
+  useEffect(() => {
+    if (!isGuestUser()) return;
+    const id = setTimeout(() => showFlashcard(), GUEST_PROMPT_INTERVAL_MS);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!flashcardOpen) return null;
 
   const goToAuth = () => {
-    closeFlashcard();
+    acceptFlashcard();
     router.push("/?auth=1");
   };
 
@@ -36,7 +49,7 @@ export default function GuestSignupFlashcard() {
         backdropFilter: "blur(6px) saturate(1.1)",
         WebkitBackdropFilter: "blur(6px) saturate(1.1)",
       }}
-      onClick={closeFlashcard}
+      onClick={dismissFlashcard}
     >
       <div
         className="relative w-full max-w-[400px] rounded-[28px] p-[2px] animate-fade-in-up"
@@ -57,7 +70,7 @@ export default function GuestSignupFlashcard() {
                style={{ width: 200, height: 200, bottom: -110, left: -80, background: "radial-gradient(circle, rgba(167,139,250,0.20) 0%, transparent 70%)" }} />
 
           <button
-            onClick={closeFlashcard}
+            onClick={dismissFlashcard}
             aria-label={t("guestGate.close")}
             className="absolute top-4 right-4 z-[2] w-[30px] h-[30px] rounded-full flex items-center justify-center transition-opacity hover:opacity-70"
             style={{ background: "rgba(127,127,127,0.08)", border: "1px solid var(--border)", color: "var(--muted)" }}

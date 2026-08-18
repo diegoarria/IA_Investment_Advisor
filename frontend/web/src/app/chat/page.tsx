@@ -10,7 +10,6 @@ import { chat as chatApi, notifications as notifApi, decisionsApi } from "@/lib/
 import {
   useAuthStore, useProfileStore, useChatStore, useNotificationStore,
   useThemeStore, useLanguageStore, useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT,
-  useGuestGateStore, isGuestUser,
 } from "@/lib/store";
 import { getMentorInfo } from "@/lib/mentorData";
 import { usePortfolioStore } from "@/lib/portfolioStore";
@@ -618,7 +617,6 @@ export default function ChatPage() {
     if ((!msg && pendingImages.length === 0) || isStreaming) return;
 
     if (remaining === 0) { setPaywallReason(undefined); setPaywallOpen(true); return; }
-    if (isGuestUser() && !useGuestGateStore.getState().registerGuestAction()) return;
 
     const imagesToSend = [...pendingImages];
     setInput("");
