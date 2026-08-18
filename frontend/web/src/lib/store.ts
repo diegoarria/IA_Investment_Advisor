@@ -1244,6 +1244,26 @@ export function isGuestUser(): boolean {
   try { return localStorage.getItem("nuvos_guest") === "1"; } catch { return false; }
 }
 
+// Stable, anonymous per-browser id — never a real identity, never tied to
+// an account even if the guest later registers. Backs the free-tier
+// weekly search counter on /quick-analysis/public (Oportunidades), which
+// has no user_profiles row to key a counter on the way the authenticated
+// route does. Generated once and reused for as long as this localStorage
+// entry survives.
+export function getGuestId(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    let id = localStorage.getItem("nuvos_guest_id");
+    if (!id) {
+      id = (crypto as { randomUUID?: () => string }).randomUUID?.() ?? `g-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem("nuvos_guest_id", id);
+    }
+    return id;
+  } catch {
+    return "";
+  }
+}
+
 // The one real entry point into guest mode — both "Explorar sin cuenta" and
 // the automatic redirect on "/" for anyone without a session call this
 // instead of just setting the nuvos_guest flag directly.

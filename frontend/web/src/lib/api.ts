@@ -478,6 +478,11 @@ export const screenerApi = {
     api.get("/api/market/screener/undervalued", { params: { sector, limit, lang, browse } }),
   quickAnalysis: (query: string, lang?: string, isDefaultView?: boolean) =>
     api.get("/api/market/screener/quick-analysis", { params: { query, lang, is_default_view: isDefaultView }, timeout: 25000 }),
+  // No-auth counterpart for guests (see the backend route's own docstring)
+  // — same real data, same 3/week rule, keyed by an anonymous guest_id
+  // instead of a session.
+  quickAnalysisPublic: (query: string, guestId: string, lang?: string, isDefaultView?: boolean) =>
+    api.get("/api/market/screener/quick-analysis/public", { params: { query, guest_id: guestId, lang, is_default_view: isDefaultView }, timeout: 25000 }),
   nifDashboard: (query: string, lang?: string) =>
     api.get("/api/market/screener/nif-dashboard", { params: { query, lang }, timeout: 25000 }),
   companyDiagnostic: (query: string, lang?: string) =>

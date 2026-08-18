@@ -28,7 +28,7 @@ import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 import { Card } from "@/components/ui/Card";
 import { resolveValuationPanelMode } from "@/lib/valuationPanelMode";
 import { screenerApi, watchlist } from "@/lib/api";
-import { useSubscriptionStore, useThemeStore } from "@/lib/store";
+import { useSubscriptionStore, useThemeStore, isGuestUser, getGuestId } from "@/lib/store";
 
 export interface QuickAnalysisResult {
   ticker: string;
@@ -196,7 +196,14 @@ function SubvaluadasPageInner() {
     // answer from the server (bad ticker, out of free searches) is never retried.
     const attempt = async (n: number): Promise<void> => {
       try {
-        const res = await screenerApi.quickAnalysis(ticker, i18n.language, isDefaultView);
+        // A true guest has no session at all — the authenticated route
+        // would just 401. Same real data, same 3/week rule either way,
+        // just identified by an anonymous guest_id instead (Diego:
+        // "quiero que los free y los usuarios sin cuenta puedan tener
+        // acceso a sus 3 búsquedas semanales en Oportunidades").
+        const res = isGuestUser()
+          ? await screenerApi.quickAnalysisPublic(ticker, getGuestId(), i18n.language, isDefaultView)
+          : await screenerApi.quickAnalysis(ticker, i18n.language, isDefaultView);
         if (cancelled) return;
         setData(res.data);
         setError(null);

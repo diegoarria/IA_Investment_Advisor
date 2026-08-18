@@ -5,7 +5,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from app.api.deps import get_current_user_id
 from app.services import ai_service
 from app.services import nif_service
@@ -13,6 +13,7 @@ from app.api.routes.market import _get_user_profile
 from app.core.cache import cache_get, cache_set
 from app.core.database import get_supabase, run_query
 from app.core.finnhub import fh_quote, fh_metrics, fh_search
+from app.core.limiter import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -1679,6 +1680,51 @@ async def _check_and_increment_vi_search_limit(user_id: str, profile) -> None:
     )
 
 
+# Guest (no account) equivalent of the counter above — same 3-per-7-days
+# rule, but a guest has no user_profiles row to store it on, so it lives in
+# the cache layer instead (Redis when configured, in-memory otherwise — see
+# app/core/cache.py), keyed by a client-generated anonymous id that persists
+# in the guest's browser (never a real identity, never tied to an account
+# even if they later register). Diego, 2026-08-19: "quiero que los free y
+# los usuarios sin cuenta puedan tener acceso a sus 3 búsquedas semanales
+# en Oportunidades" — quick-analysis required a real session before this,
+# so a true guest (no token at all) couldn't call it, period, no matter
+# what the free-tier copy promised.
+def _guest_vi_search_key(guest_id: str) -> str:
+    return f"guest_vi_search:{guest_id}"
+
+
+async def _check_and_increment_guest_vi_search_limit(guest_id: str) -> None:
+    now = datetime.now(timezone.utc)
+    key = _guest_vi_search_key(guest_id)
+    entry = cache_get(key)
+    window_start = None
+    if entry:
+        try:
+            window_start = datetime.fromisoformat(entry["window_start"])
+        except Exception:
+            window_start = None
+
+    if window_start is None or (now - window_start) >= timedelta(hours=_VI_SEARCH_WINDOW_HOURS):
+        cache_set(key, {"count": 1, "window_start": now.isoformat()}, ttl=_VI_SEARCH_WINDOW_HOURS * 3600)
+        return
+
+    count = entry.get("count", 0) if entry else 0
+    if count >= _FREE_VI_SEARCH_LIMIT:
+        reset_at = window_start + timedelta(hours=_VI_SEARCH_WINDOW_HOURS)
+        days_left = max(1, int((reset_at - now).total_seconds() / 86400))
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "vi_search_limit",
+                "message": f"Ya usaste tus {_FREE_VI_SEARCH_LIMIT} búsquedas gratis de esta semana. Crea una cuenta gratis para guardar tu historial, o vuelve en {days_left} día(s).",
+                "reset_in_days": days_left,
+            },
+        )
+
+    cache_set(key, {"count": count + 1, "window_start": window_start.isoformat()}, ttl=_VI_SEARCH_WINDOW_HOURS * 3600)
+
+
 _DEFAULT_VI_TICKER = "AAPL"
 
 
@@ -1733,6 +1779,18 @@ async def quick_analysis(
     if not ticker:
         raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
 
+    result = await _quick_analysis_result(ticker, lang)
+    _log_thesis_event(user_id, ticker, result)
+    return _with_live_price(result, ticker)
+
+
+async def _quick_analysis_result(ticker: str, lang: str) -> dict:
+    """Cache-or-build core shared by the authenticated /quick-analysis
+    above and the no-auth /quick-analysis/public below — same real numbers
+    either way, the only difference between the two routes is how the
+    caller is identified for the free-tier weekly counter. Caller still
+    applies _with_live_price() and any user-specific side effect
+    (_log_thesis_event) on top of what this returns."""
     cache_key = _quick_analysis_cache_key(ticker, lang)
     cached = cache_get(cache_key)
     if cached:
@@ -1742,14 +1800,53 @@ async def quick_analysis(
         # if the live check fails (rate-limited, Finnhub hiccup) we fall back
         # to the cache rather than pay for a full recompute on a false alarm.
         if not current_period or current_period == cached_period:
-            _log_thesis_event(user_id, ticker, cached)
-            return _with_live_price(cached, ticker)
+            return cached
 
     result = await _build_quick_analysis(ticker, lang)
     # Only successful, complete results are cached — never a 404/503, so a
     # transient provider hiccup doesn't get "stuck" wrong for 3 months.
     cache_set(cache_key, result, _QUICK_ANALYSIS_CACHE_TTL)
-    _log_thesis_event(user_id, ticker, result)
+    return result
+
+
+@router.get("/quick-analysis/public")
+@limiter.limit("20/minute")
+async def quick_analysis_public(
+    request: Request, query: str, guest_id: str = Query(..., min_length=1),
+    lang: str | None = None, is_default_view: bool = False,
+):
+    """No-auth counterpart of /quick-analysis for guests browsing without
+    an account — Diego, 2026-08-19: "quiero que los free y los usuarios
+    sin cuenta puedan tener acceso a sus 3 búsquedas semanales en
+    Oportunidades." The authenticated route requires a real session, so a
+    true guest (no token at all) couldn't call it before this, no matter
+    what the free-tier copy on screen promised.
+
+    Same real DCF engine, same cache, same 3-per-week rule as the
+    authenticated route — just keyed by a client-generated anonymous
+    `guest_id` (stored in the guest's own browser, never a real identity,
+    never tied to an account even if they later register) instead of a
+    Supabase user_id, since a guest has no user_profiles row to store a
+    counter on (see _check_and_increment_guest_vi_search_limit). Skips
+    _log_thesis_event — nothing to attribute a thesis-history entry to
+    without a real account — and the company-diagnostic Premium upsell is
+    untouched by this at all; this only unlocks the same quick valuation
+    summary a free logged-in user already gets, not the Premium ficha."""
+    guest_id = (guest_id or "").strip()
+    if not (is_default_view and query.strip().upper() == _DEFAULT_VI_TICKER):
+        await _check_and_increment_guest_vi_search_limit(guest_id)
+
+    if not query or not query.strip():
+        raise HTTPException(status_code=400, detail="Escribe un ticker o nombre de empresa")
+
+    if lang not in ("es", "en"):
+        lang = "es"
+
+    ticker = await asyncio.to_thread(_resolve_quick_ticker, query)
+    if not ticker:
+        raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
+
+    result = await _quick_analysis_result(ticker, lang)
     return _with_live_price(result, ticker)
 
 
