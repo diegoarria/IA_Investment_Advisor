@@ -15,6 +15,7 @@ import StockAvatar from "../../src/components/StockAvatar";
 import ExplainButton from "../../src/components/ExplainButton";
 import { GeneratedAtNote, ActionButtons } from "../../src/components/subvaluadas/shared";
 import { CompanyDiagnosticCard } from "../../src/components/subvaluadas/CompanyDiagnosticCard";
+import { CompanyDiagnosticBacktestPanel } from "../../src/components/subvaluadas/CompanyDiagnosticBacktestPanel";
 import type { CompanyDiagnosticData } from "../../src/lib/types/companyDiagnostic";
 
 // Mobile "Oportunidades" screen — full port of web's /subvaluadas redesign
@@ -212,52 +213,61 @@ export default function SubvaluadasScreen() {
         </TouchableOpacity>
       )}
 
-      {loading ? (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator size="large" color={GOLD} />
-        </View>
-      ) : limitHit ? (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: "rgba(212,162,76,0.12)", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-            <Ionicons name="lock-closed" size={26} color={GOLD} />
+      {/* Single persistent ScrollView for the whole body — the backtest
+          panel below (`CompanyDiagnosticBacktestPanel`) is ticker-
+          independent and must always be visible regardless of
+          loading/limitHit/error/free-gate state, same as web's page.tsx
+          (`<ValuationBacktestPanel />` sits outside that whole ternary
+          there too). Previously each branch had its own separate
+          top-level View, which meant the backtest chart only rendered
+          inside the success branch and vanished during loading/errors. */}
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+        {loading ? (
+          <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60 }}>
+            <ActivityIndicator size="large" color={GOLD} />
           </View>
-          <Text style={{ fontSize: 15, fontWeight: "700", color: viColors.text, marginBottom: 6, textAlign: "center" }}>{t("subvaluadas.freeGate.limitTitle")}</Text>
-          <Text style={{ fontSize: 13, color: viColors.textMuted, textAlign: "center", marginBottom: 18 }}>{error || t("subvaluadas.freeGate.limitDesc")}</Text>
-          <TouchableOpacity onPress={() => setPaywallOpen(true)} style={{ backgroundColor: GOLD, paddingHorizontal: 22, paddingVertical: 11, borderRadius: 12 }}>
-            <Text style={{ fontSize: 13, fontWeight: "800", color: "#0A0F1A" }}>{t("subvaluadas.freeGate.cta")}</Text>
-          </TouchableOpacity>
-        </View>
-      ) : error || !data ? (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <Text style={{ fontSize: 13, color: viColors.textMuted, textAlign: "center" }}>{error || t("subvaluadas.search.error")}</Text>
-        </View>
-      ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-          <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, gap: 12 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
-              <StockAvatar ticker={data.ticker} size={44} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 16, fontWeight: "600", color: viColors.text }} numberOfLines={1}>{data.company_name}</Text>
-                <Text style={{ fontSize: 12, color: viColors.textSub, marginTop: 2 }} numberOfLines={1}>
-                  {data.sector}{data.exchange ? ` · ${data.exchange}` : ""}
-                </Text>
-              </View>
+        ) : limitHit ? (
+          <View style={{ alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: "rgba(212,162,76,0.12)", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+              <Ionicons name="lock-closed" size={26} color={GOLD} />
             </View>
-            {data.price !== null && (
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={{ fontSize: 20, fontWeight: "600", color: viColors.text }}>${data.price.toFixed(2)}</Text>
-                {data.change_pct !== null && (
-                  <Text style={{ fontSize: 12, color: data.change_pct >= 0 ? TEAL : CORAL }}>
-                    {data.change_pct >= 0 ? "+" : ""}{data.change_pct.toFixed(2)}% {t("subvaluadas.detail.today")}
-                  </Text>
-                )}
-              </View>
-            )}
+            <Text style={{ fontSize: 15, fontWeight: "700", color: viColors.text, marginBottom: 6, textAlign: "center" }}>{t("subvaluadas.freeGate.limitTitle")}</Text>
+            <Text style={{ fontSize: 13, color: viColors.textMuted, textAlign: "center", marginBottom: 18 }}>{error || t("subvaluadas.freeGate.limitDesc")}</Text>
+            <TouchableOpacity onPress={() => setPaywallOpen(true)} style={{ backgroundColor: GOLD, paddingHorizontal: 22, paddingVertical: 11, borderRadius: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: "800", color: "#0A0F1A" }}>{t("subvaluadas.freeGate.cta")}</Text>
+            </TouchableOpacity>
           </View>
+        ) : error || !data ? (
+          <View style={{ alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <Text style={{ fontSize: 13, color: viColors.textMuted, textAlign: "center" }}>{error || t("subvaluadas.search.error")}</Text>
+          </View>
+        ) : (
+          <>
+            <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, gap: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                <StockAvatar ticker={data.ticker} size={44} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: "600", color: viColors.text }} numberOfLines={1}>{data.company_name}</Text>
+                  <Text style={{ fontSize: 12, color: viColors.textSub, marginTop: 2 }} numberOfLines={1}>
+                    {data.sector}{data.exchange ? ` · ${data.exchange}` : ""}
+                  </Text>
+                </View>
+              </View>
+              {data.price !== null && (
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={{ fontSize: 20, fontWeight: "600", color: viColors.text }}>${data.price.toFixed(2)}</Text>
+                  {data.change_pct !== null && (
+                    <Text style={{ fontSize: 12, color: data.change_pct >= 0 ? TEAL : CORAL }}>
+                      {data.change_pct >= 0 ? "+" : ""}{data.change_pct.toFixed(2)}% {t("subvaluadas.detail.today")}
+                    </Text>
+                  )}
+                </View>
+              )}
+            </View>
 
-          {/* CompanyDiagnosticCard — LA ÚNICA tarjeta de valoración de esta
-              pantalla, igual que web (Diego, "siempre siempre siempre"). */}
-          {valuationPanelMode === "diagnostic" ? (
+            {/* CompanyDiagnosticCard — LA ÚNICA tarjeta de valoración de esta
+                pantalla, igual que web (Diego, "siempre siempre siempre"). */}
+            {valuationPanelMode === "diagnostic" ? (
             <CompanyDiagnosticCard data={companyDiagnostic!} colors={viColors} />
           ) : valuationPanelMode === "loading" ? (
             <View style={{ borderRadius: 16, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, paddingVertical: 40, alignItems: "center" }}>
@@ -289,14 +299,21 @@ export default function SubvaluadasScreen() {
             </View>
           )}
 
-          <View style={{ marginTop: 18, gap: 10 }}>
-            <GeneratedAtNote generatedAt={data.generated_at} colors={viColors} />
-          </View>
-          <View style={{ marginTop: 14 }}>
-            <ActionButtons watchlisted={watchlisted} onFollow={handleFollow} onAnalyze={handleAnalyze} colors={viColors} />
-          </View>
-        </ScrollView>
-      )}
+            <View style={{ marginTop: 18, gap: 10 }}>
+              <GeneratedAtNote generatedAt={data.generated_at} colors={viColors} />
+            </View>
+            <View style={{ marginTop: 14 }}>
+              <ActionButtons watchlisted={watchlisted} onFollow={handleFollow} onAnalyze={handleAnalyze} colors={viColors} />
+            </View>
+          </>
+        )}
+
+        {/* "What $10,000 became" — ticker-independent, always visible at
+            the bottom of the screen regardless of the state above (Diego:
+            "es muy importante ya que son datos"). Mirrors web's page.tsx,
+            where ValuationBacktestPanel sits outside this same ternary. */}
+        <CompanyDiagnosticBacktestPanel colors={viColors} />
+      </ScrollView>
 
       <ExplainButton
         screen={data ? "oportunidades_resultado" : "oportunidades_intro"}
