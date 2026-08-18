@@ -510,4 +510,17 @@ export const voiceCallsApi = {
   delete: (id: string) => api.delete(`/api/voice/calls/${id}`),
 };
 
+// Mirror of web's researchEngineApi — only the subset the Bitácora de
+// Inversión ("Tus tesis") screen needs, see frontend/web/src/lib/api.ts
+// for the full set.
+export const researchEngineApi = {
+  saveMyThesis: (ticker: string, body: {
+    thesis_summary: string; strengths?: string[]; critical_variables?: string[];
+    key_risks?: string[]; invalidation_events?: string[];
+  }) => api.post(`/api/research-engine/company/${ticker}/thesis/mine`, body),
+  getAllMyTheses: () => api.get("/api/research-engine/theses/mine"),
+  reviewThesis: (ticker: string, lang?: string) =>
+    api.post(`/api/research-engine/company/${ticker}/thesis/review`, {}, { params: { lang }, timeout: 30000 }),
+};
+
 export default api;

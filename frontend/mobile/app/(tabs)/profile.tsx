@@ -13,8 +13,6 @@ import { useAppStore, RISK_CONFIG, getAge, maturityLabel, maturitySignalI18nKey 
 import { getMentorInfo } from "../../src/lib/mentorData";
 import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
-import MobileDecisionDiary from "../../src/components/MobileDecisionDiary";
-import MobileInvestmentGraph from "../../src/components/MobileInvestmentGraph";
 import PaywallModal from "../../src/components/PaywallModal";
 import SavedValuationsSection from "../../src/components/SavedValuationsSection";
 import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, billingApi, voiceCallsApi } from "../../src/lib/api";
@@ -143,8 +141,6 @@ export default function ProfileScreen() {
   // Both sections default collapsed — they're dense (decision log, bias
   // analysis, thesis history) and most visits to Profile don't need them
   // open; a "Ver detalles" button reveals them on demand instead.
-  const [showDiario, setShowDiario] = useState(false);
-  const [showBitacora, setShowBitacora] = useState(false);
   const [startScreenPickerOpen, setStartScreenPickerOpen] = useState(false);
   const [startScreen, setStartScreenState] = useState<string>("home");
   const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
@@ -765,39 +761,24 @@ if (!profile) {
           </TouchableOpacity>
         </View>
 
-        {/* ── FORTALEZAS Y PUNTOS CIEGOS (Personal Investment Memory) ──
-            Detección real de sesgos/fortalezas a partir del historial de
-            decisiones, auto-capturado en cada sync de portafolio. Collapsed
-            by default — dense content most profile visits don't need. */}
-        <View style={s.section}>
-          <TouchableOpacity style={s.sectionHeader} onPress={() => setShowDiario((v) => !v)} activeOpacity={0.7}>
-            <Text style={[s.sectionTitle, { color: colors.text }]}>{t("mobileDecisionDiary.heroTitle")}</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.accentLight }}>
-                {showDiario ? t("profile.hideDetails") : t("profile.viewDetails")}
-              </Text>
-              <Ionicons name={showDiario ? "chevron-up" : "chevron-down"} size={14} color={colors.accentLight} />
+        {/* Fortalezas y Puntos Ciegos + Tu Bitácora (Investment Graph) + Tus
+            tesis moved out of these collapsibles into their own dedicated
+            /journal screen (mirrors web's identical refactor) — this is now
+            just a discoverability link, same as web's profile page. */}
+        <TouchableOpacity
+          onPress={() => router.push("/journal" as any)}
+          activeOpacity={0.7}
+          style={{ marginTop: 24, marginHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+            <Ionicons name="create-outline" size={18} color={colors.accentLight} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }}>{t("investmentJournal.profileLinkTitle")}</Text>
+              <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }} numberOfLines={1}>{t("investmentJournal.profileLinkSubtitle")}</Text>
             </View>
-          </TouchableOpacity>
-          {showDiario && <MobileDecisionDiary isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />}
-        </View>
-
-        {/* ── TU BITÁCORA (Investment Graph) — distinto de Fortalezas y
-            Puntos Ciegos: eso es psicología, esto es el archivo intelectual
-            (tesis, preguntas, watchlist, eventos de mercado). Collapsed by
-            default, same reasoning as above. ── */}
-        <View style={s.section}>
-          <TouchableOpacity style={s.sectionHeader} onPress={() => setShowBitacora((v) => !v)} activeOpacity={0.7}>
-            <Text style={[s.sectionTitle, { color: colors.text }]}>{t("investmentGraph.sectionTitle")}</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.accentLight }}>
-                {showBitacora ? t("profile.hideDetails") : t("profile.viewDetails")}
-              </Text>
-              <Ionicons name={showBitacora ? "chevron-up" : "chevron-down"} size={14} color={colors.accentLight} />
-            </View>
-          </TouchableOpacity>
-          {showBitacora && <MobileInvestmentGraph isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />}
-        </View>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+        </TouchableOpacity>
 
         {/* ── MENTOR ── */}
         {mentor && (

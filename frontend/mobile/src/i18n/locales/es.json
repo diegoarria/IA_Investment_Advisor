@@ -3891,5 +3891,35 @@
       "saved": "Guardado en tu Diario de Decisiones ✓",
       "saveError": "No se pudo guardar. Intenta de nuevo."
     }
+  },
+  "investmentJournal": {
+    "title": "Bitácora de Inversión",
+    "subtitle": "Tus tesis, tus decisiones y tu historial de investigación, todo en un lugar",
+    "profileLinkTitle": "Bitácora de Inversión",
+    "profileLinkSubtitle": "Tus tesis, fortalezas, puntos ciegos y tu historial completo",
+    "theses": {
+      "title": "Tus tesis",
+      "subtitle": "Empresas donde adoptaste o escribiste tu propia tesis de inversión",
+      "premiumRequired": "Las tesis personales son una función Premium",
+      "loading": "Cargando tus tesis...",
+      "empty": "Todavía no adoptaste ni escribiste ninguna tesis propia.",
+      "goResearch": "Ir a investigar una empresa",
+      "version": "Versión {{version}}",
+      "edit": "Editar",
+      "cancel": "Cancelar",
+      "review": "Revisar",
+      "reviewing": "Revisando...",
+      "reviewError": "No pudimos revisar la tesis — intenta de nuevo.",
+      "reviewResultTitle": "Resultado de la revisión",
+      "newVersionCreated": "Se creó la versión {{version}} de tu tesis",
+      "noChange": "No hubo cambios reales desde tu última revisión.",
+      "summaryPlaceholder": "Resumen de tu tesis...",
+      "risksPlaceholder": "Riesgos clave (uno por línea)",
+      "strengthsPlaceholder": "Fortalezas (una por línea)",
+      "criticalVarsPlaceholder": "Variables críticas a monitorear (una por línea)",
+      "invalidationPlaceholder": "Qué invalidaría esta tesis (uno por línea)",
+      "saving": "Guardando...",
+      "save": "Guardar"
+    }
   }
 }
