@@ -1,16 +1,28 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import { useAuthStore } from "@/lib/store";
+import { useAuthStore, useGuestGateStore } from "@/lib/store";
 
 export default function SessionExpiredBanner() {
   const { t } = useTranslation();
   const { sessionExpired, setSessionExpired } = useAuthStore();
+  const forceShowFlashcard = useGuestGateStore((s) => s.forceShowFlashcard);
 
   if (!sessionExpired) return null;
 
+  // Clicking the banner itself (not the × dismiss) surfaces the signup
+  // flashcard instead of just sitting there — Diego: "si le doy clic salte
+  // el flashcard que creamos ahorita". forceShowFlashcard() bypasses the
+  // guest-only check and the 5/day cap those exist for, since this person
+  // isn't a browsing guest, they're a real user whose session just died.
+  const handleBannerClick = () => forceShowFlashcard();
+
   return (
     <div
+      onClick={handleBannerClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleBannerClick(); }}
       style={{
         position: "fixed",
         bottom: 0,
@@ -26,6 +38,7 @@ export default function SessionExpiredBanner() {
         borderTop: "1px solid rgba(239,68,68,0.35)",
         boxShadow: "0 -8px 30px rgba(0,0,0,0.4)",
         animation: "slideUpBanner 0.25s ease",
+        cursor: "pointer",
       }}
     >
       <style>{`
@@ -39,7 +52,7 @@ export default function SessionExpiredBanner() {
         {t("sessionExpiredBanner.message")}
       </p>
       <button
-        onClick={() => setSessionExpired(false)}
+        onClick={(e) => { e.stopPropagation(); setSessionExpired(false); }}
         style={{
           background: "none",
           border: "none",

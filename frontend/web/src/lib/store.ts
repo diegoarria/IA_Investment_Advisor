@@ -1196,6 +1196,10 @@ interface GuestGateState {
   // User accepted (clicked through to signup) — just closes, no reschedule
   // and doesn't count toward the cap (there's no "again" if they said yes).
   acceptFlashcard: () => void;
+  // Unconditional open — for a deliberate manual trigger (e.g.
+  // SessionExpiredBanner's click), not the 2-minute guest nag loop, so it
+  // skips both the guest-only check and the 5/day cap those exist for.
+  forceShowFlashcard: () => void;
 }
 
 export const useGuestGateStore = create<GuestGateState>()(
@@ -1226,6 +1230,7 @@ export const useGuestGateStore = create<GuestGateState>()(
         }
       },
       acceptFlashcard: () => set({ flashcardOpen: false }),
+      forceShowFlashcard: () => set({ flashcardOpen: true }),
     }),
     {
       name: "guest-gate-store",
