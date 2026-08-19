@@ -40,6 +40,7 @@ export interface WrappedCommunity {
 export interface WrappedData {
   year: number;
   user_name: string;
+  avatar_url?: string | null;
   top_stocks: WrappedTopStock[];
   favoritas: WrappedFavorita[];
   lessons: number;

@@ -122,12 +122,13 @@ async def get_wrapped(
         # ── 1. User profile ──────────────────────────────────────────────────────
         prof_res = await run_query(
             db.table("user_profiles")
-              .select("name, created_at, investment_goal, investment_goal_amount")
+              .select("name, avatar_url, created_at, investment_goal, investment_goal_amount")
               .eq("user_id", user_id)
         )
         prof = prof_res.data[0] if prof_res.data else {}
 
         full_name = prof.get("name") or "Inversor"
+        avatar_url = prof.get("avatar_url")
 
         created_raw = prof.get("created_at")
         if created_raw:
@@ -244,6 +245,7 @@ async def get_wrapped(
         result = {
             "year":        year,
             "user_name":   full_name,
+            "avatar_url":  avatar_url,
             "top_stocks":  top3,           # [{ticker, ytd_pct[, invested, current_value]}, ...]
             "favoritas":   favoritas,      # [{ticker, times_analyzed}, ...]
             "lessons":     lessons,

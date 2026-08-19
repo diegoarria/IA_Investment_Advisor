@@ -14,13 +14,26 @@ function initials(name: string) {
 
 // 1 — Portada
 export function ScreenPortada({ data, total, page }: { data: WrappedData; total: number; page: number }) {
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  const showAvatar = !!data.avatar_url && !avatarFailed;
   return (
     <Stage page={page} total={total} glow="top">
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
         <div style={{ width: 84, height: 84, borderRadius: "50%", background: WT.gradGreen, padding: 3, marginBottom: 18, boxShadow: "0 0 34px rgba(0,185,109,0.35)" }}>
-          <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: WT.card2, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 28, color: WT.text }}>
-            {initials(data.user_name)}
-          </div>
+          {showAvatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={data.avatar_url as string}
+              alt={data.user_name}
+              crossOrigin="anonymous"
+              onError={() => setAvatarFailed(true)}
+              style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", display: "block" }}
+            />
+          ) : (
+            <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: WT.card2, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 28, color: WT.text }}>
+              {initials(data.user_name)}
+            </div>
+          )}
         </div>
         <div style={{ fontWeight: 800, fontSize: 20, color: WT.text, marginBottom: 6 }}>{data.user_name}</div>
         <div style={EYEBROW}>Investor Wrapped {data.year}</div>
