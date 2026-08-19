@@ -4,35 +4,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import { Download, Share2, X } from "lucide-react";
 import {
-  ScreenPortada, ScreenNumeros, ScreenEvolucion, ScreenEstilo, ScreenMejorDecision,
-  ScreenFavoritas, ScreenAprendizaje, ScreenComparacion, ScreenVsInversores,
-  ScreenScore, ScreenProximoCapitulo, ScreenCompartir,
+  ScreenPersonalidad, ScreenNumeros, ScreenPercentil, ScreenEmpresaFavorita,
+  ScreenTopPosiciones, ScreenPeorDecision, ScreenTipoInversionista, ScreenCompartir,
 } from "./screens";
 import { WrappedData, WT } from "./types";
 
-// Same order as the approved design canvas. Each entry's `show` predicate
-// mirrors that screen component's own `if (!x) return null` guard — kept
-// here too so the progress bar/segment count reflects only the screens
-// that will actually render, never an empty tap-through gap.
-function buildScreens(data: WrappedData) {
-  const all = [
-    { key: "portada", show: true, Comp: ScreenPortada },
-    { key: "numeros", show: true, Comp: ScreenNumeros },
-    { key: "evolucion", show: !!(data.evolution && data.evolution.start_score !== undefined && data.evolution.end_score !== undefined), Comp: ScreenEvolucion },
-    { key: "estilo", show: !!data.archetype, Comp: ScreenEstilo },
-    { key: "mejor_decision", show: data.top_stocks.length > 0, Comp: ScreenMejorDecision },
-    { key: "favoritas", show: data.favoritas.length > 0, Comp: ScreenFavoritas },
-    { key: "aprendizaje", show: !!data.decisions_logged_this_year, Comp: ScreenAprendizaje },
-    { key: "comparacion", show: data.growth_pct !== undefined && data.spy_ytd_pct !== undefined && data.spy_ytd_pct !== null, Comp: ScreenComparacion },
-    { key: "vs_inversores", show: !!data.vs_community, Comp: ScreenVsInversores },
-    { key: "score", show: !!data.investor_score, Comp: ScreenScore },
-    { key: "proximo", show: true, Comp: ScreenProximoCapitulo },
-  ] as const;
-  return all.filter((s) => s.show);
-}
+// Exactly these 7 content screens, always, in this order, plus the
+// Compartir closer — the spec is explicit that Wrapped has 8 screens, no
+// more, no fewer. A user missing the data for one (e.g. brand new, no
+// portfolio) still sees all 7 — each screen renders its own empty state
+// internally instead of the flow skipping it.
+const SCREENS = [
+  ScreenPersonalidad, ScreenNumeros, ScreenPercentil, ScreenEmpresaFavorita,
+  ScreenTopPosiciones, ScreenPeorDecision, ScreenTipoInversionista,
+] as const;
 
 export default function WrappedFlow({ data, onClose }: { data: WrappedData; onClose: () => void }) {
-  const screens = buildScreens(data);
+  const screens = SCREENS;
   const total = screens.length + 1; // +1 for the always-shown Compartir closer
   const [index, setIndex] = useState(0);
   const [exporting, setExporting] = useState(false);
@@ -126,7 +114,7 @@ export default function WrappedFlow({ data, onClose }: { data: WrappedData; onCl
             </div>
           ) : (
             (() => {
-              const { Comp } = screens[index];
+              const Comp = screens[index];
               return <Comp data={data} total={total} page={index + 1} />;
             })()
           )}
