@@ -21,7 +21,6 @@ import {
   FollowButton, AnalyzeButton,
   _SCENARIO_COLOR,
 } from "@/components/subvaluadas/shared";
-import { ValuationBacktestPanel } from "@/components/subvaluadas/ValuationBacktestPanel";
 import type { GqvFairValueData } from "@/components/subvaluadas/GqvFairValuePanel";
 import { CompanyDiagnosticCard } from "@/components/subvaluadas/CompanyDiagnosticCard";
 import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
@@ -478,13 +477,6 @@ function SubvaluadasPageInner() {
                 </>
               )}
 
-              {/* "What $10,000 became" + "Descubra más" — ticker-independent,
-                  cached globally (see ValuationBacktestPanel.tsx). Moved out
-                  of the single-ticker `data` block so it's always the very
-                  last thing on the screen — proof of what buying undervalued
-                  vs. overvalued vs. the S&P 500 would have done, regardless
-                  of whether the user has searched a specific ticker yet. */}
-              <ValuationBacktestPanel />
             </div>
           </div>
       </div>

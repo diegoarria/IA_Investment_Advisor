@@ -15,7 +15,6 @@ import StockAvatar from "../../src/components/StockAvatar";
 import ExplainButton from "../../src/components/ExplainButton";
 import { GeneratedAtNote, ActionButtons } from "../../src/components/subvaluadas/shared";
 import { CompanyDiagnosticCard } from "../../src/components/subvaluadas/CompanyDiagnosticCard";
-import { CompanyDiagnosticBacktestPanel } from "../../src/components/subvaluadas/CompanyDiagnosticBacktestPanel";
 import type { CompanyDiagnosticData } from "../../src/lib/types/companyDiagnostic";
 
 // Mobile "Oportunidades" screen — full port of web's /subvaluadas redesign
@@ -221,14 +220,6 @@ export default function SubvaluadasScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Single persistent ScrollView for the whole body — the backtest
-          panel below (`CompanyDiagnosticBacktestPanel`) is ticker-
-          independent and must always be visible regardless of
-          loading/limitHit/error/free-gate state, same as web's page.tsx
-          (`<ValuationBacktestPanel />` sits outside that whole ternary
-          there too). Previously each branch had its own separate
-          top-level View, which meant the backtest chart only rendered
-          inside the success branch and vanished during loading/errors. */}
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         {loading ? (
           <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60 }}>
@@ -315,12 +306,6 @@ export default function SubvaluadasScreen() {
             </View>
           </>
         )}
-
-        {/* "What $10,000 became" — ticker-independent, always visible at
-            the bottom of the screen regardless of the state above (Diego:
-            "es muy importante ya que son datos"). Mirrors web's page.tsx,
-            where ValuationBacktestPanel sits outside this same ternary. */}
-        <CompanyDiagnosticBacktestPanel colors={viColors} />
       </ScrollView>
 
       <ExplainButton

@@ -9,6 +9,7 @@ import { CompanyDiagnosticTrustPillar } from "./CompanyDiagnosticTrustPillar";
 import { CompanyDiagnosticValuePillar } from "./CompanyDiagnosticValuePillar";
 import { CompanyDiagnosticSimplicityPillar } from "./CompanyDiagnosticSimplicityPillar";
 import { SelfCheckQuiz } from "./SelfCheckQuiz";
+import { CompanyDiagnosticBacktestPanel } from "./CompanyDiagnosticBacktestPanel";
 import { scoreColor, valuationStatus, VERDICT_COLOR, VERDICT_EMOJI, fmtPrice } from "../../lib/types/companyDiagnostic";
 import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
 
@@ -215,6 +216,12 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
           ))}
         </View>
       </View>
+
+      {/* "What $10,000 became" — ticker-independent, moved here from the
+          bottom of app/subvaluadas/index.tsx (Diego, 2026-08-19): sits
+          right above the Self-Check quiz as motivation/context before the
+          user tests their own instinct. Mirrors web's CompanyDiagnosticCard. */}
+      <CompanyDiagnosticBacktestPanel colors={colors} />
 
       {/* Self-Check */}
       <SelfCheckQuiz ticker={data.ticker} colors={colors} />

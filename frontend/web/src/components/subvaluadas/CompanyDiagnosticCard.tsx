@@ -25,6 +25,7 @@ import { CompanyDiagnosticTrustPillar } from "@/components/subvaluadas/CompanyDi
 import { CompanyDiagnosticValuePillar } from "@/components/subvaluadas/CompanyDiagnosticValuePillar";
 import { CompanyDiagnosticSimplicityPillar } from "@/components/subvaluadas/CompanyDiagnosticSimplicityPillar";
 import { CompanyDiagnosticSelfCheckQuiz } from "@/components/subvaluadas/CompanyDiagnosticSelfCheckQuiz";
+import { ValuationBacktestPanel } from "@/components/subvaluadas/ValuationBacktestPanel";
 import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
 // Bolds every dollar-amount ("$2.8 mil millones", "$3,400M") and percentage
@@ -213,8 +214,16 @@ export function CompanyDiagnosticCard({ data }: { data: CompanyDiagnosticData })
         </div>
       </Card>
 
-      {/* Self-Check — hasta abajo del todo, después de la guía de
-          metodología y antes del disclaimer legal (Diego). */}
+      {/* "What $10,000 became" — ticker-independent, cached globally (see
+          ValuationBacktestPanel.tsx). Moved here from the bottom of
+          app/subvaluadas/page.tsx (Diego, 2026-08-19): sits right above the
+          Self-Check quiz as motivation/context before the user tests their
+          own instinct, instead of after everything at the very end of the
+          screen where it was easy to miss. */}
+      <ValuationBacktestPanel />
+
+      {/* Self-Check — después de la guía de metodología y el backtest,
+          antes del disclaimer legal (Diego). */}
       <CompanyDiagnosticSelfCheckQuiz ticker={data.ticker} />
 
       {/* Disclaimer — donde termina esta tarjeta. El pie (Actualizado hoy /
