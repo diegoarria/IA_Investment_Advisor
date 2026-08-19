@@ -24,25 +24,23 @@ async def list_saved_valuations(user_id: str = Depends(get_current_user_id)):
     return await saved_valuation_service.list_with_live_data(user_id)
 
 
-@router.post("", deprecated=True)
+@router.post("")
 async def create_saved_valuation(body: dict, user_id: str = Depends(get_current_user_id)):
-    """DEPRECATED — Nuvos AI Fair Value Engine redesign, Incremento 14:
-    creating new saved valuations from `/subvaluadas` was retired (the
-    manual DCF calculator/sliders no longer exist there). Never called by
-    the current web/mobile clients. Kept alive, not deleted (decision #8):
-    existing saved valuations must keep receiving their milestone alerts
-    (worker.py's job_saved_valuation_alerts) and stay manageable from
-    `/profile` (SavedValuationsSection.tsx, GET/DELETE below, both live)."""
+    """Save (or update) a margin-of-safety alert for a ticker from
+    Oportunidades (/subvaluadas) — revived (Diego, 2026-08-19) for the
+    current Nuvos AI Fair Value Engine after the manual-DCF-sliders
+    version this endpoint originally served was retired. `target_margin_
+    of_safety_pct` is the threshold the user considers attractive for
+    THIS ticker; the daily job (worker.py's job_saved_valuation_alerts)
+    pushes once the live margin of safety reaches or passes it."""
     await _require_premium(user_id)
     ticker = (body.get("ticker") or "").strip()
-    growth_pct = body.get("growth_pct")
-    discount_rate_pct = body.get("discount_rate_pct")
-    terminal_growth_pct = body.get("terminal_growth_pct")
-    if not ticker or growth_pct is None or discount_rate_pct is None or terminal_growth_pct is None:
-        raise HTTPException(status_code=422, detail="ticker, growth_pct, discount_rate_pct y terminal_growth_pct son requeridos")
+    target_margin_of_safety_pct = body.get("target_margin_of_safety_pct")
+    if not ticker or target_margin_of_safety_pct is None:
+        raise HTTPException(status_code=422, detail="ticker y target_margin_of_safety_pct son requeridos")
     try:
         return await saved_valuation_service.save_valuation(
-            user_id, ticker, float(growth_pct), float(discount_rate_pct), float(terminal_growth_pct)
+            user_id, ticker, float(target_margin_of_safety_pct)
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))

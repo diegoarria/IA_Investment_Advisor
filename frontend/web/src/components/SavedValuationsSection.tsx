@@ -11,14 +11,10 @@ interface SavedValuation {
   ticker: string;
   company_name: string | null;
   sector: string | null;
-  growth_pct: number;
-  discount_rate_pct: number;
-  terminal_growth_pct: number;
-  price_at_save: number | null;
-  intrinsic_value_at_save: number | null;
+  target_margin_of_safety_pct: number | null;
   current_price: number | null;
-  live_intrinsic_value: number | null;
   margin_of_safety_pct: number | null;
+  notified_at: string | null;
   stale: boolean;
 }
 
@@ -71,7 +67,11 @@ export default function SavedValuationsSection() {
             <Link href={`/subvaluadas?ticker=${item.ticker}`} className="flex-1 min-w-0">
               <p className="text-xs font-bold truncate" style={{ color: "var(--text)" }}>{item.ticker}</p>
               <p className="text-[10px] truncate" style={{ color: "var(--muted)" }}>
-                {item.company_name}{item.stale ? ` · ${t("profile.savedValuations.stale")}` : ""}
+                {item.stale
+                  ? `${item.company_name} · ${t("profile.savedValuations.stale")}`
+                  : item.margin_of_safety_pct !== null && item.target_margin_of_safety_pct !== null
+                    ? t("profile.savedValuations.currentVsTarget", { current: item.margin_of_safety_pct, target: item.target_margin_of_safety_pct })
+                    : item.company_name}
               </p>
             </Link>
             <MarginBadge pct={item.margin_of_safety_pct} />

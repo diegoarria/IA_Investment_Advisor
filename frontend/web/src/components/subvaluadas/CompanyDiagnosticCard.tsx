@@ -26,6 +26,7 @@ import { CompanyDiagnosticValuePillar } from "@/components/subvaluadas/CompanyDi
 import { CompanyDiagnosticSimplicityPillar } from "@/components/subvaluadas/CompanyDiagnosticSimplicityPillar";
 import { CompanyDiagnosticSelfCheckQuiz } from "@/components/subvaluadas/CompanyDiagnosticSelfCheckQuiz";
 import { ValuationBacktestPanel } from "@/components/subvaluadas/ValuationBacktestPanel";
+import { CompanyDiagnosticMarginAlert } from "@/components/subvaluadas/CompanyDiagnosticMarginAlert";
 import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
 // Bolds every dollar-amount ("$2.8 mil millones", "$3,400M") and percentage
@@ -117,6 +118,8 @@ export function CompanyDiagnosticCard({ data }: { data: CompanyDiagnosticData })
             </span>
           </div>
         )}
+
+        <CompanyDiagnosticMarginAlert ticker={data.ticker} marginOfSafetyPercent={data.valuation.marginOfSafetyPercent} />
 
         <CompanyDiagnosticValuationThermometer scenarios={data.valuation} />
 

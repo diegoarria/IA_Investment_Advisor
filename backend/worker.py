@@ -2414,13 +2414,12 @@ async def job_prewarm_nif_dashboard_default():
 
 
 async def job_saved_valuation_alerts():
-    """4:10 PM ET weekdays — checks every user's saved intrinsic valuations
-    (their own frozen DCF assumptions from the Valor Intrínseco screen)
-    against fresh price/fundamentals, and pushes when the margin of safety
-    newly crosses -10%/0%/10%/20%/30%/40%. See
-    saved_valuation_service.run_milestone_check for the actual logic —
-    kept there (not here) since it's also unit-testable without a live
-    scheduler."""
+    """4:10 PM ET weekdays — checks every user's saved margin-of-safety
+    alerts (set from Oportunidades) against the live Nuvos AI Fair Value
+    Engine, and pushes once a ticker's margin of safety reaches the user's
+    own configured target. See saved_valuation_service.run_milestone_check
+    for the actual logic — kept there (not here) since it's also
+    unit-testable without a live scheduler."""
     if not _is_market_open_today():
         logger.info("job_saved_valuation_alerts: market closed today — skipping")
         return

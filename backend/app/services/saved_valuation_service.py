@@ -1,118 +1,68 @@
-"""Saved intrinsic valuations — a Premium user freezes their own DCF
-assumptions (growth/discount-rate/terminal-growth) for a ticker from the
-Valor Intrínseco screen, then gets notified as the live margin of safety
-(recomputed with those frozen assumptions against fresh fundamentals/
-price) crosses meaningful thresholds.
+"""Saved margin-of-safety alerts — a Premium user picks a ticker from
+Oportunidades (/subvaluadas) and a target margin of safety they consider
+attractive, then gets notified once the LIVE margin of safety (from the
+current Nuvos AI Fair Value Engine, the same number the diagnostic card
+itself shows) reaches or passes that threshold.
 
-MILESTONES is asymmetric on purpose: a single downside warning (-10%,
-"getting expensive relative to your own thesis") versus four upside
-undervaluation milestones (0/10/20/30/40%) — this mirrors how an investor
-actually uses margin of safety: one heads-up when a thesis breaks down,
-several checkpoints on the way to "this is a great price."
+Revives migration 048's saved_valuations table (see migration 078's
+docstring) — the manual-DCF-sliders methodology this table was originally
+built around was retired when /subvaluadas dropped its slider UI
+(valuationPanelMode.ts: no `gqv` mode anymore). This version always reads
+margin_of_safety_pct straight from the same build_company_diagnostic()
+path the screen itself uses, never a second, independently-computed
+number that could drift from what the user saw when they set the alert.
 """
 import logging
 from typing import Optional
 
-from app.services.valuation.numeric_helpers import calc_margin_of_safety
-
 logger = logging.getLogger(__name__)
 
-MILESTONES = [-10, 0, 10, 20, 30, 40]
-_DCF_YEARS = 10
 
-
-def compute_iv(
-    fcf0_millions: float, growth_pct: float, discount_rate_pct: float, terminal_growth_pct: float,
-    net_cash_millions: float, shares_millions: float,
-) -> Optional[float]:
-    """Same fading-growth two-stage DCF the frontend's dcfCalculator.ts
-    uses (Fase 1.5, Incremento 16 — see /Users/diegoarria/.claude/plans/
-    stateful-painting-flurry.md) — this must reproduce exactly what the
-    user saw and agreed to when they moved the sliders. Previously used
-    `_run_dcf_constant_growth` (flat growth for all years, then a discrete
-    jump to terminal growth); migrated to `_run_dcf` (growth fading
-    linearly from `growth_pct` to `terminal_growth_pct` across the
-    projection, `legacy_dcf_core.py`'s own namesake two-stage model) only
-    now that the frontend calculator shows that same fade too (Incremento
-    15) — migrating earlier would have broken the "this is what you saw
-    when you saved" guarantee this module exists for.
-
-    `_run_dcf` has no `years` parameter (always `legacy_dcf_core._PROJECTION_
-    YEARS`, currently 10, same value as `_DCF_YEARS` below) — both must
-    stay in sync for this docstring's guarantee to hold."""
-    from app.services.fundamental_analysis_service import _run_dcf
-
-    g, r, gt = growth_pct / 100, discount_rate_pct / 100, terminal_growth_pct / 100
-    if not shares_millions or shares_millions <= 0:
-        return None
-    if r == gt:
-        return None
-    try:
-        result = _run_dcf(fcf0_millions, g, r, gt)
-    except ZeroDivisionError:
-        return None
-    equity = result["enterprise_value"] + net_cash_millions
-    value = equity / shares_millions
-    return value if value == value and value not in (float("inf"), float("-inf")) else None  # NaN/inf guard
-
-
-def get_live_inputs(ticker: str) -> Optional[dict]:
-    """Fresh company_name/sector/exchange/price/current_fcf/net_cash/
-    shares_outstanding for a ticker — the same real, previously-computed
-    numbers the Valor Intrínseco screen's autofill chips show. Returns None
-    if the ticker's fundamentals can't be loaded right now."""
+def get_live_margin_of_safety(ticker: str, lang: str = "es") -> Optional[dict]:
+    """Real, current company_name/sector/exchange/price/margin_of_safety_pct
+    for a ticker — the exact same computation the /company-diagnostic
+    endpoint uses (get_fundamental_analysis -> build_company_diagnostic),
+    so a saved alert's number is never a second source of truth that can
+    disagree with what the user saw on /subvaluadas. Returns None if the
+    diagnostic can't be built right now (missing fundamentals, etc.)."""
     from app.services.fundamental_analysis_service import get_fundamental_analysis
+    from app.services.company_diagnostic_service import build_company_diagnostic
 
     data = get_fundamental_analysis(ticker)
     if not data:
         return None
-    dcf = data.get("dcf") or {}
-    fcf_trend_vals = [v for v in (data.get("fcf_trend") or []) if v is not None]
-    current_fcf = fcf_trend_vals[-1] if fcf_trend_vals else None
-    shares_outstanding = dcf.get("shares_outstanding")
-    net_cash = (dcf.get("cash") or 0) - (dcf.get("total_debt") or 0)
-    price = data.get("current_price")
-    if current_fcf is None or not shares_outstanding or price is None:
+    diagnostic = build_company_diagnostic(ticker, data, lang)
+    if not diagnostic:
+        return None
+    valuation = diagnostic.get("valuation") or {}
+    mos = valuation.get("marginOfSafetyPercent")
+    price = valuation.get("currentPrice")
+    if mos is None or price is None:
         return None
     return {
         "ticker": data.get("ticker") or ticker,
         "company_name": data.get("company_name"),
         "sector": data.get("sector"),
         "exchange": data.get("exchange"),
-        "price": price,
-        "current_fcf": current_fcf,
-        "net_cash": net_cash,
-        "shares_outstanding": shares_outstanding,
-        "methodology": dcf.get("methodology", "two_stage_fcf"),
+        "current_price": price,
+        "margin_of_safety_pct": mos,
     }
 
 
-def _with_live_valuation(row: dict, inputs: Optional[dict]) -> dict:
+def _with_live_data(row: dict, live: Optional[dict]) -> dict:
     """Merges a saved_valuations row with a live recompute — the shape the
-    frontend (profile section + the "Guardar" confirmation) renders."""
-    live_price = inputs["price"] if inputs else None
-    live_iv = None
-    margin_of_safety_pct = None
-    if inputs:
-        live_iv = compute_iv(
-            inputs["current_fcf"] / 1e6, row["growth_pct"], row["discount_rate_pct"], row["terminal_growth_pct"],
-            inputs["net_cash"] / 1e6, inputs["shares_outstanding"] / 1e6,
-        )
-        if live_iv is not None and live_price:
-            # Fase 1.5, Incremento 14 (dedup) — was the lone site dividing
-            # by price instead of intrinsic value; see numeric_helpers.py::
-            # calc_margin_of_safety's docstring for why /intrinsic is the
-            # convention everywhere now.
-            margin_of_safety_pct = calc_margin_of_safety(live_iv, live_price)
+    frontend (Oportunidades' alert control + Perfil's SavedValuationsSection)
+    renders."""
     return {
-        **row,
-        "company_name": (inputs or {}).get("company_name") or row.get("company_name"),
-        "sector": (inputs or {}).get("sector"),
-        "exchange": (inputs or {}).get("exchange"),
-        "current_price": live_price,
-        "live_intrinsic_value": round(live_iv, 2) if live_iv is not None else None,
-        "margin_of_safety_pct": margin_of_safety_pct,
-        "stale": inputs is None,
+        "ticker": row["ticker"],
+        "company_name": (live or {}).get("company_name") or row.get("company_name"),
+        "sector": (live or {}).get("sector"),
+        "exchange": (live or {}).get("exchange"),
+        "target_margin_of_safety_pct": row.get("target_margin_of_safety_pct"),
+        "current_price": (live or {}).get("current_price"),
+        "margin_of_safety_pct": (live or {}).get("margin_of_safety_pct"),
+        "notified_at": row.get("notified_at"),
+        "stale": live is None,
     }
 
 
@@ -129,40 +79,33 @@ async def list_with_live_data(user_id: str) -> list[dict]:
         return []
 
     tickers = sorted({r["ticker"] for r in rows})
-    inputs_list = await asyncio.gather(*[asyncio.to_thread(get_live_inputs, t) for t in tickers])
-    inputs_map = dict(zip(tickers, inputs_list))
+    live_list = await asyncio.gather(*[asyncio.to_thread(get_live_margin_of_safety, t) for t in tickers])
+    live_map = dict(zip(tickers, live_list))
 
-    return [_with_live_valuation(row, inputs_map.get(row["ticker"])) for row in rows]
+    return [_with_live_data(row, live_map.get(row["ticker"])) for row in rows]
 
 
-async def save_valuation(
-    user_id: str, ticker: str, growth_pct: float, discount_rate_pct: float, terminal_growth_pct: float,
-) -> dict:
+async def save_valuation(user_id: str, ticker: str, target_margin_of_safety_pct: float) -> dict:
     import asyncio
     from app.core.database import get_supabase, run_query
 
     ticker = ticker.strip().upper()
-    inputs = await asyncio.to_thread(get_live_inputs, ticker)
-    if not inputs:
+    live = await asyncio.to_thread(get_live_margin_of_safety, ticker)
+    if not live:
         raise ValueError(f"No hay suficientes datos financieros para {ticker} en este momento.")
-
-    iv_at_save = compute_iv(
-        inputs["current_fcf"] / 1e6, growth_pct, discount_rate_pct, terminal_growth_pct,
-        inputs["net_cash"] / 1e6, inputs["shares_outstanding"] / 1e6,
-    )
 
     db = get_supabase()
     row = {
         "user_id": user_id,
         "ticker": ticker,
-        "company_name": inputs.get("company_name"),
-        "methodology": inputs.get("methodology", "two_stage_fcf"),
-        "growth_pct": growth_pct,
-        "discount_rate_pct": discount_rate_pct,
-        "terminal_growth_pct": terminal_growth_pct,
-        "price_at_save": inputs["price"],
-        "intrinsic_value_at_save": round(iv_at_save, 2) if iv_at_save is not None else None,
-        "notified_milestones": [],  # re-saving is a new baseline — old crossings no longer apply
+        "company_name": live.get("company_name"),
+        "methodology": "fair_value_engine",
+        "target_margin_of_safety_pct": target_margin_of_safety_pct,
+        "price_at_save": live["current_price"],
+        # Re-saving (new/edited threshold) is a new baseline — a threshold
+        # already reached under a previous, different target no longer
+        # applies to this one.
+        "notified_at": None,
     }
     await run_query(
         db.table("saved_valuations").upsert(row, on_conflict="user_id,ticker")
@@ -171,7 +114,7 @@ async def save_valuation(
         db.table("saved_valuations").select("*").eq("user_id", user_id).eq("ticker", ticker)
     )
     saved_row = saved_res.data[0] if saved_res.data else row
-    return _with_live_valuation(saved_row, inputs)
+    return _with_live_data(saved_row, live)
 
 
 async def delete_valuation(user_id: str, ticker: str) -> bool:
@@ -184,48 +127,40 @@ async def delete_valuation(user_id: str, ticker: str) -> bool:
     return bool(res.data)
 
 
-def _newly_crossed_milestones(margin_pct: float, already_notified: list) -> list[int]:
-    """Every milestone in MILESTONES that `margin_pct` has now reached/passed
-    and isn't in `already_notified` yet. -10 fires when margin drops to or
-    below it; the rest fire when margin rises to or past them."""
-    already = set(already_notified or [])
-    crossed = []
-    for m in MILESTONES:
-        if m in already:
-            continue
-        if m < 0:
-            if margin_pct <= m:
-                crossed.append(m)
-        else:
-            if margin_pct >= m:
-                crossed.append(m)
-    return crossed
+def _reached_threshold(margin_pct: Optional[float], target_pct: Optional[float]) -> bool:
+    """True once the live margin of safety reaches or passes the user's
+    own configured target — the whole trigger condition (Diego: "cuando
+    una acción llegue a cierto margen de seguridad"), a single one-shot
+    threshold rather than the old fixed milestone ladder."""
+    if margin_pct is None or target_pct is None:
+        return False
+    return margin_pct >= target_pct
 
 
 async def run_milestone_check() -> None:
     """Daily job (see worker.py's job_saved_valuation_alerts): recomputes
-    every saved valuation's margin of safety against fresh price/
-    fundamentals, and pushes ONE notification per user for the single most
-    significant newly-crossed milestone — same one-push-per-category-per-day
-    discipline the rest of the notification system follows (see
-    notification_engine.can_send_push). Any other tickers that also crossed
-    a new milestone the same day simply get picked up on a later run —
-    nothing is lost, just delayed a day."""
+    every saved alert's live margin of safety, and pushes ONE notification
+    per user for the single most-exceeded newly-crossed threshold — same
+    one-push-per-category-per-day discipline the rest of the notification
+    system follows (notification_engine.can_send_push). Any other tickers
+    that also crossed their own threshold the same day simply get picked
+    up on a later run — nothing is lost, just delayed a day."""
     import asyncio
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
 
     db = get_supabase()
-    res = await run_query(db.table("saved_valuations").select("*"))
+    res = await run_query(
+        db.table("saved_valuations").select("*").not_.is_("target_margin_of_safety_pct", "null").is_("notified_at", "null")
+    )
     rows = res.data or []
     if not rows:
         return
 
     tickers = sorted({r["ticker"] for r in rows})
-    inputs_list = await asyncio.gather(*[asyncio.to_thread(get_live_inputs, t) for t in tickers])
-    inputs_map = dict(zip(tickers, inputs_list))
+    live_list = await asyncio.gather(*[asyncio.to_thread(get_live_margin_of_safety, t) for t in tickers])
+    live_map = dict(zip(tickers, live_list))
 
-    # profile map for language (best-effort, defaults to Spanish)
     lang_res = await run_query(db.table("user_profiles").select("user_id,preferred_language"))
     lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (lang_res.data or [])}
 
@@ -234,33 +169,24 @@ async def run_milestone_check() -> None:
         by_user.setdefault(row["user_id"], []).append(row)
 
     for user_id, user_rows in by_user.items():
-        candidates = []  # (abs priority, row, crossed_milestone, margin_pct, inputs)
+        candidates = []  # (margin_pct - target, row, margin_pct, live)
         for row in user_rows:
-            inputs = inputs_map.get(row["ticker"])
-            if not inputs:
+            live = live_map.get(row["ticker"])
+            if not live:
                 continue
-            iv = compute_iv(
-                inputs["current_fcf"] / 1e6, row["growth_pct"], row["discount_rate_pct"], row["terminal_growth_pct"],
-                inputs["net_cash"] / 1e6, inputs["shares_outstanding"] / 1e6,
-            )
-            margin_pct = calc_margin_of_safety(iv, inputs["price"]) if iv is not None else None
-            if margin_pct is None:
+            margin_pct = live["margin_of_safety_pct"]
+            target = row["target_margin_of_safety_pct"]
+            if not _reached_threshold(margin_pct, target):
                 continue
-            crossed = _newly_crossed_milestones(margin_pct, row.get("notified_milestones") or [])
-            if not crossed:
-                continue
-            # Prefer the most extreme milestone reached (best news, or the
-            # -10 warning if that's the only one) — most decision-relevant.
-            best = max(crossed, key=lambda m: (m if m >= 0 else -100 + m))
-            candidates.append((best, row, crossed, round(margin_pct, 1), inputs))
+            candidates.append((margin_pct - target, row, margin_pct, live))
 
         if not candidates:
             continue
 
-        # Pick the single candidate with the highest-value milestone across all this user's tickers.
-        best_milestone, best_row, best_crossed, best_margin, best_inputs = max(candidates, key=lambda c: c[0])
+        # The one furthest past its own threshold — most decision-relevant.
+        _, best_row, best_margin, best_live = max(candidates, key=lambda c: c[0])
         lang = lang_map.get(user_id, "es")
-        title, body = _milestone_copy(best_row["ticker"], best_milestone, best_margin, best_inputs["price"], lang)
+        title, body = _threshold_copy(best_row["ticker"], best_row["target_margin_of_safety_pct"], best_margin, best_live["current_price"], lang)
 
         try:
             await send_push(
@@ -270,32 +196,23 @@ async def run_milestone_check() -> None:
         except Exception as exc:
             logger.warning("run_milestone_check: push failed for %s/%s: %s", user_id, best_row["ticker"], exc)
 
-        # Mark ALL crossed milestones for this row as notified (not just the
-        # one pushed) — they were all genuinely reached; only the push itself
-        # is capped at one per day.
-        updated = sorted(set((best_row.get("notified_milestones") or [])) | set(best_crossed))
+        # Only the row actually pushed gets marked — the rest stay pending
+        # and get their own turn (and push) on a later run.
         try:
+            from datetime import datetime, timezone
             await run_query(
-                db.table("saved_valuations").update({"notified_milestones": updated})
+                db.table("saved_valuations").update({"notified_at": datetime.now(timezone.utc).isoformat()})
                 .eq("id", best_row["id"])
             )
         except Exception as exc:
-            logger.warning("run_milestone_check: failed to persist notified_milestones for %s: %s", best_row["id"], exc)
+            logger.warning("run_milestone_check: failed to persist notified_at for %s: %s", best_row["id"], exc)
 
 
-def _milestone_copy(ticker: str, milestone: int, margin_pct: float, price: float, lang: str) -> tuple[str, str]:
+def _threshold_copy(ticker: str, target_pct: float, margin_pct: float, price: float, lang: str) -> tuple[str, str]:
     if lang == "en":
-        if milestone < 0:
-            title = f"⚠️ {ticker} is now above your margin of safety"
-            body = f"At ${price:.2f}, {ticker} is trading {abs(margin_pct):.1f}% above the intrinsic value you calculated — worth revisiting your thesis."
-        else:
-            title = f"🎯 {ticker} hit +{milestone}% margin of safety"
-            body = f"At ${price:.2f}, {ticker} is now {margin_pct:.1f}% below the intrinsic value you calculated with your own assumptions."
+        title = f"🎯 {ticker} reached your target margin of safety"
+        body = f"At ${price:.2f}, {ticker} is now {margin_pct:.1f}% below its estimated fair value — you set an alert at {target_pct:.0f}%."
         return title, body
-    if milestone < 0:
-        title = f"⚠️ {ticker} superó tu margen de seguridad"
-        body = f"A ${price:.2f}, {ticker} cotiza un {abs(margin_pct):.1f}% por encima del valor intrínseco que calculaste — vale la pena revisar tu tesis."
-    else:
-        title = f"🎯 {ticker} alcanzó +{milestone}% de margen de seguridad"
-        body = f"A ${price:.2f}, {ticker} está {margin_pct:.1f}% por debajo del valor intrínseco que calculaste con tus propios supuestos."
+    title = f"🎯 {ticker} alcanzó tu margen de seguridad objetivo"
+    body = f"A ${price:.2f}, {ticker} está {margin_pct:.1f}% por debajo de su valor razonable estimado — configuraste una alerta en {target_pct:.0f}%."
     return title, body

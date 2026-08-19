@@ -407,10 +407,11 @@
     "myCalls": "My calls ({{count}})",
     "loadingEllipsis": "Loading...",
     "savedValuations": {
-      "title": "My saved intrinsic valuations",
+      "title": "My margin of safety alerts",
       "stale": "data unavailable",
       "noData": "N/A",
-      "footer": "We'll alert you when the margin of safety crosses -10%, 0%, +10%, +20%, +30% or +40%."
+      "currentVsTarget": "{{current}}% now · target {{target}}%",
+      "footer": "We'll alert you as soon as a stock's margin of safety reaches the target you set from Oportunidades."
     },
     "referralProgram": "Referral program",
     "inviteFriends": "Invite friends, earn rewards",
@@ -1320,6 +1321,16 @@
       "currentPrice": "Current Price",
       "fairValue": "Nuvos Fair Value",
       "marginOfSafety": "Margin of Safety"
+    },
+    "marginAlert": {
+      "prompt": "Notify me when the margin of safety reaches...",
+      "save": "Save",
+      "cancel": "Cancel",
+      "edit": "Edit",
+      "remove": "Remove",
+      "error": "We couldn't save the alert. Try again.",
+      "activeLabel": "Alert active at {{pct}}% margin",
+      "currentLabel": "Current margin: {{pct}}%"
     },
     "thermometer": {
       "title": "Valuation Thermometer",

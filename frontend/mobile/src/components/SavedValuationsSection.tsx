@@ -10,6 +10,7 @@ import StockAvatar from "./StockAvatar";
 interface SavedValuation {
   ticker: string;
   company_name: string | null;
+  target_margin_of_safety_pct: number | null;
   margin_of_safety_pct: number | null;
   stale: boolean;
 }
@@ -67,7 +68,11 @@ export default function SavedValuationsSection() {
             <TouchableOpacity style={{ flex: 1, minWidth: 0 }} onPress={() => router.push(`/subvaluadas?ticker=${item.ticker}` as any)}>
               <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }} numberOfLines={1}>{item.ticker}</Text>
               <Text style={{ fontSize: 11, color: colors.textMuted }} numberOfLines={1}>
-                {item.company_name}{item.stale ? ` · ${t("profile.savedValuations.stale")}` : ""}
+                {item.stale
+                  ? `${item.company_name} · ${t("profile.savedValuations.stale")}`
+                  : item.margin_of_safety_pct !== null && item.target_margin_of_safety_pct !== null
+                    ? t("profile.savedValuations.currentVsTarget", { current: item.margin_of_safety_pct, target: item.target_margin_of_safety_pct })
+                    : item.company_name}
               </Text>
             </TouchableOpacity>
             <MarginBadge pct={item.margin_of_safety_pct} />

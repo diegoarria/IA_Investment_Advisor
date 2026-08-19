@@ -334,10 +334,11 @@
     "notificationsSubtitle": "Alertas de precio y actividad",
     "supportSubtitle": "Ayuda y contacto directo",
     "savedValuations": {
-      "title": "Mis valores intrínsecos guardados",
+      "title": "Mis alertas de margen de seguridad",
       "stale": "datos no disponibles",
       "noData": "N/D",
-      "footer": "Te avisamos cuando el margen de seguridad cruce -10%, 0%, +10%, +20%, +30% o +40%."
+      "currentVsTarget": "{{current}}% actual · meta {{target}}%",
+      "footer": "Te avisamos apenas el margen de seguridad de cada acción llegue a la meta que configuraste desde Oportunidades."
     },
     "language": "Idioma",
     "languagePickerTitle": "¿En qué idioma quieres usar Nuvos?",
@@ -3722,6 +3723,16 @@
       "currentPrice": "Precio Actual",
       "fairValue": "Nuvos Fair Value",
       "marginOfSafety": "Margen de Seguridad"
+    },
+    "marginAlert": {
+      "prompt": "Avisame cuando el margen de seguridad llegue a...",
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "edit": "Editar",
+      "remove": "Quitar",
+      "error": "No pudimos guardar la alerta. Intenta de nuevo.",
+      "activeLabel": "Alerta activa en {{pct}}% de margen",
+      "currentLabel": "Margen actual: {{pct}}%"
     },
     "thermometer": {
       "title": "Termómetro de Valuación",
