@@ -109,9 +109,21 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
   }, [isAuthenticated]);
 
   const [historyOpen, setHistoryOpen] = useState(true);
-  const [patrimonioOpen, setPatrimonioOpen] = useState(() =>
-    typeof window === "undefined" ? true : PATRIMONIO_CHILDREN.some((c) => window.location.pathname.startsWith(c.href))
-  );
+  // Always starts closed — matching what the server render produces (it has
+  // no pathname to branch on) is what avoids a hydration mismatch here. The
+  // effect below opens it a tick after mount if the current page is one of
+  // Patrimonio's children, instead of branching the initial state itself on
+  // `typeof window`, which made the server render "open" and the client
+  // hydrate "closed" (or vice versa) on every page that wasn't a Patrimonio
+  // sub-page — a real, reproducible hydration-mismatch warning in both
+  // Chrome and Safari, confirmed via a cross-browser check.
+  const [patrimonioOpen, setPatrimonioOpen] = useState(false);
+  useEffect(() => {
+    if (PATRIMONIO_CHILDREN.some((c) => pathname.startsWith(c.href))) {
+      setPatrimonioOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [sessionLoading, setSessionLoading] = useState(false);
 
