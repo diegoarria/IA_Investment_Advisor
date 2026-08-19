@@ -313,9 +313,15 @@ export default function AuthScreen() {
         [
           { text: t("index.notNow"), style: "cancel" },
           { text: t("index.activate"), onPress: async () => {
-            await SecureStore.setItemAsync(BIOMETRIC_EMAIL_KEY,    emailUsed);
-            await SecureStore.setItemAsync(BIOMETRIC_PASSWORD_KEY, passwordUsed);
-            await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY,  "true");
+            // WHEN_UNLOCKED_THIS_DEVICE_ONLY (vs. the library's default,
+            // WHEN_UNLOCKED) excludes this entry from iCloud Keychain/Google
+            // account backup-and-sync — this is the user's real plaintext
+            // password, not a token, so it should never leave this specific
+            // device under any circumstance, backup included.
+            const opts = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
+            await SecureStore.setItemAsync(BIOMETRIC_EMAIL_KEY,    emailUsed, opts);
+            await SecureStore.setItemAsync(BIOMETRIC_PASSWORD_KEY, passwordUsed, opts);
+            await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY,  "true", opts);
           }},
         ]
       );

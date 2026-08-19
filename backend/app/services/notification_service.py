@@ -41,10 +41,11 @@ async def get_user_notifications(user_id: str, limit: int = 20) -> list[dict]:
     return result.data
 
 
-async def mark_notification_read(notification_id: str):
+async def mark_notification_read(notification_id: str, user_id: str):
     db = get_supabase()
     await run_query(
-        db.table("notifications").update({"read": True}).eq("id", notification_id)
+        db.table("notifications").update({"read": True})
+        .eq("id", notification_id).eq("user_id", user_id)
     )
 
 

@@ -48,6 +48,23 @@ app.add_middleware(
 
 logger = logging.getLogger("uvicorn.error")
 
+
+# Security headers on every response — an audit found none of these were set
+# anywhere (backend or a platform config file), leaving no clickjacking
+# protection, no MIME-sniffing protection, no HSTS enforcement declared by
+# the app itself, and no CSP as a backstop if an XSS bug is ever found.
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+    if not _is_dev:
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
+    return response
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled error on %s %s", request.method, request.url.path)
@@ -154,7 +171,12 @@ async def health_ready():
         )
         checks["supabase"] = {"ok": True}
     except Exception as e:
-        checks["supabase"] = {"ok": False, "error": str(e)[:200]}
+        # This endpoint is public/unauthenticated (polled by uptime
+        # monitoring) — log the real error server-side but don't hand raw
+        # exception text (potentially internal hostnames/connection detail)
+        # back in the response body to anyone who asks.
+        logger.warning("health/ready: supabase check failed: %s", e)
+        checks["supabase"] = {"ok": False}
         overall_ok = False
 
     # Redis — only meaningful if configured; if REDIS_URL is unset we report
@@ -171,7 +193,8 @@ async def health_ready():
             if not ok:
                 overall_ok = False
         except Exception as e:
-            checks["redis"] = {"ok": False, "configured": True, "error": str(e)[:200]}
+            logger.warning("health/ready: redis check failed: %s", e)
+            checks["redis"] = {"ok": False, "configured": True}
             overall_ok = False
     else:
         checks["redis"] = {"ok": False, "configured": False, "note": "REDIS_URL not set — caching/rate-limiting are per-process only"}
@@ -184,3 +207,17 @@ async def health_ready():
     status_code = 200 if overall_ok else 503
     from fastapi.responses import JSONResponse
     return JSONResponse(status_code=status_code, content={"status": "healthy" if overall_ok else "degraded", "checks": checks})
+
+
+# Deployed behind Railway's edge (gunicorn + UvicornWorker, launched with no
+# --proxy-headers flag — that's a uvicorn CLI-only option, not reachable
+# through gunicorn/UvicornWorker's own config), so without this,
+# request.client.host is the load balancer's address, not the real client —
+# every IP-based rate limit and client_ip() call would silently bucket all
+# traffic behind one shared key. Wrapping at the ASGI level here works
+# regardless of how the process is launched. trusted_hosts="*" is safe here
+# specifically because Railway's edge is the only thing that can reach this
+# process directly (not a public multi-hop proxy chain a client could inject
+# a header into) — it terminates TLS and forwards internally.
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+app = ProxyHeadersMiddleware(app, trusted_hosts="*")

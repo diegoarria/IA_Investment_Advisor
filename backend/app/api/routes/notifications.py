@@ -312,7 +312,7 @@ async def mark_read(
     notification_id: str,
     user_id: str = Depends(get_current_user_id)
 ):
-    await notification_service.mark_notification_read(notification_id)
+    await notification_service.mark_notification_read(notification_id, user_id)
     cache_delete(f"notif:{user_id}")
     return {"marked_read": True}
 

@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { marketApi } from "../lib/api";
 import { useTheme } from "../lib/ThemeContext";
+import { isSafeHttpUrl } from "../lib/urlSafety";
 
 interface IndexData {
   name: string;
@@ -309,7 +310,7 @@ export default function MarketTicker() {
                 <TouchableOpacity
                   key={item.uuid || String(i)}
                   style={[styles.newsItem, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}
-                  onPress={() => Linking.openURL(item.url)}
+                  onPress={() => { if (isSafeHttpUrl(item.url)) Linking.openURL(item.url); }}
                   activeOpacity={0.75}
                 >
                   <View style={styles.newsRow}>

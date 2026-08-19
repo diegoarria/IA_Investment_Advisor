@@ -13,6 +13,7 @@ import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
+import { isSafeHttpUrl } from "../../src/lib/urlSafety";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -639,7 +640,7 @@ export default function NotificationsScreen() {
                 <TouchableOpacity
                   style={[styles.nsSecondaryBtn, { backgroundColor: colors.bgRaised, borderColor: colors.border, marginTop: 8 }]}
                   activeOpacity={0.75}
-                  onPress={() => { setNewsModal(null); setNewsSummary(null); Linking.openURL(newsModal?.url ?? "").catch(() => {}); }}
+                  onPress={() => { setNewsModal(null); setNewsSummary(null); if (isSafeHttpUrl(newsModal?.url)) Linking.openURL(newsModal!.url).catch(() => {}); }}
                 >
                   <Text style={[styles.nsSecondaryTitle, { color: colors.textSub, fontSize: 12 }]}>{t("notifications.summaryModal.viewFullArticle")}</Text>
                 </TouchableOpacity>
@@ -707,7 +708,7 @@ export default function NotificationsScreen() {
                         <View style={{ flexDirection: "row", gap: 8 }}>
                           <TouchableOpacity
                             style={[styles.newsSummaryBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
-                            onPress={() => { setNewsModal(null); setNewsSummary(null); Linking.openURL(newsModal?.url ?? "").catch(() => {}); }}
+                            onPress={() => { setNewsModal(null); setNewsSummary(null); if (isSafeHttpUrl(newsModal?.url)) Linking.openURL(newsModal!.url).catch(() => {}); }}
                           >
                             <Text style={[styles.newsSummaryBtnText, { color: colors.textSub }]}>{t("notifications.summaryModal.viewArticle")}</Text>
                           </TouchableOpacity>

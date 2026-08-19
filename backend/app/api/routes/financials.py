@@ -1,12 +1,14 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from app.services.financial_data_service import get_financials, invalidate_cache
 from app.core.limiter import limiter
 from fastapi import Request
+from app.api.deps import get_current_user
+from app.api.routes.admin import _require_admin
 
 router = APIRouter(prefix="/stocks", tags=["financials"])
 logger = logging.getLogger(__name__)
@@ -62,8 +64,13 @@ async def get_stock_financials(
 
 
 @router.delete("/{ticker}/financials/cache")
-async def bust_financials_cache(ticker: str):
-    """Dev/admin endpoint to force a cache invalidation for a ticker."""
+@limiter.limit("10/minute")
+async def bust_financials_cache(request: Request, ticker: str, user: dict = Depends(get_current_user)):
+    """Admin-only: force a cache invalidation for a ticker. Used to have no
+    auth check at all despite the "Dev/admin" docstring — anyone could hit
+    this unauthenticated and repeatedly force expensive re-fetches from the
+    paid data provider for any ticker, a free cost-amplification lever."""
+    await _require_admin(user)
     sym = ticker.upper().strip()
     invalidate_cache(sym)
     return {"ok": True, "ticker": sym}

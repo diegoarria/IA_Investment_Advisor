@@ -32,12 +32,13 @@ import asyncio
 import hashlib
 import hmac
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.api.deps import get_current_user_id
 from app.core.cache import cache_get, cache_set, cache_delete
@@ -185,6 +186,19 @@ async def list_institutions(category: str = "banking", debug: bool = False):
 class RegisterLinkRequest(BaseModel):
     link_id: str
     institution_name: str
+
+    @field_validator("institution_name")
+    @classmethod
+    def _validate_institution_name(cls, v: str) -> str:
+        # This gets interpolated directly into a Belvo API path
+        # (f"/api/institutions/{institution_name}/"). Belvo's real
+        # institution codes are simple alphanumeric/underscore slugs — reject
+        # anything else so a value like "../accounts" can't redirect this
+        # server-to-server call (made with the app's own Belvo credentials)
+        # to a different Belvo endpoint than the one intended.
+        if not v or not re.fullmatch(r"[A-Za-z0-9_]+", v):
+            raise ValueError("institution_name inválido")
+        return v
 
 
 @router.post("/register-link")

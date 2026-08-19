@@ -519,8 +519,9 @@ export default function PaperPage() {
                 <TrendingUp className="w-6 h-6" style={{ color: "#00d47e" }} />
               </div>
               <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("paper.emptyTitle")}</p>
-              <p className="text-xs text-center" style={{ color: "var(--muted)" }}
-                 dangerouslySetInnerHTML={{ __html: t("paper.emptyBody", { amount: fmtMoney(PAPER_INITIAL_CASH) }) }} />
+              <p className="text-xs text-center" style={{ color: "var(--muted)", whiteSpace: "pre-line" }}>
+                {t("paper.emptyBody", { amount: fmtMoney(PAPER_INITIAL_CASH) })}
+              </p>
             </div>
           )}
 

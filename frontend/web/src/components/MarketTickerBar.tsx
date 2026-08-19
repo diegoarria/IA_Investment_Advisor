@@ -7,6 +7,7 @@ import { X, ChevronRight } from "lucide-react";
 import type { IndexNewsItem } from "@/lib/types";
 import { isNYSEOpen } from "@/lib/marketHours";
 import { useAuthStore } from "@/lib/store";
+import { isSafeHttpUrl } from "@/lib/urlSafety";
 
 interface Idx {
   name: string;
@@ -120,11 +121,13 @@ function NewsModal({ idx, onClose }: { idx: Idx; onClose: () => void }) {
                 <p className="text-xs mb-3" style={{ color: "var(--dim)" }}>
                   {item.publisher} · {formatAge(item.timestamp, t)}
                 </p>
-                <a href={item.url} target="_blank" rel="noopener noreferrer"
-                   className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors hover:bg-white/5"
-                   style={{ color: "var(--accent-l)", borderColor: "var(--border)" }}>
-                  {t("common.ticker.readArticle")} <ChevronRight className="w-3 h-3" />
-                </a>
+                {isSafeHttpUrl(item.url) && (
+                  <a href={item.url} target="_blank" rel="noopener noreferrer"
+                     className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors hover:bg-white/5"
+                     style={{ color: "var(--accent-l)", borderColor: "var(--border)" }}>
+                    {t("common.ticker.readArticle")} <ChevronRight className="w-3 h-3" />
+                  </a>
+                )}
               </div>
               {item.thumbnail && (
                 <img src={item.thumbnail} alt="" className="w-24 object-cover rounded-xl shrink-0"

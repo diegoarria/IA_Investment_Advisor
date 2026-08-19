@@ -876,8 +876,15 @@ async def transcribe_audio(
 ):
     """Convert voice recording to text using OpenAI Whisper."""
     from app.services.voice_service import transcribe_audio_bytes
+    audio_bytes = await audio.read()
+    # Whisper's own API cap is 25MB — reject early instead of paying for the
+    # upload + a guaranteed-to-fail provider call. There was no server-side
+    # limit here before (only whatever the client happened to send), an
+    # easy memory/cost-abuse lever otherwise. Outside the try/except below
+    # so this 413 doesn't get caught and rewrapped as a 500.
+    if len(audio_bytes) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="El audio es demasiado grande (máx. 25 MB)")
     try:
-        audio_bytes = await audio.read()
         text = await transcribe_audio_bytes(
             audio_bytes,
             filename=audio.filename or "audio.m4a",

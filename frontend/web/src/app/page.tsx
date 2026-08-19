@@ -514,7 +514,7 @@ function HomeContent() {
                         <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
                                style={{ color: "var(--muted)" }}>{t("landing.newPasswordLabel")}</label>
                         <input type="password" value={forgotNewPass} onChange={(e) => setForgotNewPass(e.target.value)}
-                               className="input-premium" placeholder={t("landing.min6Chars")} required minLength={6} autoFocus />
+                               className="input-premium" placeholder={t("landing.min6Chars")} required minLength={10} autoFocus />
                       </div>
                     )}
                     {error && (
@@ -587,7 +587,7 @@ function HomeContent() {
                            value={password} onChange={(e) => setPassword(e.target.value)}
                            className="input-premium pr-11"
                            placeholder={mode === "register" ? t("landing.createPasswordPlaceholder") : t("landing.passwordLabel")}
-                           required minLength={6} autoComplete={mode === "register" ? "new-password" : "current-password"} />
+                           required minLength={mode === "register" ? 10 : 1} autoComplete={mode === "register" ? "new-password" : "current-password"} />
                     <button type="button" onClick={() => setShowPass(!showPass)}
                             className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg transition-colors"
                             style={{ color: "var(--muted)" }}>

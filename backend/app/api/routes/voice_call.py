@@ -34,7 +34,8 @@ import re
 import secrets
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
+from app.core.limiter import limiter
 
 from app.api.deps import _resolve_user_token, get_current_user_id
 from app.core.cache import cache_get, cache_set, cache_delete
@@ -210,7 +211,8 @@ _VOICE_TICKET_TTL = 30  # seconds — just long enough to open the WS right afte
 
 
 @router.post("/call/ticket")
-async def create_voice_call_ticket(user_id: str = Depends(get_current_user_id)):
+@limiter.limit("10/minute")
+async def create_voice_call_ticket(request: Request, user_id: str = Depends(get_current_user_id)):
     """Web's WS connects directly to this API's own domain, not through the
     frontend's proxy — so the (now first-party, nuvosai.com-scoped) auth
     cookie never reaches it, cookies don't cross unrelated domains no matter

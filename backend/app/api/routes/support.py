@@ -8,11 +8,12 @@ PUT  /support/tickets/{id} — admin: reply to / close a ticket
 """
 
 import anthropic
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from app.api.deps import get_current_user_id
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
+from app.core.limiter import limiter
 from app.services.email_service import send_email
 from datetime import datetime, timezone
 
@@ -66,7 +67,9 @@ _SUPPORT_SYSTEM = """Eres el agente de soporte oficial de Nuvos AI — un asesor
 
 
 @router.post("/chat")
+@limiter.limit("20/minute")
 async def support_chat(
+    request: Request,
     body: dict,
     user_id: str = Depends(get_current_user_id),
 ):

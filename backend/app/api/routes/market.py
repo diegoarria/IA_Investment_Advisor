@@ -711,6 +711,13 @@ async def portfolio_from_screenshot(
     if not image_data:
         return {"positions": [], "error": "No image provided"}
 
+    # Same cap as /portfolio/from-pdf below — this endpoint had none at all,
+    # so a client could send an arbitrarily large base64 body repeatedly
+    # (rate-limited at 20/min, but still) and drive up server memory and
+    # Anthropic API cost with no server-side ceiling.
+    if len(image_data) > 28 * 1024 * 1024:
+        return {"positions": [], "error": "La imagen es demasiado grande (máx. ~20 MB)"}
+
     # Normalize image type — Claude only accepts jpeg, png, gif, webp
     _TYPE_MAP = {
         "image/jpg": "image/jpeg",
@@ -1069,7 +1076,8 @@ _NEWS_SUMMARY_TTL = 6 * 3600  # article content/summary don't change once writte
 
 
 @router.post("/summarize-news")
-async def summarize_news(body: dict, user_id: str = Depends(get_current_user_id)):
+@limiter.limit("20/minute")
+async def summarize_news(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
     """AI summary of a news article — premium-only, enforced on the frontend.
     The summary depends only on the article + language, never on who's asking,
     so it's cached and shared across every user who opens the same article —
@@ -1118,12 +1126,26 @@ async def summarize_news(body: dict, user_id: str = Depends(get_current_user_id)
             "Sec-Fetch-Site": "cross-site",
             "Upgrade-Insecure-Requests": "1",
         }
+        # SSRF guard: `url` is client-supplied — without this, an authenticated
+        # user could point the server at its own internal network (Railway's
+        # internal services, localhost, cloud metadata) and have the result
+        # reflected back via the "summary". Validated on the initial URL AND
+        # on every redirect hop (see fetch_external_url) — httpx's own
+        # follow_redirects=True never re-validates a Location header.
+        from app.core.url_safety import fetch_external_url, is_safe_external_url
+        if not is_safe_external_url(url):
+            logger.warning("summarize-news: rejected unsafe URL %s", url)
+            url = ""
+
         # One retry — a cloud server's outbound IP can get transiently rate-limited
         # by finance sites in a way a single request wouldn't recover from otherwise.
-        for attempt in range(2):
+        for attempt in range(2 if url else 0):
             try:
-                async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-                    r = await client.get(url, headers=_HEADERS)
+                async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
+                    r = await fetch_external_url(client, url, headers=_HEADERS)
+                if r is None:
+                    logger.warning("summarize-news: redirect to unsafe target for %s", url)
+                    break
                 if r.status_code == 200:
                     content = _extract_article_text(r.text)
                 else:

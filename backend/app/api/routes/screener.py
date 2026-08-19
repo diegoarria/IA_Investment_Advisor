@@ -1773,7 +1773,9 @@ _DEFAULT_VI_TICKER = "AAPL"
 
 
 @router.get("/quick-analysis")
+@limiter.limit("30/minute")
 async def quick_analysis(
+    request: Request,
     query: str, lang: str | None = None, is_default_view: bool = False, user_id: str = Depends(get_current_user_id),
 ):
     """Ad-hoc single-ticker valuation search — the real DCF engine (same one
@@ -2077,7 +2079,8 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
 
 
 @router.get("/company-diagnostic")
-async def company_diagnostic(query: str, lang: str | None = None, user_id: str = Depends(get_current_user_id)):
+@limiter.limit("30/minute")
+async def company_diagnostic(request: Request, query: str, lang: str | None = None, user_id: str = Depends(get_current_user_id)):
     """CompanyDiagnosticCard's real-data backing (see /Users/diegoarria/
     .claude/plans/cosmic-munching-crown.md) — real deterministic scores/
     badges/moat-points/competitor-comparison from `company_diagnostic_

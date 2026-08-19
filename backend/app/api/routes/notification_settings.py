@@ -109,7 +109,7 @@ async def track_notification_event(
 ):
     from app.services.notification_engine import track_event
     db = get_supabase()
-    await track_event(body.notification_id, body.event_type, db)
+    await track_event(body.notification_id, body.event_type, db, user_id)
     return {"ok": True}
 
 

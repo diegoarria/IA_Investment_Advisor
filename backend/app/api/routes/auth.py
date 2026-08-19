@@ -192,6 +192,12 @@ async def _send_welcome_email(email: str, language: str | None = None, attempt: 
 @router.post("/register", response_model=TokenResponse)
 @limiter.limit("5/hour")
 async def register(request: Request, response: Response, body: AuthRequest):
+    # Not on the shared AuthRequest model itself — that model is also used
+    # by /login, where an existing account's password (created before this
+    # minimum existed, or under whatever Supabase's own default was) must
+    # still be accepted. Kept in sync with reset_password's own minimum below.
+    if len(body.password) < 10:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 10 caracteres.")
     try:
         db = get_supabase()
         result = db.auth.sign_up({
@@ -384,8 +390,8 @@ async def reset_password(request: Request, body: dict):
 
     if not code or not new_password:
         raise HTTPException(status_code=400, detail="Todos los campos son requeridos")
-    if len(new_password) < 6:
-        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
+    if len(new_password) < 10:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 10 caracteres")
 
     # The identity used for lockout tracking must match whichever key the
     # code itself is stored under (phone for the SMS flow, email otherwise)

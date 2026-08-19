@@ -406,12 +406,13 @@ async def start_debate(request: Request, body: dict, user_id: str = Depends(get_
 
 
 @router.post("/debate/reply")
-async def debate_reply(request: dict, user_id: str = Depends(get_current_user_id)):
-    thesis = request.get("thesis", "")
-    previous = request.get("previous_debate", "")
-    user_response = request.get("user_response", "")
-    round_num = request.get("round", 1)
-    difficulty = request.get("difficulty", "intermedio").lower()
+@limiter.limit("15/minute")
+async def debate_reply(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
+    thesis = body.get("thesis", "")
+    previous = body.get("previous_debate", "")
+    user_response = body.get("user_response", "")
+    round_num = body.get("round", 1)
+    difficulty = body.get("difficulty", "intermedio").lower()
     premium = await _is_premium(user_id)
 
     if not premium and round_num > FREE_DEBATE_MAX_ROUNDS:

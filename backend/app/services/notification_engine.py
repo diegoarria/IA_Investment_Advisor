@@ -237,7 +237,7 @@ async def _track_analytics(db, event_type: str, category: str, user_id: str,
 
 # ─── Track open/click (called by frontend) ───────────────────────────────────
 
-async def track_event(notification_id: str, event_type: str, db):
+async def track_event(notification_id: str, event_type: str, db, user_id: str):
     from app.core.database import run_query
     from app.core.cache import cache_delete
     now = datetime.now(timezone.utc).isoformat()
@@ -249,19 +249,21 @@ async def track_event(notification_id: str, event_type: str, db):
     if not update:
         return
     try:
-        await run_query(db.table("notification_log").update(update).eq("id", notification_id))
-        if event_type == "opened":
-            log_res = await run_query(
-                db.table("notification_log").select("user_id").eq("id", notification_id)
+        # Scoped to the caller's own user_id — this used to trust
+        # notification_id alone, so any authenticated user could forge an
+        # open/click event (and reset the consecutive_ignores throttle
+        # state below) for a notification that belongs to someone else.
+        result = await run_query(
+            db.table("notification_log").update(update)
+            .eq("id", notification_id).eq("user_id", user_id)
+        )
+        if event_type == "opened" and result.data:
+            await run_query(
+                db.table("notification_preferences")
+                .update({"consecutive_ignores": 0, "last_opened_app": now})
+                .eq("user_id", user_id)
             )
-            if log_res.data:
-                uid = log_res.data[0]["user_id"]
-                await run_query(
-                    db.table("notification_preferences")
-                    .update({"consecutive_ignores": 0, "last_opened_app": now})
-                    .eq("user_id", uid)
-                )
-                cache_delete(f"notif_prefs:{uid}")
+            cache_delete(f"notif_prefs:{user_id}")
     except Exception as e:
         logger.warning("Failed to track event %s: %s", event_type, e)
 

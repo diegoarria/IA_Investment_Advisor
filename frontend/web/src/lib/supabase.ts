@@ -7,7 +7,23 @@ let _client: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient {
   if (!_client) {
-    _client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // The app's own auth (every real API call) runs entirely on a separate,
+    // httpOnly cookie the backend sets — this Supabase client's own session
+    // is only used for the Google OAuth exchange and the 401-interceptor's
+    // multi-tab refresh fallback (see api.ts). Left at Supabase's default,
+    // it persists that session in localStorage in plaintext; a future XSS
+    // bug anywhere on the site could read it and, since /api/auth/set-session
+    // trusts a client-supplied Supabase access_token after validating it,
+    // use it to mint fresh httpOnly cookies too — a full account-takeover
+    // path, not just a stolen short-lived token. sessionStorage narrows that
+    // window to the current tab instead of surviving indefinitely on disk.
+    _client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        storage: typeof window !== "undefined" ? window.sessionStorage : undefined,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    });
   }
   return _client;
 }

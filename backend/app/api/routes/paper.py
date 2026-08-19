@@ -13,7 +13,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 _PRICES_POOL = ThreadPoolExecutor(max_workers=12, thread_name_prefix="paper-prices")
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from app.core.limiter import limiter
 
 from app.api.deps import get_current_user_id
 from app.core.cache import cache_get, cache_set
@@ -219,7 +220,8 @@ async def get_leaderboard(user_id: str = Depends(get_current_user_id)):
 
 
 @router.post("/analyze")
-async def analyze_paper(body: dict, user_id: str = Depends(get_current_user_id)):
+@limiter.limit("15/minute")
+async def analyze_paper(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
     """AI analysis of the user's paper trading portfolio — premium only (enforced on frontend)."""
     positions      = body.get("positions") or []
     trades         = body.get("trades") or []

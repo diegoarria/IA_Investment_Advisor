@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../lib/ThemeContext";
 import { marketApi } from "../../lib/api";
+import { isSafeHttpUrl } from "../../lib/urlSafety";
 
 interface NewsItem {
   title:     string;
@@ -61,7 +62,7 @@ export default function StockNews({ ticker }: { ticker: string }) {
       {items.map((item, i) => (
         <TouchableOpacity
           key={i}
-          onPress={() => Linking.openURL(item.url)}
+          onPress={() => { if (isSafeHttpUrl(item.url)) Linking.openURL(item.url); }}
           style={[
             s.card,
             {
