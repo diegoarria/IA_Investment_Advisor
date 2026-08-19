@@ -57,7 +57,10 @@ export default function WrappedFlow({ data, onClose }: { data: WrappedData; onCl
 
   const captureShareImage = useCallback(async (): Promise<Blob | null> => {
     if (!shareRef.current) return null;
-    const canvas = await html2canvas(shareRef.current, { backgroundColor: "#03060e", scale: 2 });
+    // useCORS lets the Nuvos logo and ticker logos (both loaded with
+    // crossOrigin="anonymous") actually paint into the exported canvas
+    // instead of leaving blank squares where they were.
+    const canvas = await html2canvas(shareRef.current, { backgroundColor: "#03060e", scale: 2, useCORS: true });
     return new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/png"));
   }, []);
 

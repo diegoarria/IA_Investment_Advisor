@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Stage from "./Stage";
 import { WT, WrappedData, fmtPct, fmtUsd } from "./types";
 
@@ -301,47 +302,98 @@ export function ScreenProximoCapitulo({ data, total, page }: { data: WrappedData
   );
 }
 
+// Company logo for the share card — same source/fallback convention as
+// StockAvatar, but a plain <img crossOrigin> instead of next/image so
+// html2canvas (useCORS: true, see WrappedFlow) can actually paint it into
+// the exported PNG.
+function TickerLogo({ ticker, size }: { ticker: string; size: number }) {
+  const [failed, setFailed] = useState(false);
+  const src = `https://assets.parqet.com/logos/symbol/${ticker.replace(".", "-")}?format=svg`;
+  if (failed) {
+    return (
+      <div style={{ width: size, height: size, borderRadius: "50%", background: WT.card2, border: `1px solid ${WT.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: size * 0.34, color: WT.sub, flexShrink: 0 }}>
+        {ticker.slice(0, 2)}
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={ticker}
+      crossOrigin="anonymous"
+      onError={() => setFailed(true)}
+      style={{ width: size, height: size, borderRadius: "50%", objectFit: "contain", background: "#fff", padding: size * 0.12, border: `1px solid ${WT.border}`, flexShrink: 0 }}
+    />
+  );
+}
+
 // 12 — Compartir
 export function ScreenCompartir({ data }: { data: WrappedData }) {
+  const best = data.top_stocks[0];
+  const hasMarketCompare = data.growth_pct !== undefined && data.spy_ytd_pct !== undefined && data.spy_ytd_pct !== null;
+  const wonMarket = hasMarketCompare && (data.growth_pct as number) > (data.spy_ytd_pct as number);
+
   return (
     <Stage page={12} total={12} noChrome>
-      <div style={{ position: "absolute", inset: 20, borderRadius: 26, background: "linear-gradient(165deg, rgba(9,15,31,0.7) 0%, rgba(3,6,14,0.55) 55%, rgba(9,15,31,0.7) 100%)", border: "1.5px solid rgba(0,232,135,0.16)" }} />
-      <div style={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 8px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-          <div style={{ width: 26, height: 26, borderRadius: 7, background: WT.gradGreen }} />
-          <span style={{ fontWeight: 800, fontSize: 14, color: WT.text }}>NUVOS AI</span>
-        </div>
-        <div style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 11, color: WT.accentL, textTransform: "uppercase", letterSpacing: 1 }}>Rendimiento de portafolio</div>
+      <div style={{ position: "absolute", inset: 20, borderRadius: 26, background: "linear-gradient(165deg, rgba(9,15,31,0.75) 0%, rgba(3,6,14,0.6) 55%, rgba(9,15,31,0.75) 100%)", border: "1.5px solid rgba(0,232,135,0.18)" }} />
+      <div style={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", padding: "18px 10px 10px" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="Nuvos AI" crossOrigin="anonymous" style={{ width: 30, height: 30, borderRadius: 8, marginBottom: 8 }} />
+        <span style={{ fontWeight: 800, fontSize: 13, color: WT.text, letterSpacing: 0.5, marginBottom: 16 }}>NUVOS AI</span>
+
+        <div style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 11, color: WT.accentL, textTransform: "uppercase", letterSpacing: 1 }}>Rendimiento de portafolio {data.year}</div>
         {data.growth_pct !== undefined && (
-          <div style={{ fontWeight: 900, fontSize: 74, color: WT.accentL, filter: "drop-shadow(0 0 24px rgba(0,232,135,0.4))", margin: "4px 0" }}>{fmtPct(data.growth_pct)}</div>
+          <div style={{ fontWeight: 900, fontSize: 66, color: WT.accentL, filter: "drop-shadow(0 0 24px rgba(0,232,135,0.4))", margin: "2px 0 4px", lineHeight: 1 }}>{fmtPct(data.growth_pct)}</div>
         )}
-        <p style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: WT.sub, marginBottom: 16 }}>Mi año como inversionista con Nuvos AI</p>
+
+        {hasMarketCompare && (
+          <div style={{ ...CARD, width: "100%", maxWidth: 300, display: "flex", alignItems: "center", justifyContent: "space-around", padding: "10px 12px", marginTop: 10, background: WT.card2 }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: WT.accentL }}>{fmtPct(data.growth_pct as number)}</div>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>Tu cartera</div>
+            </div>
+            <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.dim, fontWeight: 700 }}>VS</div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: WT.sub }}>{fmtPct(data.spy_ytd_pct as number)}</div>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>S&amp;P 500</div>
+            </div>
+            {wonMarket && (
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontWeight: 800, fontSize: 16, color: WT.gold }}>🏆</div>
+                <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>Le ganaste</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {best && (
+          <div style={{ ...CARD, width: "100%", maxWidth: 300, display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", marginTop: 10 }}>
+            <TickerLogo ticker={best.ticker} size={38} />
+            <div style={{ flex: 1, textAlign: "left" }}>
+              <div style={{ fontWeight: 800, fontSize: 15, color: WT.text }}>{best.ticker}</div>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted }}>Tu mejor inversión del año</div>
+            </div>
+            <div style={{ fontWeight: 800, fontSize: 18, color: WT.accentL }}>{fmtPct(best.ytd_pct)}</div>
+          </div>
+        )}
+
+        <p style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: WT.sub, margin: "16px 0 12px" }}>Mi año como inversionista con Nuvos AI</p>
+
         {data.archetype && (
-          <div style={{ display: "inline-flex", alignItems: "center", padding: "8px 18px", borderRadius: 100, background: "rgba(0,185,109,0.1)", border: "1.5px solid rgba(0,232,135,0.4)", marginBottom: 20 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", padding: "8px 18px", borderRadius: 100, background: "rgba(0,185,109,0.1)", border: "1.5px solid rgba(0,232,135,0.4)", marginBottom: 16 }}>
             <span style={{ fontWeight: 800, fontSize: 13, color: WT.text }}>{data.archetype.name}</span>
           </div>
         )}
-        <div style={{ display: "flex", gap: 0, width: "100%", maxWidth: 280, marginBottom: 8 }}>
-          {data.top_stocks[0] && (
-            <div style={{ flex: 1, textAlign: "center", padding: "0 8px" }}>
-              <div style={{ fontWeight: 800, fontSize: 15, color: WT.gold }}>{data.top_stocks[0].ticker}</div>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>Mejor inversión</div>
-            </div>
-          )}
-          {data.investor_score && (
-            <div style={{ flex: 1, textAlign: "center", padding: "0 8px", borderLeft: `1px solid ${WT.border}` }}>
-              <div style={{ fontWeight: 800, fontSize: 15, color: WT.text }}>{data.investor_score.score}</div>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>Investor Score</div>
-            </div>
-          )}
-          {data.vs_community && (
-            <div style={{ flex: 1, textAlign: "center", padding: "0 8px", borderLeft: `1px solid ${WT.border}` }}>
-              <div style={{ fontWeight: 800, fontSize: 15, color: WT.text }}>+{Math.round(((data.growth_pct ?? 0) - (data.spy_ytd_pct ?? 0)))}</div>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>pts vs S&amp;P 500</div>
-            </div>
-          )}
-        </div>
-        <p style={{ fontWeight: 800, fontSize: 15, color: WT.text, marginTop: 14 }}>#<span style={{ color: WT.accentL }}>Nuvos</span>Investor</p>
+
+        {data.investor_score && (
+          <div style={{ textAlign: "center", marginBottom: 6 }}>
+            <span style={{ fontWeight: 800, fontSize: 15, color: WT.text }}>{data.investor_score.score}</span>
+            <span style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted }}> / 100 Investor Score</span>
+          </div>
+        )}
+
+        <p style={{ fontWeight: 800, fontSize: 15, color: WT.text, marginTop: 10 }}>#<span style={{ color: WT.accentL }}>Nuvos</span>Investor</p>
       </div>
     </Stage>
   );
