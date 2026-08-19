@@ -229,8 +229,15 @@ async def get_wrapped(
     next_chapter = None
     if prof.get("investment_goal"):
         next_chapter = prof["investment_goal"]
-        if prof.get("investment_goal_amount"):
-            next_chapter = f"{next_chapter} — ${prof['investment_goal_amount']:,.0f}"
+        # Stored as a string (see UserProfile.investment_goal_amount) — cast
+        # before formatting, and drop the amount rather than 500 the whole
+        # report if it's not actually numeric.
+        raw_amount = prof.get("investment_goal_amount")
+        if raw_amount:
+            try:
+                next_chapter = f"{next_chapter} — ${float(raw_amount):,.0f}"
+            except (TypeError, ValueError):
+                pass
 
     result = {
         "year":        year,
