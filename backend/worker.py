@@ -2978,7 +2978,10 @@ async def job_dividend_income():
 
 
 async def job_events_alerts():
-    """8:00 AM ET weekdays — push for today/tomorrow ex-div, dividend payment, and earnings dates.
+    """8:00 AM ET weekdays — push for ex-dividend dates (today AND tomorrow)
+    and dividend payment dates (today only — see the dividend-vs-ex_dividend
+    check below). Earnings notifications live in job_earnings_watch instead
+    (fires the moment Finnhub confirms a report, not on a fixed schedule).
     Skips weekends and NYSE holidays."""
     if not _is_market_open_today():
         logger.info("job_events_alerts: market closed today — skipping")
@@ -3053,102 +3056,16 @@ async def job_events_alerts():
                     when       = ("today" if is_en else "hoy") if is_today else ("tomorrow" if is_en else "mañana")
                     event_type = evt.get("event_type")
 
-                    if event_type == "earnings":
-                        category     = "earnings_report"
-                        is_portfolio = ticker in port_tickers
-                        company      = _company_name(ticker)
-                        # Finnhub's earnings-calendar entry already carries
-                        # eps_actual/revenue_actual once the company has
-                        # actually reported (see earnings.py's
-                        # _finnhub_earnings_date) — that's the real, cheap
-                        # "has this been reported yet" signal, no extra
-                        # fetch needed to tell "before" from "after" apart.
-                        eps_actual = evt.get("eps_actual")
-                        rev_actual = evt.get("revenue_actual")
-                        has_actuals = eps_actual is not None or rev_actual is not None
+                    if event_type in ("ex_dividend", "dividend"):
+                        # Dividend PAYMENT only announces the day it actually
+                        # pays — not a day-before pre-notice like ex-dividend
+                        # gets. Every payment message below already reads
+                        # "today"/"hoy" unconditionally, so this also fixes
+                        # what would otherwise be a real copy bug (announcing
+                        # "you got paid today" a day early).
+                        if event_type == "dividend" and not is_today:
+                            continue
 
-                        if has_actuals:
-                            eps_est  = evt.get("eps_estimate")
-                            rev_est  = evt.get("revenue_estimate")
-                            badge, label = _earnings_result_badge(eps_actual, eps_est, is_en)
-                            result_word  = "Result" if is_en else "Resultado"
-                            expected_word = "expected" if is_en else "esperado"
-
-                            lines: list[str] = []
-                            if rev_actual and rev_est:
-                                lines.append(f"Revenue: ${rev_actual} vs ${rev_est} {expected_word}")
-                            elif rev_actual:
-                                lines.append(f"Revenue: ${rev_actual}")
-                            if eps_actual is not None and eps_est is not None:
-                                lines.append(f"EPS: ${eps_actual:.2f} vs ${eps_est:.2f} {expected_word}")
-                            elif eps_actual is not None:
-                                lines.append(f"EPS: ${eps_actual:.2f}")
-
-                            if is_premium:
-                                title = f"🚨 {company} {'just reported' if is_en else 'acaba de reportar'}"
-                                body_parts = []
-                                if badge:
-                                    body_parts.append(f"{result_word}: {badge} {label}")
-                                body_parts.extend(lines)
-                                if is_portfolio:
-                                    pos = positions_map.get(ticker, {})
-                                    shares = float(pos.get("shares") or 0)
-                                    if shares:
-                                        q = await asyncio.to_thread(_finnhub_quote, ticker)
-                                        curr_price = q["curr"] if q else 0.0
-                                        position_value = shares * curr_price if curr_price else 0.0
-                                        if position_value:
-                                            body_parts.append(f"{'Your position' if is_en else 'Tu posición'}: ${position_value:,.2f} USD")
-                                body = "\n\n".join(body_parts) if body_parts else (
-                                    f"{company} just reported." if is_en else f"{company} acaba de reportar."
-                                )
-                            else:
-                                title = f"📊 {company} {'just reported results' if is_en else 'acaba de reportar resultados'}"
-                                body_parts = list(lines)
-                                if badge:
-                                    body_parts.append(f"{result_word}: {badge} {label}")
-                                body = "\n\n".join(body_parts) if body_parts else (
-                                    f"{company} just reported results." if is_en else f"{company} acaba de reportar resultados."
-                                )
-                        elif is_premium:
-                            title = f"🧠 {ticker} {'reports' if is_en else 'reporta'} {when}"
-                            pos            = positions_map.get(ticker, {}) if is_portfolio else {}
-                            shares         = float(pos.get("shares") or 0)
-                            position_value = 0.0
-                            if shares:
-                                q          = await asyncio.to_thread(_finnhub_quote, ticker)
-                                curr_price = q["curr"] if q else 0.0
-                                position_value = shares * curr_price if curr_price else 0.0
-                            if is_en:
-                                body = (
-                                    f"We'll know {ticker}'s results {when}.\n"
-                                    f"Nuvos is watching 4 things:\n\n"
-                                    f"• Revenue\n• EPS\n• Operating margin\n• Guidance"
-                                )
-                                if position_value:
-                                    body += f"\n\nYour position: ${position_value:,.2f} USD"
-                            else:
-                                body = (
-                                    f"Conoceremos los resultados de {ticker} {when}.\n"
-                                    f"Nuvos está vigilando 4 cosas:\n\n"
-                                    f"• Revenue\n• EPS\n• Margen operativo\n• Guidance"
-                                )
-                                if position_value:
-                                    body += f"\n\nTu posición: ${position_value:,.2f} USD"
-                        else:
-                            title = f"📊 {company} {'reports results' if is_en else 'reporta resultados'} {when}"
-                            if is_en:
-                                body = (
-                                    f"{company} will release quarterly results {when}.\n"
-                                    f"What to expect? Nuvos will explain it once they're out."
-                                )
-                            else:
-                                body = (
-                                    f"{company} publicará sus resultados trimestrales {when}.\n"
-                                    f"¿Qué esperar? Nuvos te lo explicará cuando se publiquen."
-                                )
-
-                    elif event_type in ("ex_dividend", "dividend"):
                         is_portfolio = ticker in port_tickers
                         company = _company_name(ticker)
                         amt = await asyncio.to_thread(_finnhub_dividend_amount, ticker)
@@ -3778,8 +3695,11 @@ def _earnings_push_content(
     return title, body
 
 
-async def _job_earnings_dispatch(hour_filter: str):
-    """Shared logic for BMO + AMC earnings jobs."""
+async def _job_earnings_dispatch(hour_filter: str | None = None):
+    """Shared earnings-results dispatch. hour_filter=None (the only caller
+    now, job_earnings_watch) checks for ANY session (BMO/AMC/DMT) reported
+    so far today — the polling cadence, not this filter, is what makes the
+    notification arrive close to the moment Finnhub confirms the report."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
 
@@ -3791,11 +3711,10 @@ async def _job_earnings_dispatch(hour_filter: str):
     # 1. Fetch today's earnings from Finnhub for the given session
     results_map = await asyncio.to_thread(_finnhub_earnings_today, hour_filter)
     if not results_map:
-        logger.info("job_earnings [%s]: no earnings reported today", hour_filter)
         return
 
     reported_tickers = set(results_map.keys())
-    logger.info("job_earnings [%s]: %d tickers reported: %s", hour_filter, len(reported_tickers), reported_tickers)
+    logger.info("job_earnings_watch: %d tickers reported so far: %s", len(reported_tickers), reported_tickers)
 
     # 2. Load all users
     users_res = await run_query(db.table("user_profiles").select("user_id,name,preferred_language,subscription_tier,trial_started_at,streak_bonus_premium_until"))
@@ -3867,23 +3786,22 @@ async def _job_earnings_dispatch(hour_filter: str):
             )
             notified += 1
 
-    logger.info("job_earnings [%s]: %d notifications sent", hour_filter, notified)
+    if notified:
+        logger.info("job_earnings_watch: %d notifications sent", notified)
 
 
-async def job_earnings_bmo():
-    """9:15 AM ET — notify users about pre-market earnings (BMO)."""
+async def job_earnings_watch():
+    """Every 15 min, 7 AM-7 PM ET Mon-Fri — the single earnings
+    notification per company per day: fires as soon as Finnhub confirms a
+    report (BMO as early as ~6-7am, AMC after the 4pm close), not on a
+    fixed clock. send_push's per-user/category/day dedup (notification_
+    engine.py) already guarantees a ticker that's already been notified
+    today is skipped on every later tick, so polling frequently just
+    shortens the delay — it never double-sends."""
     try:
-        await _job_earnings_dispatch("BMO")
+        await _job_earnings_dispatch(None)
     except Exception as e:
-        logger.error("job_earnings_bmo failed: %s", e)
-
-
-async def job_earnings_results():
-    """4:30 PM ET — notify users about after-hours earnings (AMC)."""
-    try:
-        await _job_earnings_dispatch("AMC")
-    except Exception as e:
-        logger.error("job_earnings_results failed: %s", e)
+        logger.error("job_earnings_watch failed: %s", e)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -4657,88 +4575,6 @@ async def job_proactive_vs_market():
         logger.error("job_proactive_vs_market failed: %s", e)
 
 
-async def job_proactive_earnings_preview():
-    """8:30 AM ET Mon-Fri — warn users about earnings TODAY or TOMORROW for their holdings."""
-    from app.core.database import get_supabase, run_query
-    from app.api.routes.earnings import _fetch_events_for_symbol
-    db = get_supabase()
-    today     = datetime.now(timezone.utc).date()
-    tomorrow  = today + timedelta(days=1)
-    target_dates = {str(today), str(tomorrow)}
-    try:
-        users_res = await run_query(
-            db.table("notification_preferences")
-            .select("user_id")
-            .eq("push_portfolio_alerts", True)
-        )
-        user_ids = [r["user_id"] for r in (users_res.data or [])]
-
-        prof_res = await run_query(
-            db.table("user_profiles")
-            .select("user_id,subscription_tier,preferred_language,trial_started_at,streak_bonus_premium_until")
-            .in_("user_id", user_ids)
-        )
-        premium_ids = {
-            p["user_id"] for p in (prof_res.data or [])
-            if _is_premium_user(p.get("subscription_tier"), p.get("trial_started_at"), p.get("streak_bonus_premium_until"))
-        }
-        lang_map = {p["user_id"]: (p.get("preferred_language") or "es") for p in (prof_res.data or [])}
-
-        sent = 0
-        for uid in premium_ids:
-            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
-            if not port_res.data:
-                continue
-            positions = _agg_positions(port_res.data)
-            tickers = [p["ticker"] for p in positions if p.get("ticker")]
-            if not tickers:
-                continue
-
-            is_en = lang_map.get(uid, "es") == "en"
-            hits: list[dict] = []
-            for ticker in tickers[:20]:
-                events = await asyncio.to_thread(_fetch_events_for_symbol, ticker)
-                for ev in events:
-                    if ev.get("event_type") == "earnings" and ev.get("event_date") in target_dates:
-                        pos = next((p for p in positions if p["ticker"] == ticker), {})
-                        hits.append({
-                            "ticker": ticker,
-                            "date": ev["event_date"],
-                            "shares": pos.get("shares", 0),
-                            "eps_est": ev.get("eps_estimate"),
-                        })
-
-            if not hits:
-                continue
-
-            for hit in hits[:3]:
-                if is_en:
-                    when = "today" if hit["date"] == str(today) else "tomorrow"
-                    shares_str = f" · You hold {hit['shares']:.0f} shares" if hit["shares"] else ""
-                    eps_str = f" · EPS est. ${hit['eps_est']}" if hit.get("eps_est") else ""
-                    msg = f"{hit['ticker']} reports earnings {when}{shares_str}{eps_str}. Want me to explain what to watch for?"
-                    push_title = f"📅 {hit['ticker']} reports {when}"
-                else:
-                    when = "hoy" if hit["date"] == str(today) else "mañana"
-                    shares_str = f" · Tienes {hit['shares']:.0f} acciones" if hit["shares"] else ""
-                    eps_str = f" · EPS est. ${hit['eps_est']}" if hit.get("eps_est") else ""
-                    msg = f"{hit['ticker']} reporta earnings {when}{shares_str}{eps_str}. ¿Quieres que te explique qué vigilar?"
-                    push_title = f"📅 {hit['ticker']} reporta {when}"
-                encoded = msg.replace("&", "%26").replace("?", "%3F")
-                ok = await _send_mobile_push(
-                    uid, "earnings_preview",
-                    push_title,
-                    msg,
-                    {"screen": "chat", "msg": encoded},
-                    db,
-                )
-                if ok:
-                    sent += 1
-                await asyncio.sleep(0.05)
-
-        logger.info("job_proactive_earnings_preview: %d sent", sent)
-    except Exception as e:
-        logger.error("job_proactive_earnings_preview failed: %s", e)
 
 
 # ── Deep Research job queue worker ────────────────────────────────────────────
@@ -4844,7 +4680,7 @@ async def main():
     scheduler.add_job(job_ipo_alerts,            "cron",                        hour=7,       minute=45,    timezone="America/New_York")
     scheduler.add_job(job_events_alerts,        "cron", day_of_week="mon-fri", hour=8,       minute=0,     timezone="America/New_York")
     scheduler.add_job(job_dividend_income,      "cron", hour=9,       minute=0,     timezone="America/New_York")
-    scheduler.add_job(job_earnings_bmo,         "cron", day_of_week="mon-fri", hour=9,       minute=15,    timezone="America/New_York")
+    scheduler.add_job(job_earnings_watch,       "cron", day_of_week="mon-fri", hour="7-18",  minute="*/15", timezone="America/New_York")
     scheduler.add_job(job_morning_brief,        "cron", day_of_week="mon-fri", hour=9,       minute=15,    timezone="America/New_York")
     scheduler.add_job(job_market_open,          "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")
     scheduler.add_job(job_holiday_midday,       "cron", day_of_week="mon-fri", hour=12,      minute=0,     timezone="America/New_York")
@@ -4856,7 +4692,6 @@ async def main():
     scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=5,     timezone="America/New_York")
     scheduler.add_job(job_saved_valuation_alerts, "cron", day_of_week="mon-fri", hour=16,    minute=10,    timezone="America/New_York")
     scheduler.add_job(job_smart_alerts,           "cron", day_of_week="mon-fri", hour=16,    minute=20,    timezone="America/New_York")
-    scheduler.add_job(job_earnings_results,     "cron", day_of_week="mon-fri", hour=16,      minute=30,    timezone="America/New_York")
     scheduler.add_job(job_daily_email,          "cron", day_of_week="fri",     hour=18,      minute=0,     timezone="America/New_York")
 
     # ── Sunday 8:00am ET: Screener Semanal — pre-generate + cache + notify
@@ -4906,7 +4741,6 @@ async def main():
 
     # ── Proactive Arthur ───────────────────────────────────────────────────
     scheduler.add_job(job_proactive_vs_market,        "cron", day_of_week="mon-fri", hour=16, minute=45, timezone="America/New_York")
-    scheduler.add_job(job_proactive_earnings_preview, "cron", day_of_week="mon-fri", hour=8,  minute=30, timezone="America/New_York")
 
     # ── Financial Memory Graph — daily portfolio snapshot ─────────────────────
     scheduler.add_job(job_fmg_snapshot,         "cron", day_of_week="mon-fri", hour=16, minute=5, timezone="America/New_York")
