@@ -316,3 +316,25 @@ async def compute_metrics(user_id: str, price_lookup: dict[str, float] | None = 
         "thesis_accuracy_sample_size": evaluable,
         "watchlist_adds": len(watchlist_adds),
     }
+
+
+async def get_most_analyzed_tickers(user_id: str, year: int, limit: int = 3) -> list[dict]:
+    """Top tickers by real logged thesis/question event count within a
+    calendar year — the honest substitute for "hours spent analyzing" (not
+    tracked anywhere in this app): a count of real, timestamped engagement
+    events per ticker, never a fabricated duration. Used by the annual
+    Wrapped's "empresas favoritas" screen."""
+    events = await _fetch_graph_events(user_id, None, limit=1000)
+    year_start, year_end = f"{year}-01-01", f"{year}-12-31T23:59:59"
+    relevant = [
+        e for e in events
+        if e.get("event_type") in ("thesis", "question")
+        and year_start <= str(e.get("occurred_at") or "") <= year_end
+    ]
+    counts: dict[str, int] = {}
+    for e in relevant:
+        t = e.get("ticker")
+        if t:
+            counts[t] = counts.get(t, 0) + 1
+    top = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+    return [{"ticker": t, "times_analyzed": c} for t, c in top]

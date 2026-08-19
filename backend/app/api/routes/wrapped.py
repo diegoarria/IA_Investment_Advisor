@@ -1,15 +1,22 @@
 """
-Annual Nuvos Wrapped — user year-in-review stats.
+Annual Nuvos Investor Wrapped — 12-screen year-in-review.
 GET /api/wrapped/annual
+
+Only accessible Dec 15 - Jan 15 (inclusive), every year, forever — see
+app/core/wrapped_window.py, the single source of truth for that check.
+Available to every user, free and premium alike (Diego: the whole point is
+that everyone gets one, same as Spotify Wrapped) — unlike the rest of the
+Investor Progress Engine, nothing here is premium-gated.
 """
 import asyncio
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from app.api.deps import get_current_user
 from app.core.database import get_supabase, run_query
 from app.core.limiter import limiter
+from app.core.wrapped_window import is_wrapped_window_open, wrapped_year_for
 from app.services import investor_progress_service
 
 logger = logging.getLogger(__name__)
@@ -18,12 +25,9 @@ router = APIRouter(prefix="/api/wrapped", tags=["wrapped"])
 
 async def _ytd_return(ticker: str, year: int) -> float | None:
     """Return YTD % gain for ticker in given year. None if unavailable."""
-    import calendar
-    import time as _time
     try:
         from app.core.finnhub import fh_candles
 
-        from datetime import datetime, timezone
         from_dt = datetime(year, 1, 1, tzinfo=timezone.utc)
         to_dt   = datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
         from_ts = int(from_dt.timestamp())
@@ -70,29 +74,53 @@ def _es_sector(sector: str) -> str:
     return _SECTOR_ES.get(sector, sector)
 
 
+async def _position_stake(ticker: str, positions: list[dict]) -> dict | None:
+    """Real $ compraste / $ valor actual for one ticker, summed across every
+    lot — never a guessed/estimated figure. None if the current price isn't
+    fetchable (never fabricated)."""
+    from app.core.finnhub import fh_quote
+    lots = [p for p in positions if p.get("ticker") == ticker]
+    if not lots:
+        return None
+    shares = sum(float(p.get("shares", 0) or 0) for p in lots)
+    invested = sum(float(p.get("shares", 0) or 0) * float(p.get("avgPrice", 0) or 0) for p in lots)
+    quote = await asyncio.to_thread(fh_quote, ticker)
+    if not quote or not quote.get("price"):
+        return None
+    current_value = shares * float(quote["price"])
+    return {"invested": round(invested, 2), "current_value": round(current_value, 2)}
+
+
 @router.get("/annual")
 @limiter.limit("10/hour")
 async def get_wrapped(
     request: Request,
     user: dict = Depends(get_current_user),
 ):
+    now = datetime.now(timezone.utc)
+    if not is_wrapped_window_open(now):
+        # 404, not 403 — "not available" reads honestly, "forbidden" implies
+        # a permission the user is missing rather than a date that hasn't
+        # arrived yet. The frontend shows a "vuelve el 15 de diciembre"
+        # locked screen off this status, same contract on web and mobile.
+        raise HTTPException(status_code=404, detail={
+            "code": "wrapped_window_closed",
+            "message": "Tu Investor Wrapped está disponible del 15 de diciembre al 15 de enero.",
+        })
+
     db        = get_supabase()
     user_id   = user["id"]
-    now       = datetime.now(timezone.utc)
-    year      = now.year
+    year      = wrapped_year_for(now)
 
     # ── 1. User profile ──────────────────────────────────────────────────────
     prof_res = await run_query(
         db.table("user_profiles")
-          .select("full_name, created_at, subscription_tier, trial_started_at, streak_bonus_premium_until")
+          .select("full_name, created_at, investment_goal, investment_goal_amount")
           .eq("user_id", user_id)
     )
     prof = prof_res.data[0] if prof_res.data else {}
 
     full_name = prof.get("full_name") or "Inversor"
-
-    from app.api.routes.upsells import _effective_tier
-    is_premium = _effective_tier(prof.get("subscription_tier", "free"), prof.get("trial_started_at"), prof.get("streak_bonus_premium_until")) == "premium"
 
     created_raw = prof.get("created_at")
     if created_raw:
@@ -117,8 +145,6 @@ async def get_wrapped(
     lessons     = sim_count + debate_count
 
     # ── 3. Portfolio positions ────────────────────────────────────────────────
-    # A user can have up to 3 portfolios (premium) — pick "default" to match
-    # every other read path in the app, instead of an arbitrary row.
     port_res = await run_query(
         db.table("user_portfolio").select("portfolio_id, positions").eq("user_id", user_id)
     )
@@ -129,13 +155,9 @@ async def get_wrapped(
     else:
         raw = {}
     positions: list = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
-    # `positions` is one row per purchase lot — a ticker bought twice must
-    # still count as ONE real holding here (dict.fromkeys dedupes while
-    # keeping the original order), or it can crowd the top-3 YTD list with
-    # the same stock twice instead of showing an actually different holding.
     tickers = list(dict.fromkeys(p["ticker"] for p in positions if p.get("ticker")))
 
-    # ── 4. Top 3 stocks by YTD return ────────────────────────────────────────
+    # ── 4. Top 3 stocks by YTD return (mejor decisión podio) ─────────────────
     ytd_results: list[dict] = []
     if tickers:
         returns = await asyncio.gather(*[_ytd_return(t, year) for t in tickers])
@@ -144,6 +166,13 @@ async def get_wrapped(
                 ytd_results.append({"ticker": ticker, "ytd_pct": ret})
         ytd_results.sort(key=lambda x: x["ytd_pct"], reverse=True)
     top3 = ytd_results[:3]
+    # Real $ compraste/valor actual for the #1 position — never for the
+    # whole podium (extra live quote calls per open request), and never
+    # fabricated when a quote isn't fetchable (the field is just omitted).
+    if top3:
+        stake = await _position_stake(top3[0]["ticker"], positions)
+        if stake:
+            top3[0].update(stake)
 
     # ── 5. Dominant sector ───────────────────────────────────────────────────
     top_sector = "Tecnología"
@@ -151,32 +180,74 @@ async def get_wrapped(
         sector_tasks = await asyncio.gather(*[_ticker_sector(t) for t in tickers])
         sector_counts: dict[str, float] = {}
         for ticker, sector in zip(tickers, sector_tasks):
-            # Weight by value, summed across every lot of this ticker —
-            # not just the first lot, or a stock bought twice under-counts
-            # its real weight in the dominant-sector calc.
             value = sum(float(p.get("value", 1) or 1) for p in positions if p.get("ticker") == ticker)
             sector_counts[sector] = sector_counts.get(sector, 0) + value
         if sector_counts:
             dominant = max(sector_counts, key=lambda k: sector_counts[k])
             top_sector = _es_sector(dominant)
 
+    # ── 6. Empresas favoritas (most analyzed, real event counts) ─────────────
+    from app.services import investment_graph_service
+    favoritas = await investment_graph_service.get_most_analyzed_tickers(user_id, year, limit=3)
+
+    # ── 7. Vs. otros inversionistas Nuvos (percentile within risk cohort) ────
+    percentile_block = None
+    try:
+        from app.api.routes.benchmark import _cohort_for, _percentile_rank
+        risk_res = await run_query(
+            db.table("user_profiles").select("risk_tolerance").eq("user_id", user_id).maybe_single()
+        )
+        cohort = _cohort_for((risk_res.data or {}).get("risk_tolerance"))
+        summary = await investor_progress_service.compute_progress_summary(user_id)
+        your_return = summary.get("cumulative_return_pct")
+        if your_return is not None:
+            stats_res = await run_query(
+                db.table("benchmark_cohort_stats")
+                .select("values, sample_size")
+                .eq("cohort_key", cohort)
+                .eq("metric_key", "cumulative_return_pct")
+                .maybe_single()
+            )
+            row = stats_res.data or {}
+            if row.get("values") and row.get("sample_size", 0) >= 5:
+                percentile_block = {
+                    "percentile": _percentile_rank(your_return, row["values"]),
+                    "cohort_size": row["sample_size"],
+                }
+    except Exception:
+        logger.warning("wrapped: percentile computation failed for %s", user_id, exc_info=True)
+
+    # ── 8. Vs. el mercado — SPY, same YTD-for-year basis as top_stocks ───────
+    spy_ytd_pct = await _ytd_return("SPY", year)
+
+    # ── 9. Próximo capítulo ───────────────────────────────────────────────────
+    next_chapter = None
+    if prof.get("investment_goal"):
+        next_chapter = prof["investment_goal"]
+        if prof.get("investment_goal_amount"):
+            next_chapter = f"{next_chapter} — ${prof['investment_goal_amount']:,.0f}"
+
     result = {
         "year":        year,
         "user_name":   full_name,
-        "top_stocks":  top3,           # [{ticker, ytd_pct}, ...]
-        "lessons":     lessons,        # sim + debates
+        "top_stocks":  top3,           # [{ticker, ytd_pct[, invested, current_value]}, ...]
+        "favoritas":   favoritas,      # [{ticker, times_analyzed}, ...]
+        "lessons":     lessons,
         "days_active": days_active,
         "top_sector":  top_sector,
         "sim_count":   sim_count,
         "debate_count": debate_count,
+        "next_chapter": next_chapter,
+        "vs_community": percentile_block,
+        "spy_ytd_pct": spy_ytd_pct,
     }
 
-    # Investor Progress Engine fields — Premium only, matching the dashboard's
-    # own gating. Free users keep the exact Wrapped they've always had.
-    if is_premium:
-        try:
-            result.update(await investor_progress_service.get_wrapped_extension(user_id, year))
-        except Exception:
-            logger.warning("get_wrapped_extension failed for %s", user_id, exc_info=True)
+    # Investor Progress Engine fields — real for every account, not just
+    # Premium (unlike the rest of that engine): archetype, Investor Score,
+    # this year's growth, milestones, decisions logged, evolution.
+    try:
+        result.update(await investor_progress_service.get_wrapped_extension(user_id, year))
+    except Exception:
+        logger.warning("get_wrapped_extension failed for %s", user_id, exc_info=True)
 
     return result

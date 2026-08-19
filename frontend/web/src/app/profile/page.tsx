@@ -14,7 +14,6 @@ import {
 import { auth as authApi, billing, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi, voiceCallsApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
-import WrappedCard from "@/components/WrappedCard";
 import SavedValuationsSection from "@/components/SavedValuationsSection";
 import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, ChevronRight, NotebookPen, SlidersHorizontal, Star, BarChart,
@@ -185,7 +184,6 @@ export default function ProfilePage() {
     ready: boolean; topics?: string[]; risk_match?: boolean;
     risk_note?: string; suggestion?: string;
   } | null>(null);
-  const [wrappedOpen, setWrappedOpen] = useState(false);
   const [duoEmail, setDuoEmail] = useState("");
   const [duoSaving, setDuoSaving] = useState(false);
   const [duoError, setDuoError] = useState("");
@@ -1310,7 +1308,7 @@ export default function ProfilePage() {
 
                 {/* Nuvos Wrapped */}
                 <button
-                  onClick={() => setWrappedOpen(true)}
+                  onClick={() => router.push("/wrapped")}
                   className="w-full flex items-center gap-3 p-4 rounded-2xl text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
                   style={{ background: "linear-gradient(135deg, #00d47e18, #00d47e0a)", border: "1px solid #00d47e30" }}
                 >
@@ -1422,7 +1420,6 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {wrappedOpen && <WrappedCard onClose={() => setWrappedOpen(false)} />}
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
     </div>
   );
