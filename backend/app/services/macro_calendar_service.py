@@ -253,11 +253,17 @@ async def refresh_if_empty_on_startup() -> None:
         logger.warning("refresh_if_empty_on_startup (macro calendar) failed: %s", e)
 
 
+_SERVED_IMPACT_LEVELS = {"VERY_HIGH", "HIGH"}  # Diego, 2026-08-19: MEDIUM events (housing starts, etc.) add noise without moving markets — drop them before they ever reach a client
+
+
 async def get_macro_events(days_ahead: int = 30, lang: str = "es") -> list[dict]:
     """Read-through: cache first, then Supabase (last known good), never a
     live FMP call from a request path. Returns events from today (ET)
     through `days_ahead` days out, each with a derived `status` and the
-    event time normalized to America/New_York for display."""
+    event time normalized to America/New_York for display. Only VERY_HIGH/
+    HIGH impact events are served — MEDIUM is still stored in Supabase (in
+    case that filter is ever loosened) but filtered out here, the single
+    place both the web and mobile calendars ultimately read from."""
     rows = cache_get(CACHE_KEY)
     if rows is None:
         db = get_supabase()
@@ -285,6 +291,8 @@ async def get_macro_events(days_ahead: int = 30, lang: str = "es") -> list[dict]
         dt_et = dt_utc.astimezone(_ET)
         date_et = dt_et.date()
         if date_et < today_et - timedelta(days=_DAYS_BEHIND) or date_et > horizon_et:
+            continue
+        if row.get("impact_level") not in _SERVED_IMPACT_LEVELS:
             continue
 
         status = "past" if date_et < today_et else "today" if date_et == today_et else "upcoming"
