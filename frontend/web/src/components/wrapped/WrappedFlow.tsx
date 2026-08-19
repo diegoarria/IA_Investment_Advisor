@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import { Download, Share2, X } from "lucide-react";
 import {
@@ -41,6 +41,19 @@ export default function WrappedFlow({ data, onClose }: { data: WrappedData; onCl
   const isLast = index === screens.length;
   const next = useCallback(() => setIndex((i) => Math.min(i + 1, screens.length)), [screens.length]);
   const prev = useCallback(() => setIndex((i) => Math.max(i - 1, 0)), []);
+
+  // Desktop keyboard support — mirrors the tap zones (Right/Down = next,
+  // Left/Up = prev, Escape = close), same story-viewer convention as
+  // Instagram/Spotify Wrapped's own web players.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") next();
+      else if (e.key === "ArrowLeft" || e.key === "ArrowUp") prev();
+      else if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [next, prev, onClose]);
 
   const captureShareImage = useCallback(async (): Promise<Blob | null> => {
     if (!shareRef.current) return null;
