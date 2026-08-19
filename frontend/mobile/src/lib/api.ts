@@ -363,6 +363,8 @@ export const earningsApi = {
     api.get("/api/earnings/recent-reporters", { params: { symbols: symbols.join(",") } }),
   getMacroCalendar: (daysAhead = 45, lang?: string) =>
     api.get("/api/earnings/calendar/macro", { params: { days_ahead: daysAhead, lang } }),
+  getMacroImpact: (eventId: string, lang?: string) =>
+    api.get(`/api/earnings/calendar/macro/${eventId}/impact`, { params: { lang } }),
 };
 
 export const screenerWeeklyApi = {

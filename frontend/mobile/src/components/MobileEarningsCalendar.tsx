@@ -34,6 +34,7 @@ interface TickerCalendarEvent {
 // Display-only, no notifications — mirrors web's WatchlistEarningsCalendar.
 interface MacroCalendarEvent {
   kind: "macro";
+  event_id: string;
   event_type: MacroEventType;
   event_name: string;
   date_et: string;
@@ -113,6 +114,8 @@ export default function MobileEarningsCalendar({
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [analysis, setAnalysis]     = useState<Record<string, string>>({});
   const [analyzing, setAnalyzing]   = useState<string | null>(null);
+  const [macroImpact, setMacroImpact]       = useState<Record<string, string>>({});
+  const [analyzingMacro, setAnalyzingMacro] = useState<string | null>(null);
 
   const allTickers   = [...new Set([...watchlistTickers, ...portfolioTickers])].filter(Boolean);
   const portfolioSet = new Set(portfolioTickers);
@@ -178,6 +181,19 @@ export default function MobileEarningsCalendar({
       setAnalysis((prev) => ({ ...prev, [ticker]: t("mobileEarningsCalendar.analysisError") }));
     } finally {
       setAnalyzing(null);
+    }
+  };
+
+  const handleAnalyzeMacro = async (eventId: string) => {
+    if (macroImpact[eventId] || analyzingMacro) return;
+    setAnalyzingMacro(eventId);
+    try {
+      const res = await earningsApi.getMacroImpact(eventId, i18n.language);
+      setMacroImpact((prev) => ({ ...prev, [eventId]: res.data.impact_note }));
+    } catch {
+      setMacroImpact((prev) => ({ ...prev, [eventId]: t("mobileEarningsCalendar.analysisError") }));
+    } finally {
+      setAnalyzingMacro(null);
     }
   };
 
@@ -365,6 +381,41 @@ export default function MobileEarningsCalendar({
                           {entry.why_it_matters}
                         </Text>
                       </View>
+                    )}
+
+                    {/* Personalized portfolio impact — Premium, VERY_HIGH/HIGH events only */}
+                    {(entry.impact_level === "VERY_HIGH" || entry.impact_level === "HIGH") && (
+                      macroImpact[entry.event_id] ? (
+                        <View style={[s.analysisBox, { backgroundColor: "rgba(0,168,94,0.10)", marginTop: 6 }]}>
+                          <Text style={[s.analysisText, { color: colors.text }]}>
+                            <Text style={{ fontWeight: "700", color: colors.accentLight }}>{t("mobileEarningsCalendar.macro.yourPortfolio")}: </Text>
+                            {macroImpact[entry.event_id]}
+                          </Text>
+                        </View>
+                      ) : analyzingMacro === entry.event_id ? (
+                        <View style={s.analyzingRow}>
+                          <ActivityIndicator size="small" color={colors.accentLight} />
+                          <Text style={[s.analyzingText, { color: colors.textMuted }]}>{t("mobileEarningsCalendar.analyzingWithAI")}</Text>
+                        </View>
+                      ) : isPremium ? (
+                        <TouchableOpacity
+                          onPress={() => handleAnalyzeMacro(entry.event_id)}
+                          style={[s.aiBtn, { marginTop: 6 }]}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="flash-outline" size={12} color={colors.accentLight} />
+                          <Text style={[s.aiBtnText, { color: colors.accentLight }]}>{t("mobileEarningsCalendar.macro.impactLabel")}</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity
+                          onPress={onUpgrade}
+                          style={[s.aiBtn, { backgroundColor: "rgba(107,114,128,0.10)", marginTop: 6 }]}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="flash-outline" size={12} color={colors.textMuted} />
+                          <Text style={[s.aiBtnText, { color: colors.textMuted }]}>{t("mobileEarningsCalendar.macro.impactPremiumLabel")}</Text>
+                        </TouchableOpacity>
+                      )
                     )}
                   </View>
                 </View>

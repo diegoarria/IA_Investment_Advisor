@@ -40,6 +40,7 @@ interface TickerCalendarEvent {
 // from the backend, which sources them from a real economic-calendar API.
 interface MacroCalendarEvent {
   kind: "macro";
+  event_id: string;
   event_type: MacroEventType;
   event_name: string;
   date_et: string;   // "YYYY-MM-DD"
@@ -134,6 +135,8 @@ export default function WatchlistEarningsCalendar({
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [analysis, setAnalysis]   = useState<Record<string, string>>({});
   const [analyzing, setAnalyzing] = useState<string | null>(null);
+  const [macroImpact, setMacroImpact]     = useState<Record<string, string>>({});
+  const [analyzingMacro, setAnalyzingMacro] = useState<string | null>(null);
 
   const allTickers   = [...new Set([...watchlistTickers, ...portfolioTickers])].filter(Boolean);
   const portfolioSet = new Set(portfolioTickers);
@@ -203,6 +206,19 @@ export default function WatchlistEarningsCalendar({
       setAnalysis((prev) => ({ ...prev, [ticker]: t("watchlistEarningsCalendar.analysisFailed") }));
     } finally {
       setAnalyzing(null);
+    }
+  };
+
+  const handleAnalyzeMacro = async (eventId: string) => {
+    if (macroImpact[eventId] || analyzingMacro) return;
+    setAnalyzingMacro(eventId);
+    try {
+      const res = await earningsApi.getMacroImpact(eventId, i18n.language);
+      setMacroImpact((prev) => ({ ...prev, [eventId]: res.data.impact_note }));
+    } catch {
+      setMacroImpact((prev) => ({ ...prev, [eventId]: t("watchlistEarningsCalendar.analysisFailed") }));
+    } finally {
+      setAnalyzingMacro(null);
     }
   };
 
@@ -388,13 +404,49 @@ export default function WatchlistEarningsCalendar({
                       <p className="text-[10px] mb-1" style={{ color: "var(--sub)" }}>{entry.speaker_name}</p>
                     )}
                     {entry.why_it_matters && (
-                      <div className="text-[11px] leading-relaxed p-2.5 rounded-xl"
+                      <div className="text-[11px] leading-relaxed p-2.5 rounded-xl mb-1.5"
                            style={{ background: "var(--raised)", color: "var(--sub)" }}>
                         <span className="font-semibold" style={{ color: "var(--text)" }}>
                           {t("watchlistEarningsCalendar.macro.whyItMatters")}:
                         </span>{" "}
                         {entry.why_it_matters}
                       </div>
+                    )}
+
+                    {/* Personalized portfolio impact — Premium, VERY_HIGH/HIGH events only */}
+                    {(entry.impact_level === "VERY_HIGH" || entry.impact_level === "HIGH") && (
+                      macroImpact[entry.event_id] ? (
+                        <div className="text-[11px] leading-relaxed p-2.5 rounded-xl"
+                             style={{ background: "rgba(0,168,94,0.08)", color: "var(--text)" }}>
+                          <span className="font-semibold" style={{ color: "var(--accent-l)" }}>
+                            {t("watchlistEarningsCalendar.macro.yourPortfolio")}:
+                          </span>{" "}
+                          {macroImpact[entry.event_id]}
+                        </div>
+                      ) : analyzingMacro === entry.event_id ? (
+                        <div className="flex items-center gap-1.5 py-1">
+                          <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--accent-l)" }} />
+                          <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                            {t("watchlistEarningsCalendar.analyzingWithAi")}
+                          </span>
+                        </div>
+                      ) : isPremium ? (
+                        <button
+                          onClick={() => handleAnalyzeMacro(entry.event_id)}
+                          className="flex items-center gap-1 text-[10px] font-semibold transition-opacity hover:opacity-70"
+                          style={{ color: "var(--accent-l)" }}
+                        >
+                          <Zap className="w-2.5 h-2.5" /> {t("watchlistEarningsCalendar.macro.impactLabel")}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={onUpgrade}
+                          className="flex items-center gap-1 text-[10px] font-semibold transition-opacity hover:opacity-70"
+                          style={{ color: "var(--muted)" }}
+                        >
+                          <Zap className="w-2.5 h-2.5" /> {t("watchlistEarningsCalendar.macro.impactPremiumLabel")}
+                        </button>
+                      )
                     )}
                   </div>
                 );

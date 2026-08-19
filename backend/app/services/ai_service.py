@@ -2414,6 +2414,92 @@ Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta est
     }
 
 
+def _portfolio_weights_for_prompt(positions: list[dict]) -> list[dict]:
+    """Real cost-basis weight per ticker for a compact LLM prompt — same
+    aggregate-by-ticker discipline as build_deep_user_context (a ticker
+    bought twice must read as one holding, not two half-sized ones), but
+    without that function's live-quote fetch: a macro-impact explanation
+    only needs exposure/weight, not current P&L, so this stays a single
+    cheap pass over data the caller already has in memory."""
+    if not positions:
+        return []
+    agg = aggregate_positions_by_ticker(positions)
+    total_cost = sum(float(p.get("shares", 0) or 0) * float(p.get("avg_price", 0) or 0) for p in agg)
+    if total_cost <= 0:
+        return []
+    weighted = [
+        {
+            "ticker": (p.get("ticker") or "?").upper(),
+            "weight_pct": round(float(p.get("shares", 0) or 0) * float(p.get("avg_price", 0) or 0) / total_cost * 100, 1),
+        }
+        for p in agg
+    ]
+    weighted.sort(key=lambda w: w["weight_pct"], reverse=True)
+    return weighted
+
+
+async def analyze_macro_event_impact(
+    user_id: str,
+    event_name: str,
+    event_type: str,
+    why_it_matters: str,
+    positions: list[dict],
+    lang: str = "es",
+) -> str:
+    """Premium-only, per-user personalized read on how ONE upcoming
+    macro-economic event (Fed decision, CPI, NFP, etc.) could affect the
+    user's OWN real holdings — not a generic market take. The static
+    `why_it_matters` one-liner (macro_calendar_service.py) stays as the
+    free, always-on explainer; this is the opt-in, click-to-generate
+    layer on top of it, gated the same way analyze_earnings is.
+
+    Never gives buy/sell advice, never fabricates a number for the
+    user's position — the only real user data injected is each holding's
+    ticker and real cost-basis weight, exactly like _portfolio_weights_for_prompt
+    already computes without a live-quote fetch."""
+    weights = _portfolio_weights_for_prompt(positions)
+    if not weights:
+        return (
+            "Todavía no tienes posiciones en tu portafolio para personalizar este análisis."
+            if lang != "en" else
+            "You don't have any portfolio positions yet to personalize this analysis."
+        )
+
+    holdings_line = ", ".join(f"{w['ticker']} ({w['weight_pct']}%)" for w in weights[:15])
+
+    prompt = f"""{_output_language_directive(lang)}Eres el analista macro de Nuvos AI. Un usuario premium quiere saber cómo un evento macroeconómico próximo podría afectar SU portafolio real, no una explicación genérica.
+
+EVENTO: {event_name} ({event_type})
+POR QUÉ IMPORTA EN GENERAL: {why_it_matters}
+
+PORTAFOLIO REAL DEL USUARIO (ticker y peso por costo, ordenado de mayor a menor):
+{holdings_line}
+
+Escribe 2-4 oraciones explicando específicamente qué posiciones de ESTE portafolio son más sensibles a este evento y por qué (sector, tipo de negocio, sensibilidad a tasas/inflación, etc.), mencionando los tickers reales de arriba. Si ninguna posición es particularmente sensible a este evento, dilo honestamente en vez de forzar una conexión.
+
+REGLAS:
+1. Nunca digas "compra" o "vende" — no es asesoría de inversión.
+2. Solo menciona tickers que aparecen literalmente en la lista de arriba — nunca inventes una posición que el usuario no tiene.
+3. Responde ÚNICAMENTE con JSON válido: {{"impact_note": "<tu explicación de 2-4 oraciones>"}}"""
+
+    response = await _claude(
+        model=settings.claude_model,
+        max_tokens=500,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    asyncio.create_task(log_llm_usage(user_id, "analyze_macro_event_impact", settings.claude_model, response.usage))
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if parsed and parsed.get("impact_note"):
+        return str(parsed["impact_note"]).strip()
+    _log.warning("analyze_macro_event_impact(%s): JSON parse failed (%d chars)", event_type, len(text))
+    return (
+        "No pudimos generar el análisis personalizado en este momento."
+        if lang != "en" else
+        "We couldn't generate the personalized analysis right now."
+    )
+
+
 # ──────────────────────────────────────────────────────────────
 # FEATURE: Screener semanal personalizado
 # ──────────────────────────────────────────────────────────────

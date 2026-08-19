@@ -506,6 +506,72 @@ async def get_macro_calendar(
     return {"events": events}
 
 
+_TTL_MACRO_IMPACT = 30 * 24 * 3600  # 30 days — well past any event's own horizon; portfolio_hash busts it on its own if holdings change
+
+
+def _portfolio_hash(positions: list[dict]) -> str:
+    """Short fingerprint of ticker+weight so a personalized macro-impact
+    cache entry auto-invalidates the moment the user's real holdings
+    change — no explicit cache-busting needed, unlike the earnings
+    analysis cache bug this deliberately avoids (that one doesn't vary
+    its key by user or position at all)."""
+    import hashlib
+    from app.services.ai_service import _portfolio_weights_for_prompt
+    weights = _portfolio_weights_for_prompt(positions)
+    raw = "|".join(f"{w['ticker']}:{w['weight_pct']}" for w in weights)
+    return hashlib.sha256(raw.encode()).hexdigest()[:12]
+
+
+@router.get("/calendar/macro/{event_id}/impact")
+async def get_macro_event_impact(
+    event_id: str,
+    lang: str = "es",
+    user_id: str = Depends(get_current_user_id),
+):
+    """Premium-only, click-to-generate personalized read on how ONE macro
+    event affects the CURRENT user's real portfolio — opt-in on top of the
+    free static why_it_matters blurb, restricted to VERY_HIGH/HIGH impact
+    events only (the ones that actually move markets) both here and in
+    the two frontends' own button gating."""
+    from app.api.routes.chat import _is_premium
+    from app.api.routes.sync import _parse_portfolio
+    from app.core.database import get_supabase, run_query
+    from app.services.macro_calendar_service import get_macro_events
+
+    profile = _get_user_profile(user_id)
+    if not _is_premium(profile):
+        raise HTTPException(status_code=403, detail="El análisis personalizado de eventos macro requiere Premium")
+
+    lang = lang if lang in ("es", "en") else "es"
+
+    events = await get_macro_events(days_ahead=45, lang=lang)
+    event = next((e for e in events if e.get("event_id") == event_id), None)
+    if not event:
+        raise HTTPException(status_code=404, detail="Evento no encontrado")
+    if event.get("impact_level") not in ("VERY_HIGH", "HIGH"):
+        raise HTTPException(status_code=400, detail="El análisis personalizado solo está disponible para eventos de alto impacto")
+
+    db = get_supabase()
+    port_res = await run_query(
+        db.table("user_portfolio").select("portfolio_id, positions").eq("user_id", user_id)
+    )
+    port_rows = port_res.data or []
+    default_row = next((r for r in port_rows if r.get("portfolio_id") == "default"), None)
+    positions = _parse_portfolio((default_row or port_rows[0])["positions"])["positions"] if port_rows else []
+
+    cache_key = f"macro_impact:{user_id}:{event_id}:{lang}:{_portfolio_hash(positions)}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return {"impact_note": cached}
+
+    impact_note = await ai_service.analyze_macro_event_impact(
+        user_id, event.get("event_name", event_id), event.get("event_type", ""),
+        event.get("why_it_matters", ""), positions, lang=lang,
+    )
+    cache_set(cache_key, impact_note, ttl=_TTL_MACRO_IMPACT)
+    return {"impact_note": impact_note}
+
+
 def _render_analysis_text(analysis: dict, lang: str) -> str:
     """Plain-text rendering of the structured analysis dict, for the OLD
     consumers (EarningsPanel.tsx and the mobile earnings panels embedded in

@@ -3868,6 +3868,9 @@
     "macro": {
       "label": "Macro",
       "whyItMatters": "Por qué importa",
+      "yourPortfolio": "Tu portafolio",
+      "impactLabel": "¿Cómo me afecta?",
+      "impactPremiumLabel": "¿Cómo me afecta? · Premium",
       "impact": {
         "VERY_HIGH": "Muy Alto",
         "HIGH": "Alto",
