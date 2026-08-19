@@ -122,12 +122,12 @@ async def get_wrapped(
         # ── 1. User profile ──────────────────────────────────────────────────────
         prof_res = await run_query(
             db.table("user_profiles")
-              .select("full_name, created_at, investment_goal, investment_goal_amount")
+              .select("name, created_at, investment_goal, investment_goal_amount")
               .eq("user_id", user_id)
         )
         prof = prof_res.data[0] if prof_res.data else {}
 
-        full_name = prof.get("full_name") or "Inversor"
+        full_name = prof.get("name") or "Inversor"
 
         created_raw = prof.get("created_at")
         if created_raw:
