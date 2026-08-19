@@ -8,6 +8,7 @@ export interface WrappedTopStock {
 export interface WrappedFavorita {
   ticker: string;
   times_analyzed: number;
+  company_name?: string | null;
 }
 
 export interface WrappedMilestone {

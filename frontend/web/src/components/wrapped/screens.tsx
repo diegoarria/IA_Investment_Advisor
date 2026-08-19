@@ -185,23 +185,50 @@ export function ScreenMejorDecision({ data, total, page }: { data: WrappedData; 
 // 6 — Favoritas
 export function ScreenFavoritas({ data, total, page }: { data: WrappedData; total: number; page: number }) {
   if (!data.favoritas.length) return null;
-  const medals = ["#D4A24C", "#9aa7ba", "#b5743a"];
+  const [first, ...rest] = data.favoritas;
+  const medals = ["#9aa7ba", "#b5743a"];
   return (
     <Stage page={page} total={total} glow="top">
       <div style={EYEBROW}>Tus negocios favoritos</div>
       <h1 style={{ ...H1, fontSize: 20, marginBottom: 22 }}>Las empresas que más analizaste</h1>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {data.favoritas.map((f, i) => (
-          <div key={f.ticker} style={{ ...CARD, display: "flex", alignItems: "center", gap: 14, padding: "12px 14px" }}>
-            <div style={{ width: 26, height: 26, borderRadius: "50%", background: medals[i], color: "#1a1206", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 11, flexShrink: 0 }}>{i + 1}º</div>
-            <div style={{ fontWeight: 800, fontSize: 15, color: WT.text, flex: 1 }}>{f.ticker}</div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontWeight: 800, fontSize: 15, color: WT.accentL }}>{f.times_analyzed}×</div>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>analizada</div>
-            </div>
-          </div>
-        ))}
+
+      <div style={{ ...CARD, display: "flex", alignItems: "center", gap: 16, padding: "18px 18px", background: "linear-gradient(160deg, rgba(212,162,76,0.12), rgba(9,15,31,0.4))", borderColor: "rgba(212,162,76,0.32)" }}>
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <TickerLogo ticker={first.ticker} size={54} />
+          <div style={{ position: "absolute", bottom: -4, right: -4, width: 20, height: 20, borderRadius: "50%", background: "linear-gradient(160deg,#D4A24C,#8a6423)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 10, color: "#1a1206", border: `2px solid ${WT.card}` }}>1º</div>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: 17, color: WT.text }}>{first.ticker}</div>
+          {first.company_name && (
+            <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: WT.sub, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{first.company_name}</div>
+          )}
+        </div>
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: 22, color: WT.accentL }}>{first.times_analyzed}×</div>
+          <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>analizada</div>
+        </div>
       </div>
+
+      {rest.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
+          {rest.map((f, i) => (
+            <div key={f.ticker} style={{ ...CARD, display: "flex", alignItems: "center", gap: 12, padding: "10px 14px" }}>
+              <TickerLogo ticker={f.ticker} size={32} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 14, color: WT.text }}>{f.ticker}</div>
+                {f.company_name && (
+                  <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, color: WT.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.company_name}</div>
+                )}
+              </div>
+              <div style={{ width: 20, height: 20, borderRadius: "50%", background: medals[i], color: "#1a1206", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 10, flexShrink: 0 }}>{i + 2}º</div>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 14, color: WT.accentL }}>{f.times_analyzed}×</div>
+                <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>analizada</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </Stage>
   );
 }

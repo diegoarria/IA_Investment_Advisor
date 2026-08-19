@@ -13,6 +13,7 @@ get_global_timeline() merge both at read time instead of duplicating rows.
 Logging is always best-effort: a failure here must never break the chat
 response, the valuation screen, or a watchlist edit it's attached to.
 """
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -337,4 +338,10 @@ async def get_most_analyzed_tickers(user_id: str, year: int, limit: int = 3) -> 
         if t:
             counts[t] = counts.get(t, 0) + 1
     top = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:limit]
-    return [{"ticker": t, "times_analyzed": c} for t, c in top]
+
+    from app.core.finnhub import fh_profile
+    profiles = await asyncio.gather(*[asyncio.to_thread(fh_profile, t) for t, _ in top])
+    return [
+        {"ticker": t, "times_analyzed": c, "company_name": (p or {}).get("name")}
+        for (t, c), p in zip(top, profiles)
+    ]
