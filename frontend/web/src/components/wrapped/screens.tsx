@@ -58,7 +58,14 @@ export function ScreenNumeros({ data, total, page }: { data: WrappedData; total:
         {data.growth_pct !== undefined && (
           <div style={{ ...CARD, gridColumn: "1 / -1", padding: "18px 16px", background: "linear-gradient(135deg, rgba(0,185,109,0.12), rgba(0,232,135,0.04))", borderColor: "rgba(0,185,109,0.3)" }}>
             <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: WT.sub, marginBottom: 4 }}>Rendimiento del año</div>
-            <div style={{ fontWeight: 800, fontSize: 34, color: WT.accentL }}>{fmtPct(data.growth_pct)}</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+              <div style={{ fontWeight: 800, fontSize: 34, color: WT.accentL }}>{fmtPct(data.growth_pct)}</div>
+              {data.spy_ytd_pct !== undefined && data.spy_ytd_pct !== null && (
+                <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: WT.sub }}>
+                  vs. <span style={{ fontWeight: 700, color: WT.text }}>{fmtPct(data.spy_ytd_pct)}</span> del S&amp;P 500
+                </div>
+              )}
+            </div>
           </div>
         )}
         <div style={{ ...CARD, padding: "16px 14px" }}>
@@ -67,7 +74,12 @@ export function ScreenNumeros({ data, total, page }: { data: WrappedData; total:
         </div>
         <div style={{ ...CARD, padding: "16px 14px" }}>
           <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: WT.sub, marginBottom: 4 }}>Sector principal</div>
-          <div style={{ fontWeight: 800, fontSize: 16, color: WT.text }}>{data.top_sector}</div>
+          <div style={{ fontWeight: 800, fontSize: 16, color: WT.text }}>
+            {data.top_sector}
+            {data.top_sector_pct != null && (
+              <span style={{ fontWeight: 700, fontSize: 13, color: WT.accentL }}> · {data.top_sector_pct}%</span>
+            )}
+          </div>
         </div>
         <div style={{ ...CARD, gridColumn: "1 / -1", padding: "16px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", background: WT.card2 }}>
           <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: WT.sub }}>Días activo en Nuvos</div>

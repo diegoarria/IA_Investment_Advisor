@@ -46,6 +46,7 @@ export interface WrappedData {
   lessons: number;
   days_active: number;
   top_sector: string;
+  top_sector_pct?: number | null;
   sim_count: number;
   debate_count: number;
   next_chapter?: string | null;

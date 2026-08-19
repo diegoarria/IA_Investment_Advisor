@@ -184,6 +184,7 @@ async def get_wrapped(
 
         # ── 5. Dominant sector ───────────────────────────────────────────────────
         top_sector = "Tecnología"
+        top_sector_pct: float | None = None
         if tickers:
             sector_tasks = await asyncio.gather(*[_ticker_sector(t) for t in tickers])
             sector_counts: dict[str, float] = {}
@@ -193,6 +194,9 @@ async def get_wrapped(
             if sector_counts:
                 dominant = max(sector_counts, key=lambda k: sector_counts[k])
                 top_sector = _es_sector(dominant)
+                total_value = sum(sector_counts.values())
+                if total_value > 0:
+                    top_sector_pct = round(sector_counts[dominant] / total_value * 100, 1)
 
         # ── 6. Empresas favoritas (most analyzed, real event counts) ─────────────
         from app.services import investment_graph_service
@@ -251,6 +255,7 @@ async def get_wrapped(
             "lessons":     lessons,
             "days_active": days_active,
             "top_sector":  top_sector,
+            "top_sector_pct": top_sector_pct,
             "sim_count":   sim_count,
             "debate_count": debate_count,
             "next_chapter": next_chapter,
