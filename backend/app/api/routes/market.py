@@ -1608,7 +1608,18 @@ def _compute_portfolio_returns(
         ("1y",  None),
         ("3y",  None),
         ("5y",  None),
+        ("max", None),
     ]
+
+    # "max" cutoff — the portfolio's own real inception, same anchor
+    # "since_purchase" already displays as its date (line ~1673), not a
+    # fixed lookback like 1y/3y/5y. Falls back to the earliest known lot
+    # purchase date when inception_date wasn't sent (legacy accounts) —
+    # same fallback sync.py's own portfolio parser already uses.
+    _max_cutoff_str = inception_date
+    if not _max_cutoff_str:
+        _known_dates = [pd_str for pd_str in lot_purchase_date if pd_str]
+        _max_cutoff_str = min(_known_dates) if _known_dates else None
 
     results: dict[str, dict] = {}
 
@@ -1709,6 +1720,10 @@ def _compute_portfolio_returns(
             else:
                 if key == "ytd":
                     cutoff = ytd_start
+                elif key == "max":
+                    if not _max_cutoff_str:
+                        continue  # no purchase date known for anything — nothing to anchor "max" to
+                    cutoff = _pd.Timestamp(_max_cutoff_str)
                 elif key in _PERIOD_RELATIVEDELTA:
                     cutoff = _pd.Timestamp(today - _PERIOD_RELATIVEDELTA[key])
                 else:
