@@ -3844,6 +3844,11 @@
       "upcoming": "Próximo",
       "completed": "Completado"
     },
+    "timing": {
+      "bmo": "Antes de apertura",
+      "amc": "Después del cierre",
+      "dmt": "Durante el mercado"
+    },
     "eventTypes": {
       "earnings": "Resultados",
       "exDividend": "Ex-Dividendo",

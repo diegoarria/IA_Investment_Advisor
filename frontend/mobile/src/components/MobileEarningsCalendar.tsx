@@ -28,6 +28,7 @@ interface TickerCalendarEvent {
   revenue_estimate?: string | null;
   dividend_amount?: number | null;
   dividend_yield?: number | null;
+  timing?: "BMO" | "AMC" | "DMT" | null; // pre-market / after-market / during-market session
 }
 
 // Display-only, no notifications — mirrors web's WatchlistEarningsCalendar.
@@ -394,6 +395,17 @@ export default function MobileEarningsCalendar({
                       <Ionicons name={meta.icon as any} size={9} color={accentColor} />
                       <Text style={[s.eventTypeText, { color: accentColor }]}>{meta.label}</Text>
                     </View>
+
+                    {/* Pre-market / after-market — only Finnhub-sourced earnings carry this */}
+                    {entry.event_type === "earnings" && entry.timing && (
+                      <View style={[s.badge, { backgroundColor: "rgba(148,163,184,0.14)" }]}>
+                        <Text style={[s.badgeText, { color: colors.textMuted }]}>
+                          {entry.timing === "BMO" ? t("mobileEarningsCalendar.timing.bmo")
+                            : entry.timing === "AMC" ? t("mobileEarningsCalendar.timing.amc")
+                            : t("mobileEarningsCalendar.timing.dmt")}
+                        </Text>
+                      </View>
+                    )}
 
                     {/* Portfolio / Watchlist badge */}
                     {isPortfolio ? (

@@ -3361,6 +3361,11 @@
     "statusUpcoming": "📅 Próximo",
     "statusToday": "🔔 Hoy",
     "statusReported": "✅ Reportó",
+    "timing": {
+      "bmo": "Antes de apertura",
+      "amc": "Después del cierre",
+      "dmt": "Durante el mercado"
+    },
     "epsEst": "EPS est.",
     "range": "Rango",
     "revEst": "Rev. est.",

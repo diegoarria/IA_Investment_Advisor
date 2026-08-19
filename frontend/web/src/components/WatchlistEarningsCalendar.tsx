@@ -29,6 +29,7 @@ interface TickerCalendarEvent {
   eps_estimate?: number | null;
   eps_range?: string | null;
   revenue_estimate?: string | null;
+  timing?: "BMO" | "AMC" | "DMT" | null; // pre-market / after-market / during-market session
   // dividend fields
   dividend_amount?: number | null;
   dividend_yield?: number | null;
@@ -425,6 +426,15 @@ export default function WatchlistEarningsCalendar({
                           style={{ background: isPortfolio ? meta.bgPortfolio : meta.bg, color: isPortfolio ? meta.colorPortfolio : meta.color }}>
                       {meta.label}
                     </span>
+                    {/* Pre-market / after-market — only Finnhub-sourced earnings carry this */}
+                    {entry.event_type === "earnings" && entry.timing && (
+                      <span className="inline-flex text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                            style={{ background: "rgba(148,163,184,0.14)", color: "var(--sub)" }}>
+                        {entry.timing === "BMO" ? t("watchlistEarningsCalendar.timing.bmo")
+                          : entry.timing === "AMC" ? t("watchlistEarningsCalendar.timing.amc")
+                          : t("watchlistEarningsCalendar.timing.dmt")}
+                      </span>
+                    )}
                     {/* Status */}
                     <span className="ml-auto text-[9px]"
                           style={{ color: entry.status === "upcoming" || entry.status === "today" ? "var(--accent-l)" : "var(--muted)" }}>

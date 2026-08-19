@@ -152,8 +152,12 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
             eps_act = fh_earn.get("eps_actual")
             rev_est = fh_earn.get("revenue_est")
             rev_act = fh_earn.get("revenue_actual")
-            hour    = fh_earn.get("hour") or ""
-            timing  = "Antes de apertura" if hour == "BMO" else "Después del cierre" if hour == "AMC" else ""
+            # Raw Finnhub session code — BMO (pre-market)/AMC (after-market)/
+            # DMT (during market)/"" (unknown). Sent as-is, not pre-translated
+            # to Spanish, so the frontend can label it in whichever language
+            # the user actually has selected (same i18n convention every
+            # other status label in this calendar already follows).
+            hour = fh_earn.get("hour") or ""
             events.append({
                 "ticker":            symbol,
                 "event_date":        str(dt),
@@ -163,7 +167,7 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
                 "eps_actual":        round(float(eps_act), 2) if eps_act is not None else None,
                 "revenue_estimate":  f"{round(float(rev_est)/1e9, 1)}B" if rev_est else None,
                 "revenue_actual":    f"{round(float(rev_act)/1e9, 1)}B" if rev_act else None,
-                "timing":            timing,
+                "timing":            hour if hour in ("BMO", "AMC", "DMT") else None,
             })
         except Exception:
             pass
