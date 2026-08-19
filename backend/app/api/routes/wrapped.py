@@ -98,7 +98,12 @@ async def get_wrapped(
     user: dict = Depends(get_current_user),
 ):
     now = datetime.now(timezone.utc)
-    if not is_wrapped_window_open(now):
+    # TEMP TEST BYPASS — revert this commit once Diego confirms the report
+    # looks right. Lets diego.arria19@gmail.com view his own real 2026
+    # Wrapped-in-progress outside the Dec15-Jan15 window; no other account
+    # is affected.
+    _test_bypass = user.get("email") == "diego.arria19@gmail.com"
+    if not is_wrapped_window_open(now) and not _test_bypass:
         # 404, not 403 — "not available" reads honestly, "forbidden" implies
         # a permission the user is missing rather than a date that hasn't
         # arrived yet. The frontend shows a "vuelve el 15 de diciembre"
@@ -110,7 +115,7 @@ async def get_wrapped(
 
     db        = get_supabase()
     user_id   = user["id"]
-    year      = wrapped_year_for(now)
+    year      = wrapped_year_for(now) if not _test_bypass else now.year
 
     # ── 1. User profile ──────────────────────────────────────────────────────
     prof_res = await run_query(
