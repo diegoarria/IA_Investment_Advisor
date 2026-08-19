@@ -218,8 +218,19 @@ def _is_financial_sector(sector: str | None) -> bool:
 # Banks"). Only refines companies already inside the curated universe —
 # `industry=None` (any ticker outside it) keeps the prior, safer default
 # (stays in the Residual Income model, same as before this fix).
+#
+# Same mismatch, found later (methodology audit, 2026-08-19): insurance
+# BROKERS (AJG, AON, BRO, WTW in the curated universe — "Insurance Brokers")
+# don't underwrite risk or carry an investment float the way an insurer like
+# Progressive/AIG does — they earn commissions placing policies with real
+# carriers, an asset-light fee business exactly like the payment networks
+# above. `_is_financial_sector`'s coarse "insurance" substring match (needed
+# to catch real underwriters, whose Finnhub sector is also just "Insurance")
+# can't tell the two apart, so brokers need the same curated-universe
+# refinement V/MA/BLK already get.
 _ASSET_LIGHT_FINANCIAL_INDUSTRY_KEYS = (
     "transaction & payment processing", "asset management", "financial exchanges & data",
+    "insurance brokers",
 )
 
 
