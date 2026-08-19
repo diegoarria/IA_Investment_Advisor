@@ -518,14 +518,21 @@ async def sync_streak(request: dict, user_id: str = Depends(get_current_user_id)
             "streak_count": streak,
             "last_learn_date": last_learn_date,
         }
+        # Historical max, for Nuvos Wrapped's "racha más larga" screen —
+        # streak_count itself resets to 0 on a missed day, so this is the
+        # only place that ever remembers a past streak once it ends.
+        existing_res = await run_query(
+            db.table("user_profiles")
+            .select("completed_topic_ids, longest_streak_count")
+            .eq("user_id", user_id)
+        )
+        existing_row = existing_res.data[0] if existing_res.data else {}
+        longest = int(existing_row.get("longest_streak_count") or 0)
+        if streak > longest:
+            update["longest_streak_count"] = streak
         if incoming_ids is not None:
             # Merge incoming IDs with existing to handle multi-device sync
-            existing_res = await run_query(
-                db.table("user_profiles")
-                .select("completed_topic_ids")
-                .eq("user_id", user_id)
-            )
-            existing = existing_res.data[0].get("completed_topic_ids") or [] if existing_res.data else []
+            existing = existing_row.get("completed_topic_ids") or []
             merged = list(set(existing) | set(incoming_ids))
             update["completed_topic_ids"] = merged
         await run_query(

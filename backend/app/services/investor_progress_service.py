@@ -632,46 +632,35 @@ _GROWTH_SECTORS = {"Technology", "Communication Services"}
 
 _ARCHETYPES = {
     "business_owner": {
-        "key": "business_owner", "name": "The Business Owner",
-        "tagline": "Compras empresas, no acciones.",
+        "key": "business_owner", "name": "THE CAPITAL ALLOCATOR",
+        "tagline": "No buscaste solamente ganar dinero. Buscaste poner tu capital a trabajar.",
         "traits": ["Mantienes posiciones a largo plazo", "Analizas ventajas competitivas reales", "Ignoras el ruido del mercado"],
     },
     "growth_hunter": {
-        "key": "growth_hunter", "name": "The Growth Hunter",
-        "tagline": "Buscas empresas de alto crecimiento.",
+        "key": "growth_hunter", "name": "THE OPPORTUNIST",
+        "tagline": "Cuando otros veían una caída, tú veías una oportunidad.",
         "traits": ["Concentrado en sectores de crecimiento", "Tolerancia alta a la volatilidad", "Buscas la próxima gran historia"],
     },
     "defender": {
-        "key": "defender", "name": "The Defender",
-        "tagline": "Prefieres negocios resistentes.",
+        "key": "defender", "name": "THE PATIENT ONE",
+        "tagline": "Mientras otros pensaban en días, tú pensabas en años.",
         "traits": ["Priorizas sectores defensivos", "Buscas estabilidad sobre velocidad", "Proteges el capital primero"],
     },
     "value_seeker": {
-        "key": "value_seeker", "name": "The Value Seeker",
-        "tagline": "Buscas oportunidades infravaloradas.",
+        "key": "value_seeker", "name": "THE QUALITY HUNTER",
+        "tagline": "Buscaste precio, pero nunca sacrificaste calidad.",
         "traits": ["Analizas antes de decidir", "Rotación de cartera activa", "Buscas precio, no solo calidad"],
     },
 }
 
 
-async def classify_investor_archetype(user_id: str, ctx: dict | None = None) -> dict | None:
-    """One of 4 investor archetypes for Wrapped, derived entirely from real
-    signals already collected elsewhere in this module (decision triggers,
-    real holding periods, real sector concentration) — never a new tracked
-    field, never a guess. None when there isn't enough real signal yet
-    (e.g. a brand-new account with almost no history) rather than
-    defaulting to an arbitrary archetype."""
-    ctx = ctx if ctx is not None else await _build_context(user_id)
-
-    if ctx["total_operations"] < 3:
-        return None
-
-    style_ratio = _decision_style_ratio(ctx["decisions"])  # impulsive fraction, or None
-
-    # Average holding period across CLOSED positions (a real, completed
-    # hold) — falls back to "how long the oldest still-open position has
-    # been held" when nothing has been closed yet, so a long-term holder
-    # who has never sold isn't misread as having no signal at all.
+def _avg_holding_days(ctx: dict) -> float | None:
+    """Average holding period across CLOSED positions (a real, completed
+    hold) — falls back to 'how long the oldest still-open position has
+    been held' when nothing has been closed yet, so a long-term holder
+    who has never sold isn't misread as having no signal at all. Shared by
+    classify_investor_archetype and classify_investor_type so both read
+    the same real number even though they act on it differently."""
     holding_days: list[float] = []
     for c in ctx["closed_positions"]:
         try:
@@ -682,7 +671,24 @@ async def classify_investor_archetype(user_id: str, ctx: dict | None = None) -> 
             pass
     if not holding_days and ctx["days_since_inception"] is not None:
         holding_days = [ctx["days_since_inception"]]
-    avg_holding_days = sum(holding_days) / len(holding_days) if holding_days else None
+    return sum(holding_days) / len(holding_days) if holding_days else None
+
+
+async def classify_investor_archetype(user_id: str, ctx: dict | None = None) -> dict | None:
+    """One of 4 investor archetypes for Wrapped screen 1 ("tu personalidad
+    como inversionista") — the serious/professional read, derived entirely
+    from real signals already collected elsewhere in this module (decision
+    triggers, real holding periods, real sector concentration) — never a
+    new tracked field, never a guess. None when there isn't enough real
+    signal yet (e.g. a brand-new account with almost no history) rather
+    than defaulting to an arbitrary archetype."""
+    ctx = ctx if ctx is not None else await _build_context(user_id)
+
+    if ctx["total_operations"] < 3:
+        return None
+
+    style_ratio = _decision_style_ratio(ctx["decisions"])  # impulsive fraction, or None
+    avg_holding_days = _avg_holding_days(ctx)
 
     latest_snap = ctx["snapshots"][-1] if ctx["snapshots"] else None
     sector_weights = (latest_snap or {}).get("sector_weights") or {}
@@ -700,6 +706,119 @@ async def classify_investor_archetype(user_id: str, ctx: dict | None = None) -> 
     if not any(scores.values()):
         return None
     return _ARCHETYPES[max(scores, key=scores.get)]
+
+
+_INVESTOR_TYPES = {
+    "whale": {
+        "key": "whale", "emoji": "🐋", "name": "THE WHALE",
+        "tagline": "No te asustan las posiciones grandes.",
+    },
+    "zen": {
+        "key": "zen", "emoji": "🧘", "name": "THE ZEN INVESTOR",
+        "tagline": "El mercado podía caer. Tú ni te inmutabas.",
+    },
+    "opportunist": {
+        "key": "opportunist", "emoji": "🦈", "name": "THE OPPORTUNIST",
+        "tagline": "Cuando otros veían una caída, tú veías una oportunidad.",
+    },
+    "patient": {
+        "key": "patient", "emoji": "🦉", "name": "THE PATIENT ONE",
+        "tagline": "Mientras otros pensaban en días, tú pensabas en años.",
+    },
+    "tech": {
+        "key": "tech", "emoji": "🤖", "name": "THE TECH INVESTOR",
+        "tagline": "Si tenía chips, software o IA, probablemente la conocías.",
+    },
+}
+
+
+async def classify_investor_type(user_id: str, ctx: dict | None = None) -> dict | None:
+    """A second, deliberately different and more shareable read on Wrapped
+    screen 7 ("tu tipo de inversionista") — same real signals as screen 1's
+    classify_investor_archetype, but different rules and higher/different
+    thresholds so the two never just re-skin the same score under two
+    names. Never contradicts screen 1 (they measure different axes:
+    conviction size, calm-under-drawdown, contrarian timing — not the same
+    long-term-vs-short-term or sector split screen 1 already covers).
+    None when there isn't enough signal, same gate as screen 1."""
+    ctx = ctx if ctx is not None else await _build_context(user_id)
+
+    if ctx["total_operations"] < 3:
+        return None
+
+    # Real cost basis (shares * avgPrice), not a "value" field — positions
+    # never actually carry one from the frontend, so anything reading it
+    # (including this app's own older sector-weight code) silently falls
+    # back to a per-position default instead of a real dollar amount.
+    positions = ctx["positions"]
+    position_costs = [float(p.get("shares", 0) or 0) * float(p.get("avgPrice", 0) or 0) for p in positions]
+    total_value = sum(position_costs)
+    max_position_value = max(position_costs, default=0)
+    whale_weight = (max_position_value / total_value) if total_value > 0 else 0
+
+    style_ratio = _decision_style_ratio(ctx["decisions"])
+    drawdowns = _find_significant_drawdowns(ctx["snapshots"])
+    held_through_drawdown = bool(drawdowns) and _held_through_drawdown(ctx, drawdowns[0]["peak_date"])
+
+    # Bought (any lot, open or closed) during a real drawdown window — a
+    # contrarian-timing signal distinct from "held through" one.
+    bought_during_drawdown = False
+    if drawdowns:
+        dd = drawdowns[0]
+        for item in positions + ctx["closed_positions"]:
+            pd = item.get("purchaseDate")
+            if pd and dd["peak_date"] <= str(pd)[:10] <= dd["trough_date"]:
+                bought_during_drawdown = True
+                break
+
+    latest_snap = ctx["snapshots"][-1] if ctx["snapshots"] else None
+    sector_weights = (latest_snap or {}).get("sector_weights") or {}
+    tech_weight = sum(w for s, w in sector_weights.items() if s in _GROWTH_SECTORS)
+
+    scores = {
+        "whale": 2 if whale_weight >= 0.4 else 0,
+        "zen": (2 if style_ratio is not None and style_ratio < 0.15 else 0)
+             + (1 if held_through_drawdown else 0),
+        "opportunist": 2 if bought_during_drawdown else 0,
+        "patient": (1 if held_through_drawdown else 0)
+                 + (1 if style_ratio is not None and style_ratio < 0.3 else 0),
+        "tech": 2 if tech_weight >= 0.5 else (1 if tech_weight >= 0.35 else 0),
+    }
+    if not any(scores.values()):
+        return None
+    return _INVESTOR_TYPES[max(scores, key=scores.get)]
+
+
+def worst_closed_position(ctx: dict) -> dict | None:
+    """The single worst realized $ loss among CLOSED positions — Wrapped
+    screen 6's 'peor decisión', a completed buy-then-sell with a real,
+    computable P&L (no stored realized-gain field needed: shares *
+    (closePrice - avgPrice) is exact). None when there's no closed
+    position with an actual loss — callers should fall back to the worst
+    *unrealized* return among open positions instead of inventing one."""
+    worst: dict | None = None
+    for c in ctx["closed_positions"]:
+        try:
+            shares = float(c.get("shares", 0) or 0)
+            avg_price = float(c.get("avgPrice", 0) or 0)
+            close_price = float(c.get("closePrice", 0) or 0)
+            if shares <= 0 or avg_price <= 0:
+                continue
+        except Exception:
+            continue
+        pnl = (close_price - avg_price) * shares
+        if worst is None or pnl < worst["pnl"]:
+            worst = {
+                "ticker": c.get("ticker"),
+                "pnl": round(pnl, 2),
+                "pnl_pct": round((close_price - avg_price) / avg_price * 100, 2),
+                "purchase_date": c.get("purchaseDate"),
+                "close_date": c.get("closeDate"),
+                "realized": True,
+            }
+    if worst and worst["pnl"] < 0:
+        return worst
+    return None
 
 
 # ── Investor Score (Wrapped screen 10) ───────────────────────────────────────
@@ -752,82 +871,6 @@ async def compute_investor_score(user_id: str, ctx: dict | None = None) -> dict 
     if not sub:
         return None
     return {"score": round(sum(sub.values()) / len(sub)), "sub_scores": sub}
-
-
-# ── Wrapped / Investor Wrapped extension (Fase 4, expanded for the 12-screen
-#    annual report — see backend/app/api/routes/wrapped.py) ─────────────────
-
-async def get_wrapped_extension(user_id: str, year: int) -> dict:
-    """
-    Extra, real fields for the annual Investor Wrapped report: this year's
-    patrimonio growth, milestones achieved this year, decisions logged this
-    year, a lifetime diversification note, the investor archetype, the
-    Investor Score, and an evolution snapshot (maturity score at the start
-    of the year vs. mid-December). Each key is omitted when there isn't
-    enough data — same rule as everywhere else in this module.
-    """
-    ctx = await _build_context(user_id)
-    ext: dict = {}
-
-    year_returns = _compute_year_returns(ctx["snapshots"])
-    if year in year_returns:
-        ext["growth_pct"] = round(year_returns[year], 2)
-
-    year_start = f"{year}-01-01"
-    year_end = f"{year}-12-31"
-
-    db = get_supabase()
-    milestones_res = await run_query(
-        db.table("fmg_events")
-        .select("title, description, occurred_at")
-        .eq("user_id", user_id)
-        .not_.is_("milestone_key", "null")
-        .gte("occurred_at", year_start)
-        .lte("occurred_at", f"{year_end}T23:59:59")
-        .order("occurred_at")
-    )
-    if milestones_res.data:
-        ext["milestones_this_year"] = [
-            {"title": m["title"], "description": m.get("description")} for m in milestones_res.data
-        ]
-
-    decisions_this_year = [
-        d for d in ctx["decisions"]
-        if str(d.get("created_at", ""))[:10] >= year_start and str(d.get("created_at", ""))[:10] <= year_end
-    ]
-    if decisions_this_year:
-        ext["decisions_logged_this_year"] = len(decisions_this_year)
-
-    evolution = await detect_behavior_evolution(user_id, ctx=ctx)
-    for e in evolution:
-        if e["key"] == "sector_concentration":
-            ext["diversification_note"] = f"{e['before']} {e['after']}"
-
-    archetype = await classify_investor_archetype(user_id, ctx=ctx)
-    if archetype:
-        ext["archetype"] = archetype
-
-    investor_score = await compute_investor_score(user_id, ctx=ctx)
-    if investor_score:
-        ext["investor_score"] = investor_score
-
-    # Evolución: real maturity_history events, earliest of the year vs. the
-    # latest one at/before Dec 15 — never an invented "before/after" label.
-    maturity_res = await run_query(
-        db.table("user_profiles").select("maturity_history").eq("user_id", user_id).maybe_single()
-    )
-    history = (maturity_res.data or {}).get("maturity_history") or []
-    year_events = sorted(
-        (h for h in history if isinstance(h, dict) and str(h.get("timestamp", "")).startswith(str(year))),
-        key=lambda h: h.get("timestamp", ""),
-    )
-    if len(year_events) >= 2:
-        ext["evolution"] = {
-            "start_score": year_events[0].get("newScore"),
-            "end_score": year_events[-1].get("newScore"),
-        }
-
-    return ext
 
 
 # ── Personalized messages (Fase 4) ───────────────────────────────────────────

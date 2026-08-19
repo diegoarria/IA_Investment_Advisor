@@ -319,12 +319,13 @@ async def compute_metrics(user_id: str, price_lookup: dict[str, float] | None = 
     }
 
 
-async def get_most_analyzed_tickers(user_id: str, year: int, limit: int = 3) -> list[dict]:
+async def get_most_analyzed_companies(user_id: str, year: int, limit: int = 3) -> dict:
     """Top tickers by real logged thesis/question event count within a
     calendar year — the honest substitute for "hours spent analyzing" (not
     tracked anywhere in this app): a count of real, timestamped engagement
-    events per ticker, never a fabricated duration. Used by the annual
-    Wrapped's "empresas favoritas" screen."""
+    events per ticker, never a fabricated duration. Used by Wrapped's
+    "empresa favorita" (top N) and "empresas analizadas" (total distinct
+    count) screens — one events fetch serves both."""
     events = await _fetch_graph_events(user_id, None, limit=1000)
     year_start, year_end = f"{year}-01-01", f"{year}-12-31T23:59:59"
     relevant = [
@@ -341,7 +342,8 @@ async def get_most_analyzed_tickers(user_id: str, year: int, limit: int = 3) -> 
 
     from app.core.finnhub import fh_profile
     profiles = await asyncio.gather(*[asyncio.to_thread(fh_profile, t) for t, _ in top])
-    return [
+    top_companies = [
         {"ticker": t, "times_analyzed": c, "company_name": (p or {}).get("name")}
         for (t, c), p in zip(top, profiles)
     ]
+    return {"top": top_companies, "total_companies": len(counts)}

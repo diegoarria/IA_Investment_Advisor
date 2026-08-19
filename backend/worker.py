@@ -4294,6 +4294,11 @@ async def job_compute_benchmarks():
 
         return_by_cohort: dict[str, list[float]] = {"conservative": [], "moderate": [], "aggressive": []}
         streak_by_cohort: dict[str, list[float]] = {"conservative": [], "moderate": [], "aggressive": []}
+        # investor_score: Nuvos Wrapped's "tu posición dentro de Nuvos" screen —
+        # a composite activity/aprendizaje/paciencia/diversificación percentile,
+        # deliberately NOT return or patrimonio, so it never reveals what
+        # another user is worth or how well they're doing financially.
+        score_by_cohort: dict[str, list[float]] = {"conservative": [], "moderate": [], "aggressive": []}
 
         sem = asyncio.Semaphore(8)  # bounds concurrent network-bound progress computations
 
@@ -4302,11 +4307,17 @@ async def job_compute_benchmarks():
                 try:
                     summary = await investor_progress_service.compute_progress_summary(uid)
                 except Exception:
-                    return
+                    summary = {}
                 if "cumulative_return_pct" in summary:
                     return_by_cohort[cohort].append(summary["cumulative_return_pct"])
                 if "consecutive_months_contributing" in summary:
                     streak_by_cohort[cohort].append(float(summary["consecutive_months_contributing"]))
+                try:
+                    score = await investor_progress_service.compute_investor_score(uid)
+                except Exception:
+                    score = None
+                if score:
+                    score_by_cohort[cohort].append(float(score["score"]))
 
         await asyncio.gather(*[_one(r["user_id"], _benchmark_cohort(r["risk_tolerance"])) for r in candidates])
 
@@ -4315,6 +4326,7 @@ async def job_compute_benchmarks():
         for metric_key, by_cohort in (
             ("cumulative_return_pct", return_by_cohort),
             ("consecutive_months_contributing", streak_by_cohort),
+            ("investor_score", score_by_cohort),
         ):
             for cohort, values in by_cohort.items():
                 if len(values) < _BENCHMARK_MIN_SAMPLE:
