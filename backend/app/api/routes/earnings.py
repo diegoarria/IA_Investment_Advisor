@@ -81,45 +81,58 @@ def _finnhub_dividend_events(symbol: str, window_start, window_end, today) -> li
 
 def _finnhub_earnings_date(symbol: str, window_start, window_end) -> dict | None:
     """Fetch upcoming earnings date from Finnhub /calendar/earnings.
-    Returns {event_date, eps_estimate} or None."""
-    import os, httpx as _hx
+    Returns {event_date, eps_estimate, hour, ...} or None.
+
+    Retries once on a transient failure (timeout/connection blip/momentary
+    5xx) instead of falling straight through to the Yahoo fallback, which
+    structurally can never carry `hour` (BMO/AMC) at all — a single dropped
+    request used to silently downgrade a real, known earnings date into one
+    with no session timing, confirmed live for WMT (Diego, 2026-08-20)."""
+    import os, time, httpx as _hx
     key = os.getenv("FINNHUB_API_KEY", "")
     if not key:
         return None
-    try:
-        r = _hx.get(
-            "https://finnhub.io/api/v1/calendar/earnings",
-            params={
-                "symbol": symbol,
-                "from": window_start.strftime("%Y-%m-%d"),
-                "to":   window_end.strftime("%Y-%m-%d"),
-                "token": key,
-            },
-            timeout=8,
-        )
-        items = (r.json() or {}).get("earningsCalendar") or []
-        if not items:
+    last_exc: Exception | None = None
+    for attempt in range(2):
+        try:
+            r = _hx.get(
+                "https://finnhub.io/api/v1/calendar/earnings",
+                params={
+                    "symbol": symbol,
+                    "from": window_start.strftime("%Y-%m-%d"),
+                    "to":   window_end.strftime("%Y-%m-%d"),
+                    "token": key,
+                },
+                timeout=8,
+            )
+            r.raise_for_status()
+            items = (r.json() or {}).get("earningsCalendar") or []
+            if not items:
+                return None
+            # Sort upcoming first
+            items.sort(key=lambda x: x.get("date") or "")
+            today = datetime.now().date()
+            for item in items:
+                dt_str = item.get("date") or ""
+                try:
+                    dt = datetime.strptime(dt_str, "%Y-%m-%d").date()
+                except ValueError:
+                    continue
+                if dt >= (today - timedelta(days=7)):
+                    return {
+                        "event_date":    str(dt),
+                        "eps_estimate":  item.get("epsEstimate"),
+                        "eps_actual":    item.get("epsActual"),
+                        "revenue_est":   item.get("revenueEstimate"),
+                        "revenue_actual": item.get("revenueActual"),
+                        "hour":          item.get("hour"),  # "BMO" / "AMC"
+                    }
             return None
-        # Sort upcoming first
-        items.sort(key=lambda x: x.get("date") or "")
-        today = datetime.now().date()
-        for item in items:
-            dt_str = item.get("date") or ""
-            try:
-                dt = datetime.strptime(dt_str, "%Y-%m-%d").date()
-            except ValueError:
-                continue
-            if dt >= (today - timedelta(days=7)):
-                return {
-                    "event_date":    str(dt),
-                    "eps_estimate":  item.get("epsEstimate"),
-                    "eps_actual":    item.get("epsActual"),
-                    "revenue_est":   item.get("revenueEstimate"),
-                    "revenue_actual": item.get("revenueActual"),
-                    "hour":          item.get("hour"),  # "BMO" / "AMC"
-                }
-    except Exception as e:
-        logger.debug("Finnhub earnings calendar failed for %s: %s", symbol, e)
+        except Exception as e:
+            last_exc = e
+            if attempt == 0:
+                time.sleep(0.6)
+    logger.warning("Finnhub earnings calendar failed for %s after retry: %s", symbol, last_exc)
     return None
 
 
@@ -128,7 +141,7 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
 
     Uses Finnhub earnings calendar (primary) + Yahoo Finance quoteSummary (fallback).
     """
-    key = f"events:cal5:{symbol}"  # bump version to bust stale cache (added real "timing" BMO/AMC/DMT code)
+    key = f"events:cal6:{symbol}"  # bump version to bust stale cache (Finnhub calendar call now retries once instead of silently falling to the timing-less Yahoo fallback)
     cached = cache_get(key)
     if cached is not None:
         return cached
