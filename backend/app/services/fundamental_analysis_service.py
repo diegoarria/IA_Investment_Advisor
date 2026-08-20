@@ -796,6 +796,21 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             logger.warning("get_fundamental_analysis(%s): FMP quote fallback failed: %s", ticker, e)
     shares_out_m = _num(profile.get("shareOutstanding"))  # Finnhub reports this in millions
     shares_out = shares_out_m * 1_000_000 if shares_out_m else None
+    # Dual-class share tickers (BRK.B, BF.B, etc.) — Finnhub's
+    # `/stock/profile2` sometimes reports `shareOutstanding` as the WHOLE
+    # COMPANY's Class-A-equivalent count regardless of which class was
+    # actually queried, while `price` above is the real quote for the
+    # exact ticker queried (Class B). Dividing Class-B-scale FCF/equity by
+    # the tiny Class-A-equivalent share count produced a ~1500x-too-high
+    # "intrinsic value" for BRK.B — confirmed live 2026-08-19 ($1.7M/share
+    # implied vs. a real $499 price). `marketCapitalization` on the same
+    # profile response IS computed against the exact ticker's own price
+    # (cap = shares-of-THIS-class × price-of-THIS-class), so deriving
+    # shares from cap/price is self-consistent by construction — prefer it
+    # whenever both are available, instead of trusting the raw field.
+    market_cap_m = _num(profile.get("marketCapitalization"))
+    if market_cap_m and price and price > 0:
+        shares_out = market_cap_m * 1_000_000 / price
 
     # Liquidity gate — must run before the valuation is shown with normal
     # confidence (see check_liquidity_gate's docstring: a precise-looking
