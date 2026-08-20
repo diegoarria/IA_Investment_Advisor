@@ -599,6 +599,7 @@ export default function WatchlistScreen() {
           <MobileEarningsCalendar
             watchlistTickers={items.map((i) => i.ticker)}
             portfolioTickers={positions.map((p) => p.ticker)}
+            tickerNames={Object.fromEntries(items.map((i) => [i.ticker, i.name]))}
             isPremium={isPremium}
             onUpgrade={() => setPaywallOpen(true)}
           />

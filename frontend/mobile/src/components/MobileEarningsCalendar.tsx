@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { earningsApi } from "../lib/api";
+import StockAvatar from "./StockAvatar";
 
 type TickerEventType = "earnings" | "ex_dividend" | "dividend";
 type ImpactLevel = "VERY_HIGH" | "HIGH" | "MEDIUM";
@@ -54,6 +55,8 @@ type AnyCalendarEvent = TickerCalendarEvent | MacroCalendarEvent;
 interface Props {
   watchlistTickers: string[];
   portfolioTickers?: string[];
+  tickerNames?: Record<string, string>;
+  tickerLogos?: Record<string, string | null>;
   isPremium?: boolean;
   onUpgrade?: () => void;
 }
@@ -99,6 +102,8 @@ function toDateStr(year: number, month: number, day: number) {
 export default function MobileEarningsCalendar({
   watchlistTickers,
   portfolioTickers = [],
+  tickerNames = {},
+  tickerLogos = {},
   isPremium = false,
   onUpgrade,
 }: Props) {
@@ -253,6 +258,14 @@ export default function MobileEarningsCalendar({
               const dayEvents = eventMap[dateStr] ?? [];
               const isSel    = selectedDay === dateStr;
               const hasEvent = dayEvents.length > 0;
+              // Macro events (FOMC, CPI, NFP...) are always rendered, never
+              // truncated by ticker-event overflow — mirrors web's
+              // WatchlistEarningsCalendar fix (Diego, 2026-08-20): they must
+              // never disappear from the grid, even on a day packed with
+              // earnings. Ticker badges get whatever slots remain.
+              const dayMacroEvents  = dayEvents.filter((e): e is MacroCalendarEvent => e.kind === "macro");
+              const dayTickerEvents = dayEvents.filter((e): e is TickerCalendarEvent => e.kind === "ticker");
+              const tickerSlots     = Math.max(0, 2 - dayMacroEvents.length);
 
               return (
                 <TouchableOpacity
@@ -279,16 +292,16 @@ export default function MobileEarningsCalendar({
                     </Text>
                   </View>
 
-                  {/* Event badges — show up to 2, each with its own color */}
-                  {dayEvents.slice(0, 2).map((e, idx) => {
-                    if (e.kind === "macro") {
-                      const colorSet = IMPACT_COLOR[e.impact_level] ?? IMPACT_COLOR.MEDIUM;
-                      return (
-                        <View key={`macro-${e.event_type}-${idx}`} style={[s.macroDot, { backgroundColor: colorSet.bg }]}>
-                          <Ionicons name="business-outline" size={8} color={colorSet.color} />
-                        </View>
-                      );
-                    }
+                  {/* Event badges — macro events always shown first, never truncated */}
+                  {dayMacroEvents.map((e, idx) => {
+                    const colorSet = IMPACT_COLOR[e.impact_level] ?? IMPACT_COLOR.MEDIUM;
+                    return (
+                      <View key={`macro-${e.event_type}-${idx}`} style={[s.macroDot, { backgroundColor: colorSet.bg }]}>
+                        <Ionicons name="business-outline" size={8} color={colorSet.color} />
+                      </View>
+                    );
+                  })}
+                  {dayTickerEvents.slice(0, tickerSlots).map((e, idx) => {
                     const meta = EVENT_META[e.event_type];
                     const isPortfolio = portfolioSet.has(e.ticker);
                     const bg = isPortfolio ? meta.bgPortfolio : meta.bg;
@@ -301,10 +314,10 @@ export default function MobileEarningsCalendar({
                       </View>
                     );
                   })}
-                  {dayEvents.length > 2 && (
+                  {dayTickerEvents.length > tickerSlots && (
                     <View style={[s.tickerBadge, { backgroundColor: colors.bgRaised }]}>
                       <Text style={[s.tickerBadgeText, { color: colors.textMuted }]}>
-                        +{dayEvents.length - 2}
+                        +{dayTickerEvents.length - tickerSlots}
                       </Text>
                     </View>
                   )}
@@ -425,6 +438,7 @@ export default function MobileEarningsCalendar({
             const meta = EVENT_META[entry.event_type];
             const isPortfolio = portfolioSet.has(entry.ticker);
             const accentColor = isPortfolio ? meta.colorPortfolio : meta.color;
+            const companyName = tickerNames[entry.ticker];
             return (
               <View
                 key={`${entry.ticker}-${entry.event_type}`}
@@ -433,14 +447,29 @@ export default function MobileEarningsCalendar({
                   idx > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255,255,255,0.06)" },
                 ]}
               >
-                {/* Event type stripe */}
-                <View style={[s.eventStripe, { backgroundColor: accentColor }]} />
+                <StockAvatar ticker={entry.ticker} logoUrl={tickerLogos[entry.ticker]} size={40} />
 
                 <View style={{ flex: 1 }}>
-                  {/* Header */}
-                  <View style={s.detailHeader}>
-                    <Text style={[s.detailTicker, { color: colors.text }]}>{entry.ticker}</Text>
+                  {/* Ticker + company name + status */}
+                  <View style={s.tickerNameRow}>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                        <Text style={[s.detailTicker, { color: colors.text }]}>{entry.ticker}</Text>
+                        <Ionicons name={meta.icon as any} size={11} color={accentColor} />
+                      </View>
+                      {companyName && (
+                        <Text style={[s.companyName, { color: colors.textMuted }]} numberOfLines={1}>
+                          {companyName}
+                        </Text>
+                      )}
+                    </View>
+                    <Text style={[s.statusText, { color: entry.status === "upcoming" || entry.status === "today" ? accentColor : colors.textMuted }]}>
+                      {entry.status === "upcoming" ? t("mobileEarningsCalendar.statusUpcoming") : entry.status === "today" ? t("mobileEarningsCalendar.statusToday") : t("mobileEarningsCalendar.statusReported")}
+                    </Text>
+                  </View>
 
+                  {/* Badges */}
+                  <View style={s.detailHeader}>
                     {/* Event type badge */}
                     <View style={[s.eventTypeBadge, { backgroundColor: isPortfolio ? meta.bgPortfolio : meta.bg }]}>
                       <Ionicons name={meta.icon as any} size={9} color={accentColor} />
@@ -470,10 +499,6 @@ export default function MobileEarningsCalendar({
                         <Text style={[s.badgeText, { color: "#60a5fa" }]}>{t("mobileEarningsCalendar.watchlist")}</Text>
                       </View>
                     )}
-
-                    <Text style={[s.statusText, { color: entry.status === "upcoming" || entry.status === "today" ? accentColor : colors.textMuted }]}>
-                      {entry.status === "upcoming" ? t("mobileEarningsCalendar.statusUpcoming") : entry.status === "today" ? t("mobileEarningsCalendar.statusToday") : t("mobileEarningsCalendar.statusReported")}
-                    </Text>
                   </View>
 
                   {/* Event-specific data */}
@@ -662,6 +687,10 @@ function makeStyles(_colors: unknown) {
     eventStripe: {
       width: 3, borderRadius: 2, alignSelf: "stretch", flexShrink: 0,
     },
+    tickerNameRow: {
+      flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 6,
+    },
+    companyName: { fontSize: 11, marginTop: 1 },
     detailHeader: {
       flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 5, marginBottom: 6,
     },
