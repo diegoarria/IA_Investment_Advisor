@@ -11,8 +11,10 @@ Investor Progress Engine, nothing here is premium-gated.
 The 8 screens and where each one's data comes from:
   1. Personalidad     — investor_progress_service.classify_investor_archetype
   2. Números           — portfolio value (live positions + cash + dividends),
-                          growth_pct, companies analyzed, Arthur
-                          conversations, longest streak, days active
+                          real YTD return (_real_ytd_return, same live-price
+                          computation as /portfolio's own YTD stat), companies
+                          analyzed, Arthur conversations, longest streak,
+                          days active
   3. Percentil         — investor_score percentile within risk cohort
                           (never return/patrimonio — see worker.py's
                           job_compute_benchmarks)
@@ -134,6 +136,38 @@ async def _company_names(tickers: list[str]) -> dict[str, str | None]:
     from app.core.finnhub import fh_profile
     profiles = await asyncio.gather(*[asyncio.to_thread(fh_profile, t) for t in tickers])
     return {t: (p or {}).get("name") for t, p in zip(tickers, profiles)}
+
+
+async def _real_ytd_return(positions: list[dict]) -> float | None:
+    """The exact same YTD % the user already sees on /portfolio (the "Rendimiento"
+    stat there), not an approximation. Was previously derived from
+    fmg_portfolio_snapshots' daily total_value — which that table's own
+    write path (fmg_service.py) computes from cost basis (shares * avgPrice),
+    never a live quote, by its own explicit design (no cheap way to get a
+    real-time price for every ticker of every user in a nightly batch job).
+    Diego (2026-08-20): that's not "real YTD" — it should match the live,
+    market-price-based number /portfolio's chart already computes.
+
+    Reuses market.py's _compute_portfolio_chart(positions, "ytd") directly —
+    same real Yahoo/Finnhub price data, same Jan-1-to-today window, same
+    mid-year-purchase cost-phasing — instead of re-deriving a second,
+    inevitably-divergent version of "YTD" here."""
+    if not positions:
+        return None
+    from app.api.routes.market import _compute_portfolio_chart, _PortfolioReturnsItem
+    items = [
+        _PortfolioReturnsItem(
+            ticker=p.get("ticker", ""),
+            shares=float(p.get("shares", 0) or 0),
+            purchase_date=p.get("purchaseDate"),
+            avg_price=float(p.get("avgPrice", 0) or 0) or None,
+        )
+        for p in positions if p.get("ticker")
+    ]
+    if not items:
+        return None
+    result = await asyncio.to_thread(_compute_portfolio_chart, items, "ytd")
+    return result.get("period_pct")
 
 
 @router.get("/annual")
@@ -263,8 +297,7 @@ async def get_wrapped(
         investor_type = await investor_progress_service.classify_investor_type(user_id, ctx=ctx)
         investor_score = await investor_progress_service.compute_investor_score(user_id, ctx=ctx)
 
-        year_returns = investor_progress_service._compute_year_returns(ctx["snapshots"])
-        growth_pct = round(year_returns[year], 2) if year in year_returns else None
+        growth_pct = await _real_ytd_return(positions)
 
         # ── 7. Peor decisión — realized loss first, unrealized fallback ────
         worst_decision = investor_progress_service.worst_closed_position(ctx)
