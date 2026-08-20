@@ -430,9 +430,14 @@ export function ScreenCompartir({ data, staticMode }: { data: WrappedData; stati
           <R delay={220} style={{ fontWeight: 900, fontSize: 22, color: WT.text, marginTop: 10, textAlign: "center" }}>{data.archetype.name}</R>
         )}
         {data.growth_pct != null && (
-          <R delay={380} anim="animate-scale-in" style={{ fontWeight: 900, fontSize: 40, color: growthColor, filter: `drop-shadow(0 0 22px ${growthColor}73)`, margin: "6px 0 2px" }}>
-            {fmtPct(animatedGrowth)}
-          </R>
+          <>
+            <R delay={320} style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 11, color: WT.muted, textTransform: "uppercase", letterSpacing: 1, marginTop: 14 }}>
+              Rendimiento de tu portafolio {data.year}
+            </R>
+            <R delay={380} anim="animate-scale-in" style={{ fontWeight: 900, fontSize: 40, color: growthColor, filter: `drop-shadow(0 0 22px ${growthColor}73)`, margin: "6px 0 2px" }}>
+              {fmtPct(animatedGrowth)}
+            </R>
+          </>
         )}
 
         {/* Deliberately no $ portfolio amount here — this screen is meant
