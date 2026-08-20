@@ -48,7 +48,6 @@ from typing import Optional
 
 import httpx
 
-from app.core.cache import cache_get, cache_set
 from app.core.database import get_supabase, run_query
 
 logger = logging.getLogger(__name__)
@@ -56,8 +55,6 @@ logger = logging.getLogger(__name__)
 _FMP_BASE = "https://financialmodelingprep.com/stable/economic-calendar"
 _ET = zoneinfo.ZoneInfo("America/New_York")
 
-CACHE_KEY = "macro_calendar:v1"
-CACHE_TTL = 6 * 3600          # refreshed daily by cron; this just avoids a DB hit on every calendar open
 _DAYS_AHEAD = 120             # forward-looking only (no historical archive) — see plan §12
 _DAYS_BEHIND = 3              # small trailing window so "released today/yesterday" still shows
 
@@ -259,9 +256,11 @@ def why_it_matters(event_type: str, lang: str) -> str:
 
 
 async def refresh_macro_calendar() -> int:
-    """Fetch → normalize → upsert into Supabase (dedup via event_id) →
-    refresh the read-through cache. Called by the daily cron and the admin
-    manual-refresh endpoint. Returns the number of rows upserted."""
+    """Fetch → normalize → upsert into Supabase (dedup via event_id).
+    Called by the daily cron and the admin manual-refresh endpoint.
+    Returns the number of rows upserted. No cache to refresh here —
+    get_macro_events reads Supabase directly on every call (see its
+    docstring for why)."""
     import asyncio
     # Chunked into several sequential FMP calls now (see _fetch_fmp_window) —
     # off the event loop so a slow/retried chunk can't stall it.
@@ -273,7 +272,6 @@ async def refresh_macro_calendar() -> int:
     db = get_supabase()
     await run_query(db.table("macro_economic_events").upsert(rows, on_conflict="event_id"))
 
-    cache_set(CACHE_KEY, rows, ttl=CACHE_TTL)
     logger.info("refresh_macro_calendar: upserted %d macro events", len(rows))
     return len(rows)
 
@@ -297,26 +295,36 @@ _SERVED_IMPACT_LEVELS = {"VERY_HIGH", "HIGH"}  # Diego, 2026-08-19: MEDIUM event
 
 
 async def get_macro_events(days_ahead: int = 30, lang: str = "es") -> list[dict]:
-    """Read-through: cache first, then Supabase (last known good), never a
-    live FMP call from a request path. Returns events from today (ET)
-    through `days_ahead` days out, each with a derived `status` and the
-    event time normalized to America/New_York for display. Only VERY_HIGH/
-    HIGH impact events are served — MEDIUM is still stored in Supabase (in
-    case that filter is ever loosened) but filtered out here, the single
-    place both the web and mobile calendars ultimately read from."""
-    rows = cache_get(CACHE_KEY)
-    if rows is None:
-        db = get_supabase()
-        cutoff = (datetime.now(_ET).date() - timedelta(days=_DAYS_BEHIND)).isoformat()
-        res = await run_query(
-            db.table("macro_economic_events")
-            .select("*")
-            .gte("event_date_utc", cutoff)
-            .order("event_date_utc")
-        )
-        rows = res.data or []
-        if rows:
-            cache_set(CACHE_KEY, rows, ttl=CACHE_TTL)
+    """Always reads Supabase fresh — never a live FMP call from a request
+    path (that boundary is still only crossed by fetch_and_normalize_macro_
+    events, called by the cron/admin refresh). Returns events from today
+    (ET) through `days_ahead` days out, each with a derived `status` and
+    the event time normalized to America/New_York for display. Only
+    VERY_HIGH/HIGH impact events are served — MEDIUM is still stored in
+    Supabase (in case that filter is ever loosened) but filtered out here,
+    the single place both the web and mobile calendars ultimately read
+    from.
+
+    Deliberately NOT cached (a CACHE_KEY-based read-through cache used to
+    live here). The app runs multiple gunicorn worker processes, each with
+    its own in-memory cache fallback when Redis isn't configured — a
+    refresh from the cron or the admin endpoint only ever updates the ONE
+    process that ran it, so every other process kept serving up to 6h of
+    stale/incomplete data after every refresh (confirmed live, 2026-08-20:
+    a manual admin refresh didn't fix what the user saw, because 3 of 4
+    web processes were still serving the pre-fix cache). Same bug class,
+    same fix, as app/core/subscription.py's fetch_fresh_subscription_
+    fields — this table is small and indexed by date, cheap enough to
+    always read fresh rather than risk that flicker again."""
+    db = get_supabase()
+    cutoff = (datetime.now(_ET).date() - timedelta(days=_DAYS_BEHIND)).isoformat()
+    res = await run_query(
+        db.table("macro_economic_events")
+        .select("*")
+        .gte("event_date_utc", cutoff)
+        .order("event_date_utc")
+    )
+    rows = res.data or []
 
     now_et = datetime.now(_ET)
     today_et = now_et.date()
