@@ -124,9 +124,7 @@ export default function WrappedFlow({ data, onClose }: { data: WrappedData; onCl
 
         <div style={{ width: "100%", height: "100%" }}>
           {isLast ? (
-            <div ref={shareRef} style={{ width: "100%", height: "100%" }}>
-              <ScreenCompartir data={data} />
-            </div>
+            <ScreenCompartir data={data} />
           ) : (
             (() => {
               const Comp = screens[index];
@@ -154,6 +152,30 @@ export default function WrappedFlow({ data, onClose }: { data: WrappedData; onCl
           </div>
         )}
       </div>
+
+      {/* Off-screen, fixed-size (430x900), never-clipped clone of the share
+          card — the ONLY thing html2canvas actually captures. The on-screen
+          card above lives inside a chain of height:100% boxes under a
+          position:fixed root, so its real pixel height follows whatever the
+          device's actual viewport happens to be; on a shorter phone
+          viewport that's less tall than the card's natural content height,
+          the ancestor's overflow:hidden clips it — invisibly, since it
+          still looks fine live (the visible portion is centered and
+          nothing looks obviously cut) but the html2canvas export bakes in
+          that same clip, so everything past whatever fit in that shorter
+          viewport (confirmed live, 2026-08-2x: everything below the
+          rendimiento number) never made it into the downloaded PNG. This
+          clone always has the full fixed-size canvas worth of unclipped
+          room, independent of the real device viewport. */}
+      {isLast && (
+        <div
+          ref={shareRef}
+          aria-hidden="true"
+          style={{ position: "fixed", left: -9999, top: 0, width: 430, height: 900, overflow: "visible", pointerEvents: "none" }}
+        >
+          <ScreenCompartir data={data} staticMode />
+        </div>
+      )}
     </div>
   );
 }

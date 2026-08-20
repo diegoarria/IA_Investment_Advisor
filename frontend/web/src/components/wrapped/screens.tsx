@@ -96,6 +96,20 @@ function Reveal({ delay = 0, anim = "animate-fade-in-up", style, children }: { d
   );
 }
 
+/** Same call shape as Reveal (so a component can switch between the two
+ * with one variable), but renders already at its final, fully-visible
+ * state — no animation, no opacity:0 base. html2canvas doesn't execute
+ * CSS animations on the DOM it captures; it reads inline styles literally,
+ * so every Reveal-wrapped element (opacity:0 inline, made visible only by
+ * a running keyframe animation) came out invisible in the exported PNG —
+ * confirmed live, 2026-08-2x: the downloaded Wrapped card was blank below
+ * the logo. ScreenCompartir's off-screen capture clone (WrappedFlow.tsx)
+ * uses this instead of Reveal for exactly that reason; the on-screen
+ * preview instance still uses real Reveal for the entrance flourish. */
+function StaticReveal({ style, children }: { delay?: number; anim?: RevealAnim; style?: React.CSSProperties; children: React.ReactNode }) {
+  return <div style={style}>{children}</div>;
+}
+
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?";
 }
@@ -397,27 +411,28 @@ export function ScreenTipoInversionista({ data, total, page, nextLabel }: Screen
 }
 
 // 8 — Tarjeta para compartir (9:16)
-export function ScreenCompartir({ data }: { data: WrappedData }) {
+export function ScreenCompartir({ data, staticMode }: { data: WrappedData; staticMode?: boolean }) {
   const strength = topStrength(data.investor_score);
   const topGrower = data.top_positions[0] || null;
   const animatedGrowth = useCountUp(data.growth_pct ?? 0, 1100, 2);
   const growthColor = (data.growth_pct ?? 0) >= 0 ? WT.accentL : WT.coral;
   const growerColor = topGrower && topGrower.return_pct >= 0 ? WT.accentL : WT.coral;
+  const R = staticMode ? StaticReveal : Reveal;
   return (
     <Stage page={8} total={8} noChrome>
       <div style={{ position: "absolute", inset: 20, borderRadius: 26, background: "linear-gradient(165deg, rgba(9,15,31,0.75) 0%, rgba(3,6,14,0.6) 55%, rgba(9,15,31,0.75) 100%)", border: "1.5px solid rgba(0,232,135,0.18)" }} />
       <div style={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", padding: "18px 10px 10px" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.png" alt="Nuvos AI" crossOrigin="anonymous" style={{ width: 30, height: 30, borderRadius: 8, marginBottom: 8 }} className="animate-fade-in" />
-        <Reveal delay={100} style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 10, color: WT.accentL, letterSpacing: 1.5, textTransform: "uppercase" }}>Nuvos Wrapped {data.year}</Reveal>
+        <R delay={100} style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 10, color: WT.accentL, letterSpacing: 1.5, textTransform: "uppercase" }}>Nuvos Wrapped {data.year}</R>
 
         {data.archetype && (
-          <Reveal delay={220} style={{ fontWeight: 900, fontSize: 22, color: WT.text, marginTop: 10, textAlign: "center" }}>{data.archetype.name}</Reveal>
+          <R delay={220} style={{ fontWeight: 900, fontSize: 22, color: WT.text, marginTop: 10, textAlign: "center" }}>{data.archetype.name}</R>
         )}
         {data.growth_pct != null && (
-          <Reveal delay={380} anim="animate-scale-in" style={{ fontWeight: 900, fontSize: 40, color: growthColor, filter: `drop-shadow(0 0 22px ${growthColor}73)`, margin: "6px 0 2px" }}>
+          <R delay={380} anim="animate-scale-in" style={{ fontWeight: 900, fontSize: 40, color: growthColor, filter: `drop-shadow(0 0 22px ${growthColor}73)`, margin: "6px 0 2px" }}>
             {fmtPct(animatedGrowth)}
-          </Reveal>
+          </R>
         )}
 
         {/* Deliberately no $ portfolio amount here — this screen is meant
@@ -425,44 +440,44 @@ export function ScreenCompartir({ data }: { data: WrappedData }) {
             a real dollar figure onto everyone's feed (2026-08-20). */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, width: "100%", maxWidth: 360, marginTop: 20 }}>
           {data.companies_analyzed > 0 && (
-            <Reveal delay={600} anim="animate-scale-in" style={shareStatCard(WT.teal)}>
+            <R delay={600} anim="animate-scale-in" style={shareStatCard(WT.teal)}>
               <div style={shareStatIconBadge(WT.teal)}>🏢</div>
               <div style={SHARE_STAT_VALUE}>{data.companies_analyzed}</div>
               <div style={SHARE_STAT_LABEL}>Analizadas</div>
-            </Reveal>
+            </R>
           )}
           {data.arthur_conversations > 0 && (
-            <Reveal delay={720} anim="animate-scale-in" style={shareStatCard(WT.gold)}>
+            <R delay={720} anim="animate-scale-in" style={shareStatCard(WT.gold)}>
               <div style={shareStatIconBadge(WT.gold)}>💬</div>
               <div style={SHARE_STAT_VALUE}>{data.arthur_conversations}×</div>
               <div style={SHARE_STAT_LABEL}>Con Arthur</div>
-            </Reveal>
+            </R>
           )}
           {topGrower && (
-            <Reveal delay={840} anim="animate-scale-in" style={shareStatCard(growerColor)}>
+            <R delay={840} anim="animate-scale-in" style={shareStatCard(growerColor)}>
               <TickerLogo ticker={topGrower.ticker} size={30} />
               <div style={{ ...SHARE_STAT_VALUE, fontSize: 12, lineHeight: 1.2, marginTop: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>
                 {topGrower.company_name || topGrower.ticker}
               </div>
               <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted, marginBottom: 2 }}>{topGrower.ticker}</div>
               <div style={{ fontWeight: 800, fontSize: 14, color: growerColor }}>{fmtPct(topGrower.return_pct)}</div>
-            </Reveal>
+            </R>
           )}
         </div>
 
         {strength && (
-          <Reveal delay={1000} style={{ marginTop: 20, display: "flex", justifyContent: "center" }}>
+          <R delay={1000} style={{ marginTop: 20, display: "flex", justifyContent: "center" }}>
             <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "10px 24px", borderRadius: 100, background: `${WT.gold}1f`, border: `1px solid ${WT.gold}55` }}>
               <span style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted, textTransform: "uppercase", letterSpacing: 1 }}>Tu mayor fortaleza</span>
               <span style={{ fontWeight: 900, fontSize: 17, color: WT.gold }}>{strength.toUpperCase()}</span>
             </div>
-          </Reveal>
+          </R>
         )}
 
-        <Reveal delay={1150} style={{ fontWeight: 800, fontSize: 14, color: WT.text, marginTop: 20 }}>
+        <R delay={1150} style={{ fontWeight: 800, fontSize: 14, color: WT.text, marginTop: 20 }}>
           <p style={{ margin: 0 }}>¿Cuál eres tú?</p>
           <p style={{ fontWeight: 800, fontSize: 13, color: WT.text, marginTop: 2 }}>NUVOS <span style={{ color: WT.accentL }}>AI</span></p>
-        </Reveal>
+        </R>
       </div>
     </Stage>
   );
