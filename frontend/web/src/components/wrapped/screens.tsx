@@ -10,6 +10,21 @@ const EYEBROW: React.CSSProperties = { fontFamily: "var(--font-ui)", fontWeight:
 const CARD: React.CSSProperties = { background: WT.card, border: `1px solid ${WT.border}`, borderRadius: 20 };
 const EMPTY_TEXT: React.CSSProperties = { fontFamily: "var(--font-ui)", fontSize: 13, color: WT.sub, textAlign: "center", lineHeight: 1.5 };
 
+// ScreenCompartir's 3-stat row — bigger, icon-on-top layout so the numbers
+// actually read at a glance instead of squeezing a label+value pair into a
+// tiny box (Diego, 2026-08-20: "un diseño muchísimo mejor").
+const SHARE_STAT_CARD: React.CSSProperties = {
+  background: WT.card2, border: `1px solid ${WT.border}`, borderRadius: 18,
+  minHeight: 116, padding: "16px 8px",
+  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+  textAlign: "center", width: "100%",
+};
+const SHARE_STAT_VALUE: React.CSSProperties = { fontWeight: 900, fontSize: 20, color: WT.text, marginTop: 6 };
+const SHARE_STAT_LABEL: React.CSSProperties = {
+  fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 10, color: WT.muted,
+  textTransform: "uppercase", letterSpacing: 0.5, marginTop: 3,
+};
+
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?";
 }
@@ -295,24 +310,29 @@ export function ScreenCompartir({ data }: { data: WrappedData }) {
         {/* Deliberately no $ portfolio amount here — this screen is meant
             to be shared to social media, and Diego doesn't want to force
             a real dollar figure onto everyone's feed (2026-08-20). */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, width: "100%", maxWidth: 340, marginTop: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, width: "100%", maxWidth: 360, marginTop: 20 }}>
           {data.companies_analyzed > 0 && (
-            <div style={{ ...CARD, padding: "10px 6px", textAlign: "center" }}>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>🏢 Analizadas</div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: WT.text }}>{data.companies_analyzed}</div>
+            <div style={{ ...SHARE_STAT_CARD }}>
+              <span style={{ fontSize: 20 }}>🏢</span>
+              <div style={SHARE_STAT_VALUE}>{data.companies_analyzed}</div>
+              <div style={SHARE_STAT_LABEL}>Analizadas</div>
             </div>
           )}
           {data.arthur_conversations > 0 && (
-            <div style={{ ...CARD, padding: "10px 6px", textAlign: "center" }}>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>💬 Con Arthur</div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: WT.text }}>{data.arthur_conversations}×</div>
+            <div style={{ ...SHARE_STAT_CARD }}>
+              <span style={{ fontSize: 20 }}>💬</span>
+              <div style={SHARE_STAT_VALUE}>{data.arthur_conversations}×</div>
+              <div style={SHARE_STAT_LABEL}>Con Arthur</div>
             </div>
           )}
           {topGrower && (
-            <div style={{ ...CARD, padding: "10px 6px", textAlign: "center" }}>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>📈 Empresa que más creció</div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: WT.text }}>{topGrower.ticker}</div>
-              <div style={{ fontWeight: 700, fontSize: 11, color: WT.accentL }}>{fmtPct(topGrower.return_pct)}</div>
+            <div style={{ ...SHARE_STAT_CARD }}>
+              <TickerLogo ticker={topGrower.ticker} size={30} />
+              <div style={{ ...SHARE_STAT_VALUE, fontSize: 12, lineHeight: 1.2, marginTop: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>
+                {topGrower.company_name || topGrower.ticker}
+              </div>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted, marginBottom: 2 }}>{topGrower.ticker}</div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: WT.accentL }}>{fmtPct(topGrower.return_pct)}</div>
             </div>
           )}
         </div>
