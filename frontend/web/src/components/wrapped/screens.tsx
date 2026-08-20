@@ -432,10 +432,10 @@ export function ScreenCompartir({ data, staticMode }: { data: WrappedData; stati
         )}
         {data.growth_pct != null && (
           <>
-            <R delay={320} style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 11, color: WT.muted, textTransform: "uppercase", letterSpacing: 1, marginTop: 14 }}>
+            <R delay={320} style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 11, color: WT.muted, textTransform: "uppercase", letterSpacing: 1, marginTop: 8 }}>
               Rendimiento de tu portafolio {data.year}
             </R>
-            <R delay={380} anim="animate-scale-in" style={{ fontWeight: 900, fontSize: 40, color: growthColor, filter: `drop-shadow(0 0 22px ${growthColor}73)`, margin: "6px 0 2px" }}>
+            <R delay={380} anim="animate-scale-in" style={{ fontWeight: 900, fontSize: 40, color: growthColor, filter: `drop-shadow(0 0 22px ${growthColor}73)`, margin: "2px 0 2px" }}>
               {fmtPct(animatedGrowth)}
             </R>
           </>
@@ -472,7 +472,7 @@ export function ScreenCompartir({ data, staticMode }: { data: WrappedData; stati
         </div>
 
         {strength && (
-          <R delay={1000} style={{ marginTop: 20, display: "flex", justifyContent: "center" }}>
+          <R delay={1000} style={{ marginTop: 10, display: "flex", justifyContent: "center" }}>
             <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "10px 24px", borderRadius: 100, background: `${WT.gold}1f`, border: `1px solid ${WT.gold}55` }}>
               <span style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted, textTransform: "uppercase", letterSpacing: 1 }}>Tu mayor fortaleza</span>
               <span style={{ fontWeight: 900, fontSize: 17, color: WT.gold }}>{strength.toUpperCase()}</span>
@@ -480,7 +480,7 @@ export function ScreenCompartir({ data, staticMode }: { data: WrappedData; stati
           </R>
         )}
 
-        <R delay={1150} style={{ fontWeight: 800, fontSize: 14, color: WT.text, marginTop: 20 }}>
+        <R delay={1150} style={{ fontWeight: 800, fontSize: 14, color: WT.text, marginTop: 20, textAlign: "center" }}>
           <p style={{ margin: 0 }}>¿Cuál eres tú?</p>
           <p style={{ fontWeight: 800, fontSize: 13, color: WT.text, marginTop: 2 }}>NUVOS <span style={{ color: WT.accentL }}>AI</span></p>
         </R>
