@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Stage from "./Stage";
 import { WT, WrappedData, fmtPct, fmtUsd, topStrength } from "./types";
+import { apiBase } from "@/lib/apiBase";
 
 const H1: React.CSSProperties = { fontWeight: 900, color: WT.text, letterSpacing: -0.5, textAlign: "center", lineHeight: 1.05 };
 const EYEBROW: React.CSSProperties = { fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase", color: WT.accentL, textAlign: "center", marginBottom: 6 };
@@ -25,11 +26,18 @@ function EmptyState({ emoji, text }: { emoji: string; text: string }) {
   );
 }
 
-// Company logo — parqet.com by ticker, plain <img crossOrigin> (not
+// Company logo — proxied through our own backend (GET /api/logo/:ticker,
+// see backend/app/api/routes/logo.py), plain <img crossOrigin> (not
 // next/image) so html2canvas's useCORS export can actually paint it.
+// Fetching parqet.com directly used to fail outright (not just for canvas
+// export): it never sends Access-Control-Allow-Origin, so a crossOrigin
+// fetch of it is rejected by the browser before the image ever renders —
+// confirmed live, 2026-08-20, every logo on this screen fell back to
+// initials for every user. Our own domain's CORSMiddleware (main.py)
+// covers this endpoint automatically.
 function TickerLogo({ ticker, size }: { ticker: string; size: number }) {
   const [failed, setFailed] = useState(false);
-  const src = `https://assets.parqet.com/logos/symbol/${ticker.replace(".", "-")}?format=svg`;
+  const src = `${apiBase()}/api/logo/${ticker.replace(".", "-")}`;
   if (failed) {
     return (
       <div style={{ width: size, height: size, borderRadius: "50%", background: WT.card2, border: `1px solid ${WT.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: size * 0.34, color: WT.sub, flexShrink: 0 }}>
