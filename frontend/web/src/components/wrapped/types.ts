@@ -52,7 +52,7 @@ export interface WrappedData {
   avatar_url?: string | null;
   archetype?: WrappedArchetype | null;
   investor_type?: WrappedInvestorType | null;
-  invested_this_year: number;
+  portfolio_value: number;
   growth_pct?: number | null;
   companies_analyzed: number;
   arthur_conversations: number;

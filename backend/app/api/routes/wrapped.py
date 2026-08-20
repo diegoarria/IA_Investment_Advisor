@@ -10,8 +10,9 @@ Investor Progress Engine, nothing here is premium-gated.
 
 The 8 screens and where each one's data comes from:
   1. Personalidad     — investor_progress_service.classify_investor_archetype
-  2. Números           — invested this year, growth_pct, companies analyzed,
-                          Arthur conversations, longest streak, days active
+  2. Números           — portfolio value (live positions + cash + dividends),
+                          growth_pct, companies analyzed, Arthur
+                          conversations, longest streak, days active
   3. Percentil         — investor_score percentile within risk cohort
                           (never return/patrimonio — see worker.py's
                           job_compute_benchmarks)
@@ -87,16 +88,35 @@ async def _arthur_conversations_this_year(user_id: str, year: int) -> int:
     return res.count or 0
 
 
-def _invested_during_year(positions: list[dict], closed_positions: list[dict], year: int) -> float:
-    """Real $ deployed during the calendar year — every lot (still open or
-    already closed) whose purchaseDate falls in the year, at the price
-    actually paid. Not lifetime capital_invested, and not current value."""
+# Same rough currency table patrimonio/page.tsx already uses to fold
+# non-USD cash holdings into one total — not live FX, just enough to add
+# a CETES/MXN balance into a USD total without leaving it out entirely.
+_CASH_APPROX_TO_USD = {"MXN": 18.5, "EUR": 0.92, "GBP": 0.79, "CAD": 1.38, "BRL": 5.7, "JPY": 155, "AUD": 1.55, "CHF": 0.89}
+
+
+async def _cash_holdings_total_usd(user_id: str) -> float:
+    """Sum of the user's real cash set aside to invest (CETES, bank, bonds,
+    manual entries — migration 053), each accrued to today at its captured
+    rate. Same accrued_amount ?? amount + currency-approximation logic as
+    patrimonio/page.tsx's cashTotalUSD, so this never disagrees with what
+    the user already sees there."""
+    from app.api.routes.cash_holdings import _with_accrued
+    db = get_supabase()
+    res = await run_query(db.table("cash_holdings").select("*").eq("user_id", user_id))
     total = 0.0
-    for item in positions + closed_positions:
-        pd = str(item.get("purchaseDate") or "")[:10]
-        if pd[:4] == str(year):
-            total += float(item.get("shares", 0) or 0) * float(item.get("avgPrice", 0) or 0)
-    return round(total, 2)
+    for h in (res.data or []):
+        amt = _with_accrued(h)["accrued_amount"]
+        currency = (h.get("currency") or "USD").upper()
+        total += amt if currency == "USD" else amt / _CASH_APPROX_TO_USD.get(currency, 1)
+    return total
+
+
+async def _dividend_income_total(user_id: str) -> float:
+    """Real dividends actually paid out, forward-tracking only since
+    migration 054 — same sum GET /dividends/income returns."""
+    db = get_supabase()
+    res = await run_query(db.table("dividend_income").select("amount").eq("user_id", user_id))
+    return sum(float(r["amount"]) for r in (res.data or []))
 
 
 async def _company_names(tickers: list[str]) -> dict[str, str | None]:
@@ -176,9 +196,6 @@ async def get_wrapped(
         parsed = _parse_portfolio((default_row or port_rows[0])["positions"]) if port_rows else \
             {"positions": [], "closed_positions": []}
         positions = parsed["positions"]
-        closed_positions = parsed["closed_positions"]
-
-        invested_this_year = _invested_during_year(positions, closed_positions, year)
 
         # ── 3. Top posiciones que más crecieron (real cost-basis return) ──
         position_returns = await _position_returns(positions)
@@ -208,6 +225,18 @@ async def get_wrapped(
 
         # ── 5. Arthur conversations this year ──────────────────────────────
         arthur_conversations = await _arthur_conversations_this_year(user_id, year)
+
+        # ── 5b. Valor de tu portafolio — live market value of open positions
+        # (position_returns' current_value, not cost basis) + cash set aside
+        # to invest + dividends actually received. Same three components,
+        # same accrual/FX-approximation rules, as patrimonio/page.tsx's
+        # totalValue — so this number never disagrees with what the user
+        # already sees on that screen.
+        stocks_value = sum(r["current_value"] for r in position_returns)
+        cash_value, dividend_value = await asyncio.gather(
+            _cash_holdings_total_usd(user_id), _dividend_income_total(user_id)
+        )
+        portfolio_value = round(stocks_value + cash_value + dividend_value, 2)
 
         # ── 6. Investor Progress Engine signals — one shared ctx ───────────
         ctx = await investor_progress_service._build_context(user_id)
@@ -263,7 +292,7 @@ async def get_wrapped(
             "avatar_url": avatar_url,
             "archetype":       archetype,
             "investor_type":   investor_type,
-            "invested_this_year": invested_this_year,
+            "portfolio_value":   portfolio_value,
             "growth_pct":        growth_pct,
             "companies_analyzed": companies_analyzed,
             "arthur_conversations": arthur_conversations,

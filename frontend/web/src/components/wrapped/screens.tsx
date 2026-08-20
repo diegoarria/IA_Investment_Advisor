@@ -95,7 +95,7 @@ export function ScreenPersonalidad({ data, total, page }: ScreenProps) {
 // 2 — Tu año en números
 export function ScreenNumeros({ data, total, page }: ScreenProps) {
   const metrics: { emoji: string; label: string; value: string }[] = [];
-  if (data.invested_this_year > 0) metrics.push({ emoji: "💰", label: "Invertiste", value: fmtUsd(data.invested_this_year) });
+  if (data.portfolio_value > 0) metrics.push({ emoji: "💰", label: "Valor de tu portafolio", value: fmtUsd(data.portfolio_value) });
   if (data.growth_pct != null) metrics.push({ emoji: "📈", label: "Rendimiento", value: fmtPct(data.growth_pct) });
   if (data.companies_analyzed > 0) metrics.push({ emoji: "🏢", label: "Empresas analizadas", value: String(data.companies_analyzed) });
   if (data.arthur_conversations > 0) metrics.push({ emoji: "💬", label: "Hablaste con Arthur", value: `${data.arthur_conversations}×` });
@@ -285,10 +285,10 @@ export function ScreenCompartir({ data }: { data: WrappedData }) {
         )}
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, width: "100%", maxWidth: 300, marginTop: 16 }}>
-          {data.invested_this_year > 0 && (
+          {data.portfolio_value > 0 && (
             <div style={{ ...CARD, padding: "10px 12px" }}>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted }}>💰 Invertidos</div>
-              <div style={{ fontWeight: 800, fontSize: 15, color: WT.text }}>{fmtUsd(data.invested_this_year)}</div>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted }}>💰 Portafolio</div>
+              <div style={{ fontWeight: 800, fontSize: 15, color: WT.text }}>{fmtUsd(data.portfolio_value)}</div>
             </div>
           )}
           {data.growth_pct != null && (
