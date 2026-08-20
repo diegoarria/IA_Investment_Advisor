@@ -632,22 +632,22 @@ _GROWTH_SECTORS = {"Technology", "Communication Services"}
 
 _ARCHETYPES = {
     "business_owner": {
-        "key": "business_owner", "name": "THE CAPITAL ALLOCATOR",
+        "key": "business_owner", "name": "EL ASIGNADOR DE CAPITAL",
         "tagline": "No buscaste solamente ganar dinero. Buscaste poner tu capital a trabajar.",
         "traits": ["Mantienes posiciones a largo plazo", "Analizas ventajas competitivas reales", "Ignoras el ruido del mercado"],
     },
     "growth_hunter": {
-        "key": "growth_hunter", "name": "THE OPPORTUNIST",
+        "key": "growth_hunter", "name": "EL OPORTUNISTA",
         "tagline": "Cuando otros veían una caída, tú veías una oportunidad.",
         "traits": ["Concentrado en sectores de crecimiento", "Tolerancia alta a la volatilidad", "Buscas la próxima gran historia"],
     },
     "defender": {
-        "key": "defender", "name": "THE PATIENT ONE",
+        "key": "defender", "name": "EL PACIENTE",
         "tagline": "Mientras otros pensaban en días, tú pensabas en años.",
         "traits": ["Priorizas sectores defensivos", "Buscas estabilidad sobre velocidad", "Proteges el capital primero"],
     },
     "value_seeker": {
-        "key": "value_seeker", "name": "THE QUALITY HUNTER",
+        "key": "value_seeker", "name": "EL CAZADOR DE CALIDAD",
         "tagline": "Buscaste precio, pero nunca sacrificaste calidad.",
         "traits": ["Analizas antes de decidir", "Rotación de cartera activa", "Buscas precio, no solo calidad"],
     },
@@ -710,23 +710,23 @@ async def classify_investor_archetype(user_id: str, ctx: dict | None = None) -> 
 
 _INVESTOR_TYPES = {
     "whale": {
-        "key": "whale", "emoji": "🐋", "name": "THE WHALE",
+        "key": "whale", "emoji": "🐋", "name": "LA BALLENA",
         "tagline": "No te asustan las posiciones grandes.",
     },
     "zen": {
-        "key": "zen", "emoji": "🧘", "name": "THE ZEN INVESTOR",
+        "key": "zen", "emoji": "🧘", "name": "EL INVERSIONISTA ZEN",
         "tagline": "El mercado podía caer. Tú ni te inmutabas.",
     },
     "opportunist": {
-        "key": "opportunist", "emoji": "🦈", "name": "THE OPPORTUNIST",
+        "key": "opportunist", "emoji": "🦈", "name": "EL OPORTUNISTA",
         "tagline": "Cuando otros veían una caída, tú veías una oportunidad.",
     },
     "patient": {
-        "key": "patient", "emoji": "🦉", "name": "THE PATIENT ONE",
+        "key": "patient", "emoji": "🦉", "name": "EL PACIENTE",
         "tagline": "Mientras otros pensaban en días, tú pensabas en años.",
     },
     "tech": {
-        "key": "tech", "emoji": "🤖", "name": "THE TECH INVESTOR",
+        "key": "tech", "emoji": "🤖", "name": "EL INVERSIONISTA TECH",
         "tagline": "Si tenía chips, software o IA, probablemente la conocías.",
     },
 }
