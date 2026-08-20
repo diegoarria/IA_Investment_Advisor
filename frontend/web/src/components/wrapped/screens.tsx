@@ -174,6 +174,7 @@ export function ScreenEmpresaFavorita({ data, total, page }: ScreenProps) {
               {rest.map((f, i) => (
                 <div key={f.ticker} style={{ ...CARD, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px" }}>
                   <div style={{ width: 20, height: 20, borderRadius: "50%", background: medals[i], color: "#1a1206", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 10, flexShrink: 0 }}>{i + 2}º</div>
+                  <TickerLogo ticker={f.ticker} size={28} />
                   <div style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, color: WT.text }}>{f.company_name || f.ticker}</div>
                   <div style={{ fontWeight: 800, fontSize: 13, color: WT.accentL }}>{f.times_analyzed}×</div>
                 </div>
