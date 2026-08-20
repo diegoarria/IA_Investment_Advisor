@@ -153,7 +153,7 @@ function TickerLogo({ ticker, size }: { ticker: string; size: number }) {
       alt={ticker}
       crossOrigin="anonymous"
       onError={() => setFailed(true)}
-      style={{ width: size, height: size, borderRadius: "50%", objectFit: "contain", background: "#fff", padding: size * 0.12, border: `1px solid ${WT.border}`, flexShrink: 0 }}
+      style={{ width: size, height: size, borderRadius: "50%", objectFit: "contain", background: "#fff", border: `1px solid ${WT.border}`, flexShrink: 0 }}
     />
   );
 }
