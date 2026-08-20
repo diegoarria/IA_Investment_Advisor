@@ -19,6 +19,21 @@ const SCREENS = [
   ScreenTopPosiciones, ScreenPeorDecision, ScreenTipoInversionista,
 ] as const;
 
+// Curiosity-driving teaser for "what's next" — shown bouncing at the bottom
+// of each screen (Stage's nextLabel) so tapping through builds toward
+// something instead of just paging a report (Diego, 2026-08-20: "que
+// mantengan intrigados a los usuarios"). Index i is the teaser for the
+// screen that comes AFTER SCREENS[i], i.e. what you see while on screen i.
+const NEXT_TEASERS = [
+  "Tu año, medido 📊",
+  "¿Qué tan arriba estás? 🏆",
+  "Tu empresa favorita 🏢",
+  "Tus mejores jugadas 📈",
+  "Tu peor decisión 😬",
+  "¿Qué tipo de inversionista eres? 🎯",
+  "Tu tarjeta para compartir 🎉",
+] as const;
+
 export default function WrappedFlow({ data, onClose }: { data: WrappedData; onClose: () => void }) {
   const screens = SCREENS;
   const total = screens.length + 1; // +1 for the always-shown Compartir closer
@@ -115,7 +130,7 @@ export default function WrappedFlow({ data, onClose }: { data: WrappedData; onCl
           ) : (
             (() => {
               const Comp = screens[index];
-              return <Comp data={data} total={total} page={index + 1} />;
+              return <Comp data={data} total={total} page={index + 1} nextLabel={NEXT_TEASERS[index]} />;
             })()
           )}
         </div>

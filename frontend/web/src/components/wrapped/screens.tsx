@@ -4,6 +4,7 @@ import { useState } from "react";
 import Stage from "./Stage";
 import { WT, WrappedData, fmtPct, fmtUsd, topStrength } from "./types";
 import { apiBase } from "@/lib/apiBase";
+import { useCountUp } from "./useCountUp";
 
 const H1: React.CSSProperties = { fontWeight: 900, color: WT.text, letterSpacing: -0.5, textAlign: "center", lineHeight: 1.05 };
 const EYEBROW: React.CSSProperties = { fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase", color: WT.accentL, textAlign: "center", marginBottom: 6 };
@@ -25,6 +26,25 @@ const SHARE_STAT_LABEL: React.CSSProperties = {
   textTransform: "uppercase", letterSpacing: 0.5, marginTop: 3,
 };
 
+type RevealAnim = "animate-fade-in-up" | "animate-fade-in-up-glow" | "animate-scale-in" | "animate-slide-left";
+
+/** Reveals an element on mount, staggered by `delay` — every screen is a
+ * fresh component instance each time the user navigates to it, so this
+ * naturally replays on every visit, not just the first. The single
+ * building block behind every screen's "entrance" choreography
+ * (Diego, 2026-08-20: "textos... de entrada que sean atractivos"). Only
+ * ONE `anim` class per element — a plain className list can't layer two
+ * independently-timed CSS animations (the later stylesheet rule simply
+ * wins), so a "glow after entrance" look uses the combined
+ * animate-fade-in-up-glow keyframe set instead of stacking classes. */
+function Reveal({ delay = 0, anim = "animate-fade-in-up", style, children }: { delay?: number; anim?: RevealAnim; style?: React.CSSProperties; children: React.ReactNode }) {
+  return (
+    <div className={anim} style={{ opacity: 0, animationDelay: `${delay}ms`, animationFillMode: "both", ...style }}>
+      {children}
+    </div>
+  );
+}
+
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?";
 }
@@ -34,10 +54,10 @@ function initials(name: string) {
  * screen count fixed at 8 no matter how new/inactive the account is. */
 function EmptyState({ emoji, text }: { emoji: string; text: string }) {
   return (
-    <div style={{ ...CARD, padding: "28px 22px", textAlign: "center" }}>
+    <Reveal delay={200} style={{ ...CARD, padding: "28px 22px", textAlign: "center" }}>
       <div style={{ fontSize: 32, marginBottom: 10 }}>{emoji}</div>
       <p style={EMPTY_TEXT}>{text}</p>
-    </div>
+    </Reveal>
   );
 }
 
@@ -72,17 +92,24 @@ function TickerLogo({ ticker, size }: { ticker: string; size: number }) {
   );
 }
 
-type ScreenProps = { data: WrappedData; total: number; page: number };
+type ScreenProps = {
+  data: WrappedData;
+  total: number;
+  page: number;
+  /** Curiosity-driving teaser for the screen that comes right after this
+   * one — see Stage's nextLabel prop. Omitted on the last content screen. */
+  nextLabel?: string;
+};
 
 // 1 — Personalidad como inversionista
-export function ScreenPersonalidad({ data, total, page }: ScreenProps) {
+export function ScreenPersonalidad({ data, total, page, nextLabel }: ScreenProps) {
   const [avatarFailed, setAvatarFailed] = useState(false);
   const showAvatar = !!data.avatar_url && !avatarFailed;
   const a = data.archetype;
   return (
-    <Stage page={page} total={total} glow="top">
+    <Stage page={page} total={total} glow="top" nextLabel={nextLabel}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
-        <div style={{ width: 72, height: 72, borderRadius: "50%", background: WT.gradGreen, padding: 3, marginBottom: 14, boxShadow: "0 0 34px rgba(0,185,109,0.35)" }}>
+        <Reveal delay={0} anim="animate-scale-in" style={{ width: 72, height: 72, borderRadius: "50%", background: WT.gradGreen, padding: 3, marginBottom: 14, boxShadow: "0 0 34px rgba(0,185,109,0.35)" }}>
           {showAvatar ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -97,16 +124,16 @@ export function ScreenPersonalidad({ data, total, page }: ScreenProps) {
               {initials(data.user_name)}
             </div>
           )}
-        </div>
-        <div style={{ fontWeight: 700, fontSize: 15, color: WT.text, marginBottom: 4 }}>{data.user_name}</div>
-        <div style={EYEBROW}>Tu {data.year} como inversionista</div>
-        <h1 style={{ ...H1, fontSize: 20, marginTop: 4, marginBottom: 22 }}>Este año fuiste...</h1>
+        </Reveal>
+        <Reveal delay={180} style={{ fontWeight: 700, fontSize: 15, color: WT.text, marginBottom: 4 }}>{data.user_name}</Reveal>
+        <Reveal delay={260} style={EYEBROW}>Tu {data.year} como inversionista</Reveal>
+        <Reveal delay={340}><h1 style={{ ...H1, fontSize: 20, marginTop: 4, marginBottom: 22 }}>Este año fuiste...</h1></Reveal>
 
         {a ? (
-          <div style={{ ...CARD, padding: "26px 20px", background: "linear-gradient(160deg, rgba(0,185,109,0.14), rgba(9,15,31,0.4))", borderColor: "rgba(0,185,109,0.32)", width: "100%" }}>
+          <Reveal delay={520} anim="animate-fade-in-up-glow" style={{ ...CARD, padding: "26px 20px", background: "linear-gradient(160deg, rgba(0,185,109,0.14), rgba(9,15,31,0.4))", borderColor: "rgba(0,185,109,0.32)", width: "100%" }}>
             <div style={{ fontWeight: 900, fontSize: 24, color: WT.accentL, letterSpacing: 0.5, marginBottom: 10 }}>{a.name}</div>
             <p style={{ fontFamily: "var(--font-ui)", fontSize: 14, color: WT.text, lineHeight: 1.5, margin: 0 }}>&ldquo;{a.tagline}&rdquo;</p>
-          </div>
+          </Reveal>
         ) : (
           <EmptyState emoji="🌱" text="Todavía estamos conociendo tu estilo — necesitamos un poco más de actividad para definir tu personalidad." />
         )}
@@ -116,7 +143,7 @@ export function ScreenPersonalidad({ data, total, page }: ScreenProps) {
 }
 
 // 2 — Tu año en números
-export function ScreenNumeros({ data, total, page }: ScreenProps) {
+export function ScreenNumeros({ data, total, page, nextLabel }: ScreenProps) {
   const metrics: { emoji: string; label: string; value: string }[] = [];
   if (data.portfolio_value > 0) metrics.push({ emoji: "💰", label: "Valor de tu portafolio", value: fmtUsd(data.portfolio_value) });
   if (data.growth_pct != null) metrics.push({ emoji: "📈", label: "Rendimiento", value: fmtPct(data.growth_pct) });
@@ -126,16 +153,16 @@ export function ScreenNumeros({ data, total, page }: ScreenProps) {
   metrics.push({ emoji: "⏱️", label: "Días activo en Nuvos", value: String(data.days_active) });
 
   return (
-    <Stage page={page} total={total} glow="top">
-      <div style={EYEBROW}>{data.year} en números</div>
-      <h1 style={{ ...H1, fontSize: 24, marginBottom: 22 }}>Tu año, medido</h1>
+    <Stage page={page} total={total} glow="top" nextLabel={nextLabel}>
+      <Reveal delay={0} style={EYEBROW}>{data.year} en números</Reveal>
+      <Reveal delay={100}><h1 style={{ ...H1, fontSize: 24, marginBottom: 22 }}>Tu año, medido</h1></Reveal>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        {metrics.map((m) => (
-          <div key={m.label} style={{ ...CARD, padding: "14px 12px" }}>
+        {metrics.map((m, i) => (
+          <Reveal key={m.label} delay={260 + i * 90} anim="animate-scale-in" style={{ ...CARD, padding: "14px 12px" }}>
             <div style={{ fontSize: 18, marginBottom: 6 }}>{m.emoji}</div>
             <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, color: WT.sub, marginBottom: 2 }}>{m.label}</div>
             <div style={{ fontWeight: 800, fontSize: 17, color: WT.text }}>{m.value}</div>
-          </div>
+          </Reveal>
         ))}
       </div>
     </Stage>
@@ -143,20 +170,24 @@ export function ScreenNumeros({ data, total, page }: ScreenProps) {
 }
 
 // 3 — Tu posición dentro de Nuvos
-export function ScreenPercentil({ data, total, page }: ScreenProps) {
+export function ScreenPercentil({ data, total, page, nextLabel }: ScreenProps) {
   const p = data.percentile;
+  const topPct = p ? Math.max(1, 100 - p.percentile) : 0;
+  const animatedTop = useCountUp(topPct, 1100);
   return (
-    <Stage page={page} total={total} glow="center">
-      <div style={EYEBROW}>Tu posición dentro de Nuvos</div>
+    <Stage page={page} total={total} glow="center" nextLabel={nextLabel}>
+      <Reveal delay={0} style={EYEBROW}>Tu posición dentro de Nuvos</Reveal>
       {p ? (
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontWeight: 900, fontSize: 56, color: WT.accentL, margin: "8px 0 4px" }}>TOP {Math.max(1, 100 - p.percentile)}%</div>
-          <div style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 13, color: WT.text, letterSpacing: 1, marginBottom: 18 }}>NUVOS INVESTOR</div>
-          <div style={{ ...CARD, padding: "14px 18px" }}>
+          <Reveal delay={150} anim="animate-scale-in" style={{ fontWeight: 900, fontSize: 56, color: WT.accentL, margin: "8px 0 4px", filter: "drop-shadow(0 0 26px rgba(0,232,135,0.45))" }}>
+            TOP {animatedTop}%
+          </Reveal>
+          <Reveal delay={550} style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 13, color: WT.text, letterSpacing: 1, marginBottom: 18 }}>NUVOS INVESTOR</Reveal>
+          <Reveal delay={700} style={{ ...CARD, padding: "14px 18px" }}>
             <p style={EMPTY_TEXT}>
-              Estuviste entre el <span style={{ color: WT.accentL, fontWeight: 800 }}>{Math.max(1, 100 - p.percentile)}%</span> de usuarios más activos de Nuvos este año, entre {p.cohort_size} inversionistas con tu mismo perfil de riesgo.
+              Estuviste entre el <span style={{ color: WT.accentL, fontWeight: 800 }}>{topPct}%</span> de usuarios más activos de Nuvos este año, entre {p.cohort_size} inversionistas con tu mismo perfil de riesgo.
             </p>
-          </div>
+          </Reveal>
         </div>
       ) : (
         <EmptyState emoji="📊" text="Todavía no hay suficientes datos de la comunidad con tu perfil de riesgo para calcular tu posición." />
@@ -166,41 +197,42 @@ export function ScreenPercentil({ data, total, page }: ScreenProps) {
 }
 
 // 4 — Tu empresa favorita
-export function ScreenEmpresaFavorita({ data, total, page }: ScreenProps) {
+export function ScreenEmpresaFavorita({ data, total, page, nextLabel }: ScreenProps) {
   const [first, ...rest] = data.favorite_companies;
   const medals = ["#9aa7ba", "#b5743a"];
+  const animatedTimes = useCountUp(first?.times_analyzed ?? 0, 900);
   return (
-    <Stage page={page} total={total} glow="top">
-      <div style={EYEBROW}>Tu empresa del año</div>
+    <Stage page={page} total={total} glow="top" nextLabel={nextLabel}>
+      <Reveal delay={0} style={EYEBROW}>Tu empresa del año</Reveal>
       {first ? (
         <>
-          <h1 style={{ ...H1, fontSize: 20, marginBottom: 6 }}>Claramente tenías una favorita.</h1>
-          <div style={{ ...CARD, display: "flex", alignItems: "center", gap: 16, padding: "18px 18px", marginTop: 16, background: "linear-gradient(160deg, rgba(212,162,76,0.12), rgba(9,15,31,0.4))", borderColor: "rgba(212,162,76,0.32)" }}>
+          <Reveal delay={100}><h1 style={{ ...H1, fontSize: 20, marginBottom: 6 }}>Claramente tenías una favorita.</h1></Reveal>
+          <Reveal delay={280} anim="animate-fade-in-up-glow" style={{ ...CARD, display: "flex", alignItems: "center", gap: 16, padding: "18px 18px", marginTop: 16, background: "linear-gradient(160deg, rgba(212,162,76,0.12), rgba(9,15,31,0.4))", borderColor: "rgba(212,162,76,0.32)" }}>
             <TickerLogo ticker={first.ticker} size={54} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 900, fontSize: 18, color: WT.text }}>{first.company_name || first.ticker}</div>
               <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: WT.sub }}>{first.ticker}{first.in_portfolio ? " · en tu portafolio" : ""}</div>
             </div>
             <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <div style={{ fontWeight: 800, fontSize: 20, color: WT.accentL }}>{first.times_analyzed}×</div>
+              <div style={{ fontWeight: 800, fontSize: 20, color: WT.accentL }}>{animatedTimes}×</div>
               <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>analizada</div>
             </div>
-          </div>
+          </Reveal>
           {first.in_portfolio && first.weight_pct != null && (
-            <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, color: WT.muted, textAlign: "center", marginTop: 8 }}>
+            <Reveal delay={550} style={{ fontFamily: "var(--font-ui)", fontSize: 11, color: WT.muted, textAlign: "center", marginTop: 8 }}>
               {first.weight_pct}% de tu portafolio actual
-            </div>
+            </Reveal>
           )}
 
           {rest.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
               {rest.map((f, i) => (
-                <div key={f.ticker} style={{ ...CARD, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px" }}>
+                <Reveal key={f.ticker} delay={650 + i * 130} anim="animate-slide-left" style={{ ...CARD, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px" }}>
                   <div style={{ width: 20, height: 20, borderRadius: "50%", background: medals[i], color: "#1a1206", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 10, flexShrink: 0 }}>{i + 2}º</div>
                   <TickerLogo ticker={f.ticker} size={28} />
                   <div style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, color: WT.text }}>{f.company_name || f.ticker}</div>
                   <div style={{ fontWeight: 800, fontSize: 13, color: WT.accentL }}>{f.times_analyzed}×</div>
-                </div>
+                </Reveal>
               ))}
             </div>
           )}
@@ -213,16 +245,16 @@ export function ScreenEmpresaFavorita({ data, total, page }: ScreenProps) {
 }
 
 // 5 — Tus 3 posiciones que más crecieron
-export function ScreenTopPosiciones({ data, total, page }: ScreenProps) {
+export function ScreenTopPosiciones({ data, total, page, nextLabel }: ScreenProps) {
   const medals = ["🥇", "🥈", "🥉"];
   return (
-    <Stage page={page} total={total} glow="top">
-      <div style={EYEBROW}>Tus mejores movimientos</div>
-      <h1 style={{ ...H1, fontSize: 20, marginBottom: 22 }}>Tus 3 posiciones que más crecieron</h1>
+    <Stage page={page} total={total} glow="top" nextLabel={nextLabel}>
+      <Reveal delay={0} style={EYEBROW}>Tus mejores movimientos</Reveal>
+      <Reveal delay={100}><h1 style={{ ...H1, fontSize: 20, marginBottom: 22 }}>Tus 3 posiciones que más crecieron</h1></Reveal>
       {data.top_positions.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {data.top_positions.map((p, i) => (
-            <div key={p.ticker} style={{ ...CARD, display: "flex", alignItems: "center", gap: 14, padding: "14px 16px" }}>
+            <Reveal key={p.ticker} delay={260 + i * 160} anim="animate-slide-left" style={{ ...CARD, display: "flex", alignItems: "center", gap: 14, padding: "14px 16px" }}>
               <div style={{ fontSize: 22, flexShrink: 0 }}>{medals[i]}</div>
               <TickerLogo ticker={p.ticker} size={38} />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -230,7 +262,7 @@ export function ScreenTopPosiciones({ data, total, page }: ScreenProps) {
                 <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, color: WT.muted }}>{p.ticker}</div>
               </div>
               <div style={{ fontWeight: 900, fontSize: 20, color: WT.accentL, flexShrink: 0 }}>{fmtPct(p.return_pct)}</div>
-            </div>
+            </Reveal>
           ))}
         </div>
       ) : (
@@ -241,27 +273,28 @@ export function ScreenTopPosiciones({ data, total, page }: ScreenProps) {
 }
 
 // 6 — Tu peor decisión
-export function ScreenPeorDecision({ data, total, page }: ScreenProps) {
+export function ScreenPeorDecision({ data, total, page, nextLabel }: ScreenProps) {
   const w = data.worst_decision;
+  const animatedPnl = useCountUp(w?.pnl ?? 0, 1000, 2);
   return (
-    <Stage page={page} total={total} glow="bottom">
-      <div style={EYEBROW}>Todos tenemos una.</div>
-      <h1 style={{ ...H1, fontSize: 20, marginBottom: 22 }}>Tu peor decisión de {data.year}</h1>
+    <Stage page={page} total={total} glow="bottom" nextLabel={nextLabel}>
+      <Reveal delay={0} style={EYEBROW}>Todos tenemos una.</Reveal>
+      <Reveal delay={100}><h1 style={{ ...H1, fontSize: 20, marginBottom: 22 }}>Tu peor decisión de {data.year}</h1></Reveal>
       {w ? (
-        <div style={{ ...CARD, padding: "22px 20px", textAlign: "center" }}>
+        <Reveal delay={260} anim="animate-scale-in" style={{ ...CARD, padding: "22px 20px", textAlign: "center" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 14 }}>
             <TickerLogo ticker={w.ticker} size={34} />
             <span style={{ fontWeight: 800, fontSize: 16, color: WT.text }}>{w.company_name || w.ticker}</span>
           </div>
-          <div style={{ fontWeight: 900, fontSize: 32, color: WT.coral }}>{fmtUsd(w.pnl)}</div>
+          <div style={{ fontWeight: 900, fontSize: 32, color: WT.coral }}>{fmtUsd(animatedPnl)}</div>
           <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: WT.sub, marginTop: 4 }}>
             {fmtPct(w.pnl_pct)} {w.realized ? "· posición cerrada" : "· todavía sin vender"}
           </div>
           <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${WT.border}` }}>
             <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, color: WT.muted, textTransform: "uppercase", letterSpacing: 1 }}>Valor de la lección</div>
-            <div style={{ fontWeight: 900, fontSize: 26, color: WT.accentL }}>∞</div>
+            <div className="animate-pulse-glow" style={{ fontWeight: 900, fontSize: 26, color: WT.accentL, display: "inline-block", borderRadius: 8 }}>∞</div>
           </div>
-        </div>
+        </Reveal>
       ) : (
         <EmptyState emoji="✨" text="Este año no tuviste ninguna pérdida registrada — bien hecho." />
       )}
@@ -270,17 +303,17 @@ export function ScreenPeorDecision({ data, total, page }: ScreenProps) {
 }
 
 // 7 — Tu tipo de inversionista
-export function ScreenTipoInversionista({ data, total, page }: ScreenProps) {
+export function ScreenTipoInversionista({ data, total, page, nextLabel }: ScreenProps) {
   const t = data.investor_type;
   return (
-    <Stage page={page} total={total} glow="top">
-      <div style={EYEBROW}>Tu tipo de inversionista</div>
+    <Stage page={page} total={total} glow="top" nextLabel={nextLabel}>
+      <Reveal delay={0} style={EYEBROW}>Tu tipo de inversionista</Reveal>
       {t ? (
-        <div style={{ ...CARD, padding: "30px 22px", textAlign: "center", background: "linear-gradient(160deg, rgba(0,185,109,0.12), rgba(9,15,31,0.4))", borderColor: "rgba(0,185,109,0.3)" }}>
-          <div style={{ fontSize: 46, marginBottom: 12 }}>{t.emoji}</div>
+        <Reveal delay={200} anim="animate-scale-in" style={{ ...CARD, padding: "30px 22px", textAlign: "center", background: "linear-gradient(160deg, rgba(0,185,109,0.12), rgba(9,15,31,0.4))", borderColor: "rgba(0,185,109,0.3)" }}>
+          <div className="animate-float" style={{ fontSize: 46, marginBottom: 12 }}>{t.emoji}</div>
           <div style={{ fontWeight: 900, fontSize: 22, color: WT.text, letterSpacing: 0.5, marginBottom: 10 }}>{t.name}</div>
           <p style={{ fontFamily: "var(--font-ui)", fontSize: 14, color: WT.sub, lineHeight: 1.5, margin: 0 }}>&ldquo;{t.tagline}&rdquo;</p>
-        </div>
+        </Reveal>
       ) : (
         <EmptyState emoji="🎲" text="Necesitamos un poco más de historial para descubrir tu tipo de inversionista." />
       )}
@@ -292,19 +325,22 @@ export function ScreenTipoInversionista({ data, total, page }: ScreenProps) {
 export function ScreenCompartir({ data }: { data: WrappedData }) {
   const strength = topStrength(data.investor_score);
   const topGrower = data.top_positions[0] || null;
+  const animatedGrowth = useCountUp(data.growth_pct ?? 0, 1100, 2);
   return (
     <Stage page={8} total={8} noChrome>
       <div style={{ position: "absolute", inset: 20, borderRadius: 26, background: "linear-gradient(165deg, rgba(9,15,31,0.75) 0%, rgba(3,6,14,0.6) 55%, rgba(9,15,31,0.75) 100%)", border: "1.5px solid rgba(0,232,135,0.18)" }} />
       <div style={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", padding: "18px 10px 10px" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="Nuvos AI" crossOrigin="anonymous" style={{ width: 30, height: 30, borderRadius: 8, marginBottom: 8 }} />
-        <span style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 10, color: WT.accentL, letterSpacing: 1.5, textTransform: "uppercase" }}>Nuvos Wrapped {data.year}</span>
+        <img src="/logo.png" alt="Nuvos AI" crossOrigin="anonymous" style={{ width: 30, height: 30, borderRadius: 8, marginBottom: 8 }} className="animate-fade-in" />
+        <Reveal delay={100} style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 10, color: WT.accentL, letterSpacing: 1.5, textTransform: "uppercase" }}>Nuvos Wrapped {data.year}</Reveal>
 
         {data.archetype && (
-          <div style={{ fontWeight: 900, fontSize: 22, color: WT.text, marginTop: 10, textAlign: "center" }}>{data.archetype.name}</div>
+          <Reveal delay={220} style={{ fontWeight: 900, fontSize: 22, color: WT.text, marginTop: 10, textAlign: "center" }}>{data.archetype.name}</Reveal>
         )}
         {data.growth_pct != null && (
-          <div style={{ fontWeight: 900, fontSize: 40, color: WT.accentL, filter: "drop-shadow(0 0 20px rgba(0,232,135,0.4))", margin: "6px 0 2px" }}>{fmtPct(data.growth_pct)}</div>
+          <Reveal delay={380} anim="animate-scale-in" style={{ fontWeight: 900, fontSize: 40, color: WT.accentL, filter: "drop-shadow(0 0 20px rgba(0,232,135,0.4))", margin: "6px 0 2px" }}>
+            {fmtPct(animatedGrowth)}
+          </Reveal>
         )}
 
         {/* Deliberately no $ portfolio amount here — this screen is meant
@@ -312,40 +348,42 @@ export function ScreenCompartir({ data }: { data: WrappedData }) {
             a real dollar figure onto everyone's feed (2026-08-20). */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, width: "100%", maxWidth: 360, marginTop: 20 }}>
           {data.companies_analyzed > 0 && (
-            <div style={{ ...SHARE_STAT_CARD }}>
+            <Reveal delay={600} anim="animate-scale-in" style={SHARE_STAT_CARD}>
               <span style={{ fontSize: 20 }}>🏢</span>
               <div style={SHARE_STAT_VALUE}>{data.companies_analyzed}</div>
               <div style={SHARE_STAT_LABEL}>Analizadas</div>
-            </div>
+            </Reveal>
           )}
           {data.arthur_conversations > 0 && (
-            <div style={{ ...SHARE_STAT_CARD }}>
+            <Reveal delay={720} anim="animate-scale-in" style={SHARE_STAT_CARD}>
               <span style={{ fontSize: 20 }}>💬</span>
               <div style={SHARE_STAT_VALUE}>{data.arthur_conversations}×</div>
               <div style={SHARE_STAT_LABEL}>Con Arthur</div>
-            </div>
+            </Reveal>
           )}
           {topGrower && (
-            <div style={{ ...SHARE_STAT_CARD }}>
+            <Reveal delay={840} anim="animate-scale-in" style={SHARE_STAT_CARD}>
               <TickerLogo ticker={topGrower.ticker} size={30} />
               <div style={{ ...SHARE_STAT_VALUE, fontSize: 12, lineHeight: 1.2, marginTop: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>
                 {topGrower.company_name || topGrower.ticker}
               </div>
               <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted, marginBottom: 2 }}>{topGrower.ticker}</div>
               <div style={{ fontWeight: 800, fontSize: 14, color: WT.accentL }}>{fmtPct(topGrower.return_pct)}</div>
-            </div>
+            </Reveal>
           )}
         </div>
 
         {strength && (
-          <div style={{ marginTop: 18, textAlign: "center" }}>
+          <Reveal delay={1000} style={{ marginTop: 18, textAlign: "center" }}>
             <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted, textTransform: "uppercase", letterSpacing: 1 }}>Tu mayor fortaleza</div>
             <div style={{ fontWeight: 900, fontSize: 18, color: WT.gold }}>{strength.toUpperCase()}</div>
-          </div>
+          </Reveal>
         )}
 
-        <p style={{ fontWeight: 800, fontSize: 14, color: WT.text, marginTop: 20 }}>¿Cuál eres tú?</p>
-        <p style={{ fontWeight: 800, fontSize: 13, color: WT.text, marginTop: 2 }}>NUVOS <span style={{ color: WT.accentL }}>AI</span></p>
+        <Reveal delay={1150} style={{ fontWeight: 800, fontSize: 14, color: WT.text, marginTop: 20 }}>
+          <p style={{ margin: 0 }}>¿Cuál eres tú?</p>
+          <p style={{ fontWeight: 800, fontSize: 13, color: WT.text, marginTop: 2 }}>NUVOS <span style={{ color: WT.accentL }}>AI</span></p>
+        </Reveal>
       </div>
     </Stage>
   );

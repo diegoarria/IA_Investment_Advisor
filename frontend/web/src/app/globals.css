@@ -345,14 +345,29 @@ body {
 }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.82); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes glowBreathe {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%       { opacity: 1; transform: scale(1.06); }
+}
 
-.animate-fade-in-up { animation: fadeInUp 0.5s ease-out forwards; }
-.animate-fade-in    { animation: fadeIn 0.4s ease-out forwards; }
-.animate-slide-left { animation: slideInLeft 0.45s ease-out forwards; }
-.animate-float      { animation: float 4s ease-in-out infinite; }
-.animate-pulse-glow { animation: pulse-glow 3s ease-in-out infinite; }
-.animate-spin-slow  { animation: rotate-slow 12s linear infinite; }
-.animate-orb        { animation: orb-move 8s ease-in-out infinite; }
+.animate-fade-in-up  { animation: fadeInUp 0.5s ease-out forwards; }
+.animate-fade-in     { animation: fadeIn 0.4s ease-out forwards; }
+.animate-slide-left  { animation: slideInLeft 0.45s ease-out forwards; }
+.animate-float       { animation: float 4s ease-in-out infinite; }
+.animate-pulse-glow  { animation: pulse-glow 3s ease-in-out infinite; }
+.animate-spin-slow   { animation: rotate-slow 12s linear infinite; }
+.animate-orb         { animation: orb-move 8s ease-in-out infinite; }
+.animate-scale-in    { animation: scaleIn 0.65s cubic-bezier(0.16,1,0.3,1) forwards; }
+.animate-glow-breathe { animation: glowBreathe 4.5s ease-in-out infinite; }
+/* Entrance + continuous ambient glow on the same element — a plain class
+   list can't run two independently-timed animations (the later stylesheet
+   rule simply wins), so this combines both into one `animation` shorthand
+   with comma-separated values instead. */
+.animate-fade-in-up-glow { animation: fadeInUp 0.55s ease-out forwards, pulse-glow 3s ease-in-out 0.6s infinite; }
 
 .dot-bounce   { animation: bounce3 0.9s ease-in-out infinite; }
 .dot-bounce-2 { animation: bounce3 0.9s ease-in-out 0.18s infinite; }
