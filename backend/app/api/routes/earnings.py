@@ -141,7 +141,7 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
 
     Uses Finnhub earnings calendar (primary) + Yahoo Finance quoteSummary (fallback).
     """
-    key = f"events:cal6:{symbol}"  # bump version to bust stale cache (Finnhub calendar call now retries once instead of silently falling to the timing-less Yahoo fallback)
+    key = f"events:cal7:{symbol}"  # bump version to bust stale cache (hour field is now case-normalized so BMO/AMC/DMT timing actually survives)
     cached = cache_get(key)
     if cached is not None:
         return cached
