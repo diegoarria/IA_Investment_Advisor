@@ -61,6 +61,24 @@ function secondaryStatIcon(accentHex: string): React.CSSProperties {
   };
 }
 
+// ScreenCompartir's 3-stat row — same color-coded-badge language as
+// ScreenNumeros' hero/secondary cards, sized for a 3-column share card
+// instead of plain identical boxes (Diego, 2026-08-20: "mismo caso para
+// la pantalla 8").
+function shareStatCard(accentHex: string): React.CSSProperties {
+  return {
+    ...SHARE_STAT_CARD,
+    background: `linear-gradient(165deg, ${accentHex}24 0%, ${WT.card2} 70%)`,
+    border: `1px solid ${accentHex}4a`,
+  };
+}
+function shareStatIconBadge(accentHex: string): React.CSSProperties {
+  return {
+    width: 32, height: 32, borderRadius: 10, background: `${accentHex}28`,
+    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+  };
+}
+
 /** Reveals an element on mount, staggered by `delay` — every screen is a
  * fresh component instance each time the user navigates to it, so this
  * naturally replays on every visit, not just the first. The single
@@ -383,6 +401,8 @@ export function ScreenCompartir({ data }: { data: WrappedData }) {
   const strength = topStrength(data.investor_score);
   const topGrower = data.top_positions[0] || null;
   const animatedGrowth = useCountUp(data.growth_pct ?? 0, 1100, 2);
+  const growthColor = (data.growth_pct ?? 0) >= 0 ? WT.accentL : WT.coral;
+  const growerColor = topGrower && topGrower.return_pct >= 0 ? WT.accentL : WT.coral;
   return (
     <Stage page={8} total={8} noChrome>
       <div style={{ position: "absolute", inset: 20, borderRadius: 26, background: "linear-gradient(165deg, rgba(9,15,31,0.75) 0%, rgba(3,6,14,0.6) 55%, rgba(9,15,31,0.75) 100%)", border: "1.5px solid rgba(0,232,135,0.18)" }} />
@@ -395,7 +415,7 @@ export function ScreenCompartir({ data }: { data: WrappedData }) {
           <Reveal delay={220} style={{ fontWeight: 900, fontSize: 22, color: WT.text, marginTop: 10, textAlign: "center" }}>{data.archetype.name}</Reveal>
         )}
         {data.growth_pct != null && (
-          <Reveal delay={380} anim="animate-scale-in" style={{ fontWeight: 900, fontSize: 40, color: WT.accentL, filter: "drop-shadow(0 0 20px rgba(0,232,135,0.4))", margin: "6px 0 2px" }}>
+          <Reveal delay={380} anim="animate-scale-in" style={{ fontWeight: 900, fontSize: 40, color: growthColor, filter: `drop-shadow(0 0 22px ${growthColor}73)`, margin: "6px 0 2px" }}>
             {fmtPct(animatedGrowth)}
           </Reveal>
         )}
@@ -405,35 +425,37 @@ export function ScreenCompartir({ data }: { data: WrappedData }) {
             a real dollar figure onto everyone's feed (2026-08-20). */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, width: "100%", maxWidth: 360, marginTop: 20 }}>
           {data.companies_analyzed > 0 && (
-            <Reveal delay={600} anim="animate-scale-in" style={SHARE_STAT_CARD}>
-              <span style={{ fontSize: 20 }}>🏢</span>
+            <Reveal delay={600} anim="animate-scale-in" style={shareStatCard(WT.teal)}>
+              <div style={shareStatIconBadge(WT.teal)}>🏢</div>
               <div style={SHARE_STAT_VALUE}>{data.companies_analyzed}</div>
               <div style={SHARE_STAT_LABEL}>Analizadas</div>
             </Reveal>
           )}
           {data.arthur_conversations > 0 && (
-            <Reveal delay={720} anim="animate-scale-in" style={SHARE_STAT_CARD}>
-              <span style={{ fontSize: 20 }}>💬</span>
+            <Reveal delay={720} anim="animate-scale-in" style={shareStatCard(WT.gold)}>
+              <div style={shareStatIconBadge(WT.gold)}>💬</div>
               <div style={SHARE_STAT_VALUE}>{data.arthur_conversations}×</div>
               <div style={SHARE_STAT_LABEL}>Con Arthur</div>
             </Reveal>
           )}
           {topGrower && (
-            <Reveal delay={840} anim="animate-scale-in" style={SHARE_STAT_CARD}>
+            <Reveal delay={840} anim="animate-scale-in" style={shareStatCard(growerColor)}>
               <TickerLogo ticker={topGrower.ticker} size={30} />
               <div style={{ ...SHARE_STAT_VALUE, fontSize: 12, lineHeight: 1.2, marginTop: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>
                 {topGrower.company_name || topGrower.ticker}
               </div>
               <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted, marginBottom: 2 }}>{topGrower.ticker}</div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: WT.accentL }}>{fmtPct(topGrower.return_pct)}</div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: growerColor }}>{fmtPct(topGrower.return_pct)}</div>
             </Reveal>
           )}
         </div>
 
         {strength && (
-          <Reveal delay={1000} style={{ marginTop: 18, textAlign: "center" }}>
-            <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted, textTransform: "uppercase", letterSpacing: 1 }}>Tu mayor fortaleza</div>
-            <div style={{ fontWeight: 900, fontSize: 18, color: WT.gold }}>{strength.toUpperCase()}</div>
+          <Reveal delay={1000} style={{ marginTop: 20, display: "flex", justifyContent: "center" }}>
+            <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "10px 24px", borderRadius: 100, background: `${WT.gold}1f`, border: `1px solid ${WT.gold}55` }}>
+              <span style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted, textTransform: "uppercase", letterSpacing: 1 }}>Tu mayor fortaleza</span>
+              <span style={{ fontWeight: 900, fontSize: 17, color: WT.gold }}>{strength.toUpperCase()}</span>
+            </div>
           </Reveal>
         )}
 
