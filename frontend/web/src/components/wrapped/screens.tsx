@@ -276,7 +276,7 @@ export function ScreenTipoInversionista({ data, total, page }: ScreenProps) {
 // 8 — Tarjeta para compartir (9:16)
 export function ScreenCompartir({ data }: { data: WrappedData }) {
   const strength = topStrength(data.investor_score);
-  const topPct = data.percentile ? Math.max(1, 100 - data.percentile.percentile) : null;
+  const topGrower = data.top_positions[0] || null;
   return (
     <Stage page={8} total={8} noChrome>
       <div style={{ position: "absolute", inset: 20, borderRadius: 26, background: "linear-gradient(165deg, rgba(9,15,31,0.75) 0%, rgba(3,6,14,0.6) 55%, rgba(9,15,31,0.75) 100%)", border: "1.5px solid rgba(0,232,135,0.18)" }} />
@@ -288,33 +288,31 @@ export function ScreenCompartir({ data }: { data: WrappedData }) {
         {data.archetype && (
           <div style={{ fontWeight: 900, fontSize: 22, color: WT.text, marginTop: 10, textAlign: "center" }}>{data.archetype.name}</div>
         )}
-        {topPct != null && (
-          <div style={{ fontWeight: 900, fontSize: 40, color: WT.accentL, filter: "drop-shadow(0 0 20px rgba(0,232,135,0.4))", margin: "6px 0 2px" }}>TOP {topPct}%</div>
+        {data.growth_pct != null && (
+          <div style={{ fontWeight: 900, fontSize: 40, color: WT.accentL, filter: "drop-shadow(0 0 20px rgba(0,232,135,0.4))", margin: "6px 0 2px" }}>{fmtPct(data.growth_pct)}</div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, width: "100%", maxWidth: 300, marginTop: 16 }}>
-          {data.portfolio_value > 0 && (
-            <div style={{ ...CARD, padding: "10px 12px" }}>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted }}>💰 Portafolio</div>
-              <div style={{ fontWeight: 800, fontSize: 15, color: WT.text }}>{fmtUsd(data.portfolio_value)}</div>
-            </div>
-          )}
-          {data.growth_pct != null && (
-            <div style={{ ...CARD, padding: "10px 12px" }}>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted }}>📈 Rendimiento</div>
-              <div style={{ fontWeight: 800, fontSize: 15, color: WT.accentL }}>{fmtPct(data.growth_pct)}</div>
-            </div>
-          )}
+        {/* Deliberately no $ portfolio amount here — this screen is meant
+            to be shared to social media, and Diego doesn't want to force
+            a real dollar figure onto everyone's feed (2026-08-20). */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, width: "100%", maxWidth: 340, marginTop: 16 }}>
           {data.companies_analyzed > 0 && (
-            <div style={{ ...CARD, padding: "10px 12px" }}>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted }}>🏢 Analizadas</div>
-              <div style={{ fontWeight: 800, fontSize: 15, color: WT.text }}>{data.companies_analyzed}</div>
+            <div style={{ ...CARD, padding: "10px 6px", textAlign: "center" }}>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>🏢 Analizadas</div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: WT.text }}>{data.companies_analyzed}</div>
             </div>
           )}
           {data.arthur_conversations > 0 && (
-            <div style={{ ...CARD, padding: "10px 12px" }}>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted }}>💬 Con Arthur</div>
-              <div style={{ fontWeight: 800, fontSize: 15, color: WT.text }}>{data.arthur_conversations}×</div>
+            <div style={{ ...CARD, padding: "10px 6px", textAlign: "center" }}>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>💬 Con Arthur</div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: WT.text }}>{data.arthur_conversations}×</div>
+            </div>
+          )}
+          {topGrower && (
+            <div style={{ ...CARD, padding: "10px 6px", textAlign: "center" }}>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted }}>📈 Empresa que más creció</div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: WT.text }}>{topGrower.ticker}</div>
+              <div style={{ fontWeight: 700, fontSize: 11, color: WT.accentL }}>{fmtPct(topGrower.return_pct)}</div>
             </div>
           )}
         </div>
