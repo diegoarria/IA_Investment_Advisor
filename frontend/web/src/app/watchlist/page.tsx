@@ -986,6 +986,8 @@ export default function WatchlistPage() {
                 <WatchlistEarningsCalendar
                   watchlistTickers={items.map((i) => i.ticker)}
                   portfolioTickers={positions.map((p) => p.ticker)}
+                  tickerNames={Object.fromEntries(items.map((i) => [i.ticker, i.name]))}
+                  tickerLogos={Object.fromEntries(items.map((i) => [i.ticker, i.logo_url]))}
                   isPremium={isPremium}
                   onUpgrade={() => setPaywallOpen(true)}
                 />

@@ -10,6 +10,7 @@ import {
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { earningsApi } from "@/lib/api";
+import StockAvatar from "@/components/StockAvatar";
 
 type TickerEventType = "earnings" | "ex_dividend" | "dividend";
 type ImpactLevel = "VERY_HIGH" | "HIGH" | "MEDIUM";
@@ -60,6 +61,8 @@ type AnyCalendarEvent = TickerCalendarEvent | MacroCalendarEvent;
 interface Props {
   watchlistTickers: string[];
   portfolioTickers?: string[];
+  tickerNames?: Record<string, string>;
+  tickerLogos?: Record<string, string | null>;
   isPremium?: boolean;
   onUpgrade?: () => void;
 }
@@ -120,6 +123,8 @@ function macroEventLabel(t: TFunction, eventType: string): string {
 export default function WatchlistEarningsCalendar({
   watchlistTickers,
   portfolioTickers = [],
+  tickerNames = {},
+  tickerLogos = {},
   isPremium = false,
   onUpgrade,
 }: Props) {
@@ -454,123 +459,150 @@ export default function WatchlistEarningsCalendar({
 
               const meta = EVENT_META[entry.event_type] ?? EVENT_META.earnings;
               const isPortfolio = portfolioSet.has(entry.ticker);
+              const companyName = tickerNames[entry.ticker];
               return (
-                <div key={`${entry.ticker}-${entry.event_type}-${ei}`} className="px-4 py-2.5">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <meta.icon className="w-4 h-4" style={{ color: isPortfolio ? meta.colorPortfolio : meta.color }} />
-                    <span className="text-xs font-black" style={{ color: "var(--text)" }}>
-                      {entry.ticker}
-                    </span>
-                    {/* Origin badge */}
-                    {isPortfolio ? (
-                      <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
-                            style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
-                        <Briefcase className="w-2 h-2" /> {t("watchlistEarningsCalendar.portfolio")}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
-                            style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa" }}>
-                        <Eye className="w-2 h-2" /> {t("watchlistEarningsCalendar.watchlist")}
-                      </span>
-                    )}
-                    {/* Event type badge */}
-                    <span className="inline-flex text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
-                          style={{ background: isPortfolio ? meta.bgPortfolio : meta.bg, color: isPortfolio ? meta.colorPortfolio : meta.color }}>
-                      {meta.label}
-                    </span>
-                    {/* Pre-market / after-market — only Finnhub-sourced earnings carry this */}
-                    {entry.event_type === "earnings" && entry.timing && (
-                      <span className="inline-flex text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
-                            style={{ background: "rgba(148,163,184,0.14)", color: "var(--sub)" }}>
-                        {entry.timing === "BMO" ? t("watchlistEarningsCalendar.timing.bmo")
-                          : entry.timing === "AMC" ? t("watchlistEarningsCalendar.timing.amc")
-                          : t("watchlistEarningsCalendar.timing.dmt")}
-                      </span>
-                    )}
-                    {/* Status */}
-                    <span className="ml-auto text-[9px]"
-                          style={{ color: entry.status === "upcoming" || entry.status === "today" ? "var(--accent-l)" : "var(--muted)" }}>
-                      {entry.status === "today" ? t("watchlistEarningsCalendar.status.today") : entry.status === "upcoming" ? t("watchlistEarningsCalendar.status.upcoming") : t("watchlistEarningsCalendar.status.completed")}
-                    </span>
+                <div key={`${entry.ticker}-${entry.event_type}-${ei}`} className="px-4 py-3">
+                  <div className="flex gap-3">
+                    <StockAvatar ticker={entry.ticker} logoUrl={tickerLogos[entry.ticker]} size="md" />
+
+                    <div className="flex-1 min-w-0">
+                      {/* Ticker + company name + status */}
+                      <div className="flex items-start gap-2 mb-1.5">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-black" style={{ color: "var(--text)" }}>
+                              {entry.ticker}
+                            </span>
+                            <meta.icon className="w-3 h-3 shrink-0" style={{ color: isPortfolio ? meta.colorPortfolio : meta.color }} />
+                          </div>
+                          {companyName && (
+                            <p className="text-[11px] truncate" style={{ color: "var(--muted)" }}>
+                              {companyName}
+                            </p>
+                          )}
+                        </div>
+                        <span className="ml-auto shrink-0 text-[9px] font-semibold whitespace-nowrap"
+                              style={{ color: entry.status === "upcoming" || entry.status === "today" ? "var(--accent-l)" : "var(--muted)" }}>
+                          {entry.status === "today" ? t("watchlistEarningsCalendar.status.today") : entry.status === "upcoming" ? t("watchlistEarningsCalendar.status.upcoming") : t("watchlistEarningsCalendar.status.completed")}
+                        </span>
+                      </div>
+
+                      {/* Badges */}
+                      <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                        {isPortfolio ? (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                                style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
+                            <Briefcase className="w-2 h-2" /> {t("watchlistEarningsCalendar.portfolio")}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                                style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa" }}>
+                            <Eye className="w-2 h-2" /> {t("watchlistEarningsCalendar.watchlist")}
+                          </span>
+                        )}
+                        <span className="inline-flex text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                              style={{ background: isPortfolio ? meta.bgPortfolio : meta.bg, color: isPortfolio ? meta.colorPortfolio : meta.color }}>
+                          {meta.label}
+                        </span>
+                        {/* Pre-market / after-market — only Finnhub-sourced earnings carry this */}
+                        {entry.event_type === "earnings" && entry.timing && (
+                          <span className="inline-flex text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                                style={{ background: "rgba(148,163,184,0.14)", color: "var(--sub)" }}>
+                            {entry.timing === "BMO" ? t("watchlistEarningsCalendar.timing.bmo")
+                              : entry.timing === "AMC" ? t("watchlistEarningsCalendar.timing.amc")
+                              : t("watchlistEarningsCalendar.timing.dmt")}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Extra info for dividend events */}
+                      {(entry.event_type === "ex_dividend" || entry.event_type === "dividend") && (
+                        <div className="text-[10px] mb-1.5 flex gap-3 flex-wrap"
+                             style={{ color: "var(--sub)" }}>
+                          {entry.event_type === "ex_dividend" && (
+                            <span>
+                              {t("watchlistEarningsCalendar.exDividendExplainerPre")}{" "}
+                              <strong>{t("watchlistEarningsCalendar.exDividendExplainerBold")}</strong>{" "}
+                              {t("watchlistEarningsCalendar.exDividendExplainerPost")}
+                            </span>
+                          )}
+                          {entry.event_type === "dividend" && (
+                            <span>{t("watchlistEarningsCalendar.dividendPaymentDate")}</span>
+                          )}
+                          {entry.dividend_amount != null && (
+                            <span className="font-semibold" style={{ color: "#f59e0b" }}>
+                              ${entry.dividend_amount.toFixed(4)} {t("watchlistEarningsCalendar.perShare")}
+                            </span>
+                          )}
+                          {entry.dividend_yield != null && entry.dividend_yield > 0 && (
+                            <span style={{ color: "var(--muted)" }}>
+                              {t("watchlistEarningsCalendar.yieldLabel")}: {entry.dividend_yield.toFixed(2)}%
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* EPS + Revenue estimates for earnings — stat pills */}
+                      {entry.event_type === "earnings" && (entry.eps_estimate != null || entry.revenue_estimate) && (
+                        <div className="flex gap-2 flex-wrap mb-2">
+                          {entry.eps_estimate != null && (
+                            <div className="rounded-lg px-2.5 py-1.5" style={{ background: "var(--raised)" }}>
+                              <p className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
+                                EPS est.
+                              </p>
+                              <p className="text-xs font-black" style={{ color: "#60a5fa" }}>
+                                ${entry.eps_estimate.toFixed(2)}
+                                {entry.eps_range && <span className="ml-1 text-[10px] font-medium" style={{ color: "var(--dim)" }}>({entry.eps_range})</span>}
+                              </p>
+                            </div>
+                          )}
+                          {entry.revenue_estimate && (
+                            <div className="rounded-lg px-2.5 py-1.5" style={{ background: "var(--raised)" }}>
+                              <p className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
+                                {t("watchlistEarningsCalendar.revenueEstLabel")}
+                              </p>
+                              <p className="text-xs font-black" style={{ color: "#60a5fa" }}>
+                                {entry.revenue_estimate}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* AI analysis — only for earnings */}
+                      {entry.event_type === "earnings" && (
+                        analysis[entry.ticker] ? (
+                          <div className="text-[11px] leading-relaxed p-2.5 rounded-xl whitespace-pre-line"
+                               style={{ background: "var(--raised)", color: "var(--sub)" }}>
+                            {analysis[entry.ticker]}
+                          </div>
+                        ) : analyzing === entry.ticker ? (
+                          <div className="flex items-center gap-1.5 py-1">
+                            <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--accent-l)" }} />
+                            <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                              {t("watchlistEarningsCalendar.analyzingWithAi")}
+                            </span>
+                          </div>
+                        ) : isPremium ? (
+                          <button
+                            onClick={() => handleAnalyze(entry.ticker)}
+                            className="flex items-center gap-1 text-[10px] font-semibold transition-opacity hover:opacity-70"
+                            style={{ color: "var(--accent-l)" }}
+                          >
+                            <Zap className="w-2.5 h-2.5" /> {t("watchlistEarningsCalendar.aiAnalysisLabel")}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={onUpgrade}
+                            className="flex items-center gap-1 text-[10px] font-semibold transition-opacity hover:opacity-70"
+                            style={{ color: "var(--muted)" }}
+                          >
+                            <Zap className="w-2.5 h-2.5" /> {t("watchlistEarningsCalendar.aiAnalysisPremiumLabel")}
+                          </button>
+                        )
+                      )}
+                    </div>
                   </div>
-
-                  {/* Extra info for dividend events */}
-                  {(entry.event_type === "ex_dividend" || entry.event_type === "dividend") && (
-                    <div className="text-[10px] mb-1.5 flex gap-3 flex-wrap"
-                         style={{ color: "var(--sub)" }}>
-                      {entry.event_type === "ex_dividend" && (
-                        <span>
-                          {t("watchlistEarningsCalendar.exDividendExplainerPre")}{" "}
-                          <strong>{t("watchlistEarningsCalendar.exDividendExplainerBold")}</strong>{" "}
-                          {t("watchlistEarningsCalendar.exDividendExplainerPost")}
-                        </span>
-                      )}
-                      {entry.event_type === "dividend" && (
-                        <span>{t("watchlistEarningsCalendar.dividendPaymentDate")}</span>
-                      )}
-                      {entry.dividend_amount != null && (
-                        <span className="font-semibold" style={{ color: "#f59e0b" }}>
-                          ${entry.dividend_amount.toFixed(4)} {t("watchlistEarningsCalendar.perShare")}
-                        </span>
-                      )}
-                      {entry.dividend_yield != null && entry.dividend_yield > 0 && (
-                        <span style={{ color: "var(--muted)" }}>
-                          {t("watchlistEarningsCalendar.yieldLabel")}: {entry.dividend_yield.toFixed(2)}%
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* EPS + Revenue estimates for earnings */}
-                  {entry.event_type === "earnings" && (entry.eps_estimate != null || entry.revenue_estimate) && (
-                    <div className="text-[10px] mb-1.5 flex gap-3 flex-wrap"
-                         style={{ color: "var(--sub)" }}>
-                      {entry.eps_estimate != null && (
-                        <span>
-                          EPS est. <strong style={{ color: "#60a5fa" }}>${entry.eps_estimate.toFixed(2)}</strong>
-                          {entry.eps_range && <span style={{ color: "var(--dim)" }}> ({entry.eps_range})</span>}
-                        </span>
-                      )}
-                      {entry.revenue_estimate && (
-                        <span>
-                          {t("watchlistEarningsCalendar.revenueEstLabel")} <strong style={{ color: "#60a5fa" }}>{entry.revenue_estimate}</strong>
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* AI analysis — only for earnings */}
-                  {entry.event_type === "earnings" && (
-                    analysis[entry.ticker] ? (
-                      <div className="text-[11px] leading-relaxed p-2.5 rounded-xl whitespace-pre-line"
-                           style={{ background: "var(--raised)", color: "var(--sub)" }}>
-                        {analysis[entry.ticker]}
-                      </div>
-                    ) : analyzing === entry.ticker ? (
-                      <div className="flex items-center gap-1.5 py-1">
-                        <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--accent-l)" }} />
-                        <span className="text-[10px]" style={{ color: "var(--muted)" }}>
-                          {t("watchlistEarningsCalendar.analyzingWithAi")}
-                        </span>
-                      </div>
-                    ) : isPremium ? (
-                      <button
-                        onClick={() => handleAnalyze(entry.ticker)}
-                        className="flex items-center gap-1 text-[10px] font-semibold transition-opacity hover:opacity-70"
-                        style={{ color: "var(--accent-l)" }}
-                      >
-                        <Zap className="w-2.5 h-2.5" /> {t("watchlistEarningsCalendar.aiAnalysisLabel")}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={onUpgrade}
-                        className="flex items-center gap-1 text-[10px] font-semibold transition-opacity hover:opacity-70"
-                        style={{ color: "var(--muted)" }}
-                      >
-                        <Zap className="w-2.5 h-2.5" /> {t("watchlistEarningsCalendar.aiAnalysisPremiumLabel")}
-                      </button>
-                    )
-                  )}
                 </div>
               );
             })}
