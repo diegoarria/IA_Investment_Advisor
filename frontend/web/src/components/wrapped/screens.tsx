@@ -28,6 +28,39 @@ const SHARE_STAT_LABEL: React.CSSProperties = {
 
 type RevealAnim = "animate-fade-in-up" | "animate-fade-in-up-glow" | "animate-scale-in" | "animate-slide-left";
 
+// ScreenNumeros — portfolio value + rendimiento get their own bigger,
+// color-coded "hero" cards (they're the two numbers people actually came
+// for); everything else is a denser row-style secondary card below, instead
+// of 6 identically-sized boxes competing for attention (Diego, 2026-08-20:
+// "mejora el diseño de las cajas... mucho más bueno").
+function heroStatCard(accentHex: string): React.CSSProperties {
+  return {
+    borderRadius: 22, padding: "18px 16px",
+    background: `linear-gradient(160deg, ${accentHex}26 0%, ${WT.card} 65%)`,
+    border: `1px solid ${accentHex}55`,
+  };
+}
+function heroStatIcon(accentHex: string): React.CSSProperties {
+  return {
+    width: 34, height: 34, borderRadius: 11, background: `${accentHex}22`,
+    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, marginBottom: 10,
+  };
+}
+const HERO_STAT_LABEL: React.CSSProperties = {
+  fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 11, color: WT.sub, marginBottom: 3,
+};
+const HERO_STAT_VALUE: React.CSSProperties = { fontWeight: 900, fontSize: 22, letterSpacing: -0.3 };
+
+const SECONDARY_STAT_CARD: React.CSSProperties = {
+  ...CARD, display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
+};
+function secondaryStatIcon(accentHex: string): React.CSSProperties {
+  return {
+    width: 38, height: 38, borderRadius: "50%", background: `${accentHex}1f`,
+    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0,
+  };
+}
+
 /** Reveals an element on mount, staggered by `delay` — every screen is a
  * fresh component instance each time the user navigates to it, so this
  * naturally replays on every visit, not just the first. The single
@@ -144,24 +177,48 @@ export function ScreenPersonalidad({ data, total, page, nextLabel }: ScreenProps
 
 // 2 — Tu año en números
 export function ScreenNumeros({ data, total, page, nextLabel }: ScreenProps) {
-  const metrics: { emoji: string; label: string; value: string }[] = [];
-  if (data.portfolio_value > 0) metrics.push({ emoji: "💰", label: "Valor de tu portafolio", value: fmtUsd(data.portfolio_value) });
-  if (data.growth_pct != null) metrics.push({ emoji: "📈", label: "Rendimiento", value: fmtPct(data.growth_pct) });
-  if (data.companies_analyzed > 0) metrics.push({ emoji: "🏢", label: "Empresas analizadas", value: String(data.companies_analyzed) });
-  if (data.arthur_conversations > 0) metrics.push({ emoji: "💬", label: "Hablaste con Arthur", value: `${data.arthur_conversations}×` });
-  if (data.longest_streak) metrics.push({ emoji: "🔥", label: "Racha más larga", value: `${data.longest_streak} días` });
-  metrics.push({ emoji: "⏱️", label: "Días activo en Nuvos", value: String(data.days_active) });
+  const secondary: { emoji: string; label: string; value: string; accent: string }[] = [];
+  if (data.companies_analyzed > 0) secondary.push({ emoji: "🏢", label: "Empresas analizadas", value: String(data.companies_analyzed), accent: WT.teal });
+  if (data.arthur_conversations > 0) secondary.push({ emoji: "💬", label: "Hablaste con Arthur", value: `${data.arthur_conversations}×`, accent: WT.gold });
+  if (data.longest_streak) secondary.push({ emoji: "🔥", label: "Racha más larga", value: `${data.longest_streak} días`, accent: WT.coral });
+  secondary.push({ emoji: "⏱️", label: "Días activo en Nuvos", value: String(data.days_active), accent: WT.accentL });
+
+  const animatedPortfolio = useCountUp(data.portfolio_value, 1000, 2);
+  const animatedGrowth = useCountUp(data.growth_pct ?? 0, 1000, 2);
+  const growthColor = (data.growth_pct ?? 0) >= 0 ? WT.accentL : WT.coral;
 
   return (
     <Stage page={page} total={total} glow="top" nextLabel={nextLabel}>
       <Reveal delay={0} style={EYEBROW}>{data.year} en números</Reveal>
       <Reveal delay={100}><h1 style={{ ...H1, fontSize: 24, marginBottom: 22 }}>Tu año, medido</h1></Reveal>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        {metrics.map((m, i) => (
-          <Reveal key={m.label} delay={260 + i * 90} anim="animate-scale-in" style={{ ...CARD, padding: "14px 12px" }}>
-            <div style={{ fontSize: 18, marginBottom: 6 }}>{m.emoji}</div>
-            <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, color: WT.sub, marginBottom: 2 }}>{m.label}</div>
-            <div style={{ fontWeight: 800, fontSize: 17, color: WT.text }}>{m.value}</div>
+
+      {(data.portfolio_value > 0 || data.growth_pct != null) && (
+        <div style={{ display: "grid", gridTemplateColumns: data.portfolio_value > 0 && data.growth_pct != null ? "1fr 1fr" : "1fr", gap: 10, marginBottom: 10 }}>
+          {data.portfolio_value > 0 && (
+            <Reveal delay={240} anim="animate-fade-in-up-glow" style={heroStatCard(WT.accentL)}>
+              <div style={heroStatIcon(WT.accentL)}>💰</div>
+              <div style={HERO_STAT_LABEL}>Valor de tu portafolio</div>
+              <div style={{ ...HERO_STAT_VALUE, color: WT.text }}>{fmtUsd(animatedPortfolio)}</div>
+            </Reveal>
+          )}
+          {data.growth_pct != null && (
+            <Reveal delay={340} anim="animate-fade-in-up-glow" style={heroStatCard(growthColor)}>
+              <div style={heroStatIcon(growthColor)}>📈</div>
+              <div style={HERO_STAT_LABEL}>Rendimiento</div>
+              <div style={{ ...HERO_STAT_VALUE, color: growthColor }}>{fmtPct(animatedGrowth)}</div>
+            </Reveal>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {secondary.map((m, i) => (
+          <Reveal key={m.label} delay={480 + i * 100} anim="animate-slide-left" style={SECONDARY_STAT_CARD}>
+            <div style={secondaryStatIcon(m.accent)}>{m.emoji}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, color: WT.sub }}>{m.label}</div>
+              <div style={{ fontWeight: 800, fontSize: 16, color: WT.text }}>{m.value}</div>
+            </div>
           </Reveal>
         ))}
       </div>
