@@ -468,5 +468,12 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
         "financialHealth": financial_health,
         "roicAdjustedForBuybacks": roic_adjusted_for_buybacks,
         "valuation": valuation,
+        # Real, computed caution note — e.g. the REIT FFO/AFFO gap, or the
+        # financial-sector `valuation_sanity_warning` (implied P/B too far
+        # from real/peer multiples, confirmed live for BRK.B 2026-08-19).
+        # Was already computed by fundamental_analysis_service.py but only
+        # ever reached the RETIRED legacy GQV panel (shared.tsx) — this is
+        # the only path that reaches the current, only-active diagnostic UI.
+        "sectorModelNote": dcf.get("sector_model_note"),
         # investmentThesis / noiseVsReality / actionPlan attached by the caller.
     }

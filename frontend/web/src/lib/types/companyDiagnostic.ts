@@ -92,6 +92,11 @@ export interface CompanyDiagnosticData {
   // (Total Assets - Current Liabilities) instead of the standard one.
   roicAdjustedForBuybacks: boolean;
   valuation: ValuationScenarios;
+  // Real, computed caution about the valuation method itself — e.g. a
+  // financial-sector implied P/B too far from real/peer multiples. Shown
+  // right below the verdict, alongside the real number, never in place of
+  // it (see CompanyDiagnosticMarginAlert's sibling render in the card).
+  sectorModelNote: { sector_type: string; detalle: string } | null;
   noiseVsReality: {
     marketSaw: string;
     nuvosReality: string;
@@ -172,6 +177,7 @@ export const mockCopartData: CompanyDiagnosticData = {
     operatingCashFlow: "~$1,800 M USD",
   },
   roicAdjustedForBuybacks: false,
+  sectorModelNote: null,
   valuation: {
     currentPrice: 29.00,
     conservative: 34.50,

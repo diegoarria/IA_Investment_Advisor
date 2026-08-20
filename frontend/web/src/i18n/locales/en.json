@@ -1332,6 +1332,7 @@
       "activeLabel": "Alert active at {{pct}}% margin",
       "currentLabel": "Current margin: {{pct}}%"
     },
+    "sectorModelNoteTitle": "How Nuvos values this company",
     "thermometer": {
       "title": "Valuation Thermometer",
       "priceToday": "Price Today",

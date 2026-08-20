@@ -1414,6 +1414,12 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             wall_street_eps_growth_next_year_pct=_fin_wall_street_eps_growth, wacc_details=wacc_details,
             compute_peer_dependent_data=_compute_peer_dependent_data,
         )
+        # `dcf["sector_model_note"]` (NOT this function's own top-level
+        # `sector_model_note` local, which stays None here — reserved for
+        # REIT's "no DCF at all" case) already carries the always-on
+        # financial-sector methodology note; financial_engine.py itself
+        # appends the valuation_sanity_warning caution onto it when that
+        # fires, so nothing else is needed here.
 
     elif is_reit_sector(sector):
         # REITs don't generate a normal operating-company FCF the way the

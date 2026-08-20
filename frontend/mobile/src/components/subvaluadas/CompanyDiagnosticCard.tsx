@@ -117,6 +117,15 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
           </View>
         )}
 
+        {data.sectorModelNote && (
+          <View style={{ borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 15, backgroundColor: "rgba(212,162,76,0.08)", borderWidth: 1, borderColor: "rgba(212,162,76,0.2)" }}>
+            <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.accentLight, marginBottom: 3 }}>
+              {t("companyDiagnostic.sectorModelNoteTitle")}
+            </Text>
+            <Text style={{ fontSize: 11.5, lineHeight: 16, color: colors.textSub }}>{data.sectorModelNote.detalle}</Text>
+          </View>
+        )}
+
         <CompanyDiagnosticMarginAlert ticker={data.ticker} marginOfSafetyPercent={data.valuation.marginOfSafetyPercent} colors={colors} />
 
         <CompanyDiagnosticValuationThermometer scenarios={data.valuation} colors={colors} />

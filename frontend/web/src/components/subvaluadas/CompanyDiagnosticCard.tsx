@@ -119,6 +119,15 @@ export function CompanyDiagnosticCard({ data }: { data: CompanyDiagnosticData })
           </div>
         )}
 
+        {data.sectorModelNote && (
+          <div className="rounded-xl px-3 py-2.5 mb-5" style={{ background: "rgba(212,162,76,0.08)", border: "1px solid rgba(212,162,76,0.2)" }}>
+            <p className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--accent-l)" }}>
+              {t("companyDiagnostic.sectorModelNoteTitle")}
+            </p>
+            <p className="text-[11.5px] leading-relaxed" style={{ color: "var(--sub)" }}>{data.sectorModelNote.detalle}</p>
+          </div>
+        )}
+
         <CompanyDiagnosticMarginAlert ticker={data.ticker} marginOfSafetyPercent={data.valuation.marginOfSafetyPercent} />
 
         <CompanyDiagnosticValuationThermometer scenarios={data.valuation} />

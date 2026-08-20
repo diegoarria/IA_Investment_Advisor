@@ -62,6 +62,7 @@ export interface CompanyDiagnosticData {
   };
   roicAdjustedForBuybacks: boolean;
   valuation: ValuationScenarios;
+  sectorModelNote: { sector_type: string; detalle: string } | null;
   noiseVsReality: {
     marketSaw: string;
     nuvosReality: string;

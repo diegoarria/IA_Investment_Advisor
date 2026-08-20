@@ -3734,6 +3734,7 @@
       "activeLabel": "Alerta activa en {{pct}}% de margen",
       "currentLabel": "Margen actual: {{pct}}%"
     },
+    "sectorModelNoteTitle": "Cómo valora Nuvos a esta empresa",
     "thermometer": {
       "title": "Termómetro de Valuación",
       "priceToday": "Precio Hoy",

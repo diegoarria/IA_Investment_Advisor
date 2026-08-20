@@ -1592,7 +1592,11 @@ def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
     # BRK.B, whose profile2 shareOutstanding was company-wide Class-A-
     # equivalent while price was the real Class B quote). A v13 entry has
     # the wrong shares_outstanding baked in for any dual-class ticker.
-    return f"quick_analysis:v14:{lang}:{ticker}"
+    # v15 — bumped 2026-08-19: financial-sector `sector_model_note` now set
+    # when `valuation_sanity_warning` fires (previously computed and
+    # discarded). A v14 entry has no caution note for a ticker like BRK.B
+    # even when the sanity check would have flagged it.
+    return f"quick_analysis:v15:{lang}:{ticker}"
 
 
 async def _build_quick_analysis(ticker: str, lang: str) -> dict:
@@ -2416,7 +2420,11 @@ def _company_diagnostic_cache_key(ticker: str, lang: str) -> str:
     # v7 — bumped 2026-08-19: same shares_outstanding fix as
     # _quick_analysis_cache_key's v14 bump (dual-class tickers like BRK.B
     # had a ~1500x-inflated fair value).
-    return f"company_diagnostic:v7:{lang}:{ticker}"
+    # v8 — bumped 2026-08-19: new `sectorModelNote` field, surfacing the
+    # financial-sector `valuation_sanity_warning` (was computed but
+    # discarded before — confirmed live for BRK.B) to this, the only
+    # currently-active diagnostic UI.
+    return f"company_diagnostic:v8:{lang}:{ticker}"
 
 
 async def _company_diagnostic_result(query: str, lang: str | None, user_id: str | None) -> dict:

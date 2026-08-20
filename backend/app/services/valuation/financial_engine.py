@@ -659,6 +659,25 @@ def build_financial_fair_value(
         if pe_ratio_check > 2.5 or pe_ratio_check < 0.4:
             valuation_sanity_warning = True
 
+    # `valuation_sanity_warning` used to be computed here and then only
+    # ever nested inside `nuvos_fair_value` — never reaching the actual
+    # diagnostic UI (confirmed live for BRK.B, 2026-08-19: a 2.93x implied
+    # P/B against Berkshire's real ~1.5-1.7x, silently flagged True and
+    # discarded). Appended onto the SAME `sector_model_note` the UI already
+    # renders for every financial-sector ticker, instead of a separate
+    # field nothing reads — still shows the real computed number (never
+    # suppress a real model output just because the app is unsure of it),
+    # just with a visible caution alongside it.
+    _sector_note_detalle = _SECTOR_NOTE_TEXT
+    if valuation_sanity_warning:
+        _sector_note_detalle += (
+            " Además, el múltiplo precio/valor en libros implícito en este cálculo se aleja bastante de cómo "
+            "cotiza realmente esta empresa (y sus comparables) en el mercado — puede deberse a supuestos de "
+            "crecimiento/costo de capital poco representativos para este negocio en particular. Tratá este "
+            "valor intrínseco con más cautela de la habitual."
+        )
+    sector_model_note = {"sector_type": "financial", "detalle": _sector_note_detalle}
+
     roe_stdev = statistics.pstdev(roe_valid) if len(roe_valid) >= 3 else None
     confidence_score = _score(roe_stdev, [(5, 90), (10, 75), (18, 55), (30, 35), (999, 15)]) if roe_stdev is not None else 50
 
@@ -728,7 +747,7 @@ def build_financial_fair_value(
         "wall_street_eps_growth_next_year_pct": wall_street_eps_growth_next_year_pct,
         "is_financial_sector": True,
         "financial_subsector": classify_financial_subsector(sector, industry),
-        "sector_model_note": {"sector_type": "financial", "detalle": _SECTOR_NOTE_TEXT},
+        "sector_model_note": sector_model_note,
         "financial_reverse_valuation": financial_reverse_valuation,
         "valuation_sanity_warning": valuation_sanity_warning,
     }
@@ -770,6 +789,6 @@ def build_financial_fair_value(
             "fcf_per_share_cagr_pct": None,
         },
         "nuvos_fair_value": nuvos_fair_value,
-        "sector_model_note": {"sector_type": "financial", "detalle": _SECTOR_NOTE_TEXT},
+        "sector_model_note": sector_model_note,
         "data_quality_flags": {"dividends_missing": dividends_missing},
     }
