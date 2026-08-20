@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Building2, MessageCircle } from "lucide-react";
 import Stage from "./Stage";
 import { WT, WrappedData, fmtPct, fmtUsd, topStrength } from "./types";
 import { apiBase } from "@/lib/apiBase";
@@ -423,7 +424,7 @@ export function ScreenCompartir({ data, staticMode }: { data: WrappedData; stati
       <div style={{ position: "absolute", inset: 20, borderRadius: 26, background: "linear-gradient(165deg, rgba(9,15,31,0.75) 0%, rgba(3,6,14,0.6) 55%, rgba(9,15,31,0.75) 100%)", border: "1.5px solid rgba(0,232,135,0.18)" }} />
       <div style={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", padding: "18px 10px 10px" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="Nuvos AI" crossOrigin="anonymous" style={{ width: 30, height: 30, borderRadius: 8, marginBottom: 8 }} className="animate-fade-in" />
+        <img src="/logo.png" alt="Nuvos AI" crossOrigin="anonymous" style={{ width: 58, height: 58, borderRadius: 15, marginBottom: 10 }} className="animate-fade-in" />
         <R delay={100} style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 10, color: WT.accentL, letterSpacing: 1.5, textTransform: "uppercase" }}>Nuvos Wrapped {data.year}</R>
 
         {data.archetype && (
@@ -446,14 +447,14 @@ export function ScreenCompartir({ data, staticMode }: { data: WrappedData; stati
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, width: "100%", maxWidth: 360, marginTop: 20 }}>
           {data.companies_analyzed > 0 && (
             <R delay={600} anim="animate-scale-in" style={shareStatCard(WT.teal)}>
-              <div style={shareStatIconBadge(WT.teal)}>🏢</div>
+              <div style={shareStatIconBadge(WT.teal)}><Building2 size={16} color={WT.teal} /></div>
               <div style={SHARE_STAT_VALUE}>{data.companies_analyzed}</div>
               <div style={SHARE_STAT_LABEL}>Analizadas</div>
             </R>
           )}
           {data.arthur_conversations > 0 && (
             <R delay={720} anim="animate-scale-in" style={shareStatCard(WT.gold)}>
-              <div style={shareStatIconBadge(WT.gold)}>💬</div>
+              <div style={shareStatIconBadge(WT.gold)}><MessageCircle size={16} color={WT.gold} /></div>
               <div style={SHARE_STAT_VALUE}>{data.arthur_conversations}×</div>
               <div style={SHARE_STAT_LABEL}>Con Arthur</div>
             </R>
@@ -461,11 +462,11 @@ export function ScreenCompartir({ data, staticMode }: { data: WrappedData; stati
           {topGrower && (
             <R delay={840} anim="animate-scale-in" style={shareStatCard(growerColor)}>
               <TickerLogo ticker={topGrower.ticker} size={30} />
-              <div style={{ ...SHARE_STAT_VALUE, fontSize: 12, lineHeight: 1.2, marginTop: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>
+              <div style={{ fontWeight: 800, fontSize: 11, color: WT.text, lineHeight: 1.3, marginTop: 10, width: "100%", textAlign: "center", overflowWrap: "break-word" }}>
                 {topGrower.company_name || topGrower.ticker}
               </div>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted, marginBottom: 2 }}>{topGrower.ticker}</div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: growerColor }}>{fmtPct(topGrower.return_pct)}</div>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, color: WT.muted, marginTop: 3 }}>{topGrower.ticker}</div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: growerColor, marginTop: 2 }}>{fmtPct(topGrower.return_pct)}</div>
             </R>
           )}
         </div>
