@@ -152,6 +152,18 @@ function SubvaluadasPageInner() {
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium" || sub.isTrialPremium;
   const viTheme = useViTheme();
+  // useAuthStore is a persist()-wrapped Zustand store — it rehydrates from
+  // localStorage ASYNCHRONOUSLY after mount. shouldUsePublicApi() reads
+  // getState().userId directly (a synchronous snapshot, not the reactive
+  // hook), so on a hard refresh/direct link into this page the very first
+  // fetch effect below could fire while userId is still null even for a
+  // real logged-in Premium user — routing their search to the /public
+  // guest endpoint, which enforces a flat 3-search limit keyed by the
+  // browser's guest_id with zero premium awareness. Confirmed real
+  // (Diego, 2026-08-19): a Premium account hit "ya usaste tus 3
+  // búsquedas" because of exactly this race. Gating both fetch effects on
+  // `!authRestoring` (same pattern home/page.tsx already uses) closes it.
+  const authRestoring = useAuthStore((s) => s.authRestoring);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -199,6 +211,12 @@ function SubvaluadasPageInner() {
 
     if (!hadCache) { setLoading(true); setError(null); }
 
+    // Wait for the auth store to finish rehydrating before deciding
+    // guest-vs-authenticated — see the authRestoring comment above. Once
+    // it flips to false this effect re-runs (authRestoring is a dep
+    // below) and fires for real.
+    if (authRestoring) return () => { cancelled = true; };
+
     // This screen must always open with a real result, not a spinner stuck
     // on a transient network hiccup or a slow provider timeout — retry a
     // couple of times with backoff before surfacing an error. A definite
@@ -238,7 +256,7 @@ function SubvaluadasPageInner() {
 
     attempt(0).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [ticker, isPremium, searchTriggered, i18n.language, t]);
+  }, [ticker, isPremium, searchTriggered, i18n.language, t, authRestoring]);
 
   // CompanyDiagnosticCard's real data — Premium-only (same reasoning as
   // /nif-dashboard: called in parallel with quick-analysis for the same
@@ -266,6 +284,14 @@ function SubvaluadasPageInner() {
   const [companyDiagnosticError, setCompanyDiagnosticError] = useState<{ status?: number; code?: string } | null>(null);
   useEffect(() => {
     let cancelled = false;
+    // Same auth-rehydration race as the fetch effect above — wait for a
+    // real session snapshot before deciding guest-vs-authenticated. Keep
+    // reporting "loading" (not the default false) so resolveValuationPanelMode
+    // doesn't briefly resolve to "unavailable" during this window.
+    if (authRestoring) {
+      setCompanyDiagnosticLoading(true);
+      return () => { cancelled = true; };
+    }
     setCompanyDiagnostic(null);
     setCompanyDiagnosticError(null);
     setCompanyDiagnosticLoading(true);
@@ -289,7 +315,7 @@ function SubvaluadasPageInner() {
       })
       .finally(() => { if (!cancelled) setCompanyDiagnosticLoading(false); });
     return () => { cancelled = true; };
-  }, [ticker, isPremium, searchTriggered, i18n.language]);
+  }, [ticker, isPremium, searchTriggered, i18n.language, authRestoring]);
 
   const handleSearch = () => {
     if (!query.trim()) return;
