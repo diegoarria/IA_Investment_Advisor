@@ -292,6 +292,14 @@ export default function WatchlistEarningsCalendar({
           const dayEvents = eventMap[dateStr] ?? [];
           const isSel    = selectedDay === dateStr;
           const hasEvent = dayEvents.length > 0;
+          // Macro events (FOMC, CPI, NFP...) are always rendered, never
+          // truncated by ticker-event overflow — Diego's explicit call
+          // (2026-08-20): they must never disappear from the grid, even
+          // on a day packed with earnings. Ticker badges get whatever
+          // slots remain instead of competing for the same slice.
+          const dayMacroEvents  = dayEvents.filter((e): e is MacroCalendarEvent => e.kind === "macro");
+          const dayTickerEvents = dayEvents.filter((e): e is TickerCalendarEvent => e.kind === "ticker");
+          const tickerSlots     = Math.max(0, 2 - dayMacroEvents.length);
 
           return (
             <div
@@ -316,22 +324,22 @@ export default function WatchlistEarningsCalendar({
                 </span>
               </div>
 
-              {/* Event badges */}
+              {/* Event badges — macro events always shown first, never truncated */}
               <div className="flex flex-col gap-0.5 items-center">
-                {dayEvents.slice(0, 2).map((e, ei) => {
-                  if (e.kind === "macro") {
-                    const colors = IMPACT_COLOR[e.impact_level] ?? IMPACT_COLOR.MEDIUM;
-                    return (
-                      <span
-                        key={`macro-${e.event_type}-${ei}`}
-                        title={macroEventLabel(t, e.event_type)}
-                        className="w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0"
-                        style={{ background: colors.bg }}
-                      >
-                        <Landmark className="w-2 h-2" style={{ color: colors.color }} />
-                      </span>
-                    );
-                  }
+                {dayMacroEvents.map((e, ei) => {
+                  const colors = IMPACT_COLOR[e.impact_level] ?? IMPACT_COLOR.MEDIUM;
+                  return (
+                    <span
+                      key={`macro-${e.event_type}-${ei}`}
+                      title={macroEventLabel(t, e.event_type)}
+                      className="w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0"
+                      style={{ background: colors.bg }}
+                    >
+                      <Landmark className="w-2 h-2" style={{ color: colors.color }} />
+                    </span>
+                  );
+                })}
+                {dayTickerEvents.slice(0, tickerSlots).map((e, ei) => {
                   const meta = EVENT_META[e.event_type] ?? EVENT_META.earnings;
                   const isPortfolio = portfolioSet.has(e.ticker);
                   return (
@@ -351,10 +359,10 @@ export default function WatchlistEarningsCalendar({
                     </span>
                   );
                 })}
-                {dayEvents.length > 2 && (
+                {dayTickerEvents.length > tickerSlots && (
                   <span className="text-[7px] font-bold px-1 py-px rounded"
                         style={{ background: "var(--raised)", color: "var(--muted)" }}>
-                    +{dayEvents.length - 2}
+                    +{dayTickerEvents.length - tickerSlots}
                   </span>
                 )}
               </div>
