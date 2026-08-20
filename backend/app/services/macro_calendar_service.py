@@ -118,37 +118,73 @@ def _fmp_key() -> str:
     return os.getenv("FMP_API_KEY", "")
 
 
+_CHUNK_DAYS = 30  # see _fetch_fmp_window's docstring for why this exists
+
+
+def _fetch_fmp_window(date_from, date_to, key: str) -> list[dict]:
+    """One FMP call for a single date window, retrying once on a transient
+    failure (timeout/connection blip/momentary 5xx) — same pattern as
+    Finnhub's earnings-calendar retry (earnings.py's
+    _finnhub_earnings_date), applied here because the failure mode this
+    guards against turned out to be worse than a dropped request: FMP's
+    /stable/economic-calendar silently returns an incomplete, differently-
+    ordered result set once the requested span gets wide (confirmed live,
+    2026-08-20 — a 123-day window returned FEWER total rows than a 90-day
+    one and dropped every near-term event, including that week's Jobless
+    Claims, CPI, NFP and the next FOMC meeting, while three separate
+    <=90-day windows each returned the same near-term events correctly).
+    That's why fetch_and_normalize_macro_events below fans this out over
+    _CHUNK_DAYS-wide windows instead of one big range — this function
+    itself only owns the per-window HTTP retry, not the chunking."""
+    import time
+    last_exc: Exception | None = None
+    for attempt in range(2):
+        try:
+            resp = httpx.get(
+                _FMP_BASE,
+                params={"from": date_from.isoformat(), "to": date_to.isoformat(), "apikey": key},
+                timeout=20,
+            )
+            resp.raise_for_status()
+            items = resp.json()
+            if not isinstance(items, list):
+                logger.warning("FMP economic-calendar returned unexpected shape for %s..%s: %r", date_from, date_to, type(items))
+                return []
+            return items
+        except Exception as e:
+            last_exc = e
+            if attempt == 0:
+                time.sleep(0.6)
+    logger.warning("FMP economic-calendar fetch failed for %s..%s after retry: %s", date_from, date_to, last_exc)
+    return []
+
+
 def fetch_and_normalize_macro_events(days_ahead: int = _DAYS_AHEAD, days_behind: int = _DAYS_BEHIND) -> list[dict]:
     """Fetches FMP's US economic calendar and maps it to Nuvos's canonical
     15-type taxonomy. Returns normalized rows ready to upsert — never
-    invents a date, event, or impact level not present in the source."""
+    invents a date, event, or impact level not present in the source.
+
+    Fetched in _CHUNK_DAYS-wide windows rather than one [days_behind,
+    days_ahead] range — see _fetch_fmp_window's docstring for the incident
+    that made a single wide window unsafe."""
     key = _fmp_key()
     if not key:
         logger.warning("FMP_API_KEY not configured — macro calendar sync skipped")
         return []
 
     today = datetime.now(_ET).date()
-    date_from = today - timedelta(days=days_behind)
-    date_to = today + timedelta(days=days_ahead)
+    range_start = today - timedelta(days=days_behind)
+    range_end   = today + timedelta(days=days_ahead)
 
-    try:
-        resp = httpx.get(
-            _FMP_BASE,
-            params={"from": date_from.isoformat(), "to": date_to.isoformat(), "apikey": key},
-            timeout=20,
-        )
-        resp.raise_for_status()
-        items = resp.json()
-    except Exception as e:
-        logger.warning("FMP economic-calendar fetch failed: %s", e)
-        return []
+    raw_items: list[dict] = []
+    chunk_start = range_start
+    while chunk_start <= range_end:
+        chunk_end = min(chunk_start + timedelta(days=_CHUNK_DAYS - 1), range_end)
+        raw_items.extend(_fetch_fmp_window(chunk_start, chunk_end, key))
+        chunk_start = chunk_end + timedelta(days=1)
 
-    if not isinstance(items, list):
-        logger.warning("FMP economic-calendar returned unexpected shape: %r", type(items))
-        return []
-
-    rows: list[dict] = []
-    for item in items:
+    rows_by_id: dict[str, dict] = {}
+    for item in raw_items:
         if item.get("country") != "US":
             continue
         raw_name = (item.get("event") or "").strip()
@@ -168,8 +204,9 @@ def fetch_and_normalize_macro_events(days_ahead: int = _DAYS_AHEAD, days_behind:
             continue
 
         date_utc_iso = dt_utc.isoformat()
-        rows.append({
-            "event_id":       _event_id(event_type, raw_name, date_utc_iso),
+        event_id = _event_id(event_type, raw_name, date_utc_iso)
+        rows_by_id[event_id] = {
+            "event_id":       event_id,
             "event_type":     event_type,
             "event_name":     raw_name,
             "event_date_utc": date_utc_iso,
@@ -182,9 +219,9 @@ def fetch_and_normalize_macro_events(days_ahead: int = _DAYS_AHEAD, days_behind:
             "unit":           item.get("unit"),
             "speaker_name":   speaker_name,
             "source":         "fmp",
-        })
+        }
 
-    return rows
+    return list(rows_by_id.values())
 
 
 def _stringify(v) -> Optional[str]:
@@ -225,7 +262,10 @@ async def refresh_macro_calendar() -> int:
     """Fetch → normalize → upsert into Supabase (dedup via event_id) →
     refresh the read-through cache. Called by the daily cron and the admin
     manual-refresh endpoint. Returns the number of rows upserted."""
-    rows = fetch_and_normalize_macro_events()
+    import asyncio
+    # Chunked into several sequential FMP calls now (see _fetch_fmp_window) —
+    # off the event loop so a slow/retried chunk can't stall it.
+    rows = await asyncio.to_thread(fetch_and_normalize_macro_events)
     if not rows:
         logger.warning("refresh_macro_calendar: no rows to upsert (FMP unavailable or empty response)")
         return 0
