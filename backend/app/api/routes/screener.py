@@ -1586,7 +1586,13 @@ def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
     # capital fallback (buyback-compressed equity), and the AI narrative
     # prompt now cites the real GQV-first fair value instead of the legacy
     # DCF number. A v11 entry predates both.
-    return f"quick_analysis:v13:{lang}:{ticker}"
+    # v14 — bumped 2026-08-19: shares_outstanding now derives from
+    # marketCapitalization/price instead of the raw Finnhub shareOutstanding
+    # field (fixes a ~1500x-inflated fair value for dual-class tickers like
+    # BRK.B, whose profile2 shareOutstanding was company-wide Class-A-
+    # equivalent while price was the real Class B quote). A v13 entry has
+    # the wrong shares_outstanding baked in for any dual-class ticker.
+    return f"quick_analysis:v14:{lang}:{ticker}"
 
 
 async def _build_quick_analysis(ticker: str, lang: str) -> dict:
@@ -2407,7 +2413,10 @@ def _company_diagnostic_cache_key(ticker: str, lang: str) -> str:
     # (see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md,
     # methodology audit) — this endpoint's valuation fields derive from the
     # same gqv_fair_value output that changed. A v1 entry predates the fix.
-    return f"company_diagnostic:v6:{lang}:{ticker}"
+    # v7 — bumped 2026-08-19: same shares_outstanding fix as
+    # _quick_analysis_cache_key's v14 bump (dual-class tickers like BRK.B
+    # had a ~1500x-inflated fair value).
+    return f"company_diagnostic:v7:{lang}:{ticker}"
 
 
 async def _company_diagnostic_result(query: str, lang: str | None, user_id: str | None) -> dict:
