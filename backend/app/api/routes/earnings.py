@@ -170,7 +170,13 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
             # to Spanish, so the frontend can label it in whichever language
             # the user actually has selected (same i18n convention every
             # other status label in this calendar already follows).
-            hour = fh_earn.get("hour") or ""
+            # Finnhub sends this lowercase ("bmo"/"amc"/"dmh"/""), not the
+            # uppercase codes this endpoint emits — normalize case and fold
+            # Finnhub's "dmh" (during market hours) onto our "DMT" code so
+            # the comparison actually matches instead of always landing on
+            # None (was silently dropping every timing badge in prod).
+            hour_raw = (fh_earn.get("hour") or "").strip().lower()
+            hour_map = {"bmo": "BMO", "amc": "AMC", "dmh": "DMT", "dmt": "DMT"}
             events.append({
                 "ticker":            symbol,
                 "event_date":        str(dt),
@@ -180,7 +186,7 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
                 "eps_actual":        round(float(eps_act), 2) if eps_act is not None else None,
                 "revenue_estimate":  f"{round(float(rev_est)/1e9, 1)}B" if rev_est else None,
                 "revenue_actual":    f"{round(float(rev_act)/1e9, 1)}B" if rev_act else None,
-                "timing":            hour if hour in ("BMO", "AMC", "DMT") else None,
+                "timing":            hour_map.get(hour_raw),
             })
         except Exception:
             pass
