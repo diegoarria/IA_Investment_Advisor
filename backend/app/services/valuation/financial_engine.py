@@ -752,12 +752,32 @@ def build_financial_fair_value(
         "valuation_sanity_warning": valuation_sanity_warning,
     }
 
+    # "Normalized" EPS for a financial-sector company — net income the
+    # model's own year-1 projection already implies (book value × today's
+    # real ROE), the exact same inputs `project_residual_income_valuation`
+    # uses above, never a separately-fabricated number. Needed because
+    # trailing GAAP EPS is real but can be structurally unusable here (mark-
+    # to-market investment gains/losses swing net income for a holding
+    # company like Berkshire far more than operating earnings do), and this
+    # sector's `_primary_scenarios` legacy branch never carried a
+    # `pe_on_normalized_eps` the way the GQV path does — confirmed live,
+    # 2026-08-19: BRK.B had peCurrent=None (distorted GAAP EPS) AND
+    # peForward=None (no Yahoo forward estimate) AND peNormalized=None
+    # (this gap), so company_diagnostic_service's "any ONE of three P/E
+    # fields" gate failed all three and 404'd the whole diagnostic card.
+    pe_on_normalized_eps = None
+    if roe_initial and roe_initial > 0 and book_value_per_share and price:
+        normalized_eps = book_value_per_share * roe_initial
+        if normalized_eps > 0:
+            pe_on_normalized_eps = round(price / normalized_eps, 1)
+
     return {
         "methodology": "residual_income_excess_return_v2",
         "scenario_config_version": SCENARIO_CONFIG_VERSION,
         "sector": sector,
         "book_value_per_share": round(book_value_per_share, 2),
         "avg_roe_pct": round(roe_initial * 100, 1) if roe_initial is not None else None,
+        "pe_on_normalized_eps": pe_on_normalized_eps,
         "cost_of_equity_pct": round(cost_of_equity_base * 100, 2),
         "base_discount_rate_pct": round(cost_of_equity_base * 100, 2),
         "wacc_details": wacc_details,

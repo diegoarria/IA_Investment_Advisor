@@ -111,6 +111,12 @@ def _primary_scenarios(dcf: dict) -> Optional[dict]:
             "uncertainty_profile": dcf.get("uncertainty_profile"),
             "reality_gate_pass_rate": None,
             "source": "dcf",
+            # Real for the financial-sector Residual Income path (financial_
+            # engine.py's own book-value×ROE projection) — was previously
+            # never carried here, unlike the GQV branch above, which could
+            # 404 the whole card whenever peCurrent/peForward were also both
+            # unavailable (confirmed live for BRK.B).
+            "pe_on_normalized_eps": dcf.get("pe_on_normalized_eps"),
         }
     return None
 

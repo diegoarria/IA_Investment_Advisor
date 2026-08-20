@@ -1596,7 +1596,10 @@ def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
     # when `valuation_sanity_warning` fires (previously computed and
     # discarded). A v14 entry has no caution note for a ticker like BRK.B
     # even when the sanity check would have flagged it.
-    return f"quick_analysis:v15:{lang}:{ticker}"
+    # v16 — bumped 2026-08-19: financial-sector dcf now carries
+    # pe_on_normalized_eps (fixes a real 404 for tickers like BRK.B whose
+    # trailing GAAP EPS + Yahoo forward estimate were both unavailable).
+    return f"quick_analysis:v16:{lang}:{ticker}"
 
 
 async def _build_quick_analysis(ticker: str, lang: str) -> dict:
@@ -2424,7 +2427,13 @@ def _company_diagnostic_cache_key(ticker: str, lang: str) -> str:
     # financial-sector `valuation_sanity_warning` (was computed but
     # discarded before — confirmed live for BRK.B) to this, the only
     # currently-active diagnostic UI.
-    return f"company_diagnostic:v8:{lang}:{ticker}"
+    # v9 — bumped 2026-08-19: same pe_on_normalized_eps fix as
+    # _quick_analysis_cache_key's v16 bump — a v8 entry for a financial-
+    # sector ticker with no GAAP/forward P/E is a cached 404 (build_
+    # company_diagnostic returned None), not a cached success, so this
+    # doesn't even need a special "was it a null result" check — a stale
+    # None simply gets recomputed for real once this key changes.
+    return f"company_diagnostic:v9:{lang}:{ticker}"
 
 
 async def _company_diagnostic_result(query: str, lang: str | None, user_id: str | None) -> dict:
