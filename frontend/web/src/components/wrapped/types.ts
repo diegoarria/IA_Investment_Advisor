@@ -87,8 +87,8 @@ export const WT = {
   gradGreen: "linear-gradient(135deg, #00b96d 0%, #00e887 100%)",
 };
 
-export const fmtPct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
-export const fmtUsd = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+export const fmtPct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+export const fmtUsd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export const SCORE_LABELS: Record<string, string> = {
   educacion: "Educación",
