@@ -46,30 +46,41 @@ async def _position_returns(positions: list[dict]) -> list[dict]:
     market-YTD proxy, so a position bought mid-year is automatically
     correct without any special-casing (the real entry price already *is*
     the real entry date). Skips — never fabricates — any ticker whose
-    current price isn't fetchable."""
-    from app.core.finnhub import fh_quote
+    current price isn't fetchable from either source below.
+
+    Prices come from watchlist.py's _fetch_prices_batch (Finnhub first,
+    Yahoo fallback, bounded 10-worker thread pool) instead of one
+    unbounded asyncio.gather of raw fh_quote calls per ticker — that
+    version fired every position's Finnhub request concurrently with zero
+    retry, so any rate-limit blip on a multi-position portfolio silently
+    dropped those tickers from the total, not just their % return
+    (confirmed live, 2026-08-20: Wrapped's portfolio value undercounted
+    to roughly cash-only for a real multi-position account)."""
+    from app.api.routes.watchlist import _fetch_prices_batch
 
     tickers = list(dict.fromkeys(p["ticker"] for p in positions if p.get("ticker")))
+    if not tickers:
+        return []
+    prices = await asyncio.to_thread(_fetch_prices_batch, tickers)
 
-    async def _one(ticker: str) -> dict | None:
+    results = []
+    for ticker in tickers:
         lots = [p for p in positions if p.get("ticker") == ticker]
         shares = sum(float(p.get("shares", 0) or 0) for p in lots)
         invested = sum(float(p.get("shares", 0) or 0) * float(p.get("avgPrice", 0) or 0) for p in lots)
         if shares <= 0 or invested <= 0:
-            return None
-        quote = await asyncio.to_thread(fh_quote, ticker)
-        if not quote or not quote.get("price"):
-            return None
-        current_value = shares * float(quote["price"])
-        return {
+            continue
+        price = (prices.get(ticker) or {}).get("price")
+        if not price:
+            continue
+        current_value = shares * float(price)
+        results.append({
             "ticker": ticker,
             "return_pct": round((current_value - invested) / invested * 100, 2),
             "invested": round(invested, 2),
             "current_value": round(current_value, 2),
-        }
-
-    results = await asyncio.gather(*[_one(t) for t in tickers])
-    return [r for r in results if r]
+        })
+    return results
 
 
 async def _arthur_conversations_this_year(user_id: str, year: int) -> int:
@@ -233,6 +244,14 @@ async def get_wrapped(
         # totalValue — so this number never disagrees with what the user
         # already sees on that screen.
         stocks_value = sum(r["current_value"] for r in position_returns)
+        # Any ticker _position_returns couldn't price at all (both Finnhub
+        # and Yahoo failed) still counts here at cost basis rather than
+        # being silently omitted — an approximation is far less wrong than
+        # dropping a real position out of the total entirely.
+        priced_tickers = {r["ticker"] for r in position_returns}
+        for ticker in {p["ticker"] for p in positions if p.get("ticker") and p["ticker"] not in priced_tickers}:
+            lots = [p for p in positions if p.get("ticker") == ticker]
+            stocks_value += sum(float(p.get("shares", 0) or 0) * float(p.get("avgPrice", 0) or 0) for p in lots)
         cash_value, dividend_value = await asyncio.gather(
             _cash_holdings_total_usd(user_id), _dividend_income_total(user_id)
         )
