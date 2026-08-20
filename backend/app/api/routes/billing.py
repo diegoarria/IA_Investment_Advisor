@@ -112,11 +112,7 @@ async def stripe_webhook(request: Request):
     elif event["type"] in ("customer.subscription.deleted", "customer.subscription.paused"):
         customer_id = event["data"]["object"].get("customer")
         if customer_id:
-            await run_query(
-                db.table("user_profiles").update({
-                    "subscription_tier": "free",
-                }).eq("stripe_customer_id", customer_id)
-            )
+            await _downgrade_by_customer_id(customer_id, db)
             await _invalidate_profile_cache_by_customer(customer_id, db)
             await _revoke_duo_secondary(customer_id, db)
 
@@ -136,11 +132,7 @@ async def stripe_webhook(request: Request):
         customer_id = sub.get("customer")
         status = sub.get("status")
         if customer_id and status in ("unpaid", "canceled", "incomplete_expired"):
-            await run_query(
-                db.table("user_profiles").update({
-                    "subscription_tier": "free",
-                }).eq("stripe_customer_id", customer_id)
-            )
+            await _downgrade_by_customer_id(customer_id, db)
             await _invalidate_profile_cache_by_customer(customer_id, db)
             await _revoke_duo_secondary(customer_id, db)
         elif customer_id and status == "active":
@@ -180,6 +172,35 @@ async def stripe_webhook(request: Request):
             await _invalidate_profile_cache_by_customer(customer_id, db)
 
     return {"received": True}
+
+
+async def _downgrade_by_customer_id(customer_id: str, db) -> None:
+    """Sets subscription_tier='free' for every profile on this Stripe
+    customer, EXCEPT rows manually granted permanent premium
+    (subscription_source='manual_comp', see migration 079). Those users
+    have no real Stripe subscription backing their premium — the only way
+    stripe_customer_id could ever be set on one of them is stray Stripe
+    activity unrelated to why they're premium (e.g. a checkout session
+    that got as far as creating a customer, or leftover test-mode data).
+    A plain `.eq("stripe_customer_id", ...).update(...)` doesn't know
+    that and downgrades them anyway the next time ANY webhook fires for
+    that customer — confirmed live (2026-08-20, Diego): manually-comp'd
+    accounts kept flipping back to free with no code change on our side.
+    `.neq("subscription_source", "manual_comp")` would NOT work here —
+    Postgres's NULL != 'manual_comp' evaluates to NULL, not true, so it
+    would silently exclude every real Stripe subscriber too (none of
+    them have subscription_source set at all). Filtering in Python after
+    a plain select is the only correct way to exclude just the comp'd
+    rows while still downgrading everyone else."""
+    res = await run_query(
+        db.table("user_profiles").select("user_id, subscription_source").eq("stripe_customer_id", customer_id)
+    )
+    user_ids = [r["user_id"] for r in (res.data or []) if r.get("subscription_source") != "manual_comp"]
+    if not user_ids:
+        return
+    await run_query(
+        db.table("user_profiles").update({"subscription_tier": "free"}).in_("user_id", user_ids)
+    )
 
 
 async def _invalidate_profile_cache_by_customer(customer_id: str, db):
