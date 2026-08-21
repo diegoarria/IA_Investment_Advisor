@@ -168,6 +168,116 @@ async def trigger_market_close(
     return {"triggered": "market_close"}
 
 
+@router.post("/trigger/weekly-summary")
+async def trigger_weekly_summary(user_id: str = Depends(get_current_user_id)):
+    """Manually send the requesting user their own real Friday weekly-summary
+    email right now, synchronously (unlike /trigger/market-close's
+    background task — here the whole point is to inspect the response
+    immediately, not just fire-and-forget). Reuses worker.py's real
+    build_weekly_email_for_user (Diego, 2026-08-21: "siento que los correos
+    del resumen semanal no llegan con los datos correctos... con datos
+    reales") — same function job_daily_email calls for every real user
+    every Friday, so this can never quietly diverge into a nicer-looking
+    fake. Returns the computed numbers inline too, so a bad send can be
+    diagnosed without needing prod log access."""
+    import asyncio
+    import worker as _worker
+    from app.services.notification_engine import send_email_notification
+    from app.core.config import settings
+
+    if not settings.resend_api_key:
+        raise HTTPException(status_code=503, detail="RESEND_API_KEY no configurado")
+
+    db = get_supabase()
+
+    prof_res = await run_query(
+        db.table("user_profiles").select("name,subscription_tier,preferred_language").eq("user_id", user_id).maybe_single()
+    )
+    prof = prof_res.data or {}
+    first = (prof.get("name") or "Inversor").split()[0]
+    is_premium = (prof.get("subscription_tier") or "free") == "premium"
+    lang = prof.get("preferred_language") or "es"
+
+    port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id))
+    positions = _worker._agg_positions(port_res.data or []) if port_res.data else []
+
+    watch_res = await run_query(db.table("watchlist").select("ticker").eq("user_id", user_id))
+    watchlist = {r["ticker"] for r in (watch_res.data or [])}
+
+    # Same weekly (Mon-Fri close-to-close) window job_daily_email uses —
+    # not a single-day change, since the whole email is framed as "esta
+    # semana."
+    spy_w, qqq_w = await asyncio.gather(
+        asyncio.to_thread(_worker._finnhub_weekly_pct, "SPY"),
+        asyncio.to_thread(_worker._finnhub_weekly_pct, "QQQ"),
+    )
+    sp_pct = spy_w["pct"] if spy_w else None
+    nq_pct = qqq_w["pct"] if qqq_w else None
+    sp_px  = spy_w["curr"] if spy_w else None
+    nq_px  = qqq_w["curr"] if qqq_w else None
+
+    tickers = {p["ticker"] for p in positions if p.get("ticker")}
+    price_results = await asyncio.gather(
+        *[asyncio.to_thread(_worker._finnhub_weekly_pct, t) for t in tickers]
+    ) if tickers else []
+    week_prices = {t: {"curr": q["curr"], "prev": q["start"]} for t, q in zip(tickers, price_results) if q}
+
+    movers = []
+    for t, px in week_prices.items():
+        if px.get("prev") and px["prev"] > 0:
+            movers.append({"ticker": t, "pct": round((px["curr"] - px["prev"]) / px["prev"] * 100, 2)})
+    movers.sort(key=lambda x: abs(x["pct"]), reverse=True)
+
+    market_wrap = await _worker._generate_market_wrap(sp_pct, nq_pct, movers, period="semana", language=lang)
+
+    all_today_earnings = await asyncio.to_thread(_worker._finnhub_earnings_today, None)
+    relevant = (tickers | watchlist) & set(all_today_earnings.keys())
+    earnings_ai: dict[str, str] = {}
+    if relevant:
+        analyses = await asyncio.gather(*[
+            _worker._generate_earnings_ai_for_email(
+                ticker=t,
+                eps_actual=all_today_earnings[t].get("eps_actual"),
+                eps_estimate=all_today_earnings[t].get("eps_estimate"),
+                beat=all_today_earnings[t].get("beat_eps", False),
+                rev_actual_b=all_today_earnings[t].get("rev_actual_b"),
+                rev_estimate_b=all_today_earnings[t].get("rev_estimate_b"),
+                language=lang,
+            )
+            for t in sorted(relevant)
+        ], return_exceptions=True)
+        earnings_ai = {t: (a if isinstance(a, str) else "") for t, a in zip(sorted(relevant), analyses)}
+
+    _now = datetime.now()
+    week_label_by_lang = {
+        "es": f"semana del {_now.day} de {_worker._SPANISH_MONTHS[_now.month - 1]}",
+        "en": f"week of {_worker._ENGLISH_MONTHS[_now.month - 1]} {_now.day}",
+    }
+    sp_str = f"{sp_pct:+.1f}%" if sp_pct is not None else "—"
+    nq_str = f"{nq_pct:+.1f}%" if nq_pct is not None else "—"
+
+    subject, html = _worker.build_weekly_email_for_user(
+        first=first, is_premium=is_premium, positions=positions, watchlist=watchlist, lang=lang,
+        week_prices=week_prices, sp_pct=sp_pct, sp_px=sp_px, nq_pct=nq_pct, nq_px=nq_px,
+        market_wrap_by_lang={lang: market_wrap}, all_today_earnings=all_today_earnings,
+        earnings_ai_map_by_lang={lang: earnings_ai}, week_label_by_lang=week_label_by_lang,
+        sp_str=sp_str, nq_str=nq_str,
+    )
+    ok = await send_email_notification(user_id, "weekly_summary", subject, html, db)
+
+    return {
+        "sent": ok,
+        "subject": subject,
+        "is_premium": is_premium,
+        "language": lang,
+        "sp500_weekly_pct": sp_pct,
+        "nasdaq_weekly_pct": nq_pct,
+        "portfolio_tickers_priced": len(week_prices),
+        "portfolio_tickers_total": len(tickers),
+        "earnings_today_relevant": sorted(relevant),
+    }
+
+
 @router.get("/morning-brief")
 async def get_morning_brief(user_id: str = Depends(get_current_user_id)):
     """Data for the "Morning Brief" card shown on Home when the user opens

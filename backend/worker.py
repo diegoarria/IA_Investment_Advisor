@@ -654,39 +654,6 @@ def _finnhub_closes(ticker: str, days: int = 35) -> list[float]:
     return []
 
 
-def _finnhub_closes_with_dates(ticker: str, days: int) -> list[tuple]:
-    """Same as _finnhub_closes but keeps each close's actual trading date
-    (from Finnhub's own `t` timestamps) alongside it — (date, close) pairs,
-    oldest→newest. Needed so the weekly comparison below can match specific
-    calendar dates instead of counting a fixed number of array slots back,
-    which drifts whenever a holiday shifts the trading calendar."""
-    import requests as _req, time as _time
-    from datetime import date as _date, timezone as _tz
-    key = os.getenv("FINNHUB_API_KEY", "")
-    if not key:
-        logger.warning("_finnhub_closes_with_dates(%s): FINNHUB_API_KEY not set", ticker)
-        return []
-    try:
-        to_ts   = int(_time.time())
-        from_ts = to_ts - days * 86400
-        r = _req.get(
-            "https://finnhub.io/api/v1/stock/candle",
-            params={"symbol": ticker, "resolution": "D",
-                    "from": from_ts, "to": to_ts, "token": key},
-            timeout=8,
-        )
-        d = r.json()
-        if d.get("s") == "ok" and d.get("c") and d.get("t"):
-            return [
-                (_date.fromtimestamp(t, tz=_tz.utc), float(c))
-                for t, c in zip(d["t"], d["c"])
-            ]
-        logger.warning("_finnhub_closes_with_dates(%s): candle status not ok: %s", ticker, d.get("s"))
-    except Exception as e:
-        logger.warning("_finnhub_closes_with_dates(%s) failed: %s", ticker, e)
-    return []
-
-
 def _finnhub_weekly_pct(ticker: str, as_of=None) -> dict | None:
     """Real Mon-Fri week-over-week change: the last trading day BEFORE this
     week's Monday (i.e. last Friday, or Thursday if that Friday was itself a
@@ -694,20 +661,40 @@ def _finnhub_weekly_pct(ticker: str, as_of=None) -> dict | None:
     (defaults to today). NOT the single-day change _finnhub_quote gives.
 
     This adjusts for holidays automatically, for any week of the year,
-    because it matches against the ACTUAL calendar dates Finnhub returns
-    (which simply omit closed days) instead of assuming a fixed number of
-    trading days always separates one Friday from the next.
+    because it matches against the ACTUAL calendar dates the price series
+    returns (which simply omit closed days) instead of assuming a fixed
+    number of trading days always separates one Friday from the next.
+
+    Despite the name, this no longer calls Finnhub at all — confirmed live
+    (2026-08-21): Finnhub's /stock/candle (historical OHLC) returns 403
+    "You don't have access to this resource" on this app's key/plan, while
+    /quote (real-time price, a separate Finnhub tier) works fine. That 403
+    meant job_daily_email's Friday weekly-summary email was silently never
+    sending at all — its own guard skips the send entirely rather than mail
+    a dataless email once both SPY and QQQ come back None, which they always
+    did. Reuses market.py's _build_close_df instead: the same real,
+    already-production-proven Yahoo Finance historical-close fetcher
+    /portfolio's own YTD chart already depends on, so this doesn't add a new
+    unproven data path — it borrows the one already verified working.
 
     Returns {curr, start, pct} or None if there isn't enough history yet.
     """
+    import time as _time
     from datetime import date as _date, timedelta as _td
+    from app.api.routes.market import _build_close_df
 
     today = as_of or _date.today()
     monday_this_week = today - _td(days=today.weekday())  # Mon=0 ... Sun=6
 
     # 21 calendar days back comfortably covers two full weeks even around a
     # holiday cluster (e.g. Thanksgiving week + the week before it).
-    closes = _finnhub_closes_with_dates(ticker, days=21)
+    period2 = int(_time.time())
+    period1 = period2 - 21 * 86400
+    df, rt_prices = _build_close_df([ticker], period1, period2, interval="1d")
+    if df.empty or ticker not in df.columns:
+        logger.warning("_finnhub_weekly_pct(%s): no historical closes returned", ticker)
+        return None
+    closes = [(ts.date(), float(v)) for ts, v in df[ticker].dropna().items()]
     if not closes:
         return None
 
@@ -717,6 +704,11 @@ def _finnhub_weekly_pct(ticker: str, as_of=None) -> dict | None:
         logger.warning("_finnhub_weekly_pct(%s): no trading day at or before %s", ticker, today)
         return None
     curr_date, curr = on_or_before_today[-1]
+    # rt_prices is always current (unlike the historical series, which can
+    # lag by a partial day) — prefer it for "curr" exactly like
+    # _build_close_df's own docstring recommends.
+    if ticker in rt_prices and rt_prices[ticker]:
+        curr = float(rt_prices[ticker])
 
     # "start" = last trading day strictly before this week's Monday (i.e.
     # the previous week's final close — last Friday in a normal week).
@@ -1566,106 +1558,142 @@ async def job_daily_email():
             positions  = portfolio_map.get(uid, [])
             watchlist  = watch_by_uid.get(uid, set())
             lang       = lang_map.get(uid, "es")
-            is_en      = lang == "en"
 
-            if is_premium and positions:
-                # ── Premium: personalized portfolio summary ────────────────────
-                enriched: list[dict] = []
-                total_val  = 0.0
-                total_prev = 0.0
-                for p in positions:
-                    ticker = p.get("ticker")
-                    shares = float(p.get("shares") or 0)
-                    if not ticker or not shares or ticker not in week_prices:
-                        continue
-                    px    = week_prices[ticker]
-                    cv    = px["curr"] * shares
-                    pv    = px["prev"] * shares
-                    pct   = (px["curr"] - px["prev"]) / px["prev"] * 100 if px["prev"] else 0.0
-                    d_usd = cv - pv
-                    total_val  += cv
-                    total_prev += pv
-                    enriched.append({
-                        "ticker":        ticker,
-                        "pct":           round(pct, 2),
-                        "dollar_change": round(d_usd, 2),
-                        "total_value":   round(cv, 2),
-                    })
+            subject, html = build_weekly_email_for_user(
+                first=first, is_premium=is_premium, positions=positions, watchlist=watchlist, lang=lang,
+                week_prices=week_prices, sp_pct=sp_pct, sp_px=sp_px, nq_pct=nq_pct, nq_px=nq_px,
+                market_wrap_by_lang=market_wrap_by_lang, all_today_earnings=all_today_earnings,
+                earnings_ai_map_by_lang=earnings_ai_map_by_lang, week_label_by_lang=week_label_by_lang,
+                sp_str=sp_str, nq_str=nq_str,
+            )
+            await send_email_notification(uid, "weekly_summary", subject, html, db)
+            sent += 1
 
-                port_pct = round((total_val - total_prev) / total_prev * 100, 2) if total_prev > 0 else None
-                port_usd = round(total_val - total_prev, 2) if total_prev > 0 else None
+        logger.info(
+            "Friday email: %d sent (%d premium, %d free) | S&P %s | NQ %s",
+            sent, len([u for u in opted_ids if tier_map.get(u) == "premium"]),
+            len([u for u in opted_ids if tier_map.get(u) != "premium"]),
+            sp_pct, nq_pct,
+        )
+    except Exception as e:
+        logger.error("job_daily_email failed: %s", e)
 
-                sorted_pos  = sorted(enriched, key=lambda x: x["pct"], reverse=True)
-                top_gainers = sorted_pos[:3]
-                top_losers  = list(reversed(sorted_pos))[:3]
 
-                port_tickers = {p["ticker"] for p in positions if p.get("ticker")}
-                relevant_earnings = (port_tickers | watchlist) & set(all_today_earnings.keys())
-                earnings_items: list[dict] = []
-                for t in sorted(relevant_earnings):
-                    e = all_today_earnings[t]
-                    earnings_items.append({
-                        "ticker":         t,
-                        "company_name":   t,
-                        "eps_actual":     e.get("eps_actual"),
-                        "eps_estimate":   e.get("eps_estimate"),
-                        "beat_eps":       e.get("beat_eps", False),
-                        "rev_actual_b":   e.get("rev_actual_b"),
-                        "rev_estimate_b": e.get("rev_estimate_b"),
-                        "beat_rev":       e.get("beat_rev", False),
-                        "hour":           e.get("hour", ""),
-                        "ai_analysis":    earnings_ai_map_by_lang.get(lang, {}).get(t, ""),
-                    })
+def build_weekly_email_for_user(
+    *, first, is_premium, positions, watchlist, lang,
+    week_prices, sp_pct, sp_px, nq_pct, nq_px,
+    market_wrap_by_lang, all_today_earnings, earnings_ai_map_by_lang,
+    week_label_by_lang, sp_str, nq_str,
+) -> tuple[str, str]:
+    """Builds one user's (subject, html) for the Friday weekly-summary email
+    — extracted out of job_daily_email's per-user loop so a manual test send
+    (notifications.py's /trigger/weekly-summary) can produce the EXACT same
+    output a real user gets, instead of a separately-written approximation
+    that could quietly drift from what actually ships (2026-08-21, Diego:
+    "siento que los correos... no llegan con los datos correctos" — the
+    fastest way to find out for real is to reuse the real code, not
+    reimplement a look-alike)."""
+    from app.services.email_templates import daily_email_v2
+    is_en = lang == "en"
 
-                html = daily_email_v2(
-                    first_name=first,
-                    port_pct=port_pct,
-                    port_usd=port_usd,
-                    sp_pct=sp_pct,
-                    sp_px=sp_px,
-                    nq_pct=nq_pct,
-                    nq_px=nq_px,
-                    top_gainers=top_gainers,
-                    top_losers=top_losers,
-                    ai_summary="",
-                    market_wrap=market_wrap_by_lang.get(lang, ""),
-                    earnings_items=earnings_items,
-                    period="semana",
-                    language=lang,
-                )
-                sign = "+" if port_pct and port_pct >= 0 else ""
-                if is_en:
-                    subject = (
-                        f"Your portfolio this week: {sign}{port_pct:.2f}% — Nuvos AI"
-                        if port_pct is not None
-                        else "Your weekly market summary — Nuvos AI"
-                    )
-                else:
-                    subject = (
-                        f"Tu portafolio esta semana: {sign}{port_pct:.2f}% — Nuvos AI"
-                        if port_pct is not None
-                        else "Tu resumen semanal del mercado — Nuvos AI"
-                    )
-            else:
-                # ── Free: general market summary for the week ──────────────────
-                # Convert plain-text paragraphs to HTML (AI sometimes ignores no-markdown instruction)
-                def _plain_to_html(text: str) -> str:
-                    import re
-                    text = re.sub(r"#+ ?", "", text)           # strip any markdown headers
-                    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
-                    paras = [p.strip() for p in text.split("\n\n") if p.strip()]
-                    if not paras:
-                        paras = [p.strip() for p in text.split("\n") if p.strip()]
-                    return "".join(f'<p style="color:#d1d5db;font-size:14px;line-height:1.75;margin:0 0 14px">{p}</p>' for p in paras)
+    if is_premium and positions:
+        # ── Premium: personalized portfolio summary ────────────────────
+        enriched: list[dict] = []
+        total_val  = 0.0
+        total_prev = 0.0
+        for p in positions:
+            ticker = p.get("ticker")
+            shares = float(p.get("shares") or 0)
+            if not ticker or not shares or ticker not in week_prices:
+                continue
+            px    = week_prices[ticker]
+            cv    = px["curr"] * shares
+            pv    = px["prev"] * shares
+            pct   = (px["curr"] - px["prev"]) / px["prev"] * 100 if px["prev"] else 0.0
+            d_usd = cv - pv
+            total_val  += cv
+            total_prev += pv
+            enriched.append({
+                "ticker":        ticker,
+                "pct":           round(pct, 2),
+                "dollar_change": round(d_usd, 2),
+                "total_value":   round(cv, 2),
+            })
 
-                market_body = _plain_to_html(market_wrap_by_lang.get(lang, "")) if market_wrap_by_lang.get(lang) else ""
-                sp_color  = "#22c55e" if sp_pct is not None and sp_pct >= 0 else "#ef4444"
-                nq_color  = "#22c55e" if nq_pct is not None and nq_pct >= 0 else "#ef4444"
-                sp_border = "rgba(34,197,94,0.25)"  if sp_pct is not None and sp_pct >= 0 else "rgba(239,68,68,0.25)"
-                nq_border = "rgba(34,197,94,0.25)"  if nq_pct is not None and nq_pct >= 0 else "rgba(239,68,68,0.25)"
-                week_label = week_label_by_lang.get(lang, week_label_by_lang["es"])
-                fc = _FREE_WEEKLY_COPY.get(lang, _FREE_WEEKLY_COPY["es"])
-                html = f"""<!DOCTYPE html>
+        port_pct = round((total_val - total_prev) / total_prev * 100, 2) if total_prev > 0 else None
+        port_usd = round(total_val - total_prev, 2) if total_prev > 0 else None
+
+        sorted_pos  = sorted(enriched, key=lambda x: x["pct"], reverse=True)
+        top_gainers = sorted_pos[:3]
+        top_losers  = list(reversed(sorted_pos))[:3]
+
+        port_tickers = {p["ticker"] for p in positions if p.get("ticker")}
+        relevant_earnings = (port_tickers | watchlist) & set(all_today_earnings.keys())
+        earnings_items: list[dict] = []
+        for t in sorted(relevant_earnings):
+            e = all_today_earnings[t]
+            earnings_items.append({
+                "ticker":         t,
+                "company_name":   t,
+                "eps_actual":     e.get("eps_actual"),
+                "eps_estimate":   e.get("eps_estimate"),
+                "beat_eps":       e.get("beat_eps", False),
+                "rev_actual_b":   e.get("rev_actual_b"),
+                "rev_estimate_b": e.get("rev_estimate_b"),
+                "beat_rev":       e.get("beat_rev", False),
+                "hour":           e.get("hour", ""),
+                "ai_analysis":    earnings_ai_map_by_lang.get(lang, {}).get(t, ""),
+            })
+
+        html = daily_email_v2(
+            first_name=first,
+            port_pct=port_pct,
+            port_usd=port_usd,
+            sp_pct=sp_pct,
+            sp_px=sp_px,
+            nq_pct=nq_pct,
+            nq_px=nq_px,
+            top_gainers=top_gainers,
+            top_losers=top_losers,
+            ai_summary="",
+            market_wrap=market_wrap_by_lang.get(lang, ""),
+            earnings_items=earnings_items,
+            period="semana",
+            language=lang,
+        )
+        sign = "+" if port_pct and port_pct >= 0 else ""
+        if is_en:
+            subject = (
+                f"Your portfolio this week: {sign}{port_pct:.2f}% — Nuvos AI"
+                if port_pct is not None
+                else "Your weekly market summary — Nuvos AI"
+            )
+        else:
+            subject = (
+                f"Tu portafolio esta semana: {sign}{port_pct:.2f}% — Nuvos AI"
+                if port_pct is not None
+                else "Tu resumen semanal del mercado — Nuvos AI"
+            )
+    else:
+        # ── Free: general market summary for the week ──────────────────
+        # Convert plain-text paragraphs to HTML (AI sometimes ignores no-markdown instruction)
+        def _plain_to_html(text: str) -> str:
+            import re
+            text = re.sub(r"#+ ?", "", text)           # strip any markdown headers
+            text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+            paras = [p.strip() for p in text.split("\n\n") if p.strip()]
+            if not paras:
+                paras = [p.strip() for p in text.split("\n") if p.strip()]
+            return "".join(f'<p style="color:#d1d5db;font-size:14px;line-height:1.75;margin:0 0 14px">{p}</p>' for p in paras)
+
+        market_body = _plain_to_html(market_wrap_by_lang.get(lang, "")) if market_wrap_by_lang.get(lang) else ""
+        sp_color  = "#22c55e" if sp_pct is not None and sp_pct >= 0 else "#ef4444"
+        nq_color  = "#22c55e" if nq_pct is not None and nq_pct >= 0 else "#ef4444"
+        sp_border = "rgba(34,197,94,0.25)"  if sp_pct is not None and sp_pct >= 0 else "rgba(239,68,68,0.25)"
+        nq_border = "rgba(34,197,94,0.25)"  if nq_pct is not None and nq_pct >= 0 else "rgba(239,68,68,0.25)"
+        week_label = week_label_by_lang.get(lang, week_label_by_lang["es"])
+        fc = _FREE_WEEKLY_COPY.get(lang, _FREE_WEEKLY_COPY["es"])
+        html = f"""<!DOCTYPE html>
 <html lang="{lang}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuvos AI</title></head>
 <body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
@@ -1724,19 +1752,9 @@ async def job_daily_email():
   </div>
 </div>
 </body></html>"""
-                subject = fc["subject"].format(sp_str=sp_str, nq_str=nq_str)
+        subject = fc["subject"].format(sp_str=sp_str, nq_str=nq_str)
 
-            await send_email_notification(uid, "weekly_summary", subject, html, db)
-            sent += 1
-
-        logger.info(
-            "Friday email: %d sent (%d premium, %d free) | S&P %s | NQ %s",
-            sent, len([u for u in opted_ids if tier_map.get(u) == "premium"]),
-            len([u for u in opted_ids if tier_map.get(u) != "premium"]),
-            sp_pct, nq_pct,
-        )
-    except Exception as e:
-        logger.error("job_daily_email failed: %s", e)
+    return subject, html
 
 
 async def get_price_alert_why_with_diagnostics(ticker: str, pct: float, price: float) -> dict:
