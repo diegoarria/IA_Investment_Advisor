@@ -3852,29 +3852,55 @@ async def send_birthday_emails():
 
 
 async def send_reengagement_emails():
-    """Saturdays — email users inactive for 7+ days with 3 notable portfolio movers."""
+    """Saturdays — email users inactive for 7+ days with 3 notable portfolio
+    movers. Was fully built but never scheduled or wired up (2026-08-21
+    audit) — this is the only one of that audit's 3 dormant email jobs
+    Diego actually asked to turn on."""
     if not settings.resend_api_key:
         return
     from app.core.database import get_supabase, run_query
     db = get_supabase()
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
     try:
-        prefs_res = await run_query(
-            db.table("notification_preferences").select("user_id,last_opened_app")
-        )
-        inactive_uids = [
-            r["user_id"]
-            for r in (prefs_res.data or [])
-            if not r.get("last_opened_app") or r["last_opened_app"] < cutoff
-        ]
-        if not inactive_uids:
+        # Inactivity signal: Supabase Auth's own last_sign_in_at, not
+        # notification_preferences.last_opened_app — that column is only
+        # ever updated when a user opens a PUSH notification
+        # (notification_engine.py's track_event, "opened" branch), so
+        # someone using the app daily via web without ever tapping a push
+        # would look permanently "inactive" and get told their portfolio
+        # misses them while they're using it right now (2026-08-21, found
+        # while wiring this job up — it was never scheduled before, so this
+        # bug had never actually fired on a real user).
+        auth_users_list = await asyncio.to_thread(lambda: db.auth.admin.list_users())
+        auth_users = {u.id: u.email for u in auth_users_list}
+        inactive_ids_from_auth = {
+            u.id for u in auth_users_list
+            if not u.last_sign_in_at or u.last_sign_in_at < cutoff
+        }
+        if not inactive_ids_from_auth:
             logger.info("Re-engagement email: no inactive users found")
+            return
+
+        # No dedicated toggle exists for this specific email (win-back,
+        # inactive-users-only) — reuses email_weekly_summary, the closest
+        # existing opt-out (same weekly cadence, same "summary-style" email
+        # category as job_daily_email's Friday send, which gates on this
+        # same column). Without this, a user who explicitly turned off
+        # weekly emails would still get this one — the function never
+        # checked ANY opt-out before this fix.
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,email_weekly_summary")
+            .in_("user_id", list(inactive_ids_from_auth))
+        )
+        opted_out = {p["user_id"] for p in (prefs_res.data or []) if p.get("email_weekly_summary") is False}
+        inactive_uids = [uid for uid in inactive_ids_from_auth if uid not in opted_out]
+        if not inactive_uids:
+            logger.info("Re-engagement email: no inactive users found (all opted out)")
             return
 
         users_res = await run_query(
             db.table("user_profiles").select("user_id,name").in_("user_id", inactive_uids)
         )
-        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
 
         all_tickers: set[str] = set()
         port_map: dict[str, list] = {}
@@ -4742,6 +4768,12 @@ async def main():
 
     # ── Specials ──────────────────────────────────────────────────────────────
     scheduler.add_job(send_birthday_emails,     "cron",                     hour=8,       minute=0,     timezone="America/New_York")
+    # Saturday 10am ET — win-back email for users inactive 7+ days (see
+    # send_reengagement_emails' docstring). Built earlier but never
+    # scheduled until Diego asked to turn this one on specifically
+    # (2026-08-21) — the other two dormant email jobs from that same audit
+    # (send_weekly_emails, send_educational_emails) stay off.
+    scheduler.add_job(send_reengagement_emails, "cron", day_of_week="sat", hour=10,      minute=0,     timezone="America/New_York")
 
     # ── Proactive Arthur ───────────────────────────────────────────────────
     scheduler.add_job(job_proactive_vs_market,        "cron", day_of_week="mon-fri", hour=16, minute=45, timezone="America/New_York")
