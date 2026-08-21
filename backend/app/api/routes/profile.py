@@ -196,7 +196,13 @@ async def create_profile(
                 await asyncio.sleep(0.3)
             if not result.data:
                 raise HTTPException(status_code=503, detail="No se pudo crear tu perfil. Intenta de nuevo en unos segundos.")
-        # Send welcome email to new users (fire-and-forget)
+        # Send welcome email to new users (fire-and-forget) — logged either
+        # way, unlike before: a bare except:pass around a
+        # create_task(send_email(...)) that's never awaited swallowed BOTH
+        # the setup steps (get_user_by_id, template build) AND, since
+        # send_email itself returns False rather than raising on failure
+        # (see email_service.py), the actual send outcome never reached any
+        # log at all — a failed welcome email left zero trace anywhere.
         try:
             from app.services.email_service import build_welcome_html, send_email
             auth_res = await asyncio.to_thread(lambda: db.auth.admin.get_user_by_id(user_id))
@@ -209,9 +215,20 @@ async def create_profile(
                     if data.language == "en"
                     else "🚀 ¡Bienvenido a Nuvos AI! Con Nuvos, invierte sin miedo."
                 )
-                asyncio.create_task(send_email(email_addr, subject, html))
+
+                async def _send_and_log(addr: str, subj: str, body: str) -> None:
+                    try:
+                        ok = await send_email(addr, subj, body)
+                        if not ok:
+                            logger.error("onboarding welcome email: send_email returned False for %s", addr)
+                    except Exception:
+                        logger.exception("onboarding welcome email: send_email raised for %s", addr)
+
+                asyncio.create_task(_send_and_log(email_addr, subject, html))
+            else:
+                logger.warning("onboarding welcome email: no email found for user_id=%s, skipped", user_id)
         except Exception:
-            pass
+            logger.exception("onboarding welcome email: setup failed for user_id=%s", user_id)
         # Create default notification preferences for new users. Guarded the
         # same way as the welcome email above — this used to be unguarded,
         # so a transient failure here (RLS hiccup, timeout) 500'd the whole

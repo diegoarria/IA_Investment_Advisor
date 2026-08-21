@@ -7,6 +7,8 @@ GET  /support/tickets — admin: list all open tickets
 PUT  /support/tickets/{id} — admin: reply to / close a ticket
 """
 
+import logging
+
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -16,6 +18,8 @@ from app.core.database import get_supabase, run_query
 from app.core.limiter import limiter
 from app.services.email_service import send_email
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 ADMIN_EMAIL = "diegoarria@nuvosai.com"
 
@@ -119,6 +123,7 @@ async def create_ticket(
         result = await run_query(db.table("support_tickets").insert(record))
         ticket_id = result.data[0]["id"] if result.data else None
     except Exception:
+        logger.exception("support ticket insert failed for user_id=%s", user_id)
         ticket_id = None
 
     # Notify admin by email — fire-and-forget, never blocks the response
@@ -151,9 +156,16 @@ async def create_ticket(
     Enviado desde Nuvos AI · {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
   </p>
 </div>"""
-        await send_email(ADMIN_EMAIL, f"[Soporte] {subject}", html)
+        sent = await send_email(ADMIN_EMAIL, f"[Soporte] {subject}", html)
+        if not sent:
+            logger.error("support ticket admin notification: send_email returned False, ticket_id=%s", ticket_id)
     except Exception:
-        pass
+        # Never blocks the ticket response (the ticket itself is already
+        # saved above) — but this used to be a bare except:pass, so a real
+        # send failure here left zero trace: an admin notification could
+        # silently vanish with no log anywhere to explain why support never
+        # heard about a ticket.
+        logger.exception("support ticket admin notification failed, ticket_id=%s", ticket_id)
 
     return {"ok": True, "ticket_id": ticket_id}
 

@@ -992,7 +992,11 @@ async def job_holiday_midday():
 
 
 async def job_market_close():
-    """4:05 PM ET weekdays — personalized market close push + email per user.
+    """4:05 PM ET weekdays — personalized market close PUSH ONLY per user
+    (docstring/comment used to say "push + email" — that was true once, but
+    the email half was deliberately dropped in favor of job_daily_email's
+    richer Friday summary; nothing here has sent an email in a long time,
+    it just never got un-documented, see the fan-out section below).
     Skips weekends and NYSE holidays via _is_market_open_today().
     Uses SPY/QQQ as S&P 500/Nasdaq proxies (^GSPC/^IXIC are IP-blocked on Railway).
     Premium push leads with the dollar amount gained/lost and a brief, calm
@@ -1000,8 +1004,7 @@ async def job_market_close():
     framing on a down day, always a short "why".
     """
     from app.core.database import get_supabase, run_query
-    from app.services.notification_engine import send_push, send_email_notification
-    from app.services.email_templates import daily_email_v2
+    from app.services.notification_engine import send_push
 
     # ── 0. Holiday / weekend guard ────────────────────────────────────────────
     if not _is_market_open_today():
@@ -1107,12 +1110,14 @@ async def job_market_close():
         indices  = f"{sp_line} · {nq_line}"
 
         # ── 6. Fan out ────────────────────────────────────────────────────────
-        # • Has portfolio  → personalized push (if capable) + personalized email
-        # • No portfolio   → generic push only (if capable), no email
+        # Push only, for everyone — no email is sent from this job at all
+        # (email goes out Fridays via job_daily_email instead).
+        # • Has portfolio  → personalized push (if capable)
+        # • No portfolio   → generic push only (if capable)
         generic_push_uids = (push_capable - set(portfolio_map.keys())) - disabled
         all_uids          = (set(portfolio_map.keys()) | generic_push_uids) - disabled
 
-        sent_push = sent_email = 0
+        sent_push = 0
         for i, uid in enumerate(sorted(all_uids)):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
@@ -1185,8 +1190,8 @@ async def job_market_close():
                 logger.error("job_market_close: failed for user %s: %s", uid, e)
 
         logger.info(
-            "Market close: %d total | %d push | %d email | S&P %s | NQ %s",
-            len(all_uids), sent_push, sent_email, sp500_pct, nasdaq_pct,
+            "Market close: %d total | %d push | S&P %s | NQ %s",
+            len(all_uids), sent_push, sp500_pct, nasdaq_pct,
         )
     except Exception as e:
         logger.error("job_market_close failed: %s", e)

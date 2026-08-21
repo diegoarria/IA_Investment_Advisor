@@ -352,9 +352,15 @@ async def forgot_password(request: Request, body: dict):
   </div>
 </body></html>"""
                 subject = "Tu código de verificación — Nuvos AI"
-            await send_email(email, subject, html)
+            sent = await send_email(email, subject, html)
+            if not sent:
+                logger.error("forgot_password: send_email returned False for %s", email)
     except Exception:
-        pass
+        # Logged, but the client-facing response never changes on failure —
+        # deliberately not leaking whether the email exists (enumeration
+        # protection). Before this, a real send failure here left zero
+        # trace anywhere, identical to a user who just mistyped their email.
+        logger.exception("forgot_password: failed for %s", email)
     return {"message": "Si el email existe recibirás un código en tu correo"}
 
 
