@@ -235,7 +235,19 @@ async def redeem_session(user_id: str = Depends(get_current_user_id)):
     if count <= 0:
         raise HTTPException(status_code=400, detail="No tienes sesiones 1:1 gratis disponibles")
 
-    await run_query(
-        db.table("user_profiles").update({"free_1on1_sessions": count - 1}).eq("user_id", user_id)
+    # Compare-and-swap on the exact value just read, not a blind
+    # decrement — two concurrent requests (double-click, retry) both
+    # reading count=1 would otherwise both pass the check above and both
+    # write free_1on1_sessions=0, spending the same single credit twice.
+    # If a concurrent request already consumed it between our read and
+    # this write, free_1on1_sessions no longer equals `count` and this
+    # update matches zero rows instead of silently double-spending.
+    result = await run_query(
+        db.table("user_profiles")
+        .update({"free_1on1_sessions": count - 1})
+        .eq("user_id", user_id)
+        .eq("free_1on1_sessions", count)
     )
+    if not result.data:
+        raise HTTPException(status_code=409, detail="Esa sesión ya fue redimida, intenta de nuevo")
     return {"ok": True, "remaining": count - 1}

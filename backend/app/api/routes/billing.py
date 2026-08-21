@@ -203,6 +203,31 @@ async def _downgrade_by_customer_id(customer_id: str, db) -> None:
     )
 
 
+async def _safe_to_downgrade_duo_secondary(secondary_id: str, db) -> bool:
+    """True unless downgrading this specific user_id to free would strip
+    premium they're not actually getting from the duo pairing being
+    revoked. Both duo-secondary revocation call sites (a cancelled/
+    reassigned duo plan) used to blindly set subscription_tier='free' on
+    the secondary by user_id alone — with no awareness that this exact
+    account could independently be: (a) manually comp'd permanent premium
+    (subscription_source='manual_comp', same class of bug fixed for the
+    primary-customer-id downgrade path in commit bd722446), or (b) a real,
+    separate paying subscriber under their OWN stripe_customer_id (e.g.
+    they bought their own individual plan, or lead their own duo pairing,
+    independent of being someone else's secondary). Neither case has
+    anything to do with the duo plan being cancelled/reassigned, so
+    neither should ever be touched by that event."""
+    res = await run_query(
+        db.table("user_profiles").select("subscription_source, stripe_customer_id").eq("user_id", secondary_id).maybe_single()
+    )
+    row = res.data or {}
+    if row.get("subscription_source") == "manual_comp":
+        return False
+    if row.get("stripe_customer_id"):
+        return False
+    return True
+
+
 async def _invalidate_profile_cache_by_customer(customer_id: str, db):
     """Webhook branches that key their update by stripe_customer_id (rather
     than user_id) don't have the user_id in scope to invalidate the
@@ -391,7 +416,11 @@ async def _revoke_duo_secondary(primary_customer_id: str, db):
     """When a duo subscription ends, revoke premium from the linked secondary
     account and clear the bidirectional link on both sides — otherwise a
     cancelled pairing would leave stale duo_primary_user_id/duo_secondary_user_id
-    pointing at an account that's no longer actually linked."""
+    pointing at an account that's no longer actually linked.
+
+    Skips the downgrade (still clears the stale link) when the secondary
+    is independently premium on their own — see
+    _safe_to_downgrade_duo_secondary."""
     try:
         primary_res = await run_query(
             db.table("user_profiles")
@@ -404,14 +433,20 @@ async def _revoke_duo_secondary(primary_customer_id: str, db):
             return
         secondary_id = primary_row.get("duo_secondary_user_id") or await _find_user_id_by_email(secondary_email, db)
         if secondary_id:
+            # The pairing itself always ends here regardless of tier —
+            # only whether we also reset THEIR tier back to free depends
+            # on whether that tier actually came from this pairing.
+            update = {"duo_primary_user_id": None}
+            if await _safe_to_downgrade_duo_secondary(secondary_id, db):
+                update["subscription_tier"] = "free"
+                logger.info("Duo secondary %s reverted to free", secondary_email)
+            else:
+                logger.info("Duo secondary %s unlinked but kept premium (independently premium)", secondary_email)
             await run_query(
-                db.table("user_profiles")
-                .update({"subscription_tier": "free", "duo_primary_user_id": None})
-                .eq("user_id", secondary_id)
+                db.table("user_profiles").update(update).eq("user_id", secondary_id)
             )
             cache_delete(f"profile:{secondary_id}")
             cache_delete(f"sync:all:{secondary_id}")
-            logger.info("Duo secondary %s reverted to free", secondary_email)
         await run_query(
             db.table("user_profiles")
             .update({"duo_secondary_user_id": None})
@@ -459,14 +494,20 @@ async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
     # duo plan can never grant premium to more than one secondary at a time.
     old_secondary_id = check.data.get("duo_secondary_user_id")
     if old_secondary_id and old_secondary_id != secondary_id:
+        # Same independently-premium check as _revoke_duo_secondary — the
+        # old secondary's pairing always ends here, but their tier only
+        # resets if it actually came from this pairing.
+        update: dict = {"duo_primary_user_id": None}
+        if await _safe_to_downgrade_duo_secondary(old_secondary_id, db):
+            update["subscription_tier"] = "free"
+            logger.info("Duo setup: revoked stale secondary=%s for primary=%s (replaced by %s)", old_secondary_id, user_id, secondary_id)
+        else:
+            logger.info("Duo setup: unlinked stale secondary=%s but kept premium (independently premium)", old_secondary_id)
         await run_query(
-            db.table("user_profiles")
-            .update({"subscription_tier": "free", "duo_primary_user_id": None})
-            .eq("user_id", old_secondary_id)
+            db.table("user_profiles").update(update).eq("user_id", old_secondary_id)
         )
         cache_delete(f"profile:{old_secondary_id}")
         cache_delete(f"sync:all:{old_secondary_id}")
-        logger.info("Duo setup: revoked stale secondary=%s for primary=%s (replaced by %s)", old_secondary_id, user_id, secondary_id)
 
     # 3. Grant premium to secondary account + link back to the primary, so the
     # secondary can look up its own partner instead of the link only working
