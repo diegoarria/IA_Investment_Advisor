@@ -271,7 +271,13 @@ async def broker_call_checkout(user_id: str = Depends(get_current_user_id)):
             line_items=[{"price": settings.stripe_price_broker_call, "quantity": 1}],
             client_reference_id=user_id,
             metadata={"offer": "broker_call"},
-            success_url="https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai",
+            # Was a direct link to the public Calendly URL — no payment
+            # verification ever happened for this flow at all (not even the
+            # weak "same link shown to everyone" the "session" offer had).
+            # Routes through /upsell-success now so verify-1on1-payment can
+            # actually confirm this specific checkout before the Calendly
+            # link is revealed (2026-08-20 audit).
+            success_url=f"{base}/upsell-success?offer=broker_call&session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{base}/home",
         )
     except Exception as e:

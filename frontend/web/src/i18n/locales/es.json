@@ -2597,7 +2597,10 @@
       "recording": "Grabación entregada después de la sesión",
       "nextStep": "Siguiente paso",
       "nextStepDesc": "Elige el día y hora que mejor te quede. Recibirás una confirmación por email con el link de la videollamada.",
-      "scheduleCta": "Agendar mi sesión en Calendly"
+      "scheduleCta": "Agendar mi sesión en Calendly",
+      "verifying": "Verificando tu pago...",
+      "verifyError": "No pudimos verificar tu pago",
+      "verifyErrorDesc": "No perdiste tu compra — escríbenos y confirmamos el pago manualmente para que puedas agendar."
     },
     "familyPlan": {
       "whichAccounts": "¿Qué cuentas quieres agregar?",

@@ -4,7 +4,7 @@ Trigger evaluation runs server-side; frontend decides when to call based on user
 """
 import asyncio
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 import stripe
 import logging
 
@@ -230,6 +230,106 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
 
     await _track(db, user_id, "upsell_converted", offer, tier, body.get("trigger_source"), {"variant": key})
     return {"url": session.url}
+
+
+# ── 1:1 session payment verification (migration 081) ───────────────────────
+# Paying for a 1:1 session ("session" offer here, or billing.py's flat-$20
+# "broker_call") used to hand the user the exact same PUBLIC Calendly link
+# shown to non-paying users too — nothing recorded that a specific Stripe
+# payment happened, so booking had zero automated verification (Diego,
+# 2026-08-20 audit: 100% manual reconciliation against the Stripe
+# dashboard). These two endpoints close that gap: verify grants a durable
+# credit the instant the user lands back from checkout (same live
+# stripe.checkout.Session.retrieve pattern as research.py's /research/start,
+# not the async webhook, so there's no race with Stripe's webhook delivery
+# delay), and redeem spends exactly one credit before the frontend reveals
+# the Calendly booking link.
+
+@router.post("/verify-1on1-payment")
+async def verify_1on1_payment(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Verifies a completed Stripe checkout for a 1:1 session offer and
+    grants the corresponding credit(s) to paid_1on1_sessions. Idempotent
+    per stripe_session_id — redeemed_1on1_checkouts' primary key means
+    re-verifying the same checkout (page reload, double call) never
+    double-grants, it just reports the existing balance back."""
+    stripe_session_id = body.get("stripe_session_id")
+    if not stripe_session_id:
+        raise HTTPException(status_code=400, detail="stripe_session_id es requerido")
+    if not settings.stripe_secret_key:
+        raise HTTPException(status_code=503, detail="Pagos no configurados")
+
+    db = get_supabase()
+    stripe.api_key = settings.stripe_secret_key
+    try:
+        session = await asyncio.to_thread(stripe.checkout.Session.retrieve, stripe_session_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo verificar el pago — intenta de nuevo en unos segundos")
+
+    metadata = session.get("metadata") or {}
+    offer = metadata.get("offer")
+    if (
+        session.get("payment_status") != "paid"
+        or session.get("client_reference_id") != user_id
+        or offer not in ("session", "broker_call")
+    ):
+        raise HTTPException(status_code=402, detail="Pago no confirmado para esta sesión")
+
+    credits = 3 if metadata.get("variant") == "bundle" else 1
+
+    try:
+        await run_query(
+            db.table("redeemed_1on1_checkouts").insert({
+                "stripe_session_id": stripe_session_id,
+                "user_id": user_id,
+                "offer": offer,
+                "credits_granted": credits,
+            })
+        )
+    except Exception:
+        # Unique-violation on stripe_session_id — already credited by an
+        # earlier call for this exact checkout. Report the current balance
+        # instead of granting a second time.
+        row = await run_query(
+            db.table("user_profiles").select("paid_1on1_sessions").eq("user_id", user_id).maybe_single()
+        )
+        balance = int(((row.data if row else None) or {}).get("paid_1on1_sessions") or 0)
+        return {"ok": True, "granted": 0, "balance": balance}
+
+    row = await run_query(
+        db.table("user_profiles").select("paid_1on1_sessions").eq("user_id", user_id).maybe_single()
+    )
+    current = int(((row.data if row else None) or {}).get("paid_1on1_sessions") or 0)
+    new_balance = current + credits
+    await run_query(
+        db.table("user_profiles").update({"paid_1on1_sessions": new_balance}).eq("user_id", user_id)
+    )
+    return {"ok": True, "granted": credits, "balance": new_balance}
+
+
+@router.post("/redeem-1on1-session")
+async def redeem_1on1_session(user_id: str = Depends(get_current_user_id)):
+    """Spend one paid 1:1 session credit so the frontend can reveal the
+    Calendly booking link. Compare-and-swap on the exact value just read
+    (same fix as referral.py's redeem-session) — two concurrent calls
+    reading the same balance can't both decrement from the same stale
+    read and double-spend a single credit."""
+    db = get_supabase()
+    row = await run_query(
+        db.table("user_profiles").select("paid_1on1_sessions").eq("user_id", user_id).maybe_single()
+    )
+    count = int(((row.data if row else None) or {}).get("paid_1on1_sessions") or 0)
+    if count <= 0:
+        raise HTTPException(status_code=400, detail="No tienes sesiones 1:1 pagadas disponibles")
+
+    result = await run_query(
+        db.table("user_profiles")
+        .update({"paid_1on1_sessions": count - 1})
+        .eq("user_id", user_id)
+        .eq("paid_1on1_sessions", count)
+    )
+    if not result.data:
+        raise HTTPException(status_code=409, detail="Ese crédito ya fue redimido, intenta de nuevo")
+    return {"ok": True, "remaining": count - 1}
 
 
 @router.post("/events")

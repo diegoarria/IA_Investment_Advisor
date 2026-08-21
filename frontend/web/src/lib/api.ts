@@ -379,6 +379,9 @@ export const billing = {
 export const upsells = {
   checkout: (offer: string, variant: string, trigger_source: string, extra?: Record<string, unknown>) =>
     api.post("/api/upsells/checkout", { offer, variant, trigger_source, ...extra }),
+  verify1on1Payment: (stripeSessionId: string) =>
+    api.post("/api/upsells/verify-1on1-payment", { stripe_session_id: stripeSessionId }),
+  redeem1on1Session: () => api.post("/api/upsells/redeem-1on1-session"),
 };
 
 export const researchApi = {

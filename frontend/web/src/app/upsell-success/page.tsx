@@ -4,8 +4,8 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { CheckCircle, Calendar, ExternalLink, ArrowRight, Loader2, Users } from "lucide-react";
-import { billing } from "@/lib/api";
+import { CheckCircle, Calendar, ExternalLink, ArrowRight, Loader2, Users, AlertTriangle } from "lucide-react";
+import { billing, upsells } from "@/lib/api";
 import { getSupabaseClient } from "@/lib/supabase";
 
 // ← Reemplaza con tu link real de Calendly
@@ -30,7 +30,13 @@ function getOfferMeta(t: TFunction) {
   };
 }
 
-type Offer = "session" | "family_plan";
+type Offer = "session" | "family_plan" | "broker_call";
+// One-time-payment 1:1 call offers whose booking link (Calendly) must never
+// be shown until the backend has actually verified this specific Stripe
+// checkout — see verify-1on1-payment/redeem-1on1-session, added after a
+// 2026-08-20 audit found the link was public and shown regardless of
+// payment (backend/app/api/routes/upsells.py's comment has the full story).
+const PAID_1ON1_OFFERS: Offer[] = ["session", "broker_call"];
 
 function UpsellSuccessContent() {
   const router = useRouter();
@@ -38,7 +44,9 @@ function UpsellSuccessContent() {
   const OFFER_META = getOfferMeta(t);
   const params = useSearchParams();
   const offer = (params.get("offer") ?? "session") as Offer;
-  const meta = OFFER_META[offer] ?? OFFER_META.session;
+  // broker_call reuses the "session" offer's copy/visuals — same "you paid,
+  // here's your booking link" story, no separate translated content exists.
+  const meta = OFFER_META[offer === "broker_call" ? "session" : offer] ?? OFFER_META.session;
 
   const [visible, setVisible] = useState(false);
   // Duo plan setup state
@@ -47,6 +55,11 @@ function UpsellSuccessContent() {
   const [duoSaving, setDuoSaving] = useState(false);
   const [duoSaved, setDuoSaved] = useState(false);
   const [duoError, setDuoError] = useState("");
+
+  // 1:1 session payment verification — CTA only ever renders once this
+  // reaches "ready". A session_id-less visit (or a checkout that doesn't
+  // verify) lands on "error" and never gets the Calendly link.
+  const [payState, setPayState] = useState<"idle" | "verifying" | "ready" | "error">("idle");
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 100);
@@ -57,6 +70,21 @@ function UpsellSuccessContent() {
       });
     }
     return () => clearTimeout(timer);
+  }, [offer]);
+
+  useEffect(() => {
+    if (!PAID_1ON1_OFFERS.includes(offer)) return;
+    const sessionId = params.get("session_id");
+    if (!sessionId) {
+      setPayState("error");
+      return;
+    }
+    setPayState("verifying");
+    upsells.verify1on1Payment(sessionId)
+      .then(() => upsells.redeem1on1Session())
+      .then(() => setPayState("ready"))
+      .catch(() => setPayState("error"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offer]);
 
   const handleDuoSave = async () => {
@@ -133,37 +161,55 @@ function UpsellSuccessContent() {
           flexDirection: "column",
           gap: 16,
         }}>
-          {offer === "session" && (
-            <>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <CheckCircle size={18} color="#22c55e" />
-                <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.session.paymentProcessed", { amount: params.get("amount") ?? "" })}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <CheckCircle size={18} color="#22c55e" />
-                <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.session.videoCall")}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <CheckCircle size={18} color="#22c55e" />
-                <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.session.recording")}</span>
-              </div>
-
-              <div style={{
-                marginTop: 4,
-                padding: "14px 16px",
-                background: `${meta.color}0d`,
-                border: `1px solid ${meta.color}25`,
-                borderRadius: 14,
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <Calendar size={15} color={meta.color} />
-                  <span style={{ color: meta.color, fontSize: 12, fontWeight: 700 }}>{t("upsellSuccess.session.nextStep")}</span>
-                </div>
-                <p style={{ color: "#e5e7eb", fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-                  {t("upsellSuccess.session.nextStepDesc")}
+          {PAID_1ON1_OFFERS.includes(offer) && (
+            payState === "error" ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "8px 0", textAlign: "center" }}>
+                <AlertTriangle size={32} color="#f87171" />
+                <p style={{ color: "#fecaca", fontSize: 15, fontWeight: 700, margin: 0 }}>
+                  {t("upsellSuccess.session.verifyError")}
+                </p>
+                <p style={{ color: "#9ca3af", fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+                  {t("upsellSuccess.session.verifyErrorDesc")}
                 </p>
               </div>
-            </>
+            ) : payState !== "ready" ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "16px 0" }}>
+                <Loader2 size={28} color={meta.color} style={{ animation: "spin 1s linear infinite" }} />
+                <p style={{ color: "#d1d5db", fontSize: 14, margin: 0 }}>{t("upsellSuccess.session.verifying")}</p>
+                <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <CheckCircle size={18} color="#22c55e" />
+                  <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.session.paymentProcessed", { amount: params.get("amount") ?? "" })}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <CheckCircle size={18} color="#22c55e" />
+                  <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.session.videoCall")}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <CheckCircle size={18} color="#22c55e" />
+                  <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.session.recording")}</span>
+                </div>
+
+                <div style={{
+                  marginTop: 4,
+                  padding: "14px 16px",
+                  background: `${meta.color}0d`,
+                  border: `1px solid ${meta.color}25`,
+                  borderRadius: 14,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <Calendar size={15} color={meta.color} />
+                    <span style={{ color: meta.color, fontSize: 12, fontWeight: 700 }}>{t("upsellSuccess.session.nextStep")}</span>
+                  </div>
+                  <p style={{ color: "#e5e7eb", fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+                    {t("upsellSuccess.session.nextStepDesc")}
+                  </p>
+                </div>
+              </>
+            )
           )}
 
           {offer === "family_plan" && (
@@ -288,8 +334,9 @@ function UpsellSuccessContent() {
           )}
         </div>
 
-        {/* CTA buttons */}
-        {offer === "session" && (
+        {/* CTA buttons — only once the payment is actually verified, never
+            just because offer=="session"/"broker_call" is in the URL. */}
+        {PAID_1ON1_OFFERS.includes(offer) && payState === "ready" && (
           <a
             href={CALENDLY_URL}
             target="_blank"

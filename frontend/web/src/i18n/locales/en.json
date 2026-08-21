@@ -2597,7 +2597,10 @@
       "recording": "Recording delivered after the session",
       "nextStep": "Next step",
       "nextStepDesc": "Pick the day and time that works best for you. You'll get an email confirmation with the video call link.",
-      "scheduleCta": "Schedule my session on Calendly"
+      "scheduleCta": "Schedule my session on Calendly",
+      "verifying": "Verifying your payment...",
+      "verifyError": "We couldn't verify your payment",
+      "verifyErrorDesc": "You haven't lost your purchase — reach out and we'll confirm the payment manually so you can book."
     },
     "familyPlan": {
       "whichAccounts": "Which accounts do you want to add?",
