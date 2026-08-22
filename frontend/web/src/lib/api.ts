@@ -355,8 +355,15 @@ export const sync = {
 };
 
 export const explain = {
+  // 45s, not 25s: the backend chains a Haiku text call THEN an ElevenLabs
+  // TTS call that alone has a 30s timeout server-side (voice_service.py) —
+  // a 25s client timeout could abort while the backend was still on track
+  // to succeed, showing "no pudimos generar la explicación" for a request
+  // that would have come back fine a few seconds later. Confirmed as the
+  // likely cause of intermittent "no se escucha" reports on the 4 screens
+  // with ExplainButton (Diego, 2026-08-21).
   explain: (screen: string, context: Record<string, unknown>, lang?: string, textOnly?: boolean) =>
-    api.post("/api/explain", { screen, context, lang, text_only: textOnly }, { timeout: 25000 }),
+    api.post("/api/explain", { screen, context, lang, text_only: textOnly }, { timeout: 45000 }),
 };
 
 export const notifications = {
