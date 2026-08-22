@@ -21,12 +21,6 @@ export default function AuthCallback() {
       done = true;
       try { await authApi.setSession(session.access_token, session.refresh_token); } catch {}
       setAuth(session.access_token, session.user.id);
-      // Google sign-in never used to check for a referral code sitting in
-      // storage at all — anyone who clicked a referral link and then signed
-      // up with Google got their friend zero credit, silently. Harmless
-      // no-op for an existing user or one with no pending code (the backend
-      // claim is idempotent).
-      applyPendingReferralIfAny();
       try {
         const p = await profileApi.get();
         setProfile(p.data);
@@ -35,7 +29,23 @@ export default function AuthCallback() {
         // See app/page.tsx's handleSubmit for why this no longer checks the
         // (formerly cross-account-leaking) "nuvos_ob" flag — a 404 always
         // means onboarding, full stop.
-        window.location.href = err?.response?.status === 404 ? "/onboarding" : "/home";
+        const isNewUser = err?.response?.status === 404;
+        // Google sign-in never used to check for a referral code sitting in
+        // storage at all — anyone who clicked a referral link and then
+        // signed up with Google got their friend zero credit, silently.
+        // Fixed, but naively calling this on EVERY successful callback
+        // (2026-08-21 audit) let it fire on an ordinary RETURNING user's
+        // login too: the backend's claim only checks referred_by IS NULL,
+        // with no signup-vs-login distinction of its own, so a pre-existing
+        // account that once merely visited someone's /join?ref= link before
+        // logging in with Google some other day would get retroactively
+        // (and incorrectly) attributed to that referrer. Gate it on the
+        // 404 branch — the same "no profile yet" signal onboarding itself
+        // uses to mean "this actually is a brand-new signup" — matching
+        // page.tsx's email/password flow, which already only calls this
+        // when mode === "register".
+        if (isNewUser) applyPendingReferralIfAny();
+        window.location.href = isNewUser ? "/onboarding" : "/home";
       }
     }
 

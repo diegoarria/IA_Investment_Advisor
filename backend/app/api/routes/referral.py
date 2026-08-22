@@ -34,17 +34,22 @@ REFERRAL_TIERS = [
 
 async def _extend_premium(user_id: str, days: int, db) -> None:
     """Extend the user's bonus-premium window by `days`, stacking on top of
-    any streak/referral bonus that's still active. No-op for already-paid
-    premium users — they don't need it."""
+    any streak/referral bonus that's still active — including for a
+    currently-paying premium user. This used to no-op for them ("they don't
+    need it"), but _grant_tier_rewards still marks the tier as paid out
+    either way — the days were silently discarded with no way to ever
+    retroactively grant them once their paid subscription lapsed. Bonus
+    days sitting unused behind an active paid subscription are harmless;
+    is_premium_active() just takes the max of paid/trial/bonus, so this
+    correctly kicks in once the paid subscription ends (2026-08-21, Diego:
+    "asegurarse de que... las recompensas... se canjeen siempre")."""
     row = await run_query(
         db.table("user_profiles")
-        .select("subscription_tier, streak_bonus_premium_until")
+        .select("streak_bonus_premium_until")
         .eq("user_id", user_id)
         .maybe_single()
     )
     data = (row.data if row else None) or {}
-    if data.get("subscription_tier") == "premium":
-        return
 
     base = datetime.now(timezone.utc)
     current_bonus = data.get("streak_bonus_premium_until")
@@ -210,11 +215,31 @@ async def apply_referral(body: dict, user_id: str = Depends(get_current_user_id)
     if not claim.data:
         raise HTTPException(status_code=409, detail="Ya tienes un referido aplicado")
 
-    # Credit referrer (only reached by whichever request won the claim above)
-    new_count = int(referrer.get("referred_count") or 0) + 1
-    await run_query(
-        db.table("user_profiles").update({"referred_count": new_count}).eq("user_id", referrer_id)
-    )
+    # Credit referrer (only reached by whichever request won the claim above).
+    # Compare-and-swap loop, not a blind read-then-write — two friends
+    # signing up with the same code within the same window (a link shared
+    # in a group chat, say) would otherwise both read the same
+    # referred_count, both write old+1, and silently lose one referral from
+    # the tally even though both referred_by links landed correctly (same
+    # class of bug redeem-session already guards against below).
+    new_count = int(referrer.get("referred_count") or 0)
+    for _ in range(5):
+        candidate = new_count + 1
+        result = await run_query(
+            db.table("user_profiles")
+            .update({"referred_count": candidate})
+            .eq("user_id", referrer_id)
+            .eq("referred_count", new_count)
+        )
+        if result.data:
+            new_count = candidate
+            break
+        fresh = await run_query(
+            db.table("user_profiles").select("referred_count").eq("user_id", referrer_id).maybe_single()
+        )
+        new_count = int(((fresh.data if fresh else None) or {}).get("referred_count") or 0)
+    else:
+        new_count += 1  # exhausted retries — best-effort, still grant the reward tier
 
     await _grant_tier_rewards(referrer_id, new_count, db)
     await _extend_premium(user_id, WELCOME_BONUS_DAYS, db)
