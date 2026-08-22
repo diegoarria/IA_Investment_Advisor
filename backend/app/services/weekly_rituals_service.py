@@ -454,41 +454,61 @@ async def get_reflection_history(user_id: str, limit: int = 26) -> list[dict]:
 # with the user's real numbers, same as the other three rituals — it
 # previously deep-linked to the generic "portfolio" screen. Real cost
 # discipline (see today's Aug 15 spend-cap work): this NEVER calls Claude —
-# the numbers are recomputed live from fmg_portfolio_snapshots (free, real
+# the numbers are recomputed live from weekly_range_snapshots (free, real
 # math), and the AI-written sentence is read back verbatim from
 # notification_log (the exact text job_sunday_portfolio_review already
 # generated once and logged at send time), never regenerated on open.
+#
+# weekly_range_snapshots (migration 082) replaced fmg_portfolio_snapshots as
+# the source here — fmg_portfolio_snapshots is cost-basis (shares * avgPrice)
+# and barely moves unless the user trades; weekly_range_snapshots holds
+# live-priced Monday-open and Friday-close values written by
+# worker.py's job_weekly_open_snapshot / job_weekly_close_snapshot, so this
+# now reflects real market movement across the week (Diego's Aug 21 request).
 
 _PORTFOLIO_REVIEW_LOOKBACK_DAYS = 8  # generous: covers "opened the push a few days late"
 
 
 async def _portfolio_review_numbers(user_id: str) -> Optional[dict]:
     db = get_supabase()
-    week_ago = (_today_et() - timedelta(days=7)).isoformat()
+    week_start = str(_week_start_monday(_today_et()))
     res = await run_query(
-        db.table("fmg_portfolio_snapshots")
-        .select("snapshot_date,total_value,top_sector")
+        db.table("weekly_range_snapshots")
+        .select("snapshot_type,total_value")
         .eq("user_id", user_id)
-        .order("snapshot_date", desc=True)
-        .limit(60)
+        .eq("week_start", week_start)
     )
     rows = res.data or []
-    if not rows:
+    close = next((r["total_value"] for r in rows if r["snapshot_type"] == "close"), None)
+    open_ = next((r["total_value"] for r in rows if r["snapshot_type"] == "open"), None)
+    # Mid-week (or the close job hasn't run yet) — fall back to the open
+    # value as "current" so the card still shows something real rather than
+    # nothing, same spirit as the old code's "opened the push a few days
+    # late" lookback tolerance.
+    total = close if close is not None else open_
+    if total is None or total <= 0:
         return None
-    latest = rows[0]
-    total = latest.get("total_value") or 0
-    if total <= 0:
-        return None
-    prev = next((r for r in rows if r["snapshot_date"] <= week_ago), None)
+
+    top_sector = None
+    sector_res = await run_query(
+        db.table("fmg_portfolio_snapshots")
+        .select("top_sector")
+        .eq("user_id", user_id)
+        .order("snapshot_date", desc=True)
+        .limit(1)
+    )
+    if sector_res.data:
+        top_sector = sector_res.data[0].get("top_sector")
+
     change_usd = change_pct = None
-    if prev and prev.get("total_value"):
-        change_usd = total - prev["total_value"]
-        change_pct = round(change_usd / prev["total_value"] * 100, 2) if prev["total_value"] else None
+    if close is not None and open_:
+        change_usd = close - open_
+        change_pct = round(change_usd / open_ * 100, 2) if open_ else None
     return {
         "total_value": total,
         "change_usd": change_usd,
         "change_pct": change_pct,
-        "top_sector": latest.get("top_sector"),
+        "top_sector": top_sector,
     }
 
 

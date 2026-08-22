@@ -8,6 +8,19 @@ from app.core.database import get_supabase, run_query
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
+def _agg_positions(rows: list[dict]) -> list[dict]:
+    # Duplicated (not imported) from worker.py — see weekly_rituals_service.py
+    # for the same convention. A user can have up to 3 portfolios (migration
+    # 018), so .eq("user_id", uid) can return multiple rows; flatten all of
+    # them instead of only reading the first.
+    result: list[dict] = []
+    for row in rows:
+        raw = row.get("positions") or {}
+        pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        result.extend(pos)
+    return result
+
+
 @router.post("/test")
 async def send_test_notification(user_id: str = Depends(get_current_user_id)):
     """Send a test push + email to verify the notification pipeline is working."""
@@ -101,10 +114,7 @@ async def trigger_market_close(
 
         # Load portfolio
         port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id))
-        positions = []
-        if port_res.data:
-            raw = port_res.data[0].get("positions") or {}
-            positions = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        positions = _agg_positions(port_res.data or [])
 
         # Profile
         prof_res = await run_query(db.table("user_profiles").select("name").eq("user_id", user_id))
@@ -222,6 +232,23 @@ async def trigger_weekly_summary(user_id: str = Depends(get_current_user_id)):
     ) if tickers else []
     week_prices = {t: {"curr": q["curr"], "prev": q["start"]} for t, q in zip(tickers, price_results) if q}
 
+    from app.core.finnhub import fh_profile
+    from urllib.parse import urlparse
+    meta_results = await asyncio.gather(
+        *[asyncio.to_thread(fh_profile, t) for t in tickers]
+    ) if tickers else []
+    ticker_meta: dict[str, dict] = {}
+    for t, profile in zip(tickers, meta_results):
+        if not profile:
+            continue
+        logo = profile.get("logo")
+        if not logo:
+            weburl = profile.get("weburl", "")
+            if weburl:
+                netloc = urlparse(weburl).netloc.replace("www.", "")
+                logo = f"https://logo.clearbit.com/{netloc}" if netloc else None
+        ticker_meta[t] = {"company_name": profile.get("name") or t, "logo_url": logo}
+
     movers = []
     for t, px in week_prices.items():
         if px.get("prev") and px["prev"] > 0:
@@ -258,7 +285,7 @@ async def trigger_weekly_summary(user_id: str = Depends(get_current_user_id)):
 
     subject, html = _worker.build_weekly_email_for_user(
         first=first, is_premium=is_premium, positions=positions, watchlist=watchlist, lang=lang,
-        week_prices=week_prices, sp_pct=sp_pct, sp_px=sp_px, nq_pct=nq_pct, nq_px=nq_px,
+        week_prices=week_prices, ticker_meta=ticker_meta, sp_pct=sp_pct, sp_px=sp_px, nq_pct=nq_pct, nq_px=nq_px,
         market_wrap_by_lang={lang: market_wrap}, all_today_earnings=all_today_earnings,
         earnings_ai_map_by_lang={lang: earnings_ai}, week_label_by_lang=week_label_by_lang,
         sp_str=sp_str, nq_str=nq_str,
@@ -306,10 +333,7 @@ async def get_morning_brief(user_id: str = Depends(get_current_user_id)):
     first = (profile.get("name") or ("Investor" if is_en else "Inversor")).split()[0]
 
     port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id))
-    positions: list = []
-    if port_res.data:
-        raw = port_res.data[0].get("positions") or {}
-        positions = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+    positions = _agg_positions(port_res.data or [])
 
     bullets: list[str] = []
     total_curr = 0.0

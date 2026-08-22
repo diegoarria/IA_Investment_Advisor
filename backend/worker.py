@@ -45,6 +45,29 @@ def _agg_positions(rows: list[dict]) -> list:
     return result
 
 
+def _agg_positions_by_ticker(pos: list[dict]) -> dict[str, dict]:
+    """{ticker: {shares, avg_cost}} from an already-flattened position list
+    (e.g. from _agg_positions) — sums shares and weight-averages cost when
+    the same ticker appears in more than one of a user's portfolios,
+    instead of a naive {p["ticker"]: p for p in pos} dict-comp, which lets
+    whichever row iterates last silently overwrite the others' shares."""
+    buckets: dict[str, dict] = {}
+    for p in pos:
+        ticker = p.get("ticker")
+        if not ticker:
+            continue
+        shares = float(p.get("shares") or 0)
+        cost   = float(p.get("avg_cost") or p.get("avg_price") or p.get("avgPrice") or 0)
+        b = buckets.setdefault(ticker, {"shares": 0.0, "_cost_weighted_sum": 0.0})
+        b["shares"] += shares
+        b["_cost_weighted_sum"] += cost * shares
+    result: dict[str, dict] = {}
+    for ticker, b in buckets.items():
+        avg_cost = (b["_cost_weighted_sum"] / b["shares"]) if b["shares"] > 0 else 0.0
+        result[ticker] = {"shares": b["shares"], "avg_cost": avg_cost}
+    return result
+
+
 def _build_portfolio_map(rows: list[dict]) -> dict:
     """Build {user_id: [positions]} from multi-portfolio rows, aggregating per user."""
     mapping: dict[str, list] = {}
@@ -75,6 +98,43 @@ def _is_market_holiday_today() -> bool:
     if today.weekday() >= 5:
         return False
     return today in _NYSE_HOLIDAYS
+
+
+def _is_trading_day(d: date) -> bool:
+    return d.weekday() < 5 and d not in _NYSE_HOLIDAYS
+
+
+def _is_first_trading_day_of_week(d: date) -> bool:
+    """True if `d` is the first NYSE trading day of its (Mon-Sun) week —
+    i.e. no earlier day this week, back to Monday, was itself a trading
+    day. Used so the "Monday open" weekly snapshot still fires exactly
+    once per week even when Monday itself is a holiday (e.g. MLK Day,
+    Presidents' Day, Memorial Day, Labor Day are all Mondays)."""
+    if not _is_trading_day(d):
+        return False
+    monday = d - timedelta(days=d.weekday())
+    day = monday
+    while day < d:
+        if _is_trading_day(day):
+            return False
+        day += timedelta(days=1)
+    return True
+
+
+def _is_last_trading_day_of_week(d: date) -> bool:
+    """True if `d` is the last NYSE trading day of its (Mon-Sun) week —
+    i.e. no later day this week, through Friday, is itself a trading day.
+    Used so the "Friday close" weekly snapshot still fires exactly once
+    per week even when Friday itself is a holiday."""
+    if not _is_trading_day(d):
+        return False
+    friday = d + timedelta(days=4 - d.weekday())
+    day = d + timedelta(days=1)
+    while day <= friday:
+        if _is_trading_day(day):
+            return False
+        day += timedelta(days=1)
+    return True
 from app.core.config import settings
 from app.services.notification_service import scan_and_notify_all_users
 from app.services.email_service import (
@@ -1038,14 +1098,31 @@ async def job_market_close():
         # Each user's configured display currency (stored alongside positions on
         # user_portfolio) — the $ gain/loss below is computed from prices in USD
         # (Finnhub), so it must be converted before being shown to a user whose
-        # portfolio currency isn't USD.
-        currency_map: dict[str, str] = {}
+        # portfolio currency isn't USD. A user can have up to 3 portfolios
+        # (migration 018) in DIFFERENT currencies (confirmed live 2026-08-21:
+        # a real user has one MXN portfolio + one USD portfolio) — the combined
+        # total_curr/total_prev below is a blended USD figure across every
+        # portfolio, so converting the WHOLE thing with just one portfolio's
+        # currency would misrepresent the part that's actually already USD.
+        # When a user's portfolios don't all agree on one non-USD currency,
+        # this leaves them out of currency_map so the amount displays in USD
+        # (the currency the total is actually computed in) instead of a
+        # single-currency conversion that's silently wrong for part of it.
+        user_currencies: dict[str, set[str]] = {}
         for row in port_uid_res.data or []:
             raw_c = row.get("positions") or {}
-            cur_c = raw_c.get("currency") if isinstance(raw_c, dict) else None
+            cur_c = (raw_c.get("currency") if isinstance(raw_c, dict) else None) or "USD"
             uid_c = row.get("user_id")
-            if uid_c and cur_c and cur_c.upper() != "USD":
-                currency_map[uid_c] = cur_c.upper()
+            if uid_c:
+                user_currencies.setdefault(uid_c, set()).add(cur_c.upper())
+        # Only convert when every portfolio agrees on the exact same single
+        # non-USD currency — USD included in the set (even just one USD
+        # portfolio alongside a non-USD one) means "mixed", not "convert".
+        currency_map: dict[str, str] = {
+            uid_c: next(iter(currs))
+            for uid_c, currs in user_currencies.items()
+            if len(currs) == 1 and next(iter(currs)) != "USD"
+        }
 
         fx_rates: dict[str, float] = {}
         if currency_map:
@@ -1478,6 +1555,28 @@ async def job_daily_email():
         price_results = await asyncio.gather(*[_fq(t) for t in all_tickers]) if all_tickers else []
         week_prices = {t: {"curr": q["curr"], "prev": q["start"]} for t, q in price_results if q}
 
+        # Company name + logo for the movers section (Diego's 2026-08-21
+        # redesign) — fh_profile is Finnhub profile2, cached 24h, so this is
+        # one call per unique ticker across the whole run, not per user.
+        async def _fmeta(t: str):
+            from app.core.finnhub import fh_profile
+            profile = await asyncio.to_thread(fh_profile, t)
+            return t, profile
+
+        meta_results = await asyncio.gather(*[_fmeta(t) for t in all_tickers]) if all_tickers else []
+        ticker_meta: dict[str, dict] = {}
+        for t, profile in meta_results:
+            if not profile:
+                continue
+            logo = profile.get("logo")
+            if not logo:
+                weburl = profile.get("weburl", "")
+                if weburl:
+                    from urllib.parse import urlparse
+                    netloc = urlparse(weburl).netloc.replace("www.", "")
+                    logo = f"https://logo.clearbit.com/{netloc}" if netloc else None
+            ticker_meta[t] = {"company_name": profile.get("name") or t, "logo_url": logo}
+
         # ── 6. Collect all unique tickers + watchlist for market wrap context ─
         watch_res   = await run_query(db.table("watchlist").select("user_id,ticker"))
         watch_by_uid: dict[str, set] = {}
@@ -1561,7 +1660,7 @@ async def job_daily_email():
 
             subject, html = build_weekly_email_for_user(
                 first=first, is_premium=is_premium, positions=positions, watchlist=watchlist, lang=lang,
-                week_prices=week_prices, sp_pct=sp_pct, sp_px=sp_px, nq_pct=nq_pct, nq_px=nq_px,
+                week_prices=week_prices, ticker_meta=ticker_meta, sp_pct=sp_pct, sp_px=sp_px, nq_pct=nq_pct, nq_px=nq_px,
                 market_wrap_by_lang=market_wrap_by_lang, all_today_earnings=all_today_earnings,
                 earnings_ai_map_by_lang=earnings_ai_map_by_lang, week_label_by_lang=week_label_by_lang,
                 sp_str=sp_str, nq_str=nq_str,
@@ -1581,7 +1680,7 @@ async def job_daily_email():
 
 def build_weekly_email_for_user(
     *, first, is_premium, positions, watchlist, lang,
-    week_prices, sp_pct, sp_px, nq_pct, nq_px,
+    week_prices, ticker_meta, sp_pct, sp_px, nq_pct, nq_px,
     market_wrap_by_lang, all_today_earnings, earnings_ai_map_by_lang,
     week_label_by_lang, sp_str, nq_str,
 ) -> tuple[str, str]:
@@ -1613,11 +1712,14 @@ def build_weekly_email_for_user(
             d_usd = cv - pv
             total_val  += cv
             total_prev += pv
+            meta = ticker_meta.get(ticker, {})
             enriched.append({
                 "ticker":        ticker,
                 "pct":           round(pct, 2),
                 "dollar_change": round(d_usd, 2),
                 "total_value":   round(cv, 2),
+                "company_name":  meta.get("company_name"),
+                "logo_url":      meta.get("logo_url"),
             })
 
         port_pct = round((total_val - total_prev) / total_prev * 100, 2) if total_prev > 0 else None
@@ -1873,15 +1975,7 @@ async def job_portfolio_alerts():
                 )
                 if port_res.data:
                     pos = _agg_positions(port_res.data or [])
-                    port_positions = {
-                        p["ticker"]: {
-                            "shares": float(p.get("shares") or 0),
-                            "avg_cost": float(
-                                p.get("avg_cost") or p.get("avg_price") or p.get("avgPrice") or 0
-                            ),
-                        }
-                        for p in pos if p.get("ticker")
-                    }
+                    port_positions = _agg_positions_by_ticker(pos)
 
             # Paper trading (Simulador) — same "portfolio alerts" preference toggle
             # governs it (it's the user's portfolio, just simulated).
@@ -3052,8 +3146,8 @@ async def job_events_alerts():
                 )
                 if port_res.data:
                     pos_list = _agg_positions(port_res.data or [])
-                    port_tickers  = {p["ticker"] for p in pos_list if p.get("ticker")}
-                    positions_map = {p["ticker"]: p for p in pos_list if p.get("ticker")}
+                    positions_map = _agg_positions_by_ticker(pos_list)
+                    port_tickers  = set(positions_map.keys())
 
             if prefs.get("push_watchlist_alerts"):
                 watch_res = await run_query(
@@ -3437,10 +3531,7 @@ async def job_ai_insight_scan():
         for uid, profile in profile_map.items():
             is_en = (profile.get("preferred_language") or "es") == "en"
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
-            positions: list = []
-            if port_res.data:
-                raw = port_res.data[0].get("positions") or {}
-                positions = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+            positions = _agg_positions(port_res.data or [])
             if not positions:
                 continue
             tickers = list({p["ticker"] for p in positions if p.get("ticker")})
@@ -4032,36 +4123,53 @@ async def send_educational_emails():
 # ── Daily habit system — Sunday portfolio review ──────────────────────────────
 async def job_sunday_portfolio_review():
     """Domingo 5:00 PM ET — resumen semanal del portafolio: cambio de valor
-    vs. hace 7 días + top mover, usando los snapshots de fmg_portfolio_snapshots
-    que ya se calculan a diario. Premium recibe una versión con IA que referencia
-    su patrimonio y estilo declarado; free recibe la versión con solo datos."""
+    de Lunes (apertura, precio en vivo) a Viernes (cierre, precio en vivo)
+    + top mover, usando weekly_range_snapshots (migración 082) — no
+    fmg_portfolio_snapshots, que es costo de compra y casi no se mueve con
+    el mercado. Premium recibe una versión con IA que referencia su
+    patrimonio y estilo declarado; free recibe la versión con solo datos."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     from app.services.portfolio_manager_service import _haiku_insight
     db = get_supabase()
     try:
-        week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).date().isoformat()
-        snap_res = await run_query(
+        today = datetime.now(timezone.utc).date()
+        week_start = (today - timedelta(days=today.weekday())).isoformat()
+        range_res = await run_query(
+            db.table("weekly_range_snapshots")
+            .select("user_id,snapshot_type,total_value")
+            .eq("week_start", week_start)
+        )
+        close_by_user: dict[str, float] = {}
+        open_by_user: dict[str, float] = {}
+        for row in (range_res.data or []):
+            if row["snapshot_type"] == "close":
+                close_by_user[row["user_id"]] = row["total_value"]
+            else:
+                open_by_user[row["user_id"]] = row["total_value"]
+        if not close_by_user:
+            logger.info("job_sunday_portfolio_review: no close snapshots for week_start=%s — skipping", week_start)
+            return
+
+        # top_sector still comes from the daily fmg_portfolio_snapshots job
+        # (unaffected by this change — only the value/delta moved to live pricing).
+        sector_res = await run_query(
             db.table("fmg_portfolio_snapshots")
-            .select("user_id,snapshot_date,total_value,top_sector")
+            .select("user_id,snapshot_date,top_sector")
+            .in_("user_id", list(close_by_user.keys()))
             .order("snapshot_date", desc=True)
             .limit(8000)
         )
-        latest_by_user: dict[str, dict] = {}
-        weekago_by_user: dict[str, dict] = {}
-        for row in (snap_res.data or []):
-            uid = row["user_id"]
-            if uid not in latest_by_user:
-                latest_by_user[uid] = row
-            if row["snapshot_date"] <= week_ago and uid not in weekago_by_user:
-                weekago_by_user[uid] = row
+        top_sector_by_user: dict[str, str] = {}
+        for row in (sector_res.data or []):
+            top_sector_by_user.setdefault(row["user_id"], row.get("top_sector"))
 
         prefs_res = await run_query(
             db.table("notification_preferences").select("user_id,push_portfolio_alerts")
         )
         explicit_prefs = {p["user_id"]: p.get("push_portfolio_alerts", True) for p in (prefs_res.data or [])}
 
-        uids = [uid for uid in latest_by_user if explicit_prefs.get(uid, True)]
+        uids = [uid for uid in close_by_user if explicit_prefs.get(uid, True)]
         if not uids:
             return
         prof_res = await run_query(
@@ -4073,25 +4181,25 @@ async def job_sunday_portfolio_review():
 
         sent = 0
         for uid in uids:
-            latest = latest_by_user[uid]
-            prev   = weekago_by_user.get(uid)
-            total  = latest.get("total_value") or 0
+            total = close_by_user[uid]
+            prev  = open_by_user.get(uid)
             if total <= 0:
                 continue
             prof  = prof_map.get(uid, {})
             first = (prof.get("name") or "Inversor").split()[0]
             is_prem = _is_premium_user(prof.get("subscription_tier", "free"), prof.get("trial_started_at"), prof.get("streak_bonus_premium_until"))
             is_en   = (prof.get("preferred_language") or "es") == "en"
+            top_sector = top_sector_by_user.get(uid)
 
             change_str = ""
-            if prev and prev.get("total_value"):
-                delta = total - prev["total_value"]
-                pct   = delta / prev["total_value"] * 100 if prev["total_value"] else 0
+            if prev:
+                delta = total - prev
+                pct   = delta / prev * 100 if prev else 0
                 sign  = "+" if delta >= 0 else ""
                 change_str = (
-                    f" ({sign}${delta:,.0f}, {sign}{pct:.1f}% vs. 7 days ago)"
+                    f" ({sign}${delta:,.0f}, {sign}{pct:.1f}% this week)"
                     if is_en else
-                    f" ({sign}${delta:,.0f}, {sign}{pct:.1f}% vs. hace 7 días)"
+                    f" ({sign}${delta:,.0f}, {sign}{pct:.1f}% esta semana)"
                 )
 
             body = None
@@ -4102,7 +4210,7 @@ async def job_sunday_portfolio_review():
                     prompt = (
                         f"You are Nuvos' AI Portfolio Manager. Write ONE push notification (max 200 characters) "
                         f"as a weekly review for {first}: their portfolio is worth ${total:,.0f} USD{change_str}, "
-                        f"their main sector is {latest.get('top_sector') or 'diversified'}.{style_note} "
+                        f"their main sector is {top_sector or 'diversified'}.{style_note} "
                         f"End-of-week tone, no alarmism, invite them to check the details. "
                         f"No emojis at the start, don't mention \"Nuvos AI\", text only. Write in English."
                     )
@@ -4111,7 +4219,7 @@ async def job_sunday_portfolio_review():
                     prompt = (
                         f"Eres el Portfolio Manager IA de Nuvos. Escribe UNA notificación push (máximo 200 caracteres) "
                         f"de revisión semanal para {first}: su portafolio vale ${total:,.0f} USD{change_str}, "
-                        f"su sector principal es {latest.get('top_sector') or 'diversificado'}.{style_note} "
+                        f"su sector principal es {top_sector or 'diversificado'}.{style_note} "
                         f"Tono de cierre de semana, sin alarmismo, invita a revisar el detalle. "
                         f"Sin emojis al inicio, sin mencionar \"Nuvos AI\", solo el texto de la notificación."
                     )
@@ -4401,6 +4509,90 @@ async def job_fmg_snapshot():
         logger.info("FMG portfolio snapshots done")
     except Exception as e:
         logger.error("job_fmg_snapshot failed: %s", e)
+
+
+async def _snapshot_weekly_range(snapshot_type: str, today: date):
+    """Live-priced portfolio value for every user with positions, written to
+    weekly_range_snapshots under this ISO week's Monday anchor. Shared by
+    job_weekly_open_snapshot ('open', fires the first trading day of the
+    week) and job_weekly_close_snapshot ('close', fires the last trading
+    day of the week) so both halves of the weekly summary use the exact
+    same live-quote methodology (unlike fmg_portfolio_snapshots, which is
+    cost-basis and doesn't move with the market — see migration 082).
+    `today` is the caller's ET calendar date (already validated as the
+    first/last trading day of its week) — used as-is so the week anchor
+    can never drift a day off from the trading-day check that gated this."""
+    from app.core.database import get_supabase, run_query
+    db = get_supabase()
+
+    port_res = await run_query(db.table("user_portfolio").select("user_id,positions"))
+    portfolio_map = _build_portfolio_map(port_res.data or [])
+    if not portfolio_map:
+        return
+    all_tickers = {p["ticker"] for pos in portfolio_map.values() for p in pos if p.get("ticker")}
+    prices = await _finnhub_prices_batch(list(all_tickers)) if all_tickers else {}
+
+    week_start = (today - timedelta(days=today.weekday())).isoformat()
+
+    rows = []
+    for uid, positions in portfolio_map.items():
+        total = 0.0
+        for p in positions:
+            ticker = p.get("ticker")
+            shares = float(p.get("shares") or 0)
+            if not ticker or not shares or ticker not in prices:
+                continue
+            total += prices[ticker]["curr"] * shares
+        if total > 0:
+            rows.append({
+                "user_id": uid, "week_start": week_start,
+                "snapshot_type": snapshot_type, "total_value": round(total, 2),
+            })
+    # One upsert per user, not a single batched upsert of all rows — a
+    # single FK violation (e.g. an orphaned user_portfolio row left over
+    # from an account deleted outside the normal delete_user_data path)
+    # rejects the entire batched request, silently losing every other
+    # user's snapshot for the week. Confirmed live 2026-08-21: exactly one
+    # bad row in user_portfolio blocked all 15 users' writes.
+    written = 0
+    for row in rows:
+        try:
+            await run_query(
+                db.table("weekly_range_snapshots")
+                .upsert(row, on_conflict="user_id,week_start,snapshot_type")
+            )
+            written += 1
+        except Exception as e:
+            logger.error("_snapshot_weekly_range: failed for user %s (%s): %s", row["user_id"], snapshot_type, e)
+    logger.info("Weekly range snapshot (%s, week_start=%s): %d/%d users", snapshot_type, week_start, written, len(rows))
+
+
+async def job_weekly_open_snapshot():
+    """9:35 AM ET weekdays — on the first trading day of the ISO week
+    (normally Monday, later if Monday is a holiday), capture each user's
+    live portfolio value as the week's starting point."""
+    import pytz
+    today = datetime.now(pytz.timezone("America/New_York")).date()
+    if not _is_first_trading_day_of_week(today):
+        return
+    try:
+        await _snapshot_weekly_range("open", today)
+    except Exception as e:
+        logger.error("job_weekly_open_snapshot failed: %s", e)
+
+
+async def job_weekly_close_snapshot():
+    """4:07 PM ET weekdays — on the last trading day of the ISO week
+    (normally Friday, earlier if Friday is a holiday), capture each user's
+    live portfolio value as the week's ending point."""
+    import pytz
+    today = datetime.now(pytz.timezone("America/New_York")).date()
+    if not _is_last_trading_day_of_week(today):
+        return
+    try:
+        await _snapshot_weekly_range("close", today)
+    except Exception as e:
+        logger.error("job_weekly_close_snapshot failed: %s", e)
 
 
 async def job_belvo_resync_all():
@@ -4798,6 +4990,8 @@ async def main():
 
     # ── Financial Memory Graph — daily portfolio snapshot ─────────────────────
     scheduler.add_job(job_fmg_snapshot,         "cron", day_of_week="mon-fri", hour=16, minute=5, timezone="America/New_York")
+    scheduler.add_job(job_weekly_open_snapshot, "cron", day_of_week="mon-fri", hour=9,  minute=35, timezone="America/New_York")
+    scheduler.add_job(job_weekly_close_snapshot, "cron", day_of_week="mon-fri", hour=16, minute=7, timezone="America/New_York")
 
     # ── Oportunidades default-ticker cache warmer ─────────────────────────────
     # next_run_time=now so a fresh deploy/restart warms the cache immediately

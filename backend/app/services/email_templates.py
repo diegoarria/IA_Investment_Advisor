@@ -361,6 +361,21 @@ _DAILY_EMAIL_COPY = {
 }
 
 
+_DM_SANS_LINK = (
+    '<link rel="preconnect" href="https://fonts.googleapis.com">'
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    '<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800;9..40,900&display=swap" rel="stylesheet">'
+)
+_DM_SANS_STACK = "'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif"
+
+# Unified colors — the old template used two different greens (#00d47e for
+# brand/CTA, #22c55e for "up" figures); Diego's redesign (2026-08-21)
+# consolidated to one green used for both, so "up" and "the brand" always
+# read as the same color instead of two competing accents.
+_UP_COLOR   = "#00d47e"
+_DOWN_COLOR = "#ef4444"
+
+
 def daily_email_v2(
     first_name: str,
     port_pct: float | None,
@@ -381,10 +396,18 @@ def daily_email_v2(
     Friday weekly summary (worker.py's job_daily_email passes period="semana"
     with genuinely week-over-week pct/px values — everything else here is
     generic enough to serve either cadence unchanged) — 4-section structure:
-    1. Tu portafolio vs S&P 500 vs Nasdaq
-    2. Top 3 subidas / Top 3 caídas del portafolio
+    1. Tu portafolio (hero figure) vs S&P 500 / Nasdaq (compact strip)
+    2. Top 3 subidas / Top 3 caídas del portafolio — logo + name + ticker
     3. Market Wrap (AI narrative)
     4. Earnings (portfolio + watchlist, if any)
+
+    Redesigned 2026-08-21 (Diego, from a real screenshot of the old layout):
+    the portfolio figure used to share equal visual weight with S&P/Nasdaq in
+    a 3-column table — now it's the hero, S&P/Nasdaq drop to a compact
+    comparison strip beneath it. Movers show `company_name`/`logo_url` when
+    a caller provides them (falls back to a ticker-initial badge otherwise,
+    so callers that don't fetch that data — e.g. the market-close push's
+    on-demand email trigger — still render correctly, just without the logo).
 
     `language` picks the ES/EN copy dict (_DAILY_EMAIL_COPY) — callers should
     pass the user's own preferred_language so this always lands in whichever
@@ -397,21 +420,6 @@ def daily_email_v2(
     next_period   = t["next_period_week"] if is_weekly else t["next_period_day"]
     na            = t["na"]
 
-    def _pct_badge(pct, big=False):
-        if pct is None:
-            return f'<span style="color:#6b7280">{na}</span>'
-        up     = pct >= 0
-        color  = "#22c55e" if up else "#ef4444"
-        bg     = "rgba(34,197,94,0.12)" if up else "rgba(239,68,68,0.12)"
-        sign   = "+" if up else ""
-        size   = "22px" if big else "14px"
-        pad    = "6px 14px" if big else "3px 10px"
-        return (
-            f'<span style="display:inline-block;background:{bg};color:{color};'
-            f'font-weight:800;font-size:{size};padding:{pad};border-radius:20px">'
-            f'{sign}{pct:.2f}%</span>'
-        )
-
     def _px_str(px):
         if px is None:
             return "—"
@@ -419,61 +427,72 @@ def daily_email_v2(
             return f"{px:,.0f}"
         return f"{px:,.2f}"
 
-    # ── Table 1: Portfolio vs S&P 500 vs Nasdaq ───────────────────────────────
-    beating    = port_pct is not None and sp_pct is not None and port_pct > sp_pct
-    beat_badge = (
-        '<div style="display:inline-block;background:rgba(0,212,126,0.1);border:1px solid rgba(0,212,126,0.3);'
-        'border-radius:20px;padding:4px 14px;margin-top:10px">'
-        f'<span style="color:#00d47e;font-size:11px;font-weight:800;letter-spacing:1px">{t["beat_market"]}</span></div>'
-    ) if beating else ""
-
-    port_usd_line = ""
-    if port_usd is not None:
-        sign  = "+" if port_usd >= 0 else ""
-        color = "#22c55e" if port_usd >= 0 else "#ef4444"
-        port_usd_line = f'<div style="color:{color};font-size:13px;font-weight:700;margin-top:4px">{sign}${abs(port_usd):,.2f} {period_adverb}</div>'
-
-    def _col(label, pct, px_val=None):
-        up    = pct is not None and pct >= 0
-        color = "#22c55e" if up else "#ef4444"
-        sign  = "+" if up else ""
-        pct_s = f"{sign}{pct:.2f}%" if pct is not None else na
-        px_s  = _px_str(px_val)
-        return (
-            f'<td style="padding:20px 12px;text-align:center;border-right:1px solid #1e2235;vertical-align:top">'
-            f'<div style="color:#9ca3af;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">{label}</div>'
-            f'<div style="font-size:26px;font-weight:900;color:{color};letter-spacing:-0.5px">{pct_s}</div>'
-            f'<div style="color:#4b5563;font-size:12px;margin-top:6px">{px_s}</div>'
-            f'</td>'
-        )
-
-    port_pct_color = "#22c55e" if (port_pct or 0) >= 0 else "#ef4444"
-    port_pct_sign  = "+" if (port_pct or 0) >= 0 else ""
-    port_pct_str   = f"{port_pct_sign}{port_pct:.2f}%" if port_pct is not None else "—"
-
-    table1 = f"""
-  <div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
-    <div style="padding:12px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
-      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">{t["performance"].format(period_label=period_label)}</p>
-    </div>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
-      <tr>
-        <td style="padding:20px 12px;text-align:center;border-right:1px solid #1e2235;vertical-align:top">
-          <div style="color:#9ca3af;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">{t["your_portfolio"]}</div>
-          <div style="font-size:26px;font-weight:900;color:{port_pct_color};letter-spacing:-0.5px">{port_pct_str}</div>
-          {port_usd_line}
-        </td>
-        {_col("S&amp;P 500", sp_pct, sp_px)}
-        {_col("Nasdaq", nq_pct, nq_px).replace("border-right:1px solid #1e2235;", "")}
-      </tr>
-    </table>
-    <div style="padding:12px 16px;border-top:1px solid #1e2235;text-align:center">
-      {beat_badge}
-      {"" if beating else (f'<span style="color:#6b7280;font-size:12px">{next_period}</span>' if port_pct is not None else "")}
-    </div>
+    # ── Header ─────────────────────────────────────────────────────────────
+    header = f"""
+  <div style="text-align:center;padding:36px 0 28px">
+    <img src="https://www.nuvosai.com/logo.png" alt="Nuvos AI" width="40" height="40"
+         style="display:block;margin:0 auto 12px;border-radius:10px" />
+    <div style="color:#5b6478;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase">{t["header_tagline"]}</div>
+  </div>
+  <div style="text-align:center;padding-bottom:30px">
+    <div style="color:#f3f5f7;font-size:20px;font-weight:800;letter-spacing:-0.01em;margin-bottom:6px">{t["greeting"].format(first_name=first_name)}</div>
+    <div style="color:#5b6478;font-size:12.5px">{t["subheading"]}</div>
   </div>"""
 
-    # ── Table 2: AI Summary ────────────────────────────────────────────────────
+    # ── Hero: portfolio figure ────────────────────────────────────────────────
+    hero = ""
+    if port_pct is not None:
+        up    = port_pct >= 0
+        color = _UP_COLOR if up else _DOWN_COLOR
+        sign  = "+" if up else ""
+        usd_line = ""
+        if port_usd is not None:
+            usd_sign = "+" if port_usd >= 0 else "-"
+            usd_line = (
+                f'<div style="color:{color};font-size:15px;font-weight:700;margin-top:6px;'
+                f'font-variant-numeric:tabular-nums">{usd_sign}${abs(port_usd):,.2f} {period_adverb}</div>'
+            )
+        hero = f"""
+  <div style="text-align:center;padding-bottom:22px">
+    <div style="color:#8b93a7;font-size:10.5px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;margin-bottom:10px">{t["your_portfolio"]} {period_label}</div>
+    <div style="font-size:52px;font-weight:900;color:{color};letter-spacing:-0.03em;line-height:1;font-variant-numeric:tabular-nums">{sign}{port_pct:.2f}%</div>
+    {usd_line}
+  </div>"""
+    elif not is_weekly:
+        hero = f"""
+  <div style="background:rgba(0,212,126,0.07);border:1px solid rgba(0,212,126,0.2);border-radius:12px;padding:14px 18px;margin-bottom:4px;text-align:center">
+    <p style="color:{_UP_COLOR};font-size:12.5px;margin:0;font-weight:600">🔒 Activa Premium para ver el rendimiento real de tu portafolio</p>
+  </div>"""
+
+    # ── Compact S&P / Nasdaq comparison strip ─────────────────────────────────
+    def _strip_cell(label, pct, px_val, border_right):
+        up    = pct is not None and pct >= 0
+        color = _UP_COLOR if up else _DOWN_COLOR
+        sign  = "+" if up else ""
+        pct_s = f"{sign}{pct:.2f}%" if pct is not None else na
+        border = "border-right:1px solid #212736;" if border_right else ""
+        return f"""
+        <td style="padding:14px 18px;width:50%;{border}">
+          <table width="100%" cellpadding="0" cellspacing="0"><tr>
+            <td style="color:#8b93a7;font-size:12px;font-weight:700">{label}</td>
+            <td align="right" style="color:{color};font-size:14px;font-weight:800;font-variant-numeric:tabular-nums">{pct_s}</td>
+          </tr></table>
+          <div style="color:#4d5568;font-size:11px;margin-top:2px;font-variant-numeric:tabular-nums">{_px_str(px_val)}</div>
+        </td>"""
+
+    beating = port_pct is not None and sp_pct is not None and port_pct > sp_pct
+    note = ""
+    if port_pct is not None:
+        note = f'<span style="color:{_UP_COLOR};font-size:12px;font-weight:700">{t["beat_market"]}</span>' if beating \
+            else f'<span style="color:#5b6478;font-size:12px">{next_period}</span>'
+
+    vs_strip = f"""
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#131824;border:1px solid #212736;border-radius:14px;margin-bottom:14px">
+    <tr>{_strip_cell("S&amp;P 500", sp_pct, sp_px, True)}{_strip_cell("Nasdaq", nq_pct, nq_px, False)}</tr>
+  </table>
+  <div style="text-align:center;padding-bottom:30px">{note}</div>"""
+
+    # ── AI Summary ─────────────────────────────────────────────────────────────
     ai_section = ""
     if ai_summary:
         paras = "".join(
@@ -481,59 +500,55 @@ def daily_email_v2(
             for p in ai_summary.split("\n") if p.strip()
         )
         ai_section = f"""
-  <div style="background:#161b27;border-left:3px solid #00d47e;border-radius:0 16px 16px 0;padding:20px 20px 10px;margin-bottom:20px">
-    <p style="color:#00d47e;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">{t["ai_summary"].format(period_label=period_label)}</p>
+  <div style="background:#161b27;border-left:3px solid {_UP_COLOR};border-radius:0 16px 16px 0;padding:20px 20px 10px;margin-bottom:20px">
+    <p style="color:{_UP_COLOR};font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">{t["ai_summary"].format(period_label=period_label)}</p>
     {paras}
   </div>"""
 
-    # ── Section 2: Top 3 up / Top 3 down ─────────────────────────────────────
+    # ── Movers: logo + company name + ticker, stacked lists ──────────────────
     def _mover_rows(items):
         if not items:
-            return f'<tr><td colspan="3" style="padding:14px;text-align:center;color:#4b5563;font-size:12px">{t["no_data"]}</td></tr>'
+            return f'<div style="padding:14px 0;text-align:center;color:#4b5563;font-size:12px">{t["no_data"]}</div>'
         rows = ""
-        for item in items:
-            pct   = item.get("pct") or item.get("day_pct") or 0
-            dollar = item.get("dollar_change")
-            color = "#22c55e" if pct >= 0 else "#ef4444"
-            sign  = "+" if pct >= 0 else ""
-            dollar_str = f'<span style="color:#4b5563;font-size:11px">{sign}${abs(dollar):,.2f}</span>' if dollar is not None else ""
-            rows += (
-                f'<tr style="border-top:1px solid #1e2235">'
-                f'<td style="padding:10px 14px;color:#d1d5db;font-size:13px;font-weight:700">{item["ticker"]}</td>'
-                f'<td style="padding:10px 14px;text-align:right">{dollar_str}</td>'
-                f'<td style="padding:10px 14px;text-align:right;color:{color};font-weight:800;font-size:13px">{sign}{pct:.2f}%</td>'
-                f'</tr>'
+        for i, item in enumerate(items):
+            ticker  = item["ticker"]
+            name    = item.get("company_name") or ticker
+            logo    = item.get("logo_url")
+            pct     = item.get("pct") or item.get("day_pct") or 0
+            dollar  = item.get("dollar_change")
+            up      = pct >= 0
+            color   = _UP_COLOR if up else _DOWN_COLOR
+            sign    = "+" if up else ""
+            dollar_str = f'<span style="color:#5b6478;font-size:11px;font-variant-numeric:tabular-nums">{sign}${abs(dollar):,.2f}</span>' if dollar is not None else ""
+            border  = "border-top:1px solid #1a1f2c" if i > 0 else ""
+            badge   = (
+                f'<img src="{logo}" width="30" height="30" alt="{ticker}" '
+                f'style="display:block;border-radius:50%;border:1px solid #2a3348" />'
+                if logo else
+                f'<div style="width:30px;height:30px;border-radius:50%;background:#131824;border:1px solid #2a3348;text-align:center">'
+                f'<span style="font-size:12px;font-weight:800;color:#e8ebf0;line-height:29px">{ticker[0]}</span></div>'
             )
+            rows += f"""
+      <table width="100%" cellpadding="0" cellspacing="0" style="{border};padding-top:11px;padding-bottom:11px"><tr>
+        <td style="width:34px">{badge}</td>
+        <td style="padding-left:10px">
+          <div style="color:#e8ebf0;font-size:13px;font-weight:700;line-height:1.3">{name}</div>
+          <div style="color:#5b6478;font-size:11px;font-weight:600">{ticker}</div>
+        </td>
+        <td align="right" style="padding-right:10px">{dollar_str}</td>
+        <td align="right" style="color:{color};font-size:13px;font-weight:800;width:62px;font-variant-numeric:tabular-nums">{sign}{pct:.2f}%</td>
+      </tr></table>"""
         return rows
 
     movers_section = ""
     if top_gainers or top_losers:
         movers_section = f"""
-  <div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
-    <div style="padding:12px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
-      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">{t["portfolio_moves"].format(period_adverb=period_adverb)}</p>
-    </div>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
-      <tr>
-        <td style="width:50%;vertical-align:top;border-right:1px solid #1e2235">
-          <div style="padding:10px 14px;background:#0d1117;border-bottom:1px solid #1e2235">
-            <span style="color:#22c55e;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px">{t["top_gainers"]}</span>
-          </div>
-          <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
-            {_mover_rows(top_gainers)}
-          </table>
-        </td>
-        <td style="width:50%;vertical-align:top">
-          <div style="padding:10px 14px;background:#0d1117;border-bottom:1px solid #1e2235">
-            <span style="color:#ef4444;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px">{t["top_losers"]}</span>
-          </div>
-          <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
-            {_mover_rows(top_losers)}
-          </table>
-        </td>
-      </tr>
-    </table>
-  </div>"""
+  <div style="color:#8b93a7;font-size:10.5px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;border-bottom:1px solid #212736;padding-bottom:10px;margin-bottom:6px">{t["portfolio_moves"].format(period_adverb=period_adverb)}</div>
+  <div style="color:{_UP_COLOR};font-size:10.5px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;margin:14px 0 4px">{t["top_gainers"]}</div>
+  {_mover_rows(top_gainers)}
+  <div style="color:{_DOWN_COLOR};font-size:10.5px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;margin:18px 0 4px">{t["top_losers"]}</div>
+  {_mover_rows(top_losers)}
+  <div style="padding-bottom:14px"></div>"""
 
     # ── Section 3: Market Wrap ─────────────────────────────────────────────────
     wrap_section = ""
@@ -569,13 +584,13 @@ def daily_email_v2(
             hour      = e.get("hour", "")
             timing    = t["pre_market"] if hour == "BMO" else (t["after_hours"] if hour == "AMC" else "")
 
-            eps_color  = "#22c55e" if beat_eps else "#ef4444"
+            eps_color  = _UP_COLOR if beat_eps else _DOWN_COLOR
             eps_badge  = t["beat"] if beat_eps else t["miss"]
             eps_beat_pct = round((eps_a - eps_e) / abs(eps_e) * 100, 1) if eps_a is not None and eps_e and eps_e != 0 else None
 
             rev_row = ""
             if rev_a is not None and rev_e is not None:
-                rev_color = "#22c55e" if beat_rev else "#ef4444"
+                rev_color = _UP_COLOR if beat_rev else _DOWN_COLOR
                 rev_diff  = round((rev_a - rev_e) / abs(rev_e) * 100, 1) if rev_e != 0 else 0
                 rev_sign  = "+" if rev_diff >= 0 else ""
                 rev_row = f"""
@@ -586,7 +601,7 @@ def daily_email_v2(
                 </tr>"""
 
             beat_pct_str = f" (+{eps_beat_pct:.1f}%)" if beat_eps and eps_beat_pct else (f" ({eps_beat_pct:.1f}%)" if eps_beat_pct else "")
-            analysis_html = f'<div style="background:#0d1f17;border-left:2px solid #22c55e;padding:10px 14px;margin-top:10px"><p style="margin:0;color:#d1fae5;font-size:12px;line-height:1.6">{analysis}</p></div>' if analysis else ""
+            analysis_html = f'<div style="background:#0d1f17;border-left:2px solid {_UP_COLOR};padding:10px 14px;margin-top:10px"><p style="margin:0;color:#d1fae5;font-size:12px;line-height:1.6">{analysis}</p></div>' if analysis else ""
 
             cards += f"""
             <div style="border-bottom:1px solid #1e2235;padding:16px 20px">
@@ -620,23 +635,37 @@ def daily_email_v2(
   </div>"""
 
     body = f"""
-  {_nuvos_header(t["header_tagline"])}
-  <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0 0 4px;text-align:center;letter-spacing:-0.5px">
-    {t["greeting"].format(first_name=first_name)}
-  </h1>
-  <p style="color:#6b7280;font-size:13px;margin:0 0 24px;text-align:center">{t["subheading"]}</p>
-
-  {table1}
+  {header}
+  {hero}
+  {vs_strip}
   {movers_section}
+  {ai_section}
   {wrap_section}
   {earnings_section}
 
-  <div style="text-align:center;margin-bottom:8px">
-    <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#00d47e;color:#0d1117;font-weight:900;font-size:14px;padding:13px 32px;border-radius:14px;text-decoration:none">
+  <div style="text-align:center;margin:8px 0 32px">
+    <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:{_UP_COLOR};color:#06110c;font-weight:800;font-size:14px;padding:14px 34px;border-radius:12px;text-decoration:none">
       {t["cta"]}
     </a>
   </div>"""
-    return _email_wrapper(body)
+
+    return f"""<!DOCTYPE html>
+<html lang="{language}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Nuvos AI</title>
+  {_DM_SANS_LINK}
+</head>
+<body style="margin:0;padding:0;background:#0a0d13;font-family:{_DM_SANS_STACK}">
+<div style="max-width:580px;margin:0 auto;padding:0 16px 28px">
+{body}
+  <p style="text-align:center;color:#3c4152;font-size:10.5px;margin:8px 0 0">
+    <strong style="color:#4d5568">Nuvos AI</strong>&nbsp;·&nbsp;Solo educativo. No constituye asesoramiento financiero.
+  </p>
+</div>
+</body>
+</html>"""
 
 
 # ─── Weekly premium email ─────────────────────────────────────────────────────
