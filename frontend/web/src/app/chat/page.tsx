@@ -13,7 +13,7 @@ import {
   isGuestUser, getGuestId,
 } from "@/lib/store";
 import { getMentorInfo } from "@/lib/mentorData";
-import { usePortfolioStore } from "@/lib/portfolioStore";
+import { usePortfolioStore, useCombinedPositions } from "@/lib/portfolioStore";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
@@ -163,7 +163,13 @@ export default function ChatPage() {
   const { language } = useLanguageStore();
   const subStore = useSubscriptionStore();
   const forceShowFlashcard = useGuestGateStore((s) => s.forceShowFlashcard);
-  const { positions, loadFromServer: loadPortfolio } = usePortfolioStore();
+  const { loadFromServer: loadPortfolio } = usePortfolioStore();
+  // Combined across every portfolio, not just the active one — Arthur's
+  // context (below) previously only ever saw whichever portfolio tab
+  // happened to be selected, with no indication to the user that their
+  // other broker accounts were invisible to the advice (2026-08-21
+  // multi-portfolio audit).
+  const positions = useCombinedPositions();
   // Distinct holdings, not purchase lots — buying more of a ticker you
   // already own shouldn't inflate this count.
   const distinctPositionsCount = useMemo(() => new Set(positions.map((p) => p.ticker)).size, [positions]);

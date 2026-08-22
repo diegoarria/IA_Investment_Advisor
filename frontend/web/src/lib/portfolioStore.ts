@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { useAuthStore } from "./store";
@@ -111,6 +112,42 @@ const _LOCAL_CLOSED_POSITIONS_CAP = 200;
 const DEFAULT_PORTFOLIO: Portfolio = {
   id: "default", name: "Mi portafolio", positions: [], closedPositions: [], inceptionDate: null, currency: "USD",
 };
+
+// Merges every portfolio's positions into one list — for screens that should
+// reflect ALL of a user's portfolios combined, not just whichever one
+// happens to be active. Audit 2026-08-21 (Diego): every screen except
+// /portfolio itself was silently only showing `positions`, the active
+// portfolio's mirror — a user's 2nd/3rd broker portfolio was invisible to
+// Home, the AI mentor, Patrimonio, Notifications, Earnings and Watchlist.
+// Raw concatenation, matching the backend's _agg_positions convention — a
+// ticker held in two portfolios yields two separate lot entries, same as
+// two lots within a single portfolio already do.
+export function mergeAllPositions(portfolios: Portfolio[]): Position[] {
+  return portfolios.flatMap((p) => p.positions);
+}
+
+// True only when every portfolio holding at least one position shares the
+// exact same currency — the one case where a single FX rate can correctly
+// convert a combined total. Mixed currencies have no single correct rate
+// (same problem the backend's job_market_close fix addressed 2026-08-21) —
+// callers should fall back to USD (rate 1, no silent misconversion) instead
+// of guessing which portfolio's currency "wins."
+export function combinedCurrency(portfolios: Portfolio[]): string {
+  const currencies = new Set(portfolios.filter((p) => p.positions.length > 0).map((p) => p.currency));
+  return currencies.size === 1 ? [...currencies][0] : "USD";
+}
+
+/** All positions across every one of the user's portfolios, combined. */
+export function useCombinedPositions(): Position[] {
+  const portfolios = usePortfolioStore((s) => s.portfolios);
+  return useMemo(() => mergeAllPositions(portfolios), [portfolios]);
+}
+
+/** The one currency to display a combined multi-portfolio total in — see combinedCurrency(). */
+export function useCombinedCurrency(): string {
+  const portfolios = usePortfolioStore((s) => s.portfolios);
+  return useMemo(() => combinedCurrency(portfolios), [portfolios]);
+}
 
 export const usePortfolioStore = create<PortfolioStore>()(
   persist(

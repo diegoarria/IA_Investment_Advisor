@@ -13,7 +13,7 @@ import {
 import { watchlist as watchlistApi, market as marketApi, sync as syncApi, priceAlerts as priceAlertsApi } from "@/lib/api";
 import { useAuthStore, useSubscriptionStore, useProfileStore, usePersonalizationStore } from "@/lib/store";
 import { getUserLevel } from "@/lib/userLevel";
-import { usePortfolioStore } from "@/lib/portfolioStore";
+import { usePortfolioStore, useCombinedPositions } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
@@ -370,7 +370,11 @@ export default function WatchlistPage() {
   const { tier, isTrialPremium } = useSubscriptionStore();
   const { minMarginOfSafetyPct } = usePersonalizationStore();
   const isPremium = tier === "premium" || isTrialPremium;
-  const { positions, portfolioCurrency } = usePortfolioStore();
+  const { portfolioCurrency } = usePortfolioStore();
+  // "Already in your portfolio" must check every one of the user's
+  // portfolios, not just the active one — see portfolioStore's
+  // useCombinedPositions doc comment (2026-08-21 multi-portfolio audit).
+  const combinedPositions = useCombinedPositions();
   const fxRate = useFxRate(portfolioCurrency);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -985,7 +989,7 @@ export default function WatchlistPage() {
               <div className="mt-4">
                 <WatchlistEarningsCalendar
                   watchlistTickers={items.map((i) => i.ticker)}
-                  portfolioTickers={positions.map((p) => p.ticker)}
+                  portfolioTickers={combinedPositions.map((p) => p.ticker)}
                   tickerNames={Object.fromEntries(items.map((i) => [i.ticker, i.name]))}
                   tickerLogos={Object.fromEntries(items.map((i) => [i.ticker, i.logo_url]))}
                   isPremium={isPremium}

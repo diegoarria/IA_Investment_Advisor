@@ -20,7 +20,7 @@ import PricingModal from "@/components/PricingModal";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore, useBalanceVisibilityStore } from "@/lib/store";
 import OnboardingChecklist, { type OnboardingStep } from "@/components/OnboardingChecklist";
 import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenPickerModal";
-import { usePortfolioStore } from "@/lib/portfolioStore";
+import { useCombinedPositions, useCombinedCurrency } from "@/lib/portfolioStore";
 import { usePaperStore } from "@/lib/paperStore";
 import { useFxRate } from "@/lib/useFxRate";
 import { isNYSEOpen } from "@/lib/marketHours";
@@ -105,7 +105,16 @@ export default function HomePage() {
   const { isAuthenticated, authRestoring } = useAuthStore();
   const { profile, setProfile } = useProfileStore();
   const { hidden: balanceHidden, toggle: toggleBalanceHidden } = useBalanceVisibilityStore();
-  const { positions, portfolioCurrency } = usePortfolioStore();
+  // Combined across every portfolio, not just the active one — the Home
+  // hero number previously only reflected whichever portfolio tab happened
+  // to be selected (2026-08-21 multi-portfolio audit). portfolioCurrency
+  // is only a display choice when every portfolio agrees on one currency;
+  // when portfolios use different currencies there's no single correct FX
+  // rate to apply to the combined total, so this shows USD instead of
+  // silently misconverting part of it (same fix worker.py's
+  // job_market_close got on the backend, 2026-08-21).
+  const positions = useCombinedPositions();
+  const portfolioCurrency = useCombinedCurrency();
   // Distinct holdings, not purchase lots — buying more of a ticker you
   // already own shouldn't inflate this count.
   const distinctPositionsCount = useMemo(() => new Set(positions.map((p) => p.ticker)).size, [positions]);

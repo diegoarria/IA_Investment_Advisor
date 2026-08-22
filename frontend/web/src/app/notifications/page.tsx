@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { notifications as notifApi, market as marketApi } from "@/lib/api";
 import { useAuthStore, useNotificationStore, useThemeStore, useSubscriptionStore } from "@/lib/store";
-import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
+import { useCombinedPositions, type Position } from "@/lib/portfolioStore";
 import PaywallModal from "@/components/PaywallModal";
 import { Bell, X, Sun, Moon, Newspaper, RefreshCw, Loader2, Settings } from "lucide-react";
 import NotificationSettingsPanel from "./SettingsPanel";
@@ -36,7 +36,10 @@ export default function NotificationsPage() {
   const { isAuthenticated } = useAuthStore();
   const { notifications, unreadCount, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
-  const { positions } = usePortfolioStore();
+  // Combined across every portfolio, not just the active one — portfolio
+  // news/price alerts previously only covered whichever portfolio tab
+  // happened to be selected (2026-08-21 multi-portfolio audit).
+  const positions = useCombinedPositions();
   const subStore = useSubscriptionStore();
   const isPremium = subStore.tier === "premium" || subStore.isTrialPremium;
 

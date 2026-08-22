@@ -12,7 +12,7 @@ import ExplainButton from "@/components/ExplainButton";
 import StockAvatar from "@/components/StockAvatar";
 import PersonalizedMessageBanner from "@/components/PersonalizedMessageBanner";
 import { market as marketApi, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
-import { usePortfolioStore } from "@/lib/portfolioStore";
+import { useCombinedPositions, useCombinedCurrency } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
 import { useWatchlistStore, useBalanceVisibilityStore } from "@/lib/store";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
@@ -89,7 +89,14 @@ function SummaryCard({
 function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean }) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { positions: rawPositions, portfolioCurrency } = usePortfolioStore();
+  // Combined across every portfolio, not just the active one — net worth
+  // previously only reflected whichever portfolio tab happened to be
+  // selected (2026-08-21 multi-portfolio audit). See Home page's identical
+  // comment for why portfolioCurrency comes from useCombinedCurrency
+  // (falls back to USD when portfolios disagree on currency, instead of
+  // applying one portfolio's FX rate to money that isn't in that currency).
+  const rawPositions = useCombinedPositions();
+  const portfolioCurrency = useCombinedCurrency();
   const fxRate = useFxRate(portfolioCurrency);
   const { hidden: balanceHidden } = useBalanceVisibilityStore();
   const mask = (s: string) => (balanceHidden ? "••••••" : s);
@@ -280,7 +287,7 @@ function WatchlistTab({ prices, loading }: { prices: PriceMap; loading: boolean 
   const { t } = useTranslation();
   const router = useRouter();
   const { items } = useWatchlistStore();
-  const { portfolioCurrency } = usePortfolioStore();
+  const portfolioCurrency = useCombinedCurrency();
   const fxRate = useFxRate(portfolioCurrency);
 
   return (
@@ -506,7 +513,7 @@ function PatrimonioContent() {
   const rawTab = searchParams.get("tab") as TabId | null;
   const activeTab: TabId = rawTab && TABS.some((tab) => tab.id === rawTab) ? rawTab : "portfolio";
 
-  const { positions: portfolioPositions } = usePortfolioStore();
+  const portfolioPositions = useCombinedPositions();
   const { items: watchItems } = useWatchlistStore();
   const { positions: paperPositions } = usePaperStore();
 

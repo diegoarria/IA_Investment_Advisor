@@ -10,7 +10,7 @@ import PaywallModal from "@/components/PaywallModal";
 import { EarningsAnalysisCard, type EarningsAnalysisResponse } from "@/components/EarningsAnalysisCard";
 import { earningsApi } from "@/lib/api";
 import { useSubscriptionStore } from "@/lib/store";
-import { usePortfolioStore } from "@/lib/portfolioStore";
+import { useCombinedPositions } from "@/lib/portfolioStore";
 
 export default function EarningsTickerPage() {
   const { t, i18n } = useTranslation();
@@ -19,7 +19,10 @@ export default function EarningsTickerPage() {
   const ticker = (params?.ticker || "").toString().toUpperCase();
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium" || sub.isTrialPremium;
-  const positions = usePortfolioStore((s) => s.positions);
+  // Combined across every portfolio, not just the active one (2026-08-21
+  // multi-portfolio audit) — a position held in a non-active broker
+  // portfolio was invisible here before.
+  const positions = useCombinedPositions();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -31,8 +34,15 @@ export default function EarningsTickerPage() {
     if (!isPremium || !ticker) { setLoading(false); return; }
     setLoading(true);
     setError(null);
-    const position = positions.find((p) => p.ticker === ticker);
-    earningsApi.getAnalysis(ticker, position?.shares || 0, position?.avgPrice || 0, i18n.language)
+    // Sum shares (and weight-average cost) across every lot for this ticker
+    // — it can appear more than once, either as multiple buy lots within one
+    // portfolio or the same stock held in two different broker portfolios.
+    const lots = positions.filter((p) => p.ticker === ticker);
+    const totalShares = lots.reduce((sum, p) => sum + p.shares, 0);
+    const avgPrice = totalShares > 0
+      ? lots.reduce((sum, p) => sum + p.avgPrice * p.shares, 0) / totalShares
+      : 0;
+    earningsApi.getAnalysis(ticker, totalShares, avgPrice, i18n.language)
       .then((res) => setResult(res.data))
       .catch((err: unknown) => {
         const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;

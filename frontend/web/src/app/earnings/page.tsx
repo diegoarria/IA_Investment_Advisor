@@ -11,7 +11,7 @@ import StockAvatar from "@/components/StockAvatar";
 import { BeatMissBadge, fmtMoney, type RecentReporter } from "@/components/EarningsAnalysisCard";
 import { earningsApi } from "@/lib/api";
 import { useSubscriptionStore } from "@/lib/store";
-import { usePortfolioStore } from "@/lib/portfolioStore";
+import { useCombinedPositions } from "@/lib/portfolioStore";
 import { useWatchlistStore } from "@/lib/store";
 
 function ReporterRow({ r, onClick }: { r: RecentReporter; onClick: () => void }) {
@@ -45,7 +45,10 @@ export default function EarningsPage() {
   const router = useRouter();
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium" || sub.isTrialPremium;
-  const positions = usePortfolioStore((s) => s.positions);
+  // Combined across every portfolio, not just the active one — a ticker
+  // "you own" for earnings-alert purposes shouldn't depend on which
+  // portfolio tab happens to be selected (2026-08-21 multi-portfolio audit).
+  const positions = useCombinedPositions();
   const watchlistItems = useWatchlistStore((s) => s.items);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
