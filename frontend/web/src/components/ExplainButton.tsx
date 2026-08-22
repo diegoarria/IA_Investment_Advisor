@@ -64,15 +64,23 @@ export default function ExplainButton({
   // button to a small re-openable icon that came right back full-size on
   // the next page load, which from the user's side looked exactly like the
   // X doing nothing at all (Diego: "le he dado clic a la X mil veces...
-  // pero sigue apareciendo"). Persisted per screen now, and null (not yet
-  // loaded) renders nothing so there's no flash of the full button before
-  // the stored value resolves.
+  // pero sigue apareciendo"). Persisted per screen, but NOT forever — a
+  // permanent dismiss meant the button silently vanished from that screen
+  // for good the first time anyone tapped X (Diego, 2026-08-21: "tienen
+  // que funcionar SIEMPRE, en todas las pantallas"), which is exactly as
+  // broken-looking as the original complaint, just delayed. It comes back
+  // after a week instead — long enough not to nag right after a dismiss,
+  // never gone for good. null (not yet loaded) renders nothing so there's
+  // no flash of the full button before the stored value resolves.
+  const DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const [dismissed, setDismissed] = useState<boolean | null>(null);
   const dismissKey = `nuvos_explain_dismissed:${screen}`;
 
   useEffect(() => {
     try {
-      setDismissed(localStorage.getItem(dismissKey) === "1");
+      const raw = localStorage.getItem(dismissKey);
+      const dismissedAt = raw ? Number(raw) : null;
+      setDismissed(!!dismissedAt && Date.now() - dismissedAt < DISMISS_TTL_MS);
     } catch {
       setDismissed(false);
     }
@@ -87,7 +95,7 @@ export default function ExplainButton({
   const handleDismiss = () => {
     if (state === "playing") stop();
     setDismissed(true);
-    try { localStorage.setItem(dismissKey, "1"); } catch { /* ignore */ }
+    try { localStorage.setItem(dismissKey, String(Date.now())); } catch { /* ignore */ }
   };
 
   const handleClick = async () => {

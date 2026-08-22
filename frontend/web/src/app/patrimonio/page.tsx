@@ -169,7 +169,7 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
     <div className="space-y-4">
       <div className="flex justify-end">
         <ExplainButton
-          screen="patrimonio"
+          screen="patrimonio_portfolio"
           context={{
             total_value: totalValue,
             day_gain_pct: dayGainPctFinal,
@@ -299,7 +299,7 @@ function WatchlistTab({ prices, loading }: { prices: PriceMap; loading: boolean 
           context instead of reusing portfolio totals that don't apply here. */}
       <div className="flex justify-end">
         <ExplainButton
-          screen="patrimonio"
+          screen="patrimonio_watchlist"
           context={{
             watchlist_count: items.length,
             watchlist: items.slice(0, 15).map((item) => ({
@@ -397,7 +397,7 @@ function SimuladorTab({ prices, loading }: { prices: PriceMap; loading: boolean 
       {/* Was missing here too — see WatchlistTab's comment above. */}
       <div className="flex justify-end">
         <ExplainButton
-          screen="patrimonio"
+          screen="patrimonio_simulador"
           context={{
             paper_trading: true,
             total_value: totalValue,
