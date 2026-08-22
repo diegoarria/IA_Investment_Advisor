@@ -17,6 +17,9 @@ async def _haiku_insight(prompt: str, max_tokens: int = 120) -> str | None:
     from app.core.config import settings
 
     try:
+        from app.services.ai_service import check_daily_spend_cap
+        from app.services.llm_usage import log_llm_usage
+        check_daily_spend_cap()
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         resp = await asyncio.wait_for(
             client.messages.create(
@@ -26,6 +29,7 @@ async def _haiku_insight(prompt: str, max_tokens: int = 120) -> str | None:
             ),
             timeout=10.0,
         )
+        asyncio.create_task(log_llm_usage(None, "portfolio_manager_insight", "claude-haiku-4-5-20251001", resp.usage))
         text = resp.content[0].text.strip().strip('"').strip("'")
         return text or None
     except Exception as e:

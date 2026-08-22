@@ -1,3 +1,4 @@
+import asyncio
 import random
 import re
 import json
@@ -387,16 +388,25 @@ async def start_debate(request: Request, body: dict, user_id: str = Depends(get_
     system_prompt = DIFFICULTY_DEBATE_PROMPTS.get(difficulty, DIFFICULTY_DEBATE_PROMPTS["intermedio"])
     message = f'TESIS DEL USUARIO: "{thesis}"\n\nResponde directamente con tus contraargumentos. Sin introducción meta.'
 
+    from app.services.ai_service import check_daily_spend_cap, LLMDailySpendCapExceeded
+    from app.services.llm_usage import log_llm_usage
+    try:
+        check_daily_spend_cap()
+    except LLMDailySpendCapExceeded:
+        raise HTTPException(status_code=503, detail="Esta función no está disponible en este momento. Intenta más tarde.")
+
     # Haiku for the free-accessible difficulties (Principiante/Intermedio,
     # unbounded free-tier liability, no revenue offsetting the cost) — keep
     # Sonnet only for Difícil/Imposible, which are Premium-gated above
     # (lower volume, and the harder-opponent value prop is worth paying for).
+    debate_model = settings.claude_model if difficulty in ("dificil", "imposible") else "claude-haiku-4-5-20251001"
     result = await _debate_client.messages.create(
-        model=settings.claude_model if difficulty in ("dificil", "imposible") else "claude-haiku-4-5-20251001",
+        model=debate_model,
         max_tokens=800,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": message}],
     )
+    asyncio.create_task(log_llm_usage(user_id, "debate_start", debate_model, result.usage))
     response = result.content[0].text
 
     return {
@@ -429,13 +439,22 @@ TU ARGUMENTO ANTERIOR: {previous[:600]}
 RESPUESTA DEL USUARIO: "{user_response}"
 """
 
+    from app.services.ai_service import check_daily_spend_cap, LLMDailySpendCapExceeded
+    from app.services.llm_usage import log_llm_usage
+    try:
+        check_daily_spend_cap()
+    except LLMDailySpendCapExceeded:
+        raise HTTPException(status_code=503, detail="Esta función no está disponible en este momento. Intenta más tarde.")
+
     # Same split as /debate above.
+    debate_model = settings.claude_model if difficulty in ("dificil", "imposible") else "claude-haiku-4-5-20251001"
     result = await _debate_client.messages.create(
-        model=settings.claude_model if difficulty in ("dificil", "imposible") else "claude-haiku-4-5-20251001",
+        model=debate_model,
         max_tokens=600,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": message}],
     )
+    asyncio.create_task(log_llm_usage(user_id, "debate_reply", debate_model, result.usage))
     response = result.content[0].text
 
     return {"response": response, "round": round_num + 1, "difficulty": difficulty}

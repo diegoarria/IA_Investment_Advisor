@@ -7,6 +7,7 @@ GET  /support/tickets — admin: list all open tickets
 PUT  /support/tickets/{id} — admin: reply to / close a ticket
 """
 
+import asyncio
 import logging
 
 import anthropic
@@ -87,6 +88,13 @@ async def support_chat(
     messages.append({"role": "user", "content": message})
 
     async def generate():
+        from app.services.ai_service import check_daily_spend_cap
+        from app.services.llm_usage import log_llm_usage
+        try:
+            check_daily_spend_cap()
+        except Exception:
+            yield "Este chat no está disponible en este momento. Por favor crea un ticket de soporte usando el botón de abajo."
+            return
         async with _client.messages.stream(
             model="claude-haiku-4-5-20251001",
             max_tokens=512,
@@ -95,6 +103,8 @@ async def support_chat(
         ) as stream:
             async for chunk in stream.text_stream:
                 yield chunk
+            final = await stream.get_final_message()
+        asyncio.create_task(log_llm_usage(user_id, "support_chat", "claude-haiku-4-5-20251001", final.usage))
 
     return StreamingResponse(generate(), media_type="text/plain")
 

@@ -611,12 +611,16 @@ Escribe SOLO la carta, sin título ni encabezado adicional."""
         # Haiku, not settings.claude_model (Sonnet) — a short, templated,
         # once-per-user-per-month letter (this whole route is monthly-
         # cached above), not deep reasoning; no meaningful quality loss.
+        from app.services.ai_service import check_daily_spend_cap
+        from app.services.llm_usage import log_llm_usage
+        check_daily_spend_cap()
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         response = await client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=400,
             messages=[{"role": "user", "content": prompt}],
         )
+        asyncio.create_task(log_llm_usage(None, "mentor_letter", "claude-haiku-4-5-20251001", response.usage))
         letter = response.content[0].text.strip()
         result = {
             "letter": letter,

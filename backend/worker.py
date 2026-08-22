@@ -1354,6 +1354,8 @@ Escribe un resumen narrativo de {time_frame} en 2 párrafos cortos (3-4 oracione
 
 Español, tono analítico pero accesible. Sin viñetas, sin markdown, sin asteriscos, sin título ni encabezado — solo los 2 párrafos directamente."""
 
+        from app.services.ai_service import check_daily_spend_cap
+        check_daily_spend_cap()
         client = anthropic.AsyncAnthropic()
         resp = await asyncio.wait_for(
             client.messages.create(
@@ -1411,6 +1413,8 @@ async def _generate_earnings_ai_for_email(
                 f"En 1-2 oraciones en español, explica qué impulsó estos resultados y qué implican para la acción. "
                 f"Sin markdown, sin asteriscos, lenguaje de analista accesible."
             )
+        from app.services.ai_service import check_daily_spend_cap
+        check_daily_spend_cap()
         client = anthropic.AsyncAnthropic()
         resp = await asyncio.wait_for(
             client.messages.create(
@@ -2242,17 +2246,29 @@ async def job_portfolio_alerts():
         logger.error("job_portfolio_alerts failed: %s", e)
 
 
+_WEEKLY_SCREENER_PENDING_KEY = "weekly_screener:pending_batch:v1"
+_WEEKLY_SCREENER_PENDING_TTL = 48 * 3600  # same window submit_candidate_blurb_batch's pending marker uses
+
+
 async def job_weekly_screener_generate():
-    """8:00 AM ET Sunday — pre-generates and caches this week's Screener
-    Semanal picks (see app/api/routes/screener.py's weekly_picks /
-    _generate_weekly_picks_for_user — the real personalized engine behind
-    WeeklyScreenerCard.tsx / MobileWeeklyScreener.tsx) for every Premium
-    user, then sends one push once it's ready. Running early Sunday, well
-    before anyone is likely to open the app that day, means the cache for
-    the new ISO week is already warm — the on-demand path in weekly_picks()
-    is now a rare fallback (new Premium user mid-week, this job failing for
-    one specific user) instead of the common case, so the screen is never
-    left showing "no suggestions" until next Sunday.
+    """8:00 AM ET Sunday — submits ONE Anthropic Message Batch covering
+    every Premium user's Screener Semanal request (see app/api/routes/
+    screener.py's weekly_picks / _generate_weekly_picks_for_user — the real
+    personalized engine behind WeeklyScreenerCard.tsx / MobileWeeklyScreener
+    .tsx). A batch is NOT synchronous (minutes to hours) — this submits and
+    returns; job_poll_weekly_screener_batch finalizes each user's cache +
+    push + email once it completes.
+
+    2026-08-21 cost-optimization pass: this used to call
+    ai_service.generate_weekly_picks() once per user, synchronously, in a
+    loop — "the single highest-leverage recurring Claude cost in the app"
+    per this job's own prior docstring, since it fires on a clock for every
+    Premium user whether or not they ever open the card. The Batches API is
+    50% cheaper and this content is never needed synchronously (pre-
+    generated hours before market open), so there's no real tradeoff —
+    same exact prompts/guardrails, same weekly cadence, just submitted as
+    one batch instead of N sequential calls. Mirrors undervalued_screener_
+    service.refresh_undervalued_screener's already-proven batch pattern.
 
     REPLACES the old Wed/Sat "Oportunidades para ti" push, which used a
     separate, cheaper but far less personalized Haiku call over a hardcoded
@@ -2262,15 +2278,26 @@ async def job_weekly_screener_generate():
     per-risk-tier exclude-list, and a rolling "don't repeat last 3 weeks'
     picks" history, see generate_weekly_picks in ai_service.py)."""
     from app.core.database import get_supabase, run_query
-    from app.services.notification_engine import send_push
-    from app.services.email_service import send_email
-    from app.core.cache import cache_set
+    from app.core.cache import cache_get, cache_set
+    from app.services import ai_service
     from app.api.routes.screener import (
-        UNIVERSE, _fetch_batch, _generate_weekly_picks_for_user, _weekly_cache_key, _WEEKLY_TTL,
+        UNIVERSE, _fetch_batch, _get_user_profile_safe, _weekly_history_key,
     )
 
     db = get_supabase()
     try:
+        already_pending = cache_get(_WEEKLY_SCREENER_PENDING_KEY)
+        if already_pending:
+            # Same real duplicate-spend guard submit_candidate_blurb_batch
+            # uses — a manual retrigger or two redeploys close together
+            # must never submit a second full batch while one's still
+            # pending and silently orphan the first one's cost.
+            logger.warning(
+                "job_weekly_screener_generate: batch %s already pending — skipping resubmission",
+                already_pending.get("batch_id"),
+            )
+            return
+
         prefs_res = await run_query(
             db.table("notification_preferences").select("user_id").eq("push_ai_recommendations", True)
         )
@@ -2298,65 +2325,127 @@ async def job_weekly_screener_generate():
         stocks = await asyncio.to_thread(_fetch_batch, UNIVERSE)
         stocks.sort(key=lambda x: x.get("score", 0), reverse=True)
 
-        sent = 0
+        # Build one batch request per user — same per-user personalization
+        # (profile, owned tickers, don't-repeat history) the old synchronous
+        # loop used, just assembled up front instead of interleaved with
+        # individual Claude calls.
+        items: list[dict] = []
+        meta_by_user: dict[str, dict] = {}
         for i, uid in enumerate(uids):
             if i % 100 == 0 and i > 0:
-                await asyncio.sleep(12)
-            await asyncio.sleep(random.uniform(0, 0.1))
+                await asyncio.sleep(1)
 
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
             owned = [p["ticker"] for p in _agg_positions(port_res.data or []) if p.get("ticker")]
 
-            # Never leave a user's cache empty because of one transient LLM
-            # failure — one retry before giving up for this run (the
-            # on-demand /weekly route remains the final safety net).
-            result = None
-            for attempt in range(2):
-                try:
-                    result = await _generate_weekly_picks_for_user(uid, owned, stocks)
-                    break
-                except Exception as e:
-                    logger.warning("job_weekly_screener_generate: attempt %d failed for %s: %s", attempt + 1, uid, e)
-                    await asyncio.sleep(1)
-            if result is None:
-                logger.error("job_weekly_screener_generate: giving up on %s this run", uid)
-                continue
+            recent = cache_get(_weekly_history_key(uid)) or []
+            candidates_all = [s for s in stocks if s["ticker"] not in owned]
+            candidates = [s for s in candidates_all if s["ticker"] not in recent] or candidates_all
+            profile = await _get_user_profile_safe(uid)
+            risk = profile.risk_tolerance if profile else "moderado"
 
-            cache_set(_weekly_cache_key(uid), result, ttl=_WEEKLY_TTL)
+            items.append({"user_id": uid, "candidates": candidates, "profile": profile, "existing": owned, "recent": recent})
+            meta_by_user[uid] = {"risk": risk, "existing": owned, "recent": recent, "candidates": candidates}
 
-            is_en = lang_map.get(uid, "es") == "en"
-            title = "📊 Your Screener Semanal is ready" if is_en else "📊 Tu Screener Semanal está listo"
-            body = (
-                "5 new ideas picked for your profile — research deeply before investing in any of them."
-                if is_en else
-                "5 ideas nuevas elegidas para tu perfil — investiga a fondo antes de invertir en cualquiera de ellas."
+        if not items:
+            return
+
+        batch_id = await ai_service.submit_weekly_picks_batch(items)
+        cache_set(_WEEKLY_SCREENER_PENDING_KEY, {
+            "batch_id": batch_id, "meta_by_user": meta_by_user, "lang_map": lang_map, "auth_users": auth_users,
+        }, _WEEKLY_SCREENER_PENDING_TTL)
+        logger.info("job_weekly_screener_generate: submitted batch %s for %d users — job_poll_weekly_screener_batch will finalize", batch_id, len(items))
+    except Exception as e:
+        logger.error("job_weekly_screener_generate failed: %s", e)
+
+
+async def job_poll_weekly_screener_batch():
+    """Runs frequently (see scheduler registration) — checks whether
+    job_weekly_screener_generate's Sunday batch has completed; if so,
+    finalizes every user's cache + sends their push + email, exactly what
+    the old synchronous per-user loop used to do inline, just moved to
+    fire once the batch is done instead of once per Claude call. Mirrors
+    undervalued_screener_service.poll_and_finalize_undervalued_screener_
+    batch's pattern."""
+    from app.core.database import get_supabase, run_query
+    from app.core.cache import cache_get, cache_set, cache_delete
+    from app.services import ai_service
+    from app.services.notification_engine import send_push
+    from app.services.email_service import send_email
+    from app.api.routes.screener import _weekly_cache_key, _weekly_history_key, _WEEKLY_TTL, _WEEKLY_HISTORY_MAX, _WEEKLY_HISTORY_TTL
+
+    pending = cache_get(_WEEKLY_SCREENER_PENDING_KEY)
+    if not pending:
+        return
+    batch_id = pending.get("batch_id")
+    if not batch_id:
+        cache_delete(_WEEKLY_SCREENER_PENDING_KEY)
+        return
+
+    try:
+        batch = await ai_service.client.messages.batches.retrieve(batch_id)
+    except Exception as exc:
+        logger.error("job_poll_weekly_screener_batch: failed to check batch %s status: %s", batch_id, exc)
+        return
+    if batch.processing_status != "ended":
+        logger.info("job_poll_weekly_screener_batch: batch %s still processing (%s)", batch_id, batch.processing_status)
+        return
+
+    meta_by_user = pending.get("meta_by_user") or {}
+    lang_map     = pending.get("lang_map") or {}
+    auth_users   = pending.get("auth_users") or {}
+
+    try:
+        results_by_user = await ai_service.parse_weekly_picks_batch_results(batch_id, meta_by_user)
+    except Exception as exc:
+        logger.error("job_poll_weekly_screener_batch: failed to parse batch %s results: %s", batch_id, exc)
+        cache_delete(_WEEKLY_SCREENER_PENDING_KEY)
+        return
+
+    db = get_supabase()
+    sent = 0
+    for uid, result in results_by_user.items():
+        cache_set(_weekly_cache_key(uid), result, ttl=_WEEKLY_TTL)
+
+        new_tickers = [p["ticker"] for p in result.get("picks", []) if p.get("ticker")]
+        if new_tickers:
+            recent = meta_by_user.get(uid, {}).get("recent") or []
+            updated_history = (new_tickers + [t for t in recent if t not in new_tickers])[:_WEEKLY_HISTORY_MAX]
+            cache_set(_weekly_history_key(uid), updated_history, ttl=_WEEKLY_HISTORY_TTL)
+
+        is_en = lang_map.get(uid, "es") == "en"
+        title = "📊 Your Screener Semanal is ready" if is_en else "📊 Tu Screener Semanal está listo"
+        body = (
+            "5 new ideas picked for your profile — research deeply before investing in any of them."
+            if is_en else
+            "5 ideas nuevas elegidas para tu perfil — investiga a fondo antes de invertir en cualquiera de ellas."
+        )
+        await send_push(uid, "weekly_screener", title, body, {"screen": "portfolio"}, db)
+        sent += 1
+
+        # Email — same real picks the in-app card shows, not a separate generation.
+        email_addr = auth_users.get(uid)
+        picks = (result.get("picks") or [])[:5]
+        if email_addr and picks:
+            pick_rows = "".join(
+                f'<div style="padding:14px 0;border-bottom:1px solid #1e2235">'
+                f'<div style="display:flex;align-items:center;gap:12px">'
+                f'<span style="background:#00d47e22;color:#00d47e;font-size:13px;font-weight:900;width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">{idx+1}</span>'
+                f'<div><span style="color:#fff;font-size:16px;font-weight:800">{pk.get("ticker","")}</span>'
+                f'<span style="color:#6b7280;font-size:13px;margin-left:8px">{pk.get("name","")}</span></div>'
+                f'</div>'
+                f'<p style="color:#9ca3af;font-size:12.5px;line-height:1.6;margin:8px 0 0 40px">{pk.get("why","")}</p>'
+                f'</div>'
+                for idx, pk in enumerate(picks)
             )
-            await send_push(uid, "weekly_screener", title, body, {"screen": "portfolio"}, db)
-            sent += 1
-
-            # Email — same real picks the in-app card shows, not a separate generation.
-            email_addr = auth_users.get(uid)
-            picks = (result.get("picks") or [])[:5]
-            if email_addr and picks:
-                pick_rows = "".join(
-                    f'<div style="padding:14px 0;border-bottom:1px solid #1e2235">'
-                    f'<div style="display:flex;align-items:center;gap:12px">'
-                    f'<span style="background:#00d47e22;color:#00d47e;font-size:13px;font-weight:900;width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">{idx+1}</span>'
-                    f'<div><span style="color:#fff;font-size:16px;font-weight:800">{pk.get("ticker","")}</span>'
-                    f'<span style="color:#6b7280;font-size:13px;margin-left:8px">{pk.get("name","")}</span></div>'
-                    f'</div>'
-                    f'<p style="color:#9ca3af;font-size:12.5px;line-height:1.6;margin:8px 0 0 40px">{pk.get("why","")}</p>'
-                    f'</div>'
-                    for idx, pk in enumerate(picks)
-                )
-                disclaimer = result.get("disclaimer") or (
-                    "This is educational content, not financial advice. Research deeply before investing."
-                    if is_en else
-                    "Esto es contenido educativo, no asesoría financiera. Investiga a fondo antes de invertir."
-                )
-                theme = result.get("week_theme") or ""
-                if is_en:
-                    html = f"""<!DOCTYPE html>
+            disclaimer = result.get("disclaimer") or (
+                "This is educational content, not financial advice. Research deeply before investing."
+                if is_en else
+                "Esto es contenido educativo, no asesoría financiera. Investiga a fondo antes de invertir."
+            )
+            theme = result.get("week_theme") or ""
+            if is_en:
+                html = f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuvos AI</title></head>
 <body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
@@ -2382,8 +2471,8 @@ async def job_weekly_screener_generate():
   </div>
 </div>
 </body></html>"""
-                else:
-                    html = f"""<!DOCTYPE html>
+            else:
+                html = f"""<!DOCTYPE html>
 <html lang="es">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuvos AI</title></head>
 <body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
@@ -2409,15 +2498,14 @@ async def job_weekly_screener_generate():
   </div>
 </div>
 </body></html>"""
-                subject = "📊 Your 5 investment ideas for this week — Nuvos AI" if is_en else "📊 Tus 5 ideas de inversión para esta semana — Nuvos AI"
-                try:
-                    await send_email(email_addr, subject, html)
-                except Exception as e:
-                    logger.warning("Weekly screener email failed for %s: %s", uid, e)
+            subject = "📊 Your 5 investment ideas for this week — Nuvos AI" if is_en else "📊 Tus 5 ideas de inversión para esta semana — Nuvos AI"
+            try:
+                await send_email(email_addr, subject, html)
+            except Exception as e:
+                logger.warning("Weekly screener email failed for %s: %s", uid, e)
 
-        logger.info("Screener Semanal generate+notify: %d sent across %d premium users", sent, len(uids))
-    except Exception as e:
-        logger.error("job_weekly_screener_generate failed: %s", e)
+    cache_delete(_WEEKLY_SCREENER_PENDING_KEY)
+    logger.info("job_poll_weekly_screener_batch: finalized batch %s — %d sent across %d users", batch_id, sent, len(results_by_user))
 
 
 async def job_refresh_undervalued_screener():
@@ -2726,6 +2814,8 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional, en este formato exac
 {{"items": [{{"category": "geopolitics|macro|corporate|leadership|global_event", "headline": "título corto interno para dedup", "push_body_es": "texto en español, máx 90-120 caracteres", "push_body_en": "text in English, máx 90-120 characters"}}]}}"""
 
     try:
+        from app.services.ai_service import check_daily_spend_cap
+        check_daily_spend_cap()
         client = anthropic.AsyncAnthropic()
         resp = await asyncio.wait_for(
             client.messages.create(
@@ -3458,6 +3548,8 @@ async def _ai_insight_quality_gate(fact: str, lang: str) -> dict | None:
         "arriba, nunca genéricas ni inventadas."
     )
     try:
+        from app.services.ai_service import check_daily_spend_cap
+        check_daily_spend_cap()
         client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
         resp = await asyncio.to_thread(
             lambda: client.messages.create(
@@ -4934,10 +5026,17 @@ async def main():
     scheduler.add_job(job_smart_alerts,           "cron", day_of_week="mon-fri", hour=16,    minute=20,    timezone="America/New_York")
     scheduler.add_job(job_daily_email,          "cron", day_of_week="fri",     hour=18,      minute=0,     timezone="America/New_York")
 
-    # ── Sunday 8:00am ET: Screener Semanal — pre-generate + cache + notify
-    # (premium only), see job_weekly_screener_generate's docstring. Replaces
-    # the old Wed/Sat "Oportunidades para ti" push — single weekly cadence.
+    # ── Sunday 8:00am ET: Screener Semanal — submits ONE Message Batch for
+    # every premium user (2026-08-21 cost optimization), see
+    # job_weekly_screener_generate's docstring. Replaces the old Wed/Sat
+    # "Oportunidades para ti" push — single weekly cadence.
     scheduler.add_job(job_weekly_screener_generate, "cron", day_of_week="sun", hour=8,  minute=0, timezone="America/New_York")
+
+    # ── Every 10 min: finalize the Screener Semanal batch once Anthropic
+    # reports it done, then cache + push + email every user — mirrors
+    # job_poll_undervalued_screener_batch below. Near-instant no-op when
+    # nothing is pending, which is almost always.
+    scheduler.add_job(job_poll_weekly_screener_batch, "interval", minutes=10)
 
     # ── Sunday 12:05pm ET: undervalued-stocks screener cache refresh (real
     # DCF engine) — no notification, just keeps the in-app Oportunidades

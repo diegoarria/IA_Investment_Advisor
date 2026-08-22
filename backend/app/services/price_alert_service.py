@@ -265,6 +265,8 @@ EJEMPLO MALO → responde NO_CATALYST en este caso (no hay ningún hecho concret
 Responde solo con el texto de la razón (sin punto final) o con NO_CATALYST."""
 
     try:
+        from app.services.ai_service import check_daily_spend_cap
+        check_daily_spend_cap()
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         resp = await asyncio.wait_for(
             client.messages.create(
@@ -325,6 +327,8 @@ Spanish: "{why_es}"
 Reply with ONLY the English translation, nothing else."""
 
     try:
+        from app.services.ai_service import check_daily_spend_cap
+        check_daily_spend_cap()
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         resp = await asyncio.wait_for(
             client.messages.create(

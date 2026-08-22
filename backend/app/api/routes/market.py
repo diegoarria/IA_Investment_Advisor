@@ -787,6 +787,8 @@ NOTAS IMPORTANTES:
 
     def _call_claude(img_data: str, img_type: str) -> list:
         import logging as _log
+        from app.services.ai_service import check_daily_spend_cap
+        check_daily_spend_cap()
         sc = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         msg = sc.messages.create(
             model="claude-haiku-4-5-20251001",
@@ -912,6 +914,8 @@ Responde SOLO el JSON array, nada más."""
 
     def _call_claude_pdf(pdf_data: str) -> list:
         import logging as _log
+        from app.services.ai_service import check_daily_spend_cap
+        check_daily_spend_cap()
         sc = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         msg = sc.beta.messages.create(
             model="claude-haiku-4-5-20251001",
@@ -3291,6 +3295,8 @@ def _compute_stock_score(detail: dict) -> dict:
     try:
         _ant_key = os.getenv("ANTHROPIC_API_KEY", "")
         if _ant_key:
+            from app.services.ai_service import check_daily_spend_cap
+            check_daily_spend_cap()
             name = p.get("name", "Esta empresa")
             sector = p.get("sector", "")
             client_ant = anthropic.Anthropic(api_key=_ant_key)
@@ -3711,6 +3717,8 @@ async def get_stock_income_analysis(
     try:
         _ant_key = os.getenv("ANTHROPIC_API_KEY", "")
         if _ant_key:
+            from app.services.ai_service import check_daily_spend_cap
+            check_daily_spend_cap()
             client_ant = anthropic.Anthropic(api_key=_ant_key)
             msg = client_ant.messages.create(
                 model="claude-haiku-4-5-20251001",

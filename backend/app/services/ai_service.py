@@ -60,6 +60,28 @@ class LLMDailySpendCapExceeded(Exception):
     raise instead of silently making the call."""
 
 
+def check_daily_spend_cap() -> None:
+    """Same check `_claude()` does internally, exposed for the call sites
+    that (for their own reasons — streaming, a different client instance,
+    a batch submission) don't go through `_claude()` and therefore never
+    tripped the circuit breaker at all (2026-08-21 audit: this notably
+    included chat_stream — the highest-volume, highest-per-call-cost path
+    in the app). Call this before making the request; log_llm_usage()
+    increments the same counter this reads, so any call site that pairs
+    "check before, log after" is fully covered by the breaker regardless
+    of whether it goes through _claude()."""
+    from app.core.cache import cache_get
+    current_spend = cache_get(_daily_spend_cache_key()) or 0.0
+    if current_spend >= settings.daily_llm_spend_cap_usd:
+        _log.error(
+            "LLM daily spend cap exceeded: $%.2f >= $%.2f cap",
+            current_spend, settings.daily_llm_spend_cap_usd,
+        )
+        raise LLMDailySpendCapExceeded(
+            f"Daily LLM spend cap (${settings.daily_llm_spend_cap_usd:.2f}) reached (currently ${current_spend:.2f})"
+        )
+
+
 async def _claude(**kwargs):
     """Wrapper that enforces the concurrency cap and the daily spend
     circuit breaker on every Anthropic call, and logs cost.
@@ -1910,6 +1932,12 @@ async def _summarize_dropped_history(dropped: list[ChatMessage]) -> str | None:
         f"{transcript}\n\nResumen:"
     )
     try:
+        # Calls the client directly (not _claude()) for its own explicit
+        # 8s timeout — check the breaker manually here so this doesn't
+        # bypass it (2026-08-21 audit: this was one of only two direct-
+        # client call sites in this file, alongside chat_stream, that never
+        # tripped the daily spend cap regardless of real spend).
+        check_daily_spend_cap()
         resp = await asyncio.wait_for(
             client.messages.create(
                 model="claude-haiku-4-5-20251001",
@@ -2046,6 +2074,17 @@ async def chat_stream(
     user_id    = getattr(profile, "user_id", None) if profile else None
 
     for _round in range(_MAX_TOOL_ROUNDS):
+        # Calls the client directly (not _claude()) since this streams —
+        # check the breaker manually before each round (2026-08-21 audit:
+        # chat_stream is the highest-volume, highest-per-call-cost path in
+        # the app — Sonnet, up to 8192 output tokens, every mentor chat
+        # message — and previously the ONE call site that never tripped the
+        # daily spend cap regardless of real spend). A raise here propagates
+        # out of this generator into chat.py's existing try/except, which
+        # already yields a clean "[[NUVOS_STREAM_ERROR]]" marker instead of
+        # a broken mid-stream response — same degrade path as every other
+        # LLMDailySpendCapExceeded call site.
+        check_daily_spend_cap()
         async with client.messages.stream(
             model=model,
             max_tokens=max_tokens,
@@ -2098,7 +2137,7 @@ Formato visual y compacto. Termina con una línea de insight general."""
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "screen_stocks", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "screen_stocks", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     return response.content[0].text
 
 
@@ -2122,7 +2161,7 @@ Formato con emojis. Sin introducciones."""
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "alert_context", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "alert_context", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     return response.content[0].text
 
 
@@ -2154,7 +2193,7 @@ NO alarmes innecesariamente. Contextualiza con perspectiva histórica."""
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}]
     )
-    asyncio.create_task(log_llm_usage(None, "notification_insight", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "notification_insight", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     return response.content[0].text
 
 
@@ -2175,7 +2214,7 @@ async def generate_simple_completion(
         max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "simple_completion", model, response.usage))
+    asyncio.create_task(log_llm_usage(None, "simple_completion", model, response.usage, already_tracked=True))
     return response.content[0].text
 
 
@@ -2396,7 +2435,7 @@ Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON) con esta est
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "analyze_earnings", settings.claude_model, response.usage))
+    asyncio.create_task(log_llm_usage(None, "analyze_earnings", settings.claude_model, response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and "headline" in parsed:
@@ -2487,7 +2526,7 @@ REGLAS:
         max_tokens=500,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(user_id, "analyze_macro_event_impact", settings.claude_model, response.usage))
+    asyncio.create_task(log_llm_usage(user_id, "analyze_macro_event_impact", settings.claude_model, response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and parsed.get("impact_note"):
@@ -2526,12 +2565,18 @@ WEEKLY_PICKS_RISK_AVOID: dict[str, set[str]] = {
 }
 
 
-async def generate_weekly_picks(
+def _build_weekly_picks_prompt(
     candidates: list[dict],
     profile: UserProfile | None = None,
     existing_tickers: list[str] | None = None,
     recent_tickers: list[str] | None = None,
-) -> dict:
+) -> tuple[str, str, str, list[str], list[str]]:
+    """Everything generate_weekly_picks() needs BEFORE the Claude call —
+    split out so submit_weekly_picks_batch() can build the same per-user
+    prompt for a Message Batch request instead of a synchronous call.
+    Returns (system_prompt, user_prompt, risk, existing, recent) — risk/
+    existing/recent are returned too since the batch finalize step needs
+    them again for the guardrail filter, same as the synchronous path."""
     system_prompt = build_system_prompt(profile)
     risk = profile.risk_tolerance if profile else "moderado"
     mentor = profile.mentor if profile else None
@@ -2692,22 +2737,16 @@ Responde SOLO con JSON válido:
 
 Sin texto fuera del JSON."""
 
-    # Haiku, not settings.claude_model (Sonnet) — this runs automatically for
-    # every Premium user, every Sunday, whether or not they ever open the
-    # card (see worker.py's job_weekly_screener_generate), the single
-    # highest-leverage recurring Claude cost in the app: real users pay per
-    # click, this fires on a clock. Quality risk is bounded by the hard,
-    # deterministic guardrails already applied AFTER this call (risk-tier
-    # exclude-list, recent-weeks repeat filter — see WEEKLY_PICKS_RISK_AVOID
-    # below), so a weaker model can't leak a bad pick past those.
-    response = await _claude(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1400,
-        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": prompt}],
-    )
-    asyncio.create_task(log_llm_usage(None, "weekly_picks", "claude-haiku-4-5-20251001", response.usage))
-    raw = response.content[0].text.strip()
+    return system_prompt, prompt, risk, existing, recent
+
+
+def _finalize_weekly_picks_result(raw: str, risk: str, existing: list[str], recent: list[str], candidates: list[dict]) -> dict:
+    """Everything generate_weekly_picks() does AFTER the Claude call — JSON
+    parse + the hard deterministic guardrail + disclaimer. Shared by the
+    synchronous on-demand path and the batch finalize step
+    (parse_weekly_picks_batch_results), so both apply the exact same
+    safety filter regardless of which path produced the raw text."""
+    raw = (raw or "").strip()
     try:
         result = json.loads(raw)
     except Exception:
@@ -2739,6 +2778,109 @@ Sin texto fuera del JSON."""
             "Investiga a fondo cada empresa (estados financieros, competencia, riesgos) antes de invertir un solo dólar."
         )
     return result
+
+
+async def generate_weekly_picks(
+    candidates: list[dict],
+    profile: UserProfile | None = None,
+    existing_tickers: list[str] | None = None,
+    recent_tickers: list[str] | None = None,
+) -> dict:
+    system_prompt, prompt, risk, existing, recent = _build_weekly_picks_prompt(
+        candidates, profile, existing_tickers, recent_tickers
+    )
+
+    # Haiku, not settings.claude_model (Sonnet) — this is used by the rare
+    # on-demand fallback (a Premium user whose Sunday batch is still
+    # pending, or missed it — see worker.py's job_weekly_screener_generate
+    # and job_poll_weekly_screener_batch, which now handle the regular
+    # weekly cadence via the Message Batches API instead of calling this
+    # per user). Quality risk is bounded by the hard, deterministic
+    # guardrails applied in _finalize_weekly_picks_result (risk-tier
+    # exclude-list, recent-weeks repeat filter), so a weaker model can't
+    # leak a bad pick past those.
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1400,
+        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": prompt}],
+    )
+    asyncio.create_task(log_llm_usage(None, "weekly_picks", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
+    return _finalize_weekly_picks_result(response.content[0].text, risk, existing, recent, candidates)
+
+
+async def submit_weekly_picks_batch(items: list[dict]) -> str:
+    """Submits ONE Anthropic Message Batch covering every Premium user's
+    Screener Semanal request — 50% cheaper than the sequential per-user
+    loop it replaces (worker.py's job_weekly_screener_generate used to call
+    generate_weekly_picks() once per user, synchronously, every Sunday
+    morning — "the single highest-leverage recurring Claude cost in the
+    app" per that job's own docstring — pre-generated hours before anyone
+    opens the card, so the Batches API's minutes-to-hours turnaround costs
+    nothing real). Mirrors submit_candidate_blurb_batch's pattern exactly.
+
+    `items`: [{"user_id", "candidates", "profile", "existing", "recent"}].
+    `custom_id` is the user_id — unique per request, used by
+    parse_weekly_picks_batch_results to map results back to the right user.
+
+    Returns the batch ID immediately — caller must poll
+    `client.messages.batches.retrieve(batch_id).processing_status` and only
+    call parse_weekly_picks_batch_results once it's `"ended"`."""
+    # Same daily circuit breaker _claude() enforces (Aug 15) — batches
+    # bypass _claude() entirely (no synchronous usage/cost to log at
+    # submit time), so this is a separate, explicit check, same as
+    # submit_candidate_blurb_batch.
+    from app.core.cache import cache_get
+    current_spend = cache_get(_daily_spend_cache_key()) or 0.0
+    if current_spend >= settings.daily_llm_spend_cap_usd:
+        raise LLMDailySpendCapExceeded(
+            f"Daily LLM spend cap (${settings.daily_llm_spend_cap_usd:.2f}) reached (currently ${current_spend:.2f}) — refusing to submit a new batch"
+        )
+
+    requests = []
+    for item in items:
+        system_prompt, prompt, _risk, _existing, _recent = _build_weekly_picks_prompt(
+            item["candidates"], item.get("profile"), item.get("existing"), item.get("recent"),
+        )
+        requests.append({
+            "custom_id": item["user_id"],
+            "params": {
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 1400,
+                "system": [{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+                "messages": [{"role": "user", "content": prompt}],
+            },
+        })
+    batch = await client.messages.batches.create(requests=requests)
+    _log.info("submit_weekly_picks_batch: submitted batch %s with %d requests", batch.id, len(requests))
+    return batch.id
+
+
+async def parse_weekly_picks_batch_results(batch_id: str, meta_by_user: dict[str, dict]) -> dict[str, dict]:
+    """Fetches a COMPLETED batch's results (caller must confirm
+    `processing_status == "ended"` first) and finalizes each one through
+    the same guardrail _finalize_weekly_picks_result applies to the
+    synchronous path, keyed by user_id. `meta_by_user[user_id]` must have
+    "risk", "existing", "recent", "candidates" — the same values passed
+    into submit_weekly_picks_batch for that user, needed again here for
+    the guardrail filter. A per-request failure (`result.type !=
+    "succeeded"`) is logged and simply omitted — never crashes the whole
+    finalize step over one bad user."""
+    results: dict[str, dict] = {}
+    async for item in client.messages.batches.results(batch_id):
+        user_id = item.custom_id
+        if item.result.type != "succeeded":
+            _log.warning("weekly picks batch %s: request %s did not succeed (%s)", batch_id, user_id, item.result.type)
+            continue
+        meta = meta_by_user.get(user_id)
+        if not meta:
+            _log.warning("weekly picks batch %s: no metadata for user %s, skipping", batch_id, user_id)
+            continue
+        text = item.result.message.content[0].text
+        result = _finalize_weekly_picks_result(text, meta["risk"], meta["existing"], meta["recent"], meta["candidates"])
+        result["generated_at"] = datetime.now(timezone.utc).isoformat()
+        results[user_id] = result
+    return results
 
 
 # ──────────────────────────────────────────────────────────────
@@ -2815,7 +2957,7 @@ Usa los valores reales del portafolio para calcular estimaciones. Sin texto fuer
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "simulate_whatif", settings.claude_model, response.usage))
+    asyncio.create_task(log_llm_usage(None, "simulate_whatif", settings.claude_model, response.usage, already_tracked=True))
     raw = response.content[0].text.strip()
     try:
         return json.loads(raw)
@@ -2882,7 +3024,7 @@ Reglas: score honesto; tickers reales; solo JSON puro."""
             system=system_prompt,
             messages=[{"role": "user", "content": prompt}],
         )
-        asyncio.create_task(log_llm_usage(None, "portfolio_score", settings.claude_model, response.usage))
+        asyncio.create_task(log_llm_usage(None, "portfolio_score", settings.claude_model, response.usage, already_tracked=True))
         raw = response.content[0].text.strip()
         # Strip potential markdown fences
         if raw.startswith("```"):
@@ -2989,7 +3131,7 @@ Sin texto fuera del JSON."""
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "decision_biases", settings.claude_model, response.usage))
+    asyncio.create_task(log_llm_usage(None, "decision_biases", settings.claude_model, response.usage, already_tracked=True))
     raw = response.content[0].text.strip()
     try:
         return json.loads(raw)
@@ -3045,7 +3187,7 @@ No uses el formato de 4 secciones con emojis — esta es una respuesta corta y h
         max_tokens=520,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "summarize_news_article", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "summarize_news_article", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     return response.content[0].text.strip()
 
 
@@ -3152,7 +3294,7 @@ Sé honesto, educativo y empático. No des consejos sobre acciones específicas.
         max_tokens=600,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "paper_portfolio", settings.claude_model, response.usage))
+    asyncio.create_task(log_llm_usage(None, "paper_portfolio", settings.claude_model, response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     # Strip markdown code fences if model wraps it
     if text.startswith("```"):
@@ -3335,7 +3477,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown fuera del JSON, sin texto
         max_tokens=2600,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "quick_valuation_summary", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "quick_valuation_summary", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and "summary" in parsed:
@@ -3443,7 +3585,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         # same failure class _BLURB_MAX_TOKENS was raised for below).
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(user_id, "company_diagnostic_narrative", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(user_id, "company_diagnostic_narrative", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if not parsed or "investmentThesis" not in parsed:
@@ -3495,7 +3637,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1200,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "nif_business_quality", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "nif_business_quality", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and isinstance(parsed.get("sub_factors"), list) and parsed["sub_factors"]:
@@ -3564,7 +3706,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=900,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "nif_management_quality", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "nif_management_quality", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and isinstance(parsed.get("sub_factors"), list) and parsed["sub_factors"]:
@@ -3630,7 +3772,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=2200,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "nif_moat_deep_dive", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "nif_moat_deep_dive", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and isinstance(parsed.get("moat_types"), list) and parsed["moat_types"]:
@@ -3685,7 +3827,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1400,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "nif_management_deep_dive", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "nif_management_deep_dive", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and parsed.get("guidance_track_record"):
@@ -3732,7 +3874,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1600,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "nif_catalysts", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "nif_catalysts", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and isinstance(parsed.get("catalysts"), list):
@@ -3798,7 +3940,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1400,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "business_understanding", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "business_understanding", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and parsed.get("how_it_makes_money"):
@@ -3867,7 +4009,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1600,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "competitive_intelligence", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "competitive_intelligence", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and parsed.get("direct_competitors"):
@@ -3925,7 +4067,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1400,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "industry_intelligence", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "industry_intelligence", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and parsed.get("market_size_and_growth"):
@@ -3991,7 +4133,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1400,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "management_intelligence", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "management_intelligence", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and parsed.get("strategic_priorities") and parsed.get("strategy_change_classification") in _STRATEGY_CHANGE_CLASSIFICATIONS:
@@ -4060,7 +4202,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1400,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "change_interpretation", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "change_interpretation", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and isinstance(parsed.get("events"), list):
@@ -4114,7 +4256,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1800,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "thesis_draft", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "thesis_draft", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and parsed.get("thesis_summary") and parsed.get("confidence") in _THESIS_CONFIDENCE_LEVELS:
@@ -4159,7 +4301,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1800,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "bull_bear_case", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "bull_bear_case", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and isinstance(parsed.get("bull_points"), list) and isinstance(parsed.get("bear_points"), list):
@@ -4224,7 +4366,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=2200,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "thesis_review", "claude-haiku-4-5-20251001", response.usage))
+    asyncio.create_task(log_llm_usage(None, "thesis_review", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if parsed and parsed.get("updated_thesis_summary") and parsed.get("what_changed"):
@@ -4304,7 +4446,7 @@ async def generate_candidate_blurb(entry: dict, lang: str = "es") -> dict:
         system=[{"type": "text", "text": _BLURB_STATIC_INSTRUCTIONS, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": _build_blurb_prompt(entry, lang)}],
     )
-    asyncio.create_task(log_llm_usage(None, "candidate_blurb", _BLURB_MODEL, response.usage))
+    asyncio.create_task(log_llm_usage(None, "candidate_blurb", _BLURB_MODEL, response.usage, already_tracked=True))
     return _parse_blurb_response_text(response.content[0].text, entry.get("ticker", ""))
 
 
