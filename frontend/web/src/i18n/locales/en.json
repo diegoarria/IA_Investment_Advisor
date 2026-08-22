@@ -892,6 +892,23 @@
     },
     "emptyState": "No weekly screener data yet — check back later.",
     "sectorAll": "All",
+    "sectors": {
+      "technology": "Technology",
+      "healthcare": "Healthcare",
+      "financials": "Financials",
+      "consumerDiscretionary": "Consumer Discretionary",
+      "consumerStaples": "Consumer Staples",
+      "communicationServices": "Communication Services",
+      "industrials": "Industrials",
+      "energy": "Energy",
+      "utilities": "Utilities",
+      "realEstate": "Real Estate",
+      "materials": "Materials",
+      "empty": "No real margin-of-safety candidates in this sector right now — check back later.",
+      "error": "Couldn't load companies for this sector. Try again.",
+      "teaser_one": "There's {{count}} real candidate in this sector.",
+      "teaser_other": "There are {{count}} real candidates in this sector."
+    },
     "dcf": {
       "level2Toggle": "See how Nuvos built this valuation",
       "level3Toggle": "See the full model",

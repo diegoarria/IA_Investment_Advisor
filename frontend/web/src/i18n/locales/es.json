@@ -892,6 +892,23 @@
     },
     "emptyState": "Todavía no hay datos del screener semanal — vuelve más tarde.",
     "sectorAll": "Todos",
+    "sectors": {
+      "technology": "Tecnología",
+      "healthcare": "Salud",
+      "financials": "Financiero",
+      "consumerDiscretionary": "Consumo Discrecional",
+      "consumerStaples": "Consumo Básico",
+      "communicationServices": "Comunicaciones",
+      "industrials": "Industriales",
+      "energy": "Energía",
+      "utilities": "Servicios Públicos",
+      "realEstate": "Bienes Raíces",
+      "materials": "Materiales",
+      "empty": "No hay candidatos con margen de seguridad real en este sector por ahora — vuelve más tarde.",
+      "error": "No se pudieron cargar las empresas de este sector. Intenta de nuevo.",
+      "teaser_one": "Hay {{count}} candidata real en este sector.",
+      "teaser_other": "Hay {{count}} candidatas reales en este sector."
+    },
     "dcf": {
       "level2Toggle": "Ver cómo Nuvos hizo esta valoración",
       "level3Toggle": "Ver modelo completo",

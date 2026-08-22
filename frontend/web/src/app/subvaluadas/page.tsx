@@ -137,6 +137,41 @@ const TEAL = _SCENARIO_COLOR.bull;
 const CORAL = _SCENARIO_COLOR.bear;
 const DEFAULT_TICKER = "AAPL";
 
+// The 11 real GICS sectors screener.py's UNIVERSE/undervalued_screener_service
+// tag every company with (there's a 12th bucket, "ETF", which isn't a sector
+// and is deliberately excluded here — Diego asked for "los 11 sectores de la
+// bolsa"). `value` must match that backend string exactly (English) since
+// it's sent straight through as the `sector` query param; `labelKey` is the
+// Spanish/English display name.
+const SECTORS: { value: string; labelKey: string }[] = [
+  { value: "Technology", labelKey: "technology" },
+  { value: "Healthcare", labelKey: "healthcare" },
+  { value: "Financials", labelKey: "financials" },
+  { value: "Consumer Discretionary", labelKey: "consumerDiscretionary" },
+  { value: "Consumer Staples", labelKey: "consumerStaples" },
+  { value: "Communication Services", labelKey: "communicationServices" },
+  { value: "Industrials", labelKey: "industrials" },
+  { value: "Energy", labelKey: "energy" },
+  { value: "Utilities", labelKey: "utilities" },
+  { value: "Real Estate", labelKey: "realEstate" },
+  { value: "Materials", labelKey: "materials" },
+];
+
+// Same shape /screener already renders for these results — a lightweight
+// "taste" of each company (ticker, price, margin of safety, one headline
+// score), never the full diagnostic, which only opens once a specific
+// ticker is searched (Diego, 2026-08-21: "solo como la probadita antes de
+// entrar a ver todo sobre 1 empresa a detalle").
+interface SectorPreviewResult {
+  ticker: string;
+  company_name: string | null;
+  sector: string | null;
+  price: number | null;
+  intrinsic_value_base: number | null;
+  margin_of_safety_pct: number | null;
+  thesis_scores: Record<string, number> | null;
+}
+
 export default function SubvaluadasPage() {
   return (
     <Suspense fallback={<div className="flex h-screen items-center justify-center" style={{ background: "var(--bg)" }}><Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent-l)" }} /></div>}>
@@ -183,6 +218,54 @@ function SubvaluadasPageInner() {
   // the default AAPL auto-load; only fetch once they've actually searched,
   // or if the URL itself names a ticker (a shared link is an explicit ask).
   const [searchTriggered, setSearchTriggered] = useState(() => !!searchParams.get("ticker"));
+
+  // Sector browse: pick one of the 11 sectors, see a grid of preview cards
+  // (not the full diagnostic) for real DCF-backed candidates in it, then
+  // tap one to open its full detail — same as searching that ticker
+  // directly. null selectedSector means "not browsing," showing the normal
+  // single-ticker search result below instead.
+  const [selectedSector, setSelectedSector] = useState<string | null>(null);
+  const [sectorResults, setSectorResults] = useState<SectorPreviewResult[]>([]);
+  const [sectorLoading, setSectorLoading] = useState(false);
+  const [sectorError, setSectorError] = useState(false);
+  // Free/guest: the backend never leaks tickers/content, just a real count
+  // of how many candidates exist — same 100%-Premium pattern the rest of
+  // this screen already uses (subvaluadas.freeGate.*).
+  const [sectorTeaserCount, setSectorTeaserCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!selectedSector || authRestoring) return;
+    let cancelled = false;
+    setSectorLoading(true);
+    setSectorError(false);
+    setSectorTeaserCount(null);
+    screenerApi.getUndervalued(selectedSector, 24, i18n.language, true)
+      .then((res) => {
+        if (cancelled) return;
+        const body = res.data as { is_premium: boolean; results?: SectorPreviewResult[]; teaser_count?: number };
+        if (body.is_premium) {
+          setSectorResults(body.results ?? []);
+        } else {
+          setSectorResults([]);
+          setSectorTeaserCount(body.teaser_count ?? 0);
+        }
+      })
+      .catch(() => { if (!cancelled) setSectorError(true); })
+      .finally(() => { if (!cancelled) setSectorLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedSector, i18n.language, authRestoring]);
+
+  const handleSectorClick = (value: string) => {
+    setSelectedSector((cur) => (cur === value ? null : value));
+  };
+
+  const handleSectorCardClick = (t: string) => {
+    setSelectedSector(null);
+    setQuery(t);
+    setWatchlisted(false);
+    setSearchTriggered(true);
+    setTicker(t);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -394,7 +477,78 @@ function SubvaluadasPageInner() {
                 </button>
               </div>
 
-              {loading ? (
+              <div className="flex gap-2 overflow-x-auto pb-2 mb-8 -mx-1 px-1" style={{ scrollbarWidth: "thin" }}>
+                {SECTORS.map((s) => {
+                  const active = selectedSector === s.value;
+                  return (
+                    <button
+                      key={s.value}
+                      onClick={() => handleSectorClick(s.value)}
+                      className="shrink-0 px-3.5 py-1.5 rounded-full text-[12.5px] font-semibold border transition-colors"
+                      style={active
+                        ? { background: "var(--brand-green)", borderColor: "var(--brand-green)", color: "#0A0F1A" }
+                        : { background: "var(--card)", borderColor: "var(--border)", color: "var(--sub)" }}
+                    >
+                      {t(`subvaluadas.sectors.${s.labelKey}`)}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedSector ? (
+                <div className="mb-10">
+                  {sectorLoading ? (
+                    <div className="flex items-center justify-center py-16"><Loader2 className="w-7 h-7 animate-spin" style={{ color: GOLD }} /></div>
+                  ) : sectorError ? (
+                    <div className="rounded-2xl border p-6 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                      <p className="text-sm" style={{ color: "var(--muted)" }}>{t("subvaluadas.sectors.error")}</p>
+                    </div>
+                  ) : sectorTeaserCount !== null ? (
+                    <div className="rounded-2xl border p-6 text-center" style={{ borderColor: "rgba(212,162,76,0.25)", background: "rgba(212,162,76,0.08)" }}>
+                      <p className="text-sm mb-3" style={{ color: "var(--text)" }}>
+                        {t("subvaluadas.sectors.teaser", { count: sectorTeaserCount })}
+                      </p>
+                      <button onClick={() => setPaywallOpen(true)} className="px-5 py-2 rounded-xl text-sm font-bold" style={{ background: GOLD, color: "#0A0F1A" }}>
+                        {t("subvaluadas.premiumGate.cta")}
+                      </button>
+                    </div>
+                  ) : sectorResults.length === 0 ? (
+                    <div className="rounded-2xl border p-6 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                      <p className="text-sm" style={{ color: "var(--muted)" }}>{t("subvaluadas.sectors.empty")}</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {sectorResults.map((r) => (
+                        <button
+                          key={r.ticker}
+                          onClick={() => handleSectorCardClick(r.ticker)}
+                          className="text-left rounded-xl border p-4 transition-colors hover:opacity-90"
+                          style={{ borderColor: "var(--border)", background: "var(--card)" }}
+                        >
+                          <div className="flex items-center gap-3 mb-3">
+                            <div style={{ width: 36, height: 36 }}><StockAvatar ticker={r.ticker} size="md" /></div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold truncate" style={{ color: "var(--text)" }}>{r.ticker}</p>
+                              <p className="text-[11px] truncate" style={{ color: "var(--muted)" }}>{r.company_name ?? ""}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold tabular-nums" style={{ color: "var(--text)" }}>
+                              {r.price !== null ? `$${r.price.toFixed(2)}` : "—"}
+                            </span>
+                            {r.margin_of_safety_pct !== null && (
+                              <span className="text-xs font-black px-2 py-1 rounded-lg tabular-nums"
+                                    style={{ background: "rgba(34,197,94,0.12)", color: TEAL }}>
+                                +{r.margin_of_safety_pct.toFixed(0)}%
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : loading ? (
                 <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 animate-spin" style={{ color: GOLD }} /></div>
               ) : limitHit ? (
                 <div className="max-w-xl mx-auto rounded-2xl border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
