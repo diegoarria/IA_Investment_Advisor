@@ -1,9 +1,12 @@
+import logging
 from datetime import datetime
 from app.core.database import get_supabase, run_query
 from app.services.market_service import get_market_summary, get_upcoming_earnings
 from app.services import ai_service
 from app.services.push_service import send_streak_danger
 from app.models.user import UserProfile, coerce_profile_row
+
+logger = logging.getLogger(__name__)
 
 
 NOTIFICATION_TYPES = {
@@ -71,20 +74,25 @@ async def scan_and_notify_all_users():
             except Exception:
                 pass
 
-        # Get user's portfolio positions to filter alerts
+        # Get user's portfolio positions to filter alerts. A user can have
+        # up to 3 portfolios (migration 018_multi_portfolio.sql), so this
+        # can return multiple rows — .maybe_single() previously raised on
+        # 2+ rows, and the bare except below silently swallowed it, which
+        # skipped portfolio + earnings alerts entirely for every
+        # multi-portfolio user, twice a day, with no trace in the logs.
         portfolio_tickers: list[str] = []
         try:
             port_result = await run_query(
-                db.table("user_portfolio").select("positions").eq("user_id", user_id).maybe_single()
+                db.table("user_portfolio").select("positions").eq("user_id", user_id)
             )
-            if port_result.data:
-                raw = port_result.data.get("positions") or {}
+            for row in (port_result.data or []):
+                raw = row.get("positions") or {}
                 if isinstance(raw, dict):
-                    portfolio_tickers = [p["ticker"] for p in raw.get("positions", []) if p.get("ticker")]
+                    portfolio_tickers.extend(p["ticker"] for p in raw.get("positions", []) if p.get("ticker"))
                 elif isinstance(raw, list):
-                    portfolio_tickers = [p["ticker"] for p in raw if p.get("ticker")]
+                    portfolio_tickers.extend(p["ticker"] for p in raw if p.get("ticker"))
         except Exception:
-            pass
+            logger.exception("scan_and_notify_all_users: failed to load portfolio for user %s", user_id)
 
         # Custom price alerts (user-defined targets)
         await check_custom_price_alerts(user_id)

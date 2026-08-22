@@ -346,14 +346,18 @@ async def _get_mentor_deep_context(user_id: str) -> str | None:
             return_exceptions=True,
         )
 
-        # Parse positions
+        # Parse positions — a user can have up to 3 portfolios (migration
+        # 018_multi_portfolio.sql), so .eq("user_id", user_id) can return
+        # multiple rows; flatten all of them instead of only the first,
+        # or the Mentor reasons about a user's holdings from a partial view.
         positions: list[dict] = []
         if not isinstance(portfolio_res, Exception) and portfolio_res.data:
-            raw = portfolio_res.data[0].get("positions", [])
-            if isinstance(raw, list):
-                positions = raw
-            elif isinstance(raw, dict) and "_v" in raw:
-                positions = raw.get("positions", [])
+            for row in portfolio_res.data:
+                raw = row.get("positions", [])
+                if isinstance(raw, list):
+                    positions.extend(raw)
+                elif isinstance(raw, dict):
+                    positions.extend(raw.get("positions", []))
 
         decisions: list[dict] = [] if isinstance(decisions_res, Exception) else (decisions_res.data or [])
         watchlist: list[dict] = [] if isinstance(watchlist_res, Exception) else (watchlist_res.data or [])

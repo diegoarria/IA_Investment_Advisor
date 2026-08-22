@@ -574,9 +574,13 @@ async def get_macro_event_impact(
     port_res = await run_query(
         db.table("user_portfolio").select("portfolio_id, positions").eq("user_id", user_id)
     )
+    # A user can have up to 3 portfolios (migration 018) — merge every row's
+    # positions instead of only "default", so the macro-event impact
+    # analysis sees holdings in any broker, not just the default portfolio.
     port_rows = port_res.data or []
-    default_row = next((r for r in port_rows if r.get("portfolio_id") == "default"), None)
-    positions = _parse_portfolio((default_row or port_rows[0])["positions"])["positions"] if port_rows else []
+    positions: list = []
+    for row in port_rows:
+        positions.extend(_parse_portfolio(row["positions"])["positions"])
 
     cache_key = f"macro_impact:{user_id}:{event_id}:{lang}:{_portfolio_hash(positions)}"
     cached = cache_get(cache_key)

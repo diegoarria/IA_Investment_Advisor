@@ -490,7 +490,7 @@ _USER_DATA_TABLES = [
     "research_jobs", "research_reports", "security_events",
     "investment_graph_events", "user_investment_theses",
     "user_checklist_items", "checklist_completions", "investable_marks",
-    "smart_alert_state",
+    "smart_alert_state", "weekly_range_snapshots",
 ]
 
 

@@ -83,20 +83,27 @@ async def take_portfolio_snapshot(user_id: str) -> None:
             return
 
         # Fetch current portfolio. A user can have up to 3 portfolios
-        # (premium), so this can return multiple rows — pick "default" to
-        # match every other read path in the app (sync.py's get_all), instead
-        # of grabbing whichever row happens to come back first.
+        # (premium), so this can return multiple rows — sync.py's get_all
+        # picking "default" is only a backward-compat shim for its legacy
+        # `portfolio` (singular) field; it also returns a full `portfolios`
+        # array with everything, which is the real behavior to match here.
+        # Snapshotting only "default" silently excluded every non-default
+        # (2nd/3rd broker) portfolio from total_value, sector_weights and
+        # everything downstream (Investor Progress milestones).
         res = await run_query(
             db.table("user_portfolio").select("portfolio_id, positions").eq("user_id", user_id)
         )
         if not res.data:
             return
 
-        default_row = next((r for r in res.data if r.get("portfolio_id") == "default"), None)
-        raw = (default_row or res.data[0]).get("positions", [])
-        if isinstance(raw, dict) and "_v" in raw:
-            raw = raw.get("positions", [])
-        if not isinstance(raw, list) or not raw:
+        raw: list = []
+        for row in res.data:
+            r = row.get("positions", [])
+            if isinstance(r, dict):
+                r = r.get("positions", [])
+            if isinstance(r, list):
+                raw.extend(r)
+        if not raw:
             return
 
         total_value     = 0.0

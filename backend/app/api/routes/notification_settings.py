@@ -17,6 +17,43 @@ router = APIRouter(tags=["notification-settings"])
 
 _ADMIN_UID = "86961402-9072-4670-9f73-b2aa91930b04"
 
+
+def _agg_positions(rows: list[dict]) -> list[dict]:
+    # Same shape as worker.py's _agg_positions, duplicated here rather than
+    # imported — worker.py is a standalone script, not a module other code
+    # should depend on (see weekly_rituals_service.py's own docstring for
+    # the same convention). A user can have up to 3 portfolios (migration
+    # 018), so `.eq("user_id", uid)` can return multiple rows — this flattens
+    # all of them instead of only reading the first.
+    result: list[dict] = []
+    for row in rows:
+        raw = row.get("positions") or {}
+        pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        result.extend(pos)
+    return result
+
+
+def _agg_positions_by_ticker(pos: list[dict]) -> dict[str, dict]:
+    """{ticker: {shares, avg_cost}} from an already-flattened position list —
+    sums shares and weight-averages cost across portfolios instead of a
+    naive {p["ticker"]: p for p in pos}, which lets whichever row iterates
+    last silently overwrite another portfolio's shares in the same ticker."""
+    buckets: dict[str, dict] = {}
+    for p in pos:
+        ticker = p.get("ticker")
+        if not ticker:
+            continue
+        shares = float(p.get("shares") or 0)
+        cost   = float(p.get("avg_cost") or p.get("avg_price") or p.get("avgPrice") or 0)
+        b = buckets.setdefault(ticker, {"shares": 0.0, "_cost_weighted_sum": 0.0})
+        b["shares"] += shares
+        b["_cost_weighted_sum"] += cost * shares
+    result: dict[str, dict] = {}
+    for ticker, b in buckets.items():
+        avg_cost = (b["_cost_weighted_sum"] / b["shares"]) if b["shares"] > 0 else 0.0
+        result[ticker] = {"shares": b["shares"], "avg_cost": avg_cost}
+    return result
+
 _DEFAULT_PREFS = {
     "push_market_open": True, "push_market_close": True,
     "push_news_general": True, "push_portfolio_alerts": True,
@@ -287,15 +324,8 @@ async def trigger_price_alerts(
         if wants_port and uid in port_uids_all:
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
             if port_res.data:
-                raw = port_res.data[0].get("positions") or {}
-                pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
-                port_map = {
-                    x["ticker"]: {
-                        "shares": float(x.get("shares") or 0),
-                        "avg_cost": float(x.get("avg_cost") or x.get("avg_price") or x.get("avgPrice") or 0),
-                    }
-                    for x in pos if x.get("ticker")
-                }
+                pos = _agg_positions(port_res.data)
+                port_map = _agg_positions_by_ticker(pos)
         if wants_watch and uid in watch_uids:
             w_res = await run_query(db.table("watchlist").select("ticker").eq("user_id", uid))
             watch_set = {r["ticker"] for r in (w_res.data or [])} - set(port_map.keys())
@@ -764,10 +794,7 @@ async def trigger_earnings_test(
 
     # ── Portfolio position ────────────────────────────────────────────────────
     port_res  = await run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id))
-    positions: list = []
-    if port_res.data:
-        raw = port_res.data[0].get("positions") or {}
-        positions = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+    positions = _agg_positions(port_res.data or [])
 
     pos_match = next((p for p in positions if p.get("ticker") == ticker), None)
 
@@ -933,13 +960,10 @@ async def trigger_dividend_test(
 
     # ── Portfolio shares ──────────────────────────────────────────────────────
     port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id))
-    positions: list = []
-    if port_res.data:
-        raw = port_res.data[0].get("positions") or {}
-        positions = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+    positions = _agg_positions(port_res.data or [])
+    by_ticker = _agg_positions_by_ticker(positions)
 
-    pos_match   = next((p for p in positions if p.get("ticker") == ticker), None)
-    shares_held = float(pos_match.get("shares") or 0) if pos_match else 0.0
+    shares_held = by_ticker.get(ticker, {}).get("shares", 0.0)
 
     # ── Finnhub dividend data ─────────────────────────────────────────────────
     amt, ex_date = await asyncio.to_thread(_finnhub_dividend_amount_sync, ticker)

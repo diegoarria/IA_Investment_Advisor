@@ -5,6 +5,7 @@ Builds the global leaderboard and sends rank-change notifications.
 Called by the background worker every 2 hours.
 """
 
+import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
@@ -67,11 +68,21 @@ async def build_global_leaderboard() -> list[dict]:
     if not portfolio_rows.data:
         return []
 
-    portfolio_data = [r for r in portfolio_rows.data if r.get("positions")]
-    if not portfolio_data:
+    # A user can have up to 3 portfolios (migration 018_multi_portfolio.sql),
+    # so this query can return multiple rows per user_id — group them here
+    # instead of treating each row as a separate leaderboard entry (that
+    # previously showed the same person 2-3 times, each with only a partial
+    # return, and never their true combined return).
+    positions_by_user: dict[str, list[dict]] = {}
+    for r in portfolio_rows.data:
+        raw = r.get("positions") or {}
+        pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        if pos:
+            positions_by_user.setdefault(r["user_id"], []).extend(pos)
+    if not positions_by_user:
         return []
 
-    user_ids = [r["user_id"] for r in portfolio_data]
+    user_ids = list(positions_by_user.keys())
     profile_rows = await run_query(
         db.table("user_profiles").select("user_id, paper_alias").in_("user_id", user_ids)
     )
@@ -79,8 +90,8 @@ async def build_global_leaderboard() -> list[dict]:
                  for r in (profile_rows.data or [])}
 
     all_tickers: set[str] = set()
-    for row in portfolio_data:
-        for pos in (row.get("positions") or []):
+    for positions in positions_by_user.values():
+        for pos in positions:
             t = (pos.get("ticker") or "").strip().upper()
             if t:
                 all_tickers.add(t)
@@ -97,12 +108,7 @@ async def build_global_leaderboard() -> list[dict]:
             cache_set(ck, price_map, ttl=_PRICES_TTL)
 
     entries: list[dict] = []
-    for row in portfolio_data:
-        uid       = row["user_id"]
-        positions = row.get("positions") or []
-        if not positions:
-            continue
-
+    for uid, positions in positions_by_user.items():
         cost_basis = current_value = 0.0
         top_holding, top_val = None, 0.0
         for pos in positions:

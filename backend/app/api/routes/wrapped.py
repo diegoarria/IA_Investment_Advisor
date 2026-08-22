@@ -236,11 +236,13 @@ async def get_wrapped(
         port_res = await run_query(
             db.table("user_portfolio").select("portfolio_id, positions").eq("user_id", user_id)
         )
+        # A user can have up to 3 portfolios (migration 018) — merge every
+        # row's positions instead of only "default", or a top performer
+        # living in a 2nd/3rd broker portfolio never shows up in Wrapped.
         port_rows = port_res.data or []
-        default_row = next((r for r in port_rows if r.get("portfolio_id") == "default"), None)
-        parsed = _parse_portfolio((default_row or port_rows[0])["positions"]) if port_rows else \
-            {"positions": [], "closed_positions": []}
-        positions = parsed["positions"]
+        positions: list = []
+        for row in port_rows:
+            positions.extend(_parse_portfolio(row["positions"])["positions"])
 
         # ── 3. Top posiciones que más crecieron (real cost-basis return) ──
         position_returns = await _position_returns(positions)

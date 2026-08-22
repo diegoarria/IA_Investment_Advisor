@@ -109,12 +109,14 @@ async def _collect_data(plan: dict, user_id: str) -> dict:
     portfolio_positions: list[dict] = []
     if plan.get("needs_portfolio_personalization"):
         db = get_supabase()
+        # A user can have up to 3 portfolios (migration 018) — merge every
+        # row instead of filtering to "default", or personalized research
+        # answers ignore holdings in any 2nd/3rd broker portfolio.
         res = await run_query(
-            db.table("user_portfolio").select("positions")
-            .eq("user_id", user_id).eq("portfolio_id", "default")
+            db.table("user_portfolio").select("positions").eq("user_id", user_id)
         )
-        if res.data:
-            portfolio_positions = _parse_portfolio(res.data[0]["positions"]).get("positions", [])
+        for row in (res.data or []):
+            portfolio_positions.extend(_parse_portfolio(row["positions"]).get("positions", []))
 
     return {
         "companies": company_data,

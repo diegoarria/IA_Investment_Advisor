@@ -40,13 +40,15 @@ log = logging.getLogger(__name__)
 
 async def _get_raw_portfolio(user_id: str) -> dict:
     """Positions/closed_positions/inception_date exactly as stored — camelCase
-    field names, straight from user_portfolio.positions JSONB.
+    field names, straight from user_portfolio.positions JSONB, merged across
+    every one of the user's portfolios (up to 3, premium).
 
-    A user can have up to 3 portfolios (premium), so user_portfolio can hold
-    multiple rows per user_id. Every other read path in this app (sync.py's
-    get_all) picks the row with portfolio_id == "default", falling back to
-    whichever portfolio comes first only if no default row exists — match
-    that convention here instead of grabbing an arbitrary row."""
+    Previously this picked only the "default" row, on the mistaken premise
+    that sync.py's get_all does the same — it doesn't: get_all's default-only
+    field is a backward-compat shim alongside a full `portfolios` array with
+    everything. Picking only "default" here silently excluded any 2nd/3rd
+    broker portfolio from every Investor Progress milestone (diversification,
+    position-count achievements, inception date, etc.)."""
     db = get_supabase()
     res = await run_query(
         db.table("user_portfolio").select("portfolio_id, positions").eq("user_id", user_id)
@@ -54,8 +56,27 @@ async def _get_raw_portfolio(user_id: str) -> dict:
     rows = res.data or []
     if not rows:
         return {"currency": "USD", "positions": [], "closed_positions": [], "inception_date": None}
+
+    merged_positions: list = []
+    merged_closed: list = []
+    inception_dates: list = []
+    currency = "USD"
     default_row = next((r for r in rows if r.get("portfolio_id") == "default"), None)
-    return _parse_portfolio((default_row or rows[0])["positions"])
+    if default_row:
+        currency = _parse_portfolio(default_row["positions"]).get("currency", "USD")
+    for row in rows:
+        parsed = _parse_portfolio(row["positions"])
+        merged_positions.extend(parsed["positions"])
+        merged_closed.extend(parsed["closed_positions"])
+        if parsed["inception_date"]:
+            inception_dates.append(parsed["inception_date"])
+
+    return {
+        "currency": currency,
+        "positions": merged_positions,
+        "closed_positions": merged_closed,
+        "inception_date": min(inception_dates) if inception_dates else None,
+    }
 
 
 async def _get_account_created_at(user_id: str) -> str | None:

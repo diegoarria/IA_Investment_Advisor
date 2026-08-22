@@ -149,13 +149,22 @@ async def _build_leaderboard(user_id: str) -> list[dict]:
     if not portfolio_rows.data:
         return []
 
-    # Only include users who have at least one position
-    portfolio_data = [r for r in portfolio_rows.data if r.get("positions")]
-    if not portfolio_data:
+    # A user can have up to 3 portfolios (migration 018_multi_portfolio.sql),
+    # so this query can return multiple rows per user_id — group them here
+    # instead of treating each row as a separate leaderboard entry (that
+    # previously showed the same person 2-3 times, each with only a partial
+    # return, and never their true combined return).
+    positions_by_user: dict[str, list[dict]] = {}
+    for r in portfolio_rows.data:
+        raw = r.get("positions") or {}
+        pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        if pos:
+            positions_by_user.setdefault(r["user_id"], []).extend(pos)
+    if not positions_by_user:
         return []
 
     # 3. Fetch aliases for all users
-    user_ids = [r["user_id"] for r in portfolio_data]
+    user_ids = list(positions_by_user.keys())
     profile_rows = await run_query(
         db.table("user_profiles").select("user_id, paper_alias").in_("user_id", user_ids)
     )
@@ -165,8 +174,8 @@ async def _build_leaderboard(user_id: str) -> list[dict]:
 
     # 4. Collect all unique tickers
     all_tickers: set[str] = set()
-    for row in portfolio_data:
-        for pos in (row.get("positions") or []):
+    for positions in positions_by_user.values():
+        for pos in positions:
             t = (pos.get("ticker") or "").strip().upper()
             if t:
                 all_tickers.add(t)
@@ -174,12 +183,10 @@ async def _build_leaderboard(user_id: str) -> list[dict]:
     # 5. Batch-fetch current prices (blocking network calls — run in thread)
     price_map = await asyncio.to_thread(_batch_prices, all_tickers)
 
-    # 6. Compute each user's return % from their real portfolio
+    # 6. Compute each user's return % from their real portfolio (all
+    # portfolios combined into one blended return)
     entries: list[dict] = []
-    for row in portfolio_data:
-        uid       = row["user_id"]
-        positions = row.get("positions") or []
-
+    for uid, positions in positions_by_user.items():
         return_pct, top_holding = _calc_return_pct(positions, price_map)
 
         entries.append({
