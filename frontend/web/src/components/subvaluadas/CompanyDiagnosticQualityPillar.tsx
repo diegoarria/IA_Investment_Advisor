@@ -6,10 +6,11 @@
 // the app's shared ExpandableSection accordion.
 
 import { useTranslation } from "react-i18next";
-import { Trophy, PieChart, Castle, Swords } from "lucide-react";
+import { Trophy, PieChart, Castle, Swords, Scale } from "lucide-react";
 import { ExpandableSection } from "@/components/ui/ExpandableSection";
 import { CompanyDiagnosticSectionScore } from "@/components/subvaluadas/CompanyDiagnosticSectionScore";
 import { CompanyDiagnosticCompetitorTable } from "@/components/subvaluadas/CompanyDiagnosticCompetitorTable";
+import { CompanyDiagnosticSectorComparison } from "@/components/subvaluadas/CompanyDiagnosticSectorComparison";
 import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
 function SubCard({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
@@ -25,12 +26,14 @@ function SubCard({ icon, title, children }: { icon: React.ReactNode; title: stri
 }
 
 export function CompanyDiagnosticQualityPillar({
-  score, revenueBreakdown, moatPoints, competitorComparison,
+  score, revenueBreakdown, moatPoints, competitorComparison, sectorComparison, ticker,
 }: {
   score: number;
   revenueBreakdown: CompanyDiagnosticData["revenueBreakdown"];
   moatPoints: string[];
   competitorComparison: CompanyDiagnosticData["competitorComparison"];
+  sectorComparison: CompanyDiagnosticData["sectorComparison"];
+  ticker: string;
 }) {
   const { t } = useTranslation();
 
@@ -73,6 +76,12 @@ export function CompanyDiagnosticQualityPillar({
             ))}
           </div>
         </SubCard>
+
+        {sectorComparison && (
+          <SubCard icon={<Scale className="w-5 h-5" style={{ color: "var(--accent-l)" }} />} title={t("companyDiagnostic.pillars.quality.sectorComparisonTitle")}>
+            <CompanyDiagnosticSectorComparison comparison={sectorComparison} ticker={ticker} />
+          </SubCard>
+        )}
 
         {competitorComparison && (
           <SubCard icon={<Swords className="w-5 h-5" style={{ color: "#DD6E63" }} />} title={t("companyDiagnostic.pillars.quality.competitorTitle")}>

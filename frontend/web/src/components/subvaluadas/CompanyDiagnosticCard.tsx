@@ -181,6 +181,8 @@ export function CompanyDiagnosticCard({ data }: { data: CompanyDiagnosticData })
           revenueBreakdown={data.revenueBreakdown}
           moatPoints={data.moatPoints}
           competitorComparison={data.competitorComparison}
+          sectorComparison={data.sectorComparison}
+          ticker={data.ticker}
         />
         <CompanyDiagnosticTrustPillar score={data.pillarScores.trust} financialHealth={data.financialHealth} roicAdjustedForBuybacks={data.roicAdjustedForBuybacks} />
         <CompanyDiagnosticValuePillar

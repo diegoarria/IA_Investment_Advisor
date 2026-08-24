@@ -14,6 +14,28 @@ export interface CompetitorComparison {
   nuvosAdvantageNote: string;
 }
 
+// "Vs. tu sector" — Diego's request (2026-08-21): compare against the real
+// MEDIAN of several same-industry peers (not one named competitor like
+// CompetitorComparison above), so a raw number like "ROIC 39.7%" has real
+// context instead of sitting alone. `delta`/`deltaLabel` are precomputed
+// server-side (company_diagnostic_service._sector_delta) — never derived
+// client-side from the formatted strings, which would be fragile.
+export interface SectorComparisonRow {
+  metricName: string;
+  companyValue: string;
+  sectorValue: string;
+  delta: "up" | "down" | "flat" | null;
+  deltaLabel: string;
+}
+
+export interface SectorComparison {
+  sector: string;
+  peerCount: number;
+  peerTickers: string[];
+  rows: SectorComparisonRow[];
+  insight: string;
+}
+
 export interface ValuationScenarios {
   conservative: number;
   baseFairValue: number;
@@ -78,6 +100,10 @@ export interface CompanyDiagnosticData {
     rows: CompetitorComparison[];
     conclusion: string;
   } | null;
+  // Optional: omitted below _MIN_SECTOR_PEERS (5) real peers with usable
+  // data — same discipline as competitorComparison above, never a
+  // fabricated "sector average."
+  sectorComparison: SectorComparison | null;
   financialHealth: {
     longTermDebt: string;
     netCash: string;
@@ -167,6 +193,18 @@ export const mockCopartData: CompanyDiagnosticData = {
         nuvosAdvantageNote: "Copart: Máquina de generar valor compuesto.",
       },
     ],
+  },
+  sectorComparison: {
+    sector: "Industrials",
+    peerCount: 7,
+    peerTickers: ["RBA", "URI", "GWW", "FAST", "PWR", "WM", "RSG"],
+    rows: [
+      { metricName: "ROIC", companyValue: "22.4%", sectorValue: "9.1%", delta: "up", deltaLabel: "▲ 2.5x" },
+      { metricName: "Margen Operativo", companyValue: "36.5%", sectorValue: "16.8%", delta: "up", deltaLabel: "▲ 2.2x" },
+      { metricName: "Crecimiento de Ingresos", companyValue: "12.3%", sectorValue: "6.7%", delta: "up", deltaLabel: "▲ 1.8x" },
+      { metricName: "P/E", companyValue: "33.1x", sectorValue: "24.6x", delta: "flat", deltaLabel: "≈" },
+    ],
+    insight: "El ROIC de COPART (22.4%) es 2.5 veces el de un competidor típico del sector (9.1%) — genera muchas más ganancias por cada dólar invertido en el negocio, señal de una ventaja competitiva real, no solo tamaño.",
   },
   financialHealth: {
     longTermDebt: "$0 USD",

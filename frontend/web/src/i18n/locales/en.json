@@ -1366,6 +1366,10 @@
         "subtitle": "The business and its moat",
         "revenueBreakdown": "Revenue Breakdown",
         "moatTitle": "Moat Strengths",
+        "sectorComparisonTitle": "Vs. your sector",
+        "sectorComparisonSubtitle": "Compared against {{count}} real peers in {{sector}} ({{peers}}, and others from the same curated universe) — never a fabricated average.",
+        "sectorMedian": "Sector (median)",
+        "sectorInsightLabel": "What this means",
         "competitorTitle": "Head-to-Head",
         "vs": "vs.",
         "conclusionLabel": "Nuvos Competitive Conclusion"

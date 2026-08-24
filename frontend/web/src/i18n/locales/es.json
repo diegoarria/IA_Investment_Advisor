@@ -1366,6 +1366,10 @@
         "subtitle": "El negocio y su foso",
         "revenueBreakdown": "Desglose de Ingresos",
         "moatTitle": "Puntos Fuertes del Foso",
+        "sectorComparisonTitle": "Vs. tu sector",
+        "sectorComparisonSubtitle": "Comparado contra {{count}} pares reales de {{sector}} ({{peers}}, y otros del mismo universo curado) — nunca un promedio inventado.",
+        "sectorMedian": "Sector (mediana)",
+        "sectorInsightLabel": "Qué significa",
         "competitorTitle": "Duelo de Titanes",
         "vs": "vs.",
         "conclusionLabel": "Conclusión Competitiva Nuvos"

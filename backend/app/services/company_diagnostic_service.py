@@ -322,6 +322,164 @@ def _competitor_comparison(ticker: str, data: dict, dcf: dict, scenarios: Option
     return {"competitorName": competitor_ticker, "rows": rows, "conclusion": conclusion}
 
 
+# ── Sector comparison ("Vs. tu sector") ────────────────────────────────────
+# Diego's request (2026-08-21): "no solo poner información de las empresas
+# sino lo esperado en el mercado en ese sector... y hacer la comparación."
+# Same real-peer discipline as _competitor_comparison above, but against
+# the MEDIAN of several real peers instead of a single named one — the
+# same _find_peers() universe relative_valuation_service already uses for
+# valuation multiples, extended here to quality metrics (ROIC, margins,
+# revenue growth). Never a fabricated "sector average": below _MIN_PEERS
+# real peers with a usable value for a given metric, that row (or the
+# whole card, if nothing clears the bar) is omitted rather than guessed.
+
+_MIN_SECTOR_PEERS = 5  # same floor relative_valuation_service._MIN_PEERS uses
+
+_SECTOR_METRICS_ES = [
+    ("ROIC", "roic_pct", True),
+    ("Margen Operativo", "operating_margin_pct", True),
+    ("Crecimiento de Ingresos", "revenue_cagr_pct", True),
+    ("P/E", "pe_ratio", None),
+]
+_SECTOR_METRICS_EN = [
+    ("ROIC", "roic_pct", True),
+    ("Operating Margin", "operating_margin_pct", True),
+    ("Revenue Growth", "revenue_cagr_pct", True),
+    ("P/E", "pe_ratio", None),
+]
+
+
+def _sector_metric_values(data: dict, dcf: dict) -> dict:
+    return {
+        "roic_pct": (dcf.get("growth_buildup") or {}).get("avg_roic_pct"),
+        "operating_margin_pct": (data.get("operating_margin_trend") or [None])[-1] if data.get("operating_margin_trend") else None,
+        "revenue_cagr_pct": data.get("revenue_cagr_pct"),
+        "pe_ratio": data.get("pe_ratio"),
+    }
+
+
+def _sector_delta(company_val: Optional[float], sector_median: Optional[float], higher_is_better: Optional[bool]) -> tuple[Optional[str], str]:
+    """(direction, label) — direction is "up"/"down"/"flat"/None (None only
+    when there's nothing real to compare). `higher_is_better=None` (e.g.
+    P/E) always renders as an informational "flat" badge — a lower or
+    higher multiple isn't unambiguously "better," so this never implies a
+    verdict on it, just shows the two numbers side by side."""
+    if company_val is None or sector_median is None or sector_median == 0:
+        return None, "—"
+    ratio = company_val / sector_median
+    if higher_is_better is None:
+        return "flat", "≈"
+    if not higher_is_better:
+        ratio = (1 / ratio) if ratio else None
+        if ratio is None:
+            return None, "—"
+    if ratio >= 1.08:
+        direction = "up"
+    elif ratio <= 0.92:
+        direction = "down"
+    else:
+        direction = "flat"
+    if direction == "flat":
+        return "flat", "≈"
+    arrow = "▲" if direction == "up" else "▼"
+    if ratio >= 1.5 or ratio <= 0.67:
+        label = f"{arrow} {ratio:.1f}x"
+    else:
+        pct = (ratio - 1) * 100
+        label = f"{arrow} {pct:+.0f}%"
+    return direction, label
+
+
+def _fmt_sector_val(v: Optional[float], key: str, lang: str) -> str:
+    if v is None:
+        return _na(lang)
+    if key == "pe_ratio":
+        return f"{v:.1f}x"
+    return _fmt_pct(v, lang)
+
+
+def _sector_comparison(ticker: str, data: dict, dcf: dict, sector: Optional[str], industry: Optional[str], lang: str = "es") -> Optional[dict]:
+    peers = _find_peers(ticker, sector, industry, limit=10)
+    peers = [p for p in peers if p != ticker.upper()]
+    if len(peers) < _MIN_SECTOR_PEERS:
+        return None
+
+    peer_values: list[dict] = []
+    for peer_ticker in peers:
+        try:
+            peer_data = get_fundamental_analysis(peer_ticker, _compute_peer_dependent_data=False)
+        except Exception as e:
+            logger.warning("sector_comparison(%s): peer fetch failed for %s: %s", ticker, peer_ticker, e)
+            continue
+        if not peer_data:
+            continue
+        peer_values.append(_sector_metric_values(peer_data, peer_data.get("dcf") or {}))
+
+    if len(peer_values) < _MIN_SECTOR_PEERS:
+        return None
+
+    target_vals = _sector_metric_values(data, dcf)
+    en = lang == "en"
+    metrics = _SECTOR_METRICS_EN if en else _SECTOR_METRICS_ES
+
+    rows = []
+    for label, key, higher_is_better in metrics:
+        peer_pool = [v[key] for v in peer_values if v.get(key) is not None]
+        if len(peer_pool) < _MIN_SECTOR_PEERS:
+            continue  # not enough real peers with this specific field — never guess a median off too few
+        sector_median = statistics.median(peer_pool)
+        company_val = target_vals.get(key)
+        direction, delta_label = _sector_delta(company_val, sector_median, higher_is_better)
+        rows.append({
+            "metricName": label,
+            "companyValue": _fmt_sector_val(company_val, key, lang),
+            "sectorValue": _fmt_sector_val(sector_median, key, lang),
+            "delta": direction,
+            "deltaLabel": delta_label,
+        })
+
+    if not rows:
+        return None
+
+    # One templated sentence off the real, best (highest-ratio) "up" row —
+    # zero AI, same discipline as _competitor_comparison's note.
+    roic_row = next((r for r in rows if r["metricName"] in ("ROIC",) and r["delta"] == "up"), None)
+    if roic_row and target_vals.get("roic_pct") and any(v.get("roic_pct") for v in peer_values):
+        roic_peer_pool = [v["roic_pct"] for v in peer_values if v.get("roic_pct") is not None]
+        roic_median = statistics.median(roic_peer_pool) if roic_peer_pool else None
+        if roic_median:
+            multiple = target_vals["roic_pct"] / roic_median if roic_median else None
+            insight = (
+                f"El ROIC de {ticker.upper()} ({target_vals['roic_pct']:.1f}%) es "
+                f"{multiple:.1f} veces el de un competidor típico del sector ({roic_median:.1f}%) — genera muchas más "
+                f"ganancias por cada dólar invertido en el negocio, señal de una ventaja competitiva real, no solo tamaño."
+                if not en else
+                f"{ticker.upper()}'s ROIC ({target_vals['roic_pct']:.1f}%) is "
+                f"{multiple:.1f}x a typical sector peer's ({roic_median:.1f}%) — it earns far more profit per dollar "
+                f"invested in the business, a sign of a real competitive edge, not just size."
+            )
+        else:
+            insight = None
+    else:
+        insight = None
+    if not insight:
+        # Generic fallback covering whichever real row stands out most, when ROIC itself didn't qualify above.
+        best = max(rows, key=lambda r: {"up": 2, "flat": 1, "down": 0, None: -1}[r["delta"]])
+        insight = (
+            f"{ticker.upper()} — {best['metricName']}: {best['companyValue']} vs. {best['sectorValue']} del sector."
+            if not en else
+            f"{ticker.upper()} — {best['metricName']}: {best['companyValue']} vs. sector's {best['sectorValue']}."
+        )
+
+    return {
+        "sector": sector or "",
+        "peerCount": len(peer_values),
+        "peerTickers": peers[:len(peer_values)],
+        "rows": rows,
+        "insight": insight,
+    }
+
+
 def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optional[dict]:
     """Single entry point. `data` is an already-fetched `get_fundamental_
     analysis(ticker)` result — the CALLER fetches it once (the route also
@@ -458,6 +616,7 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
     # block everything for one missing enrichment" discipline the rest of
     # this pipeline already uses for relative/historical valuation.
     competitor_comparison = _competitor_comparison(ticker, data, dcf, scenarios, sector, industry, lang)
+    sector_comparison = _sector_comparison(ticker, data, dcf, sector, industry, lang)
 
     return {
         "ticker": ticker.upper(),
@@ -471,6 +630,7 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
         "revenueBreakdown": revenue_breakdown,
         "moatPoints": _moat_points(data, dcf, lang),
         "competitorComparison": competitor_comparison,
+        "sectorComparison": sector_comparison,
         "financialHealth": financial_health,
         "roicAdjustedForBuybacks": roic_adjusted_for_buybacks,
         "valuation": valuation,
