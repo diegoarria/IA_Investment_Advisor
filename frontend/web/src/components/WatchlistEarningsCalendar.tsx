@@ -120,6 +120,19 @@ function macroEventLabel(t: TFunction, eventType: string): string {
   return label.startsWith("watchlistEarningsCalendar.macro.eventTypes.") ? eventType : label;
 }
 
+// Compact code for the calendar-cell badge (e.g. "FOMC", "Core CPI") —
+// the full labels above ("Decisión de Tasas (Fed)") are the right length
+// for the day-detail panel, but overflow a calendar cell. Falls back to
+// the event type itself (raw) if a short label hasn't been added for it
+// yet, same "never blank" convention macroEventLabel already uses — the
+// badge's own CSS still truncates with an ellipsis as a last resort so a
+// long/unmapped code never breaks the grid (Diego, 2026-08-22: "que el
+// texto no se salga de los cuadrados de las fechas").
+function macroEventShortLabel(t: TFunction, eventType: string): string {
+  const label = t(`watchlistEarningsCalendar.macro.shortLabels.${eventType}`);
+  return label.startsWith("watchlistEarningsCalendar.macro.shortLabels.") ? eventType : label;
+}
+
 export default function WatchlistEarningsCalendar({
   watchlistTickers,
   portfolioTickers = [],
@@ -332,10 +345,17 @@ export default function WatchlistEarningsCalendar({
                     <span
                       key={`macro-${e.event_type}-${ei}`}
                       title={macroEventLabel(t, e.event_type)}
-                      className="w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0"
-                      style={{ background: colors.bg }}
+                      className="text-[7px] font-black px-1 py-px rounded leading-tight flex items-center gap-px"
+                      style={{
+                        background: colors.bg,
+                        color: colors.color,
+                        maxWidth: "calc(100% - 2px)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
                     >
-                      <Landmark className="w-2 h-2" style={{ color: colors.color }} />
+                      <Landmark className="w-2.5 h-2.5 inline-block mr-0.5 shrink-0" /> {macroEventShortLabel(t, e.event_type)}
                     </span>
                   );
                 })}

@@ -3929,6 +3929,24 @@
         "jolts": "Vacantes JOLTS",
         "fed_speaker": "Discurso de la Fed",
         "housing_starts": "Construcción de Viviendas"
+      },
+      "shortLabels": {
+        "fomc_rate_decision": "FOMC",
+        "cpi": "CPI",
+        "core_cpi": "Core CPI",
+        "pce": "PCE",
+        "core_pce": "Core PCE",
+        "nfp": "NFP",
+        "unemployment_rate": "Desempleo",
+        "gdp": "PIB",
+        "ism_manufacturing_pmi": "PMI Manuf.",
+        "ism_services_pmi": "PMI Serv.",
+        "retail_sales": "Ventas Min.",
+        "initial_jobless_claims": "Solicitudes",
+        "ppi": "PPI",
+        "jolts": "JOLTS",
+        "fed_speaker": "Fed Habla",
+        "housing_starts": "Vivienda"
       }
     }
   },

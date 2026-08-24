@@ -3929,6 +3929,24 @@
         "jolts": "JOLTS Openings",
         "fed_speaker": "Fed Speaker",
         "housing_starts": "Housing Starts"
+      },
+      "shortLabels": {
+        "fomc_rate_decision": "FOMC",
+        "cpi": "CPI",
+        "core_cpi": "Core CPI",
+        "pce": "PCE",
+        "core_pce": "Core PCE",
+        "nfp": "NFP",
+        "unemployment_rate": "Unemployment",
+        "gdp": "GDP",
+        "ism_manufacturing_pmi": "PMI Mfg.",
+        "ism_services_pmi": "PMI Svcs.",
+        "retail_sales": "Retail Sales",
+        "initial_jobless_claims": "Claims",
+        "ppi": "PPI",
+        "jolts": "JOLTS",
+        "fed_speaker": "Fed Speaker",
+        "housing_starts": "Housing"
       }
     }
   },
