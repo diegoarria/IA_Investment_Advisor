@@ -3903,6 +3903,7 @@
     "assets": "activos",
     "macro": {
       "label": "Macro",
+      "loadError": "Eventos macro no cargaron · Reintentar",
       "whyItMatters": "Por qué importa",
       "yourPortfolio": "Tu portafolio",
       "impactLabel": "¿Cómo me afecta?",

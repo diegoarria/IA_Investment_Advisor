@@ -3903,6 +3903,7 @@
     "assets": "assets",
     "macro": {
       "label": "Macro",
+      "loadError": "Macro events failed to load · Retry",
       "whyItMatters": "Why it matters",
       "yourPortfolio": "Your portfolio",
       "impactLabel": "How does this affect me?",

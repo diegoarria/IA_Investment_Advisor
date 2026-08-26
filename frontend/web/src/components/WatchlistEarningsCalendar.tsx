@@ -155,13 +155,44 @@ export default function WatchlistEarningsCalendar({
   const [analyzing, setAnalyzing] = useState<string | null>(null);
   const [macroImpact, setMacroImpact]     = useState<Record<string, string>>({});
   const [analyzingMacro, setAnalyzingMacro] = useState<string | null>(null);
+  // Diego, 2026-08-25: "a veces aparecen y a veces desaparecen" — the macro
+  // fetch used to swallow ANY failure (network blip, slow response, a 500)
+  // into a silent empty array with zero retry and zero visible indication,
+  // completely indistinguishable from "genuinely no macro events this
+  // month." Ticker events already surface a failure via loadError/Retry;
+  // macro never did. Tracked separately so a macro hiccup never blocks or
+  // hides the ticker events that DID load fine.
+  const [macroLoadError, setMacroLoadError] = useState(false);
 
   const allTickers   = [...new Set([...watchlistTickers, ...portfolioTickers])].filter(Boolean);
   const portfolioSet = new Set(portfolioTickers);
 
+  // Retries transient failures (network blip, slow response, a 500) up to
+  // 2 times with backoff before giving up — same resilience pattern
+  // subvaluadas/page.tsx already uses for its own "must never sit on a
+  // spinner/silently show nothing" search. Only gives up silently-to-the-
+  // grid on a genuinely empty response; any real failure sets
+  // macroLoadError so the legend surfaces a visible retry instead.
+  const fetchMacroEvents = async (attempt = 0): Promise<MacroCalendarEvent[]> => {
+    try {
+      const res = await earningsApi.getMacroCalendar(45, i18n.language);
+      return (res.data.events || []).map((e: Omit<MacroCalendarEvent, "kind">) => ({ ...e, kind: "macro" as const }));
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      const isDefinitive = status !== undefined && status !== 503 && status !== 504;
+      if (!isDefinitive && attempt < 2) {
+        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+        return fetchMacroEvents(attempt + 1);
+      }
+      setMacroLoadError(true);
+      return [];
+    }
+  };
+
   const loadEvents = () => {
     setLoading(true);
     setLoadError(false);
+    setMacroLoadError(false);
     const tickerPromise = allTickers.length > 0
       ? earningsApi.getCalendar(allTickers).then((res) =>
           (res.data.earnings || []).map((e: Omit<TickerCalendarEvent, "kind">) => ({ ...e, kind: "ticker" as const }))
@@ -169,10 +200,11 @@ export default function WatchlistEarningsCalendar({
       : Promise.resolve<TickerCalendarEvent[]>([]);
     // Macro events are watchlist-independent (US market-wide) — fetched
     // regardless of whether the user has any tickers added, and never
-    // blocks/gets blocked by the ticker-events request.
-    const macroPromise = earningsApi.getMacroCalendar(45, i18n.language).then((res) =>
-      (res.data.events || []).map((e: Omit<MacroCalendarEvent, "kind">) => ({ ...e, kind: "macro" as const }))
-    ).catch(() => [] as MacroCalendarEvent[]);
+    // blocks/gets blocked by the ticker-events request (a real failure
+    // here, after retries, still resolves to [] so Promise.all below
+    // isn't rejected by it — but macroLoadError makes that failure visible
+    // instead of silently indistinguishable from "no events this month").
+    const macroPromise = fetchMacroEvents();
 
     Promise.all([tickerPromise, macroPromise])
       .then(([tEvents, mEvents]) => {
@@ -657,6 +689,15 @@ export default function WatchlistEarningsCalendar({
           <Landmark className="w-2.5 h-2.5" style={{ color: "#f87171" }} />
           <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("watchlistEarningsCalendar.macro.label")}</span>
         </div>
+        {macroLoadError && (
+          <button
+            onClick={loadEvents}
+            className="text-[10px] font-semibold px-2 py-0.5 rounded-full transition-opacity hover:opacity-70"
+            style={{ background: "rgba(239,68,68,0.12)", color: "#f87171" }}
+          >
+            {t("watchlistEarningsCalendar.macro.loadError")}
+          </button>
+        )}
         {allTickers.length > 0 && (
           <span className="text-[10px] ml-auto" style={{ color: "var(--dim)" }}>
             {allTickers.length} {t("watchlistEarningsCalendar.assets")}
