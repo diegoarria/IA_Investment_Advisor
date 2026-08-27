@@ -88,7 +88,14 @@ async def _load_profile(user_id: str) -> UserProfile | None:
         db = get_supabase()
         res = await run_query(db.table("user_profiles").select("*").eq("user_id", user_id))
         return UserProfile(**coerce_profile_row(res.data[0])) if res.data else None
-    except Exception:
+    except Exception as exc:
+        # Feeds _is_premium() below, which gates the WebSocket voice-mentor
+        # handshake — a trial/Premium user silently rejected here previously
+        # only ever showed as a generic "connection failed" client-side with
+        # zero server-side trace (see this function's own risk already
+        # documented a few lines down). Logging is what makes that
+        # diagnosable instead of a mystery (2026-08-26 full-sweep audit).
+        logger.error("_load_profile(%s) failed: %s", user_id, exc)
         return None
 
 

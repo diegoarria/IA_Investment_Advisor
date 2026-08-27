@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
@@ -5,6 +6,8 @@ from app.api.routes.market import _get_user_profile
 from app.core.database import get_supabase, run_query
 from app.core.cache import cache_get, cache_set
 from app.services import ai_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/decisions", tags=["decisions"])
 
@@ -22,7 +25,12 @@ async def _get_decisions(user_id: str, limit: int = 100) -> list[dict]:
             .limit(limit)
         )
         return result.data or []
-    except Exception:
+    except Exception as exc:
+        # A real DB error was indistinguishable from "user has no decision
+        # history" — feeds the Diario de Decisiones feature and bias
+        # detection, so a real bug here silently presented as an empty
+        # journal (2026-08-26 full-sweep audit).
+        logger.error("_get_decisions(%s) failed: %s", user_id, exc)
         return []
 
 

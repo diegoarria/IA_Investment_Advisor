@@ -381,8 +381,14 @@ async def forgot_password_sms(request: Request, body: dict):
             _set_reset_code(f"reset_code:phone:{phone}", {"code": code, "email": email})
             from app.services.sms_service import send_sms
             await send_sms(phone, f"Tu código Nuvos AI: {code}. Expira en 15 min. No lo compartas.")
-    except Exception:
-        pass
+    except Exception as exc:
+        # The generic response is deliberate (anti-enumeration), but that
+        # also made a real SMS-provider failure completely invisible — a
+        # legitimate user requesting a reset got "you'll receive a code"
+        # and then never received anything, with zero trace to diagnose
+        # why (2026-08-26 full-sweep audit). Logging server-side doesn't
+        # change the client-facing response.
+        logger.error("password_reset_sms: failed for email=%s: %s", email, exc)
     return {"message": "Si los datos son correctos, recibirás un SMS con el código"}
 
 
@@ -458,8 +464,13 @@ async def logout(
         try:
             db = get_supabase()
             await run_auth(db.auth.admin.sign_out, token, "global")
-        except Exception:
-            pass
+        except Exception as exc:
+            # Security-relevant: the client is told they're logged out
+            # everywhere, but if this global sign-out actually failed,
+            # other sessions/tokens remain valid — silently, with zero
+            # trace (2026-08-26 full-sweep audit). This device's own
+            # cookies are still cleared below either way.
+            logger.error("logout: global sign_out failed: %s", exc)
     _clear_auth_cookies(response)
     return {"message": "Logged out"}
 

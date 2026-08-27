@@ -256,8 +256,15 @@ async def _get_user_profile(user_id: str) -> UserProfile | None:
         result = await run_query(db.table("user_profiles").select("*").eq("user_id", user_id))
         if result.data:
             return UserProfile(**coerce_profile_row(result.data[0]))
-    except Exception:
-        pass
+    except Exception as exc:
+        # A row that exists but fails to parse (the Aug 16 incident class —
+        # see coerce_profile_row's own docstring) used to silently return
+        # None here, indistinguishable from "no profile" — this feeds
+        # _is_premium() below, so a real Premium user could get silently
+        # downgraded to free-tier chat behavior with zero trace (2026-08-26
+        # full-sweep audit; market.py's copy of this same helper was
+        # already fixed, this independent one in chat.py was not).
+        logger.error("_get_user_profile(%s): row exists but failed to parse: %s", user_id, exc)
     return None
 
 
@@ -866,8 +873,13 @@ async def save_message(
             "session_id": session_id,
         }
         await run_query(db.table("chat_history").insert(record))
-    except Exception:
-        pass
+    except Exception as exc:
+        # Used to return {"saved": True} even when the insert above failed
+        # — an explicit lie to the client, and the message silently never
+        # persists to chat history with zero trace (2026-08-26 full-sweep
+        # audit).
+        logger.error("save_chat_message: insert failed for user %s: %s", user_id, exc)
+        return {"saved": False, "reason": "error"}
     return {"saved": True}
 
 

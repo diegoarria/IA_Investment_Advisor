@@ -7,12 +7,15 @@ POST /referral/apply          — called after signup to credit a referrer
 POST /referral/redeem-session — spend one earned free 1:1 session credit
 """
 
+import logging
 import random
 import string
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/referral", tags=["referral"])
 
@@ -114,6 +117,7 @@ async def _ensure_code(user_id: str) -> str:
     )
     code = ((row.data if row else None) or {}).get("referral_code")
     if not code:
+        last_exc: Exception | None = None
         for _ in range(5):
             candidate = _generate_code()
             try:
@@ -122,8 +126,16 @@ async def _ensure_code(user_id: str) -> str:
                 )
                 code = candidate
                 break
-            except Exception:
+            except Exception as exc:
+                last_exc = exc
                 continue
+        if not code and last_exc:
+            # This loop is designed to retry past unique-constraint
+            # collisions, but a real DB error (outage, RLS issue) also
+            # silently exhausts the same 5 attempts — the caller then
+            # hands back a broken referral link (".../join?ref=") to a
+            # real user with zero trace (2026-08-26 full-sweep audit).
+            logger.error("_ensure_code(%s): failed after 5 attempts: %s", user_id, last_exc)
     return code or ""
 
 

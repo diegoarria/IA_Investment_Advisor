@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import random
 import re
 import json
@@ -9,6 +10,8 @@ from app.api.deps import get_current_user_id
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
 from app.core.limiter import limiter
+
+logger = logging.getLogger(__name__)
 
 # Days that grant premium bonus (free users only)
 _PREMIUM_BONUS_DAYS = {30: 3, 60: 7, 90: 30}
@@ -33,7 +36,12 @@ async def _get_profile_raw(user_id: str) -> dict | None:
             db.table("user_profiles").select("subscription_tier, trial_started_at, streak_bonus_premium_until").eq("user_id", user_id)
         )
         return result.data[0] if result.data else None
-    except Exception:
+    except Exception as exc:
+        # Feeds _is_premium() below, which gates every Learn endpoint
+        # (simulations, debates, streak sync) — a transient DB error here
+        # silently denied premium access, indistinguishable from "not
+        # premium" (2026-08-26 full-sweep audit).
+        logger.error("_get_profile_raw(%s) failed: %s", user_id, exc)
         return None
 
 async def _is_premium(user_id: str) -> bool:
@@ -557,8 +565,14 @@ async def sync_streak(request: dict, user_id: str = Depends(get_current_user_id)
         await run_query(
             db.table("user_profiles").update(update).eq("user_id", user_id)
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        # Used to return {"synced": True} even when the update above
+        # failed — silently drops streak_count/longest_streak_count (used
+        # by Nuvos Wrapped's "racha más larga") and merged
+        # completed_topic_ids, while telling the client it synced fine
+        # (2026-08-26 full-sweep audit).
+        logger.error("sync_streak: update failed for user %s: %s", user_id, exc)
+        return {"synced": False}
     return {"synced": True}
 
 

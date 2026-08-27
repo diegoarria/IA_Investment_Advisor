@@ -91,14 +91,23 @@ async def _migrate_profile_by_email(db, new_user_id: str, email: str) -> dict | 
                 await run_query(
                     db.table(table).update({"user_id": new_user_id}).eq("user_id", old_id)
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                # No atomic guarantee here (unlike the account-deletion
+                # RPC, which was rewritten specifically to avoid this
+                # exact "per-table loop, one failure orphans that table's
+                # rows forever" shape) — logging is the least we can do
+                # until this gets the same atomic treatment, so a failed
+                # migration leaves a trace instead of a user's watchlist/
+                # portfolio/decisions silently vanishing into the old,
+                # now-orphaned user_id (2026-08-26 full-sweep audit).
+                logger.error("_migrate_profile_by_email: failed to migrate table %s from %s to %s: %s", table, old_id, new_user_id, exc)
         # Re-fetch after migration
         migrated = await run_query(
             db.table("user_profiles").select("*").eq("user_id", new_user_id)
         )
         return migrated.data[0] if migrated.data else None
-    except Exception:
+    except Exception as exc:
+        logger.error("_migrate_profile_by_email(%s, %s) failed: %s", new_user_id, email, exc)
         return None
 
 

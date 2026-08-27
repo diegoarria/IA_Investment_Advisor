@@ -361,8 +361,13 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
             if bonus_end > datetime.now(timezone.utc):
                 effective_tier = "premium"
                 streak_bonus_active = True
-        except Exception:
-            pass
+        except Exception as exc:
+            # This is the canonical subscription-status endpoint every
+            # client trusts — a malformed streak_bonus_premium_until used
+            # to silently demote a user who legitimately earned premium
+            # via a streak back to free, with zero trace (2026-08-26
+            # full-sweep audit).
+            logger.error("billing status: malformed streak_bonus_premium_until=%r: %s", streak_bonus_until, exc)
 
     duo_purchased = data.get("duo_plan_purchased_at")
     duo_secondary = data.get("duo_secondary_email")

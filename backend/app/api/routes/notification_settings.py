@@ -5,6 +5,7 @@ POST    /api/notification-settings/track   — track open/click events
 GET     /api/notification-settings/analytics — admin engagement metrics
 POST    /api/notifications/send-test       — dev only
 """
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,6 +13,8 @@ from pydantic import BaseModel
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
 from app.core.cache import cache_get, cache_set, cache_delete
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["notification-settings"])
 
@@ -115,8 +118,14 @@ async def get_notification_settings(user_id: str = Depends(get_current_user_id))
         prefs = {**_DEFAULT_PREFS, "user_id": user_id}
         try:
             await run_query(db.table("notification_preferences").insert(prefs))
-        except Exception:
-            pass
+        except Exception as exc:
+            # If this insert fails, the function still returns/caches the
+            # in-memory defaults as if it succeeded — but worker.py's jobs
+            # read preferences from the DB table, not this cache, so this
+            # user's row never actually exists there and every job that
+            # depends on it silently skips them, indistinguishable from
+            # "user has default settings" (2026-08-26 full-sweep audit).
+            logger.error("notification_settings: default-prefs insert failed for user %s: %s", user_id, exc)
     cache_set(ck, prefs, ttl=300)
     return prefs
 

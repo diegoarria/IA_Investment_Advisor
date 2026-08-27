@@ -196,7 +196,7 @@ async def check_portfolio_alerts(user_id: str, tickers: list[str], profile: User
                 },
             )
     except Exception:
-        pass
+        logger.exception("check_portfolio_alerts failed for user %s", user_id)
 
 
 async def check_custom_price_alerts(user_id: str):
@@ -270,7 +270,7 @@ async def check_custom_price_alerts(user_id: str):
                 .eq("id", alert["id"])
             )
     except Exception:
-        pass
+        logger.exception("check_custom_price_alerts failed for user %s", user_id)
 
 
 async def generate_weekly_market_insight(user_id: str, profile: UserProfile | None = None):

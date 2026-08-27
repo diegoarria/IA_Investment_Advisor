@@ -1378,7 +1378,12 @@ Español, tono analítico pero accesible. Sin viñetas, sin markdown, sin asteri
         raw = _re.sub(r"\*\*(.+?)\*\*", r"\1", raw)
         raw = _re.sub(r"\*(.+?)\*", r"\1", raw)
         return raw
-    except Exception:
+    except Exception as e:
+        # This result is reused for every recipient in that language batch
+        # — a Claude failure here used to silently send every subscriber
+        # that day an email with a blank narrative section, with zero
+        # trace (2026-08-26 full-sweep audit).
+        logger.warning("_generate_market_wrap failed: %s", e)
         return ""
 
 
@@ -1431,7 +1436,11 @@ async def _generate_earnings_ai_for_email(
         from app.services.llm_usage import log_llm_usage
         asyncio.create_task(log_llm_usage(None, "job_daily_email_earnings", "claude-haiku-4-5-20251001", resp.usage))
         return (resp.content[0].text or "").strip()
-    except Exception:
+    except Exception as e:
+        # Feeds every user's earnings section in that day's email — a
+        # Claude failure here used to silently ship a blank analysis with
+        # zero trace (2026-08-26 full-sweep audit).
+        logger.warning("_generate_earnings_ai_for_email(%s) failed: %s", ticker, e)
         return ""
 
 
@@ -4851,7 +4860,13 @@ async def job_proactive_vs_market():
                 continue
             try:
                 prices = await asyncio.to_thread(_batch_prices, tickers[:20])
-            except Exception:
+            except Exception as e:
+                # Silently drops this user from today's proactive-vs-market
+                # comparison, indistinguishable from "no positions" — a
+                # real price-fetch failure vs. a legitimate no-op were
+                # unrecoverably conflated with zero trace (2026-08-26
+                # full-sweep audit).
+                logger.warning("job_proactive_vs_market: price fetch failed for user %s: %s", uid, e)
                 continue
 
             total_val = day_gain_val = 0.0
