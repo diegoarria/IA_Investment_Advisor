@@ -1284,18 +1284,32 @@ def _with_live_price_diagnostic(cached: dict, ticker: str) -> dict:
 async def _get_user_profile_safe(user_id: str):
     """Wraps market._get_user_profile (a blocking sync DB call made directly
     inside async routes throughout this file) in a thread so it can never
-    block the event loop, plus one retry on a transient failure — this is
+    block the event loop, plus retries on a transient failure — this is
     the premium-gate check for every screener/quick-analysis endpoint, and a
     single flaky read here must never look identical to "not premium" to a
-    real Premium user."""
-    for attempt in range(2):
+    real Premium user.
+
+    Also retries a `None` return, not just a raised exception —
+    market._get_user_profile itself never raises (it catches its own
+    Supabase/parse errors internally, see its own docstring/comment), so a
+    transient read hiccup there surfaces as a plain `None`, indistinguishable
+    from "this user genuinely has no profile row" unless retried here too
+    (2026-08-26, Diego: a real Premium user's own search hit this — profile
+    confirmed intact in the DB seconds later, so the first read was
+    transient, not a real missing-profile case)."""
+    result = None
+    for attempt in range(3):
         try:
-            return await asyncio.to_thread(_get_user_profile, user_id)
+            result = await asyncio.to_thread(_get_user_profile, user_id)
         except Exception as exc:
-            if attempt == 1:
-                logger.error("_get_user_profile_safe(%s): failed after retry: %s", user_id, exc)
-                return None
-            await asyncio.sleep(0.3)
+            logger.error("_get_user_profile_safe(%s): attempt %d raised: %s", user_id, attempt + 1, exc)
+            result = None
+        if result is not None:
+            return result
+        if attempt < 2:
+            await asyncio.sleep(0.3 * (attempt + 1))
+    logger.warning("_get_user_profile_safe(%s): no profile after %d attempts", user_id, attempt + 1)
+    return None
 
 
 _NAME_STOPWORDS_RE = re.compile(r"\b(inc|incorporated|corp|corporation|co|company|the|ltd|plc|group|holdings?|class [a-z])\b")

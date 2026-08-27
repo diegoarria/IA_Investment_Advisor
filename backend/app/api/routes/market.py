@@ -89,7 +89,19 @@ def _get_user_profile(user_id: str) -> UserProfile | None:
     if result.data:
         try:
             return UserProfile(**coerce_profile_row(result.data[0]))
-        except Exception:
+        except Exception as exc:
+            # This used to swallow ANY validation error silently — a row
+            # existing but failing to parse (the exact Aug 16 incident,
+            # coerce_profile_row's own docstring: risk_tolerance=None
+            # raising ValidationError) surfaced to the user as "Profile
+            # not found. Complete onboarding first." with zero trace
+            # anywhere, indistinguishable from a genuinely missing
+            # profile. Logging here is what would have let that
+            # incident (or the next field-shape mismatch like it) be
+            # diagnosed in minutes instead of by manually reading the
+            # DB row (2026-08-26, Diego: "por qué no salen los valores
+            # intrínsecos... si antes sí salían").
+            logger.error("_get_user_profile(%s): row exists but failed to parse: %s", user_id, exc)
             return None
     return None
 
