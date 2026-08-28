@@ -112,6 +112,16 @@ function fmtPct(pct: number | null): string {
   return `${sign}${pct.toFixed(2)}%`;
 }
 
+// A converted price in a currency with a large USD→X rate (MXN, JPY, ARS…)
+// can render far wider than the space the base font size was sized for —
+// shrink instead of letting it clip/overflow the card.
+function tabularFontSize(str: string, base: number): number | undefined {
+  if (str.length > 12) return Math.max(base - 3, 9);
+  if (str.length > 9) return Math.max(base - 2, 9);
+  if (str.length > 7) return Math.max(base - 1, 9);
+  return undefined;
+}
+
 function MarketStateBadge({ state, t }: { state: string; t: TFunction }) {
   const s = (state || "").toUpperCase();
   if (s === "REGULAR") {
@@ -261,7 +271,7 @@ function StockCard({ item, fxRate, displayCurrency, onDelete, onSelect, onAlert,
           <div className="text-right shrink-0">
             {showPreMkt ? (
               <>
-                <p className="text-[13px] font-black leading-tight" style={{ color: "#f59e0b" }}>
+                <p className="font-black leading-tight whitespace-nowrap" style={{ color: "#f59e0b", fontSize: tabularFontSize(fmtPrice(conv(item.pre_market_price), displayCurrency), 13) ?? 13 }}>
                   {fmtPrice(conv(item.pre_market_price), displayCurrency)}
                 </p>
                 <p className="text-[10px] font-bold" style={{ color: "#f59e0b" }}>
@@ -273,7 +283,7 @@ function StockCard({ item, fxRate, displayCurrency, onDelete, onSelect, onAlert,
               </>
             ) : showPostMkt ? (
               <>
-                <p className="text-[13px] font-black leading-tight" style={{ color: "#818cf8" }}>
+                <p className="font-black leading-tight whitespace-nowrap" style={{ color: "#818cf8", fontSize: tabularFontSize(fmtPrice(conv(item.post_market_price), displayCurrency), 13) ?? 13 }}>
                   {fmtPrice(conv(item.post_market_price), displayCurrency)}
                 </p>
                 <p className="text-[10px] font-bold" style={{ color: "#818cf8" }}>
@@ -285,7 +295,7 @@ function StockCard({ item, fxRate, displayCurrency, onDelete, onSelect, onAlert,
               </>
             ) : (
               <>
-                <p className="text-[13px] font-black leading-tight" style={{ color: "var(--text)" }}>
+                <p className="font-black leading-tight whitespace-nowrap" style={{ color: "var(--text)", fontSize: tabularFontSize(fmtPrice(conv(item.price), displayCurrency), 13) ?? 13 }}>
                   {fmtPrice(conv(item.price), displayCurrency)}
                 </p>
                 <div className="flex items-center justify-end gap-0.5 mt-0.5">

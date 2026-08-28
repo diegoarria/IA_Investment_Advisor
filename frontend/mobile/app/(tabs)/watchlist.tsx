@@ -10,6 +10,7 @@ import { useTheme, type Colors } from "../../src/lib/ThemeContext";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
+import { useFxRate } from "../../src/lib/useFxRate";
 import { marketApi, watchlistExtApi, priceAlertsApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import StockAvatar from "../../src/components/StockAvatar";
@@ -38,9 +39,14 @@ interface SearchResult {
   name: string;
 }
 
+const CURRENCY_SYM: Record<string, string> = {
+  USD: "$", MXN: "$", ARS: "$", CLP: "$", COP: "$", CAD: "$",
+  EUR: "€", GBP: "£", BRL: "R$", JPY: "¥", CHF: "Fr",
+};
+
 function fmtPrice(price: number | null, currency = "USD"): string {
   if (price === null || price === undefined) return "—";
-  const sym = currency === "EUR" ? "€" : currency === "GBP" ? "£" : "$";
+  const sym = CURRENCY_SYM[currency] ?? "$";
   return `${sym}${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
@@ -48,6 +54,12 @@ function fmtPct(pct: number | null): string {
   if (pct === null || pct === undefined) return "—";
   return `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
 }
+
+// A converted price in a currency with a large USD→X rate (MXN, JPY, ARS…)
+// can render far wider than the fixed-width right column was sized for —
+// shrink the font via adjustsFontSizeToFit instead of letting RN's Text
+// clip/wrap it. See the price Text nodes below.
+const PRICE_MIN_FONT_SCALE = 0.55;
 
 // Status pills — deliberately fixed colors in both themes (same convention
 // as up/down percentage colors elsewhere): a live/pre/post/closed market
@@ -97,6 +109,8 @@ interface RowProps {
   index: number;
   itemCount: number;
   prices: Record<string, ExtPrice>;
+  fxRate: number;
+  displayCurrency: string;
   editMode: boolean;
   advanced?: boolean;
   onRemove: (ticker: string) => void;
@@ -107,9 +121,10 @@ interface RowProps {
   colors: Colors;
 }
 
-function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRemove, onMoveUp, onMoveDown, onAlert, hasAlert, colors }: RowProps) {
+function WatchlistRow({ item, index, itemCount, prices, fxRate, displayCurrency, editMode, advanced, onRemove, onMoveUp, onMoveDown, onAlert, hasAlert, colors }: RowProps) {
   const { t } = useTranslation();
   const p = prices[item.ticker] as ExtPrice | undefined;
+  const conv = (price: number | null | undefined) => price == null ? null : price * fxRate;
   const dayUp  = (p?.change_pct ?? 0) >= 0;
   const dayCol = dayUp ? "#00d47e" : "#ff5c5c";
   const ms = (p?.market_state ?? "").toUpperCase();
@@ -124,7 +139,7 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRe
   const showPreAdv  = advanced && !showPre  && !showPost && !!p?.pre_market_price;
   const showPostAdv = advanced && !showPre  && !showPost && !showPreAdv && !!p?.post_market_price;
 
-  const primaryPrice = showPre ? p!.pre_market_price : showPost ? p!.post_market_price : p?.price ?? null;
+  const primaryPrice = conv(showPre ? p!.pre_market_price : showPost ? p!.post_market_price : p?.price ?? null);
   const primaryPct   = showPre ? p!.pre_market_change_pct : showPost ? p!.post_market_change_pct : p?.change_pct ?? null;
   const primaryColor    = showPre ? "#f59e0b" : showPost ? "#818cf8" : colors.text;
   const primaryPctColor = showPre ? "#f59e0b" : showPost ? "#818cf8" : dayCol;
@@ -178,8 +193,13 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRe
         </View>
 
         <View style={rw.rightCol}>
-          <Text style={[rw.price, { color: primaryColor, fontVariant: ["tabular-nums"] }]}>
-            {primaryPrice != null ? fmtPrice(primaryPrice, p?.currency) : "—"}
+          <Text
+            style={[rw.price, { color: primaryColor, fontVariant: ["tabular-nums"] }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={PRICE_MIN_FONT_SCALE}
+          >
+            {primaryPrice != null ? fmtPrice(primaryPrice, displayCurrency) : "—"}
           </Text>
           {primaryPct != null && (
             <View style={rw.pctRow}>
@@ -194,13 +214,13 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRe
             </View>
           )}
           {(showPre || showPost) && p?.price != null && (
-            <Text style={[rw.closeLabel, { color: colors.textMuted }]}>
-              {showPre ? t("watchlist.row.regShort") : t("watchlist.row.close")} {fmtPrice(p.price, p.currency)}
+            <Text style={[rw.closeLabel, { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={PRICE_MIN_FONT_SCALE}>
+              {showPre ? t("watchlist.row.regShort") : t("watchlist.row.close")} {fmtPrice(conv(p.price), displayCurrency)}
             </Text>
           )}
           {showPreAdv && p?.pre_market_price != null && (
-            <Text style={[rw.closeLabel, { color: "#f59e0b" }]}>
-              {t("watchlist.row.prePrefix")} {fmtPrice(p.pre_market_price, p?.currency)}{p?.pre_market_change_pct != null ? ` (${fmtPct(p.pre_market_change_pct)})` : ""}
+            <Text style={[rw.closeLabel, { color: "#f59e0b" }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={PRICE_MIN_FONT_SCALE}>
+              {t("watchlist.row.prePrefix")} {fmtPrice(conv(p.pre_market_price), displayCurrency)}{p?.pre_market_change_pct != null ? ` (${fmtPct(p.pre_market_change_pct)})` : ""}
             </Text>
           )}
           {showPostAdv && p?.post_market_price != null && (
@@ -269,7 +289,8 @@ export default function WatchlistScreen() {
   const { items, add, remove, has, reorder } = useWatchlistStore();
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
-  const { positions } = usePortfolioStore();
+  const { positions, portfolioCurrency } = usePortfolioStore();
+  const fxRate = useFxRate(portfolioCurrency);
 
   const [prices, setPrices]               = useState<Record<string, ExtPrice>>({});
   const [pricesLoading, setPricesLoading] = useState(false);
@@ -582,6 +603,8 @@ export default function WatchlistScreen() {
                   index={index}
                   itemCount={items.length}
                   prices={prices}
+                  fxRate={fxRate}
+                  displayCurrency={portfolioCurrency}
                   editMode={editMode && sortMode === "default"}
                   advanced={viewMode === "advanced"}
                   onRemove={(ticker: string) => { posthog.capture("watchlist_stock_removed", { ticker, watchlist_size: items.length - 1 }); remove(ticker); }}

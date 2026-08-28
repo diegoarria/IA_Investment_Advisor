@@ -72,6 +72,18 @@ interface Props {
   minMarginOfSafetyPct?: number | null;
 }
 
+// A converted price in a currency with a large USD→X rate (MXN, JPY, ARS…)
+// can render far wider than the USD original the column was sized for —
+// shrink the font instead of letting the fixed-width cell's overflow-hidden
+// silently clip digits. Same length-tiered approach as home/page.tsx's
+// hero value, tuned to this table's smaller base sizes.
+function tabularFontSize(str: string, base: number): number | undefined {
+  if (str.length > 12) return Math.max(base - 3, 9);
+  if (str.length > 9) return Math.max(base - 2, 9);
+  if (str.length > 7) return Math.max(base - 1, 9);
+  return undefined;
+}
+
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
 function Avatar({ ticker, logoUrl }: { ticker: string; logoUrl?: string | null }) {
@@ -370,11 +382,14 @@ export default function AdvancedStockTable({
                   <td className="px-3 py-2.5 text-right overflow-hidden">
                     {loadingDetails && row.price == null ? (
                       <Loader2 className="w-4 h-4 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
-                    ) : (
-                      <span className="text-sm font-bold tabular-nums" style={{ color: "var(--text)" }}>
-                        {fmtPrice(row.price, currency)}
-                      </span>
-                    )}
+                    ) : (() => {
+                      const priceStr = fmtPrice(row.price, currency);
+                      return (
+                        <span className="font-bold tabular-nums whitespace-nowrap" style={{ color: "var(--text)", fontSize: tabularFontSize(priceStr, 14) ?? 14 }}>
+                          {priceStr}
+                        </span>
+                      );
+                    })()}
                   </td>
 
                   {/* Change % */}
@@ -447,10 +462,10 @@ export default function AdvancedStockTable({
                     <td className="px-3 py-2.5 text-right overflow-hidden">
                       {row.week52Low != null && row.week52High != null ? (
                         <div>
-                          <p className="text-xs font-bold tabular-nums leading-none" style={{ color: "#ef4444" }}>
+                          <p className="font-bold tabular-nums leading-none whitespace-nowrap" style={{ color: "#ef4444", fontSize: tabularFontSize(fmtPrice(row.week52Low, currency), 12) ?? 12 }}>
                             ↓{fmtPrice(row.week52Low, currency)}
                           </p>
-                          <p className="text-xs font-bold tabular-nums leading-none mt-1" style={{ color: "#22c55e" }}>
+                          <p className="font-bold tabular-nums leading-none mt-1 whitespace-nowrap" style={{ color: "#22c55e", fontSize: tabularFontSize(fmtPrice(row.week52High, currency), 12) ?? 12 }}>
                             ↑{fmtPrice(row.week52High, currency)}
                           </p>
                         </div>
@@ -464,9 +479,14 @@ export default function AdvancedStockTable({
                   {mode === "portfolio" && (
                     <>
                       <td className="px-3 py-2.5 text-right overflow-hidden">
-                        <span className="text-sm font-bold tabular-nums" style={{ color: "var(--text)" }}>
-                          {fmtPrice(row.positionValue, currency)}
-                        </span>
+                        {(() => {
+                          const valueStr = fmtPrice(row.positionValue, currency);
+                          return (
+                            <span className="font-bold tabular-nums whitespace-nowrap" style={{ color: "var(--text)", fontSize: tabularFontSize(valueStr, 14) ?? 14 }}>
+                              {valueStr}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-3 py-2.5 text-right overflow-hidden">
                         <span className="text-sm font-bold tabular-nums"
