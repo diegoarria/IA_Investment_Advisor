@@ -367,7 +367,7 @@ export default function HomeScreen() {
   const markMilestoneClaimed = useLearnStore((s) => s.markMilestoneClaimed);
   const [pendingMilestone, setPendingMilestone] = React.useState<StreakMilestone | null>(null);
   const [claimingMilestone, setClaimingMilestone] = React.useState(false);
-  const { positions, portfolioCurrency } = usePortfolioStore();
+  const { positions, portfolioCurrency, closedPositions, inceptionDate } = usePortfolioStore();
   const fxRate = useFxRate(portfolioCurrency);
   const [cashTotalUSD, setCashTotalUSD] = React.useState(0);
   const [dividendTotalUSD, setDividendTotalUSD] = React.useState(0);
@@ -406,6 +406,11 @@ export default function HomeScreen() {
   const [ytdPct,     setYtdPct]    = useState<number | null>(null);
   const [shortGain,  setShortGain] = useState<number | null>(null);
   const [shortPct,   setShortPct]  = useState<number | null>(null);
+  // Real "MAX" return from the backend — same field/formula as the Portfolio
+  // screen's MAX toggle (POST /api/market/portfolio-returns, returns.max),
+  // not the client-side cost-basis approximation below. null while loading.
+  const [maxGain, setMaxGain] = useState<number | null>(null);
+  const [maxPct,  setMaxPct]  = useState<number | null>(null);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showScreenPicker, setShowScreenPicker] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
@@ -671,6 +676,17 @@ export default function HomeScreen() {
           marketApi.getPortfolioChart(posPayload, "ytd").then((res: any) => {
             if (res?.data) { setYtdGain(res.data.period_amount ?? null); setYtdPct(res.data.period_pct ?? null); }
           }).catch(() => {});
+          // Same call the Portfolio screen's MAX toggle uses (positions +
+          // closed positions + inceptionDate) so "Total" here is pixel-identical
+          // to what the user sees there, not a separate client-side estimate.
+          const closedPosPayload = closedPositions.map((c) => ({
+            ticker: c.ticker, shares: c.shares, avg_price: c.avgPrice, close_price: c.closePrice,
+            purchase_date: c.purchaseDate ?? null, close_date: c.closeDate ?? null,
+          }));
+          marketApi.getPortfolioReturns(posPayload, closedPosPayload, inceptionDate).then((res: any) => {
+            const max = res?.data?.returns?.max;
+            if (max) { setMaxGain(max.amount ?? null); setMaxPct(max.pct ?? null); }
+          }).catch(() => {});
         } else {
           marketApi.getPortfolioChart(posPayload, "5d").then((res: any) => {
             if (res?.data) { setYtdGain(res.data.period_amount ?? null); setYtdPct(res.data.period_pct ?? null); }
@@ -733,7 +749,7 @@ export default function HomeScreen() {
     }).catch(() => {});
     setLoading(false);
     setRefreshing(false);
-  }, [positions]);
+  }, [positions, closedPositions, inceptionDate]);
 
   useFocusEffect(useCallback(() => {
     loadData(true);
@@ -1140,14 +1156,18 @@ export default function HomeScreen() {
               <View style={ss.heroStat}>
                 <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>{isPremium ? "Total" : "1M"}</Text>
                 {isPremium ? (
-                  <>
-                    <Text style={{ fontSize: 15, fontWeight: "800", color: totalGain >= 0 ? colors.up : colors.down }}>
-                      {fmtPct(totalGainPct)}
-                    </Text>
-                    <Text style={[ss.heroStatVal, { color: totalGain >= 0 ? colors.up : colors.down }]}>
-                      {mask(`${totalGain >= 0 ? "+" : ""}${fmt(totalGain * fxRate, portfolioCurrency)}`)}
-                    </Text>
-                  </>
+                  maxGain !== null ? (
+                    <>
+                      <Text style={{ fontSize: 15, fontWeight: "800", color: (maxPct ?? 0) >= 0 ? colors.up : colors.down }}>
+                        {fmtPct(maxPct ?? 0)}
+                      </Text>
+                      <Text style={[ss.heroStatVal, { color: maxGain >= 0 ? colors.up : colors.down }]}>
+                        {mask(`${maxGain >= 0 ? "+" : ""}${fmt(maxGain * fxRate, portfolioCurrency)}`)}
+                      </Text>
+                    </>
+                  ) : (
+                    <Text style={[ss.heroStatVal, { color: colors.textMuted }]}>—</Text>
+                  )
                 ) : shortGain !== null ? (
                   <>
                     <Text style={{ fontSize: 15, fontWeight: "800", color: (shortPct ?? 0) >= 0 ? colors.up : colors.down }}>

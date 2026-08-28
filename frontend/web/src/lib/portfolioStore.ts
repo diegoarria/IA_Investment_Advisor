@@ -149,6 +149,31 @@ export function useCombinedCurrency(): string {
   return useMemo(() => combinedCurrency(portfolios), [portfolios]);
 }
 
+/** Every portfolio's closed/sold positions, combined — same rationale as mergeAllPositions. */
+export function mergeAllClosedPositions(portfolios: Portfolio[]): ClosedPosition[] {
+  return portfolios.flatMap((p) => p.closedPositions);
+}
+
+// Earliest inceptionDate across all portfolios — each portfolio's own
+// inceptionDate is set once, the first time a position is ever added to it,
+// and never overwritten (see the Portfolio interface above). The combined
+// "since inception" cutoff for a user with multiple portfolios is whichever
+// of those first-ever-buy dates is earliest.
+export function combinedInceptionDate(portfolios: Portfolio[]): string | null {
+  const dates = portfolios.map((p) => p.inceptionDate).filter((d): d is string => !!d);
+  return dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : null;
+}
+
+export function useCombinedClosedPositions(): ClosedPosition[] {
+  const portfolios = usePortfolioStore((s) => s.portfolios);
+  return useMemo(() => mergeAllClosedPositions(portfolios), [portfolios]);
+}
+
+export function useCombinedInceptionDate(): string | null {
+  const portfolios = usePortfolioStore((s) => s.portfolios);
+  return useMemo(() => combinedInceptionDate(portfolios), [portfolios]);
+}
+
 export const usePortfolioStore = create<PortfolioStore>()(
   persist(
     (set, get) => {

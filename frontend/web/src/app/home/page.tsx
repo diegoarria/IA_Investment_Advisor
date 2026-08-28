@@ -20,7 +20,7 @@ import PricingModal from "@/components/PricingModal";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore, useBalanceVisibilityStore } from "@/lib/store";
 import OnboardingChecklist, { type OnboardingStep } from "@/components/OnboardingChecklist";
 import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenPickerModal";
-import { useCombinedPositions, useCombinedCurrency } from "@/lib/portfolioStore";
+import { useCombinedPositions, useCombinedCurrency, useCombinedClosedPositions, useCombinedInceptionDate } from "@/lib/portfolioStore";
 import { usePaperStore } from "@/lib/paperStore";
 import { useFxRate } from "@/lib/useFxRate";
 import { isNYSEOpen } from "@/lib/marketHours";
@@ -115,6 +115,8 @@ export default function HomePage() {
   // job_market_close got on the backend, 2026-08-21).
   const positions = useCombinedPositions();
   const portfolioCurrency = useCombinedCurrency();
+  const closedPositions = useCombinedClosedPositions();
+  const inceptionDate = useCombinedInceptionDate();
   // Distinct holdings, not purchase lots — buying more of a ticker you
   // already own shouldn't inflate this count.
   const distinctPositionsCount = useMemo(() => new Set(positions.map((p) => p.ticker)).size, [positions]);
@@ -161,6 +163,11 @@ export default function HomePage() {
   const [ytdPct,  setYtdPct]      = useState<number | null>(null);
   const [shortGain, setShortGain] = useState<number | null>(null);
   const [shortPct,  setShortPct]  = useState<number | null>(null);
+  // Real "MAX" return from the backend — same field/formula as the Portfolio
+  // screen's MAX toggle (POST /api/market/portfolio-returns, returns.max),
+  // not the client-side cost-basis approximation below. null while loading.
+  const [maxGain, setMaxGain] = useState<number | null>(null);
+  const [maxPct,  setMaxPct]  = useState<number | null>(null);
   const marketOpen = useMemo(() => isNYSEOpen(), []);
   const hasChatted = useChatStore((s) => s.sessions.some((sess) => sess.messages.length > 0));
 
@@ -314,6 +321,17 @@ export default function HomePage() {
           marketApi.getPortfolioChart(posPayload, "ytd").then((res) => {
             if (res?.data) { setYtdGain(res.data.period_amount ?? null); setYtdPct(res.data.period_pct ?? null); }
           }).catch(() => {});
+          // Same call the Portfolio screen's MAX toggle uses (positions +
+          // closed positions + inceptionDate) so "Total" here is pixel-identical
+          // to what the user sees there, not a separate client-side estimate.
+          const closedPosPayload = closedPositions.map((c) => ({
+            ticker: c.ticker, shares: c.shares, avg_price: c.avgPrice, close_price: c.closePrice,
+            purchase_date: c.purchaseDate ?? null, close_date: c.closeDate ?? null,
+          }));
+          marketApi.getPortfolioReturns(posPayload, closedPosPayload, inceptionDate).then((res) => {
+            const max = res?.data?.returns?.max;
+            if (max) { setMaxGain(max.amount ?? null); setMaxPct(max.pct ?? null); }
+          }).catch(() => {});
         } else {
           marketApi.getPortfolioChart(posPayload, "5d").then((res) => {
             if (res?.data) { setYtdGain(res.data.period_amount ?? null); setYtdPct(res.data.period_pct ?? null); }
@@ -325,7 +343,7 @@ export default function HomePage() {
       }
     } catch {}
     setLoading(false);
-  }, [positions]);
+  }, [positions, closedPositions, inceptionDate]);
 
   useEffect(() => {
     loadData();
@@ -991,15 +1009,19 @@ export default function HomePage() {
                     <div className="flex-1 pl-4">
                       <p className="text-[11px] font-medium mb-1" style={{ color: "var(--muted)" }}>{isPremium ? "Total" : "1M"}</p>
                       {isPremium ? (
-                        <>
-                          <p className="text-xl font-black tracking-tight leading-none" style={{ color: totalGain >= 0 ? "#22c55e" : "#ef4444" }}>
-                            {fmtPct(totalGainPct)}
-                            <span className="text-sm font-semibold ml-1">
-                              ({balanceHidden ? "••••" : `${totalGain >= 0 ? "+" : ""}${fmt(totalGain, portfolioCurrency)}`})
-                            </span>
-                          </p>
-                          <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>{t("home.portfolioHero.total")}</p>
-                        </>
+                        maxGain !== null ? (
+                          <>
+                            <p className="text-xl font-black tracking-tight leading-none" style={{ color: (maxPct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
+                              {fmtPct(maxPct ?? 0)}
+                              <span className="text-sm font-semibold ml-1">
+                                ({balanceHidden ? "••••" : `${maxGain >= 0 ? "+" : ""}${fmt(maxGain * fxRate, portfolioCurrency)}`})
+                              </span>
+                            </p>
+                            <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>{t("home.portfolioHero.total")}</p>
+                          </>
+                        ) : (
+                          <p className="text-xl font-black" style={{ color: "var(--muted)" }}>—</p>
+                        )
                       ) : shortGain !== null ? (
                         <>
                           <p className="text-xl font-black tracking-tight leading-none" style={{ color: (shortPct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
