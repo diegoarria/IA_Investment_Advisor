@@ -14,7 +14,6 @@ import {
 import { auth as authApi, billing, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi, voiceCallsApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
-import SavedValuationsSection from "@/components/SavedValuationsSection";
 import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, ChevronRight, NotebookPen, SlidersHorizontal, Star, BarChart,
   Loader2, Copy, Check, Gift, Users, Share2, Trash2, Phone, Video, FileSearch, Lock,
@@ -1163,9 +1162,6 @@ export default function ProfilePage() {
                     )}
                   </div>
                 )}
-
-                {/* Saved intrinsic valuations */}
-                <SavedValuationsSection />
 
                 {/* Referral program */}
                 <div>

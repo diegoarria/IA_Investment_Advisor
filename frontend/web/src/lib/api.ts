@@ -547,13 +547,6 @@ export const screenerApi = {
   getValuationBacktest: () => api.get("/api/market/screener/valuation-backtest"),
 };
 
-export const savedValuationsApi = {
-  list: () => api.get("/api/saved-valuations"),
-  save: (ticker: string, targetMarginOfSafetyPct: number) =>
-    api.post("/api/saved-valuations", { ticker, target_margin_of_safety_pct: targetMarginOfSafetyPct }),
-  remove: (ticker: string) => api.delete(`/api/saved-valuations/${encodeURIComponent(ticker)}`),
-};
-
 export const simulateApi = {
   whatIf: (
     scenarioType: string,

@@ -5,10 +5,8 @@ Smart Alerts Service — Fase 4, Incremento 10 (Alertas Inteligentes, Parte J
 Bridges signals Fase 2/3 ALREADY compute into push notifications — this
 module detects NOTHING new. Every category below reads an existing engine
 output and tracks "have I already notified this user about this exact real
-value" via `smart_alert_state` (migration 067), same "store last-seen
-state, notify on transition" pattern as
-`saved_valuation_service.run_milestone_check`'s `notified_milestones`
-column (that job's sibling for Incremento 10).
+value" via `smart_alert_state` (migration 067), a "store last-seen state,
+notify on transition" pattern.
 
 Deliberately only 5 of the original brief's 8 categories — "moat change"
 and "capital allocation change" have no real detected-change signal
@@ -148,8 +146,7 @@ async def run_smart_alerts_check() -> None:
     single most relevant newly-detected change — same
     one-push-per-category-per-day discipline `notification_engine.
     can_send_push` already enforces, and the same "pick the single best
-    candidate, others get picked up next run" philosophy as
-    `saved_valuation_service.run_milestone_check`."""
+    candidate, others get picked up next run" philosophy."""
     import asyncio
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push

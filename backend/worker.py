@@ -2627,23 +2627,6 @@ async def job_prewarm_nif_dashboard_default():
             logger.error("job_prewarm_nif_dashboard_default(%s) failed: %s", lang, e)
 
 
-async def job_saved_valuation_alerts():
-    """4:10 PM ET weekdays — checks every user's saved margin-of-safety
-    alerts (set from Oportunidades) against the live Nuvos AI Fair Value
-    Engine, and pushes once a ticker's margin of safety reaches the user's
-    own configured target. See saved_valuation_service.run_milestone_check
-    for the actual logic — kept there (not here) since it's also
-    unit-testable without a live scheduler."""
-    if not _is_market_open_today():
-        logger.info("job_saved_valuation_alerts: market closed today — skipping")
-        return
-    from app.services.saved_valuation_service import run_milestone_check
-    try:
-        await run_milestone_check()
-    except Exception as e:
-        logger.error("job_saved_valuation_alerts failed: %s", e)
-
-
 async def job_daily_question():
     """2:00 PM ET Sundays only — Nuvos Weekly Rituals: "Pregunta del Día",
     one shared question for every user (never repeats until the whole
@@ -2697,9 +2680,8 @@ async def job_smart_alerts():
     Bridges Fase 2/3's Change Detection/Deterioration/DCF outputs into push
     notifications for watchlist tickers. See
     smart_alerts_service.run_smart_alerts_check's docstring for the actual
-    logic — kept there (not here), same reasoning as
-    job_saved_valuation_alerts. Runs right after the valuation-milestone
-    job so both read from the same freshly-closed trading day."""
+    logic — kept there (not here) since it's also unit-testable without a
+    live scheduler."""
     if not _is_market_open_today():
         logger.info("job_smart_alerts: market closed today — skipping")
         return
@@ -3588,11 +3570,10 @@ async def job_ai_insight_scan():
          earliest vs. latest logged thesis for that ticker; already flags
          a margin-of-safety sign-flip or an acted-without-a-new-thesis case).
       2. Dangerous single-position concentration (>=40% of portfolio value).
-    (Deliberately NOT duplicated here: a watchlist ticker entering a saved
-    valuation's buy range is already covered by job_saved_valuation_alerts;
-    high-magnitude news hitting a followed ticker is already covered by
-    job_major_news_alert. Two channels alerting on the same underlying
-    event would violate "never send duplicates".)
+    (Deliberately NOT duplicated here: high-magnitude news hitting a
+    followed ticker is already covered by job_major_news_alert. Two
+    channels alerting on the same underlying event would violate "never
+    send duplicates".)
     Every candidate found goes through exactly one Haiku quality-gate call
     (_ai_insight_quality_gate) asking "is this worth interrupting them
     for?" before anything is sent, gated by a hard cap of 2/month per user
@@ -5037,7 +5018,6 @@ async def main():
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour=9,       minute="30,35,40,45,50,55", timezone="America/New_York")
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="10-15", minute="*/5", timezone="America/New_York")
     scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=5,     timezone="America/New_York")
-    scheduler.add_job(job_saved_valuation_alerts, "cron", day_of_week="mon-fri", hour=16,    minute=10,    timezone="America/New_York")
     scheduler.add_job(job_smart_alerts,           "cron", day_of_week="mon-fri", hour=16,    minute=20,    timezone="America/New_York")
     scheduler.add_job(job_daily_email,          "cron", day_of_week="fri",     hour=18,      minute=0,     timezone="America/New_York")
 

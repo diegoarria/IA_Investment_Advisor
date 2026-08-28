@@ -406,13 +406,6 @@
     "you": "You",
     "myCalls": "My calls ({{count}})",
     "loadingEllipsis": "Loading...",
-    "savedValuations": {
-      "title": "My margin of safety alerts",
-      "stale": "data unavailable",
-      "noData": "N/A",
-      "currentVsTarget": "{{current}}% now · target {{target}}%",
-      "footer": "We'll alert you as soon as a stock's margin of safety reaches the target you set from Oportunidades."
-    },
     "referralProgram": "Referral program",
     "inviteFriends": "Invite friends, earn rewards",
     "inviteFriendsDesc": "Your friend also gets 14 days of premium free when they sign up with your code",
@@ -1338,16 +1331,6 @@
       "currentPrice": "Current Price",
       "fairValue": "Nuvos Fair Value",
       "marginOfSafety": "Margin of Safety"
-    },
-    "marginAlert": {
-      "prompt": "Notify me when the margin of safety reaches...",
-      "save": "Save",
-      "cancel": "Cancel",
-      "edit": "Edit",
-      "remove": "Remove",
-      "error": "We couldn't save the alert. Try again.",
-      "activeLabel": "Alert active at {{pct}}% margin",
-      "currentLabel": "Current margin: {{pct}}%"
     },
     "sectorModelNoteTitle": "How Nuvos values this company",
     "thermometer": {

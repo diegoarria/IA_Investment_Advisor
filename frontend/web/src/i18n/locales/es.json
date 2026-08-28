@@ -406,13 +406,6 @@
     "you": "Tú",
     "myCalls": "Mis llamadas ({{count}})",
     "loadingEllipsis": "Cargando...",
-    "savedValuations": {
-      "title": "Mis alertas de margen de seguridad",
-      "stale": "datos no disponibles",
-      "noData": "N/D",
-      "currentVsTarget": "{{current}}% actual · meta {{target}}%",
-      "footer": "Te avisamos apenas el margen de seguridad de cada acción llegue a la meta que configuraste desde Oportunidades."
-    },
     "referralProgram": "Programa de referidos",
     "inviteFriends": "Invita amigos, gana recompensas",
     "inviteFriendsDesc": "Tu amigo también obtiene 14 días de premium gratis al registrarse con tu código",
@@ -1338,16 +1331,6 @@
       "currentPrice": "Precio Actual",
       "fairValue": "Nuvos Fair Value",
       "marginOfSafety": "Margen de Seguridad"
-    },
-    "marginAlert": {
-      "prompt": "Avisame cuando el margen de seguridad llegue a...",
-      "save": "Guardar",
-      "cancel": "Cancelar",
-      "edit": "Editar",
-      "remove": "Quitar",
-      "error": "No pudimos guardar la alerta. Intenta de nuevo.",
-      "activeLabel": "Alerta activa en {{pct}}% de margen",
-      "currentLabel": "Margen actual: {{pct}}%"
     },
     "sectorModelNoteTitle": "Cómo valora Nuvos a esta empresa",
     "thermometer": {

@@ -14,7 +14,6 @@ import { getMentorInfo } from "../../src/lib/mentorData";
 import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
 import PaywallModal from "../../src/components/PaywallModal";
-import SavedValuationsSection from "../../src/components/SavedValuationsSection";
 import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, billingApi, voiceCallsApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -1486,8 +1485,6 @@ if (!profile) {
             )}
           </View>
         )}
-
-        <SavedValuationsSection />
 
         {/* ── BOTTOM ── */}
         <View style={{ marginTop: 16, gap: 10, paddingBottom: 12 }}>

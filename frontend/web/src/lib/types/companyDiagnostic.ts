@@ -120,8 +120,7 @@ export interface CompanyDiagnosticData {
   valuation: ValuationScenarios;
   // Real, computed caution about the valuation method itself — e.g. a
   // financial-sector implied P/B too far from real/peer multiples. Shown
-  // right below the verdict, alongside the real number, never in place of
-  // it (see CompanyDiagnosticMarginAlert's sibling render in the card).
+  // right below the verdict, alongside the real number, never in place of it.
   sectorModelNote: { sector_type: string; detalle: string } | null;
   noiseVsReality: {
     marketSaw: string;

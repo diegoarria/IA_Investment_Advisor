@@ -10,7 +10,6 @@ import { CompanyDiagnosticValuePillar } from "./CompanyDiagnosticValuePillar";
 import { CompanyDiagnosticSimplicityPillar } from "./CompanyDiagnosticSimplicityPillar";
 import { SelfCheckQuiz } from "./SelfCheckQuiz";
 import { CompanyDiagnosticBacktestPanel } from "./CompanyDiagnosticBacktestPanel";
-import { CompanyDiagnosticMarginAlert } from "./CompanyDiagnosticMarginAlert";
 import { scoreColor, valuationStatus, VERDICT_COLOR, VERDICT_EMOJI, fmtPrice } from "../../lib/types/companyDiagnostic";
 import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
 
@@ -125,8 +124,6 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
             <Text style={{ fontSize: 11.5, lineHeight: 16, color: colors.textSub }}>{data.sectorModelNote.detalle}</Text>
           </View>
         )}
-
-        <CompanyDiagnosticMarginAlert ticker={data.ticker} marginOfSafetyPercent={data.valuation.marginOfSafetyPercent} colors={colors} />
 
         <CompanyDiagnosticValuationThermometer scenarios={data.valuation} colors={colors} />
 

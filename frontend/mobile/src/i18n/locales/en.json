@@ -333,13 +333,6 @@
     "marketNews": "Market news",
     "notificationsSubtitle": "Price alerts and activity",
     "supportSubtitle": "Help and direct contact",
-    "savedValuations": {
-      "title": "My margin of safety alerts",
-      "stale": "data unavailable",
-      "noData": "N/A",
-      "currentVsTarget": "{{current}}% now · target {{target}}%",
-      "footer": "We'll alert you as soon as a stock's margin of safety reaches the target you set from Oportunidades."
-    },
     "language": "Language",
     "languagePickerTitle": "What language do you want to use Nuvos in?",
     "languagePickerSubtitle": "Changes the language across the whole app, including Arthur.",
@@ -3723,16 +3716,6 @@
       "currentPrice": "Current Price",
       "fairValue": "Nuvos Fair Value",
       "marginOfSafety": "Margin of Safety"
-    },
-    "marginAlert": {
-      "prompt": "Notify me when the margin of safety reaches...",
-      "save": "Save",
-      "cancel": "Cancel",
-      "edit": "Edit",
-      "remove": "Remove",
-      "error": "We couldn't save the alert. Try again.",
-      "activeLabel": "Alert active at {{pct}}% margin",
-      "currentLabel": "Current margin: {{pct}}%"
     },
     "sectorModelNoteTitle": "How Nuvos values this company",
     "thermometer": {

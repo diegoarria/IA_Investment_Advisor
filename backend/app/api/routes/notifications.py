@@ -310,15 +310,13 @@ async def get_morning_brief(user_id: str = Depends(get_current_user_id)):
     """Data for the "Morning Brief" card shown on Home when the user opens
     the app — NOT a push notification, NOT a full screen. Cached per user
     per ET calendar day so opening the app twice in a day doesn't recompute.
-    Reuses saved_valuation_service.list_with_live_data (fair-value
-    proximity) and the same live-quote/goal math used elsewhere in the app —
-    no new external data source. Returns `{}` (empty) when there's nothing
-    genuinely worth telling the user, so the frontend renders no card
-    rather than a hollow one."""
+    Reuses the same live-quote/goal math used elsewhere in the app — no new
+    external data source. Returns `{}` (empty) when there's nothing genuinely
+    worth telling the user, so the frontend renders no card rather than a
+    hollow one."""
     import asyncio
     import zoneinfo
     from app.core.finnhub import fh_quote
-    from app.services.saved_valuation_service import list_with_live_data
 
     today_et = datetime.now(zoneinfo.ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
     cache_key = f"morning_brief:{user_id}:{today_et}"
@@ -384,23 +382,6 @@ async def get_morning_brief(user_id: str = Depends(get_current_user_id)):
                     bullets.append(f"{t} reported earnings." if is_en else f"{t} publicó resultados.")
         except Exception:
             pass
-
-    # Saved valuations approaching (but not yet deep into) their fair-value
-    # range — reuses the exact live margin-of-safety math the Valor
-    # Intrínseco screen and its milestone alerts already use.
-    try:
-        saved = await list_with_live_data(user_id)
-        approaching = [
-            s for s in saved
-            if s.get("margin_of_safety_pct") is not None and 0 <= s["margin_of_safety_pct"] <= 15
-        ]
-        for s in approaching[:1]:
-            bullets.append(
-                f"{s['ticker']} is getting close to your target price." if is_en else
-                f"{s['ticker']} se acerca a tu precio objetivo."
-            )
-    except Exception:
-        pass
 
     # Progress toward the user's annual/long-term goal
     goal_amount = profile.get("investment_goal_amount")

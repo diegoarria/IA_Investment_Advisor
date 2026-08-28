@@ -333,13 +333,6 @@
     "marketNews": "Noticias del mercado",
     "notificationsSubtitle": "Alertas de precio y actividad",
     "supportSubtitle": "Ayuda y contacto directo",
-    "savedValuations": {
-      "title": "Mis alertas de margen de seguridad",
-      "stale": "datos no disponibles",
-      "noData": "N/D",
-      "currentVsTarget": "{{current}}% actual · meta {{target}}%",
-      "footer": "Te avisamos apenas el margen de seguridad de cada acción llegue a la meta que configuraste desde Oportunidades."
-    },
     "language": "Idioma",
     "languagePickerTitle": "¿En qué idioma quieres usar Nuvos?",
     "languagePickerSubtitle": "Cambia el idioma de toda la app, incluyendo a Arthur.",
@@ -3723,16 +3716,6 @@
       "currentPrice": "Precio Actual",
       "fairValue": "Nuvos Fair Value",
       "marginOfSafety": "Margen de Seguridad"
-    },
-    "marginAlert": {
-      "prompt": "Avisame cuando el margen de seguridad llegue a...",
-      "save": "Guardar",
-      "cancel": "Cancelar",
-      "edit": "Editar",
-      "remove": "Quitar",
-      "error": "No pudimos guardar la alerta. Intenta de nuevo.",
-      "activeLabel": "Alerta activa en {{pct}}% de margen",
-      "currentLabel": "Margen actual: {{pct}}%"
     },
     "sectorModelNoteTitle": "Cómo valora Nuvos a esta empresa",
     "thermometer": {
