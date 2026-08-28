@@ -43,7 +43,7 @@ export default function GuestSignupFlashcard() {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-5"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-5 overflow-y-auto"
       style={{
         background: "radial-gradient(120% 90% at 50% 0%, rgba(0,185,109,0.10), transparent 55%), rgba(2,4,9,0.72)",
         backdropFilter: "blur(6px) saturate(1.1)",
@@ -52,7 +52,7 @@ export default function GuestSignupFlashcard() {
       onClick={dismissFlashcard}
     >
       <div
-        className="relative w-full max-w-[400px] rounded-[28px] p-[2px] animate-fade-in-up"
+        className="relative w-full max-w-[400px] rounded-[28px] p-[2px] my-auto animate-fade-in-up"
         style={{
           background: "linear-gradient(160deg, rgba(0,232,135,0.55), rgba(0,185,109,0.05) 40%, rgba(167,139,250,0.35) 100%)",
           boxShadow: "0 30px 80px -20px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.02)",

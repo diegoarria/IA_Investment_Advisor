@@ -47,13 +47,15 @@ export default function TutorialModal() {
   const handleClose = () => { markSeen(); setStep(0); };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-         style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}>
-      <div className="w-full max-w-md animate-fade-in-up relative"
-           style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "28px", overflow: "hidden", boxShadow: "var(--shadow-lg)" }}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto"
+         style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
+         onClick={handleClose}>
+      <div className="w-full max-w-md animate-fade-in-up relative my-auto max-h-[90vh] overflow-y-auto"
+           style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "28px", boxShadow: "var(--shadow-lg)" }}
+           onClick={(e) => e.stopPropagation()}>
 
         {/* Progress bar */}
-        <div className="h-0.5 w-full" style={{ background: "var(--border)" }}>
+        <div className="h-0.5 w-full rounded-t-[28px]" style={{ background: "var(--border)" }}>
           <div className="h-full transition-all duration-500"
                style={{ width: `${progress}%`, background: `linear-gradient(90deg, ${current.color}, ${current.color}cc)` }} />
         </div>
