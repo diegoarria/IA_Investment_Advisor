@@ -450,7 +450,7 @@ export default function AuthScreen() {
           <View style={S.splashLogoShell}>
             <Image source={require("../assets/images/logo_new.png")} style={S.splashLogo} />
           </View>
-          <Text style={S.brandName}>Nuvos AI</Text>
+          <Text style={S.brandName}>Nuvos</Text>
           <ActivityIndicator size="small" color={colors.accentLight} style={{ marginTop: 32 }} />
         </SafeAreaView>
       </View>
@@ -494,7 +494,7 @@ export default function AuthScreen() {
               <View style={S.logoShell}>
                 <Image source={require("../assets/images/logo_new.png")} style={S.logo} />
               </View>
-              <Text style={S.brandName}>Nuvos AI</Text>
+              <Text style={S.brandName}>Nuvos</Text>
               <Text style={S.tagline}>{t("index.tagline")}</Text>
               <Text style={S.pillText}>{t("index.pillText")}</Text>
             </View>
