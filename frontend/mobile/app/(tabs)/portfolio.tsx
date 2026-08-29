@@ -333,13 +333,10 @@ function scorePortfolio(
   return { score, levelIdx: idx === -1 ? 7 : idx, sectorPcts };
 }
 
-const SECTOR_COLOR: Record<string, string> = {
-  Tecnología: "#8b5cf6", Comunicaciones: "#06b6d4",
-  "Consumo Discrecional": "#f97316", "Consumo Básico": "#eab308",
-  Salud: "#ec4899", Financiero: "#475569", Energía: "#ef4444",
-  Industriales: "#0ea5e9", Materiales: "#d97706",
-  "Bienes Raíces": "#14b8a6", "Servicios Públicos": "#22c55e", ETF: "#94a3b8",
-};
+// Diego, 2026-08-29: standardized every sector chip on the brand's own
+// accent green instead of a per-sector rainbow — mirrors web's
+// portfolio/page.tsx SECTOR_COLOR.
+const SECTOR_COLOR = "#00b96d";
 
 function buildFeedback(
   levelIdx: number,
@@ -3384,7 +3381,7 @@ export default function PortfolioScreen() {
                 <>
                   <View style={s.diagSectors}>
                     {Object.entries(diagnosis.sectorPcts).sort((a, b) => b[1] - a[1]).map(([sector, pct]) => {
-                      const col = SECTOR_COLOR[sector] ?? "#94a3b8";
+                      const col = SECTOR_COLOR;
                       const active = selectedSector === sector;
                       return (
                         <TouchableOpacity
@@ -3398,7 +3395,7 @@ export default function PortfolioScreen() {
                     })}
                   </View>
                   {selectedSector && (() => {
-                    const col = SECTOR_COLOR[selectedSector] ?? "#94a3b8";
+                    const col = SECTOR_COLOR;
                     const sectorPos = positions.filter((p) => (TICKER_SECTOR[p.ticker] ?? "Otro") === selectedSector);
                     // Combine purchase lots of the same ticker into one row —
                     // a second lot of a stock you already hold in this sector

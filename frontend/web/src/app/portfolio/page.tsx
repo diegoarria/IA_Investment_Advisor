@@ -267,35 +267,13 @@ const SECTOR_RISK_BASE: Record<string, number> = {
   Cripto: 92,
 };
 
-// Color por sector para la barra de diagnóstico
-const SECTOR_COLOR: Record<string, string> = {
-  Semiconductores:"#8b5cf6",
-  Software:"#6366f1",
-  "Inteligencia Artificial":"#a855f7",
-  Tecnología:"#7c3aed",
-  Fintech:"#06b6d4",
-  eCommerce:"#f97316",
-  "Consumo Discrecional":"#fb923c",
-  "Consumo Básico":"#eab308",
-  Salud:"#ec4899",
-  Farmacéutica:"#f43f5e",
-  Biotecnología:"#e11d48",
-  Financiero:"#475569",
-  Bancario:"#64748b",
-  Seguros:"#94a3b8",
-  Energía:"#ef4444",
-  "Energía Renovable":"#22c55e",
-  "Servicios Públicos":"#16a34a",
-  Industriales:"#0ea5e9",
-  Aeroespacial:"#38bdf8",
-  Logística:"#14b8a6",
-  Materiales:"#d97706",
-  Telecomunicaciones:"#22d3ee",
-  Medios:"#818cf8",
-  "Real Estate":"#2dd4bf",
-  Cripto:"#f59e0b",
-  ETF:"#94a3b8",
-};
+// Diego, 2026-08-29: standardized every sector chip on the brand's own
+// accent green instead of a 25-color rainbow keyed by sector — one
+// consistent on-brand color, not a hue per sector. Kept as a plain
+// constant (not a per-sector Record) so every call site that used to do
+// `SECTOR_COLOR[sector] ?? fallback` still gets a real color with zero
+// lookup logic.
+const SECTOR_COLOR = "#00b96d";
 
 // Mapeo de sectores granulares → categoría de drawdown para stress test
 const SECTOR_PARENT: Record<string, string> = {
@@ -3200,7 +3178,7 @@ export default function PortfolioPage() {
                   <>
                     <div className="flex flex-wrap gap-1.5 mb-3">
                       {Object.entries(diagnosis.sectorPcts).sort((a,b)=>b[1]-a[1]).map(([sector,pct]) => {
-                        const col = SECTOR_COLOR[sector] ?? "#94a3b8";
+                        const col = SECTOR_COLOR;
                         const isSelected = selectedSector === sector;
                         return (
                           <button
@@ -3219,7 +3197,7 @@ export default function PortfolioPage() {
                       })}
                     </div>
                     {selectedSector && (() => {
-                      const col = SECTOR_COLOR[selectedSector] ?? "#94a3b8";
+                      const col = SECTOR_COLOR;
                       const sectorPositions = positions.filter(
                         (p) => (TICKER_SECTOR[p.ticker] ?? "Otro") === selectedSector
                       );
