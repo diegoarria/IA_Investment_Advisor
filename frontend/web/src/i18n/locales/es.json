@@ -1667,7 +1667,12 @@
       "aggressive": "Agresivo"
     },
     "riskDiagnosis": {
-      "positionsInSector": "Posiciones · {{sector}}"
+      "positionsInSector": "Posiciones · {{sector}}",
+      "sectorTitle": "Diversificación por sector",
+      "sectorCount": "{{count}} sector",
+      "sectorCount_other": "{{count}} sectores",
+      "positionsSubtitle": "{{count}} posición · {{pct}}% del portafolio",
+      "positionsSubtitle_other": "{{count}} posiciones · {{pct}}% del portafolio"
     },
     "stressScenarios": {
       "hypotheticalYear": "Hipotético",

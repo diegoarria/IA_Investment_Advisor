@@ -184,6 +184,17 @@ function sectorFor(ticker: string): string {
   return TICKER_SECTOR[ticker] ?? DYNAMIC_SECTOR_CACHE[ticker] ?? "Otro";
 }
 
+// Sector composition bar/legend: one shade per rank (brightest = largest
+// holding) instead of one flat color for every sector. Mirrors web's
+// portfolio/page.tsx sectorShade.
+function sectorShade(rank: number, total: number): string {
+  const bright: [number, number, number] = [0, 232, 135];
+  const dark:   [number, number, number] = [0, 59, 35];
+  const t = total > 1 ? rank / (total - 1) : 0;
+  const rgb = bright.map((v, i) => Math.round(v + (dark[i] - v) * t));
+  return `#${rgb.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
 // ─── Portfolio risk classification ────────────────────────────────────────
 
 const TICKER_RISK_OVERRIDE: Record<string, number> = {
@@ -342,11 +353,6 @@ function scorePortfolio(
   for (const [s, v] of Object.entries(sectorVals)) sectorPcts[s] = Math.round((v / totalVal) * 100);
   return { score, levelIdx: idx === -1 ? 7 : idx, sectorPcts };
 }
-
-// Diego, 2026-08-29: standardized every sector chip on the brand's own
-// accent green instead of a per-sector rainbow — mirrors web's
-// portfolio/page.tsx SECTOR_COLOR.
-const SECTOR_COLOR = "#00b96d";
 
 function buildFeedback(
   levelIdx: number,
@@ -3406,69 +3412,142 @@ export default function PortfolioScreen() {
                 <Text style={[s.diagBarLabel, { color: colors.textDim }]}>{t("portfolio.riskDiagnosis.conservativeLabel")}</Text>
                 <Text style={[s.diagBarLabel, { color: colors.textDim }]}>{t("portfolio.riskDiagnosis.speculativeLabel")}</Text>
               </View>
-              {Object.keys(diagnosis.sectorPcts).length > 0 && (
-                <>
-                  <View style={s.diagSectors}>
-                    {Object.entries(diagnosis.sectorPcts).sort((a, b) => b[1] - a[1]).map(([sector, pct]) => {
-                      const col = SECTOR_COLOR;
-                      const active = selectedSector === sector;
-                      return (
-                        <TouchableOpacity
-                          key={sector}
-                          onPress={() => setSelectedSector(active ? null : sector)}
-                          style={[s.diagSectorChip, { backgroundColor: active ? col : col + "18", borderColor: active ? col : col + "40" }]}
-                        >
-                          <Text style={[s.diagSectorText, { color: active ? "#fff" : col }]}>{SECTOR_LABELS[sector] ?? sector} {pct}%</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                  {selectedSector && (() => {
-                    const col = SECTOR_COLOR;
-                    const sectorPos = positions.filter((p) => sectorFor(p.ticker) === selectedSector);
-                    // Combine purchase lots of the same ticker into one row —
-                    // a second lot of a stock you already hold in this sector
-                    // is not a second position.
-                    const holdingsMap = new Map<string, { ticker: string; name?: string; shares: number; cost: number }>();
-                    for (const p of sectorPos) {
-                      const existing = holdingsMap.get(p.ticker);
-                      if (existing) { existing.shares += p.shares; existing.cost += p.shares * p.avgPrice; }
-                      else holdingsMap.set(p.ticker, { ticker: p.ticker, name: p.name, shares: p.shares, cost: p.shares * p.avgPrice });
-                    }
-                    const aggSectorPos = Array.from(holdingsMap.values()).map((h) => ({
-                      ticker: h.ticker, name: h.name, shares: h.shares, avgPrice: h.shares > 0 ? h.cost / h.shares : 0,
-                    }));
-                    return (
-                      <View style={[s.sectorDrillBox, { backgroundColor: col + "0e", borderColor: col + "40" }]}>
-                        <View style={s.sectorDrillHeader}>
-                          <Text style={[s.sectorDrillTitle, { color: col }]}>{t("portfolio.riskDiagnosis.positionsInSector", { sector: SECTOR_LABELS[selectedSector] ?? selectedSector })}</Text>
-                          <TouchableOpacity onPress={() => setSelectedSector(null)}>
-                            <Text style={[s.sectorDrillClose, { color: colors.textMuted }]}>{t("portfolio.riskDiagnosis.close")}</Text>
+              {Object.keys(diagnosis.sectorPcts).length > 0 && (() => {
+                const sortedSectors = Object.entries(diagnosis.sectorPcts).sort((a, b) => b[1] - a[1]);
+                return (
+                  <>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 14, marginBottom: 8 }}>
+                      <Text style={{ fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.4, color: colors.textSub }}>
+                        {t("portfolio.riskDiagnosis.sectorTitle")}
+                      </Text>
+                      <Text style={{ fontSize: 10, fontWeight: "600", color: colors.textMuted }}>
+                        {t("portfolio.riskDiagnosis.sectorCount", { count: sortedSectors.length })}
+                      </Text>
+                    </View>
+
+                    {/* Proportional composition bar — widths encode real weight */}
+                    <View style={{ flexDirection: "row", width: "100%", height: 30, borderRadius: 9, overflow: "hidden", marginBottom: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgRaised }}>
+                      {sortedSectors.map(([sector, pct], i) => {
+                        const shade = sectorShade(i, sortedSectors.length);
+                        const active = selectedSector === sector;
+                        return (
+                          <TouchableOpacity
+                            key={sector}
+                            onPress={() => setSelectedSector(active ? null : sector)}
+                            style={{
+                              width: `${pct}%`, height: "100%", alignItems: "center", justifyContent: "center",
+                              backgroundColor: shade,
+                              borderRightWidth: i < sortedSectors.length - 1 ? 1 : 0, borderRightColor: "rgba(0,0,0,0.25)",
+                              borderWidth: active ? 2 : 0, borderColor: active ? colors.text : "transparent",
+                            }}
+                          >
+                            {pct >= 10 && <Text style={{ fontSize: 10, fontWeight: "900", color: "#04140c" }}>{pct}%</Text>}
                           </TouchableOpacity>
-                        </View>
-                        {aggSectorPos.map((p) => {
-                          const pr = prices[p.ticker];
-                          const val = p.shares * ((pr?.price ?? p.avgPrice) * fxRate);
-                          const cost = p.shares * p.avgPrice;
-                          const gainPct = cost > 0 ? ((val - cost) / cost) * 100 : 0;
-                          return (
-                            <View key={p.ticker} style={[s.sectorDrillRow, { backgroundColor: col + "12" }]}>
-                              <View style={s.sectorDrillLeft}>
-                                <Text style={[s.sectorDrillTicker, { color: colors.text }]}>{p.ticker}</Text>
-                                <Text style={[s.sectorDrillName, { color: colors.textMuted }]} numberOfLines={1}>{p.name}</Text>
-                              </View>
-                              <View style={s.sectorDrillRight}>
-                                <Text style={[s.sectorDrillVal, { color: colors.text }]}>{currencySymbol}{val.toLocaleString("en-US", { maximumFractionDigits: 0 })}</Text>
-                                <Text style={[s.sectorDrillPct, { color: gainPct >= 0 ? "#22c55e" : "#ef4444" }]}>{gainPct >= 0 ? "+" : ""}{gainPct.toFixed(1)}%</Text>
+                        );
+                      })}
+                    </View>
+
+                    {/* Legend grid — tappable, replaces the old pill wall */}
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 2 }}>
+                      {sortedSectors.map(([sector, pct], i) => {
+                        const shade = sectorShade(i, sortedSectors.length);
+                        const active = selectedSector === sector;
+                        return (
+                          <TouchableOpacity
+                            key={sector}
+                            onPress={() => setSelectedSector(active ? null : sector)}
+                            style={{
+                              width: "48%", flexDirection: "row", alignItems: "center", gap: 7,
+                              paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
+                              backgroundColor: active ? "rgba(0,185,109,0.1)" : colors.bgRaised,
+                              borderColor: active ? "#00b96d" : colors.border,
+                            }}
+                          >
+                            <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: shade }} />
+                            <Text style={{ flex: 1, fontSize: 11.5, fontWeight: "700", color: colors.text }} numberOfLines={1}>
+                              {SECTOR_LABELS[sector] ?? sector}
+                            </Text>
+                            <Text style={{ fontSize: 11.5, fontWeight: "900", color: active ? "#00e887" : colors.textSub }}>{pct}%</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {selectedSector && (() => {
+                      const rank = sortedSectors.findIndex(([sec]) => sec === selectedSector);
+                      const col = sectorShade(Math.max(rank, 0), sortedSectors.length);
+                      const sectorPos = positions.filter((p) => sectorFor(p.ticker) === selectedSector);
+                      // Combine purchase lots of the same ticker into one row —
+                      // a second lot of a stock you already hold in this sector
+                      // is not a second position.
+                      const holdingsMap = new Map<string, { ticker: string; name?: string; shares: number; cost: number }>();
+                      for (const p of sectorPos) {
+                        const existing = holdingsMap.get(p.ticker);
+                        if (existing) { existing.shares += p.shares; existing.cost += p.shares * p.avgPrice; }
+                        else holdingsMap.set(p.ticker, { ticker: p.ticker, name: p.name, shares: p.shares, cost: p.shares * p.avgPrice });
+                      }
+                      const aggSectorPos = Array.from(holdingsMap.values()).map((h) => ({
+                        ticker: h.ticker, name: h.name, shares: h.shares, avgPrice: h.shares > 0 ? h.cost / h.shares : 0,
+                      }));
+                      const sectorTotal = aggSectorPos.reduce((sum, p) => {
+                        const price = (prices[p.ticker]?.price ?? p.avgPrice) * fxRate;
+                        return sum + p.shares * price;
+                      }, 0);
+                      return (
+                        <View style={{ marginTop: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgRaised, overflow: "hidden" }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+                              <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: col }} />
+                              <View>
+                                <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }}>{SECTOR_LABELS[selectedSector] ?? selectedSector}</Text>
+                                <Text style={{ fontSize: 10.5, fontWeight: "600", color: colors.textMuted, marginTop: 1 }}>
+                                  {t("portfolio.riskDiagnosis.positionsSubtitle", { count: aggSectorPos.length, pct: diagnosis.sectorPcts[selectedSector] ?? 0 })}
+                                </Text>
                               </View>
                             </View>
-                          );
-                        })}
-                      </View>
-                    );
-                  })()}
-                </>
-              )}
+                            <TouchableOpacity onPress={() => setSelectedSector(null)}>
+                              <Text style={{ fontSize: 10, fontWeight: "600", color: colors.textMuted }}>{t("portfolio.riskDiagnosis.close")}</Text>
+                            </TouchableOpacity>
+                          </View>
+                          {aggSectorPos.map((p, idx) => {
+                            const pr = prices[p.ticker];
+                            const val = p.shares * ((pr?.price ?? p.avgPrice) * fxRate);
+                            const pctOfSector = sectorTotal > 0 ? Math.round((val / sectorTotal) * 100) : 0;
+                            return (
+                              <View key={p.ticker} style={{
+                                flexDirection: "row", alignItems: "center", gap: 10,
+                                paddingHorizontal: 14, paddingVertical: 10,
+                                borderBottomWidth: idx < aggSectorPos.length - 1 ? 1 : 0, borderBottomColor: colors.border,
+                              }}>
+                                <StockAvatar ticker={p.ticker} size={30} />
+                                <View style={{ flex: 1, minWidth: 0 }}>
+                                  <Text style={{ fontSize: 12, fontWeight: "800", color: "#00e887" }}>{p.ticker}</Text>
+                                  {p.name && <Text style={{ fontSize: 10.5, color: colors.textMuted }} numberOfLines={1}>{p.name}</Text>}
+                                </View>
+                                <Text style={{ fontSize: 12.5, fontWeight: "800", color: colors.text }}>
+                                  {currencySymbol}{val.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                                </Text>
+                                <View style={{ width: 60, flexDirection: "row", alignItems: "center", gap: 5 }}>
+                                  <View style={{ flex: 1, height: 4, borderRadius: 99, backgroundColor: colors.border, overflow: "hidden" }}>
+                                    <View style={{ width: `${pctOfSector}%`, height: "100%", borderRadius: 99, backgroundColor: "#00b96d" }} />
+                                  </View>
+                                  <Text style={{ fontSize: 10, fontWeight: "900", color: "#00e887", width: 26, textAlign: "right" }}>{pctOfSector}%</Text>
+                                </View>
+                              </View>
+                            );
+                          })}
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, backgroundColor: colors.card }}>
+                            <Text style={{ fontSize: 10.5, fontWeight: "600", color: colors.textMuted }}>Total sector</Text>
+                            <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }}>
+                              {currencySymbol}{sectorTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })()}
+                  </>
+                );
+              })()}
             </View>
           );
         })()}

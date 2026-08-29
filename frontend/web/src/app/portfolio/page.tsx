@@ -219,6 +219,17 @@ function sectorFor(ticker: string): string {
   return TICKER_SECTOR[ticker] ?? DYNAMIC_SECTOR_CACHE[ticker] ?? "Otro";
 }
 
+// Sector composition bar/legend: one shade per rank (brightest = largest
+// holding) instead of one flat color for every sector, so the visual
+// hierarchy matches the data hierarchy.
+function sectorShade(rank: number, total: number): string {
+  const bright: [number, number, number] = [0, 232, 135];   // --accent-l
+  const dark:   [number, number, number] = [0, 59, 35];     // deep desaturated green, still legible on --card
+  const t = total > 1 ? rank / (total - 1) : 0;
+  const rgb = bright.map((v, i) => Math.round(v + (dark[i] - v) * t));
+  return `#${rgb.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
 const TICKER_RISK_OVERRIDE: Record<string, number> = {
   // Especulativo
   GME:96,AMC:96,BBBY:96,SPCE:90,
@@ -280,14 +291,6 @@ const SECTOR_RISK_BASE: Record<string, number> = {
   Semiconductores: 78,
   Cripto: 92,
 };
-
-// Diego, 2026-08-29: standardized every sector chip on the brand's own
-// accent green instead of a 25-color rainbow keyed by sector — one
-// consistent on-brand color, not a hue per sector. Kept as a plain
-// constant (not a per-sector Record) so every call site that used to do
-// `SECTOR_COLOR[sector] ?? fallback` still gets a real color with zero
-// lookup logic.
-const SECTOR_COLOR = "#00b96d";
 
 // Mapeo de sectores granulares → categoría de drawdown para stress test
 const SECTOR_PARENT: Record<string, string> = {
@@ -3210,111 +3213,167 @@ export default function PortfolioPage() {
                   <span className="text-[10px]" style={{ color:"var(--dim)" }}>Conservador</span>
                   <span className="text-[10px]" style={{ color:"var(--dim)" }}>Especulativo</span>
                 </div>
-                {Object.keys(diagnosis.sectorPcts).length>0 && (
-                  <>
-                    <div className="flex flex-wrap gap-1.5 mb-3">
-                      {Object.entries(diagnosis.sectorPcts).sort((a,b)=>b[1]-a[1]).map(([sector,pct]) => {
-                        const col = SECTOR_COLOR;
-                        const isSelected = selectedSector === sector;
-                        return (
-                          <button
-                            key={sector}
-                            onClick={() => setSelectedSector(isSelected ? null : sector)}
-                            className="text-xs px-2.5 py-1 rounded-lg font-bold transition-all"
-                            style={{
-                              background: isSelected ? col : `${col}18`,
-                              border: `1px solid ${isSelected ? col : col+"40"}`,
-                              color: isSelected ? "#fff" : col,
-                            }}
-                          >
-                            {sectorLabels[sector] ?? sector} {pct}%
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {selectedSector && (() => {
-                      const col = SECTOR_COLOR;
-                      const sectorPositions = positions.filter(
-                        (p) => sectorFor(p.ticker) === selectedSector
-                      );
-                      // Combine purchase lots of the same ticker into one row —
-                      // a second lot of a stock you already hold in this sector
-                      // is not a second position.
-                      const holdingsMap = new Map<string, { ticker: string; name?: string; shares: number; cost: number }>();
-                      for (const p of sectorPositions) {
-                        const existing = holdingsMap.get(p.ticker);
-                        if (existing) { existing.shares += p.shares; existing.cost += p.shares * p.avgPrice; }
-                        else holdingsMap.set(p.ticker, { ticker: p.ticker, name: p.name, shares: p.shares, cost: p.shares * p.avgPrice });
-                      }
-                      const aggSectorPositions = Array.from(holdingsMap.values()).map((h) => ({
-                        ticker: h.ticker, name: h.name, shares: h.shares, avgPrice: h.shares > 0 ? h.cost / h.shares : 0,
-                      }));
-                      const sectorTotal = aggSectorPositions.reduce((sum, p) => {
-                        const price = (prices[p.ticker]?.price ?? p.avgPrice) * fxRate;
-                        return sum + p.shares * price;
-                      }, 0);
-                      return (
-                        <div className="rounded-xl p-3 mb-3 border"
-                             style={{ background:`${col}0e`, borderColor:`${col}40` }}>
-                          <div className="flex items-center justify-between mb-2.5">
-                            <span className="text-xs font-extrabold" style={{ color: col }}>
-                              {t("portfolio.riskDiagnosis.positionsInSector", { sector: sectorLabels[selectedSector] ?? selectedSector })}
-                            </span>
+                {Object.keys(diagnosis.sectorPcts).length>0 && (() => {
+                  const sortedSectors = Object.entries(diagnosis.sectorPcts).sort((a,b)=>b[1]-a[1]);
+                  return (
+                    <>
+                      <div className="flex items-baseline justify-between mb-2.5">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wide" style={{ color:"var(--sub)" }}>
+                          {t("portfolio.riskDiagnosis.sectorTitle")}
+                        </span>
+                        <span className="text-[10px] font-semibold" style={{ color:"var(--muted)" }}>
+                          {t("portfolio.riskDiagnosis.sectorCount", { count: sortedSectors.length })}
+                        </span>
+                      </div>
+
+                      {/* Proportional composition bar — widths encode real weight */}
+                      <div className="flex w-full rounded-lg overflow-hidden mb-3 border" style={{ height:32, borderColor:"var(--border)", background:"var(--raised)" }}>
+                        {sortedSectors.map(([sector,pct], i) => {
+                          const shade = sectorShade(i, sortedSectors.length);
+                          const isSelected = selectedSector === sector;
+                          return (
                             <button
-                              onClick={() => setSelectedSector(null)}
-                              className="text-[10px] font-semibold transition-opacity hover:opacity-60"
-                              style={{ color:"var(--muted)" }}
+                              key={sector}
+                              onClick={() => setSelectedSector(isSelected ? null : sector)}
+                              className="h-full flex items-center justify-center transition-all hover:brightness-110"
+                              style={{
+                                width: `${pct}%`,
+                                background: shade,
+                                borderRight: i < sortedSectors.length-1 ? "1px solid rgba(0,0,0,0.25)" : "none",
+                                outline: isSelected ? "2px solid var(--text)" : "none",
+                                outlineOffset: -2,
+                              }}
+                              title={`${sectorLabels[sector] ?? sector} ${pct}%`}
                             >
-                              Cerrar ✕
+                              {pct >= 10 && (
+                                <span className="text-[10px] font-black truncate px-1" style={{ color:"#04140c" }}>
+                                  {pct}%
+                                </span>
+                              )}
                             </button>
-                          </div>
-                          <div className="space-y-1.5">
+                          );
+                        })}
+                      </div>
+
+                      {/* Legend grid — tappable, replaces the old pill wall */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mb-1">
+                        {sortedSectors.map(([sector,pct], i) => {
+                          const shade = sectorShade(i, sortedSectors.length);
+                          const isSelected = selectedSector === sector;
+                          return (
+                            <button
+                              key={sector}
+                              onClick={() => setSelectedSector(isSelected ? null : sector)}
+                              className="flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-colors"
+                              style={{
+                                background: isSelected ? "rgba(0,185,109,0.1)" : "var(--raised)",
+                                borderColor: isSelected ? "var(--accent)" : "var(--border)",
+                              }}
+                            >
+                              <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: shade }} />
+                              <span className="text-[11.5px] font-bold truncate flex-1" style={{ color:"var(--text)" }}>
+                                {sectorLabels[sector] ?? sector}
+                              </span>
+                              <span className="text-[11.5px] font-black shrink-0" style={{ color: isSelected ? "var(--accent-l)" : "var(--sub)" }}>
+                                {pct}%
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {selectedSector && (() => {
+                        const rank = sortedSectors.findIndex(([s]) => s === selectedSector);
+                        const col = sectorShade(Math.max(rank,0), sortedSectors.length);
+                        const sectorPositions = positions.filter(
+                          (p) => sectorFor(p.ticker) === selectedSector
+                        );
+                        // Combine purchase lots of the same ticker into one row —
+                        // a second lot of a stock you already hold in this sector
+                        // is not a second position.
+                        const holdingsMap = new Map<string, { ticker: string; name?: string; shares: number; cost: number }>();
+                        for (const p of sectorPositions) {
+                          const existing = holdingsMap.get(p.ticker);
+                          if (existing) { existing.shares += p.shares; existing.cost += p.shares * p.avgPrice; }
+                          else holdingsMap.set(p.ticker, { ticker: p.ticker, name: p.name, shares: p.shares, cost: p.shares * p.avgPrice });
+                        }
+                        const aggSectorPositions = Array.from(holdingsMap.values()).map((h) => ({
+                          ticker: h.ticker, name: h.name, shares: h.shares, avgPrice: h.shares > 0 ? h.cost / h.shares : 0,
+                        }));
+                        const sectorTotal = aggSectorPositions.reduce((sum, p) => {
+                          const price = (prices[p.ticker]?.price ?? p.avgPrice) * fxRate;
+                          return sum + p.shares * price;
+                        }, 0);
+                        return (
+                          <div className="mt-3 rounded-xl border overflow-hidden animate-fade-in-up" style={{ background:"var(--card-2)", borderColor:"var(--border)" }}>
+                            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor:"var(--border)" }}>
+                              <div className="flex items-center gap-2.5">
+                                <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: col }} />
+                                <div>
+                                  <p className="text-[13px] font-extrabold" style={{ color:"var(--text)" }}>
+                                    {sectorLabels[selectedSector] ?? selectedSector}
+                                  </p>
+                                  <p className="text-[10.5px] font-semibold" style={{ color:"var(--muted)" }}>
+                                    {t("portfolio.riskDiagnosis.positionsSubtitle", { count: aggSectorPositions.length, pct: diagnosis.sectorPcts[selectedSector] ?? 0 })}
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => setSelectedSector(null)}
+                                className="text-[10px] font-semibold transition-opacity hover:opacity-60"
+                                style={{ color:"var(--muted)" }}
+                              >
+                                Cerrar ✕
+                              </button>
+                            </div>
                             {aggSectorPositions.map((pos) => {
                               const price = (prices[pos.ticker]?.price ?? pos.avgPrice) * fxRate;
                               const val = pos.shares * price;
                               const pctOfSector = sectorTotal > 0 ? Math.round((val / sectorTotal) * 100) : 0;
                               return (
                                 <div key={pos.ticker}
-                                     className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg"
-                                     style={{ background:"var(--bg)" }}>
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <span className="text-xs font-extrabold shrink-0" style={{ color: col }}>
+                                     className="flex items-center gap-3 px-4 py-2.5 border-b last:border-b-0"
+                                     style={{ borderColor:"var(--border)" }}>
+                                  <StockAvatar ticker={pos.ticker} size="sm" />
+                                  <div className="min-w-0 flex-1">
+                                    <span className="text-xs font-extrabold" style={{ color:"var(--accent-l)" }}>
                                       {pos.ticker}
                                     </span>
                                     {pos.name && (
-                                      <span className="text-[11px] truncate" style={{ color:"var(--sub)" }}>
+                                      <span className="text-[11px] ml-1.5 truncate" style={{ color:"var(--sub)" }}>
                                         {pos.name}
                                       </span>
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-3 shrink-0 text-right">
-                                    <span className="text-[11px]" style={{ color:"var(--muted)" }}>
-                                      {pos.shares} acc.
-                                    </span>
-                                    <span className="text-xs font-bold" style={{ color:"var(--text)" }}>
-                                      {currencySymbol}{val.toLocaleString("en-US",{maximumFractionDigits:0})}
-                                    </span>
-                                    <span className="text-[10px] font-bold w-8 text-right" style={{ color: col }}>
+                                  <span className="text-[10.5px] shrink-0 hidden sm:inline" style={{ color:"var(--muted)" }}>
+                                    {pos.shares} acc.
+                                  </span>
+                                  <span className="text-xs font-bold shrink-0" style={{ color:"var(--text)" }}>
+                                    {currencySymbol}{val.toLocaleString("en-US",{maximumFractionDigits:0})}
+                                  </span>
+                                  <div className="flex items-center gap-1.5 shrink-0" style={{ width:66 }}>
+                                    <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background:"var(--dim)" }}>
+                                      <div className="h-full rounded-full" style={{ width:`${pctOfSector}%`, background:"var(--grad-green)" }} />
+                                    </div>
+                                    <span className="text-[10px] font-black w-7 text-right" style={{ color:"var(--accent-l)" }}>
                                       {pctOfSector}%
                                     </span>
                                   </div>
                                 </div>
                               );
                             })}
-                          </div>
-                          <div className="flex justify-end mt-2 pt-2 border-t" style={{ borderColor:`${col}30` }}>
-                            <span className="text-xs font-extrabold" style={{ color:"var(--muted)" }}>
-                              Total sector:&nbsp;
-                              <span style={{ color: col }}>
+                            <div className="flex justify-between px-4 py-2.5" style={{ background:"var(--raised)" }}>
+                              <span className="text-[10.5px] font-semibold" style={{ color:"var(--muted)" }}>Total sector</span>
+                              <span className="text-[13px] font-extrabold" style={{ color:"var(--text)" }}>
                                 {currencySymbol}{sectorTotal.toLocaleString("en-US",{maximumFractionDigits:0})}
                               </span>
-                            </span>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })()}
-                  </>
-                )}
+                        );
+                      })()}
+                    </>
+                  );
+                })()}
               </section>
             );
           })()}
