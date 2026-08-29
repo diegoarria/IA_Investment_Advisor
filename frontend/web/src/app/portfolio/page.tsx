@@ -2238,11 +2238,6 @@ export default function PortfolioPage() {
                 <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}>
                   💵 {t("portfolio.cash.title")}
                 </span>
-                {cashList.length > 0 && (
-                  <span className="text-xs font-black" style={{ color: "var(--accent-l)" }}>
-                    {currencySymbol}{cashTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                )}
               </div>
               {cashList.length > 0 && (
                 <div className="space-y-1.5 mb-2">
@@ -2257,7 +2252,7 @@ export default function PortfolioPage() {
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold" style={{ color: "var(--text)" }}>
-                          {c.currency} {(c.accrued_amount ?? c.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {currencySymbol}{convertCashToPortfolioCurrency(c.accrued_amount ?? c.amount, c.currency).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                         <Pencil className="w-3 h-3" style={{ color: "var(--dim)" }} />
                         <button onClick={(e) => { e.stopPropagation(); handleRemoveCash(c.id); }} className="font-bold" style={{ color: "var(--dim)" }}>×</button>

@@ -2226,11 +2226,6 @@ export default function PortfolioScreen() {
         <View style={{ borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 14, marginBottom: 10 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
             <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>{t("portfolio.cash.title")}</Text>
-            {cashList.length > 0 && (
-              <Text style={{ fontSize: 13, fontWeight: "900", color: colors.accentLight }}>
-                {currencySymbol}{cashTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </Text>
-            )}
           </View>
           {cashList.length > 0 && (
             <View style={{ gap: 6, marginBottom: 8 }}>
@@ -2247,7 +2242,7 @@ export default function PortfolioScreen() {
                   </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                     <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-                      {c.currency} {(c.accrued_amount ?? c.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {currencySymbol}{convertCashToPortfolioCurrency(c.accrued_amount ?? c.amount, c.currency).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Text>
                     <Ionicons name="pencil" size={12} color={colors.textDim} />
                     <TouchableOpacity onPress={() => handleRemoveCash(c.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
