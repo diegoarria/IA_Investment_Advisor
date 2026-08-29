@@ -41,12 +41,12 @@ const RISK_SEGMENTS = [
 function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"] }) {
   const { t } = useTranslation();
   const { profile } = useAppStore();
+  const subStore = useSubscriptionStore();
   if (!profile) return null;
 
   const seg = RISK_SEGMENTS.find((s) => s.key === profile.risk_tolerance);
   const level = getUserLevel(profile);
   const levelColor = LEVEL_COLOR[level];
-  const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
   const age = getAge(profile.birth_date ?? "");
 
