@@ -174,6 +174,16 @@ const TICKER_SECTOR: Record<string, string> = {
   SQQQ:"ETF",VGT:"ETF",SMH:"ETF",
 };
 
+// Diego, 2026-08-29: "NINGUNA [acción] DEBE QUEDAR EN 'OTRO'" — mirrors
+// web's portfolio/page.tsx. Filled by POST /api/market/sectors (S&P 500
+// GICS data + live Finnhub profile fallback), see the useEffect near
+// `diagnosis` that populates it and bumps `sectorFetchVersion`.
+const DYNAMIC_SECTOR_CACHE: Record<string, string> = {};
+
+function sectorFor(ticker: string): string {
+  return TICKER_SECTOR[ticker] ?? DYNAMIC_SECTOR_CACHE[ticker] ?? "Otro";
+}
+
 // ─── Portfolio risk classification ────────────────────────────────────────
 
 const TICKER_RISK_OVERRIDE: Record<string, number> = {
@@ -282,8 +292,8 @@ function getSectorLabels(t: TFunction): Record<string, string> {
 
 function getPositionRisk(ticker: string): number {
   if (TICKER_RISK_OVERRIDE[ticker] !== undefined) return TICKER_RISK_OVERRIDE[ticker];
-  const sector = TICKER_SECTOR[ticker];
-  return sector ? (SECTOR_RISK_BASE[sector] ?? 62) : 62;
+  const sector = sectorFor(ticker);
+  return sector !== "Otro" ? (SECTOR_RISK_BASE[sector] ?? 62) : 62;
 }
 
 const PORTFOLIO_LEVEL_THRESHOLDS = [
@@ -317,7 +327,7 @@ function scorePortfolio(
     const val = h.shares * price;
     totalVal += val;
     weightedRisk += getPositionRisk(h.ticker) * val;
-    const sector = TICKER_SECTOR[h.ticker] ?? "Otro";
+    const sector = sectorFor(h.ticker);
     sectorVals[sector] = (sectorVals[sector] ?? 0) + val;
   }
   if (totalVal === 0) return { score: 0, levelIdx: 0, sectorPcts: {} };
@@ -1241,7 +1251,25 @@ export default function PortfolioScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const diagnosis = useMemo(() => scorePortfolio(positions, prices), [positions, prices]);
+  // Diego, 2026-08-29: no sector should ever fall back to "Otro" — fetch a
+  // real sector for any held ticker the static TICKER_SECTOR map doesn't
+  // cover. Mirrors web's portfolio/page.tsx.
+  const [sectorFetchVersion, setSectorFetchVersion] = useState(0);
+  useEffect(() => {
+    const missing = Array.from(new Set(positions.map((p) => p.ticker)))
+      .filter((t) => !TICKER_SECTOR[t] && !DYNAMIC_SECTOR_CACHE[t]);
+    if (!missing.length) return;
+    marketApi.getSectors(missing).then((res: any) => {
+      const sectors = res?.data?.sectors ?? {};
+      let changed = false;
+      for (const [t, sec] of Object.entries(sectors)) {
+        if (sec && !DYNAMIC_SECTOR_CACHE[t]) { DYNAMIC_SECTOR_CACHE[t] = sec as string; changed = true; }
+      }
+      if (changed) setSectorFetchVersion((n) => n + 1);
+    }).catch(() => {});
+  }, [positions]);
+
+  const diagnosis = useMemo(() => scorePortfolio(positions, prices), [positions, prices, sectorFetchVersion]);
 
   // Clave estable que cambia con tickers, acciones o fecha de compra
   const positionsKey = useMemo(
@@ -1744,7 +1772,8 @@ export default function PortfolioScreen() {
     const rows = positions.map((pos) => {
       const currentPrice = prices[pos.ticker]?.price ?? pos.avgPrice;
       const invested = pos.shares * currentPrice;
-      const sector = TICKER_SECTOR[pos.ticker] ?? "";
+      const rawSector = sectorFor(pos.ticker);
+      const sector = rawSector === "Otro" ? "" : rawSector;
       const drawdown = sector ? (sc.drawdowns[sector] ?? sc.default) : sc.default;
       const stressed = invested * (1 + drawdown / 100);
       return {
@@ -3396,7 +3425,7 @@ export default function PortfolioScreen() {
                   </View>
                   {selectedSector && (() => {
                     const col = SECTOR_COLOR;
-                    const sectorPos = positions.filter((p) => (TICKER_SECTOR[p.ticker] ?? "Otro") === selectedSector);
+                    const sectorPos = positions.filter((p) => sectorFor(p.ticker) === selectedSector);
                     // Combine purchase lots of the same ticker into one row —
                     // a second lot of a stock you already hold in this sector
                     // is not a second position.

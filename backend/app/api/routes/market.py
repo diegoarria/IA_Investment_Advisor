@@ -480,6 +480,39 @@ async def get_prices(request: Request, body: dict, user_id: str = Depends(get_cu
     return cached_result
 
 
+@router.post("/sectors")
+@limiter.limit("30/minute")
+async def get_sectors(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
+    """Real sector per ticker for the portfolio allocation breakdown — see
+    app/services/sector_lookup.py. Diego, 2026-08-29: no ticker should ever
+    show as "Otro"; this replaces the frontend's small hardcoded map with a
+    live lookup that covers any real, listed ticker."""
+    from app.services.sector_lookup import get_sector_es
+
+    tickers = list({s.upper() for s in body.get("tickers", []) if s})
+    if not tickers:
+        return {"sectors": {}}
+
+    cached_result: dict[str, str] = {}
+    uncached: list[str] = []
+    for t in tickers:
+        hit = cache_get(f"sector_lookup:{t}")
+        if hit:
+            cached_result[t] = hit
+        else:
+            uncached.append(t)
+
+    if uncached:
+        pairs = await asyncio.to_thread(
+            lambda: list(_MARKET_POOL.map(lambda t: (t, get_sector_es(t)), uncached))
+        )
+        for t, sector in pairs:
+            if sector:
+                cached_result[t] = sector
+
+    return {"sectors": cached_result}
+
+
 @router.get("/summary")
 async def get_market_summary(user_id: str = Depends(get_current_user_id)):
     return market_service.get_market_summary()

@@ -205,6 +205,20 @@ const TICKER_SECTOR: Record<string, string> = {
   VGT:"ETF",SMH:"ETF",
 };
 
+// Diego, 2026-08-29: "NINGUNA [acción] DEBE QUEDAR EN 'OTRO'" — the static
+// map above only covers ~300 popular US large caps; anything else used to
+// fall straight to "Otro". This module-level cache (not React state, so
+// every lookup site below can read it without threading it through
+// function params) is filled by POST /api/market/sectors — a real,
+// backend-driven sector for any ticker (S&P 500 GICS data first, live
+// Finnhub profile for everything else). See the useEffect near `diagnosis`
+// that populates it and bumps `sectorFetchVersion` to force a recompute.
+const DYNAMIC_SECTOR_CACHE: Record<string, string> = {};
+
+function sectorFor(ticker: string): string {
+  return TICKER_SECTOR[ticker] ?? DYNAMIC_SECTOR_CACHE[ticker] ?? "Otro";
+}
+
 const TICKER_RISK_OVERRIDE: Record<string, number> = {
   // Especulativo
   GME:96,AMC:96,BBBY:96,SPCE:90,
@@ -525,8 +539,8 @@ function formatWithCommas(raw: string): string {
 
 function getPositionRisk(ticker: string): number {
   if (TICKER_RISK_OVERRIDE[ticker] !== undefined) return TICKER_RISK_OVERRIDE[ticker];
-  const sector = TICKER_SECTOR[ticker];
-  return sector ? (SECTOR_RISK_BASE[sector] ?? 62) : 62;
+  const sector = sectorFor(ticker);
+  return sector !== "Otro" ? (SECTOR_RISK_BASE[sector] ?? 62) : 62;
 }
 
 interface PriceData { price: number | null; currency: string; name: string }
@@ -555,7 +569,7 @@ function scorePortfolio(positions: Position[], pricesData: Record<string, PriceD
     const val = h.shares * price;
     totalVal += val;
     weightedRisk += getPositionRisk(h.ticker) * val;
-    const sector = TICKER_SECTOR[h.ticker] ?? "Otro";
+    const sector = sectorFor(h.ticker);
     sectorVals[sector] = (sectorVals[sector]??0) + val;
   }
   if (totalVal === 0) return { score:0, levelIdx:0, sectorPcts:{} };
@@ -1384,10 +1398,31 @@ export default function PortfolioPage() {
     });
   }, [aggregatedPositions, prices, fxRate, sortField, sortDir, getPeriodGainLoss]);
 
+  // Diego, 2026-08-29: no sector should ever fall back to "Otro" — fetch a
+  // real sector for any held ticker the static TICKER_SECTOR map doesn't
+  // cover. DYNAMIC_SECTOR_CACHE is a plain module object (not React state)
+  // so sectorFor() can be called from the top-level scorePortfolio/
+  // getPositionRisk functions; sectorFetchVersion just forces `diagnosis`
+  // to recompute once the fetch resolves.
+  const [sectorFetchVersion, setSectorFetchVersion] = useState(0);
+  useEffect(() => {
+    const missing = Array.from(new Set(positions.map((p) => p.ticker)))
+      .filter((t) => !TICKER_SECTOR[t] && !DYNAMIC_SECTOR_CACHE[t]);
+    if (!missing.length) return;
+    marketApi.getSectors(missing).then((res) => {
+      const sectors = res?.data?.sectors ?? {};
+      let changed = false;
+      for (const [t, sec] of Object.entries(sectors)) {
+        if (sec && !DYNAMIC_SECTOR_CACHE[t]) { DYNAMIC_SECTOR_CACHE[t] = sec as string; changed = true; }
+      }
+      if (changed) setSectorFetchVersion((n) => n + 1);
+    }).catch(() => {});
+  }, [positions]);
+
   const diagnosis = useMemo(() => {
     if (!positions.length) return null;
     return scorePortfolio(positions, prices);
-  }, [positions, prices]);
+  }, [positions, prices, sectorFetchVersion]);
 
   // ── Screenshot import ──────────────────────────────────────────────────
   const processPdfFile = useCallback(async (file: File) => {
@@ -1723,7 +1758,8 @@ export default function PortfolioPage() {
     const rows = positions.map((pos) => {
       const currentPrice = prices[pos.ticker]?.price ?? pos.avgPrice;
       const invested = pos.shares * currentPrice;
-      const sector = TICKER_SECTOR[pos.ticker] ?? "";
+      const rawSector = sectorFor(pos.ticker);
+      const sector = rawSector === "Otro" ? "" : rawSector;
       const parentSector = sector ? (SECTOR_PARENT[sector] ?? sector) : null;
       const drawdown = sector
         ? (sc.drawdowns[sector as keyof typeof sc.drawdowns]
@@ -3199,7 +3235,7 @@ export default function PortfolioPage() {
                     {selectedSector && (() => {
                       const col = SECTOR_COLOR;
                       const sectorPositions = positions.filter(
-                        (p) => (TICKER_SECTOR[p.ticker] ?? "Otro") === selectedSector
+                        (p) => sectorFor(p.ticker) === selectedSector
                       );
                       // Combine purchase lots of the same ticker into one row —
                       // a second lot of a stock you already hold in this sector
