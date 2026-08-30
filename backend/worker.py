@@ -2742,6 +2742,28 @@ async def job_saturday_reflection():
         logger.error("job_saturday_reflection failed: %s", e)
 
 
+async def job_refresh_smart_alerts_sources():
+    """1:00 PM ET weekdays — Diego, 2026-08-30: Smart Alerts' 5 detectors
+    (thesis_change, guidance_change, roic_fcf_deterioration, new_risk,
+    price_in_range) all read research data that used to only refresh when
+    some user organically opened that ticker's dossier/NIF dashboard —
+    tickers nobody happened to view never accumulated anything new to
+    diff against, so their alerts silently never fired. This proactively
+    refreshes every Premium user's watchlist ticker (respecting the same
+    24h freshness gate + Claude spend cap the on-demand routes already
+    use) so job_smart_alerts below always has current data to compare,
+    regardless of who's actually looking at what. See
+    smart_alerts_service.refresh_watchlist_signal_sources's docstring."""
+    if not _is_market_open_today():
+        logger.info("job_refresh_smart_alerts_sources: market closed today — skipping")
+        return
+    from app.services.smart_alerts_service import refresh_watchlist_signal_sources
+    try:
+        await refresh_watchlist_signal_sources()
+    except Exception as e:
+        logger.error("job_refresh_smart_alerts_sources failed: %s", e)
+
+
 async def job_smart_alerts():
     """4:20 PM ET weekdays — Fase 4, Incremento 10 (Alertas Inteligentes).
     Bridges Fase 2/3's Change Detection/Deterioration/DCF outputs into push
@@ -5145,6 +5167,7 @@ async def main():
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour=9,       minute="30,35,40,45,50,55", timezone="America/New_York")
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="10-15", minute="*/5", timezone="America/New_York")
     scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=5,     timezone="America/New_York")
+    scheduler.add_job(job_refresh_smart_alerts_sources, "cron", day_of_week="mon-fri", hour=13, minute=0, timezone="America/New_York")
     scheduler.add_job(job_smart_alerts,           "cron", day_of_week="mon-fri", hour=16,    minute=20,    timezone="America/New_York")
     scheduler.add_job(job_daily_email,          "cron", day_of_week="fri",     hour=18,      minute=0,     timezone="America/New_York")
 

@@ -138,6 +138,132 @@ async def _gather_ticker_signals(ticker: str, lang: str = "es") -> dict:
     }
 
 
+_REFRESH_MIN_HOURS = 24   # same cost-discipline gate research_engine.py's dossier route uses
+_REFRESH_TICKER_CAP = 80  # safety cap per run — hitting it is logged, never silently truncated forever
+
+
+async def _refresh_dossier_if_stale(ticker: str, lang: str) -> None:
+    """Same freshness gate app/api/routes/research_engine.py's
+    get_research_dossier route uses — only pays for the real
+    compose_research_dossier Claude calls (business/competitive/industry/
+    management/thesis) if any of the 4 knowledge snapshots is older than
+    _REFRESH_MIN_HOURS. A ticker an organic user visit already refreshed
+    today is skipped here too; this only fills the gap for tickers nobody
+    happens to open."""
+    from app.services.research.knowledge_store import get_latest_snapshot, is_snapshot_fresh
+    from app.services.research.research_orchestrator import compose_research_dossier
+    import asyncio
+
+    business_snap, competitive_snap, industry_snap, management_snap = await asyncio.gather(
+        get_latest_snapshot(ticker, "business_understanding"),
+        get_latest_snapshot(ticker, "competitive"),
+        get_latest_snapshot(ticker, "industry"),
+        get_latest_snapshot(ticker, "management"),
+    )
+    all_fresh = all(
+        is_snapshot_fresh(s, _REFRESH_MIN_HOURS) for s in (business_snap, competitive_snap, industry_snap, management_snap)
+    )
+    if all_fresh:
+        return
+    await compose_research_dossier(ticker, lang)
+
+
+async def _refresh_nif_dashboard_if_stale(ticker: str, lang: str) -> None:
+    """Same freshness gate worker.py's job_prewarm_nif_dashboard_default
+    uses for its one default ticker — here applied to every real Premium
+    watchlist ticker so roic_fcf_deterioration/price_in_range have
+    something current to diff against."""
+    from app.api.routes.screener import _latest_reported_earnings_period, _nif_dashboard_cache_key, _NIF_DASHBOARD_CACHE_TTL
+    from app.services import nif_service
+    from app.core.cache import cache_get, cache_set
+    import asyncio
+
+    cache_key = _nif_dashboard_cache_key(ticker, lang)
+    cached = cache_get(cache_key)
+    if cached:
+        current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
+        if not current_period or current_period == cached.get("_earnings_period"):
+            return
+    result = await nif_service.build_nif_dashboard(ticker, lang)
+    if result:
+        result["_earnings_period"] = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
+        cache_set(cache_key, result, _NIF_DASHBOARD_CACHE_TTL)
+
+
+async def refresh_watchlist_signal_sources() -> None:
+    """Weekdays, before the 4:20pm ET Smart Alerts check (see worker.py's
+    job_refresh_smart_alerts_sources) — makes sure every Premium user's
+    watchlist ticker has research data no older than _REFRESH_MIN_HOURS to
+    diff against, instead of relying on someone organically opening that
+    ticker's dossier/NIF dashboard. Without this, thesis_change/
+    guidance_change/roic_fcf_deterioration/new_risk/price_in_range silently
+    never fire for tickers nobody happens to view — the real gap flagged
+    2026-08-30 in this module's own docstring.
+
+    Only "es" is prewarmed, not both languages: the underlying signals this
+    module diffs (event ids, deterioration "direction" labels, risk text
+    sets, price-vs-range numbers) are language-independent data, not
+    display copy — see deterioration_engine.py's `direction` field, which
+    is a fixed "deteriorando"/"mejorando" literal regardless of the
+    viewer's language. _gather_ticker_signals already falls back to the
+    "es" cache entry when a user's own language variant isn't cached, so
+    this halves the real Claude cost of this job without weakening
+    detection for English-preferred users."""
+    import asyncio
+    import random
+    from app.core.database import get_supabase, run_query
+    from app.core.subscription import is_premium_active
+
+    db = get_supabase()
+
+    prefs_res = await run_query(
+        db.table("notification_preferences").select(
+            "user_id," + ",".join(_TOGGLE_COLUMN.values())
+        ).or_(",".join(f"{col}.eq.true" for col in _TOGGLE_COLUMN.values()))
+    )
+    prefs_uids = {r["user_id"] for r in (prefs_res.data or [])}
+    if not prefs_uids:
+        return
+
+    tier_res = await run_query(
+        db.table("user_profiles")
+        .select("user_id,subscription_tier,trial_started_at,streak_bonus_premium_until")
+        .in_("user_id", list(prefs_uids))
+    )
+    premium_uids = {
+        r["user_id"] for r in (tier_res.data or [])
+        if is_premium_active(r.get("subscription_tier"), r.get("trial_started_at"), r.get("streak_bonus_premium_until"))
+    }
+    if not premium_uids:
+        return
+
+    watchlist_res = await run_query(
+        db.table("watchlist").select("user_id,ticker").in_("user_id", list(premium_uids))
+    )
+    tickers = sorted({row["ticker"] for row in (watchlist_res.data or [])})
+    if not tickers:
+        return
+
+    if len(tickers) > _REFRESH_TICKER_CAP:
+        logger.warning(
+            "refresh_watchlist_signal_sources: %d unique Premium watchlist tickers exceeds the %d/run safety cap "
+            "— refreshing the first %d this run, rest stay on organic-view refresh until next run",
+            len(tickers), _REFRESH_TICKER_CAP, _REFRESH_TICKER_CAP,
+        )
+        tickers = tickers[:_REFRESH_TICKER_CAP]
+
+    for ticker in tickers:
+        try:
+            await _refresh_dossier_if_stale(ticker, "es")
+        except Exception as exc:
+            logger.warning("refresh_watchlist_signal_sources: dossier refresh failed for %s: %s", ticker, exc)
+        try:
+            await _refresh_nif_dashboard_if_stale(ticker, "es")
+        except Exception as exc:
+            logger.warning("refresh_watchlist_signal_sources: NIF dashboard refresh failed for %s: %s", ticker, exc)
+        await asyncio.sleep(random.uniform(0.2, 0.5))
+
+
 async def run_smart_alerts_check() -> None:
     """Daily job (see worker.py's job_smart_alerts): for every (user,
     watchlist ticker) pair where the user has at least one relevant push
@@ -331,9 +457,9 @@ def _alert_copy(ticker: str, category: str, kwargs: dict, lang: str) -> tuple[st
     if category == "guidance_change":
         return f"📊 {ticker}: cambio de guidance detectado", kwargs.get("headline") or f"El timeline de investigación de {ticker} registró un cambio de guidance."
     if category == "roic_fcf_deterioration":
-        return f"⚠️ {ticker}: ROIC/FCF en baja", f"El ROIC o el margen de FCF de {ticker} viene deteriorándose en su historial reciente."
+        return f"⚠️ {ticker}: tendencia a la baja", f"El ROIC o el margen de FCF de {ticker} viene deteriorándose en su historial reciente."
     if category == "new_risk":
         return f"🚩 {ticker}: nuevo riesgo en la tesis", kwargs.get("risk") or f"Se agregó un nuevo riesgo a la tesis de investigación de {ticker}."
     if category == "price_in_range":
-        return f"🎯 {ticker} entró a su rango de valor razonable", f"El precio de {ticker} ahora está dentro del rango de valor razonable que calculó Nuvos."
+        return f"🎯 {ticker} entró en su rango de valor razonable", f"El precio de {ticker} ahora está dentro del rango de valor razonable que calculó Nuvos."
     return ticker, ""
