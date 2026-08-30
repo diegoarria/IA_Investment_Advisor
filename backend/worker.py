@@ -5445,6 +5445,84 @@ async def job_trial_ended_reminder():
         logger.error("job_trial_ended_reminder failed: %s", e)
 
 
+async def job_premium_winback_reminder():
+    """Once daily — Diego, 2026-08-30: for users whose free 30-day trial
+    already ended and who never converted, invite them back to Premium
+    every 14 days — a recurring nudge, distinct from the one-time 3-day/
+    1-day-out warnings and the "your trial just ended" hook (job_trial_
+    ending_reminder / job_trial_ending_tomorrow_reminder / job_trial_
+    ended_reminder above).
+
+    No separate "last sent" tracking table: the 14-day cadence is derived
+    straight from trial_started_at — days_since_trial_ended = (today's
+    elapsed days) - TRIAL_DAYS, and a user is due exactly when that value
+    is a positive multiple of 14 (44 days elapsed, then 58, 72, ...). That
+    also means day 30 itself (days_since_trial_ended == 0) is correctly
+    excluded — job_trial_ended_reminder already owns that day. A user
+    whose trial ended before this job existed just gets swept in on
+    whatever future day naturally lands on a multiple of 14 for them,
+    with no backfill needed.
+
+    Skips anyone currently covered by an active streak/referral premium
+    bonus — is_premium_active() would still call them premium via that
+    bonus even though their original trial ended."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from app.core.subscription import TRIAL_DAYS
+    db = get_supabase()
+    try:
+        now = datetime.now(timezone.utc)
+        trial_ended_cutoff = (now - timedelta(days=TRIAL_DAYS)).isoformat()
+
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,preferred_language,subscription_tier,trial_started_at,streak_bonus_premium_until")
+            .not_.in_("subscription_tier", ["premium", "pro"])
+            .not_.is_("trial_started_at", "null")
+            .lte("trial_started_at", trial_ended_cutoff)
+        )
+        rows = prof_res.data or []
+        if not rows:
+            return
+
+        sent = 0
+        for row in rows:
+            try:
+                started = datetime.fromisoformat(row["trial_started_at"].replace("Z", "+00:00"))
+            except Exception:
+                continue
+            days_since_trial_ended = (now - started).days - TRIAL_DAYS
+            if days_since_trial_ended <= 0 or days_since_trial_ended % 14 != 0:
+                continue
+
+            bonus_until = row.get("streak_bonus_premium_until")
+            if bonus_until:
+                try:
+                    if datetime.fromisoformat(bonus_until.replace("Z", "+00:00")) > now:
+                        continue
+                except Exception:
+                    pass
+
+            uid = row["user_id"]
+            is_en = (row.get("preferred_language") or "es") == "en"
+            if is_en:
+                title = "💎 Ready to go Premium again?"
+                body = "You're still on Nuvos's free plan. Premium gives you Arthur as your personal mentor, smart alerts on your stocks, and deep analysis on every company. Subscribe whenever you're ready — it takes less than a minute."
+            else:
+                title = "💎 ¿Listo para volver a Premium?"
+                body = "Sigues en el plan gratis de Nuvos. Con Premium tienes a Arthur como tu mentor personal, alertas inteligentes de tus acciones y análisis profundo de cada empresa. Suscríbete cuando quieras — activar toma menos de un minuto."
+            try:
+                await send_push(uid, "premium_winback", title, body, {"screen": "profile"}, db)
+                sent += 1
+            except Exception as exc:
+                logger.warning("job_premium_winback_reminder: push failed for %s: %s", uid, exc)
+            await asyncio.sleep(random.uniform(0, 0.1))
+        if sent:
+            logger.info("job_premium_winback_reminder: %d reminders sent", sent)
+    except Exception as e:
+        logger.error("job_premium_winback_reminder failed: %s", e)
+
+
 async def main():
     # misfire_grace_time: if Railway restarts the worker near a job's fire time,
     # APScheduler will still run the job if it missed by less than this window.
@@ -5569,6 +5647,7 @@ async def main():
     scheduler.add_job(job_trial_ending_reminder,           "cron", hour=10, minute=0, timezone="America/New_York")
     scheduler.add_job(job_trial_ending_tomorrow_reminder,  "cron", hour=10, minute=0, timezone="America/New_York")
     scheduler.add_job(job_trial_ended_reminder,            "cron", hour=10, minute=0, timezone="America/New_York")
+    scheduler.add_job(job_premium_winback_reminder,        "cron", hour=10, minute=0, timezone="America/New_York")
 
     # Backfill notification_preferences for existing users who never opened settings.
     # Without this row the worker can't find them and push never fires.
