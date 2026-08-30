@@ -3975,53 +3975,51 @@ def _earnings_push_content(
     res: dict,
     language: str = "es",
 ) -> tuple[str, str]:
-    """Return (title, body) for an earnings push notification.
+    """Return (title, body) for an earnings push notification. Diego,
+    2026-08-30: one single fixed format, same for every user (no Premium
+    vs Free split) —
 
-    Title: "Reporte Q{quarter} {year} {Company}". Body: one line for EPS and
-    one for Revenue, each "actual vs estimado {✅/❌}" — ✅ when actual beat
-    (or matched) the estimate, ❌ on a miss. A line is omitted entirely if
-    Finnhub didn't report that figure for this company. Deliberately just
-    these lines — no position/watchlist context added.
-    """
+    "{Company} reportó ganancias"
+    "Ingresos: $96.8B vs $92.3B est. 🟢"
+    "EPS: $2.22 vs $2.06 est. 🟢"
+    ""
+    "Entra a Nuvos para ver cómo afecta a tu portafolio"
+
+    Revenue line before EPS. Badge is the real 🟢/🟡/🔴 surprise-%
+    classification (_earnings_result_badge), computed independently for
+    revenue and EPS — never a guess, omitted if either real number is
+    missing. A figure line is dropped entirely if Finnhub hasn't reported
+    that number for this company."""
     is_en = language == "en"
     eps_a = res.get("eps_actual")
     eps_e = res.get("eps_estimate")
-    beat_eps = res.get("beat_eps", False)
     rev_a = res.get("rev_actual_b")
     rev_e = res.get("rev_estimate_b")
-    beat_rev = res.get("beat_rev", False)
-    hour  = res.get("hour", "")
-    quarter = res.get("quarter")
-    year    = res.get("year")
 
     company = _company_name(ticker)
-    if quarter and year:
-        title = f"Q{quarter} {year} Report {company}" if is_en else f"Reporte Q{quarter} {year} {company}"
-    else:
-        timing_tag = " · Pre-market" if hour == "BMO" else (" · After-hours" if hour == "AMC" else "")
-        title = f"{ticker} Earnings{timing_tag}" if is_en else f"Resultados {ticker}{timing_tag}"
+    title = f"{company} reported earnings" if is_en else f"{company} reportó ganancias"
 
     lines = []
-    if eps_a is not None:
-        eps_emoji = "✅" if beat_eps else "❌"
-        if eps_e is not None:
-            lines.append(
-                f"EPS: ${eps_a:.2f} vs ${eps_e:.2f} est. {eps_emoji}" if is_en else
-                f"EPS: ${eps_a:.2f} vs ${eps_e:.2f} estimado {eps_emoji}"
-            )
-        else:
-            lines.append(f"EPS: ${eps_a:.2f}")
     if rev_a is not None:
-        rev_emoji = "✅" if beat_rev else "❌"
         if rev_e is not None:
-            lines.append(
-                f"Revenue: ${rev_a:.1f}B vs ${rev_e:.1f}B est. {rev_emoji}" if is_en else
-                f"Ingresos: ${rev_a:.1f}B vs ${rev_e:.1f}B estimado {rev_emoji}"
-            )
+            emoji, _ = _earnings_result_badge(rev_a, rev_e, is_en)
+            badge = f" {emoji}" if emoji else ""
+            lines.append(f"Revenue: ${rev_a:.1f}B vs ${rev_e:.1f}B est.{badge}" if is_en else f"Ingresos: ${rev_a:.1f}B vs ${rev_e:.1f}B est.{badge}")
         else:
             lines.append(f"Revenue: ${rev_a:.1f}B" if is_en else f"Ingresos: ${rev_a:.1f}B")
+    if eps_a is not None:
+        if eps_e is not None:
+            emoji, _ = _earnings_result_badge(eps_a, eps_e, is_en)
+            badge = f" {emoji}" if emoji else ""
+            lines.append(f"EPS: ${eps_a:.2f} vs ${eps_e:.2f} est.{badge}" if is_en else f"EPS: ${eps_a:.2f} vs ${eps_e:.2f} est.{badge}")
+        else:
+            lines.append(f"EPS: ${eps_a:.2f}")
 
-    body = "\n".join(lines) if lines else (f"{ticker} just reported earnings" if is_en else f"{ticker} acaba de reportar resultados")
+    if not lines:
+        return title, (f"{ticker} just reported earnings" if is_en else f"{ticker} acaba de reportar resultados")
+
+    closing = "Enter Nuvos to see how this affects your portfolio" if is_en else "Entra a Nuvos para ver cómo afecta a tu portafolio"
+    body = "\n".join(lines) + "\n\n" + closing
     return title, body
 
 
@@ -4043,11 +4041,23 @@ async def _job_earnings_dispatch(hour_filter: str | None = None):
     if not results_map:
         return
 
+    # Finnhub's calendar includes every ticker SCHEDULED to report today, even
+    # ones whose actuals haven't posted yet (pre-market names before the print,
+    # after-market names before the close). Only treat a ticker as "reported"
+    # once it has a real actual number — this is what correctly distinguishes
+    # BMO vs. AMC timing instead of a fixed clock guess.
+    results_map = {
+        t: r for t, r in results_map.items()
+        if r.get("eps_actual") is not None or r.get("rev_actual_b") is not None
+    }
+    if not results_map:
+        return
+
     reported_tickers = set(results_map.keys())
     logger.info("job_earnings_watch: %d tickers reported so far: %s", len(reported_tickers), reported_tickers)
 
     # 2. Load all users
-    users_res = await run_query(db.table("user_profiles").select("user_id,name,preferred_language,subscription_tier,trial_started_at,streak_bonus_premium_until"))
+    users_res = await run_query(db.table("user_profiles").select("user_id,name,preferred_language"))
     users = users_res.data or []
     if not users:
         return
@@ -4081,7 +4091,6 @@ async def _job_earnings_dispatch(hour_filter: str | None = None):
             continue
 
         language  = (u.get("preferred_language") or "es")
-        is_prem   = _is_premium_user(u.get("subscription_tier") or "free", u.get("trial_started_at"), u.get("streak_bonus_premium_until"))
         await asyncio.sleep(random.uniform(0, 0.05))
         for ticker in relevant:
             res  = results_map[ticker]
@@ -4098,16 +4107,9 @@ async def _job_earnings_dispatch(hour_filter: str | None = None):
                     "eps_actual": res.get("eps_actual"), "eps_estimate": res.get("eps_estimate"),
                 },
             ))
-            if is_prem:
-                # Premium-only teaser + deep link into the real structured
-                # Earnings Analysis screen (segments/guidance/rating grounded
-                # in real data) — free users keep the plain beat/miss body
-                # and generic stock_detail link, since they don't have
-                # access to that screen.
-                body += ("\nCome see the full analysis." if language == "en" else "\nVen a ver el análisis de lo que pasó.")
-                data = {"ticker": ticker, "screen": f"earnings/{ticker}"}
-            else:
-                data = {"ticker": ticker, "screen": "stock_detail"}
+            # Diego, 2026-08-30: one single notification, same for everyone —
+            # no Premium-only extra line, no separate free-tier deep link.
+            data = {"ticker": ticker, "screen": f"earnings/{ticker}"}
             await send_push(
                 uid, f"earnings_{ticker.lower()}",
                 title, body,
