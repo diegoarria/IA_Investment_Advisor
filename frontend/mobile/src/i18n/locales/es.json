@@ -2837,7 +2837,8 @@
     "tagline": "5 oportunidades personalizadas cada domingo",
     "searching": "Buscando oportunidades...",
     "noPicks": "No hay picks disponibles aún.",
-    "defaultDisclaimer": "Estas son ideas educativas para investigar, no recomendaciones de compra ni asesoría financiera. Investiga a fondo cada empresa antes de invertir un solo dólar."
+    "defaultDisclaimer": "Estas son ideas educativas para investigar, no recomendaciones de compra ni asesoría financiera. Investiga a fondo cada empresa antes de invertir un solo dólar.",
+    "retry": "Reintentar"
   },
   "mobileOnboardingChecklist": {
     "title": "Configura tu Nuvos",

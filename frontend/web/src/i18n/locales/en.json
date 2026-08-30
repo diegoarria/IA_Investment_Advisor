@@ -3047,7 +3047,8 @@
     "catalyst": "Catalyst",
     "mainRisk": "Main risk",
     "defaultDisclaimer": "These are educational ideas to research, not buy recommendations or financial advice. Research each company deeply before investing a single dollar.",
-    "noSuggestions": "No suggestions available yet."
+    "noSuggestions": "No suggestions available yet.",
+    "retry": "Retry"
   },
   "paywallModal": {
     "planMonthlyLabel": "Monthly",

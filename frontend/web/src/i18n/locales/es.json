@@ -3047,7 +3047,8 @@
     "catalyst": "Catalizador",
     "mainRisk": "Riesgo principal",
     "defaultDisclaimer": "Estas son ideas educativas para investigar, no recomendaciones de compra ni asesoría financiera. Investiga a fondo cada empresa antes de invertir un solo dólar.",
-    "noSuggestions": "No hay sugerencias disponibles aún."
+    "noSuggestions": "No hay sugerencias disponibles aún.",
+    "retry": "Reintentar"
   },
   "paywallModal": {
     "planMonthlyLabel": "Mensual",

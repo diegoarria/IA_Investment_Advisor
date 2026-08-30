@@ -2768,8 +2768,37 @@ def _finalize_weekly_picks_result(raw: str, risk: str, existing: list[str], rece
         | {t.upper() for t in existing}
         | {t.upper() for t in recent}
     )
-    if result.get("picks"):
-        result["picks"] = [p for p in result["picks"] if (p.get("ticker") or "").upper() not in block]
+    picks = [p for p in (result.get("picks") or []) if (p.get("ticker") or "").upper() not in block]
+
+    # Backfill from the same real, already-filtered candidate pool if the
+    # guardrail above stripped the model down below 5 (or it returned fewer
+    # to begin with) — Diego, 2026-08-30: the Screener Semanal card can
+    # never render empty or with fewer than 5 real ideas, whatever the LLM
+    # did. `candidates` already excludes owned/recent/risk-avoid tickers
+    # (see _build_weekly_picks_prompt's callers), so a backfilled entry is
+    # just as real and just as non-repeating as a model-chosen one.
+    if len(picks) < 5:
+        picked_tickers = {(p.get("ticker") or "").upper() for p in picks}
+        for c in candidates:
+            if len(picks) >= 5:
+                break
+            ticker = (c.get("ticker") or "").upper()
+            if not ticker or ticker in picked_tickers or ticker in block:
+                continue
+            picks.append({
+                "ticker": ticker,
+                "name": c.get("name", ticker),
+                "sector": c.get("sector", ""),
+                "price": c.get("price"),
+                "change_pct": c.get("change_pct"),
+                "score": c.get("score"),
+                "why": c.get("why") or "Idea del screener semanal según tu perfil de riesgo y sector.",
+                "catalyst": c.get("catalyst", ""),
+                "risk": c.get("risk", ""),
+            })
+            picked_tickers.add(ticker)
+
+    result["picks"] = picks
 
     # Always guarantee disclaimer
     if "disclaimer" not in result:

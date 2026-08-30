@@ -2837,7 +2837,8 @@
     "tagline": "5 personalized opportunities every Sunday",
     "searching": "Searching for opportunities...",
     "noPicks": "No picks available yet.",
-    "defaultDisclaimer": "These are educational ideas to research, not buy recommendations or financial advice. Research each company deeply before investing a single dollar."
+    "defaultDisclaimer": "These are educational ideas to research, not buy recommendations or financial advice. Research each company deeply before investing a single dollar.",
+    "retry": "Retry"
   },
   "mobileOnboardingChecklist": {
     "title": "Set up your Nuvos",

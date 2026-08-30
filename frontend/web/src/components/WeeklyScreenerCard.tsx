@@ -275,9 +275,17 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
                 </div>
               )}
 
-              {!loading && !data && (
-                <div className="p-5">
+              {!loading && (!data || !data.picks || data.picks.length === 0) && (
+                <div className="p-5 flex flex-col items-center gap-3 text-center">
                   <span className="text-xs" style={{ color: "var(--muted)" }}>{t("weeklyScreenerCard.noSuggestions")}</span>
+                  <button
+                    onClick={load}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold"
+                    style={{ background: TOOL_COLOR + "15", color: TOOL_COLOR }}
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    {t("weeklyScreenerCard.retry")}
+                  </button>
                 </div>
               )}
             </div>
