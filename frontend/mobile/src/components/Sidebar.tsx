@@ -619,8 +619,8 @@ const styles = StyleSheet.create({
   logoBox: {
     width: 40, height: 40, borderRadius: 10, flexShrink: 0,
   },
-  appName: { fontSize: 15, fontFamily: "DMSans_700Bold" },
-  appSub: { fontSize: 9.5, fontFamily: "DMSans_700Bold", marginTop: 1 },
+  appName: { fontSize: 15, fontFamily: "DMSans_700Bold", lineHeight: 16 },
+  appSub: { fontSize: 9.5, fontFamily: "DMSans_700Bold", lineHeight: 11, marginTop: 0 },
   // Collapse / close buttons
   collapseBtn: {
     width: 28, height: 28, borderRadius: 8, borderWidth: 1,
