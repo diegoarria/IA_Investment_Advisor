@@ -117,6 +117,43 @@ async def _portfolio_day_change(user_id: str) -> Optional[dict]:
     return {"total_value": total, "change_usd": change_usd, "change_pct": change_pct}
 
 
+def _live_position_value(positions: list[dict]) -> float:
+    """Real live-price value of the user's stock positions — same per-quote
+    pattern _top_mover already uses. Falls back to avgPrice (cost basis)
+    only for a single position whose live quote genuinely fails, never for
+    the whole portfolio."""
+    from app.core.finnhub import fh_quote
+    total = 0.0
+    for p in positions:
+        ticker = p.get("ticker")
+        shares = float(p.get("shares", 0) or 0)
+        if not ticker or not shares:
+            continue
+        q = fh_quote(ticker)
+        price = q.get("price") if q else None
+        if price is None:
+            price = float(p.get("avgPrice") or p.get("avg_price") or 0)
+        total += shares * price
+    return total
+
+
+async def _real_portfolio_total(user_id: str, positions: list[dict]) -> float:
+    """The TRUE total shown everywhere else in the app (Home's heroTotal,
+    Wrapped) — live stock position value + real cash available to invest
+    + real dividends received. Diego, 2026-08-30: "el monto exacto del
+    valor real del portafolio, sumando valor del portafolio y el efectivo
+    disponible para invertir." fmg_portfolio_snapshots.total_value (used
+    only for the day-over-day $/% change below, not for this) is cost
+    basis of stock positions ONLY — never live-priced, never includes cash
+    or dividends — so it was never the right source for "the real value."
+    """
+    from app.api.routes.wrapped import _cash_holdings_total_usd, _dividend_income_total
+    live_value = await asyncio.to_thread(_live_position_value, positions)
+    cash_total = await _cash_holdings_total_usd(user_id)
+    dividend_total = await _dividend_income_total(user_id)
+    return live_value + cash_total + dividend_total
+
+
 def _sp500_day_change() -> Optional[float]:
     from app.core.finnhub import fh_quote
     q = fh_quote("SPY")  # SPY, not ^GSPC — same Railway-IP-block workaround worker.py uses
@@ -552,6 +589,12 @@ async def build_morning_brief(user_id: str, lang: str = "es") -> Optional[dict]:
     if portfolio is None:
         return None
 
+    # The $/% change above stays anchored to fmg_portfolio_snapshots (a real
+    # day-over-day comparison), but the headline VALUE shown is the true
+    # total — live positions + real cash + real dividends — not the
+    # snapshot's cost-basis-only, cash-excluded figure.
+    real_total = await _real_portfolio_total(user_id, positions)
+
     tickers = sorted({p["ticker"] for p in positions if p.get("ticker")})
     sp500_change_pct = _sp500_day_change()
     top_mover = _top_mover(positions)
@@ -559,7 +602,7 @@ async def build_morning_brief(user_id: str, lang: str = "es") -> Optional[dict]:
     events = await _events_with_impact_for_user(user_id, positions, lang, db)
 
     return {
-        "portfolio_value": portfolio["total_value"],
+        "portfolio_value": real_total if real_total > 0 else portfolio["total_value"],
         "change_usd": portfolio["change_usd"],
         "change_pct": portfolio["change_pct"],
         "sp500_change_pct": sp500_change_pct,
