@@ -5380,6 +5380,71 @@ async def job_trial_ending_tomorrow_reminder():
         logger.error("job_trial_ending_tomorrow_reminder failed: %s", e)
 
 
+async def job_trial_ended_reminder():
+    """Once daily — Diego, 2026-08-30: fires the day the free 30-day
+    trial actually ends (trial_started_at exactly TRIAL_DAYS days in the
+    past — the same day is_premium_active flips this user to Free), a
+    separate, more persuasive send from the 3-day/1-day-out reminders
+    above (job_trial_ending_reminder / job_trial_ending_tomorrow_
+    reminder) — those warn it's coming, this one tells them it just
+    happened and makes the case to convert now.
+
+    Skips anyone still covered by an active streak/referral premium bonus
+    (streak_bonus_premium_until in the future) — is_premium_active()
+    would still say they're premium via that bonus even though their
+    trial specifically ended, so "your trial just ended, subscribe" would
+    be factually wrong for them today."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from app.core.subscription import TRIAL_DAYS
+    db = get_supabase()
+    try:
+        now = datetime.now(timezone.utc)
+        window_start = (now - timedelta(days=TRIAL_DAYS + 1)).isoformat()
+        window_end   = (now - timedelta(days=TRIAL_DAYS)).isoformat()
+
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,preferred_language,subscription_tier,trial_started_at,streak_bonus_premium_until")
+            .not_.in_("subscription_tier", ["premium", "pro"])
+            .not_.is_("trial_started_at", "null")
+            .gt("trial_started_at", window_start)
+            .lte("trial_started_at", window_end)
+        )
+        rows = prof_res.data or []
+        if not rows:
+            return
+
+        sent = 0
+        for row in rows:
+            bonus_until = row.get("streak_bonus_premium_until")
+            if bonus_until:
+                try:
+                    if datetime.fromisoformat(bonus_until.replace("Z", "+00:00")) > now:
+                        continue  # still premium via bonus — not really "ended" today
+                except Exception:
+                    pass
+
+            uid = row["user_id"]
+            is_en = (row.get("preferred_language") or "es") == "en"
+            if is_en:
+                title = "😔 Your Premium trial just ended"
+                body = "You're back on the free plan, but everything you built with Arthur is still there. Subscribe now and get your personal mentor, smart alerts, and deep analysis back — it takes less than a minute."
+            else:
+                title = "😔 Tu prueba Premium terminó"
+                body = "Volviste al plan gratis, pero todo lo que construiste con Arthur sigue ahí guardado. Suscríbete ahora y recupera tu mentor personal, tus alertas inteligentes y el análisis profundo — te toma menos de un minuto."
+            try:
+                await send_push(uid, "trial_ended", title, body, {"screen": "profile"}, db)
+                sent += 1
+            except Exception as exc:
+                logger.warning("job_trial_ended_reminder: push failed for %s: %s", uid, exc)
+            await asyncio.sleep(random.uniform(0, 0.1))
+        if sent:
+            logger.info("job_trial_ended_reminder: %d reminders sent", sent)
+    except Exception as e:
+        logger.error("job_trial_ended_reminder failed: %s", e)
+
+
 async def main():
     # misfire_grace_time: if Railway restarts the worker near a job's fire time,
     # APScheduler will still run the job if it missed by less than this window.
@@ -5503,6 +5568,7 @@ async def main():
     # ── Trial-ending reminders (30-day free trial) ───────────────────────────
     scheduler.add_job(job_trial_ending_reminder,           "cron", hour=10, minute=0, timezone="America/New_York")
     scheduler.add_job(job_trial_ending_tomorrow_reminder,  "cron", hour=10, minute=0, timezone="America/New_York")
+    scheduler.add_job(job_trial_ended_reminder,            "cron", hour=10, minute=0, timezone="America/New_York")
 
     # Backfill notification_preferences for existing users who never opened settings.
     # Without this row the worker can't find them and push never fires.
