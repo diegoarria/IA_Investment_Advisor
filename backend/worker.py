@@ -4340,14 +4340,17 @@ async def send_educational_emails():
 # ── Daily habit system — Sunday portfolio review ──────────────────────────────
 async def job_sunday_portfolio_review():
     """Domingo 5:00 PM ET — resumen semanal del portafolio: cambio de valor
-    de Lunes (apertura, precio en vivo) a Viernes (cierre, precio en vivo)
-    + top mover, usando weekly_range_snapshots (migración 082) — no
+    de Lunes (apertura, precio en vivo) a Viernes (cierre, precio en vivo),
+    usando weekly_range_snapshots (migración 082) — no
     fmg_portfolio_snapshots, que es costo de compra y casi no se mueve con
-    el mercado. Premium recibe una versión con IA que referencia su
-    patrimonio y estilo declarado; free recibe la versión con solo datos."""
+    el mercado. Diego, 2026-08-30: un solo formato fijo con datos 100%
+    reales para todos los usuarios ("Ganaste +$325 dólares y tu portafolio
+    subió +1.8%. Revisa el detalle en Nuvos") — sin IA, sin variantes por
+    tier. Si no hay snapshot de apertura del lunes para calcular el
+    cambio real, ese usuario simplemente no recibe el push esa semana
+    (nunca se inventa un $/%)."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
-    from app.services.portfolio_manager_service import _haiku_insight
     db = get_supabase()
     try:
         today = datetime.now(timezone.utc).date()
@@ -4368,19 +4371,6 @@ async def job_sunday_portfolio_review():
             logger.info("job_sunday_portfolio_review: no close snapshots for week_start=%s — skipping", week_start)
             return
 
-        # top_sector still comes from the daily fmg_portfolio_snapshots job
-        # (unaffected by this change — only the value/delta moved to live pricing).
-        sector_res = await run_query(
-            db.table("fmg_portfolio_snapshots")
-            .select("user_id,snapshot_date,top_sector")
-            .in_("user_id", list(close_by_user.keys()))
-            .order("snapshot_date", desc=True)
-            .limit(8000)
-        )
-        top_sector_by_user: dict[str, str] = {}
-        for row in (sector_res.data or []):
-            top_sector_by_user.setdefault(row["user_id"], row.get("top_sector"))
-
         prefs_res = await run_query(
             db.table("notification_preferences").select("user_id,push_portfolio_alerts")
         )
@@ -4391,7 +4381,7 @@ async def job_sunday_portfolio_review():
             return
         prof_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,subscription_tier,trial_started_at,investing_style,preferred_language,streak_bonus_premium_until")
+            .select("user_id,name,subscription_tier,trial_started_at,preferred_language,streak_bonus_premium_until")
             .in_("user_id", uids)
         )
         prof_map = {r["user_id"]: r for r in (prof_res.data or [])}
@@ -4402,50 +4392,28 @@ async def job_sunday_portfolio_review():
             prev  = open_by_user.get(uid)
             if total <= 0:
                 continue
+            # No real Monday-open value for this week — can't compute a real
+            # $/% change, and the new copy requires one. Never fabricate it.
+            if not prev:
+                continue
             prof  = prof_map.get(uid, {})
-            first = (prof.get("name") or "Inversor").split()[0]
-            is_prem = _is_premium_user(prof.get("subscription_tier", "free"), prof.get("trial_started_at"), prof.get("streak_bonus_premium_until"))
-            is_en   = (prof.get("preferred_language") or "es") == "en"
-            top_sector = top_sector_by_user.get(uid)
+            is_en = (prof.get("preferred_language") or "es") == "en"
 
-            change_str = ""
-            if prev:
-                delta = total - prev
-                pct   = delta / prev * 100 if prev else 0
-                sign  = "+" if delta >= 0 else ""
-                change_str = (
-                    f" ({sign}${delta:,.0f}, {sign}{pct:.1f}% this week)"
-                    if is_en else
-                    f" ({sign}${delta:,.0f}, {sign}{pct:.1f}% esta semana)"
-                )
+            delta = total - prev
+            pct   = delta / prev * 100 if prev else 0
+            gained = delta >= 0
 
-            body = None
-            if is_prem:
-                style = prof.get("investing_style")
-                if is_en:
-                    style_note = f" Declared style: {style}." if style and style != "not_set" else ""
-                    prompt = (
-                        f"You are Nuvos' AI Portfolio Manager. Write ONE push notification (max 200 characters) "
-                        f"as a weekly review for {first}: their portfolio is worth ${total:,.0f} USD{change_str}, "
-                        f"their main sector is {top_sector or 'diversified'}.{style_note} "
-                        f"End-of-week tone, no alarmism, invite them to check the details. "
-                        f"No emojis at the start, don't mention \"Nuvos AI\", text only. Write in English."
-                    )
-                else:
-                    style_note = f" Estilo declarado: {style}." if style and style != "not_set" else ""
-                    prompt = (
-                        f"Eres el Portfolio Manager IA de Nuvos. Escribe UNA notificación push (máximo 200 caracteres) "
-                        f"de revisión semanal para {first}: su portafolio vale ${total:,.0f} USD{change_str}, "
-                        f"su sector principal es {top_sector or 'diversificado'}.{style_note} "
-                        f"Tono de cierre de semana, sin alarmismo, invita a revisar el detalle. "
-                        f"Sin emojis al inicio, sin mencionar \"Nuvos AI\", solo el texto de la notificación."
-                    )
-                body = await _haiku_insight(prompt, max_tokens=120)
-            if not body:
+            if is_en:
                 body = (
-                    f"Your portfolio closed the week at ${total:,.0f} USD{change_str}. Check the details on Nuvos."
-                    if is_en else
-                    f"Tu portafolio cerró la semana en ${total:,.0f} USD{change_str}. Revisa el detalle en Nuvos."
+                    f"You gained +${delta:,.0f} and your portfolio rose +{pct:.1f}%. Check the details in Nuvos."
+                    if gained else
+                    f"You lost ${abs(delta):,.0f} and your portfolio fell {pct:.1f}%. Check the details in Nuvos."
+                )
+            else:
+                body = (
+                    f"Ganaste +${delta:,.0f} dólares y tu portafolio subió +{pct:.1f}%. Revisa el detalle en Nuvos."
+                    if gained else
+                    f"Perdiste ${abs(delta):,.0f} dólares y tu portafolio cayó {pct:.1f}%. Revisa el detalle en Nuvos."
                 )
 
             await send_push(
