@@ -4522,14 +4522,12 @@ async def job_morning_brief():
                 top_events = brief.get("events") or []
 
                 if top_events:
-                    # Each line: "1. Label: impact" when there's a real
-                    # personalized impact, else just "1. Label" — never a
-                    # generic filler when nothing real applies to this user.
-                    def _fmt_event(i: int, ev: dict) -> str:
-                        line = f"{i+1}. {ev['label']}"
-                        return f"{line}: {ev['impact']}" if ev.get("impact") else line
-
-                    events_lines = "\n".join(_fmt_event(i, ev) for i, ev in enumerate(top_events))
+                    # Diego, 2026-08-30: push body shows just the event
+                    # names — the real personalized impact (dividend $,
+                    # earnings YoY, sector exposure) still lives in
+                    # brief["events"][i]["impact"], rendered in the
+                    # full-screen flashcard this push deep-links to.
+                    events_lines = "\n".join(f"{i+1}. {ev['label']}" for i, ev in enumerate(top_events))
                     body = (
                         f"Good morning, {first}\nToday in the markets:\n{events_lines}"
                         if is_en else
