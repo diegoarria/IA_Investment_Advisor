@@ -177,7 +177,28 @@ export default function OnboardingPage() {
 
   // ── Steps ────────────────────────────────────────────────────────────────────
   const STEPS = [
-    // 0 — Nombre + fecha de nacimiento (obligatorio)
+    // 0 — Intro: qué es Nuvos, antes de pedir cualquier dato. Feedback de
+    // usuario (2026-08-29): "le gustó mucho la app, pero no entendió de qué
+    // se trataba" — repite literalmente el ancla del login ("Decide mejor.")
+    // en vez de ir directo a pedir nombre/fecha de nacimiento sin contexto.
+    {
+      subtitle: t("onboarding.stepIntro.subtitle"),
+      title: t("onboarding.stepIntro.title"),
+      valid: () => true,
+      content: (
+        <div className="space-y-4">
+          <p className="text-sm leading-relaxed" style={{ color: "var(--sub)" }}>
+            {t("onboarding.stepIntro.body")}
+          </p>
+          <div className="rounded-xl px-4 py-3" style={{ background: "rgba(0,185,109,0.08)", border: "1px solid rgba(0,185,109,0.25)" }}>
+            <p className="text-xs leading-relaxed" style={{ color: "var(--text)" }}>
+              {t("onboarding.stepIntro.footnote")}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    // 1 — Nombre + fecha de nacimiento (obligatorio)
     {
       subtitle: t("onboarding.step0.subtitle"),
       title: t("onboarding.step0.title"),

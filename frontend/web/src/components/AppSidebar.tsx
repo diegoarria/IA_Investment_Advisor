@@ -294,6 +294,9 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
             <span className="text-[13px] font-black leading-none" style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               Nuvos AI
             </span>
+            <p className="text-[9.5px] font-bold uppercase tracking-wide mt-0.5" style={{ color: "var(--accent-l)" }}>
+              {t("common.sidebar.eyebrow")}
+            </p>
           </div>
           <button
             onClick={toggleDesktop}

@@ -501,6 +501,19 @@ export default function HomePage() {
     setBeginnerCardDismissed(false);
   };
 
+  // ── Welcome card (first session after onboarding only) ──────────────────
+  // Diego, 2026-08-29: reinforces the same "Decide mejor" anchor from
+  // login/onboarding once more, right when Home is first seen — same
+  // dismiss-forever pattern as beginnerCardDismissed above (simple local
+  // flag, no server sync needed for a one-time reinforcement message).
+  const [welcomeCardDismissed, setWelcomeCardDismissed] = useState(
+    () => typeof window !== "undefined" && localStorage.getItem("nuvos_welcome_card_dismissed") === "1"
+  );
+  const dismissWelcomeCard = () => {
+    localStorage.setItem("nuvos_welcome_card_dismissed", "1");
+    setWelcomeCardDismissed(true);
+  };
+
   // ── Onboarding checklist ─────────────────────────────────────────────────
   const [checklistPermanentlyDone, setChecklistPermanentlyDone] = useState(
     () => typeof window !== "undefined" && localStorage.getItem("nuvos_checklist_done") === "1"
@@ -749,6 +762,37 @@ export default function HomePage() {
           </div>
 
           <div className="px-6 py-5 space-y-5 max-w-5xl mx-auto">
+
+            {!welcomeCardDismissed && isAuthenticated && (
+              <div className="rounded-2xl border overflow-hidden relative"
+                   style={{ borderColor: "rgba(0,212,126,0.3)", background: "linear-gradient(135deg, rgba(0,185,109,0.08), rgba(0,100,200,0.04))" }}>
+                <button onClick={dismissWelcomeCard}
+                        aria-label={t("common.close")}
+                        className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-lg transition-opacity hover:opacity-70"
+                        style={{ color: "var(--muted)" }}>
+                  <X className="w-4 h-4" />
+                </button>
+                <div className="px-5 py-4 pr-12 flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                       style={{ background: "rgba(0,185,109,0.14)" }}>
+                    <Sparkles className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-black mb-0.5" style={{ color: "var(--text)" }}>
+                      {t("home.welcomeCard.title")}
+                    </p>
+                    <p className="text-xs leading-relaxed mb-2.5" style={{ color: "var(--sub)" }}>
+                      {t("home.welcomeCard.body")}
+                    </p>
+                    <button onClick={() => router.push("/chat")}
+                            className="text-xs font-bold transition-opacity hover:opacity-80"
+                            style={{ color: "var(--accent-l)" }}>
+                      {t("home.welcomeCard.cta")} →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <MorningBriefCard />
 

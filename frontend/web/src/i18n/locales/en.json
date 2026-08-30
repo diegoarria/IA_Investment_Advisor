@@ -47,6 +47,9 @@
     "logout": "Log out",
     "openSidebar": "Open sidebar",
     "closeSidebar": "Close sidebar",
+    "sidebar": {
+      "eyebrow": "to decide better"
+    },
     "openMenu": "Open menu",
     "close": "Close",
     "cancel": "Cancel",
@@ -96,6 +99,11 @@
     }
   },
   "home": {
+    "welcomeCard": {
+      "title": "Decide better.",
+      "body": "Nuvos exists to help you understand your money, discover good opportunities, and choose where to put it, with clarity and confidence.",
+      "cta": "Talk to Arthur"
+    },
     "greeting": {
       "morning": "Good morning",
       "afternoon": "Good afternoon",
@@ -2259,7 +2267,7 @@
       "speculative": "Speculative"
     },
     "riskAssessmentTitle": "Risk assessment",
-    "defaultMentorTitle": "I'm Arthur, your mentor for building wealth.",
+    "defaultMentorTitle": "I'm Arthur — I help you decide better with your money.",
     "objectiveGreeting": {
       "protect": "I see you're focused on protecting your capital. Solid place to start. Where would you like to begin?",
       "grow": "Your goal is to grow your money long term. It's the most solid approach. What's on your mind?",
@@ -4088,6 +4096,12 @@
       "es": "Spain",
       "other": "Other country"
     },
+    "stepIntro": {
+      "subtitle": "WHAT IS NUVOS?",
+      "title": "Decide better.",
+      "body": "Understand your money, discover good opportunities, and choose where to put it. Nuvos helps you make better decisions with clarity and confidence.",
+      "footnote": "In the next steps we'll get to know you a little — none of this is a test, just the basics to get started."
+    },
     "step0": {
       "subtitle": "WELCOME",
       "title": "Hi! Tell us about yourself",
@@ -4188,8 +4202,8 @@
         "financialFreedom": "financial freedom",
         "longTermWealth": "building long-term wealth"
       },
-      "messageWithGoal": "Welcome to Nuvos, **{{name}}**! 🎉\n\nI see your goal is **{{goal}}** — let's work together to get you there.\n\nAs we talk, I'll get to know you better: your experience, your financial situation, your questions. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**",
-      "messageNoGoal": "Welcome to Nuvos, **{{name}}**! 🎉\n\nAs we talk, I'll get to know you better: your experience, your financial situation, your goals. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**"
+      "messageWithGoal": "**Decide better.** That's what Nuvos is for — to help you understand your money, discover good opportunities, and choose where to put it, with clarity and confidence.\n\nWelcome, **{{name}}**! 🎉 I see your goal is **{{goal}}** — let's work together to get you there.\n\nAs we talk, I'll get to know you better: your experience, your financial situation, your questions. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**",
+      "messageNoGoal": "**Decide better.** That's what Nuvos is for — to help you understand your money, discover good opportunities, and choose where to put it, with clarity and confidence.\n\nWelcome, **{{name}}**! 🎉 As we talk, I'll get to know you better: your experience, your financial situation, your goals. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**"
     }
   },
   "weeklyRitual": {

@@ -51,6 +51,7 @@
       "support": "Soporte"
     },
     "sidebar": {
+      "eyebrow": "para decidir mejor",
       "tagline": "Tu asesor IA",
       "free": "Free",
       "premium": "Premium",
@@ -77,6 +78,11 @@
     "close": "Cerrar"
   },
   "home": {
+    "welcomeCard": {
+      "title": "Decide mejor.",
+      "body": "Nuvos existe para ayudarte a entender tu dinero, descubrir buenas oportunidades y elegir dónde ponerlo, con claridad y confianza.",
+      "cta": "Habla con Arthur"
+    },
     "greeting": {
       "morning": "Buenos días",
       "afternoon": "Buenas tardes",
@@ -2158,7 +2164,7 @@
     "mentorAiFallback": "Arthur",
     "nuvosAi": "Nuvos AI",
     "you": "Tú",
-    "mentorSub": "Soy Arthur, tu mentor para construir patrimonio.",
+    "mentorSub": "Soy Arthur — te ayudo a decidir mejor con tu dinero.",
     "positionsCount": "💼 {{count}} posiciones",
     "msgRemaining": "{{count}} msg restantes",
     "suggestedQuestions": "Preguntas sugeridas",
@@ -2609,6 +2615,11 @@
       "welcomeSub": "Agendaremos una sesión 1:1 con un experto de nuestro equipo para ayudarte a empezar con el pie derecho."
     },
     "startButton": "¡Comenzar!",
+    "stepIntro": {
+      "title": "Decide mejor.",
+      "sub": "Entiende tu dinero, descubre buenas oportunidades y elige dónde ponerlo. Nuvos te ayuda a tomar mejores decisiones con claridad y confianza.",
+      "footnote": "En los próximos pasos te conocemos un poco — nada de esto es un examen, solo lo básico para empezar."
+    },
     "step0": {
       "ageHint": "Debes tener al menos 18 años para usar Nuvos AI.",
       "birthDate": "Fecha de nacimiento",
@@ -2757,7 +2768,11 @@
       "understandPrefix": "Entiendo que Nuvos AI es educativa y",
       "understandSuffix": "Soy responsable de mis propias decisiones de inversión."
     },
-    "stepCounter": "Paso {{current}} de {{total}}"
+    "stepCounter": "Paso {{current}} de {{total}}",
+    "welcome": {
+      "messageWithGoal": "**Decide mejor.** Para eso existe Nuvos — para ayudarte a entender tu dinero, descubrir buenas oportunidades y elegir dónde ponerlo, con claridad y confianza.\n\n¡Bienvenido, **{{name}}**! 🎉 Veo que tu meta es **{{goal}}** — vamos a trabajar juntos para lograrlo.\n\nConforme platiquemos te voy a ir conociendo mejor: tu experiencia, tu situación financiera, tus dudas. No hay prisa ni cuestionario — solo cuéntame lo que se te vaya ocurriendo.\n\n**¿Por dónde quieres empezar?**",
+      "messageNoGoal": "**Decide mejor.** Para eso existe Nuvos — para ayudarte a entender tu dinero, descubrir buenas oportunidades y elegir dónde ponerlo, con claridad y confianza.\n\n¡Bienvenido, **{{name}}**! 🎉 Conforme platiquemos te voy a ir conociendo mejor: tu experiencia, tu situación financiera, tus metas. No hay prisa ni cuestionario — solo cuéntame lo que se te vaya ocurriendo.\n\n**¿Por dónde quieres empezar?**"
+    }
   },
   "streakMilestoneModal": {
     "daysStreak": "{{days}} días de racha",

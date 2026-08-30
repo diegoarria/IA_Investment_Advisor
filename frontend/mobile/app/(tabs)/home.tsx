@@ -839,10 +839,20 @@ export default function HomeScreen() {
 
   const [checklistPermanentlyDone, setChecklistPermanentlyDone] = useState(false);
   const [opportunityViewed, setOpportunityViewed] = useState(false);
+  // Diego, 2026-08-29: reinforces the "Decide mejor" anchor once more, the
+  // first time Home is seen after onboarding — same dismiss-forever pattern
+  // as the checklist above (local flag only, no server sync needed for a
+  // one-time reinforcement message). Mirrors web's home/page.tsx.
+  const [welcomeCardDismissed, setWelcomeCardDismissed] = useState(false);
   useEffect(() => {
     AsyncStorage.getItem("nuvos_checklist_done").then((v) => { if (v === "1") setChecklistPermanentlyDone(true); });
     AsyncStorage.getItem("nuvos_opportunity_viewed").then((v) => { if (v === "1") setOpportunityViewed(true); });
+    AsyncStorage.getItem("nuvos_welcome_card_dismissed").then((v) => { if (v === "1") setWelcomeCardDismissed(true); });
   }, []);
+  const dismissWelcomeCard = () => {
+    AsyncStorage.setItem("nuvos_welcome_card_dismissed", "1");
+    setWelcomeCardDismissed(true);
+  };
   // Restore checklist_done from server so a fresh device/reinstall doesn't resurface it
   useEffect(() => {
     syncApi.getAll().then((res: any) => {
@@ -1052,6 +1062,39 @@ export default function HomeScreen() {
             tintColor={colors.accentLight} colors={[colors.accentLight]} />
         }
       >
+        {!welcomeCardDismissed && (
+          <View style={{
+            marginHorizontal: 16, marginBottom: 12, borderRadius: 16, overflow: "hidden",
+            borderWidth: 1, borderColor: "rgba(0,212,126,0.3)", backgroundColor: colors.card,
+          }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14, paddingRight: 40 }}>
+              <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: "rgba(0,212,126,0.14)", alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name="sparkles" size={17} color={colors.accentLight} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13.5, fontWeight: "800", color: colors.text, marginBottom: 2 }}>
+                  {t("home.welcomeCard.title")}
+                </Text>
+                <Text style={{ fontSize: 12, lineHeight: 17, color: colors.textSub, marginBottom: 8 }}>
+                  {t("home.welcomeCard.body")}
+                </Text>
+                <TouchableOpacity onPress={() => router.push("/(tabs)/chat")}>
+                  <Text style={{ fontSize: 12.5, fontWeight: "800", color: colors.accentLight }}>
+                    {t("home.welcomeCard.cta")} →
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <TouchableOpacity
+              onPress={dismissWelcomeCard}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={{ position: "absolute", top: 10, right: 10, width: 26, height: 26, alignItems: "center", justifyContent: "center" }}
+            >
+              <Ionicons name="close" size={16} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         <MorningBriefCard style={{ marginHorizontal: 16, marginBottom: 12 }} />
         <PersonalizedMessageBanner style={{ marginHorizontal: 16, marginBottom: 12 }} />
 

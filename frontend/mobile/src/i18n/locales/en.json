@@ -51,6 +51,7 @@
       "support": "Support"
     },
     "sidebar": {
+      "eyebrow": "to decide better",
       "tagline": "Your AI advisor",
       "free": "Free",
       "premium": "Premium",
@@ -77,6 +78,11 @@
     "close": "Close"
   },
   "home": {
+    "welcomeCard": {
+      "title": "Decide better.",
+      "body": "Nuvos exists to help you understand your money, discover good opportunities, and choose where to put it, with clarity and confidence.",
+      "cta": "Talk to Arthur"
+    },
     "greeting": {
       "morning": "Good morning",
       "afternoon": "Good afternoon",
@@ -2158,7 +2164,7 @@
     "mentorAiFallback": "Arthur",
     "nuvosAi": "Nuvos AI",
     "you": "You",
-    "mentorSub": "I'm Arthur, your mentor for building wealth.",
+    "mentorSub": "I'm Arthur — I help you decide better with your money.",
     "positionsCount": "💼 {{count}} positions",
     "msgRemaining": "{{count}} msgs left",
     "suggestedQuestions": "Suggested questions",
@@ -2609,6 +2615,11 @@
       "welcomeSub": "We'll schedule a 1:1 session with an expert from our team to help you start off on the right foot."
     },
     "startButton": "Let's start!",
+    "stepIntro": {
+      "title": "Decide better.",
+      "sub": "Understand your money, discover good opportunities, and choose where to put it. Nuvos helps you make better decisions with clarity and confidence.",
+      "footnote": "In the next steps we'll get to know you a little — none of this is a test, just the basics to get started."
+    },
     "step0": {
       "ageHint": "You must be at least 18 years old to use Nuvos AI.",
       "birthDate": "Date of birth",
@@ -2757,7 +2768,11 @@
       "understandPrefix": "I understand Nuvos AI is educational and",
       "understandSuffix": "I'm responsible for my own investment decisions."
     },
-    "stepCounter": "Step {{current}} of {{total}}"
+    "stepCounter": "Step {{current}} of {{total}}",
+    "welcome": {
+      "messageWithGoal": "**Decide better.** That's what Nuvos is for — to help you understand your money, discover good opportunities, and choose where to put it, with clarity and confidence.\n\nWelcome, **{{name}}**! 🎉 I see your goal is **{{goal}}** — let's work together to get you there.\n\nAs we talk, I'll get to know you better: your experience, your financial situation, your questions. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**",
+      "messageNoGoal": "**Decide better.** That's what Nuvos is for — to help you understand your money, discover good opportunities, and choose where to put it, with clarity and confidence.\n\nWelcome, **{{name}}**! 🎉 As we talk, I'll get to know you better: your experience, your financial situation, your goals. No rush, no questionnaire — just tell me whatever comes up.\n\n**Where would you like to start?**"
+    }
   },
   "streakMilestoneModal": {
     "daysStreak": "{{days}} day streak",

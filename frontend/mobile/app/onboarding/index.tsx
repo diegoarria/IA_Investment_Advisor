@@ -15,6 +15,7 @@ import { useLanguage } from "../../src/lib/LanguageContext";
 import type { TFunction } from "i18next";
 import { useAppStore } from "../../src/lib/profileStore";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
+import { useChatStore } from "../../src/lib/chatStore";
 
 // E.164 dial codes for the phone step.
 function getDialCodes(t: TFunction) {
@@ -162,7 +163,24 @@ export default function OnboardingScreen() {
 
   // ── All steps ──────────────────────────────────────────────────────────────
   const STEPS = [
-    // 0 — Nombre + Fecha de nacimiento (obligatorio)
+    // 0 — Intro: qué es Nuvos, antes de pedir cualquier dato. Feedback de
+    // usuario (2026-08-29): "le gustó mucho la app, pero no entendió de qué
+    // se trataba" — repite literalmente el ancla del login ("Decide mejor.")
+    // en vez de ir directo a pedir nombre/fecha de nacimiento sin contexto.
+    {
+      emoji: "🧭",
+      title: t("onboarding.stepIntro.title"),
+      sub: t("onboarding.stepIntro.sub"),
+      isValid: () => true,
+      content: (
+        <View style={{ backgroundColor: "rgba(0,212,126,0.06)", borderWidth: 1.5, borderColor: "rgba(0,212,126,0.3)", borderRadius: 16, padding: 16 }}>
+          <Text style={{ fontSize: 13, color: "#d1d5db", lineHeight: 20 }}>
+            {t("onboarding.stepIntro.footnote")}
+          </Text>
+        </View>
+      ),
+    },
+    // 1 — Nombre + Fecha de nacimiento (obligatorio)
     {
       emoji: "👋",
       title: t("onboarding.step0.title"),
@@ -443,6 +461,21 @@ export default function OnboardingScreen() {
       // created (see backend profile.py) — refresh subscription status now
       // that it's actually confirmed created.
       useSubscriptionStore.getState().fetchStatus().catch(() => {});
+
+      // ── Inyectar mensaje de bienvenida del mentor en el chat ────────────
+      // Mirrors web's onboarding/page.tsx — the onboarding is short on
+      // purpose (Arthur doesn't know the user's risk profile/broker/numbers
+      // yet), so the welcome message says so explicitly, opening with the
+      // same anchor line as the login screen instead of going straight into
+      // portfolio questions.
+      const goalLabel = form.investment_goal ? (GOALS.find((g) => g.value === form.investment_goal)?.label ?? "") : "";
+      const welcomeMsg = goalLabel
+        ? t("onboarding.welcome.messageWithGoal", { name: firstName, goal: goalLabel })
+        : t("onboarding.welcome.messageNoGoal", { name: firstName });
+      const chat = useChatStore.getState();
+      chat.createSession();
+      chat.setMessages([{ role: "assistant", content: welcomeMsg, timestamp: Date.now() }]);
+
       posthog.capture("onboarding_completed", {
         investment_goal: form.investment_goal || null,
         market_perception: form.market_perception,

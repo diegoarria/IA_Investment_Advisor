@@ -47,6 +47,9 @@
     "logout": "Cerrar sesión",
     "openSidebar": "Abrir sidebar",
     "closeSidebar": "Cerrar sidebar",
+    "sidebar": {
+      "eyebrow": "para decidir mejor"
+    },
     "openMenu": "Abrir menú",
     "close": "Cerrar",
     "cancel": "Cancelar",
@@ -96,6 +99,11 @@
     }
   },
   "home": {
+    "welcomeCard": {
+      "title": "Decide mejor.",
+      "body": "Nuvos existe para ayudarte a entender tu dinero, descubrir buenas oportunidades y elegir dónde ponerlo, con claridad y confianza.",
+      "cta": "Habla con Arthur"
+    },
     "greeting": {
       "morning": "Buenos días",
       "afternoon": "Buenas tardes",
@@ -2259,7 +2267,7 @@
       "speculative": "Especulativo"
     },
     "riskAssessmentTitle": "Evaluación de riesgo",
-    "defaultMentorTitle": "Soy Arthur, tu mentor para construir patrimonio.",
+    "defaultMentorTitle": "Soy Arthur — te ayudo a decidir mejor con tu dinero.",
     "objectiveGreeting": {
       "protect": "Veo que priorizas proteger tu capital. Buena base para empezar. ¿Por dónde quieres comenzar?",
       "grow": "Tu objetivo es hacer crecer tu dinero a largo plazo. Es el enfoque más sólido. ¿Qué tienes en mente?",
@@ -4088,6 +4096,12 @@
       "es": "España",
       "other": "Otro país"
     },
+    "stepIntro": {
+      "subtitle": "¿QUÉ ES NUVOS?",
+      "title": "Decide mejor.",
+      "body": "Entiende tu dinero, descubre buenas oportunidades y elige dónde ponerlo. Nuvos te ayuda a tomar mejores decisiones con claridad y confianza.",
+      "footnote": "En los próximos pasos te conocemos un poco — nada de esto es un examen, solo lo básico para empezar."
+    },
     "step0": {
       "subtitle": "BIENVENIDO",
       "title": "¡Hola! Cuéntanos sobre ti",
@@ -4188,8 +4202,8 @@
         "financialFreedom": "libertad financiera",
         "longTermWealth": "construir patrimonio a largo plazo"
       },
-      "messageWithGoal": "¡Bienvenido a Nuvos, **{{name}}**! 🎉\n\nVeo que tu meta es **{{goal}}** — vamos a trabajar juntos para lograrlo.\n\nConforme platiquemos te voy a ir conociendo mejor: tu experiencia, tu situación financiera, tus dudas. No hay prisa ni cuestionario — solo cuéntame lo que se te vaya ocurriendo.\n\n**¿Por dónde quieres empezar?**",
-      "messageNoGoal": "¡Bienvenido a Nuvos, **{{name}}**! 🎉\n\nConforme platiquemos te voy a ir conociendo mejor: tu experiencia, tu situación financiera, tus metas. No hay prisa ni cuestionario — solo cuéntame lo que se te vaya ocurriendo.\n\n**¿Por dónde quieres empezar?**"
+      "messageWithGoal": "**Decide mejor.** Para eso existe Nuvos — para ayudarte a entender tu dinero, descubrir buenas oportunidades y elegir dónde ponerlo, con claridad y confianza.\n\n¡Bienvenido, **{{name}}**! 🎉 Veo que tu meta es **{{goal}}** — vamos a trabajar juntos para lograrlo.\n\nConforme platiquemos te voy a ir conociendo mejor: tu experiencia, tu situación financiera, tus dudas. No hay prisa ni cuestionario — solo cuéntame lo que se te vaya ocurriendo.\n\n**¿Por dónde quieres empezar?**",
+      "messageNoGoal": "**Decide mejor.** Para eso existe Nuvos — para ayudarte a entender tu dinero, descubrir buenas oportunidades y elegir dónde ponerlo, con claridad y confianza.\n\n¡Bienvenido, **{{name}}**! 🎉 Conforme platiquemos te voy a ir conociendo mejor: tu experiencia, tu situación financiera, tus metas. No hay prisa ni cuestionario — solo cuéntame lo que se te vaya ocurriendo.\n\n**¿Por dónde quieres empezar?**"
     }
   },
   "weeklyRitual": {
