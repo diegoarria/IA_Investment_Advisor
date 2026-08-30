@@ -847,11 +847,13 @@ def _market_open_lines(sp500_pct, sp500_points, nasdaq_pct, nasdaq_points, langu
 
 async def job_futures_weekly_push():
     """Sunday 7:05 PM ET — index futures just came online for the week (see
-    market.py's _market_session, futures window starts Sun 7pm ET). One flat
-    broadcast, same copy for free and premium (futures are index-level, not
-    a portfolio insight, so there's nothing to gate behind Premium here).
-    Reuses push_market_open as the opt-out toggle — same "market open/closed
-    status" category as job_market_open, just the weekly futures variant."""
+    market.py's _market_session, futures window starts Sun 7pm ET). Free
+    users get the flat "check it out" copy; Premium users get the real S&P
+    500 / Nasdaq futures % right in the notification (Diego, 2026-08-30:
+    same push, but Premium sees "S&P 500 Futuros: +0.38%, Nasdaq Futuros:
+    +0.68%" with real numbers). Reuses push_market_open as the opt-out
+    toggle — same "market open/closed status" category as job_market_open,
+    just the weekly futures variant."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     db = get_supabase()
@@ -880,17 +882,49 @@ async def job_futures_weekly_push():
         if not uids:
             return
 
+        profiles_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,subscription_tier,trial_started_at,streak_bonus_premium_until")
+            .in_("user_id", uids)
+        )
+        premium_map = {
+            r["user_id"]: _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at"), r.get("streak_bonus_premium_until"))
+            for r in (profiles_res.data or [])
+        }
+
+        # Real S&P 500 / Nasdaq futures % — same source the app itself shows
+        # (market.py's _fetch_indices, session is already "futures" at this
+        # hour). None if Yahoo/Finnhub both fail today — Premium copy falls
+        # back to the free flat line rather than showing a broken "None%".
+        sp_fut_pct = nq_fut_pct = None
+        try:
+            from app.api.routes.market import _fetch_indices
+            indices = await asyncio.to_thread(_fetch_indices)
+            by_symbol = {i["symbol"]: i for i in indices}
+            sp_fut_pct = (by_symbol.get("^GSPC") or {}).get("futures_change_pct")
+            nq_fut_pct = (by_symbol.get("^IXIC") or {}).get("futures_change_pct")
+        except Exception as e:
+            logger.warning("job_futures_weekly_push: futures fetch failed: %s", e)
+
         sent = 0
         for i, uid in enumerate(uids):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.1))
 
-            is_en = (lang_map.get(uid) or "es") == "en"
+            is_en      = (lang_map.get(uid) or "es") == "en"
+            is_premium = premium_map.get(uid, False)
             title = "📊 Futures available" if is_en else "📊 Futuros disponibles"
-            body  = ("How does the market look this week? See Futures →"
-                      if is_en else
-                      "¿Cómo viene el mercado esta semana? Ver Futuros →")
+            if is_premium and sp_fut_pct is not None and nq_fut_pct is not None:
+                sp_str = f"{'+' if sp_fut_pct >= 0 else ''}{sp_fut_pct:.2f}%"
+                nq_str = f"{'+' if nq_fut_pct >= 0 else ''}{nq_fut_pct:.2f}%"
+                body = (f"S&P 500 Futures: {sp_str} · Nasdaq Futures: {nq_str}"
+                        if is_en else
+                        f"S&P 500 Futuros: {sp_str} · Nasdaq Futuros: {nq_str}")
+            else:
+                body = ("How does the market look this week? See Futures →"
+                          if is_en else
+                          "¿Cómo viene el mercado esta semana? Ver Futuros →")
             await send_push(uid, "futures_weekly", title, body, {"screen": "home"}, db)
             sent += 1
         logger.info("Futures weekly push: %d sent", sent)
