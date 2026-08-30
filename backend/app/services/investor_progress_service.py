@@ -203,15 +203,25 @@ def _check_first_investment(ctx: dict) -> dict | None:
     }
 
 
-def _check_first_year(ctx: dict) -> dict | None:
+def _check_anniversary(ctx: dict) -> dict | None:
+    """Repeatable — the account's Nth investing anniversary, every year
+    since inception, not just the first. Diego, 2026-08-30: "que el
+    aniversario sea cada año, no solo 1 vez, y le digas al usuario
+    cuantos años tiene con nosotros" (was _check_first_year, a one-time-
+    only check that never fired again after year 1). Keyed per year
+    number (anniversary_1, anniversary_2, ...) so each year is
+    independently idempotent — same per-key-value pattern _check_new_ath
+    already uses for its per-date key, just per-year here."""
     days = ctx["days_since_inception"]
     if days is None or days < 365:
         return None
+    years = days // 365
+    label = "Un año" if years == 1 else f"{years} años"
     return {
-        "key": "first_year_investing",
+        "key": f"anniversary_{years}",
         "event_type": "milestone",
-        "title": "Un año invirtiendo",
-        "description": "Cumpliste un año completo invirtiendo con Nuvos AI.",
+        "title": f"{label} invirtiendo",
+        "description": f"Cumpliste {label.lower()} invirtiendo con Nuvos AI.",
     }
 
 
@@ -255,7 +265,6 @@ def _check_new_ath(ctx: dict) -> dict | None:
 
 _ONE_TIME_CHECKS = [
     _check_first_investment,
-    _check_first_year,
     _check_ops_100,
     _make_patrimonio_check(10_000, "patrimonio_10k", "$10,000"),
     _make_patrimonio_check(100_000, "patrimonio_100k", "$100,000"),
@@ -263,6 +272,7 @@ _ONE_TIME_CHECKS = [
 
 _REPEATABLE_CHECKS = [
     _check_new_ath,
+    _check_anniversary,
 ]
 
 
