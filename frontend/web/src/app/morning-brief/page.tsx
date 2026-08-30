@@ -11,7 +11,7 @@ import { morningBriefFullApi } from "@/lib/api";
 
 interface TopMover { ticker: string; change_pct: number; impact_usd: number; }
 interface NewsItem { ticker: string; headline: string; category: string | null; }
-interface EventItem { time_et: string | null; label: string; impact: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW"; type: string; }
+interface EventItem { type: string; ticker: string | null; label: string; impact: string | null; }
 interface MorningBriefData {
   is_premium: true;
   portfolio_value: number;
@@ -33,8 +33,6 @@ interface MorningBriefTeaser {
 
 const fmtUsd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-
-const IMPACT_DOT: Record<string, string> = { VERY_HIGH: "🔴", HIGH: "🔴", MEDIUM: "🟡", LOW: "⚪" };
 
 export default function MorningBriefPage() {
   const { t } = useTranslation();
@@ -143,10 +141,11 @@ export default function MorningBriefPage() {
                         </p>
                         <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "var(--border)" }}>
                           {data.events.map((e, i) => (
-                            <div key={i} className="px-3 py-2 flex items-center gap-2" style={{ background: "var(--card)", borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
-                              <span className="text-[13px]">{IMPACT_DOT[e.impact] || "⚪"}</span>
-                              <span className="text-[11px] font-bold shrink-0" style={{ color: "var(--muted)" }}>{e.time_et || "—"}</span>
-                              <span className="text-[12px]" style={{ color: "var(--text)" }}>{e.label}</span>
+                            <div key={i} className="px-3 py-2.5" style={{ background: "var(--card)", borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
+                              <p className="text-[12.5px] font-bold" style={{ color: "var(--text)" }}>{i + 1}. {e.label}</p>
+                              {e.impact && (
+                                <p className="text-[11.5px] leading-relaxed mt-1" style={{ color: "var(--sub)" }}>{e.impact}</p>
+                              )}
                             </div>
                           ))}
                         </div>

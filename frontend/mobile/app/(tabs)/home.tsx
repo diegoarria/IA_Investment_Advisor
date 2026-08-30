@@ -31,6 +31,7 @@ import MorningBriefCard from "../../src/components/MorningBriefCard";
 import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
 import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore";
 import ExplainButton from "../../src/components/ExplainButton";
+import { isDismissedToday, dismissToday } from "../../src/lib/dailyDismiss";
 
 // ── Sparkline helpers ─────────────────────────────────────────────────────────
 function sparkPath(prices: number[], w: number, h: number, close = false): string {
@@ -852,6 +853,25 @@ export default function HomeScreen() {
     AsyncStorage.setItem("nuvos_welcome_card_dismissed", "1");
     setWelcomeCardDismissed(true);
   };
+
+  // ── Morning Brief full flashcard — auto-open once per day ────────────────
+  // Diego, 2026-08-30: "que abarquen gran parte de la pantalla... cuando se
+  // inicie sesión, se haga refresh o así aparezca 1 sola vez al día." Marks
+  // itself seen the moment it navigates (not on close/return), so reopening
+  // the app 5 minutes later doesn't loop back into it — same daily-reset
+  // dismiss helper MorningBriefCard already uses, different key so the two
+  // features don't share state.
+  useEffect(() => {
+    if (!isPremium) return;
+    const MORNING_BRIEF_FLASHCARD_KEY = "nuvos_morning_brief_flashcard_seen";
+    isDismissedToday(MORNING_BRIEF_FLASHCARD_KEY).then((seen) => {
+      if (seen) return;
+      dismissToday(MORNING_BRIEF_FLASHCARD_KEY);
+      router.push("/morning-brief" as any);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPremium]);
+
   // Restore checklist_done from server so a fresh device/reinstall doesn't resurface it
   useEffect(() => {
     syncApi.getAll().then((res: any) => {

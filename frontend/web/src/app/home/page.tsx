@@ -25,6 +25,7 @@ import { useFxRate } from "@/lib/useFxRate";
 import { isNYSEOpen } from "@/lib/marketHours";
 import { registerWebPush } from "@/lib/webPush";
 import { getUserLevel } from "@/lib/userLevel";
+import { isDismissedToday, dismissToday } from "@/lib/dailyDismiss";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -512,6 +513,22 @@ export default function HomePage() {
     localStorage.setItem("nuvos_welcome_card_dismissed", "1");
     setWelcomeCardDismissed(true);
   };
+
+  // ── Morning Brief full flashcard — auto-open once per day ────────────────
+  // Diego, 2026-08-30: "que abarquen gran parte de la pantalla... cuando se
+  // inicie sesión, se haga refresh o así aparezca 1 sola vez al día." Marks
+  // itself seen the moment it navigates (not on close/return), so a refresh
+  // 5 seconds later doesn't loop back into it — same daily-reset dismiss
+  // helper MorningBriefCard already uses, different key so the two features
+  // don't share state.
+  const MORNING_BRIEF_FLASHCARD_KEY = "nuvos_morning_brief_flashcard_seen";
+  useEffect(() => {
+    if (!isPremium || !isAuthenticated) return;
+    if (isDismissedToday(MORNING_BRIEF_FLASHCARD_KEY)) return;
+    dismissToday(MORNING_BRIEF_FLASHCARD_KEY);
+    router.push("/morning-brief");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPremium, isAuthenticated]);
 
   // ── Onboarding checklist ─────────────────────────────────────────────────
   const [checklistPermanentlyDone, setChecklistPermanentlyDone] = useState(

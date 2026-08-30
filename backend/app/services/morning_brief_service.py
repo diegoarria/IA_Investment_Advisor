@@ -32,6 +32,7 @@ ever carries `{"screen": "morning-brief"}`.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from datetime import datetime, timedelta, timezone
@@ -226,69 +227,316 @@ async def _top_news_for_positions(tickers: list[str], lang: str = "es") -> list[
     return top
 
 
-def _todays_earnings_hours() -> dict[str, str]:
-    """Real Finnhub earnings calendar for today — {ticker: "BMO"|"AMC"|"DMT"}.
-    Same endpoint/shape as worker.py's _finnhub_earnings_today, duplicated
-    here (not imported — worker.py is a standalone script) since this
-    only needs the hour, not the full EPS/revenue beat-analysis shape."""
+
+# Real Dow Jones Industrial Average constituents — an objective, real "30
+# most systemically important US companies" set (not an arbitrary pick),
+# scanned for today's earnings/dividend events instead of hitting Finnhub
+# for the full 928-ticker S&P 500 UNIVERSE every morning. Diego, 2026-08-30.
+_MORNING_BRIEF_MEGACAPS = [
+    "AAPL", "AMGN", "AMZN", "AXP", "BA", "CAT", "CRM", "CSCO", "CVX", "DIS",
+    "GS", "HD", "HON", "IBM", "JNJ", "JPM", "KO", "MCD", "MMM", "MRK",
+    "MSFT", "NKE", "NVDA", "PG", "SHW", "TRV", "UNH", "V", "VZ", "WMT",
+]
+
+# Sectors whose valuations/earnings historically move more on rate
+# decisions (higher-duration cash flows, more debt-financed growth) — used
+# only to explain REAL portfolio composition sensitivity, never to predict
+# a specific price move. Diego, 2026-08-30: "con datos reales y confiables"
+# — a numeric price forecast for a rate decision that hasn't happened yet
+# would be fabrication, so this stays qualitative and grounded in the
+# user's real sector exposure (see sector_lookup.py) instead.
+_RATE_SENSITIVE_SECTOR_KEYWORDS = (
+    "tecnología", "technology", "software", "semiconductor",
+    "bienes raíces", "real estate", "reit",
+    "consumo discrecional", "consumer discretionary",
+)
+
+
+def _earnings_yoy_real(ticker: str) -> Optional[dict]:
+    """Real quarter-vs-same-quarter-last-year revenue and EPS growth for
+    the most recently REPORTED quarter — built from data sources already
+    integrated elsewhere in this codebase (FMP quarterly income statement
+    via get_financials, Finnhub /stock/earnings quarterly EPS history),
+    just indexed back to the real matching year-ago quarter, which no
+    existing function does. Returns None fields (never a guess) when a
+    real matching prior-year quarter isn't found."""
     import os
     import requests as req_lib
 
-    fh_key = os.getenv("FINNHUB_API_KEY", "")
-    if not fh_key:
-        return {}
-    today_str = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
+    result: dict = {"eps_actual": None, "eps_yoy_pct": None, "revenue_actual": None, "revenue_yoy_pct": None}
+
     try:
-        resp = req_lib.get(
-            "https://finnhub.io/api/v1/calendar/earnings",
-            params={"from": today_str, "to": today_str, "token": fh_key},
-            timeout=10,
-        )
-        resp.raise_for_status()
-        events = resp.json().get("earningsCalendar") or []
+        key = os.getenv("FINNHUB_API_KEY", "")
+        if key:
+            r = req_lib.get("https://finnhub.io/api/v1/stock/earnings", params={"symbol": ticker, "token": key}, timeout=8)
+            items = [it for it in (r.json() or []) if it.get("period") and it.get("actual") is not None]
+            items.sort(key=lambda it: it["period"], reverse=True)
+            if items:
+                latest = items[0]
+                result["eps_actual"] = latest.get("actual")
+                prior = next(
+                    (it for it in items[1:]
+                     if it.get("quarter") == latest.get("quarter") and it.get("year") == (latest.get("year") or 0) - 1),
+                    None,
+                )
+                if prior and prior.get("actual"):
+                    result["eps_yoy_pct"] = round((latest["actual"] - prior["actual"]) / abs(prior["actual"]) * 100, 1)
     except Exception as exc:
-        logger.warning("morning_brief: earnings calendar fetch failed: %s", exc)
-        return {}
-    return {ev["symbol"]: (ev.get("hour") or "").upper() for ev in events if ev.get("symbol")}
+        logger.debug("_earnings_yoy_real(%s): EPS fetch failed: %s", ticker, exc)
 
-
-async def _today_events_for_user(tickers: list[str], lang: str) -> list[dict]:
-    """Macro events (real impact_level already classified by
-    macro_calendar_service) + today's earnings for held positions (HIGH,
-    same as a real macro print — it's the user's own money reporting)."""
-    from app.services.macro_calendar_service import get_macro_events
-
-    events: list[dict] = []
     try:
+        from app.services.financial_data_service import get_financials
+        fin = get_financials(ticker, limit=8)
+        income_q = [row for row in (fin.get("incomeStatement", {}).get("quarterly") or []) if row.get("period") and row.get("Total Revenue") is not None]
+        income_q.sort(key=lambda row: row["period"], reverse=True)
+        if income_q:
+            latest_rev = income_q[0]
+            result["revenue_actual"] = latest_rev.get("Total Revenue")
+            latest_date = datetime.strptime(latest_rev["period"], "%Y-%m-%d").date()
+            prior_rev = min(
+                income_q[1:],
+                key=lambda row: abs((datetime.strptime(row["period"], "%Y-%m-%d").date() - latest_date).days - 365),
+                default=None,
+            )
+            if prior_rev:
+                prior_date = datetime.strptime(prior_rev["period"], "%Y-%m-%d").date()
+                # Only a real YoY match if it's genuinely ~1 year back — never
+                # compares mismatched quarters.
+                if 330 <= abs((latest_date - prior_date).days) <= 400 and prior_rev.get("Total Revenue"):
+                    result["revenue_yoy_pct"] = round(
+                        (latest_rev["Total Revenue"] - prior_rev["Total Revenue"]) / abs(prior_rev["Total Revenue"]) * 100, 1
+                    )
+    except Exception as exc:
+        logger.debug("_earnings_yoy_real(%s): revenue fetch failed: %s", ticker, exc)
+
+    if result["eps_actual"] is None and result["revenue_actual"] is None:
+        return None
+    return result
+
+
+async def _top_market_events_today(lang: str = "es") -> list[dict]:
+    """Real, market-wide top-3 events for today — NOT scoped to any one
+    user's holdings. Cached once per ET trading day and reused across
+    every Premium user's push/flashcard (single computation, not per
+    user). Diego, 2026-08-30.
+
+    Combines: macro events today (FOMC/CPI/NFP/GDP — already
+    impact-classified by macro_calendar_service), plus earnings/dividend
+    events today for the real Dow 30 (_MORNING_BRIEF_MEGACAPS). Ranked
+    macro VERY_HIGH/HIGH > earnings > dividend > macro MEDIUM/LOW,
+    deduped, capped at 3 — never padded when fewer real events exist."""
+    from app.core.cache import cache_get, cache_set
+    import zoneinfo
+    today_et = datetime.now(zoneinfo.ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+
+    cache_key = f"morning_brief_top_events:{lang}:{today_et}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    candidates: list[tuple[int, dict]] = []
+
+    try:
+        from app.services.macro_calendar_service import get_macro_events
         macro = await get_macro_events(days_ahead=0, lang=lang)
         for e in macro:
             if e.get("status") != "today":
                 continue
-            events.append({
-                "time_et": e.get("time_et"),
-                "label": e.get("event_name") or e.get("event_type"),
-                "impact": (e.get("impact_level") or "LOW").upper(),
-                "type": "macro",
-            })
+            impact = (e.get("impact_level") or "LOW").upper()
+            rank = 0 if impact in ("VERY_HIGH", "HIGH") else (3 if impact == "MEDIUM" else 4)
+            label = e.get("event_name") or e.get("event_type")
+            if label:
+                candidates.append((rank, {"type": "macro", "ticker": None, "label": label}))
     except Exception as exc:
-        logger.warning("morning_brief: get_macro_events failed: %s", exc)
+        logger.warning("_top_market_events_today: get_macro_events failed: %s", exc)
 
     try:
-        held = set(tickers)
-        if held:
-            for symbol, hour in _todays_earnings_hours().items():
-                if symbol in held:
-                    events.append({
-                        "time_et": {"BMO": "09:00", "AMC": "16:30"}.get(hour, None),
-                        "label": f"Earnings de {symbol}" if lang != "en" else f"{symbol} earnings",
-                        "impact": "HIGH",
-                        "type": "earnings",
-                    })
+        from app.api.routes.earnings import _fetch_earnings_calendar
+        today_str = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
+        calendar = await asyncio.to_thread(_fetch_earnings_calendar, _MORNING_BRIEF_MEGACAPS)
+        for ev in calendar:
+            if ev.get("event_date") != today_str:
+                continue
+            ticker = ev.get("ticker")
+            if not ticker:
+                continue
+            if ev.get("event_type") == "earnings":
+                reported = ev.get("eps_actual") is not None
+                yoy = _earnings_yoy_real(ticker) if reported else None
+                event = {"type": "earnings", "ticker": ticker, "reported": reported, **(yoy or {})}
+                candidates.append((1, event))
+            elif ev.get("event_type") == "dividend":
+                candidates.append((2, {"type": "dividend", "ticker": ticker}))
     except Exception as exc:
-        logger.warning("morning_brief: earnings calendar fetch failed: %s", exc)
+        logger.warning("_top_market_events_today: earnings/dividend calendar failed: %s", exc)
 
-    events.sort(key=lambda e: (e.get("time_et") is None, e.get("time_et") or ""))
-    return events
+    candidates.sort(key=lambda c: c[0])
+    seen: set[str] = set()
+    top3: list[dict] = []
+    for _, event in candidates:
+        dedup_key = f"{event['type']}:{event.get('ticker') or event.get('label')}"
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        top3.append(event)
+        if len(top3) == 3:
+            break
+
+    cache_set(cache_key, top3, ttl=12 * 3600)
+    return top3
+
+
+async def _event_label_and_impact(event: dict, user_id: str, ticker_shares: dict[str, float], ticker_value: dict[str, float], sector_pct: dict[str, float], lang: str, db) -> dict:
+    """Real label + (when grounded in real data) a personalized impact
+    line for one event. Never fabricates a number — omits the impact
+    field entirely when there's nothing real to say."""
+    is_en = lang == "en"
+    ticker = event.get("ticker")
+    impact: Optional[str] = None
+
+    if event["type"] == "macro":
+        label = event["label"]
+        rate_exposure_pct = sector_pct.get("_rate_sensitive_total", 0)
+        if rate_exposure_pct >= 15:
+            impact = (
+                f"Tienes {rate_exposure_pct:.0f}% de tu portafolio en sectores sensibles a tasas (tecnología, "
+                f"bienes raíces, consumo discrecional) — un recorte de tasas suele beneficiarlos, una postura "
+                f"más restrictiva suele presionarlos."
+                if not is_en else
+                f"{rate_exposure_pct:.0f}% of your portfolio is in rate-sensitive sectors (tech, real estate, "
+                f"discretionary) — a rate cut tends to help them, a hawkish stance tends to pressure them."
+            )
+
+    elif event["type"] == "dividend" and ticker:
+        # Real amount actually recorded for THIS user by job_dividend_income
+        # (runs 9:00am ET, before this 9:15am ET brief) — never recomputed/
+        # guessed here.
+        try:
+            res = await run_query(
+                db.table("dividend_income").select("amount,shares_at_payment")
+                .eq("user_id", user_id).eq("ticker", ticker)
+                .order("pay_date", desc=True).limit(1)
+            )
+            row = (res.data or [None])[0]
+        except Exception:
+            row = None
+        label = f"Pago de dividendos de {_ticker_company_name(ticker)}" if not is_en else f"{ticker} dividend payment"
+        if row and row.get("amount"):
+            value_held = ticker_value.get(ticker)
+            if value_held:
+                impact = (
+                    f"Tienes ${value_held:,.0f} invertidos en {ticker}, así que te corresponden ${row['amount']:.2f} de pago de dividendos."
+                    if not is_en else
+                    f"You have ${value_held:,.0f} invested in {ticker}, so you're getting ${row['amount']:.2f} in dividend payments."
+                )
+            else:
+                impact = (
+                    f"Te corresponden ${row['amount']:.2f} de pago de dividendos."
+                    if not is_en else
+                    f"You're getting ${row['amount']:.2f} in dividend payments."
+                )
+
+    elif event["type"] == "earnings" and ticker:
+        name = _ticker_company_name(ticker)
+        if event.get("reported"):
+            rev = event.get("revenue_actual")
+            rev_yoy = event.get("revenue_yoy_pct")
+            eps = event.get("eps_actual")
+            eps_yoy = event.get("eps_yoy_pct")
+            label = f"Reporte trimestral de {name}" if not is_en else f"{name} quarterly earnings"
+            if rev is not None or eps is not None:
+                parts_es, parts_en = [], []
+                if rev is not None:
+                    rev_b = rev / 1e9
+                    parts_es.append(f"reportó ingresos de ${rev_b:.1f}B" + (f", un crecimiento {rev_yoy:+.0f}% interanual" if rev_yoy is not None else ""))
+                    parts_en.append(f"reported revenue of ${rev_b:.1f}B" + (f", {rev_yoy:+.0f}% year-over-year" if rev_yoy is not None else ""))
+                if eps is not None:
+                    parts_es.append(f"EPS de ${eps:.2f}" + (f", un crecimiento de {eps_yoy:+.0f}% interanual" if eps_yoy is not None else ""))
+                    parts_en.append(f"EPS of ${eps:.2f}" + (f", {eps_yoy:+.0f}% year-over-year" if eps_yoy is not None else ""))
+                growth_signals = [v for v in (rev_yoy, eps_yoy) if v is not None]
+                verdict_es = "buenas señales para tu tesis de inversión" if growth_signals and all(v >= 0 for v in growth_signals) else (
+                    "señales de deterioro — vale la pena revisar tu tesis" if growth_signals and all(v < 0 for v in growth_signals) else "resultados mixtos"
+                )
+                verdict_en = "good signals for your investment thesis" if growth_signals and all(v >= 0 for v in growth_signals) else (
+                    "signs of deterioration — worth revisiting your thesis" if growth_signals and all(v < 0 for v in growth_signals) else "mixed results"
+                )
+                impact = (
+                    f"{name} {', '.join(parts_es)}, {verdict_es}."
+                    if not is_en else
+                    f"{name} {', '.join(parts_en)}, {verdict_en}."
+                )
+        else:
+            label = f"Reporte trimestral de {name}" if not is_en else f"{name} quarterly earnings"
+            if ticker in ticker_shares:
+                impact = (
+                    "Dependiendo lo que reporte puede afectar tu posición positiva o negativamente — esperemos a que salgan los resultados."
+                    if not is_en else
+                    "Depending on what they report, this could affect your position positively or negatively — let's wait for the results."
+                )
+    else:
+        label = event.get("label", "")
+
+    return {"type": event["type"], "ticker": ticker, "label": label, "impact": impact}
+
+
+def _ticker_company_name(ticker: str) -> str:
+    """Thin local wrapper so this module doesn't import worker.py — a
+    standalone script, not a module other services should depend on."""
+    try:
+        from app.api.routes.screener import UNIVERSE
+        match = next((u["name"] for u in UNIVERSE if u["ticker"] == ticker), None)
+        if match:
+            return match
+    except Exception:
+        pass
+    try:
+        from app.core.finnhub import fh_profile
+        profile = fh_profile(ticker)
+        if profile and profile.get("name"):
+            return profile["name"]
+    except Exception:
+        pass
+    return ticker
+
+
+async def _events_with_impact_for_user(user_id: str, positions: list[dict], lang: str, db) -> list[dict]:
+    """The day's top 3 real market events, each with a personalized impact
+    line grounded in this user's real portfolio (dividend $ actually paid
+    to them, real earnings YoY numbers, real sector exposure) — or no
+    impact field when there's nothing real to ground one in."""
+    events = await _top_market_events_today(lang)
+    if not events:
+        return []
+
+    ticker_shares: dict[str, float] = {}
+    ticker_value: dict[str, float] = {}
+    for p in positions:
+        t = p.get("ticker")
+        shares = float(p.get("shares", 0) or 0)
+        if not t or not shares:
+            continue
+        ticker_shares[t] = ticker_shares.get(t, 0) + shares
+        avg_price = float(p.get("avgPrice") or p.get("avg_price") or 0)
+        ticker_value[t] = ticker_value.get(t, 0) + shares * avg_price
+
+    sector_pct: dict[str, float] = {}
+    total_value = sum(ticker_value.values())
+    if total_value > 0:
+        try:
+            from app.services.sector_lookup import get_sector_es
+            rate_sensitive_value = 0.0
+            for t, v in ticker_value.items():
+                sector = (get_sector_es(t) or "").lower()
+                if any(kw in sector for kw in _RATE_SENSITIVE_SECTOR_KEYWORDS):
+                    rate_sensitive_value += v
+            sector_pct["_rate_sensitive_total"] = round(rate_sensitive_value / total_value * 100, 1)
+        except Exception as exc:
+            logger.warning("_events_with_impact_for_user(%s): sector exposure calc failed: %s", user_id, exc)
+
+    return [
+        await _event_label_and_impact(e, user_id, ticker_shares, ticker_value, sector_pct, lang, db)
+        for e in events
+    ]
 
 
 async def build_morning_brief(user_id: str, lang: str = "es") -> Optional[dict]:
@@ -308,7 +556,7 @@ async def build_morning_brief(user_id: str, lang: str = "es") -> Optional[dict]:
     sp500_change_pct = _sp500_day_change()
     top_mover = _top_mover(positions)
     news = await _top_news_for_positions(tickers, lang)
-    events = await _today_events_for_user(tickers, lang)
+    events = await _events_with_impact_for_user(user_id, positions, lang, db)
 
     return {
         "portfolio_value": portfolio["total_value"],

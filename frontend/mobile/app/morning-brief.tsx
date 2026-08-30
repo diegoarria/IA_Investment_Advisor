@@ -10,7 +10,7 @@ import PaywallModal from "../src/components/PaywallModal";
 
 interface TopMover { ticker: string; change_pct: number; impact_usd: number; }
 interface NewsItem { ticker: string; headline: string; category: string | null; }
-interface EventItem { time_et: string | null; label: string; impact: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW"; type: string; }
+interface EventItem { type: string; ticker: string | null; label: string; impact: string | null; }
 interface MorningBriefData {
   is_premium: true;
   portfolio_value: number;
@@ -32,8 +32,6 @@ interface MorningBriefTeaser {
 
 const fmtUsd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-
-const IMPACT_DOT: Record<string, string> = { VERY_HIGH: "🔴", HIGH: "🔴", MEDIUM: "🟡", LOW: "⚪" };
 
 export default function MorningBriefScreen() {
   const { colors } = useTheme();
@@ -133,10 +131,11 @@ export default function MorningBriefScreen() {
                     </View>
                     <View style={[st.list, { borderColor: colors.border }]}>
                       {data.events.map((e, i) => (
-                        <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.card, borderTopWidth: i > 0 ? 1 : 0, borderColor: colors.border }}>
-                          <Text style={{ fontSize: 13 }}>{IMPACT_DOT[e.impact] || "⚪"}</Text>
-                          <Text style={{ fontSize: 11, fontWeight: "800", color: colors.textMuted }}>{e.time_et || "—"}</Text>
-                          <Text style={{ fontSize: 12, color: colors.text, flex: 1 }}>{e.label}</Text>
+                        <View key={i} style={{ paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.card, borderTopWidth: i > 0 ? 1 : 0, borderColor: colors.border }}>
+                          <Text style={{ fontSize: 12.5, fontWeight: "700", color: colors.text }}>{i + 1}. {e.label}</Text>
+                          {e.impact && (
+                            <Text style={{ fontSize: 11.5, lineHeight: 16, color: colors.textSub, marginTop: 3 }}>{e.impact}</Text>
+                          )}
                         </View>
                       ))}
                     </View>

@@ -295,97 +295,6 @@ def _market_comparison_push(
     return f"{sp} | {nq}"
 
 
-# Real Dow Jones Industrial Average constituents — an objective, real "30 most
-# systemically important US companies" set (not an arbitrary pick), used by
-# _top_market_events_today (Morning Brief push, Diego 2026-08-30) to scan for
-# today's earnings/dividend events without hitting Finnhub for the full
-# 928-ticker S&P 500 UNIVERSE every morning.
-_MORNING_BRIEF_MEGACAPS = [
-    "AAPL", "AMGN", "AMZN", "AXP", "BA", "CAT", "CRM", "CSCO", "CVX", "DIS",
-    "GS", "HD", "HON", "IBM", "JNJ", "JPM", "KO", "MCD", "MMM", "MRK",
-    "MSFT", "NKE", "NVDA", "PG", "SHW", "TRV", "UNH", "V", "VZ", "WMT",
-]
-
-
-async def _top_market_events_today(lang: str = "es") -> list[str]:
-    """Real, market-wide top-3 events for today's Morning Brief push — NOT
-    scoped to any one user's holdings. Cached once per ET trading day and
-    reused across every Premium user's push (single computation, not
-    per-user). Diego, 2026-08-30: "el día de hoy en la bolsa están los
-    siguientes eventos... solo las 3 más importantes del día, siempre
-    actualizando cada día a los eventos reales."
-
-    Combines two real sources:
-    - Macro events today (FOMC/CPI/NFP/GDP...) — already impact-classified
-      by macro_calendar_service.get_macro_events.
-    - Earnings/dividend events today for the real Dow 30 (_MORNING_BRIEF_MEGACAPS)
-      via the same _fetch_earnings_calendar the app's own Earnings Calendar
-      screen already uses.
-
-    Ranked macro VERY_HIGH/HIGH > earnings > dividend payment > macro
-    MEDIUM/LOW. Returns at most 3 real event labels — never fabricates a
-    4th when fewer than 3 real events exist today."""
-    from app.core.cache import cache_get, cache_set
-    from app.services.notification_engine import _today_et
-
-    cache_key = f"morning_brief_top_events:{lang}:{_today_et()}"
-    cached = cache_get(cache_key)
-    if cached is not None:
-        return cached
-
-    candidates: list[tuple[int, str]] = []  # (rank, label) — lower rank = more important
-
-    try:
-        from app.services.macro_calendar_service import get_macro_events
-        macro = await get_macro_events(days_ahead=0, lang=lang)
-        for e in macro:
-            if e.get("status") != "today":
-                continue
-            impact = (e.get("impact_level") or "LOW").upper()
-            rank = 0 if impact in ("VERY_HIGH", "HIGH") else (3 if impact == "MEDIUM" else 4)
-            label = e.get("event_name") or e.get("event_type")
-            if label:
-                candidates.append((rank, label))
-    except Exception as exc:
-        logger.warning("_top_market_events_today: get_macro_events failed: %s", exc)
-
-    try:
-        from app.api.routes.earnings import _fetch_earnings_calendar
-        today_str = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
-        calendar = await asyncio.to_thread(_fetch_earnings_calendar, _MORNING_BRIEF_MEGACAPS)
-        for ev in calendar:
-            if ev.get("event_date") != today_str:
-                continue
-            ticker = ev.get("ticker")
-            if not ticker:
-                continue
-            name = _company_name(ticker)
-            if ev.get("event_type") == "earnings" and ev.get("status") == "today":
-                label = f"Reporte trimestral de {name}" if lang != "en" else f"{name} quarterly earnings"
-                candidates.append((1, label))
-            elif ev.get("event_type") == "dividend":
-                label = f"Pago de dividendos de {name}" if lang != "en" else f"{name} dividend payment"
-                candidates.append((2, label))
-    except Exception as exc:
-        logger.warning("_top_market_events_today: earnings/dividend calendar failed: %s", exc)
-
-    candidates.sort(key=lambda c: c[0])
-    # Dedup while preserving rank order (a ticker could theoretically appear
-    # twice across sources) — real events only, never padded to exactly 3.
-    seen: set[str] = set()
-    top3: list[str] = []
-    for _, label in candidates:
-        if label in seen:
-            continue
-        seen.add(label)
-        top3.append(label)
-        if len(top3) == 3:
-            break
-
-    cache_set(cache_key, top3, ttl=12 * 3600)
-    return top3
-
-
 # ── Company name map (ticker → short display name) ────────────────────────────
 # Fallback: if ticker not here, use the ticker symbol itself.
 
@@ -4559,19 +4468,20 @@ async def job_sunday_portfolio_review():
 
 
 async def job_morning_brief():
-    """9:15 AM ET weekdays — Diego's "Morning Brief" (Aug 16): a greeting +
-    today's top 3 real market events (Diego, 2026-08-30: "Buenos días,
-    {{name}} — el día de hoy en la bolsa están los siguientes eventos...
-    solo las 3 más importantes del día, siempre actualizando a los eventos
-    reales de cada día"). Premium only (reuses push_portfolio_alerts, same
-    toggle Sunday Portfolio Review uses, so no new preference column/
-    migration).
+    """9:15 AM ET weekdays — Diego's "Morning Brief" (Aug 16, extended
+    2026-08-30): a greeting + today's top 3 real market events, each with a
+    real personalized "how this affects you" line when there's something
+    real to say (real $ dividend amount actually paid to this user, real
+    reported earnings numbers + YoY growth, real portfolio sector exposure
+    for rate-sensitive macro events — never a fabricated price prediction).
+    Premium only (reuses push_portfolio_alerts, same toggle Sunday
+    Portfolio Review uses, so no new preference column/migration).
 
     Deliberately zero Claude calls end to end — see
-    morning_brief_service.py's module docstring and
-    _top_market_events_today's. The full portfolio $ breakdown still lives
-    in the flashcard the push deep-links to; the push body itself is now
-    the day's events, not the dollar figure."""
+    morning_brief_service.py's module docstring. The events + their
+    per-user impact lines are computed once by build_morning_brief (also
+    used by the full-screen flashcard this push deep-links to) — not
+    recomputed separately here."""
     if not _is_market_open_today():
         logger.info("job_morning_brief: market closed today — skipping")
         return
@@ -4596,10 +4506,6 @@ async def job_morning_brief():
             .in_("user_id", list(eligible))
         )
 
-        # Today's top 3 real market events — computed once per language and
-        # reused across every Premium user's push, not per user.
-        top_events_by_lang: dict[str, list[str]] = {}
-
         sent = 0
         for prof in (prof_res.data or []):
             uid = prof["user_id"]
@@ -4613,13 +4519,17 @@ async def job_morning_brief():
                     continue
 
                 first = (prof.get("name") or ("Investor" if is_en else "Inversor")).split()[0]
-
-                if lang not in top_events_by_lang:
-                    top_events_by_lang[lang] = await _top_market_events_today(lang)
-                top_events = top_events_by_lang[lang]
+                top_events = brief.get("events") or []
 
                 if top_events:
-                    events_lines = "\n".join(f"{i+1}. {ev}" for i, ev in enumerate(top_events))
+                    # Each line: "1. Label: impact" when there's a real
+                    # personalized impact, else just "1. Label" — never a
+                    # generic filler when nothing real applies to this user.
+                    def _fmt_event(i: int, ev: dict) -> str:
+                        line = f"{i+1}. {ev['label']}"
+                        return f"{line}: {ev['impact']}" if ev.get("impact") else line
+
+                    events_lines = "\n".join(_fmt_event(i, ev) for i, ev in enumerate(top_events))
                     body = (
                         f"Good morning, {first}\nToday in the markets:\n{events_lines}"
                         if is_en else
