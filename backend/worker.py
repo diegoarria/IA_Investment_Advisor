@@ -2143,10 +2143,15 @@ async def job_portfolio_alerts():
         # stays elevated or how many users hold it.
         from app.core.cache import cache_get, cache_set
         from app.services.notification_engine import _today_et
-        from app.services.price_alert_service import NO_CATALYST, should_send_price_alert, translate_why_to_english
-        ticker_why:    dict[str, str] = {}
-        ticker_why_en: dict[str, str] = {}
-        ticker_title:  dict[str, str] = {}
+        from app.services.price_alert_service import (
+            NO_CATALYST, should_send_price_alert, translate_why_to_english,
+            generate_fundamentals_verdict, translate_verdict_to_english,
+        )
+        ticker_why:     dict[str, str] = {}
+        ticker_why_en:  dict[str, str] = {}
+        ticker_verdict:    dict[str, str] = {}
+        ticker_verdict_en: dict[str, str] = {}
+        ticker_title:   dict[str, str] = {}
         today_et = _today_et()
         for ticker, pct in movers.items():
             ticker_title[ticker] = await asyncio.to_thread(_company_name, ticker)
@@ -2157,21 +2162,40 @@ async def job_portfolio_alerts():
                 ticker_why[ticker] = cached["why"]
                 if cached.get("why_en"):
                     ticker_why_en[ticker] = cached["why_en"]
-                continue
-
-            price = prices[ticker]["curr"]
-            why = (await get_price_alert_why_with_diagnostics(ticker, pct, price))["why"]
-            ticker_why[ticker] = why
-            why_en = None
-            if why == NO_CATALYST:
-                logger.info("Portfolio alerts: no catalyst for %s — premium users will not receive this", ticker)
             else:
-                why_en = await translate_why_to_english(why)
-                ticker_why_en[ticker] = why_en
-            # TTL well past market close but short of the next trading day, so a
-            # stale answer never survives to bias tomorrow's re-generation.
-            cache_set(cache_key, {"why": why, "why_en": why_en}, ttl=12 * 3600)
-            await asyncio.sleep(0.05)
+                price = prices[ticker]["curr"]
+                why = (await get_price_alert_why_with_diagnostics(ticker, pct, price))["why"]
+                ticker_why[ticker] = why
+                why_en = None
+                if why == NO_CATALYST:
+                    logger.info("Portfolio alerts: no catalyst for %s — premium users will not receive this", ticker)
+                else:
+                    why_en = await translate_why_to_english(why)
+                    ticker_why_en[ticker] = why_en
+                # TTL well past market close but short of the next trading day, so a
+                # stale answer never survives to bias tomorrow's re-generation.
+                cache_set(cache_key, {"why": why, "why_en": why_en, "pct": pct}, ttl=12 * 3600)
+                await asyncio.sleep(0.05)
+
+            # Premium-only "does this actually threaten your thesis" verdict,
+            # grounded in real computed fundamentals — cached alongside WHY,
+            # same 1-call-per-ticker-per-day budget. Diego, 2026-08-30.
+            verdict_cache_key = f"price_verdict:{ticker}:{today_et}"
+            verdict_cached = cache_get(verdict_cache_key)
+            if verdict_cached is not None:
+                if verdict_cached.get("verdict"):
+                    ticker_verdict[ticker] = verdict_cached["verdict"]
+                if verdict_cached.get("verdict_en"):
+                    ticker_verdict_en[ticker] = verdict_cached["verdict_en"]
+            else:
+                verdict = await generate_fundamentals_verdict(ticker, pct)
+                verdict_en = None
+                if verdict:
+                    ticker_verdict[ticker] = verdict
+                    verdict_en = await translate_verdict_to_english(verdict)
+                    ticker_verdict_en[ticker] = verdict_en
+                cache_set(verdict_cache_key, {"verdict": verdict, "verdict_en": verdict_en}, ttl=12 * 3600)
+                await asyncio.sleep(0.05)
 
         # 6. Batch-fetch user profiles (name + tier + trial + language) once
         all_uids  = list(user_tickers.keys())
@@ -2254,6 +2278,15 @@ async def job_portfolio_alerts():
                             )
                         else:
                             body = f"{prefix} {why}."
+
+                        # Append the real-fundamentals verdict only if there's
+                        # room — "si hay espacio en la notificación" (Diego,
+                        # 2026-08-30). Never truncates the reason to fit it.
+                        verdict = ticker_verdict_en.get(ticker) if (is_en and ticker in ticker_verdict_en) else ticker_verdict.get(ticker)
+                        if verdict:
+                            candidate = f"{body} {verdict}"
+                            if len(candidate) <= 230:
+                                body = candidate
                     else:
                         # Free tier — plain price alert, no WHY
                         body = (
@@ -3744,6 +3777,7 @@ async def job_market_crash_alert():
     siga en rojo, cada usuario recibe como máximo un push por día."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
+    from app.services.price_alert_service import NO_CATALYST
     db = get_supabase()
     try:
         spy_q = await asyncio.to_thread(_finnhub_quote, "SPY")
@@ -3765,6 +3799,63 @@ async def job_market_crash_alert():
             .in_("user_id", uids)
         )
         prof_map = {r["user_id"]: r for r in (prof_res.data or [])}
+
+        # Premium: "how does this affect YOUR portfolio" — reuses whatever
+        # job_portfolio_alerts already computed and cached today for this
+        # user's own holdings (real WHY + real-fundamentals verdict), rather
+        # than triggering a new AI call here. On a real crash day most of a
+        # user's movers will already be cached (they moved individually too).
+        # If nothing's cached for any of their holdings, the generic copy
+        # below is used unchanged — this never blocks or adds AI spend.
+        # Diego, 2026-08-30.
+        from app.core.cache import cache_get
+        from app.services.notification_engine import _today_et
+        today_et = _today_et()
+        premium_uids_for_portfolio = [
+            uid for uid in uids
+            if _is_premium_user(
+                prof_map.get(uid, {}).get("subscription_tier", "free"),
+                prof_map.get(uid, {}).get("trial_started_at"),
+                prof_map.get(uid, {}).get("streak_bonus_premium_until"),
+            )
+        ]
+        portfolio_map: dict[str, list] = {}
+        for uid in premium_uids_for_portfolio:
+            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
+            pos = _agg_positions(port_res.data or [])
+            if pos:
+                portfolio_map[uid] = pos
+
+        def _user_portfolio_blurb(uid: str, is_en: bool) -> str | None:
+            """Picks the user's own holding with the biggest cached move today
+            that also has a real WHY/verdict, and renders "TICKER: reason.
+            verdict" — or None if nothing's cached for any of their tickers."""
+            tickers = {p["ticker"] for p in portfolio_map.get(uid, []) if p.get("ticker")}
+            if not tickers:
+                return None
+            best_ticker, best_pct, best_why, best_verdict = None, -1.0, None, None
+            for t in tickers:
+                cached_why = cache_get(f"price_why:{t}:{today_et}")
+                if not cached_why:
+                    continue
+                cached_pct = abs(cached_why.get("pct") or 0)
+                if cached_pct <= best_pct:
+                    continue
+                why_key = "why_en" if is_en else "why"
+                why_val = cached_why.get(why_key) or cached_why.get("why")
+                if not why_val or why_val == NO_CATALYST:
+                    continue
+                cached_verdict = cache_get(f"price_verdict:{t}:{today_et}") or {}
+                verdict_key = "verdict_en" if is_en else "verdict"
+                best_ticker, best_pct = t, cached_pct
+                best_why = why_val
+                best_verdict = cached_verdict.get(verdict_key) or cached_verdict.get("verdict")
+            if not best_ticker:
+                return None
+            blurb = f"{best_ticker} {best_why}."
+            if best_verdict:
+                blurb += f" {best_verdict}"
+            return blurb
 
         premium_title_es = "🚨 ¡URGENTE!"
         premium_body_es  = (
@@ -3798,6 +3889,16 @@ async def job_market_crash_alert():
                 title, body = (premium_title_en, premium_body_en) if is_prem else (free_title_en, free_body_en)
             else:
                 title, body = (premium_title_es, premium_body_es) if is_prem else (free_title_es, free_body_es)
+
+            # "How does this affect YOUR portfolio" — Premium only, only if
+            # it fits, only from what's already cached (no new AI spend here).
+            if is_prem:
+                blurb = _user_portfolio_blurb(uid, is_en)
+                if blurb:
+                    candidate = f"{body} {blurb}"
+                    if len(candidate) <= 260:
+                        body = candidate
+
             await send_push(
                 uid, "market_crash_alert", title, body,
                 {"screen": "chat", "sp500_pct": pct}, db,
