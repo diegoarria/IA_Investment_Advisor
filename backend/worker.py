@@ -5274,6 +5274,61 @@ async def job_family_plan_upsell_nudge():
         logger.error("job_family_plan_upsell_nudge failed: %s", e)
 
 
+async def job_trial_ending_reminder():
+    """Once daily — Diego, 2026-08-30: 3 days before a user's free 30-day
+    Premium trial (app.core.subscription.TRIAL_DAYS) expires, remind them
+    to subscribe. A user still on trial has subscription_tier="free" with
+    trial_started_at set (is_premium_active treats them as premium purely
+    from that timestamp, see subscription.py) — so "3 days left" means
+    trial_started_at is exactly 27 days in the past. Bucketed to a 24h
+    window matching this job's own daily cadence, so it's structurally a
+    one-time send per user (trial_started_at never changes) — no separate
+    "already notified" table needed, only the usual can_send_push dedup as
+    a backstop against a same-day re-run."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from app.core.subscription import TRIAL_DAYS
+    db = get_supabase()
+    try:
+        now = datetime.now(timezone.utc)
+        days_elapsed_for_3_left = TRIAL_DAYS - 3
+        window_start = (now - timedelta(days=days_elapsed_for_3_left + 1)).isoformat()
+        window_end   = (now - timedelta(days=days_elapsed_for_3_left)).isoformat()
+
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,preferred_language,subscription_tier,trial_started_at")
+            .not_.in_("subscription_tier", ["premium", "pro"])
+            .not_.is_("trial_started_at", "null")
+            .gt("trial_started_at", window_start)
+            .lte("trial_started_at", window_end)
+        )
+        rows = prof_res.data or []
+        if not rows:
+            return
+
+        sent = 0
+        for row in rows:
+            uid = row["user_id"]
+            is_en = (row.get("preferred_language") or "es") == "en"
+            if is_en:
+                title = "⏳ Your Premium trial ends in 3 days"
+                body = "Your free Premium trial ends in 3 days. Subscribe now to keep your Arthur, your alerts, and everything you've used this month."
+            else:
+                title = "⏳ Tu prueba Premium termina en 3 días"
+                body = "Tu prueba Premium gratis termina en 3 días. Suscríbete para no perder a tu Arthur, tus alertas y todo lo que has usado este mes."
+            try:
+                await send_push(uid, "trial_ending_soon", title, body, {"screen": "profile"}, db)
+                sent += 1
+            except Exception as exc:
+                logger.warning("job_trial_ending_reminder: push failed for %s: %s", uid, exc)
+            await asyncio.sleep(random.uniform(0, 0.1))
+        if sent:
+            logger.info("job_trial_ending_reminder: %d reminders sent", sent)
+    except Exception as e:
+        logger.error("job_trial_ending_reminder failed: %s", e)
+
+
 async def main():
     # misfire_grace_time: if Railway restarts the worker near a job's fire time,
     # APScheduler will still run the job if it missed by less than this window.
@@ -5393,6 +5448,9 @@ async def main():
 
     # ── Family Plan upsell nudge (30-day Premium subscription anniversary) ──
     scheduler.add_job(job_family_plan_upsell_nudge,      "cron", hour=11, minute=0, timezone="America/New_York")
+
+    # ── Trial-ending reminder (3 days before the 30-day free trial expires) ──
+    scheduler.add_job(job_trial_ending_reminder,         "cron", hour=10, minute=0, timezone="America/New_York")
 
     # Backfill notification_preferences for existing users who never opened settings.
     # Without this row the worker can't find them and push never fires.
