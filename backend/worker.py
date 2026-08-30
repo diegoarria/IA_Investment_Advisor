@@ -3796,7 +3796,14 @@ async def job_market_crash_alert():
     de -3% o más en un solo día (vía SPY como proxy, igual que job_market_open/
     job_market_close) y manda una alerta urgente. send_push dedupea por
     categoría+día, así que aunque el job corra cada 5 min mientras el mercado
-    siga en rojo, cada usuario recibe como máximo un push por día."""
+    siga en rojo, cada usuario recibe como máximo un push por día.
+
+    Gated on push_volatility, not push_portfolio_alerts — Diego, 2026-08-30:
+    a market-wide S&P crash IS the real "evento de alta volatilidad" the
+    push_volatility toggle (Ajustes) describes; it was previously reusing
+    push_portfolio_alerts (a per-holding-move toggle) while push_volatility
+    sat in the schema/UI read by nothing, a phantom preference a user could
+    switch off believing it did something."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     from app.services.price_alert_service import NO_CATALYST
@@ -3809,7 +3816,7 @@ async def job_market_crash_alert():
             return
 
         prefs_res = await run_query(
-            db.table("notification_preferences").select("user_id").eq("push_portfolio_alerts", True)
+            db.table("notification_preferences").select("user_id").eq("push_volatility", True)
         )
         uids = [r["user_id"] for r in (prefs_res.data or [])]
         if not uids:
@@ -5140,6 +5147,133 @@ async def job_dispatch_notification_queue():
         logger.error("job_dispatch_notification_queue failed: %s", e)
 
 
+async def job_action_followup_reminders():
+    """Every 30 min — Diego, 2026-08-30: /actions/commit (actions.py) has
+    always written a real due_at to pending_actions when a user commits to
+    a mentor-suggested action, but until now nothing ever read it — the
+    only place that sent the "action_followup" category was the QA-only
+    POST /actions/test-reminder endpoint, which ignores due_at entirely.
+    Real users who committed to an action never got the reminder they were
+    promised. This is the real job: any still-committed action whose
+    due_at has passed and hasn't been notified yet gets a real push, then
+    notified_at is stamped so it never fires twice for the same commitment
+    (the /actions/{id} PATCH "snoozed" path already resets notified_at to
+    NULL, which correctly re-arms it for a later due_at)."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    db = get_supabase()
+    try:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        due_res = await run_query(
+            db.table("pending_actions").select("id,user_id,action_label")
+            .eq("status", "committed")
+            .is_("notified_at", "null")
+            .lte("due_at", now_iso)
+            .limit(200)
+        )
+        rows = due_res.data or []
+        if not rows:
+            return
+
+        uids = sorted({r["user_id"] for r in rows})
+        lang_res = await run_query(db.table("user_profiles").select("user_id,preferred_language").in_("user_id", uids))
+        lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (lang_res.data or [])}
+
+        sent = 0
+        for row in rows:
+            uid = row["user_id"]
+            is_en = lang_map.get(uid, "es") == "en"
+            label = row.get("action_label") or ""
+            if is_en:
+                title = "🔔 Follow-up reminder"
+                body = f"A while ago you committed to: {label}. Did you follow through?" if label else "Did you follow through on the action you committed to?"
+            else:
+                title = "🔔 Recordatorio de seguimiento"
+                body = f"Hace un tiempo te comprometiste a: {label}. ¿Ya lo hiciste?" if label else "¿Ya hiciste la acción a la que te comprometiste?"
+            try:
+                await send_push(uid, "action_followup", title, body, {"screen": "chat"}, db)
+                sent += 1
+            except Exception as exc:
+                logger.warning("job_action_followup_reminders: push failed for %s/%s: %s", uid, row["id"], exc)
+            try:
+                await run_query(
+                    db.table("pending_actions").update({"notified_at": datetime.now(timezone.utc).isoformat()}).eq("id", row["id"])
+                )
+            except Exception as exc:
+                logger.warning("job_action_followup_reminders: notified_at update failed for %s: %s", row["id"], exc)
+            await asyncio.sleep(random.uniform(0, 0.1))
+
+        logger.info("job_action_followup_reminders: %d reminders sent", sent)
+    except Exception as e:
+        logger.error("job_action_followup_reminders failed: %s", e)
+
+
+async def job_family_plan_upsell_nudge():
+    """Once daily — Diego, 2026-08-30: upsells.py's Family Plan offer (see
+    _is_eligible: tier == premium AND 30+ days of active paid subscription)
+    only ever surfaces through GET /upsells/check, called by the frontend
+    during an active session — a real Premium subscriber who crosses the
+    30-day mark without happening to open the app that exact day never
+    sees it, and neither upsells.py nor referral.py ever sent any push at
+    all. Subscription age passing 30 days is the one real, server-
+    observable "natural moment" in the upsell system that doesn't need
+    the user to be in-app to be true. Sent at most once ever per user
+    (checked against real "sent" notification_log rows, not just today's
+    dedup can_send_push already does) — a "skipped" row (quiet hours,
+    fatigue cap) must NOT count as already-notified, or the nudge would
+    be silently lost forever instead of retried the next day."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    db = get_supabase()
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,preferred_language,subscription_started_at")
+            .eq("subscription_tier", "premium")
+            .not_.is_("subscription_started_at", "null")
+            .lte("subscription_started_at", cutoff)
+        )
+        rows = prof_res.data or []
+        if not rows:
+            return
+        uids = [r["user_id"] for r in rows]
+
+        dismiss_res = await run_query(
+            db.table("upsell_dismissals").select("user_id").eq("offer_type", "family_plan").in_("user_id", uids)
+        )
+        dismissed = {r["user_id"] for r in (dismiss_res.data or [])}
+
+        already_res = await run_query(
+            db.table("notification_log").select("user_id")
+            .eq("category", "family_plan_upsell").eq("status", "sent").in_("user_id", uids)
+        )
+        already_notified = {r["user_id"] for r in (already_res.data or [])}
+
+        sent = 0
+        for row in rows:
+            uid = row["user_id"]
+            if uid in dismissed or uid in already_notified:
+                continue
+            is_en = (row.get("preferred_language") or "es") == "en"
+            if is_en:
+                title = "👨‍👩‍👧 Bring your family into Nuvos"
+                body = "You've been Premium for a month — add your family to your plan and everyone gets their own Arthur."
+            else:
+                title = "👨‍👩‍👧 Trae a tu familia a Nuvos"
+                body = "Ya llevas un mes en Premium — agrega a tu familia a tu plan y cada quien tiene su propio Arthur."
+            try:
+                await send_push(uid, "family_plan_upsell", title, body, {"screen": "profile"}, db)
+                sent += 1
+            except Exception as exc:
+                logger.warning("job_family_plan_upsell_nudge: push failed for %s: %s", uid, exc)
+            await asyncio.sleep(random.uniform(0, 0.1))
+        if sent:
+            logger.info("job_family_plan_upsell_nudge: %d nudges sent", sent)
+    except Exception as e:
+        logger.error("job_family_plan_upsell_nudge failed: %s", e)
+
+
 async def main():
     # misfire_grace_time: if Railway restarts the worker near a job's fire time,
     # APScheduler will still run the job if it missed by less than this window.
@@ -5253,6 +5387,12 @@ async def main():
 
     # ── Notification delivery queue (spaces out multiple pushes per user) ────
     scheduler.add_job(job_dispatch_notification_queue,   "interval", seconds=60)
+
+    # ── Committed-action follow-up reminders (pending_actions.due_at) ────────
+    scheduler.add_job(job_action_followup_reminders,     "interval", minutes=30)
+
+    # ── Family Plan upsell nudge (30-day Premium subscription anniversary) ──
+    scheduler.add_job(job_family_plan_upsell_nudge,      "cron", hour=11, minute=0, timezone="America/New_York")
 
     # Backfill notification_preferences for existing users who never opened settings.
     # Without this row the worker can't find them and push never fires.

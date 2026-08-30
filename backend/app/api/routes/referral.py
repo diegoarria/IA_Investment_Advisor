@@ -70,10 +70,12 @@ async def _extend_premium(user_id: str, days: int, db) -> None:
     )
 
 
-async def _grant_tier_rewards(referrer_id: str, new_count: int, db) -> None:
+async def _grant_tier_rewards(referrer_id: str, new_count: int, db) -> list[tuple[int, int, bool, bool]]:
     """Pay out every tier newly crossed by `new_count` that the referrer
     hasn't already been paid for — additive (a referrer who reaches tier 3
-    has been paid tier 1 + tier 2 + tier 3's rewards, not just tier 3's)."""
+    has been paid tier 1 + tier 2 + tier 3's rewards, not just tier 3's).
+    Returns the list of tiers newly crossed this call — empty if none —
+    so the caller can tell the referrer what they actually just earned."""
     row = await run_query(
         db.table("user_profiles")
         .select("referral_reward_tier, free_1on1_sessions, free_deep_research_credits")
@@ -85,6 +87,7 @@ async def _grant_tier_rewards(referrer_id: str, new_count: int, db) -> None:
     sessions = int(data.get("free_1on1_sessions") or 0)
     research_credits = int(data.get("free_deep_research_credits") or 0)
     highest = current_tier
+    newly_crossed: list[tuple[int, int, bool, bool]] = []
 
     for tier, days, grants_session, grants_research in REFERRAL_TIERS:
         if new_count >= tier and current_tier < tier:
@@ -94,6 +97,7 @@ async def _grant_tier_rewards(referrer_id: str, new_count: int, db) -> None:
             if grants_research:
                 research_credits += 1
             highest = tier
+            newly_crossed.append((tier, days, grants_session, grants_research))
 
     if highest > current_tier:
         await run_query(
@@ -103,6 +107,8 @@ async def _grant_tier_rewards(referrer_id: str, new_count: int, db) -> None:
                 "free_deep_research_credits": research_credits,
             }).eq("user_id", referrer_id)
         )
+
+    return newly_crossed
 
 
 def _generate_code() -> str:
@@ -253,10 +259,50 @@ async def apply_referral(body: dict, user_id: str = Depends(get_current_user_id)
     else:
         new_count += 1  # exhausted retries — best-effort, still grant the reward tier
 
-    await _grant_tier_rewards(referrer_id, new_count, db)
+    newly_crossed = await _grant_tier_rewards(referrer_id, new_count, db)
     await _extend_premium(user_id, WELCOME_BONUS_DAYS, db)
 
+    # Diego, 2026-08-30: the referrer previously never learned a friend
+    # joined or that a reward tier paid out — this is the real "credited a
+    # referral" moment, so it's the real push moment too.
+    try:
+        await _notify_referrer(referrer_id, new_count, newly_crossed, db)
+    except Exception as exc:
+        logger.warning("apply_referral: push to referrer %s failed: %s", referrer_id, exc)
+
     return {"ok": True, "referred_count": new_count, "bonus_days": WELCOME_BONUS_DAYS}
+
+
+async def _notify_referrer(referrer_id: str, new_count: int, newly_crossed: list[tuple[int, int, bool, bool]], db) -> None:
+    from app.services.notification_engine import send_push
+    lang_row = await run_query(
+        db.table("user_profiles").select("preferred_language").eq("user_id", referrer_id).maybe_single()
+    )
+    is_en = (((lang_row.data if lang_row else None) or {}).get("preferred_language")) == "en"
+
+    if newly_crossed:
+        _, days, grants_session, grants_research = newly_crossed[-1]
+        extras = []
+        if grants_session:
+            extras.append("a free 1:1 session" if is_en else "una sesión 1:1 gratis")
+        if grants_research:
+            extras.append("a free deep research report" if is_en else "un reporte de deep research gratis")
+        extra_str = (" + " + " and ".join(extras)) if is_en and extras else (" + " + " y ".join(extras)) if extras else ""
+        if is_en:
+            title = "🎁 Referral reward unlocked!"
+            body = f"You've referred {new_count} friend{'s' if new_count != 1 else ''} — {days} days of Premium{extra_str} just got added to your account."
+        else:
+            title = "🎁 ¡Recompensa de referidos desbloqueada!"
+            body = f"Ya referiste a {new_count} amigo{'s' if new_count != 1 else ''} — se agregaron {days} días de Premium{extra_str} a tu cuenta."
+    else:
+        if is_en:
+            title = "🤝 A friend joined with your code"
+            body = f"You now have {new_count} friend{'s' if new_count != 1 else ''} referred — keep going to unlock more Premium days."
+        else:
+            title = "🤝 Un amigo se unió con tu código"
+            body = f"Ya tienes {new_count} amigo{'s' if new_count != 1 else ''} referido{'s' if new_count != 1 else ''} — sigue así para desbloquear más días Premium."
+
+    await send_push(referrer_id, "referral_credit", title, body, {"screen": "profile"}, db)
 
 
 @router.post("/redeem-session")

@@ -50,6 +50,33 @@ def _today_et() -> str:
     return datetime.now(zoneinfo.ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
 
 
+def _et_day_start_utc_iso() -> str:
+    import zoneinfo
+    now_et = datetime.now(zoneinfo.ZoneInfo("America/New_York"))
+    start_et = now_et.replace(hour=0, minute=0, second=0, microsecond=0)
+    return start_et.astimezone(timezone.utc).isoformat()
+
+
+def _et_week_start_utc_iso() -> str:
+    import zoneinfo
+    now_et = datetime.now(zoneinfo.ZoneInfo("America/New_York"))
+    start_et = (now_et - timedelta(days=now_et.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    return start_et.astimezone(timezone.utc).isoformat()
+
+
+async def _push_count_since(user_id: str, since_iso: str, db) -> int:
+    """Real count of pushes actually delivered (status="sent") to this user
+    since `since_iso` — the fatigue cap must count real sends, not attempts
+    that were themselves skipped by quiet hours/snooze/dedup."""
+    from app.core.database import run_query
+    res = await run_query(
+        db.table("notification_log").select("id", count="exact")
+        .eq("user_id", user_id).eq("type", "push").eq("status", "sent")
+        .gte("sent_at", since_iso)
+    )
+    return res.count or 0
+
+
 # ─── Fatigue control ──────────────────────────────────────────────────────────
 
 async def can_send_push(user_id: str, category: str, db) -> bool:
@@ -78,9 +105,20 @@ async def can_send_push(user_id: str, category: str, db) -> bool:
         if qs <= hour < qe:
             return False
 
+    # 3. Daily/weekly total push cap (max_push_per_day/max_push_per_week,
+    # notification_preferences — previously defined in the schema with real
+    # defaults but never read by this function, so a user's fatigue budget
+    # was silently unenforced no matter what quiet-hours/snooze/dedup did).
+    max_per_day = prefs.get("max_push_per_day")
+    if max_per_day is not None and await _push_count_since(user_id, _et_day_start_utc_iso(), db) >= max_per_day:
+        return False
+    max_per_week = prefs.get("max_push_per_week")
+    if max_per_week is not None and await _push_count_since(user_id, _et_week_start_utc_iso(), db) >= max_per_week:
+        return False
+
     today = _today_et()
 
-    # 3. Dedup: same category + same user + same day.
+    # 4. Dedup: same category + same user + same day.
     #
     # Previously this was a plain SELECT-then-later-INSERT: the actual log
     # row was only written AFTER the push send completed (see send_push
