@@ -12,7 +12,6 @@ import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import HomeMarketOverview from "@/components/HomeMarketOverview";
 import StockAvatar from "@/components/StockAvatar";
-import PersonalizedMessageBanner from "@/components/PersonalizedMessageBanner";
 import MorningBriefCard from "@/components/MorningBriefCard";
 import ExplainButton from "@/components/ExplainButton";
 import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, billing, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
@@ -795,8 +794,6 @@ export default function HomePage() {
             )}
 
             <MorningBriefCard />
-
-            <PersonalizedMessageBanner />
 
             {/* ── Onboarding checklist (hidden once all done) ──────────────── */}
             {!allOnboardingDone && (

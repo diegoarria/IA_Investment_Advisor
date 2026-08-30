@@ -10,7 +10,6 @@ import PremiumBadge from "@/components/PremiumBadge";
 import BalanceVisibilityToggle from "@/components/BalanceVisibilityToggle";
 import ExplainButton from "@/components/ExplainButton";
 import StockAvatar from "@/components/StockAvatar";
-import PersonalizedMessageBanner from "@/components/PersonalizedMessageBanner";
 import { market as marketApi, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
 import { useCombinedPositions, useCombinedCurrency } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
@@ -571,8 +570,6 @@ function PatrimonioContent() {
             <PremiumBadge />
           </div>
         </div>
-
-        <PersonalizedMessageBanner className="mx-6 mt-3" />
 
         {/* Sub-tab Bar */}
         <div

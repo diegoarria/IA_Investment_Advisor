@@ -6,7 +6,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.core.limiter import limiter
-from app.api.routes import auth, profile, chat, market, notifications, screener, billing, learn, sync, paper, referral, support, earnings, simulate, decisions, watchlist, financials, brokerage, belvo, notification_settings, price_alerts, actions, upsells, wrapped, push, feedback, progress, profile_financial, library, voice_call, benchmark, admin, research, research_engine, investment_graph, explain, cash_holdings, dividends, checklist, weekly_rituals, morning_brief, smart_alerts, logo
+from app.api.routes import auth, profile, chat, market, notifications, screener, billing, learn, sync, paper, referral, support, earnings, simulate, decisions, watchlist, financials, brokerage, belvo, notification_settings, price_alerts, actions, upsells, wrapped, push, feedback, profile_financial, library, voice_call, benchmark, admin, research, research_engine, investment_graph, explain, cash_holdings, dividends, checklist, weekly_rituals, morning_brief, smart_alerts, logo
 
 _is_dev = settings.environment == "development"
 
@@ -104,7 +104,6 @@ app.include_router(wrapped.router)
 app.include_router(logo.router, prefix="/api")
 app.include_router(push.router,     prefix="/api")
 app.include_router(feedback.router, prefix="/api")
-app.include_router(progress.router, prefix="/api")
 app.include_router(profile_financial.router, prefix="/api")
 app.include_router(library.router,           prefix="/api")
 app.include_router(voice_call.router,        prefix="/api")

@@ -513,7 +513,7 @@ async def compute_progress_summary(user_id: str, ctx: dict | None = None) -> dic
 
 def _consecutive_months_streak(purchase_months: set[tuple[int, int]]) -> int:
     """Consecutive (year, month) pairs with at least one purchase, ending this
-    month. Shared by compute_progress_summary and get_personalized_message."""
+    month."""
     if not purchase_months:
         return 0
     today = date.today()
@@ -892,35 +892,6 @@ async def compute_investor_score(user_id: str, ctx: dict | None = None) -> dict 
     if not sub:
         return None
     return {"score": round(sum(sub.values()) / len(sub)), "sub_scores": sub}
-
-
-# ── Personalized messages (Fase 4) ───────────────────────────────────────────
-
-async def get_personalized_message(user_id: str) -> str | None:
-    """
-    One grounded, emotional sentence for a Home/Patrimonio banner — only when
-    today is actually meaningful (an exact inception anniversary, or a round
-    number of consecutive months investing). No message on an ordinary day,
-    rather than forcing one that isn't backed by anything real.
-    """
-    ctx = await _build_context(user_id)
-    today = date.today()
-
-    if ctx["inception_date"]:
-        try:
-            inception = date.fromisoformat(ctx["inception_date"][:10])
-            years = today.year - inception.year
-            if years >= 1 and (today.month, today.day) == (inception.month, inception.day):
-                plural = "s" if years != 1 else ""
-                return f"Hace exactamente {years} año{plural} hiciste tu primera inversión con Nuvos AI."
-        except Exception:
-            pass
-
-    streak = _consecutive_months_streak(ctx["purchase_months"])
-    if streak > 0 and streak % 6 == 0:
-        return f"Hoy cumples {streak} meses consecutivos invirtiendo. Tu disciplina ha mejorado notablemente desde que comenzaste."
-
-    return None
 
 
 # ── Arthur context (Fase 2: wired into ai_service.py's dynamic addendum) ──

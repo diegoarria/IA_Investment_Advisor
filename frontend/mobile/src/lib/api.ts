@@ -443,10 +443,6 @@ export const brokerageApi = {
 };
 
 
-export const progressApi = {
-  getPersonalizedMessage: () => api.get("/api/progress/personalized-message"),
-};
-
 export const benchmarkApi = {
   getMine: () => api.get("/api/benchmark/me"),
 };

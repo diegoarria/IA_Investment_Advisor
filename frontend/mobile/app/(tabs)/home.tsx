@@ -27,7 +27,6 @@ import MobileHomeScreenPickerModal, { HOME_SCREEN_KEY } from "../../src/componen
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../src/lib/supabase";
 import PricingModal from "../../src/components/PricingModal";
-import PersonalizedMessageBanner from "../../src/components/PersonalizedMessageBanner";
 import MorningBriefCard from "../../src/components/MorningBriefCard";
 import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
 import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore";
@@ -1096,7 +1095,6 @@ export default function HomeScreen() {
         )}
 
         <MorningBriefCard style={{ marginHorizontal: 16, marginBottom: 12 }} />
-        <PersonalizedMessageBanner style={{ marginHorizontal: 16, marginBottom: 12 }} />
 
         {/* ── Onboarding checklist ─────────────────────────────────────────── */}
         {!allOnboardingDone && (

@@ -15,7 +15,6 @@ import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { usePaperStore, PAPER_INITIAL_CASH } from "../../src/lib/paperStore";
 import { marketApi, cashHoldingsApi, dividendsApi } from "../../src/lib/api";
 import StockAvatar from "../../src/components/StockAvatar";
-import PersonalizedMessageBanner from "../../src/components/PersonalizedMessageBanner";
 import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
 import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore";
 import ExplainButton from "../../src/components/ExplainButton";
@@ -511,8 +510,6 @@ export default function PatrimonioScreen() {
           <Text style={[ss.headerTitle, { color: colors.text }]}>Patrimonio</Text>
         </View>
       </View>
-
-      <PersonalizedMessageBanner style={{ marginHorizontal: 16, marginTop: 10 }} />
 
       {/* Sub-tab switcher */}
       <View style={[ss.tabBar, { borderBottomColor: colors.border, backgroundColor: colors.bg }]}>

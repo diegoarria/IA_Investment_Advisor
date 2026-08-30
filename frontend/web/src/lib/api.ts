@@ -623,10 +623,6 @@ export const belvoApi = {
   deleteConnection: (id: string) => api.delete(`/api/belvo/connections/${id}`),
 };
 
-export const progressApi = {
-  getPersonalizedMessage: () => api.get("/api/progress/personalized-message"),
-};
-
 export const benchmarkApi = {
   getMine: () => api.get("/api/benchmark/me"),
 };
