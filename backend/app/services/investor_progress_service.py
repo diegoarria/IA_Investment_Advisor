@@ -263,6 +263,51 @@ def _check_new_ath(ctx: dict) -> dict | None:
     }
 
 
+async def _check_real_patrimonio_ath(user_id: str, ctx: dict) -> dict | None:
+    """Repeatable — a new all-time high in the user's REAL total wealth:
+    live stock position value + real cash available to invest + real
+    dividends received (the same heroTotal formula Home/Wrapped/Morning
+    Brief already use — see morning_brief_service._real_portfolio_total).
+    Diego, 2026-08-30: distinct from _check_new_ath above, which only
+    tracks fmg_portfolio_snapshots.total_value — cost basis of stock
+    positions ONLY, never live-priced, never including cash or dividends.
+    This needs its own running max (user_profiles.max_real_patrimonio_usd,
+    migration 084) instead of the snapshot history other checks read,
+    since a real cash/dividend total was never recorded per historical
+    day. Doesn't fit the pure-function _ONE_TIME/_REPEATABLE_CHECKS
+    pattern above (those only read `ctx`) since it needs its own DB
+    read+write for the running max — called directly from
+    detect_new_milestones instead. First real reading ever just seeds
+    the max silently — never fires a push celebrating a number that had
+    nothing real to compare against yet."""
+    from app.services.morning_brief_service import _real_portfolio_total
+    db = get_supabase()
+    real_total = await _real_portfolio_total(user_id, ctx["positions"])
+    if real_total <= 0:
+        return None
+
+    row = await run_query(
+        db.table("user_profiles").select("max_real_patrimonio_usd").eq("user_id", user_id).maybe_single()
+    )
+    stored_max = ((row.data if row else None) or {}).get("max_real_patrimonio_usd")
+
+    if stored_max is not None and real_total <= float(stored_max):
+        return None
+
+    await run_query(
+        db.table("user_profiles").update({"max_real_patrimonio_usd": real_total}).eq("user_id", user_id)
+    )
+    if stored_max is None:
+        return None  # first real reading ever — seed only, nothing to celebrate yet
+
+    return {
+        "key": f"real_patrimonio_ath_{date.today().isoformat()}",
+        "event_type": "milestone",
+        "title": "¡Nuevo máximo histórico!",
+        "description": f"Tu patrimonio total (portafolio + efectivo + dividendos) llegó a ${real_total:,.2f} — el número más alto que has tenido nunca. 🎉",
+    }
+
+
 _ONE_TIME_CHECKS = [
     _check_first_investment,
     _check_ops_100,
@@ -297,6 +342,10 @@ async def detect_new_milestones(user_id: str) -> list[dict]:
         candidate = check(ctx)
         if candidate and candidate["key"] not in existing_keys:
             newly_achieved.append(candidate)
+
+    real_ath_candidate = await _check_real_patrimonio_ath(user_id, ctx)
+    if real_ath_candidate and real_ath_candidate["key"] not in existing_keys:
+        newly_achieved.append(real_ath_candidate)
 
     for m in newly_achieved:
         await fmg_service.log_event(
