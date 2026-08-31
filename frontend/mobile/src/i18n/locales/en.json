@@ -2838,7 +2838,9 @@
     "searching": "Searching for opportunities...",
     "noPicks": "No picks available yet.",
     "defaultDisclaimer": "These are educational ideas to research, not buy recommendations or financial advice. Research each company deeply before investing a single dollar.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "unlockPreview": "Unlock your 5 ideas for the week",
+    "unlockCta": "Unlock with Premium"
   },
   "mobileOnboardingChecklist": {
     "title": "Set up your Nuvos",

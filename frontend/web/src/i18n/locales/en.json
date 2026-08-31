@@ -3048,7 +3048,12 @@
     "mainRisk": "Main risk",
     "defaultDisclaimer": "These are educational ideas to research, not buy recommendations or financial advice. Research each company deeply before investing a single dollar.",
     "noSuggestions": "No suggestions available yet.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "previewWhy1": "Personalized analysis based on your risk profile and mentor...",
+    "previewWhy2": "A concrete catalyst to watch in the coming weeks...",
+    "previewWhy3": "Matched to your investment horizon and risk tolerance...",
+    "unlockPreview": "Unlock your 5 ideas for the week",
+    "unlockCta": "Unlock with Premium"
   },
   "paywallModal": {
     "planMonthlyLabel": "Monthly",

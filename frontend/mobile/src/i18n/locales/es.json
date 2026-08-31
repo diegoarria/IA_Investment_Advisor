@@ -2838,7 +2838,9 @@
     "searching": "Buscando oportunidades...",
     "noPicks": "No hay picks disponibles aún.",
     "defaultDisclaimer": "Estas son ideas educativas para investigar, no recomendaciones de compra ni asesoría financiera. Investiga a fondo cada empresa antes de invertir un solo dólar.",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "unlockPreview": "Desbloquea tus 5 ideas de la semana",
+    "unlockCta": "Desbloquear con Premium"
   },
   "mobileOnboardingChecklist": {
     "title": "Configura tu Nuvos",

@@ -33,6 +33,65 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
 
   useEffect(() => { load(); }, [load]);
 
+  if (!isPremium) {
+    // Diego, 2026-08-30: locked "blurred" preview (skeleton bars, not real
+    // text — RN has no reliable text-blur filter) instead of a plain
+    // locked card. The backend itself refuses to generate/send real
+    // Screener Semanal data to a Free user (see screener.py's /weekly
+    // route), so there's no real data here to protect — this is purely a
+    // "there's something real here" visual cue. Whole card taps to the
+    // paywall.
+    return (
+      <TouchableOpacity activeOpacity={0.85} onPress={onUpgrade} style={[s.card, { backgroundColor: colors.card }]}>
+        <View style={[s.hero, { backgroundColor: TOOL_COLOR + "18" }]}>
+          <View style={[s.circle1, { backgroundColor: TOOL_COLOR + "15" }]} />
+          <View style={[s.circle2, { backgroundColor: TOOL_COLOR + "0A" }]} />
+          <View style={[s.iconOuter, { backgroundColor: TOOL_COLOR + "25", borderColor: TOOL_COLOR + "40" }]}>
+            <View style={[s.iconInner, { backgroundColor: TOOL_COLOR }]}>
+              <Ionicons name="search" size={26} color="white" />
+            </View>
+          </View>
+          <Text style={[s.heroTitle, { color: colors.text }]}>{t("mobileWeeklyScreener.title")}</Text>
+          <Text style={[s.heroTagline, { color: TOOL_COLOR }]}>{t("mobileWeeklyScreener.tagline")}</Text>
+        </View>
+
+        <View style={s.content}>
+          <View style={[s.lockedPreview, { borderColor: colors.border }]}>
+            <View style={{ opacity: 0.35 }}>
+              {[0, 1, 2].map((i) => (
+                <View key={i} style={[s.pickRow, { borderTopColor: colors.border, borderTopWidth: i > 0 ? StyleSheet.hairlineWidth : 0 }]}>
+                  <View style={[s.rankBox, { backgroundColor: TOOL_COLOR + "15" }]}>
+                    <Text style={[s.rank, { color: TOOL_COLOR }]}>{i + 1}</Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <View style={{ flexDirection: "row", gap: 6 }}>
+                      <View style={[s.skeletonBar, { width: 46, height: 12, backgroundColor: colors.textMuted }]} />
+                      <View style={[s.skeletonBar, { width: 60, height: 12, backgroundColor: colors.border }]} />
+                    </View>
+                    <View style={[s.skeletonBar, { width: "80%", height: 9, backgroundColor: colors.border }]} />
+                  </View>
+                  <View style={{ alignItems: "flex-end", gap: 6 }}>
+                    <View style={[s.skeletonBar, { width: 40, height: 12, backgroundColor: colors.textMuted }]} />
+                    <View style={[s.skeletonBar, { width: 32, height: 9, backgroundColor: colors.border }]} />
+                  </View>
+                </View>
+              ))}
+            </View>
+            <View style={s.lockOverlay}>
+              <Ionicons name="lock-closed" size={18} color="#fff" />
+              <Text style={s.lockText}>{t("mobileWeeklyScreener.unlockPreview")}</Text>
+            </View>
+          </View>
+
+          <View style={[s.unlockBtn, { backgroundColor: TOOL_COLOR }]}>
+            <Ionicons name="sparkles" size={15} color="#fff" />
+            <Text style={s.unlockBtnText}>{t("mobileWeeklyScreener.unlockCta")}</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <View style={[s.card, { backgroundColor: colors.card }]}>
 
@@ -142,6 +201,14 @@ const styles = () => StyleSheet.create({
   emptyText:  { fontSize: 13, textAlign: "center" },
   retryBtn:   { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, marginTop: 2 },
   retryText:  { fontSize: 11, fontWeight: "700" },
+
+  // Locked preview (Free tier)
+  lockedPreview: { position: "relative", borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden", marginBottom: 14 },
+  skeletonBar:   { borderRadius: 4 },
+  lockOverlay:   { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "rgba(0,0,0,0.45)" },
+  lockText:      { fontSize: 12, fontWeight: "800", color: "#fff", textAlign: "center", paddingHorizontal: 16 },
+  unlockBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 13 },
+  unlockBtnText: { fontSize: 14, fontWeight: "800", color: "#fff" },
 
   // Picks
   pickRow:    { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 11, borderTopWidth: StyleSheet.hairlineWidth },

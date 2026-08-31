@@ -2659,7 +2659,20 @@ async def weekly_picks(
     Premium user every Sunday by worker.py's job_weekly_screener_generate;
     this on-demand path is the fallback for any user that job missed (new
     Premium user mid-week, a run that failed for them, etc.), so the cache
-    is never left empty until next Sunday."""
+    is never left empty until next Sunday.
+
+    Premium-only: the Sunday batch job already only generates for Premium
+    users, but this on-demand fallback had no gate at all, so a Free user
+    hitting this endpoint directly got the real AI-generated picks for
+    free (and cost a real Claude call on top of it). Diego, 2026-08-30 —
+    Free's web/mobile card now renders its own blurred preview and never
+    calls this route; this is the actual enforcement, not just UI
+    politeness."""
+    from app.api.routes.chat import _is_premium
+    profile = await _get_user_profile_safe(user_id)
+    if not _is_premium(profile):
+        return {"locked": True, "week_theme": None, "business_profile": None, "picks": [], "mentor_note": None, "disclaimer": None}
+
     existing  = [t.strip().upper() for t in tickers.split(",") if t.strip()]
     cache_key = _weekly_cache_key(user_id)
     cached    = cache_get(cache_key)

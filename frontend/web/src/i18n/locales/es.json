@@ -3048,7 +3048,12 @@
     "mainRisk": "Riesgo principal",
     "defaultDisclaimer": "Estas son ideas educativas para investigar, no recomendaciones de compra ni asesoría financiera. Investiga a fondo cada empresa antes de invertir un solo dólar.",
     "noSuggestions": "No hay sugerencias disponibles aún.",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "previewWhy1": "Análisis personalizado según tu perfil de riesgo y tu mentor...",
+    "previewWhy2": "Catalizador concreto a vigilar en las próximas semanas...",
+    "previewWhy3": "Ideal para tu horizonte de inversión y tolerancia al riesgo...",
+    "unlockPreview": "Desbloquea tus 5 ideas de la semana",
+    "unlockCta": "Desbloquear con Premium"
   },
   "paywallModal": {
     "planMonthlyLabel": "Mensual",
