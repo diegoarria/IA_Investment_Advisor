@@ -14,6 +14,14 @@ meaningless to a server-to-server request) and re-serves them from our own
 domain, where the app's already-configured CORSMiddleware (main.py) adds
 Access-Control-Allow-Origin automatically — no per-route header wrangling
 needed here.
+
+`?format=png` (Diego, 2026-08-30): React Native's <Image> component has no
+SVG support at all — parqet's default response here is SVG, so mobile's
+TickerLogo silently failed onError -> initials-only for every ticker,
+confirmed live (assets.parqet.com/logos/symbol/AAPL?format=png returns a
+real 200 image/png; ?format=svg returns image/svg+xml). Web keeps calling
+this endpoint with no format param (defaults to svg, which <img> renders
+fine) — this is additive, not a behavior change for web.
 """
 import base64
 import logging
@@ -42,12 +50,13 @@ async def _fetch(url: str) -> tuple[bytes, str] | None:
 
 
 @router.get("/{ticker}")
-async def get_logo(ticker: str):
+async def get_logo(ticker: str, format: str = "svg"):
     ticker = ticker.strip().upper()
     if not ticker:
         raise HTTPException(status_code=404, detail="No logo")
+    fmt = format if format in ("svg", "png") else "svg"
 
-    cache_key = f"logo_proxy:{ticker}"
+    cache_key = f"logo_proxy:{ticker}:{fmt}"
     cached = cache_get(cache_key)
     if cached:
         return Response(
@@ -57,7 +66,7 @@ async def get_logo(ticker: str):
         )
 
     clean = ticker.replace(".", "-")
-    result = await _fetch(f"https://assets.parqet.com/logos/symbol/{clean}?format=svg")
+    result = await _fetch(f"https://assets.parqet.com/logos/symbol/{clean}?format={fmt}")
 
     if not result:
         # Fallback chain mirrors watchlist.py's _fetch_logo_url (Finnhub

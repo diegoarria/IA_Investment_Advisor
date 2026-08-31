@@ -107,7 +107,10 @@ function TickerLogo({ ticker, size }: { ticker: string; size: number }) {
   }
   return (
     <Image
-      source={{ uri: `${BASE_URL}/api/logo/${ticker.replace(".", "-")}` }}
+      // React Native's <Image> can't render SVG at all — this backend's
+      // default response is SVG (fine for web's <img>), so ?format=png is
+      // required here or every logo silently falls back to initials.
+      source={{ uri: `${BASE_URL}/api/logo/${ticker.replace(".", "-")}?format=png` }}
       onError={() => setFailed(true)}
       resizeMode="contain"
       style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: "#fff", borderWidth: 1, borderColor: WT.border }}
