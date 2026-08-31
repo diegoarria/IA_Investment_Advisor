@@ -1662,7 +1662,11 @@
       "groupReits": "REITs",
       "groupCommunication": "Comunicación de Servicios",
       "groupUtilities": "Utilidades",
-      "groupEtfs": "ETFs"
+      "groupEtfs": "ETFs",
+      "groupGold": "Oro",
+      "groupSilver": "Plata",
+      "groupOil": "Petróleo",
+      "groupCrypto": "Criptos"
     },
     "riskLevels": {
       "conservative": "Conservador",

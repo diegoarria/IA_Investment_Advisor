@@ -280,11 +280,45 @@ SECTOR_ENERGY = "Energía"
 SECTOR_UTILITIES = "Utilidades"
 SECTOR_ETFS = "ETFs"
 
+# Diego, 2026-08-30: 4 more real buckets on top of the 11 — Oro, Plata,
+# Petróleo, Criptos. These are commodity/theme EXPOSURE, not a GICS sector,
+# so they're checked by curated ticker list (below), ahead of the GICS/
+# Finnhub rollup, not derived from an industry string. Diego's own
+# clarification: Oro/Plata/Petróleo are for the ETF/instrument that tracks
+# the commodity price specifically (GLD, SLV, USO...) — an actual gold
+# miner (NEM) or oil major (XOM) is a real operating business and stays in
+# its real GICS sector (Materiales/Energía), never reclassified just
+# because its revenue happens to depend on a commodity price. Criptos is
+# the one exception that includes both the tracking ETFs (IBIT, FBTC...)
+# AND the crypto-native equities (COIN, MSTR, mining companies) — unlike
+# oil/gold miners, these don't have an equally legitimate traditional GICS
+# home to begin with (crypto isn't a GICS sector), so grouping them
+# together is the real, honest classification, not an arbitrary pull-out.
+SECTOR_GOLD = "Oro"
+SECTOR_SILVER = "Plata"
+SECTOR_OIL = "Petróleo"
+SECTOR_CRYPTO = "Criptos"
+
 SECTOR_GROUPS_ES: list[str] = [
     SECTOR_TECHNOLOGY, SECTOR_FINANCIALS, SECTOR_CONSUMER_DISCRETIONARY,
     SECTOR_CONSUMER_STAPLES, SECTOR_INDUSTRIALS, SECTOR_MATERIALS, SECTOR_REITS,
     SECTOR_COMMUNICATION_SERVICES, SECTOR_HEALTH, SECTOR_ENERGY, SECTOR_UTILITIES,
+    SECTOR_GOLD, SECTOR_SILVER, SECTOR_OIL, SECTOR_CRYPTO,
 ]
+
+# Real, well-known tickers for each — checked before the GICS/Finnhub
+# rollup in get_sector_group_es. Never a guess: a ticker not on one of
+# these lists falls through to its real GICS sector exactly as before.
+_GOLD_TICKERS: set[str] = {"GLD", "IAU", "SGOL", "GLDM", "OUNZ", "AAAU", "PHYS", "BAR"}
+_SILVER_TICKERS: set[str] = {"SLV", "SIVR", "PSLV"}
+_OIL_TICKERS: set[str] = {"USO", "UCO", "SCO", "BNO", "OIH", "UNG", "BOIL", "KOLD", "DBO"}
+_CRYPTO_TICKERS: set[str] = {
+    # Spot/futures crypto ETFs
+    "IBIT", "FBTC", "GBTC", "BITB", "ARKB", "BRRR", "HODL", "BITO",
+    "EZBC", "BTCO", "ETHE", "FETH", "ETHW",
+    # Crypto-native equities — miners, exchanges, treasury companies
+    "COIN", "MSTR", "MARA", "RIOT", "HUT", "CLSK", "CIFR", "BITF", "WULF", "IREN", "BTBT",
+}
 
 # Every English GICS sub-industry key from _GICS_INDUSTRY_ES above, rolled
 # up to its real GICS top-level sector — standard GICS sector membership,
@@ -615,7 +649,21 @@ def get_sector_group_es(ticker: str) -> str | None:
     SECTOR_GROUPS_ES above): Tecnología, Finanzas, Consumo Discrecional,
     Consumo Básico, Industriales, Materiales, REITs, Comunicación de
     Servicios, Salud, Energía, Utilidades, ETFs. Never "Otro" — same
-    real-data-or-nothing guarantee as get_sector_es, just coarser."""
+    real-data-or-nothing guarantee as get_sector_es, just coarser.
+
+    Checks the curated Oro/Plata/Petróleo/Criptos ticker lists first — real,
+    well-known tickers, not a guess — before falling through to the GICS/
+    Finnhub rollup for everything else."""
+    ticker = ticker.upper()
+    if ticker in _GOLD_TICKERS:
+        return SECTOR_GOLD
+    if ticker in _SILVER_TICKERS:
+        return SECTOR_SILVER
+    if ticker in _OIL_TICKERS:
+        return SECTOR_OIL
+    if ticker in _CRYPTO_TICKERS:
+        return SECTOR_CRYPTO
+
     source, industry_en, is_etf = _resolve_industry_en(ticker)
     if is_etf:
         return SECTOR_ETFS

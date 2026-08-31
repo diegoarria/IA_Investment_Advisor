@@ -325,6 +325,14 @@ function getSectorLabels(t: TFunction): Record<string, string> {
     "Comunicación de Servicios": t("portfolio.sectors.groupCommunication"),
     "Utilidades": t("portfolio.sectors.groupUtilities"),
     "ETFs": t("portfolio.sectors.groupEtfs"),
+    // Diego, 2026-08-30: 4 more real buckets — commodity/theme exposure,
+    // not a GICS sector (see sector_lookup.py's SECTOR_GOLD/SILVER/OIL/
+    // CRYPTO). Oro/Plata/Petróleo are the tracking ETF only (GLD, SLV,
+    // USO...); a gold miner or oil major stays in Materiales/Energía.
+    "Oro": t("portfolio.sectors.groupGold"),
+    "Plata": t("portfolio.sectors.groupSilver"),
+    "Petróleo": t("portfolio.sectors.groupOil"),
+    "Criptos": t("portfolio.sectors.groupCrypto"),
   };
 }
 
