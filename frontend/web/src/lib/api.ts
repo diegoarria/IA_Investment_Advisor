@@ -260,7 +260,7 @@ export const market = {
   getPortfolioChart: (positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[], period: string) =>
     api.post("/api/market/portfolio-chart", { positions, period }),
   getSectors: (tickers: string[]) =>
-    api.post<{ sectors: Record<string, string> }>("/api/market/sectors", { tickers }),
+    api.post<{ sectors: Record<string, string>; sector_groups: Record<string, string> }>("/api/market/sectors", { tickers }),
   getFinancials: (ticker: string, limit = 5) =>
     api.get(`/api/stocks/${encodeURIComponent(ticker)}/financials`, { params: { limit } }),
   getHistoricalBacktest: (positions: { ticker: string; shares: number; avg_price: number }[]) =>

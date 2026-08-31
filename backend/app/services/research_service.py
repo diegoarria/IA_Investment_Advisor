@@ -192,7 +192,12 @@ def _sector_weights(positions: list[dict], sector_by_ticker: dict[str, str]) -> 
         return {}
     weights: dict[str, float] = {}
     for p in positions:
-        sector = sector_by_ticker.get(p.get("ticker", "").upper(), "Otro")
+        # Diego, 2026-08-30: real sector only, never a fabricated "Otro" —
+        # a position whose ticker has no resolvable sector is left out of
+        # the weights entirely rather than dumped into a fake bucket.
+        sector = sector_by_ticker.get(p.get("ticker", "").upper())
+        if not sector:
+            continue
         value = (p.get("shares") or 0) * (p.get("avgPrice") or 0)
         weights[sector] = weights.get(sector, 0) + value / total * 100
     return weights
@@ -203,13 +208,16 @@ async def _personalize(plan: dict, data: dict, findings: list[dict]) -> dict | N
     if not positions or not plan.get("needs_portfolio_personalization"):
         return None
 
-    import yfinance as yf
+    from app.services.sector_lookup import get_sector_group_es
 
-    def _sector(ticker: str) -> str:
+    def _sector(ticker: str) -> str | None:
+        # Diego, 2026-08-30: real sector (one of the 11 GICS groups),
+        # never a fabricated "Otro" — was previously a raw, untranslated
+        # yfinance .info.get("sector") call with "Otro" on any failure.
         try:
-            return yf.Ticker(ticker).info.get("sector") or "Otro"
+            return get_sector_group_es(ticker)
         except Exception:
-            return "Otro"
+            return None
 
     candidate_tickers = [c["ticker"] for c in data.get("companies", [])]
     held_extra_tickers = [

@@ -68,6 +68,8 @@ async def take_portfolio_snapshot(user_id: str) -> None:
     Called once per day per user from the background worker.
     """
     try:
+        from app.services.sector_lookup import get_sector_group_es
+
         db = get_supabase()
         today = datetime.now(timezone.utc).date().isoformat()
 
@@ -120,8 +122,17 @@ async def take_portfolio_snapshot(user_id: str) -> None:
             price = float(pos.get("avgPrice", 0) or 0)
             value = qty * price
             total_value += value
-            sector = pos.get("sector") or "Other"
-            sector_totals[sector] = sector_totals.get(sector, 0) + value
+            # Diego, 2026-08-30: real sector (one of the 11 GICS groups),
+            # never a fabricated "Other" — see sector_lookup.py. A position
+            # whose ticker genuinely has no resolvable sector is left out
+            # of sector_totals entirely rather than dumped into a fake
+            # bucket; total_value above already includes it, so it's still
+            # counted in the portfolio total, just not attributed to a
+            # sector slice.
+            ticker = pos.get("ticker")
+            sector = get_sector_group_es(ticker) if ticker else None
+            if sector:
+                sector_totals[sector] = sector_totals.get(sector, 0) + value
 
         sector_weights: dict[str, float] = {}
         if total_value > 0:

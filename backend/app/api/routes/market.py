@@ -483,34 +483,51 @@ async def get_prices(request: Request, body: dict, user_id: str = Depends(get_cu
 @router.post("/sectors")
 @limiter.limit("30/minute")
 async def get_sectors(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
-    """Real sector per ticker for the portfolio allocation breakdown — see
-    app/services/sector_lookup.py. Diego, 2026-08-29: no ticker should ever
-    show as "Otro"; this replaces the frontend's small hardcoded map with a
-    live lookup that covers any real, listed ticker."""
-    from app.services.sector_lookup import get_sector_es
+    """Real sector per ticker — see app/services/sector_lookup.py. Diego,
+    2026-08-29: no ticker should ever show as "Otro"; this replaces the
+    frontend's small hardcoded map with a live lookup that covers any
+    real, listed ticker.
+
+    Returns both granularities from the SAME underlying classification:
+    "sectors" is the granular sub-industry label (e.g. "Semiconductores"),
+    still used by the risk-score heuristic and stress-test drawdown
+    mapping. "sector_groups" is Diego's 2026-08-30 spec — exactly the 11
+    GICS top-level sectors + "ETFs", used by the portfolio diversification
+    breakdown. Both are computed together (get_sector_es/get_sector_group_es
+    share one cached Finnhub resolution per ticker), so this stays one
+    network round-trip for the frontend either way."""
+    from app.services.sector_lookup import get_sector_es, get_sector_group_es
 
     tickers = list({s.upper() for s in body.get("tickers", []) if s})
     if not tickers:
-        return {"sectors": {}}
+        return {"sectors": {}, "sector_groups": {}}
 
     cached_result: dict[str, str] = {}
+    cached_groups: dict[str, str] = {}
     uncached: list[str] = []
     for t in tickers:
-        hit = cache_get(f"sector_lookup:{t}")
-        if hit:
-            cached_result[t] = hit
+        hit = cache_get(f"sector_lookup:industry_en:{t}")
+        if hit is not None:
+            sector = get_sector_es(t)
+            group = get_sector_group_es(t)
+            if sector:
+                cached_result[t] = sector
+            if group:
+                cached_groups[t] = group
         else:
             uncached.append(t)
 
     if uncached:
-        pairs = await asyncio.to_thread(
-            lambda: list(_MARKET_POOL.map(lambda t: (t, get_sector_es(t)), uncached))
-        )
-        for t, sector in pairs:
+        def _resolve(t: str) -> tuple[str, str | None, str | None]:
+            return t, get_sector_es(t), get_sector_group_es(t)
+        triples = await asyncio.to_thread(lambda: list(_MARKET_POOL.map(_resolve, uncached)))
+        for t, sector, group in triples:
             if sector:
                 cached_result[t] = sector
+            if group:
+                cached_groups[t] = group
 
-    return {"sectors": cached_result}
+    return {"sectors": cached_result, "sector_groups": cached_groups}
 
 
 @router.get("/summary")

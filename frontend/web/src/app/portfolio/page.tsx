@@ -219,6 +219,23 @@ function sectorFor(ticker: string): string {
   return TICKER_SECTOR[ticker] ?? DYNAMIC_SECTOR_CACHE[ticker] ?? "Otro";
 }
 
+// Diego, 2026-08-30: the portfolio diversification breakdown (composition
+// bar/legend + drill-down below) must show ONLY these 11 real GICS sectors
+// + "ETFs" — never "Otro", never a finer category. Separate from
+// TICKER_SECTOR/sectorFor above on purpose: those stay granular (e.g.
+// "Semiconductores") because the risk-score heuristic and stress-test
+// drawdown mapping want that finer signal — this is a second, coarser view
+// of the exact same real backend classification (sector_lookup.py's
+// get_sector_group_es), used ONLY for what the user sees as "your
+// portfolio's sectors." No static map here (unlike TICKER_SECTOR) — every
+// ticker's group comes from the real backend lookup, so coverage is never
+// stale.
+const DYNAMIC_SECTOR_GROUP_CACHE: Record<string, string> = {};
+
+function sectorGroupFor(ticker: string): string | null {
+  return DYNAMIC_SECTOR_GROUP_CACHE[ticker] ?? null;
+}
+
 // Sector composition bar/legend: one shade per rank (brightest = largest
 // holding) instead of one flat color for every sector, so the visual
 // hierarchy matches the data hierarchy.
@@ -342,6 +359,16 @@ function getSectorLabel(t: TFunction): Record<string, string> {
     "Cripto": t("portfolio.sectors.crypto"),
     "ETF": t("portfolio.sectors.etf"),
     "Otro": t("portfolio.sectors.other"),
+    // Diego, 2026-08-30: the 11-sector diversification-breakdown taxonomy
+    // (sector_lookup.py's SECTOR_GROUPS_ES) — 6 of these names already
+    // exist above for the granular taxonomy and mean the same thing
+    // (Tecnología, Consumo Discrecional, Consumo Básico, Salud,
+    // Industriales, Materiales), only these 5 are new.
+    "Finanzas": t("portfolio.sectors.groupFinancials"),
+    "REITs": t("portfolio.sectors.groupReits"),
+    "Comunicación de Servicios": t("portfolio.sectors.groupCommunication"),
+    "Utilidades": t("portfolio.sectors.groupUtilities"),
+    "ETFs": t("portfolio.sectors.groupEtfs"),
   };
 }
 
@@ -566,7 +593,14 @@ function scorePortfolio(positions: Position[], pricesData: Record<string, PriceD
   }));
 
   let totalVal=0, weightedRisk=0;
+  // sectorVals (granular, risk-score input) and sectorGroupVals (the 11
+  // canonical GICS groups, diversification-breakdown input) are computed
+  // independently in the same pass — same real data, different granularity
+  // for different purposes. A ticker whose group hasn't resolved yet from
+  // the backend simply doesn't contribute to sectorGroupVals this render
+  // (never "Otro") — the next sectorFetchVersion bump fills it in.
   const sectorVals: Record<string,number> = {};
+  const sectorGroupVals: Record<string,number> = {};
   for (const h of holdings) {
     const price = pricesData[h.ticker]?.price ?? h.avgPrice;
     const val = h.shares * price;
@@ -574,6 +608,8 @@ function scorePortfolio(positions: Position[], pricesData: Record<string, PriceD
     weightedRisk += getPositionRisk(h.ticker) * val;
     const sector = sectorFor(h.ticker);
     sectorVals[sector] = (sectorVals[sector]??0) + val;
+    const group = sectorGroupFor(h.ticker);
+    if (group) sectorGroupVals[group] = (sectorGroupVals[group]??0) + val;
   }
   if (totalVal === 0) return { score:0, levelIdx:0, sectorPcts:{} };
   let score = weightedRisk / totalVal;
@@ -584,7 +620,7 @@ function scorePortfolio(positions: Position[], pricesData: Record<string, PriceD
   score = Math.round(Math.min(100, Math.max(0, score)));
   const idx = PORTFOLIO_LEVEL_BOUNDS.findIndex((l) => score >= l.min && score < l.max);
   const sectorPcts: Record<string,number> = {};
-  for (const [s,v] of Object.entries(sectorVals)) sectorPcts[s] = Math.round((v/totalVal)*100);
+  for (const [s,v] of Object.entries(sectorGroupVals)) sectorPcts[s] = Math.round((v/totalVal)*100);
   return { score, levelIdx: idx===-1?7:idx, sectorPcts };
 }
 
@@ -1409,14 +1445,24 @@ export default function PortfolioPage() {
   // to recompute once the fetch resolves.
   const [sectorFetchVersion, setSectorFetchVersion] = useState(0);
   useEffect(() => {
-    const missing = Array.from(new Set(positions.map((p) => p.ticker)))
-      .filter((t) => !TICKER_SECTOR[t] && !DYNAMIC_SECTOR_CACHE[t]);
+    const tickers = Array.from(new Set(positions.map((p) => p.ticker)));
+    // Granular (risk-score) still skips anything the static TICKER_SECTOR
+    // map already covers. The group cache (diversification breakdown) has
+    // no static map at all — every ticker needs a real backend lookup —
+    // so it's checked independently.
+    const missing = tickers.filter((t) =>
+      (!TICKER_SECTOR[t] && !DYNAMIC_SECTOR_CACHE[t]) || !DYNAMIC_SECTOR_GROUP_CACHE[t]
+    );
     if (!missing.length) return;
     marketApi.getSectors(missing).then((res) => {
       const sectors = res?.data?.sectors ?? {};
+      const sectorGroups = res?.data?.sector_groups ?? {};
       let changed = false;
       for (const [t, sec] of Object.entries(sectors)) {
         if (sec && !DYNAMIC_SECTOR_CACHE[t]) { DYNAMIC_SECTOR_CACHE[t] = sec as string; changed = true; }
+      }
+      for (const [t, grp] of Object.entries(sectorGroups)) {
+        if (grp && !DYNAMIC_SECTOR_GROUP_CACHE[t]) { DYNAMIC_SECTOR_GROUP_CACHE[t] = grp as string; changed = true; }
       }
       if (changed) setSectorFetchVersion((n) => n + 1);
     }).catch(() => {});
@@ -3286,7 +3332,7 @@ export default function PortfolioPage() {
                         const rank = sortedSectors.findIndex(([s]) => s === selectedSector);
                         const col = sectorShade(Math.max(rank,0), sortedSectors.length);
                         const sectorPositions = positions.filter(
-                          (p) => sectorFor(p.ticker) === selectedSector
+                          (p) => sectorGroupFor(p.ticker) === selectedSector
                         );
                         // Combine purchase lots of the same ticker into one row —
                         // a second lot of a stock you already hold in this sector

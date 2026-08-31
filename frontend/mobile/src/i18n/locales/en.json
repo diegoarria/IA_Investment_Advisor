@@ -1167,7 +1167,12 @@
       "realEstate": "Real Estate",
       "crypto": "Crypto",
       "etf": "ETF",
-      "other": "Other"
+      "other": "Other",
+      "groupFinancials": "Financials",
+      "groupReits": "REITs",
+      "groupCommunication": "Communication Services",
+      "groupUtilities": "Utilities",
+      "groupEtfs": "ETFs"
     },
     "riskLevels": {
       "conservative": "Conservative",
