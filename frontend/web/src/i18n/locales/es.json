@@ -2739,36 +2739,36 @@
         "title": "Tu Dashboard",
         "subtitle": "El pulso del mercado, de un vistazo",
         "desc": "El Inicio muestra los índices S&P 500, Nasdaq y Dow Jones en tiempo real con scroll continuo cuando el mercado está abierto (LIVE). Debajo verás el valor de tu portafolio con tres métricas clave: rendimiento de Hoy, YTD (lo que va del año) y Total.",
-        "tip": "💡 La sección «Subiendo hoy» muestra automáticamente las 4 posiciones de tu portafolio con mayor ganancia del día."
+        "tip": "💡 Premium recibe cada mañana un Morning Brief con los eventos más importantes del día y cómo afectan tu portafolio real. La sección «Subiendo hoy» muestra automáticamente las 4 posiciones con mayor ganancia."
       },
       "3": {
         "title": "Chat con Arthur",
         "subtitle": "La herramienta principal de Nuvos",
-        "desc": "Pregunta sobre cualquier empresa, ETF, concepto o estrategia. La IA conoce tu perfil de riesgo, tu portafolio real y tu nivel inversor, y detecta cuando tus decisiones los contradicen. Cada conversación actualiza tu barra de madurez conductual.",
+        "desc": "Pregunta sobre cualquier empresa, ETF, concepto o estrategia — por texto, foto o, si eres Premium, por llamada de voz. La IA conoce tu perfil de riesgo, tu portafolio real y tu nivel inversor, y detecta cuando tus decisiones los contradicen. Cada conversación actualiza tu barra de madurez conductual.",
         "tip": "💡 Puedes editar cualquier mensaje haciendo clic en el ícono de lápiz que aparece al lado del texto."
       },
       "4": {
         "title": "Portafolio en Tiempo Real",
         "subtitle": "Tus inversiones con datos vivos",
         "desc": "Agrega posiciones manualmente o pegando una captura de pantalla de tu broker (Ctrl+V / ⌘+V) — la IA extrae los datos automáticamente. Los precios se actualizan cada 30 segundos. Alterna entre vista Básica y Avanzada para ver Volumen, Market Cap, P/E, Ex-Dividendo y rango 52 semanas.",
-        "tip": "💡 El badge junto a «Mi Portafolio» (USD, MXN, EUR…) indica la moneda de tu portafolio. Haz clic en cualquier posición para ver su análisis completo."
+        "tip": "💡 El badge junto a «Mi Portafolio» (USD, MXN, EUR…) indica la moneda de tu portafolio. Premium puede manejar hasta 3 portafolios distintos — útil si usas más de un broker."
       },
       "5": {
         "title": "Calendario de Eventos",
-        "subtitle": "Earnings, dividendos y ex-dividendos",
-        "desc": "El calendario en Watchlist muestra automáticamente tres tipos de eventos para todas tus posiciones y watchlist: Earnings (resultados trimestrales), Ex-Dividendo (fecha límite para recibir el dividendo) y pago de Dividendo. Toca cualquier día para ver el detalle.",
+        "subtitle": "Earnings, dividendos y eventos macro",
+        "desc": "El calendario en Watchlist muestra automáticamente Earnings (resultados trimestrales), Ex-Dividendo, pago de Dividendo para todas tus posiciones y watchlist — y también los eventos macro que mueven todo el mercado, no solo tus acciones: decisión de tasas de la Fed, CPI y NFP. Toca cualquier día para ver el detalle.",
         "tip": "💡 Las posiciones de tu portafolio aparecen en verde intenso; las de watchlist en azul — así identificas de un vistazo cuáles te afectan directamente."
       },
       "6": {
-        "title": "Watchlist",
+        "title": "Watchlist & Alertas Inteligentes",
         "subtitle": "Sigue acciones sin comprarlas",
-        "desc": "Agrega cualquier acción a tu Watchlist para seguir su precio, noticias y eventos en tiempo real. En modo Avanzado obtienes una tabla completa con columna de after-hours, market cap, P/E ratio, fecha de earnings y rango 52 semanas — ordenable por cualquier columna.",
+        "desc": "Agrega cualquier acción a tu Watchlist para seguir su precio, noticias y eventos en tiempo real. Premium además recibe Alertas Inteligentes: la IA vigila cambios reales en la tesis de cada empresa — cambio de estrategia, cambio de guidance, deterioro de ROIC/FCF, un riesgo nuevo, o cuando el precio entra en su rango de valor justo — y te avisa antes de que lo notes tú.",
         "tip": "💡 Arrastra las tarjetas para reordenar tu watchlist. El orden se sincroniza automáticamente entre web y móvil."
       },
       "7": {
         "title": "Aprendizaje & Herramientas",
         "subtitle": "Todo lo que necesitas para invertir mejor",
-        "desc": "Biblioteca de conceptos financieros explicados con IA adaptada a tu nivel: ETFs, análisis fundamental, P/E ratio, DCA, Value Investing y psicología del inversor. El Screener semanal (Intermedio+) analiza el mercado y selecciona oportunidades personalizadas cada domingo.",
+        "desc": "Biblioteca de conceptos financieros explicados con IA adaptada a tu nivel: ETFs, análisis fundamental, P/E ratio, DCA, Value Investing y psicología del inversor. En Oportunidades, el Nuvos AI Fair Value Engine calcula el valor justo real de cualquier empresa (modelo DCF) y te dice si está barata o cara. El Screener Semanal (Premium) selecciona 5 ideas personalizadas cada domingo.",
         "tip": "💡 La sección Inversores te muestra cómo invierten los grandes fondos — útil para identificar tendencias y validar tus ideas."
       },
       "8": {

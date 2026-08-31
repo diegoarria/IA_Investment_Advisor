@@ -2963,36 +2963,36 @@
         "title": "Your Dashboard",
         "subtitle": "The market's pulse, at a glance",
         "desc": "Home shows the S&P 500, Nasdaq, and Dow Jones indices in real time. Below, you'll see your portfolio's value with three key metrics: Today's performance, YTD (year to date), and cumulative Total.",
-        "tip": "💡 The \"Rising today\" section shows the 4 positions in your portfolio with the biggest gain of the day."
+        "tip": "💡 Premium gets a Morning Brief every morning with the day's most important events and how they affect your real portfolio. \"Rising today\" shows your 4 biggest gainers."
       },
       "chat": {
         "title": "Chat with Arthur",
         "subtitle": "Nuvos's main tool",
-        "desc": "Ask about any company, ETF, concept, or strategy. The AI knows your risk profile, your actual portfolio, and your investor level, and detects when your decisions contradict them. Every conversation updates your behavioral maturity.",
+        "desc": "Ask about any company, ETF, concept, or strategy — by text, photo, or, if you're Premium, by voice call. The AI knows your risk profile, your actual portfolio, and your investor level, and detects when your decisions contradict them. Every conversation updates your behavioral maturity.",
         "tip": "💡 You can edit any of your messages by tapping the pencil icon that appears next to the text."
       },
       "portfolio": {
         "title": "Real-Time Portfolio",
         "subtitle": "Your investments with live data",
         "desc": "Add positions manually or with a screenshot of your broker — the AI extracts the data automatically. Prices update every 30 seconds. Switch between Basic and Advanced view to see Volume, Market Cap, P/E, and 52-week range.",
-        "tip": "💡 The currency badge next to \"My Portfolio\" shows your portfolio's currency. Tap any position to see its full analysis."
+        "tip": "💡 The currency badge next to \"My Portfolio\" shows your portfolio's currency. Premium can manage up to 3 separate portfolios — useful if you use more than one broker."
       },
       "calendar": {
         "title": "Events Calendar",
-        "subtitle": "Earnings, dividends, and ex-dividends",
-        "desc": "The calendar in Watchlist automatically shows three types of events for all your positions and watchlist: Earnings (quarterly results), Ex-Dividend (deadline to receive the dividend), and Dividend payment.",
+        "subtitle": "Earnings, dividends, and macro events",
+        "desc": "The calendar in Watchlist automatically shows Earnings (quarterly results), Ex-Dividend, and Dividend payment for all your positions and watchlist — plus the macro events that move the whole market: Fed rate decisions, CPI, and NFP.",
         "tip": "💡 Your portfolio positions appear in bold green; watchlist ones in blue — so you can spot which ones affect you directly at a glance."
       },
       "watchlist": {
-        "title": "Watchlist",
+        "title": "Watchlist & Smart Alerts",
         "subtitle": "Follow stocks without buying them",
-        "desc": "Add any stock to follow its price, news, and events in real time. In Advanced mode you get a full table with after-hours, market cap, P/E ratio, earnings date, and 52-week range.",
+        "desc": "Add any stock to follow its price, news, and events in real time. Premium also gets Smart Alerts: the AI watches for real changes in each company's thesis — a strategy change, a guidance change, ROIC/FCF deterioration, a new risk, or the price entering its fair-value range — and tells you before you'd notice it yourself.",
         "tip": "💡 Drag the cards to reorder your watchlist. The order syncs automatically between the app and the web."
       },
       "learning": {
         "title": "Learning & Tools",
         "subtitle": "Everything you need to invest better",
-        "desc": "A library of financial concepts with AI tailored to your level: ETFs, fundamental analysis, P/E ratio, DCA, Value Investing, and investor psychology. The weekly Screener analyzes the market and selects personalized opportunities.",
+        "desc": "A library of financial concepts with AI tailored to your level: ETFs, fundamental analysis, P/E ratio, DCA, Value Investing, and investor psychology. In Opportunities, the Nuvos AI Fair Value Engine computes any company's real fair value (a DCF model) and tells you if it's cheap or expensive. The Weekly Screener (Premium) picks 5 personalized ideas every Sunday.",
         "tip": "💡 The Investors section shows you how the big funds invest — useful for spotting trends and validating your ideas."
       },
       "profile": {
