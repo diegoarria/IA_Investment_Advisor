@@ -1,62 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Star, Zap, TrendingUp, Shield, BarChart2, Brain, ChevronDown, ChevronUp, ArrowRight, Check } from "lucide-react";
+import { X, Check } from "lucide-react";
 import posthog from "posthog-js";
-import { billing } from "@/lib/api";
+import { billing, upsells } from "@/lib/api";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
-
-function getPlans(t: TFunction) {
-  return [
-    {
-      id: "monthly" as const,
-      label: t("paywallModal.planMonthlyLabel"),
-      price: "$14.99",
-      priceNum: 14.99,
-      period: t("paywallModal.periodMonthly"),
-      badge: null as string | null,
-      sub: t("paywallModal.planMonthlySub"),
-    },
-    {
-      id: "yearly" as const,
-      label: t("paywallModal.planYearlyLabel"),
-      price: "$144.99",
-      priceNum: 144.99,
-      period: t("paywallModal.periodYearly"),
-      badge: t("paywallModal.planYearlyBadge") as string | null,
-      sub: t("paywallModal.planYearlySub"),
-    },
-  ];
-}
-
-function getHeroFeatures(t: TFunction) {
-  return [
-    { icon: Brain,      text: t("paywallModal.heroFeature1") },
-    { icon: TrendingUp, text: t("paywallModal.heroFeature2") },
-    { icon: Zap,        text: t("paywallModal.heroFeature3") },
-    { icon: Shield,     text: t("paywallModal.heroFeature4") },
-    { icon: BarChart2,  text: t("paywallModal.heroFeature5") },
-  ];
-}
-
-function getAllFeatures(t: TFunction) {
-  return [
-    { text: t("paywallModal.feature1Text"), detail: t("paywallModal.feature1Detail") },
-    { text: t("paywallModal.feature2Text"), detail: t("paywallModal.feature2Detail") },
-    { text: t("paywallModal.feature3Text"), detail: t("paywallModal.feature3Detail") },
-    { text: t("paywallModal.feature4Text"), detail: t("paywallModal.feature4Detail") },
-    { text: t("paywallModal.feature5Text"), detail: t("paywallModal.feature5Detail") },
-    { text: t("paywallModal.feature6Text"), detail: t("paywallModal.feature6Detail") },
-    { text: t("paywallModal.feature7Text"), detail: t("paywallModal.feature7Detail") },
-    { text: t("paywallModal.feature8Text"), detail: t("paywallModal.feature8Detail") },
-    { text: t("paywallModal.feature9Text"), detail: t("paywallModal.feature9Detail") },
-    { text: t("paywallModal.feature10Text"), detail: t("paywallModal.feature10Detail") },
-    { text: t("paywallModal.feature11Text"), detail: t("paywallModal.feature11Detail") },
-    { text: t("paywallModal.feature12Text"), detail: t("paywallModal.feature12Detail") },
-    { text: t("paywallModal.feature13Text"), detail: t("paywallModal.feature13Detail") },
-  ];
-}
 
 interface PaywallModalProps {
   visible: boolean;
@@ -64,34 +12,53 @@ interface PaywallModalProps {
   reason?: string;
 }
 
+// Diego, 2026-08-30: rewritten to match PricingModal's (Productos) design
+// language almost exactly — same plan toggle, same card styling — instead
+// of its own single-plan hero layout. Two differences from PricingModal on
+// purpose: (1) no Free card here, since whoever sees this modal is already
+// on Free — showing "Free · tu plan actual" would just be wasted space on
+// their own tier; (2) Premium's feature list is 5 curated high-value
+// bullets + a closing "y muchas funcionalidades más" line instead of
+// PricingModal's full checklist — this modal interrupts a locked feature,
+// it isn't the place someone goes to compare every included feature (that
+// stays PricingModal's job, unchanged).
 export default function PaywallModal({ visible, onClose, reason }: PaywallModalProps) {
   const { t } = useTranslation();
-  const [selectedPlan, setSelectedPlan] = useState<"monthly" | "yearly">("yearly");
-  const [showAllFeatures, setShowAllFeatures] = useState(false);
-  const [expandedFeature, setExpandedFeature] = useState<string | null>(null);
+  const [plan, setPlan] = useState<"monthly" | "yearly">("monthly");
   const [loading, setLoading] = useState(false);
+  const [duoLoading, setDuoLoading] = useState(false);
 
-  // Diego's Aug 16 Free/Premium spec, §17 — reuse the analytics infra
-  // that already exists (PostHog is wired but had zero custom events on
-  // web) rather than build a new system. Centralized here so every
-  // paywall in the app (existing and new: Morning Brief, Portfolio
-  // Review, Smart Alerts, Oportunidades) reports without a per-page call.
+  // Diego's Aug 16 Free/Premium spec, §17 — reuse the analytics infra that
+  // already exists (PostHog is wired but had zero custom events on web)
+  // rather than build a new system. Centralized here so every paywall in
+  // the app (existing and new: Morning Brief, Portfolio Review, Smart
+  // Alerts, Oportunidades) reports without a per-page call.
   useEffect(() => {
     if (visible) posthog.capture("premium_paywall_viewed", { reason: reason ?? null });
   }, [visible, reason]);
 
   if (!visible) return null;
 
-  const PLANS = getPlans(t);
-  const HERO_FEATURES = getHeroFeatures(t);
-  const ALL_FEATURES = getAllFeatures(t);
-  const active = PLANS.find((p) => p.id === selectedPlan)!;
+  const HERO_FEATURES = [
+    t("paywallModal.heroFeature1"),
+    t("paywallModal.heroFeature2"),
+    t("paywallModal.heroFeature3"),
+    t("paywallModal.heroFeature4"),
+    t("paywallModal.heroFeature5"),
+  ];
+  const DUO_FEATURES = t("pricingModal.duoFeatures", { returnObjects: true }) as string[];
 
-  const handleUpgrade = async () => {
-    posthog.capture("premium_paywall_clicked", { reason: reason ?? null, plan: selectedPlan });
+  // Same monthly-equivalent-price-up-top convention PricingModal uses —
+  // the real annual charge + savings are called out just below, never the
+  // annual total as the headline number.
+  const monthlyPrice = plan === "monthly" ? "$14.99" : "$12.08";
+  const duoPrice = plan === "monthly" ? "$23.99" : "$18.75";
+
+  async function handleUpgrade() {
+    posthog.capture("premium_paywall_clicked", { reason: reason ?? null, plan });
     setLoading(true);
     try {
-      const res = await billing.createCheckout(selectedPlan);
+      const res = await billing.createCheckout(plan);
       if (res.data?.url) {
         window.location.href = res.data.url;
       } else {
@@ -99,222 +66,189 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
         setLoading(false);
       }
     } catch {
-      // PricingModal/UpsellModal both alert on this exact failure — this was
-      // the outlier that just reverted the spinner with zero explanation,
-      // even though it's the app's primary premium upgrade CTA.
       window.alert(t("pricingModal.paymentError"));
       setLoading(false);
     }
-  };
+  }
+
+  async function handleDuoCheckout() {
+    posthog.capture("premium_paywall_clicked", { reason: reason ?? null, plan: "duo" });
+    setDuoLoading(true);
+    try {
+      const res = await upsells.checkout("family_plan", plan, "paywall_modal");
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+      } else {
+        window.alert(t("pricingModal.paymentError"));
+        setDuoLoading(false);
+      }
+    } catch {
+      window.alert(t("pricingModal.paymentError"));
+      setDuoLoading(false);
+    }
+  }
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
     >
       <div
-        className="w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl overflow-hidden flex flex-col"
-        style={{
-          background: "var(--card)",
-          border: "1px solid rgba(0,212,126,0.25)",
-          maxHeight: "92vh",
-          boxShadow: "0 0 60px rgba(0,212,126,0.12), 0 25px 50px rgba(0,0,0,0.5)",
-        }}
+        className="w-full max-w-xl rounded-3xl shadow-2xl flex flex-col"
+        style={{ background: "var(--bg)", border: "1px solid var(--border)", maxHeight: "92vh" }}
       >
-        {/* Gradient top bar */}
-        <div className="h-1 shrink-0" style={{ background: "linear-gradient(90deg,#00a85e,#00d47e,#3ecf8e)" }} />
-
-        {/* Scrollable content */}
-        <div className="overflow-y-auto scrollbar-thin flex-1">
-          {/* Hero */}
-          <div
-            className="px-6 pt-5 pb-6 relative"
-            style={{ background: "linear-gradient(180deg, rgba(0,168,94,0.1) 0%, transparent 100%)" }}
+        {/* Header — sticky, always visible */}
+        <div className="relative flex items-center justify-center py-5 px-6 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+          <h1 className="text-xl font-black" style={{ color: "var(--text)" }}>{t("paywallModal.premiumBadge")}</h1>
+          <button
+            onClick={onClose}
+            aria-label={t("common.close")}
+            className="absolute right-5 top-1/2 -translate-y-1/2 p-2 rounded-xl hover:bg-white/5 transition-colors"
+            style={{ color: "var(--muted)" }}
           >
-            {/* Close */}
-            <button
-              onClick={onClose}
-              aria-label={t("common.close")}
-              className="absolute top-4 right-4 p-1.5 rounded-xl hover:bg-white/10 transition-colors"
-              style={{ color: "var(--muted)" }}
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-            {/* Badge */}
-            <div className="flex justify-center mb-3">
-              <div
-                className="flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold"
+        <div className="overflow-y-auto flex-1">
+          {/* Contextual reason — the one thing PricingModal doesn't need,
+              since it's never opened from a locked feature */}
+          {reason && (
+            <div
+              className="mx-6 mt-5 px-4 py-2.5 rounded-xl text-center text-xs"
+              style={{ background: "rgba(0,168,94,0.08)", border: "1px solid rgba(0,168,94,0.25)", color: "var(--sub)" }}
+            >
+              🔒 {reason}
+            </div>
+          )}
+
+          {/* Plan toggle */}
+          <div className="flex justify-center gap-2 py-4 px-6">
+            {(["monthly", "yearly"] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPlan(p)}
+                className="px-4 py-1.5 rounded-full text-xs font-bold border transition-all"
                 style={{
-                  background: "rgba(0,212,126,0.15)",
-                  border: "1px solid rgba(0,212,126,0.35)",
-                  color: "#00d47e",
+                  background: plan === p ? "var(--accent)" : "transparent",
+                  borderColor: plan === p ? "var(--accent)" : "var(--border)",
+                  color: plan === p ? "#000" : "var(--muted)",
                 }}
               >
-                <Star className="w-3 h-3 fill-current" />
-                {t("paywallModal.premiumBadge")}
-              </div>
-            </div>
+                {p === "monthly" ? t("pricingModal.monthly") : t("pricingModal.yearly")}
+                {p === "yearly" && <span className="ml-1.5 opacity-80">−17%</span>}
+              </button>
+            ))}
+          </div>
 
-            {/* Headline */}
-            <h2
-              className="text-center text-2xl font-black leading-tight mb-2"
-              style={{ color: "var(--text)" }}
-            >
-              {t("paywallModal.headlineLine1")}<br />
-              <span style={{ color: "#00d47e" }}>{t("paywallModal.headlineLine2")}</span>
-            </h2>
-            <p className="text-center text-sm mb-4" style={{ color: "var(--muted)" }}>
-              {t("paywallModal.subheadline")}
-            </p>
-
-            {/* Social proof */}
+          {/* Cards — Premium + Duo only, no Free */}
+          <div className="grid grid-cols-2 gap-4 px-6">
+            {/* Premium card */}
             <div
-              className="flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl mb-5"
-              style={{ background: "rgba(0,168,94,0.08)", border: "1px solid rgba(0,168,94,0.2)" }}
+              className="rounded-2xl border p-5 flex flex-col relative overflow-hidden"
+              style={{ background: "linear-gradient(135deg, #0a1a10 0%, #0d1f15 100%)", borderColor: "rgba(0,212,126,0.35)" }}
             >
-              <div className="flex -space-x-1.5">
-                {["#8b5cf6","#3b82f6","#f59e0b","#ef4444","#22c55e"].map((c, i) => (
-                  <div key={i} className="w-6 h-6 rounded-full border-2 flex items-center justify-center text-[9px] font-black text-white"
-                       style={{ borderColor: "var(--card)", background: c }}>
-                    {String.fromCharCode(65 + i)}
+              <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at top right, rgba(0,212,126,0.08) 0%, transparent 60%)" }} />
+              <span
+                className="absolute top-0 left-1/2 -translate-x-1/2 text-[9px] font-black px-2.5 py-1 rounded-b-lg"
+                style={{ background: "#f59e0b", color: "#000" }}
+              >
+                {t("paywallModal.planYearlyBadge")}
+              </span>
+
+              <p className="text-lg font-black mt-4 mb-1 relative" style={{ color: "#fff" }}>{t("pricingModal.premium")}</p>
+              <div className="flex items-baseline gap-2 mb-1 relative">
+                <span className="text-3xl font-black text-white">{monthlyPrice}</span>
+                <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>{t("pricingModal.perMonthShort")}</span>
+              </div>
+              {plan === "yearly" ? (
+                <>
+                  <p className="text-[11px] relative" style={{ color: "rgba(255,255,255,0.55)" }}>
+                    {t("pricingModal.billedAnnuallyAmount", { amount: "$144.99" })}
+                  </p>
+                  <p className="text-[10px] mb-3 relative" style={{ color: "#00d47e" }}>{t("pricingModal.premiumSavings")}</p>
+                </>
+              ) : (
+                <div className="mb-3" />
+              )}
+
+              <button
+                onClick={handleUpgrade}
+                disabled={loading}
+                className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
+                style={{ background: loading ? "rgba(0,212,126,0.5)" : "#00d47e", color: "#000" }}
+              >
+                {loading ? t("pricingModal.redirecting") : t("paywallModal.startNow")}
+              </button>
+
+              <div className="relative space-y-2.5 flex-1">
+                {HERO_FEATURES.map((f) => (
+                  <div key={f} className="flex items-start gap-2">
+                    <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#00d47e" }} />
+                    <span className="text-xs" style={{ color: "rgba(255,255,255,0.8)" }}>{f}</span>
                   </div>
                 ))}
               </div>
-              <p className="text-xs" style={{ color: "var(--sub)" }}>
-                <span className="font-bold" style={{ color: "var(--text)" }}>{t("paywallModal.investorsCount")}</span> {t("paywallModal.alreadyUsePremium")}
-              </p>
-            </div>
-
-            {reason && (
               <p
-                className="text-xs mb-4 px-3 py-2 rounded-xl border text-center"
-                style={{ color: "var(--sub)", borderColor: "rgba(0,168,94,0.25)", background: "rgba(0,168,94,0.06)" }}
+                className="text-[10.5px] italic mt-3 pt-3 relative"
+                style={{ color: "rgba(255,255,255,0.45)", borderTop: "1px dashed rgba(255,255,255,0.15)" }}
               >
-                {reason}
+                {t("paywallModal.moreFeatures")}
               </p>
-            )}
-          </div>
+            </div>
 
-          <div className="px-5 pb-5 space-y-4">
-            {/* Plan selector */}
+            {/* Duo card */}
             <div
-              className="flex gap-2 p-1 rounded-2xl"
-              style={{ background: "var(--raised)" }}
+              className="rounded-2xl border p-5 flex flex-col relative overflow-hidden"
+              style={{ background: "linear-gradient(135deg, #0d1020 0%, #111827 100%)", borderColor: "rgba(99,102,241,0.4)" }}
             >
-              {PLANS.map((plan) => {
-                const isActive = selectedPlan === plan.id;
-                return (
-                  <button
-                    key={plan.id}
-                    onClick={() => setSelectedPlan(plan.id)}
-                    className="flex-1 rounded-xl py-3 px-3 transition-all relative"
-                    style={{
-                      background: isActive ? "linear-gradient(135deg,#00a85e,#00d47e)" : "transparent",
-                      boxShadow: isActive ? "0 4px 12px rgba(0,168,94,0.3)" : "none",
-                    }}
-                  >
-                    {plan.badge && (
-                      <span
-                        className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full whitespace-nowrap"
-                        style={{ background: "#f59e0b", color: "#000" }}
-                      >
-                        {plan.badge}
-                      </span>
-                    )}
-                    <div className="text-xs font-bold mb-0.5" style={{ color: isActive ? "#fff" : "var(--muted)" }}>
-                      {plan.label}
-                    </div>
-                    <div className="font-black text-lg leading-none" style={{ color: isActive ? "#fff" : "var(--sub)" }}>
-                      {plan.price}
-                    </div>
-                    <div className="text-[10px] mt-0.5" style={{ color: isActive ? "rgba(255,255,255,0.75)" : "var(--dim)" }}>
-                      {plan.sub}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+              <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at top right, rgba(99,102,241,0.07) 0%, transparent 60%)" }} />
 
-            {/* Hero features */}
-            <div className="space-y-2">
-              {HERO_FEATURES.map(({ icon: Icon, text }) => (
-                <div key={text} className="flex items-start gap-3">
-                  <div
-                    className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-                    style={{ background: "rgba(0,212,126,0.12)" }}
-                  >
-                    <Icon className="w-3.5 h-3.5" style={{ color: "#00d47e" }} />
-                  </div>
-                  <span className="text-sm leading-snug" style={{ color: "var(--sub)" }}>{text}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Expand all features */}
-            <button
-              onClick={() => setShowAllFeatures((v) => !v)}
-              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors hover:opacity-80"
-              style={{ color: "var(--muted)", background: "var(--raised)" }}
-            >
-              {showAllFeatures ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              {showAllFeatures ? t("paywallModal.viewLess") : t("paywallModal.viewAllFeatures", { count: ALL_FEATURES.length })}
-            </button>
-
-            {showAllFeatures && (
-              <div className="space-y-0.5 rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
-                {ALL_FEATURES.map((feat) => {
-                  const expanded = expandedFeature === feat.text;
-                  return (
-                    <div key={feat.text}>
-                      <button
-                        onClick={() => setExpandedFeature(expanded ? null : feat.text)}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-white/3"
-                        style={{ background: expanded ? "rgba(0,168,94,0.06)" : "transparent" }}
-                      >
-                        <Check className="w-3.5 h-3.5 shrink-0" style={{ color: "#00d47e" }} />
-                        <span className="flex-1 text-xs font-medium" style={{ color: "var(--sub)" }}>{feat.text}</span>
-                        {expanded
-                          ? <ChevronUp className="w-3 h-3 shrink-0" style={{ color: "var(--muted)" }} />
-                          : <ChevronDown className="w-3 h-3 shrink-0" style={{ color: "var(--muted)" }} />}
-                      </button>
-                      {expanded && (
-                        <p className="text-[11px] px-9 pb-2.5" style={{ color: "var(--muted)" }}>
-                          {feat.detail}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
+              <div className="flex items-center gap-2 mb-1 relative">
+                <span className="text-lg">👫</span>
+                <p className="text-lg font-black text-white">{t("pricingModal.duoPlan")}</p>
+                <span className="text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.2)", color: "#818cf8" }}>
+                  {t("pricingModal.new")}
+                </span>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* Sticky CTA footer */}
-        <div
-          className="px-5 pt-3 pb-5 shrink-0 border-t"
-          style={{ borderColor: "rgba(0,168,94,0.15)", background: "var(--card)" }}
-        >
-          <button
-            onClick={handleUpgrade}
-            disabled={loading}
-            className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 transition-all disabled:opacity-60 active:scale-95"
-            style={{
-              background: "linear-gradient(135deg,#00a85e,#00d47e)",
-              boxShadow: "0 4px 20px rgba(0,168,94,0.4)",
-            }}
-          >
-            {loading ? (
-              t("paywallModal.redirecting")
-            ) : (
-              <>
-                {t("paywallModal.startNow")} · {active.price}{active.period}
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </button>
-          <div className="flex items-center justify-center gap-4 mt-2.5">
+              <div className="flex items-baseline gap-1 mb-1 relative">
+                <span className="text-3xl font-black text-white">{duoPrice}</span>
+                <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>USD {t("pricingModal.perMonthShort")}</span>
+              </div>
+              {plan === "yearly" ? (
+                <>
+                  <p className="text-[11px] relative" style={{ color: "rgba(255,255,255,0.55)" }}>
+                    {t("pricingModal.billedAnnuallyAmount", { amount: "$224.99" })}
+                  </p>
+                  <p className="text-[10px] mb-3 relative" style={{ color: "#818cf8" }}>{t("pricingModal.duoSavings")}</p>
+                </>
+              ) : (
+                <p className="text-[10px] mb-3 relative" style={{ color: "rgba(255,255,255,0.4)" }}>{t("pricingModal.billedMonthly")}</p>
+              )}
+
+              <button
+                onClick={handleDuoCheckout}
+                disabled={duoLoading}
+                className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
+                style={{ background: duoLoading ? "rgba(99,102,241,0.4)" : "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8" }}
+              >
+                {duoLoading ? t("pricingModal.redirecting") : t("pricingModal.hireDuoPlan")}
+              </button>
+
+              <div className="relative space-y-2.5 flex-1">
+                {DUO_FEATURES.map((f) => (
+                  <div key={f} className="flex items-start gap-2">
+                    <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#818cf8" }} />
+                    <span className="text-xs" style={{ color: "rgba(255,255,255,0.75)" }}>{f}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Trust row */}
+          <div className="flex items-center justify-center gap-4 px-6 py-5">
             {[t("paywallModal.cancelAnytime"), t("paywallModal.securePayment"), t("paywallModal.freeTrial")].map((item) => (
               <span key={item} className="flex items-center gap-1 text-[10px]" style={{ color: "var(--dim)" }}>
                 <Check className="w-2.5 h-2.5" style={{ color: "#00d47e" }} />
@@ -322,15 +256,18 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
               </span>
             ))}
           </div>
-          <div className="mt-3 pt-3 border-t" style={{ borderColor: "rgba(0,168,94,0.1)" }}>
-            <a href="https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai" target="_blank" rel="noopener noreferrer"
-               className="flex items-center justify-center gap-2 py-2 rounded-xl hover:opacity-80 transition-opacity"
-               style={{ background: "rgba(0,168,94,0.06)" }}>
+
+          {/* 1:1 CTA */}
+          <div className="px-6 pb-6">
+            <a
+              href="https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 py-2.5 rounded-xl hover:opacity-80 transition-opacity"
+              style={{ background: "var(--raised)" }}
+            >
               <span className="text-sm">📅</span>
-              <span className="text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
-                {t("paywallModal.oneOnOneCta")}
-              </span>
-              <ArrowRight className="w-3 h-3" style={{ color: "var(--accent-l)" }} />
+              <span className="text-xs font-semibold" style={{ color: "var(--accent-l)" }}>{t("paywallModal.oneOnOneCta")}</span>
             </a>
           </div>
         </div>

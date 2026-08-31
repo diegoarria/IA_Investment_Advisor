@@ -3424,91 +3424,18 @@
     }
   },
   "paywallModal": {
-    "plans": {
-      "yearly": {
-        "label": "Yearly",
-        "period": "/yr",
-        "sub": "$12.08/mo · Save $34.89",
-        "badge": "MOST POPULAR"
-      },
-      "monthly": {
-        "label": "Monthly",
-        "period": "/mo",
-        "sub": "Billed monthly"
-      }
-    },
-    "heroFeature1": "Understand what to do with your money, every day — no limits",
-    "heroFeature2": "Know exactly how much you gained or lost, and why",
-    "heroFeature3": "Never be surprised by news — we alert you before it moves your money",
-    "heroFeature4": "Your portfolio built in 30 seconds, no spreadsheets",
-    "heroFeature5": "5 concrete opportunities every week, with reasoning and risk",
-    "allFeatures": {
-      "f1": {
-        "text": "Ask whatever you want, whenever you want — no limit",
-        "detail": "An AI mentor available 24/7 that knows your real portfolio and answers with context on what you already have, not in the abstract."
-      },
-      "f2": {
-        "text": "Be the first to know when one of your companies is about to report",
-        "detail": "Before quarterly results, the AI explains what to expect and if there's anything you should care about. No surprises."
-      },
-      "f3": {
-        "text": "Find out if your money would survive another crisis like 2008 or COVID",
-        "detail": "Simulate your current portfolio against 30 real historical crises. See how much you would have lost and if you'd be comfortable with that."
-      },
-      "f4": {
-        "text": "The AI honestly tells you what's wrong with your portfolio",
-        "detail": "Excessive concentration in one sector, lack of diversification, positions inconsistent with your profile. Concrete, not generic."
-      },
-      "f5": {
-        "text": "Upload your statement and the AI builds everything for you",
-        "detail": "Upload a photo or PDF from your broker. The AI automatically detects your stocks, quantities, and purchase prices."
-      },
-      "f6": {
-        "text": "Every Monday, 5 investment ideas tailored to your situation",
-        "detail": "No generic ideas. The AI considers what you already have, your profile, and what's happening in the market that week."
-      },
-      "f7": {
-        "text": "We tell you why your money is moving — before you react",
-        "detail": "Notifications when something important moves one of your positions — with an explanation of why and whether you should do something."
-      },
-      "f8": {
-        "text": "At the end of every month, know if you beat the market",
-        "detail": "Your real return vs the S&P 500. A personalized note on what worked and what didn't. No excuses, no technical jargon."
-      },
-      "f9": {
-        "text": "Learn about the companies you already hold in your portfolio",
-        "detail": "Lessons designed for what you have. Before Apple reports, understand what to watch. Relevant, not generic."
-      },
-      "f10": {
-        "text": "See how your portfolio compares to the market in real time",
-        "detail": "A simple panel: your performance today, this week, this year — against the S&P 500. Know at all times if you're doing well."
-      },
-      "f11": {
-        "text": "Unlimited portfolio — no caps on stocks or watchlist",
-        "detail": "The free plan has a limit of 10. Premium removes that limit so your portfolio is fully yours."
-      },
-      "f12": {
-        "text": "Nuvos knows you better over time — and remembers everything",
-        "detail": "With Premium you build your complete financial memory: behavior patterns, decision timeline, and portfolio evolution. The free plan only stores 10 basic beliefs."
-      },
-      "f13": {
-        "text": "Find out if a stock is cheap or expensive before you buy it",
-        "detail": "Type any ticker or company and we'll tell you if it's worth buying right now. The free plan gets 3 searches a week — Premium is unlimited."
-      }
-    },
+    "heroFeature1": "Chat with your mentor with no limits, any time",
+    "heroFeature2": "Smart alerts: we warn you before news moves your money",
+    "heroFeature3": "Know exactly how much you gained or lost this month, and why",
+    "heroFeature4": "5 new investment opportunities every week, with the reason and the risk",
+    "heroFeature5": "Upload your account statement and the AI builds your portfolio for you",
+    "moreFeatures": "+ many more features",
+    "planYearlyBadge": "MOST POPULAR",
     "trust1": "Cancel anytime",
     "trust2": "Secure payment with Stripe",
     "trust3": "30 days free",
-    "paymentError": "Could not open payment. Please try again.",
     "premiumBadge": "Nuvos AI Premium",
-    "headlinePrefix": "Become a",
-    "headlineHighlight": "real investor",
-    "subHeadline": "The support you need to make your money work for you — every day.",
-    "socialProofCount": "+2,400 investors",
-    "socialProofSuffix": "already use Premium",
-    "seeLess": "See less",
-    "seeAllResults": "See all {{count}} included results",
-    "startNow": "Start now · {{price}}{{period}}",
+    "startNow": "Start now",
     "coachingCta": "Prefer a 1:1 guide with an expert from our team?"
   },
   "quizModal": {
