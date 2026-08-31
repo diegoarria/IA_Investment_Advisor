@@ -171,7 +171,11 @@ async def _real_ytd_return(positions: list[dict]) -> float | None:
 
 
 @router.get("/annual")
-@limiter.limit("10/hour")
+# TEMP TEST BYPASS — same reason/scope as _test_bypass below: Diego hit the
+# real 10/hour cap while we iterated on the mobile Wrapped screen today.
+# Revert to "10/hour" once testing is done, well before the real Dec15-Jan15
+# launch window.
+@limiter.limit("30/hour")
 async def get_wrapped(
     request: Request,
     user: dict = Depends(get_current_user),
