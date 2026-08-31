@@ -234,6 +234,7 @@ function AppStack() {
       <Stack.Screen name="subvaluadas" options={{ headerShown: false }} />
       <Stack.Screen name="morning-brief" options={{ headerShown: false }} />
       <Stack.Screen name="journal" options={{ headerShown: false }} />
+      <Stack.Screen name="wrapped" options={{ headerShown: false }} />
       <Stack.Screen
         name="profile/edit"
         options={{
