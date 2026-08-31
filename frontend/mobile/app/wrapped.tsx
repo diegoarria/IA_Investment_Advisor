@@ -9,6 +9,8 @@ import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import api, { BASE_URL } from "../src/lib/api";
 
+const LOGO = require("../assets/images/logo_new.png");
+
 // Diego, 2026-08-30: this screen used to be its own, much older 5-slide
 // design reading fields (top_stocks, lessons, top_sector, growth_pct at the
 // top level, milestones_this_year...) that GET /api/wrapped/annual hasn't
@@ -143,7 +145,7 @@ function Stage({
       {!noChrome && (
         <>
           <View style={st.brandRow}>
-            <View style={st.brandBox}><Text style={st.brandLetter}>N</Text></View>
+            <Image source={LOGO} style={st.brandLogo} />
             <Text style={st.brandName}>NUVOS AI</Text>
           </View>
           <Text style={st.pageCounter}>{String(page).padStart(2, "0")} / {total}</Text>
@@ -402,9 +404,7 @@ function ScreenCompartir({ data }: { data: WrappedData }) {
   return (
     <Stage page={8} total={8} noChrome>
       <View style={{ borderRadius: 26, borderWidth: 1.5, borderColor: "rgba(0,232,135,0.18)", backgroundColor: "rgba(9,15,31,0.65)", alignItems: "center", padding: 18 }}>
-        <View style={{ width: 54, height: 54, borderRadius: 15, backgroundColor: WT.accentL, alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
-          <Text style={{ fontWeight: "900", fontSize: 24, color: "#04140c" }}>N</Text>
-        </View>
+        <Image source={LOGO} style={{ width: 54, height: 54, borderRadius: 15, marginBottom: 10 }} />
         <Text style={{ fontWeight: "700", fontSize: 10, color: WT.accentL, letterSpacing: 1.5, textTransform: "uppercase" }}>Nuvos Wrapped {data.year}</Text>
 
         {data.archetype && <Text style={{ fontWeight: "900", fontSize: 21, color: WT.text, marginTop: 10, textAlign: "center" }}>{data.archetype.name}</Text>}
@@ -585,8 +585,7 @@ const c = StyleSheet.create({
 const st = StyleSheet.create({
   glow: { position: "absolute", width: 340, height: 340, borderRadius: 170, backgroundColor: "rgba(0,185,109,0.10)" },
   brandRow: { position: "absolute", top: 54, left: 20, flexDirection: "row", alignItems: "center", gap: 8, zIndex: 5 },
-  brandBox: { width: 26, height: 26, borderRadius: 8, backgroundColor: WT.accentL, alignItems: "center", justifyContent: "center" },
-  brandLetter: { color: "#04140c", fontWeight: "900", fontSize: 13 },
+  brandLogo: { width: 26, height: 26, borderRadius: 8 },
   brandName: { color: WT.text, fontWeight: "800", fontSize: 13 },
   pageCounter: { position: "absolute", top: 58, right: 20, color: WT.muted, fontWeight: "600", fontSize: 12, zIndex: 5 },
   content: { flex: 1, justifyContent: "center", paddingHorizontal: 20, paddingTop: 96, paddingBottom: 90 },
@@ -625,7 +624,7 @@ const ldg = StyleSheet.create({
 const root = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
   progressWrap: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 20 },
-  progressRow: { flexDirection: "row", gap: 4, paddingHorizontal: 16, paddingTop: 10 },
+  progressRow: { flexDirection: "row", gap: 4, paddingHorizontal: 16, paddingTop: 30 },
   progressBar: { flex: 1, height: 3, borderRadius: 2 },
   closeBtn: { position: "absolute", top: 56, right: 16, zIndex: 30, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 10, width: 30, height: 30, alignItems: "center", justifyContent: "center" },
   closeTxt: { color: "#fff", fontSize: 14, fontWeight: "700" },
