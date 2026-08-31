@@ -795,10 +795,13 @@ Instrucciones críticas:
     >
     <SafeAreaView style={styles.flex} edges={["left", "right"]}>
       {/* ── Header ── */}
+      {/* Diego, 2026-08-30: this used to also show the Nuvos AI logo on the
+          left — the only tab screen with a logo in its header (home.tsx's
+          header shows a greeting instead, see its own comment), a second
+          logo that didn't belong here. Removed so this screen matches the
+          rest of the app; mentor pill + actions now just space-between
+          across the row. */}
       <View style={[styles.topBar, { borderBottomColor: colors.border }]}>
-        {/* Left: logo */}
-        <Image source={require("../../assets/images/logo_new.png")} style={styles.topBarLogoImg} />
-
         {/* Center: mentor identity pill */}
         <View style={[styles.mentorPill, {
           backgroundColor: mentor ? mentor.color + "12" : colors.card,
@@ -1247,9 +1250,6 @@ function makeStyles(c: Colors) {
       paddingHorizontal: 16, paddingVertical: 11,
       borderBottomWidth: StyleSheet.hairlineWidth,
     },
-    topBarTitle: { fontWeight: "700", fontSize: 15, letterSpacing: -0.2 },
-    topBarLogo: { flexDirection: "row", alignItems: "center", gap: 8 },
-    topBarLogoImg: { width: 28, height: 28, borderRadius: 7 },
     newChatBtn: {
       flexDirection: "row", alignItems: "center", gap: 5,
       borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,

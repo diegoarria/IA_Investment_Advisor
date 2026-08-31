@@ -3,13 +3,12 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import TourSpotlight from "@/components/TourSpotlight";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { chat as chatApi, notifications as notifApi, decisionsApi } from "@/lib/api";
+import { chat as chatApi, decisionsApi } from "@/lib/api";
 import {
-  useAuthStore, useProfileStore, useChatStore, useNotificationStore,
-  useThemeStore, useLanguageStore, useSubscriptionStore, useGuestGateStore, msgsRemaining, FREE_MSG_LIMIT,
+  useAuthStore, useProfileStore, useChatStore,
+  useLanguageStore, useSubscriptionStore, useGuestGateStore, msgsRemaining, FREE_MSG_LIMIT,
   isGuestUser, getGuestId,
 } from "@/lib/store";
 import { getMentorInfo } from "@/lib/mentorData";
@@ -24,8 +23,8 @@ import VoiceCallModal from "@/components/VoiceCallModal";
 import { unlockAudioPlayback, getUnlockedAudioElement } from "@/lib/audioUnlock";
 import { useTutorialStore } from "@/lib/store";
 import {
-  Send, Bell, LogOut, Menu, X,
-  ChevronRight, Sun, Moon, Square, Pencil, ImagePlus, Plus, Mic, Play, Copy, Phone,
+  Send, X,
+  ChevronRight, Square, Pencil, ImagePlus, Plus, Mic, Play, Copy, Phone,
 } from "lucide-react";
 import { getUserLevel, getLevelLabel, LEVEL_COLOR } from "@/lib/userLevel";
 import { useTranslation } from "react-i18next";
@@ -155,11 +154,9 @@ export default function ChatPage() {
   const SUGGESTIONS_BY_OBJECTIVE = getSuggestionsByObjective(t);
   const OBJECTIVE_GREETING = getObjectiveGreeting(t);
   const { hasSeenTutorial, openTutorial } = useTutorialStore();
-  const { isAuthenticated, clearAuth } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const { profile, updateMaturity, updateBehavioralRisk } = useProfileStore();
   const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, currentId, resumeOrCreateSession, createSession, syncSessionMessages, loadFromServer } = useChatStore();
-  const { notifications, setNotifications, markRead } = useNotificationStore();
-  const { theme, toggleTheme } = useThemeStore();
   const { language } = useLanguageStore();
   const subStore = useSubscriptionStore();
   const forceShowFlashcard = useGuestGateStore((s) => s.forceShowFlashcard);
@@ -212,7 +209,6 @@ export default function ChatPage() {
 
   const [input, setInput] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallReason, setPaywallReason] = useState<string | undefined>(undefined);
   const [lastAssessment, setLastAssessment] = useState<BScoreData | null>(null);
@@ -536,10 +532,6 @@ export default function ChatPage() {
     // merge logic drops the placeholder empty session once real ones land.
     const retryTimers = [3_000, 8_000, 15_000].map((delay) => setTimeout(loadFromServer, delay));
 
-    notifApi.getAll()
-      .then((res) => setNotifications(res.data.notifications, res.data.unread_count))
-      .catch(() => {});
-
     subStore.fetchStatus().catch(() => {});
     loadPortfolio();
     return () => {
@@ -751,151 +743,46 @@ export default function ChatPage() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
-  const unreadNotifCount = notifications.filter((n) => !n.read).length;
-
   const accentCol = mentor?.color ?? "var(--accent-l)";
 
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
 
-      {/* ── Header ───────────────────────────────────────────────────────────── */}
-      <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b gap-3"
-           style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-
-        {/* Left: hamburger + logo */}
-        <div className="flex items-center gap-3 shrink-0">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className="lg:hidden p-1.5 rounded-lg hover:bg-white/5 transition-colors"
-                  style={{ color: "var(--muted)" }}>
-            {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-          </button>
-          <button onClick={() => router.push("/chat")} className="flex items-center gap-2">
-            <Image src="/logo.png" alt="Nuvos AI" width={28} height={28} className="rounded-xl object-cover" />
-            <span className="font-bold text-sm hidden sm:block" style={{ color: "var(--text)" }}>Nuvos AI</span>
-          </button>
-        </div>
-
-        {/* Center: mentor identity pill */}
-        <div className="flex items-center gap-2 flex-1 justify-center">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl border"
-               style={{
-                 background: mentor ? mentor.color + "0d" : "var(--raised)",
-                 borderColor: mentor ? mentor.color + "30" : "var(--border)",
-               }}>
-            {mentor ? (
-              <span className="text-lg leading-none">{mentor.emoji}</span>
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src="/mentors/arthur.jpg" alt="Arthur" className="w-6 h-6 rounded-full object-cover" />
-            )}
-            <div className="hidden sm:block">
-              <p className="text-xs font-black leading-none" style={{ color: "var(--text)" }}>
-                {mentor ? mentor.name : profile?.name ? t("chat.greeting", { name: profile.name.split(" ")[0] }) : t("chat.mentorFallbackName")}
-              </p>
-              {mentor && (
-                <p className="text-[10px] leading-none mt-0.5" style={{ color: mentor.color }}>
-                  {mentor.badge}
-                </p>
-              )}
-            </div>
-          </div>
-          {(() => {
-            const level = getUserLevel(profile);
-            return (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg border hidden sm:inline"
-                    style={{ background: "var(--raised)", color: LEVEL_COLOR[level], borderColor: "var(--border)" }}>
-                {getLevelLabel(t, level)}
-              </span>
-            );
-          })()}
-        </div>
-
-        {/* Right: actions */}
-        <div className="flex items-center gap-1 shrink-0">
-          {/* This counter is the 15/24h FREE_MSG_LIMIT a real free account
-              gets — meaningless for a guest, who has a separate, smaller
-              weekly allowance enforced server-side (see sendMessage's 429
-              handler), so it's hidden rather than showing the wrong number. */}
-          {!isPremium && remaining > 0 && !isGuestUser() && (
-            <span className="hidden md:block text-[10px] font-semibold px-2 py-1 rounded-full"
-                  style={{ background: "var(--raised)", color: "var(--dim)", border: "1px solid var(--border)" }}>
-              {t("chat.msgCount", { count: remaining })}
-            </span>
-          )}
-          <button onClick={() => { createSession(); }}
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold hover:bg-white/5 transition-colors"
-                  style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
-            <Plus className="w-3 h-3" />
-            {t("chat.newChat")}
-          </button>
-          <PremiumBadge />
-          <button onClick={openTutorial}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg border text-xs font-bold hover:bg-white/5 transition-colors"
-                  style={{ color: "var(--muted)", borderColor: "var(--border)" }}>?</button>
-          <button onClick={toggleTheme} className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
-                  style={{ color: "var(--muted)" }}>
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
-          <button onClick={() => setNotifOpen(!notifOpen)}
-                  className="relative p-1.5 rounded-lg hover:bg-white/5 transition-colors"
-                  style={{ color: "var(--muted)" }}>
-            <Bell className="w-4 h-4" />
-            {unreadNotifCount > 0 && (
-              <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full text-white text-[9px] flex items-center justify-center font-bold"
-                    style={{ background: "var(--accent)" }}>
-                {unreadNotifCount > 9 ? "9+" : unreadNotifCount}
-              </span>
-            )}
-          </button>
-          <button onClick={async () => { await clearAuth(); router.push("/"); }}
-                  className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
-                  style={{ color: "var(--muted)" }}>
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
       <MarketTickerBar />
 
+      {/* Diego, 2026-08-30: chat used to render its own header (logo + "Hola,
+          Diego" pill + action buttons) above AppSidebar — a second Nuvos AI
+          logo duplicating the sidebar's own, and the only screen in the app
+          shaped that way. Removed so this screen matches every other page:
+          AppSidebar's own mobile trigger (no more hideMobileTrigger) plus
+          whatever's genuinely page-specific lives inline in the content
+          below, the same pattern portfolio/page.tsx etc. already use. Theme
+          toggle and notifications already live in Profile (see AppSidebar's
+          own nav comment); logout is AppSidebar's "Cerrar sesión" row. */}
       <div className="flex flex-1 overflow-hidden relative">
-        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} hideMobileTrigger />
-
-        {/* Notification panel */}
-        {notifOpen && (
-          <div className="absolute right-0 top-0 w-80 h-full border-l z-30 flex flex-col"
-               style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
-              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("chat.notifPanelTitle")}</span>
-              <button onClick={() => setNotifOpen(false)} style={{ color: "var(--muted)" }}>
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-3 space-y-2" style={{ scrollbarWidth: "thin" }}>
-              {notifications.length === 0 && (
-                <p className="text-center py-10 text-sm" style={{ color: "var(--dim)" }}>{t("chat.notifPanelEmpty")}</p>
-              )}
-              {notifications.map((n) => (
-                <div key={n.id} onClick={() => markRead(n.id)}
-                     className="p-3 rounded-xl border cursor-pointer transition-all"
-                     style={{
-                       borderColor: n.read ? "var(--border)" : "rgba(0,168,94,0.4)",
-                       background: n.read ? "var(--raised)" : "rgba(0,168,94,0.05)",
-                     }}>
-                  <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{n.title}</p>
-                  <p className="text-xs mt-1 line-clamp-2" style={{ color: "var(--muted)" }}>{n.message}</p>
-                  <button onClick={(e) => { e.stopPropagation(); sendMessage(n.message.slice(0, 200)); setNotifOpen(false); }}
-                          className="text-xs mt-2 flex items-center gap-1 font-semibold hover:opacity-80"
-                          style={{ color: "var(--accent-l)" }}>
-                    {t("chat.askMentor")} <ChevronRight className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} />
 
         {/* ── Chat column ───────────────────────────────────────────────────── */}
         <main className="flex-1 flex flex-col overflow-hidden">
+
+          {/* Page-specific controls — new chat / remaining free messages /
+              Premium badge — inline in content, not a shared header. */}
+          <div className="shrink-0 flex items-center justify-end gap-2 px-4 md:px-8 py-2.5 border-b"
+               style={{ borderColor: "var(--border)" }}>
+            {!isPremium && remaining > 0 && !isGuestUser() && (
+              <span className="hidden md:block text-[10px] font-semibold px-2 py-1 rounded-full"
+                    style={{ background: "var(--raised)", color: "var(--dim)", border: "1px solid var(--border)" }}>
+                {t("chat.msgCount", { count: remaining })}
+              </span>
+            )}
+            <button onClick={() => { createSession(); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold hover:bg-white/5 transition-colors"
+                    style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
+              <Plus className="w-3 h-3" />
+              {t("chat.newChat")}
+            </button>
+            <PremiumBadge />
+          </div>
 
           {/* Scroll area */}
           <div ref={scrollContainerRef} onScroll={handleScrollContainer}

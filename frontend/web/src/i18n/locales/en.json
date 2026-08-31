@@ -2260,9 +2260,6 @@
   },
   "chat": {
     "newChat": "New",
-    "notifPanelTitle": "Notifications",
-    "notifPanelEmpty": "No notifications",
-    "askMentor": "Ask my Mentor",
     "mentorFallbackName": "Arthur",
     "greeting": "Hi, {{name}}",
     "riskLabel": {
