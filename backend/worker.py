@@ -4539,15 +4539,17 @@ async def job_morning_brief():
                         f"Buenos días, {first}\nHoy en la bolsa:\n{events_lines}"
                     )
                 else:
-                    # No real events found today — fall back to the portfolio
-                    # $ summary rather than sending an empty/generic push.
-                    change_usd = brief.get("change_usd")
-                    change_pct = brief.get("change_pct")
-                    if change_usd is not None and change_pct is not None:
-                        sign = "+" if change_usd >= 0 else ""
-                        body = f"${brief['portfolio_value']:,.0f} ({sign}${change_usd:,.0f}, {sign}{change_pct:.1f}%)"
-                    else:
-                        body = f"${brief['portfolio_value']:,.0f}"
+                    # No real events found today — Diego, 2026-09-02: say so
+                    # plainly rather than quietly swapping in the portfolio $
+                    # summary (that read like the feature just changed
+                    # topic; a genuine "nothing major today" is itself real,
+                    # useful information — CARE's Confianza means never
+                    # papering over an empty day with a different feature).
+                    body = (
+                        f"Good morning, {first}\nNo major market events today. Have a great day!"
+                        if is_en else
+                        f"Buenos días, {first}\nHoy no hay eventos importantes en la bolsa. ¡Que tengas un gran día!"
+                    )
 
                 await send_push(
                     uid, "morning_brief",
