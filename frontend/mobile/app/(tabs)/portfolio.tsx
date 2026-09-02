@@ -3200,7 +3200,9 @@ export default function PortfolioScreen() {
           <>
             <View style={[s.divider, { borderTopColor: colors.border }]} />
             <View style={s.simHeader}>
-              <Ionicons name="shield-half-outline" size={20} color="#ef4444" />
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(239,68,68,0.09)", borderWidth: 1, borderColor: "rgba(239,68,68,0.22)", alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name="shield-half-outline" size={19} color="#ef4444" />
+              </View>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
                   <Text style={[s.sectionTitle, { color: colors.text }]}>{t("portfolio.stressTest.title")}</Text>
@@ -3217,8 +3219,8 @@ export default function PortfolioScreen() {
               </View>
             </View>
 
-            {/* Mode toggle: hypothetical crisis scenarios vs. real year-by-year backtest */}
-            <View style={{ flexDirection: "row", gap: 6, marginBottom: 12 }}>
+            {/* Mode toggle — underline tabs, not filled pills: hypothetical crisis scenarios vs. real year-by-year backtest */}
+            <View style={{ flexDirection: "row", gap: 22, marginBottom: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
               {([
                 { id: "scenarios" as const, label: t("portfolio.stressTest.modeScenarios") },
                 { id: "real" as const,      label: t("portfolio.stressTest.modeReal") },
@@ -3232,12 +3234,13 @@ export default function PortfolioScreen() {
                       if (m.id === "real" && isPremiumAccess && !backtestResult && !backtestLoading) runHistoricalBacktest();
                     }}
                     style={{
-                      paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1,
-                      borderColor: active ? "#00d47e" : colors.border,
-                      backgroundColor: active ? "#00d47e" : "transparent",
+                      paddingBottom: 10,
+                      borderBottomWidth: 2,
+                      borderBottomColor: active ? "#00d47e" : "transparent",
+                      marginBottom: -1,
                     }}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: "800", color: active ? "#000" : colors.textMuted }}>{m.label}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: active ? colors.text : colors.textMuted }}>{m.label}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -3304,8 +3307,8 @@ export default function PortfolioScreen() {
                   </>
                 ) : (
                 <>
-                {/* Era filter chips */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6 }}>
+                {/* Era filter — text-only with thin dividers, no pill fills */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ alignItems: "center" }}>
                   {[
                     { id: "all",         label: t("portfolio.eraFilters.all") },
                     { id: "pre1950",     label: t("portfolio.eraFilters.pre1950") },
@@ -3314,42 +3317,52 @@ export default function PortfolioScreen() {
                     { id: "2000s",       label: "2005–2015" },
                     { id: "recent",      label: t("portfolio.eraFilters.recent") },
                     { id: "hypothetical",label: t("portfolio.eraFilters.hypothetical") },
-                  ].map((era) => {
+                  ].map((era, i) => {
                     const active = stressEra === era.id;
                     return (
-                      <TouchableOpacity
-                        key={era.id}
-                        onPress={() => setStressEra(era.id)}
-                        style={{
-                          paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
-                          borderWidth: 1,
-                          borderColor: active ? "#00d47e" : colors.border,
-                          backgroundColor: active ? "rgba(0,212,126,0.12)" : "transparent",
-                        }}
-                      >
-                        <Text style={{ fontSize: 11, fontWeight: "700", color: active ? "#00d47e" : colors.textMuted }}>
-                          {era.label}
-                        </Text>
-                      </TouchableOpacity>
+                      <View key={era.id} style={{ flexDirection: "row", alignItems: "center" }}>
+                        {i > 0 && <View style={{ width: 1, height: 12, backgroundColor: colors.border }} />}
+                        <TouchableOpacity
+                          onPress={() => setStressEra(era.id)}
+                          style={{ paddingHorizontal: 12 }}
+                        >
+                          <Text style={{ fontSize: 12.5, fontWeight: active ? "700" : "500", color: active ? "#00e887" : colors.textMuted }}>
+                            {era.label}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     );
                   })}
                 </ScrollView>
-                {/* Scenario pills */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
-                  {STRESS_SCENARIOS.filter((sc) => stressEra === "all" || sc.era === stressEra).map((sc) => (
-                    <TouchableOpacity
-                      key={sc.id}
-                      style={[s.stressChip, { borderColor: stressScenario === sc.id ? sc.color : colors.border, backgroundColor: stressScenario === sc.id ? sc.color + "18" : "transparent" }]}
-                      onPress={() => runStressTest(sc.id)}
-                    >
-                      <Text style={s.stressChipIcon}>{sc.icon}</Text>
-                      <View>
-                        <Text style={[s.stressChipName, { color: stressScenario === sc.id ? sc.color : colors.textMuted }]}>{sc.name}</Text>
-                        <Text style={[s.stressChipYear, { color: colors.textDim }]}>{sc.year}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                {/* Scenario ledger — full-width historical drawdown rows (was a
+                    horizontal-scroll chip carousel) — severity bar, year, $ impact. */}
+                <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 16, overflow: "hidden", backgroundColor: colors.card, marginBottom: 12 }}>
+                  {STRESS_SCENARIOS.filter((sc) => stressEra === "all" || sc.era === stressEra).map((sc, i) => {
+                    const severe = Math.abs(sc.default) >= 30;
+                    const severityColor = severe ? "#ef4444" : "#f59e0b";
+                    const selected = stressScenario === sc.id;
+                    return (
+                      <TouchableOpacity
+                        key={sc.id}
+                        onPress={() => runStressTest(sc.id)}
+                        style={{
+                          flexDirection: "row", alignItems: "center", gap: 12,
+                          paddingHorizontal: 16, paddingVertical: 14,
+                          borderTopWidth: i > 0 ? StyleSheet.hairlineWidth : 0, borderTopColor: colors.border,
+                          backgroundColor: selected ? severityColor + "0d" : "transparent",
+                        }}
+                      >
+                        <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, backgroundColor: severityColor }} />
+                        <Text style={{ fontSize: 18, marginLeft: 4 }}>{sc.icon}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>{sc.name}</Text>
+                          <Text style={{ fontSize: 11.5, color: colors.textMuted, marginTop: 2 }}>{sc.year}</Text>
+                        </View>
+                        <Text style={{ fontSize: 14.5, fontWeight: "700", color: severityColor }}>{sc.default}%</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
 
                 {/* Fake blurred result for free users */}
                 {!isPremiumAccess && (
@@ -3606,13 +3619,18 @@ export default function PortfolioScreen() {
           );
         })()}
 
-        {/* ── ANALIZA TU PORTAFOLIO ── */}
+        {/* ── ANALIZA TU PORTAFOLIO — a feature panel with a soft glow, not a
+             header + full-width button bar. ── */}
         <View style={[s.divider, { borderTopColor: colors.border }]} />
-        <View style={s.simHeader}>
-          <Ionicons name="sparkles-outline" size={20} color="#22c55e" />
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
-              <Text style={[s.sectionTitle, { color: colors.text }]}>{t("portfolio.analysis.sectionTitle")}</Text>
+        {positions.length > 0 ? (
+          <View style={{
+            borderRadius: 18, borderWidth: 1,
+            borderColor: isPremiumAccess ? "rgba(0,232,135,0.18)" : "rgba(245,158,11,0.22)",
+            backgroundColor: colors.card, padding: 20, overflow: "hidden",
+          }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <Ionicons name="sparkles-outline" size={16} color={isPremiumAccess ? "#22c55e" : "#f59e0b"} />
+              <Text style={[s.sectionTitle, { color: colors.text, fontSize: 17 }]}>{t("portfolio.analysis.sectionTitle")}</Text>
               {!isPremiumAccess && (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#f59e0b18", borderWidth: 1, borderColor: "#f59e0b40", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
                   <Ionicons name="star" size={9} color="#f59e0b" />
@@ -3620,38 +3638,37 @@ export default function PortfolioScreen() {
                 </View>
               )}
             </View>
-            <Text style={[s.simSubtitle, { color: colors.textMuted }]}>
+            <Text style={[s.simSubtitle, { color: colors.textMuted, marginBottom: 18 }]}>
               {t("portfolio.analysis.sectionSubtitle", { count: aggregatedPositions.length })}
             </Text>
-          </View>
-        </View>
-        {/* Analyze button */}
-        {!isPremiumAccess ? (
-          <TouchableOpacity
-            style={[s.simBtn, { backgroundColor: "rgba(245,158,11,0.1)", borderWidth: 1, borderColor: "rgba(245,158,11,0.35)" }]}
-            onPress={() => setPaywallOpen(true)}
-            activeOpacity={0.85}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Text style={{ fontSize: 15 }}>🔒</Text>
-              <Text style={[s.simBtnText, { color: "#f59e0b" }]}>{t("portfolio.analysis.unlockButton")}</Text>
-            </View>
-          </TouchableOpacity>
-        ) : positions.length > 0 ? (
-          <TouchableOpacity
-            style={[s.simBtn, analysisLoading && s.btnDisabled]}
-            onPress={runPortfolioAnalysis}
-            disabled={analysisLoading}
-          >
-            {analysisLoading ? (
-              <ActivityIndicator color="white" />
+            {!isPremiumAccess ? (
+              <TouchableOpacity
+                style={{ borderRadius: 14, paddingVertical: 15, alignItems: "center", backgroundColor: "rgba(245,158,11,0.12)", borderWidth: 1, borderColor: "rgba(245,158,11,0.4)" }}
+                onPress={() => setPaywallOpen(true)}
+                activeOpacity={0.85}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={{ fontSize: 15 }}>🔒</Text>
+                  <Text style={[s.simBtnText, { color: "#f59e0b" }]}>{t("portfolio.analysis.unlockButton")}</Text>
+                </View>
+              </TouchableOpacity>
             ) : (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Ionicons name="sparkles-outline" size={16} color="white" />
-                <Text style={s.simBtnText}>{t("portfolio.analysis.analyzeButton")}</Text>
-              </View>
+              <TouchableOpacity
+                style={[s.simBtn, { marginBottom: 0 }, analysisLoading && s.btnDisabled]}
+                onPress={runPortfolioAnalysis}
+                disabled={analysisLoading}
+              >
+                {analysisLoading ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Ionicons name="sparkles-outline" size={16} color="white" />
+                    <Text style={s.simBtnText}>{t("portfolio.analysis.analyzeButton")}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
+          </View>
         ) : (
           <View style={[s.resultCard, { backgroundColor: colors.card, borderColor: colors.border, alignItems: "center", paddingVertical: 20 }]}>
             <Text style={{ color: colors.textMuted, fontSize: 12 }}>{t("portfolio.analysis.emptyState")}</Text>
@@ -3760,10 +3777,14 @@ export default function PortfolioScreen() {
           );
         })()}
 
-        {/* ── SIMULADOR 2: CALCULADORA DE INTERÉS COMPUESTO ── */}
+        {/* ── SIMULADOR 2: CALCULADORA DE INTERÉS COMPUESTO — statement-style
+             rows (label left, big tabular value right) instead of boxed pill
+             inputs. ── */}
         <View style={[s.divider, { borderTopColor: colors.border }]} />
         <View style={s.simHeader}>
-          <Ionicons name="calculator-outline" size={20} color="#6366f1" />
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(99,102,241,0.1)", borderWidth: 1, borderColor: "rgba(99,102,241,0.25)", alignItems: "center", justifyContent: "center" }}>
+            <Ionicons name="calculator-outline" size={18} color="#818cf8" />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={[s.sectionTitle, { marginBottom: 2, color: colors.text }]}>{t("portfolio.calculator.title")}</Text>
             <Text style={[s.simSubtitle, { color: colors.textMuted }]}>
@@ -3772,63 +3793,62 @@ export default function PortfolioScreen() {
           </View>
         </View>
 
-        <View style={[s.calcCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={s.calcRow}>
-            <View style={s.calcField}>
-              <Text style={[s.calcLabel, { color: colors.textMuted }]}>{t("portfolio.calculator.initialCapital")}</Text>
-              <View style={[s.calcInputWrap, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
-                <Text style={[s.calcInputPrefix, { color: colors.textMuted }]}>$</Text>
-                <TextInput
-                  style={[s.calcInputInner, { color: colors.text }]}
-                  value={formatWithCommas(calcCapital)}
-                  onChangeText={(v) => { const raw = v.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setCalcCapital(raw); }}
-                  placeholder="10,000" placeholderTextColor={colors.textDim}
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-            <View style={s.calcField}>
-              <Text style={[s.calcLabel, { color: colors.textMuted }]}>{t("portfolio.calculator.monthlyContribution")}</Text>
-              <View style={[s.calcInputWrap, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
-                <Text style={[s.calcInputPrefix, { color: colors.textMuted }]}>$</Text>
-                <TextInput
-                  style={[s.calcInputInner, { color: colors.text }]}
-                  value={formatWithCommas(calcMonthly)}
-                  onChangeText={(v) => { const raw = v.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setCalcMonthly(raw); }}
-                  placeholder={t("portfolio.calculator.monthlyPlaceholder") ?? undefined} placeholderTextColor={colors.textDim}
-                  keyboardType="numeric"
-                />
-              </View>
+        <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.card, overflow: "hidden", marginBottom: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingVertical: 15, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.textMuted }}>{t("portfolio.calculator.initialCapital")}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.textMuted }}>$</Text>
+              <TextInput
+                style={{ fontSize: 17, fontWeight: "700", color: colors.text, textAlign: "right", minWidth: 90, padding: 0 }}
+                value={formatWithCommas(calcCapital)}
+                onChangeText={(v) => { const raw = v.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setCalcCapital(raw); }}
+                placeholder="10,000" placeholderTextColor={colors.textDim}
+                keyboardType="numeric"
+              />
             </View>
           </View>
-          <View style={s.calcRow}>
-            <View style={s.calcField}>
-              <Text style={[s.calcLabel, { color: colors.textMuted }]}>{t("portfolio.calculator.annualReturn")}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingVertical: 15, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.textMuted }}>{t("portfolio.calculator.monthlyContribution")}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.textMuted }}>$</Text>
               <TextInput
-                style={[s.calcInput, { color: colors.text, backgroundColor: colors.bgRaised, borderColor: colors.border }]}
+                style={{ fontSize: 17, fontWeight: "700", color: colors.text, textAlign: "right", minWidth: 70, padding: 0 }}
+                value={formatWithCommas(calcMonthly)}
+                onChangeText={(v) => { const raw = v.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setCalcMonthly(raw); }}
+                placeholder={t("portfolio.calculator.monthlyPlaceholder") ?? undefined} placeholderTextColor={colors.textDim}
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingVertical: 15, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.textMuted }}>{t("portfolio.calculator.annualReturn")}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <TextInput
+                style={{ fontSize: 17, fontWeight: "700", color: colors.text, textAlign: "right", minWidth: 40, padding: 0 }}
                 value={calcReturn} onChangeText={setCalcReturn}
                 placeholder="10" placeholderTextColor={colors.textDim}
                 keyboardType="numeric"
               />
-            </View>
-            <View style={s.calcField}>
-              <Text style={[s.calcLabel, { color: colors.textMuted }]}>{t("portfolio.calculator.term")}</Text>
-              <TextInput
-                style={[s.calcInput, { color: colors.text, backgroundColor: colors.bgRaised, borderColor: colors.border }]}
-                value={calcYears} onChangeText={setCalcYears}
-                placeholder="20" placeholderTextColor={colors.textDim}
-                keyboardType="numeric"
-              />
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.textMuted }}>%</Text>
             </View>
           </View>
-          <TouchableOpacity
-            style={[s.calcBtn, (!calcCapital || !calcReturn || !calcYears) && s.btnDisabled]}
-            onPress={calculateCompound}
-            disabled={!calcCapital || !calcReturn || !calcYears}
-          >
-            <Text style={s.calcBtnText}>{t("portfolio.calculator.calculate")}</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingVertical: 15 }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.textMuted }}>{t("portfolio.calculator.term")}</Text>
+            <TextInput
+              style={{ fontSize: 17, fontWeight: "700", color: colors.text, textAlign: "right", minWidth: 40, padding: 0 }}
+              value={calcYears} onChangeText={setCalcYears}
+              placeholder="20" placeholderTextColor={colors.textDim}
+              keyboardType="numeric"
+            />
+          </View>
         </View>
+        <TouchableOpacity
+          style={[s.calcBtn, { marginTop: 0 }, (!calcCapital || !calcReturn || !calcYears) && s.btnDisabled]}
+          onPress={calculateCompound}
+          disabled={!calcCapital || !calcReturn || !calcYears}
+        >
+          <Text style={s.calcBtnText}>{t("portfolio.calculator.calculate")}</Text>
+        </TouchableOpacity>
 
         {calcResult && (() => {
           const maxTotal = Math.max(...calcResult.bars.map((b) => b.total));

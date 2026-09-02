@@ -3,7 +3,7 @@
 import AppSidebar from "@/components/AppSidebar";
 import TourSpotlight from "@/components/TourSpotlight";
 import StockAvatar from "@/components/StockAvatar";
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -35,7 +35,7 @@ import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Pencil, Eye,
   Cloud, CloudOff, Check, TrendingUp, Bell, Users, Share2,
-  ChevronDown, ChevronUp, Loader2, Microscope, ArrowRight, FileBarChart,
+  ChevronDown, ChevronUp, ChevronRight, Loader2, Microscope, ArrowRight, FileBarChart,
 } from "lucide-react";
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
@@ -3435,18 +3435,20 @@ export default function PortfolioPage() {
           {/* ── Stress Test ── */}
           {positions.length>0 && (
             <section>
-              <div className="flex items-center gap-2 mb-3">
-                <Shield className="w-5 h-5 text-[#ef4444] shrink-0" />
+              <div className="flex items-start gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background:"rgba(239,68,68,0.09)", border:"1px solid rgba(239,68,68,0.22)" }}>
+                  <Shield className="w-[19px] h-[19px] text-[#ef4444]" />
+                </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-extrabold" style={{ color:"var(--text)" }}>{t("portfolio.stressTest.title")}</h3>
-                    {!isPremium && <span className="text-xs px-1.5 py-0.5 rounded-md font-bold" style={{ background:"rgba(245,158,11,0.15)", color:"#f59e0b" }}>Premium</span>}
+                    <h3 className="text-lg font-extrabold" style={{ color:"var(--text)" }}>{t("portfolio.stressTest.title")}</h3>
+                    {!isPremium && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold" style={{ background:"rgba(245,158,11,0.15)", color:"#f59e0b" }}>Premium</span>}
                   </div>
-                  <p className="text-xs" style={{ color:"var(--muted)" }}>{t("portfolio.stressTest.subtitle")}</p>
+                  <p className="text-[13px] mt-0.5" style={{ color:"var(--muted)" }}>{t("portfolio.stressTest.subtitle")}</p>
                 </div>
               </div>
-              {/* Mode toggle: hypothetical crisis scenarios vs. real year-by-year backtest */}
-              <div className="flex gap-1.5 mb-3">
+              {/* Mode toggle — underline tabs, not filled pills: hypothetical crisis scenarios vs. real year-by-year backtest */}
+              <div className="flex gap-7 mb-4" style={{ borderBottom:"1px solid var(--border)" }}>
                 {([
                   { id:"scenarios" as const, label: t("portfolio.stressTest.modeScenarios") },
                   { id:"real" as const,      label: t("portfolio.stressTest.modeReal") },
@@ -3456,11 +3458,11 @@ export default function PortfolioPage() {
                             setStressMode(m.id);
                             if (m.id === "real" && isPremium && !backtestResult && !backtestLoading) runHistoricalBacktest();
                           }}
-                          className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all"
+                          className="pb-3 text-sm font-bold transition-colors"
                           style={{
-                            borderColor: stressMode===m.id ? "var(--accent)" : "var(--border)",
-                            background: stressMode===m.id ? "var(--accent)" : "transparent",
-                            color: stressMode===m.id ? "#000" : "var(--muted)",
+                            borderBottom: stressMode===m.id ? "2px solid var(--accent)" : "2px solid transparent",
+                            marginBottom: "-1px",
+                            color: stressMode===m.id ? "var(--text)" : "var(--muted)",
                           }}>
                     {m.label}
                   </button>
@@ -3537,38 +3539,53 @@ export default function PortfolioPage() {
                       { id:"hypothetical",label: t("portfolio.stressTest.eras.hypothetical") },
                     ];
                     return (
-                      <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none mb-2 fade-scroll-x">
-                        {ERAS.map((era) => (
-                          <button key={era.id}
-                                  onClick={() => { setStressEra(era.id); setStressScenario(null); }}
-                                  className="px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 border transition-all"
-                                  style={{
-                                    borderColor: stressEra===era.id ? "var(--accent)" : "var(--border)",
-                                    background: stressEra===era.id ? "var(--accent)" : "transparent",
-                                    color: stressEra===era.id ? "#000" : "var(--muted)",
-                                  }}>
-                            {era.label}
-                          </button>
+                      <div className="flex items-center flex-wrap overflow-x-auto scrollbar-none mb-4 fade-scroll-x">
+                        {ERAS.map((era, i) => (
+                          <Fragment key={era.id}>
+                            {i > 0 && <div className="shrink-0" style={{ width:1, height:12, background:"var(--border)" }} />}
+                            <button onClick={() => { setStressEra(era.id); setStressScenario(null); }}
+                                    className="shrink-0 text-[13px] transition-colors"
+                                    style={{
+                                      padding: i===0 ? "0 16px 0 0" : "0 16px",
+                                      fontWeight: stressEra===era.id ? 700 : 500,
+                                      color: stressEra===era.id ? "var(--accent-l)" : "var(--muted)",
+                                    }}>
+                              {era.label}
+                            </button>
+                          </Fragment>
                         ))}
                       </div>
                     );
                   })()}
-                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none fade-scroll-x">
-                    {STRESS_SCENARIOS.filter((sc) => stressEra==="all" || sc.era===stressEra).map((sc) => (
-                      <button key={sc.id}
-                              onClick={() => runStressTest(sc.id)}
-                              className="flex items-center gap-2 px-3 py-2.5 rounded-xl border shrink-0 transition-all"
-                              style={{
-                                borderColor: stressScenario===sc.id ? sc.color : "var(--border)",
-                                background: stressScenario===sc.id ? sc.color+"18" : "var(--card)",
-                              }}>
-                        <span>{sc.icon}</span>
-                        <div className="text-left">
-                          <p className="text-xs font-bold" style={{ color:stressScenario===sc.id?sc.color:"var(--sub)" }}>{sc.name}</p>
-                          <p className="text-[10px]" style={{ color:"var(--dim)" }}>{sc.year}</p>
-                        </div>
-                      </button>
-                    ))}
+                  {/* Scenario ledger — a full-width historical drawdown table (was a
+                      chip grid) — each row: severity bar, year, name, $ impact. */}
+                  <div className="rounded-2xl border overflow-hidden" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
+                    {STRESS_SCENARIOS.filter((sc) => stressEra==="all" || sc.era===stressEra).map((sc, i) => {
+                      const severe = Math.abs(sc.default) >= 30;
+                      const severityColor = severe ? "#ef4444" : "#f59e0b";
+                      const selected = stressScenario===sc.id;
+                      return (
+                        <button key={sc.id}
+                                onClick={() => runStressTest(sc.id)}
+                                className="w-full flex items-center gap-4 px-5 py-4 text-left transition-colors relative"
+                                style={{
+                                  borderTop: i>0 ? "1px solid var(--border)" : "none",
+                                  background: selected ? severityColor+"0d" : "transparent",
+                                }}>
+                          <div className="absolute left-0 top-0 bottom-0" style={{ width:3, background:severityColor }} />
+                          <span className="text-lg leading-none shrink-0 ml-1">{sc.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[14.5px] font-bold" style={{ color:"var(--text)" }}>{sc.name}</p>
+                            <p className="text-[11.5px] font-mono mt-0.5" style={{ color:"var(--muted)" }}>{sc.year}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-[14.5px] font-bold" style={{ color:severityColor }}>{sc.default}%</p>
+                            <p className="text-[10.5px]" style={{ color:"var(--dim)" }}>{t("portfolio.stressTest.estImpact")}</p>
+                          </div>
+                          <ChevronRight className="w-4 h-4 shrink-0" style={{ color:"var(--dim)" }} />
+                        </button>
+                      );
+                    })}
                   </div>
                   {/* Fake blurred result */}
                   {!isPremium && (
@@ -3653,39 +3670,46 @@ export default function PortfolioPage() {
             </section>
           )}
 
-          {/* ── Analiza tu Portafolio ── */}
+          {/* ── Analiza tu Portafolio — a feature panel with a soft glow, not a
+               header + full-width button bar. ── */}
           <section>
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-5 h-5 shrink-0" style={{ color:"#22c55e" }} />
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-extrabold" style={{ color:"var(--text)" }}>{t("portfolio.analyze.title")}</h3>
-                  {!isPremium && <span className="text-xs px-1.5 py-0.5 rounded-md font-bold" style={{ background:"rgba(245,158,11,0.15)", color:"#f59e0b" }}>Premium</span>}
+            {positions.length > 0 ? (
+              <div className="relative rounded-[20px] overflow-hidden p-7 flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-8"
+                   style={{
+                     border: isPremium ? "1px solid rgba(0,232,135,0.18)" : "1px solid rgba(245,158,11,0.22)",
+                     background: `radial-gradient(120% 140% at 0% 0%, ${isPremium ? "rgba(0,185,109,0.10)" : "rgba(245,158,11,0.08)"} 0%, transparent 55%), var(--card)`,
+                   }}>
+                <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full pointer-events-none"
+                     style={{ background:`radial-gradient(circle, ${isPremium ? "rgba(0,232,135,0.14)" : "rgba(245,158,11,0.1)"} 0%, transparent 70%)` }} />
+                <div className="flex-1 relative min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-[18px] h-[18px] shrink-0" style={{ color: isPremium ? "#22c55e" : "#f59e0b" }} />
+                    <h3 className="text-lg font-extrabold" style={{ color:"var(--text)" }}>{t("portfolio.analyze.title")}</h3>
+                    {!isPremium && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold shrink-0" style={{ background:"rgba(245,158,11,0.15)", color:"#f59e0b" }}>Premium</span>}
+                  </div>
+                  <p className="text-[13.5px] mt-1.5 leading-relaxed" style={{ color:"var(--muted)" }}>
+                    {t("portfolio.analyze.subtitle", { count: aggregatedPositions.length })}
+                  </p>
                 </div>
-                <p className="text-xs" style={{ color:"var(--muted)" }}>
-                  {t("portfolio.analyze.subtitle", { count: aggregatedPositions.length })}
-                </p>
+                {!isPremium ? (
+                  <button onClick={() => setPaywallOpen(true)}
+                          className="relative shrink-0 flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl font-bold text-[14.5px] transition-opacity"
+                          style={{ background:"rgba(245,158,11,0.14)", border:"1px solid rgba(245,158,11,0.4)", color:"#f59e0b" }}>
+                    {t("portfolio.analyze.unlock")}
+                  </button>
+                ) : (
+                  <button onClick={runPortfolioAnalysis} disabled={analysisLoading}
+                          className="relative shrink-0 flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl text-white font-bold text-[14.5px] disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.99]"
+                          style={{ background:"var(--accent)", boxShadow:"0 8px 24px -6px var(--accent-glow)" }}>
+                    {analysisLoading
+                      ? <><RefreshCw className="w-4 h-4 animate-spin" /> {t("portfolio.analyze.analyzing")}</>
+                      : <><Sparkles className="w-4 h-4" /> {t("portfolio.analyze.analyzeButton")}</>}
+                  </button>
+                )}
               </div>
-            </div>
-
-            {/* Analyze button */}
-            {!isPremium ? (
-              <button onClick={() => setPaywallOpen(true)}
-                      className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-opacity"
-                      style={{ background:"rgba(245,158,11,0.12)", border:"1px solid rgba(245,158,11,0.35)", color:"#f59e0b" }}>
-                {t("portfolio.analyze.unlock")}
-              </button>
-            ) : positions.length > 0 ? (
-              <button onClick={runPortfolioAnalysis} disabled={analysisLoading}
-                      className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white font-bold text-sm disabled:opacity-40 transition-opacity"
-                      style={{ background:"var(--accent)" }}>
-                {analysisLoading
-                  ? <><RefreshCw className="w-4 h-4 animate-spin" /> {t("portfolio.analyze.analyzing")}</>
-                  : <><Sparkles className="w-4 h-4" /> {t("portfolio.analyze.analyzeButton")}</>}
-              </button>
             ) : (
               <div className="text-center py-6 rounded-2xl border" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
-                <p className="text-xs" style={{ color:"var(--muted)" }}>{t("portfolio.analyze.emptyState")}</p>
+                <p className="text-[13px]" style={{ color:"var(--muted)" }}>{t("portfolio.analyze.emptyState")}</p>
               </div>
             )}
 
@@ -3811,63 +3835,65 @@ export default function PortfolioPage() {
             )}
           </section>
 
-          {/* ── Investment Calculator ── */}
+          {/* ── Investment Calculator — statement-style rows (label left, big
+               tabular value right, thin divider) instead of boxed pill inputs. ── */}
           <section>
-            <div className="flex items-center gap-2 mb-3">
-              <Calculator className="w-5 h-5 text-[#6366f1] shrink-0" />
+            <div className="flex items-start gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.25)" }}>
+                <Calculator className="w-[18px] h-[18px]" style={{ color:"#818cf8" }} />
+              </div>
               <div>
-                <h3 className="text-sm font-extrabold" style={{ color:"var(--text)" }}>{t("portfolio.calculator.title")}</h3>
-                <p className="text-xs" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.subtitle")}</p>
+                <h3 className="text-lg font-extrabold" style={{ color:"var(--text)" }}>{t("portfolio.calculator.title")}</h3>
+                <p className="text-[13px] mt-0.5" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.subtitle")}</p>
               </div>
             </div>
-            <div className="rounded-2xl border p-4" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.initialCapital")}</label>
-                  <div className="flex items-center rounded-xl border overflow-hidden"
-                       style={{ background:"var(--bg)", borderColor:"var(--border)" }}>
-                    <span className="px-2 text-sm font-bold" style={{ color:"var(--muted)" }}>$</span>
-                    <input value={formatWithCommas(calcCapital)}
-                           onChange={(e) => { const raw = e.target.value.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setCalcCapital(raw); }}
-                           type="text" inputMode="decimal"
-                           className="flex-1 bg-transparent py-2.5 text-sm outline-none pr-2"
-                           style={{ color:"var(--text)" }} placeholder="10,000" />
-                  </div>
+            <div className="rounded-2xl border overflow-hidden" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
+              <div className="flex items-center justify-between gap-3 px-6 py-4" style={{ borderBottom:"1px solid var(--border)" }}>
+                <label className="text-[13px] font-medium shrink-0" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.initialCapital")}</label>
+                <div className="flex items-center gap-1">
+                  <span className="text-lg font-bold" style={{ color:"var(--muted)" }}>$</span>
+                  <input value={formatWithCommas(calcCapital)}
+                         onChange={(e) => { const raw = e.target.value.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setCalcCapital(raw); }}
+                         type="text" inputMode="decimal"
+                         className="bg-transparent text-lg font-bold outline-none text-right"
+                         style={{ color:"var(--text)", width:120 }} placeholder="10,000" />
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.monthlyContribution")}</label>
-                  <div className="flex items-center rounded-xl border overflow-hidden"
-                       style={{ background:"var(--bg)", borderColor:"var(--border)" }}>
-                    <span className="px-2 text-sm font-bold" style={{ color:"var(--muted)" }}>$</span>
-                    <input value={formatWithCommas(calcMonthly)}
-                           onChange={(e) => { const raw = e.target.value.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setCalcMonthly(raw); }}
-                           type="text" inputMode="decimal"
-                           className="flex-1 bg-transparent py-2.5 text-sm outline-none pr-2"
-                           style={{ color:"var(--text)" }} placeholder="500" />
-                  </div>
+              </div>
+              <div className="flex items-center justify-between gap-3 px-6 py-4" style={{ borderBottom:"1px solid var(--border)" }}>
+                <label className="text-[13px] font-medium shrink-0" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.monthlyContribution")}</label>
+                <div className="flex items-center gap-1">
+                  <span className="text-lg font-bold" style={{ color:"var(--muted)" }}>$</span>
+                  <input value={formatWithCommas(calcMonthly)}
+                         onChange={(e) => { const raw = e.target.value.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setCalcMonthly(raw); }}
+                         type="text" inputMode="decimal"
+                         className="bg-transparent text-lg font-bold outline-none text-right"
+                         style={{ color:"var(--text)", width:100 }} placeholder="500" />
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.annualReturn")}</label>
+              </div>
+              <div className="flex items-center justify-between gap-3 px-6 py-4" style={{ borderBottom:"1px solid var(--border)" }}>
+                <label className="text-[13px] font-medium shrink-0" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.annualReturn")}</label>
+                <div className="flex items-center gap-1">
                   <input value={calcReturn} onChange={(e) => setCalcReturn(e.target.value)} type="number" min="0"
-                         className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-                         style={{ background:"var(--bg)", borderColor:"var(--border)", color:"var(--text)" }}
+                         className="bg-transparent text-lg font-bold outline-none text-right"
+                         style={{ color:"var(--text)", width:60 }}
                          placeholder="10" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.termYears")}</label>
-                  <input value={calcYears} onChange={(e) => setCalcYears(e.target.value)} type="number" min="0"
-                         className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-                         style={{ background:"var(--bg)", borderColor:"var(--border)", color:"var(--text)" }}
-                         placeholder="20" />
+                  <span className="text-lg font-bold" style={{ color:"var(--muted)" }}>%</span>
                 </div>
               </div>
-              <button onClick={calculateCompound}
-                      disabled={!calcCapital||!calcReturn||!calcYears}
-                      className="w-full py-3 rounded-xl text-white font-bold text-sm disabled:opacity-40 transition-colors"
-                      style={{ background:"#6366f1" }}>
-                {t("portfolio.calculator.calculate")}
-              </button>
+              <div className="flex items-center justify-between gap-3 px-6 py-4">
+                <label className="text-[13px] font-medium shrink-0" style={{ color:"var(--muted)" }}>{t("portfolio.calculator.termYears")}</label>
+                <input value={calcYears} onChange={(e) => setCalcYears(e.target.value)} type="number" min="0"
+                       className="bg-transparent text-lg font-bold outline-none text-right"
+                       style={{ color:"var(--text)", width:60 }}
+                       placeholder="20" />
+              </div>
             </div>
+            <button onClick={calculateCompound}
+                    disabled={!calcCapital||!calcReturn||!calcYears}
+                    className="w-full mt-4 py-3.5 rounded-xl text-white font-bold text-[14.5px] disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.99]"
+                    style={{ background:"#6366f1", boxShadow:"0 8px 22px -6px rgba(99,102,241,0.45)" }}>
+              {t("portfolio.calculator.calculate")}
+            </button>
             {calcResult && (() => {
               const maxTotal = Math.max(...calcResult.bars.map(b => b.total));
               const yrs = parseFloat(calcYears) || 0;

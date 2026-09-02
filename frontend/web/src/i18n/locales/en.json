@@ -1497,12 +1497,101 @@
       "subtitle": "The Nuvos AI investment case in one summary"
     },
     "badgesTitle": "Highlights",
+    "hero": {
+      "sentencePrefix": "{{company}}'s ({{ticker}}) fair value in the base scenario is {{fairValue}}. Compared to the current price of {{price}}, the stock looks",
+      "verdict": {
+        "undervalued": "undervalued by {{pct}}%",
+        "overvalued": "overvalued by {{pct}}%",
+        "fair": "fairly valued"
+      },
+      "blendedFrom": "Fair value is calculated by blending",
+      "anchor": {
+        "growth_based_multiple": "growth and quality",
+        "historical_own_pe": "own historical P/E",
+        "peer_pe": "peer P/E"
+      },
+      "analystTarget": "Wall Street target",
+      "backtestLink": "Do our valuations actually work? See backtest"
+    },
+    "discountRate": {
+      "step": "Discount rate (WACC)",
+      "beta": "Beta",
+      "riskFree": "risk-free rate",
+      "erp": "equity risk premium",
+      "costOfEquity": "Cost of equity",
+      "costOfDebt": "Cost of debt",
+      "weights": "Weighting",
+      "finalWacc": "Final WACC",
+      "fallbackNote": "Couldn't compute a real CAPM WACC (beta or live risk-free rate unavailable) — a sector reference rate was used instead."
+    },
     "modelAssumptions": {
       "toggle": "View model assumptions",
       "fcfReported": "Reported free cash flow",
       "fcfNormalized": "Normalized (excluding growth CapEx)",
       "growthCapex": "Estimated growth CapEx this year",
       "wacc": "Discount rate (WACC) used"
+    },
+    "fairPeBreakdown": {
+      "toggle": "See how the fair P/E was calculated",
+      "baseMultiple": "Sector base P/E",
+      "finalPe": "Final fair P/E",
+      "band": "range",
+      "anchorsTitle": "Blended with real market evidence:",
+      "weight": "weight"
+    },
+    "tabs": {
+      "valuation": "Valuation",
+      "scenarios": "Scenarios",
+      "sensitivity": "Sensitivity",
+      "comparables": "Comparables",
+      "history": "History",
+      "peers": "peers",
+      "sectorMedian": "Sector median",
+      "noComparables": "Not enough real peers to compare this ticker."
+    },
+    "priceHistory": {
+      "headline": {
+        "cheap": "{{ticker}} is trading cheaper than usual",
+        "normal": "{{ticker}} is trading within its usual range",
+        "expensive": "{{ticker}} is trading more expensive than usual"
+      },
+      "subheadline": {
+        "cheap": "cheaper than {{pct}}% of the last {{days}} real trading days.",
+        "normal": "neither especially cheap nor expensive vs. the last {{days}} real trading days.",
+        "expensive": "more expensive than {{pct}}% of the last {{days}} real trading days."
+      },
+      "today": "Today",
+      "bucket": {
+        "cheap": "Cheap",
+        "normal": "Usual range",
+        "expensive": "Expensive"
+      },
+      "whatHappened": "What happened after valuations like today's?",
+      "timesHigher": "{{n}} of {{total}} times the price was higher 1 year later",
+      "typicalReturn": "Typical 1-year return",
+      "insufficientData": "Too few real days in this band to draw a conclusion.",
+      "disclaimer": "Based on {{days}} real trading days (real daily P/E, real quarterly TTM EPS) — historical results, not a prediction."
+    },
+    "classification": {
+      "step": "Peter Lynch classification",
+      "confidence": "Confidence",
+      "fairValueFormula": "Fair value calculation",
+      "category": {
+        "fast_grower": "Fast Grower",
+        "stalwart": "Stalwart (mature, stable business)",
+        "cyclical": "Cyclical",
+        "slow_grower": "Slow Grower",
+        "turnaround": "Turnaround",
+        "asset_play": "Asset Play",
+        "financial": "Financial",
+        "unknown": "Not enough evidence"
+      }
+    },
+    "scenarios": {
+      "noProbabilityNote": "This range is based on estimated EPS (low/base/high) and the real fair P/E band — it is not a probability prediction."
+    },
+    "sensitivity": {
+      "subtitle": "How fair value changes with EPS and the P/E multiple used — same numbers already shown in Valuation and Scenarios."
     },
     "selfCheckQuiz": {
       "title": "Self-Check",
@@ -1915,6 +2004,7 @@
       "subtitle": "How would your portfolio hold up in a crisis?",
       "modeScenarios": "Crisis Scenarios",
       "modeReal": "Real, year by year (1985–today)",
+      "estImpact": "est. impact",
       "eras": {
         "all": "All",
         "pre1950": "Before 1950",

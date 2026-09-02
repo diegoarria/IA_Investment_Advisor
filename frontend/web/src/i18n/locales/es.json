@@ -1497,12 +1497,101 @@
       "subtitle": "El resumen de inversión de Nuvos AI en una sola idea"
     },
     "badgesTitle": "Lo Destacado",
+    "hero": {
+      "sentencePrefix": "El valor razonable de {{company}} ({{ticker}}) en el escenario base es {{fairValue}}. Comparado con el precio actual de {{price}}, la acción parece",
+      "verdict": {
+        "undervalued": "infravalorada en un {{pct}}%",
+        "overvalued": "sobrevalorada en un {{pct}}%",
+        "fair": "valorada de forma justa"
+      },
+      "blendedFrom": "El valor razonable se calcula combinando",
+      "anchor": {
+        "growth_based_multiple": "crecimiento y calidad",
+        "historical_own_pe": "P/E histórico propio",
+        "peer_pe": "P/E de comparables"
+      },
+      "analystTarget": "Objetivo de Wall Street",
+      "backtestLink": "¿Nuestras valoraciones funcionan? Ver backtest"
+    },
+    "discountRate": {
+      "step": "Tasa de descuento (WACC)",
+      "beta": "Beta",
+      "riskFree": "tasa libre de riesgo",
+      "erp": "prima de riesgo del mercado",
+      "costOfEquity": "Costo de capital propio",
+      "costOfDebt": "Costo de deuda",
+      "weights": "Ponderación",
+      "finalWacc": "WACC final",
+      "fallbackNote": "No se pudo calcular con CAPM real (falta beta o tasa libre de riesgo en vivo) — se usó una tasa de referencia del sector."
+    },
     "modelAssumptions": {
       "toggle": "Ver supuestos del modelo",
       "fcfReported": "Flujo de caja libre reportado",
       "fcfNormalized": "Normalizado (sin CapEx de crecimiento)",
       "growthCapex": "CapEx de crecimiento estimado este año",
       "wacc": "Tasa de descuento (WACC) usada"
+    },
+    "fairPeBreakdown": {
+      "toggle": "Ver cómo se calculó el P/E justo",
+      "baseMultiple": "P/E base del sector",
+      "finalPe": "P/E justo final",
+      "band": "rango",
+      "anchorsTitle": "Combinado con evidencia real de mercado:",
+      "weight": "peso"
+    },
+    "tabs": {
+      "valuation": "Valuación",
+      "scenarios": "Escenarios",
+      "sensitivity": "Sensibilidad",
+      "comparables": "Comparables",
+      "history": "Historial",
+      "peers": "pares",
+      "sectorMedian": "Mediana sector",
+      "noComparables": "No hay suficientes pares reales para comparar este ticker."
+    },
+    "priceHistory": {
+      "headline": {
+        "cheap": "{{ticker}} cotiza más barato de lo habitual",
+        "normal": "{{ticker}} cotiza dentro de su rango habitual",
+        "expensive": "{{ticker}} cotiza más caro de lo habitual"
+      },
+      "subheadline": {
+        "cheap": "más barata que en el {{pct}}% de los últimos {{days}} días de mercado reales.",
+        "normal": "ni especialmente cara ni barata frente a los últimos {{days}} días de mercado reales.",
+        "expensive": "más cara que en el {{pct}}% de los últimos {{days}} días de mercado reales."
+      },
+      "today": "Hoy",
+      "bucket": {
+        "cheap": "Barata",
+        "normal": "Rango habitual",
+        "expensive": "Cara"
+      },
+      "whatHappened": "¿Qué pasó después de valoraciones como la de hoy?",
+      "timesHigher": "{{n}} de {{total}} veces el precio fue más alto 1 año después",
+      "typicalReturn": "Retorno típico a 1 año",
+      "insufficientData": "Muy pocos días reales en esta banda para sacar una conclusión.",
+      "disclaimer": "Basado en {{days}} días de mercado reales (P/E diario real, EPS TTM trimestral real) — resultados históricos, no una predicción."
+    },
+    "classification": {
+      "step": "Clasificación según Peter Lynch",
+      "confidence": "Confianza",
+      "fairValueFormula": "Cálculo del valor razonable",
+      "category": {
+        "fast_grower": "Fast Grower (crecimiento acelerado)",
+        "stalwart": "Stalwart (empresa madura y estable)",
+        "cyclical": "Cyclical (cíclica)",
+        "slow_grower": "Slow Grower (crecimiento lento)",
+        "turnaround": "Turnaround (en recuperación)",
+        "asset_play": "Asset Play (activos infravalorados)",
+        "financial": "Financiera",
+        "unknown": "Sin suficiente evidencia"
+      }
+    },
+    "scenarios": {
+      "noProbabilityNote": "Este rango se basa en el EPS estimado (bajo/base/alto) y la banda real de P/E justo — no es una predicción de probabilidades."
+    },
+    "sensitivity": {
+      "subtitle": "Cómo cambia el valor razonable según el EPS y el múltiplo P/E que se use — mismos números ya mostrados en Valuación y Escenarios."
     },
     "selfCheckQuiz": {
       "title": "Ponte a prueba",
@@ -1915,6 +2004,7 @@
       "subtitle": "¿Cuánto aguantaría tu portafolio en una crisis?",
       "modeScenarios": "Escenarios de Crisis",
       "modeReal": "Real, año por año (1985–hoy)",
+      "estImpact": "impacto est.",
       "eras": {
         "all": "Todos",
         "pre1950": "Hasta 1950",
