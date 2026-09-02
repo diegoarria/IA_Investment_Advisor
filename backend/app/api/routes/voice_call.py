@@ -137,13 +137,15 @@ async def _load_call_context(user_id: str, profile: UserProfile | None, is_premi
         bias = None if isinstance(bias, Exception) else bias
         return "\n\n".join(p for p in (progress, bias) if p) or None
 
-    deep_ctx, progress_ctx = await asyncio.gather(
+    deep_result, progress_ctx = await asyncio.gather(
         _get_mentor_deep_context(user_id),
         _progress_ctx(),
         return_exceptions=True,
     )
+    deep_ctx, live_ctx = (None, None) if isinstance(deep_result, Exception) else deep_result
     return {
-        "deep_context": None if isinstance(deep_ctx, Exception) else deep_ctx,
+        "deep_context": deep_ctx,
+        "live_market_context": live_ctx,
         "progress_context": None if isinstance(progress_ctx, Exception) else progress_ctx,
     }
 
@@ -281,7 +283,7 @@ async def voice_call_ws(websocket: WebSocket, token: str = "", ticket: str = "",
         # call still works, just without deep/progress context for this
         # session.
         logger.warning("Voice call context load failed for %s: %s", user_id, e)
-        ctx = {"deep_context": None, "progress_context": None}
+        ctx = {"deep_context": None, "live_market_context": None, "progress_context": None}
     mentor_id = profile.mentor if profile else None
 
     call_started_at = datetime.now(timezone.utc)
@@ -313,6 +315,7 @@ async def voice_call_ws(websocket: WebSocket, token: str = "", ticket: str = "",
                 is_premium=is_premium,
                 style_instructions=_VOICE_STYLE_INSTRUCTIONS,
                 is_voice=True,
+                live_market_context=ctx["live_market_context"],
             ):
                 full_reply += chunk
                 if hit_hidden_tags:

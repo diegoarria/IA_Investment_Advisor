@@ -12,7 +12,7 @@ class TestBuildDeepUserContextReflections:
         reflections = [
             {"week_start_date": "2026-08-10", "went_well": "Vendí AAPL con ganancia real", "learned": "Paciencia paga", "would_do_differently": "Nada"},
         ]
-        ctx = build_deep_user_context({}, [], [], [], {}, reflections)
+        ctx = build_deep_user_context({}, [], [], [], reflections)
         assert "REFLEXIONES SEMANALES" in ctx
         assert "Vendí AAPL con ganancia real" in ctx
         assert "Paciencia paga" in ctx
@@ -22,11 +22,11 @@ class TestBuildDeepUserContextReflections:
         # Deliberate: never pad every chat message with "sin reflexiones
         # aún" for the majority of users who never did this ritual —
         # unlike Diario de Decisiones, this stays silent when empty.
-        ctx = build_deep_user_context({}, [], [], [], {}, [])
+        ctx = build_deep_user_context({}, [], [], [], [])
         assert "REFLEXIONES SEMANALES" not in ctx
 
     def test_omits_the_section_when_reflections_arg_is_none(self):
-        ctx = build_deep_user_context({}, [], [], [], {}, None)
+        ctx = build_deep_user_context({}, [], [], [], None)
         assert "REFLEXIONES SEMANALES" not in ctx
 
     def test_skips_a_week_with_no_real_answers(self):
@@ -34,7 +34,7 @@ class TestBuildDeepUserContextReflections:
         # the user opened the ritual but answered nothing — must not show
         # a blank/empty bullet.
         reflections = [{"week_start_date": "2026-08-10", "went_well": None, "learned": None, "would_do_differently": None}]
-        ctx = build_deep_user_context({}, [], [], [], {}, reflections)
+        ctx = build_deep_user_context({}, [], [], [], reflections)
         assert "2026-08-10" not in ctx
 
     def test_shows_multiple_weeks_most_recent_first(self):
@@ -42,7 +42,7 @@ class TestBuildDeepUserContextReflections:
             {"week_start_date": "2026-08-10", "went_well": "Semana reciente", "learned": None, "would_do_differently": None},
             {"week_start_date": "2026-08-03", "went_well": "Semana anterior", "learned": None, "would_do_differently": None},
         ]
-        ctx = build_deep_user_context({}, [], [], [], {}, reflections)
+        ctx = build_deep_user_context({}, [], [], [], reflections)
         recent_idx = ctx.index("Semana reciente")
         older_idx = ctx.index("Semana anterior")
         assert recent_idx < older_idx
@@ -50,6 +50,6 @@ class TestBuildDeepUserContextReflections:
     def test_truncates_long_answers_to_120_chars(self):
         long_text = "x" * 300
         reflections = [{"week_start_date": "2026-08-10", "went_well": long_text, "learned": None, "would_do_differently": None}]
-        ctx = build_deep_user_context({}, [], [], [], {}, reflections)
+        ctx = build_deep_user_context({}, [], [], [], reflections)
         assert "x" * 121 not in ctx
         assert "x" * 120 in ctx

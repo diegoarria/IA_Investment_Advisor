@@ -1216,14 +1216,19 @@ def build_deep_user_context(
     positions: list[dict],
     decisions: list[dict],
     watchlist: list[dict],
-    quotes: dict[str, dict] | None = None,
     reflections: list[dict] | None = None,
 ) -> str:
-    """Build a rich mentor context from all available user data.
-
-    `quotes` maps ticker -> fh_quote() result ({price, change_pct, ...}) for every
-    position/watchlist ticker, fetched by the caller right before this runs so the
-    mentor always reasons over current market value/P&L, not just cost basis.
+    """Build a rich mentor context from all available user data — STRUCTURAL
+    data only (tickers, shares, cost basis, decisions, watchlist names,
+    behavioral profile). Deliberately excludes live prices/P&L: this text
+    goes into the prompt-cache-eligible "static" system block, and a live
+    price changes every ~60s (fh_quote's cache TTL) — folding it in here
+    used to invalidate the ~30K-token cache prefix on nearly every message,
+    forcing a full (expensive) cache WRITE instead of a cheap cache READ.
+    Live prices/P&L now live in build_live_market_snapshot() below, injected
+    into the separate uncached dynamic addendum instead. Cost incident: Sep
+    2026, confirmed via llm_usage_log (chat_stream costing $0.03-0.09/msg
+    with cache writes vs $0.004-0.015 with cache hits).
 
     `reflections` (Diego's request, Aug 16) — the user's own Saturday
     weekly-ritual answers (weekly_reflections: qué salió bien / qué
@@ -1231,7 +1236,6 @@ def build_deep_user_context(
     words, never AI-inferred — same "recuerda tus datos reales" discipline
     as the decisions diary above it.
     """
-    quotes = quotes or {}
     reflections = reflections or []
     parts = ["\n## 🧬 LO QUE SABES DE ESTE USUARIO (úsalo en CADA respuesta — eres su mentor, no un chatbot):"]
 
@@ -1249,13 +1253,11 @@ def build_deep_user_context(
             float(p.get("shares", 0) or 0) * float(p.get("avg_price", 0) or 0)
             for p in positions
         )
-        total_value = 0.0
         pos_sorted = sorted(
             positions,
             key=lambda x: float(x.get("shares", 0) or 0) * float(x.get("avg_price", 0) or 0),
             reverse=True,
         )
-        any_price = any(quotes.get((p.get("ticker") or "").upper()) for p in pos_sorted)
         pos_lines: list[str] = []
         for p in pos_sorted:
             ticker = (p.get("ticker") or "?").upper()
@@ -1263,33 +1265,14 @@ def build_deep_user_context(
             avg    = float(p.get("avg_price", 0) or 0)
             cost   = shares * avg
             pct    = round(cost / total_cost * 100) if total_cost > 0 else 0
-            q = quotes.get(ticker)
-            if q and q.get("price"):
-                price = float(q["price"])
-                value = shares * price
-                total_value += value
-                pl = value - cost
-                pl_pct = (pl / cost * 100) if cost > 0 else 0
-                sign = "+" if pl >= 0 else ""
-                pos_lines.append(
-                    f"  - {ticker}: {shares:g} acciones @ ${avg} (costo ≈${cost:,.0f}, {pct}%) → "
-                    f"precio actual ${price:,.2f}, valor ≈${value:,.0f}, P&L {sign}${pl:,.0f} ({sign}{pl_pct:.1f}%)"
-                )
-            else:
-                total_value += cost
-                pos_lines.append(f"  - {ticker}: {shares:g} acciones @ ${avg} ≈ ${cost:,.0f} ({pct}%) — precio actual no disponible")
+            pos_lines.append(f"  - {ticker}: {shares:g} acciones @ ${avg} (costo ≈${cost:,.0f}, {pct}%)")
 
-        header = f"\n### 💼 PORTAFOLIO REAL ({len(positions)} {'posiciones' if len(positions) != 1 else 'posición'}, invertido ≈${total_cost:,.0f}"
-        if any_price:
-            total_pl = total_value - total_cost
-            total_pl_pct = (total_pl / total_cost * 100) if total_cost > 0 else 0
-            sign = "+" if total_pl >= 0 else ""
-            header += f", valor actual ≈${total_value:,.0f}, P&L total {sign}${total_pl:,.0f} ({sign}{total_pl_pct:.1f}%)"
-        header += "):"
+        header = f"\n### 💼 PORTAFOLIO REAL ({len(positions)} {'posiciones' if len(positions) != 1 else 'posición'}, invertido ≈${total_cost:,.0f}):"
         parts.append(header)
         parts.extend(pos_lines)
         parts.append(
-            "  → Los precios y P&L de arriba son en tiempo real (vía Finnhub, caché ≤60s) — úsalos "
+            "  → Los precios actuales, valor de mercado y P&L de estas posiciones se inyectan por "
+            "separado en '📈 COTIZACIONES EN VIVO' más abajo (recalculado en cada mensaje) — úsalos "
             "directamente, no digas que no tienes acceso a precios actuales. Al hablar de estas "
             "posiciones, prioriza el monto invertido y la ganancia/pérdida real en dólares sobre la "
             "cantidad de acciones."
@@ -1312,16 +1295,11 @@ def build_deep_user_context(
     # ── Watchlist ──────────────────────────────────────────────────────────────
     if watchlist:
         tickers_w = [w.get("ticker", "") for w in watchlist if w.get("ticker")]
-        parts.append(f"\n### 👀 WATCHLIST — monitoreando pero sin comprar ({len(tickers_w)}):")
-        for t in tickers_w:
-            q = quotes.get(t.upper())
-            if q and q.get("price"):
-                chg = q.get("change_pct") or 0.0
-                sign = "+" if chg >= 0 else ""
-                parts.append(f"  - {t.upper()}: ${float(q['price']):,.2f} ({sign}{chg:.2f}% hoy)")
-            else:
-                parts.append(f"  - {t.upper()}: precio actual no disponible")
-        parts.append("  → Señal de lo que le llama la atención. Úsalo para anticipar sus intereses y preguntas.")
+        parts.append(f"\n### 👀 WATCHLIST — monitoreando pero sin comprar ({len(tickers_w)}): " + ", ".join(t.upper() for t in tickers_w))
+        parts.append(
+            "  → Sus precios actuales se inyectan en '📈 COTIZACIONES EN VIVO' más abajo. "
+            "Señal de lo que le llama la atención — úsalo para anticipar sus intereses y preguntas."
+        )
     else:
         parts.append("\n### 👀 WATCHLIST: Vacío")
 
@@ -1437,6 +1415,86 @@ def build_deep_user_context(
     )
 
     return "\n".join(parts)
+
+
+def build_live_market_snapshot(
+    positions: list[dict],
+    watchlist: list[dict],
+    quotes: dict[str, dict] | None = None,
+) -> str | None:
+    """Live prices/value/P&L for the user's portfolio + watchlist — the
+    counterpart to build_deep_user_context() above, split out because this
+    part changes every ~60s (fh_quote's cache TTL) and must NOT go in the
+    prompt-cache-eligible static block (see build_deep_user_context's
+    docstring for the cost incident this fixes). Injected into chat_stream's
+    separate uncached dynamic addendum instead. None if no quotes at all.
+    """
+    quotes = quotes or {}
+    if not quotes:
+        return None
+
+    parts: list[str] = ["\n## 📈 COTIZACIONES EN VIVO (recalculado en cada mensaje, vía Finnhub/FMP, caché ≤60s):"]
+    any_line = False
+
+    if positions:
+        agg = aggregate_positions_by_ticker(positions)
+        total_cost = sum(float(p.get("shares", 0) or 0) * float(p.get("avg_price", 0) or 0) for p in agg)
+        total_value = 0.0
+        any_price = False
+        pos_sorted = sorted(
+            agg,
+            key=lambda x: float(x.get("shares", 0) or 0) * float(x.get("avg_price", 0) or 0),
+            reverse=True,
+        )
+        pos_lines: list[str] = []
+        for p in pos_sorted:
+            ticker = (p.get("ticker") or "?").upper()
+            shares = float(p.get("shares", 0) or 0)
+            avg    = float(p.get("avg_price", 0) or 0)
+            cost   = shares * avg
+            q = quotes.get(ticker)
+            if q and q.get("price"):
+                any_price = True
+                price = float(q["price"])
+                value = shares * price
+                total_value += value
+                pl = value - cost
+                pl_pct = (pl / cost * 100) if cost > 0 else 0
+                sign = "+" if pl >= 0 else ""
+                pos_lines.append(
+                    f"  - {ticker}: precio actual ${price:,.2f}, valor ≈${value:,.0f}, "
+                    f"P&L {sign}${pl:,.0f} ({sign}{pl_pct:.1f}%)"
+                )
+            else:
+                total_value += cost
+        if pos_lines:
+            any_line = True
+            header = "\n### 💼 Portafolio"
+            if any_price:
+                total_pl = total_value - total_cost
+                total_pl_pct = (total_pl / total_cost * 100) if total_cost > 0 else 0
+                sign = "+" if total_pl >= 0 else ""
+                header += f" (valor actual ≈${total_value:,.0f}, P&L total {sign}${total_pl:,.0f} ({sign}{total_pl_pct:.1f}%))"
+            parts.append(header + ":")
+            parts.extend(pos_lines)
+
+    if watchlist:
+        w_lines: list[str] = []
+        for w in watchlist:
+            t = (w.get("ticker") or "").upper()
+            if not t:
+                continue
+            q = quotes.get(t)
+            if q and q.get("price"):
+                chg = q.get("change_pct") or 0.0
+                sign = "+" if chg >= 0 else ""
+                w_lines.append(f"  - {t}: ${float(q['price']):,.2f} ({sign}{chg:.2f}% hoy)")
+        if w_lines:
+            any_line = True
+            parts.append("\n### 👀 Watchlist:")
+            parts.extend(w_lines)
+
+    return "\n".join(parts) if any_line else None
 
 
 MENTOR_CONTEXT: dict[str, str] = {
@@ -1763,11 +1821,14 @@ def _build_dynamic_system_addendum(
     notification_context: str | None = None,
     progress_context: str | None = None,
     style_instructions: str | None = None,
+    live_market_context: str | None = None,
 ) -> str | None:
     """Dynamic (per-request) addendum — NOT cached to avoid cache key churn."""
     parts: list[str] = []
     if progress_context:
         parts.append(progress_context)
+    if live_market_context:
+        parts.append(live_market_context)
     if memory_context:
         parts.append(f"## 💬 ÚLTIMAS CONVERSACIONES (contexto inmediato)\n\n{memory_context}")
     if notification_context:
@@ -1969,12 +2030,15 @@ async def chat_stream(
     style_instructions: str | None = None,
     is_voice: bool = False,
     model: str | None = None,
+    live_market_context: str | None = None,
 ):
     # Static part cached by Anthropic (base + profile + mentor + guardrails).
-    # Dynamic context (memory, notifications) goes in a separate uncached block so
-    # it doesn't bust the cache every message and inflate input token costs.
+    # Dynamic context (memory, notifications, live prices) goes in a separate
+    # uncached block so it doesn't bust the cache every message and inflate
+    # input token costs — `deep_context` must already be quote-free (see
+    # build_deep_user_context's docstring), live prices arrive here instead.
     static_prompt  = _build_static_system_prompt(profile, mentor, deep_context, is_voice=is_voice, is_premium=is_premium)
-    dynamic_addend = _build_dynamic_system_addendum(memory_context, notification_context, progress_context, style_instructions)
+    dynamic_addend = _build_dynamic_system_addendum(memory_context, notification_context, progress_context, style_instructions, live_market_context)
 
     system_blocks: list[dict] = [{"type": "text", "text": static_prompt, "cache_control": {"type": "ephemeral"}}]
     if dynamic_addend:

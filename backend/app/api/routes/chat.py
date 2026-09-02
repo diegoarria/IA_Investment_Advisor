@@ -319,13 +319,21 @@ async def _get_memory_context(user_id: str) -> str | None:
         return None
 
 
-async def _get_mentor_deep_context(user_id: str) -> str | None:
+async def _get_mentor_deep_context(user_id: str) -> tuple[str | None, str | None]:
     """Fetch portfolio, decisions, watchlist, extended profile, and recent
     weekly reflections in parallel for the mentor. Diego's request (Aug
     16): Arthur already had the buy/sell "Diario de Decisiones" — this
     adds the Saturday ritual's own reflections (weekly_reflections: qué
     salió bien / qué aprendiste / qué harías diferente), same real-data-
-    injection pattern, no new AI cost."""
+    injection pattern, no new AI cost.
+
+    Returns (deep_context, live_market_context) — split apart (Sep 2026 cost
+    fix) because deep_context goes into chat_stream's prompt-cache-eligible
+    static block while live_market_context (prices, which change every
+    ~60s) goes into the uncached dynamic addendum. Folding live prices into
+    the static block used to invalidate the ~30K-token cache prefix on
+    nearly every message — confirmed via llm_usage_log: chat_stream cost
+    $0.03-0.09/msg on a cache write vs $0.004-0.015/msg on a cache read."""
     try:
         db = get_supabase()
         portfolio_res, decisions_res, watchlist_res, extended_res, reflections_res = await asyncio.gather(
@@ -391,9 +399,11 @@ async def _get_mentor_deep_context(user_id: str) -> str | None:
                 if not isinstance(q, Exception) and q:
                     quotes[t] = q
 
-        return ai_service.build_deep_user_context(extended, positions, decisions, watchlist, quotes, reflections)
+        deep_ctx = ai_service.build_deep_user_context(extended, positions, decisions, watchlist, reflections)
+        live_ctx = ai_service.build_live_market_snapshot(positions, watchlist, quotes)
+        return deep_ctx, live_ctx
     except Exception:
-        return None
+        return None, None
 
 
 _FUNDAMENTALS_TIMEOUT = 12.0  # generous — only reached for Premium + explicit deep-analysis intent
@@ -610,14 +620,14 @@ async def chat_stream(
         return await _get_memory_context(user_id)
 
     if has_images:
-        memory, deep_ctx, progress_ctx = await asyncio.gather(
+        memory, (deep_ctx, live_ctx), progress_ctx = await asyncio.gather(
             _memory_ctx(),
             _get_mentor_deep_context(user_id),
             _progress_ctx(),
         )
         enriched = body.message
     else:
-        memory, deep_ctx, progress_ctx, enriched = await asyncio.gather(
+        memory, (deep_ctx, live_ctx), progress_ctx, enriched = await asyncio.gather(
             _memory_ctx(),
             _get_mentor_deep_context(user_id),
             _progress_ctx(),
@@ -645,6 +655,7 @@ async def chat_stream(
                 deep_context=deep_ctx,
                 progress_context=progress_ctx,
                 is_premium=premium,
+                live_market_context=live_ctx,
             ):
                 yield chunk
         except Exception as e:
@@ -733,7 +744,7 @@ async def chat_message(
             return None
         return await _get_memory_context(user_id)
 
-    memory, deep_ctx, progress_ctx = await asyncio.gather(
+    memory, (deep_ctx, live_ctx), progress_ctx = await asyncio.gather(
         _memory_ctx(),
         _get_mentor_deep_context(user_id),
         _progress_ctx(),
@@ -751,6 +762,7 @@ async def chat_message(
         progress_context=progress_ctx,
         is_premium=premium,
         model=chat_model,
+        live_market_context=live_ctx,
     ):
         full += chunk
     clean_reply, bscore = _extract_bscore(full)
