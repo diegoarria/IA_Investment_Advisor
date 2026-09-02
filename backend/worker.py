@@ -2282,10 +2282,16 @@ async def job_portfolio_alerts():
                         # Append the real-fundamentals verdict only if there's
                         # room — "si hay espacio en la notificación" (Diego,
                         # 2026-08-30). Never truncates the reason to fit it.
+                        # Cap tightened from 230→170 (Diego, 2026-09-02): a push
+                        # this long reads as a wall of text nobody actually
+                        # reads — generate_fundamentals_verdict now targets a
+                        # single strongest metric (~55 chars) instead of
+                        # stacking 2-3, so 170 total comfortably fits prefix +
+                        # why + one-metric verdict without cutting the why.
                         verdict = ticker_verdict_en.get(ticker) if (is_en and ticker in ticker_verdict_en) else ticker_verdict.get(ticker)
                         if verdict:
                             candidate = f"{body} {verdict}"
-                            if len(candidate) <= 230:
+                            if len(candidate) <= 170:
                                 body = candidate
                     else:
                         # Free tier — plain price alert, no WHY

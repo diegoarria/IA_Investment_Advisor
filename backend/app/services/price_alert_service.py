@@ -390,8 +390,13 @@ DATOS REALES CALCULADOS de {ticker} (años fiscales más recientes disponibles, 
 La acción {direction} {abs(change_pct):.1f}% hoy.
 
 TU TAREA:
-Escribe UNA frase corta (máximo ~110 caracteres) que le diga al usuario, basándote
-ÚNICAMENTE en los datos reales de arriba, si este movimiento debería preocuparle:
+Escribe UNA frase corta (máximo ~55 caracteres, LÍMITE DURO) que le diga al usuario,
+basándote ÚNICAMENTE en los datos reales de arriba, si este movimiento debería
+preocuparle:
+- Elige SOLO el UNO de los datos de arriba que mejor sostiene tu punto — nunca
+  encadenes 2 o 3 métricas en la misma frase. Una notificación con 3 cifras compitiendo
+  no se lee; una con 1 cifra fuerte sí. Deja el resto de los datos para cuando el
+  usuario abra la app.
 - Si los fundamentos siguen sólidos o mejorando, tranquiliza: esto probablemente es
   ruido de mercado, no algo que amerite revisar la tesis de inversión.
 - Si los fundamentos muestran deterioro real (márgenes cayendo, FCF que pasó a
@@ -401,10 +406,10 @@ Escribe UNA frase corta (máximo ~110 caracteres) que le diga al usuario, basán
   del movimiento, no antes.
 - Tono directo, sin jerga financiera, sin relleno, sin emojis, sin mencionar "Nuvos AI".
 
-EJEMPLOS BUENOS:
-"Los fundamentos siguen sólidos — esto parece ruido de mercado, no motivo para vender."
-"FCF y márgenes se están deteriorando — vale la pena revisar tu tesis aquí."
-"Ingresos y ROIC siguen creciendo — nada aquí sugiere un problema de fondo."
+EJEMPLOS BUENOS (nota: UN solo dato, no una lista):
+"ROIC subió a 49% — no es motivo para vender."
+"FCF pasó a negativo — vale la pena revisar tu tesis."
+"Márgenes siguen en 55.6% — esto es ruido, no una señal real."
 
 Responde solo con la frase, nada más."""
 
@@ -415,7 +420,7 @@ Responde solo con la frase, nada más."""
         resp = await asyncio.wait_for(
             client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=120,
+                max_tokens=60,
                 messages=[{"role": "user", "content": prompt}],
             ),
             timeout=15.0,
@@ -425,8 +430,8 @@ Responde solo con la frase, nada más."""
         result = resp.content[0].text.strip().strip('"').strip("'")
         if not result:
             return None
-        if len(result) > 130:
-            truncated = result[:127].rsplit(" ", 1)[0]
+        if len(result) > 65:
+            truncated = result[:62].rsplit(" ", 1)[0]
             result = truncated + "..."
         return result
     except asyncio.TimeoutError:
@@ -445,7 +450,7 @@ async def translate_verdict_to_english(verdict_es: str) -> str:
     import anthropic
     from app.core.config import settings
 
-    prompt = f"""Translate this short English push-notification sentence from Spanish to natural English. It's a standalone sentence (max ~110 characters), following a price-move reason clause.
+    prompt = f"""Translate this short English push-notification sentence from Spanish to natural English. It's a standalone sentence (max ~55 characters, one metric only), following a price-move reason clause.
 
 Spanish: "{verdict_es}"
 
@@ -458,7 +463,7 @@ Reply with ONLY the English translation, nothing else."""
         resp = await asyncio.wait_for(
             client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=100,
+                max_tokens=50,
                 messages=[{"role": "user", "content": prompt}],
             ),
             timeout=10.0,
