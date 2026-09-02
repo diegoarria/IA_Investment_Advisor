@@ -467,3 +467,59 @@ async def build_nif_dashboard(ticker: str, lang: str = "es") -> Optional[dict]:
             ],
         },
     }
+
+
+def build_nif_signals_only(ticker: str) -> Optional[dict]:
+    """Cost fix, Sep 2026: smart_alerts_service's proactive background
+    refresh (refresh_watchlist_signal_sources, runs daily for every Premium
+    user's watchlist ticker) used to call the FULL build_nif_dashboard —
+    which fires SIX separate Claude calls (business/management quality
+    explanations, quick valuation summary, moat/management deep dives,
+    catalysts) purely to populate `explanation`/`deep_dive` text for the
+    human-facing NIF dashboard UI. But the ONLY two alert categories that
+    read this data — `roic_fcf_deterioration` and `price_in_range` — only
+    ever look at `deterioration.factors` and `pillars.valuation.
+    nuvos_estimate.fair_value_range`/`price`, none of which touch an LLM:
+    deterioration is mechanical trend direction (deterioration_engine.py,
+    "no network, no AI") and fair_value_range/price come straight from the
+    DCF in get_fundamental_analysis. Confirmed via llm_usage_log: this job
+    alone burned $3.37 across 60 watchlist tickers in 48h — with only 3
+    (test) Premium users and zero of it from a real user opening a
+    dashboard.
+
+    Deliberately returns a MINIMAL dict (not the same shape as
+    build_nif_dashboard's return) and is cached under its OWN key
+    (smart_alerts_service._nif_signals_cache_key) — never written into
+    build_nif_dashboard's shared cache key, which would otherwise serve a
+    narrative-less skeleton to the next real user who opens that ticker's
+    NIF dashboard. Same None-if-not-enough-data gate as build_nif_dashboard."""
+    data = get_fundamental_analysis(ticker)
+    if not data or not data.get("dcf"):
+        return None
+
+    dcf = data.get("dcf") or {}
+    fcf_trend = data.get("fcf_trend") or []
+    revenue_trend = data.get("revenue_trend") or []
+    fcf_margin_trend = [
+        (f / r) * 100 if f is not None and r else None
+        for f, r in zip(fcf_trend, revenue_trend)
+    ]
+    deterioration_result = compute_deterioration_signals(
+        roic_trend=data.get("roic_trend") or [],
+        operating_margin_trend=data.get("operating_margin_trend") or [],
+        net_margin_trend=data.get("net_margin_trend") or [],
+        fcf_margin_trend=fcf_margin_trend,
+        revenue_trend=revenue_trend,
+    )
+
+    return {
+        "ticker": data["ticker"],
+        "price": data.get("current_price"),
+        "fair_value_range": dcf.get("fair_value_range"),
+        "deterioration": {
+            "factors": [
+                {"name": f.name, "direction": f.direction, "change_pct": f.change_pct, "reason": f.reason}
+                for f in deterioration_result.factors
+            ],
+        },
+    }

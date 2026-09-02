@@ -110,21 +110,34 @@ def _serialize_risks(risks: list[str]) -> str:
 async def _gather_ticker_signals(ticker: str, lang: str = "es") -> dict:
     """Every real value this job can compare against state for ONE ticker
     — computed once per ticker per run regardless of how many users watch
-    it. Pure cache/DB reads, zero fresh computation."""
+    it. Pure cache/DB reads, zero fresh computation.
+
+    Prefers the lightweight, AI-free signals cache (_nif_signals_cache_key
+    — see build_nif_signals_only) over the full narrative NIF dashboard
+    cache: the signals cache is refreshed daily by this job itself and
+    never depends on some user having organically opened that ticker's
+    dashboard, so it's both cheaper AND more reliably fresh. Falls back to
+    the dashboard/quick-analysis caches for a ticker that has one from an
+    organic view but no signals-only entry yet."""
     from app.core.cache import cache_get
     from app.api.routes.screener import _nif_dashboard_cache_key, _quick_analysis_cache_key
     from app.services.research.knowledge_store import get_company_timeline
     from app.services.research.thesis_engine import get_thesis_draft
 
+    signals_cached = cache_get(_nif_signals_cache_key(ticker))
     nif_cached = cache_get(_nif_dashboard_cache_key(ticker, lang)) or cache_get(_nif_dashboard_cache_key(ticker, "es"))
     quick_cached = cache_get(_quick_analysis_cache_key(ticker, lang)) or cache_get(_quick_analysis_cache_key(ticker, "es"))
     events = await get_company_timeline(ticker, limit=20)
     draft = await get_thesis_draft(ticker)
 
-    price = (nif_cached or {}).get("price")
+    price = (signals_cached or {}).get("price")
+    if price is None:
+        price = (nif_cached or {}).get("price")
     if price is None:
         price = (quick_cached or {}).get("price")
-    fair_value_range = ((nif_cached or {}).get("pillars") or {}).get("valuation", {}).get("nuvos_estimate", {}).get("fair_value_range")
+    fair_value_range = (signals_cached or {}).get("fair_value_range")
+    if fair_value_range is None:
+        fair_value_range = ((nif_cached or {}).get("pillars") or {}).get("valuation", {}).get("nuvos_estimate", {}).get("fair_value_range")
     if fair_value_range is None:
         fair_value_range = (quick_cached or {}).get("fair_value_range")
     risks = [r.get("text") for r in ((draft or {}).get("key_risks") or []) if r.get("text")]
@@ -132,7 +145,7 @@ async def _gather_ticker_signals(ticker: str, lang: str = "es") -> dict:
     return {
         "thesis_change": _detect_thesis_or_guidance(events, "strategy_change"),
         "guidance_change": _detect_thesis_or_guidance(events, "guidance_change"),
-        "roic_fcf_deterioration": _detect_roic_fcf_direction(nif_cached),
+        "roic_fcf_deterioration": _detect_roic_fcf_direction(signals_cached or nif_cached),
         "new_risks_current": risks,
         "price_in_range_current": _detect_price_in_range(price, fair_value_range),
     }
@@ -142,52 +155,61 @@ _REFRESH_MIN_HOURS = 24   # same cost-discipline gate research_engine.py's dossi
 _REFRESH_TICKER_CAP = 80  # safety cap per run — hitting it is logged, never silently truncated forever
 
 
-async def _refresh_dossier_if_stale(ticker: str, lang: str) -> None:
-    """Same freshness gate app/api/routes/research_engine.py's
-    get_research_dossier route uses — only pays for the real
-    compose_research_dossier Claude calls (business/competitive/industry/
-    management/thesis) if any of the 4 knowledge snapshots is older than
-    _REFRESH_MIN_HOURS. A ticker an organic user visit already refreshed
-    today is skipped here too; this only fills the gap for tickers nobody
-    happens to open."""
-    from app.services.research.knowledge_store import get_latest_snapshot, is_snapshot_fresh
-    from app.services.research.research_orchestrator import compose_research_dossier
-    import asyncio
+def _nif_signals_cache_key(ticker: str) -> str:
+    return f"nif:signals_only:{ticker.upper()}"
 
-    business_snap, competitive_snap, industry_snap, management_snap = await asyncio.gather(
-        get_latest_snapshot(ticker, "business_understanding"),
-        get_latest_snapshot(ticker, "competitive"),
-        get_latest_snapshot(ticker, "industry"),
-        get_latest_snapshot(ticker, "management"),
-    )
-    all_fresh = all(
-        is_snapshot_fresh(s, _REFRESH_MIN_HOURS) for s in (business_snap, competitive_snap, industry_snap, management_snap)
-    )
-    if all_fresh:
+
+_NIF_SIGNALS_CACHE_TTL = 86400  # 24h — matches _REFRESH_MIN_HOURS, cheap to recompute anyway (zero AI)
+
+
+async def _refresh_dossier_if_stale(ticker: str, lang: str) -> None:
+    """Cost fix, Sep 2026 — used to gate on ALL 4 knowledge snapshots and
+    call the full compose_research_dossier (5 Claude calls: business/
+    competitive/industry/management understanding + thesis draft) whenever
+    ANY of them was stale. But the only thing this job's detectors read
+    from the dossier is thesis_draft.key_risks (`new_risk` category) — the
+    other 4 are pure narrative for the human-facing Dossier UI (see
+    compose_thesis_only's docstring for the full audit trail). Gate on the
+    thesis draft's OWN freshness and only regenerate that."""
+    from app.services.research.knowledge_store import is_snapshot_fresh
+    from app.services.research.thesis_engine import get_thesis_draft
+    from app.services.research.research_orchestrator import compose_thesis_only
+
+    draft = await get_thesis_draft(ticker)
+    if is_snapshot_fresh(draft, _REFRESH_MIN_HOURS):
         return
-    await compose_research_dossier(ticker, lang)
+    await compose_thesis_only(ticker, lang)
 
 
 async def _refresh_nif_dashboard_if_stale(ticker: str, lang: str) -> None:
-    """Same freshness gate worker.py's job_prewarm_nif_dashboard_default
-    uses for its one default ticker — here applied to every real Premium
-    watchlist ticker so roic_fcf_deterioration/price_in_range have
-    something current to diff against."""
-    from app.api.routes.screener import _latest_reported_earnings_period, _nif_dashboard_cache_key, _NIF_DASHBOARD_CACHE_TTL
+    """Cost fix, Sep 2026 — used to call the full build_nif_dashboard (6
+    Claude calls: business/management quality explanations, quick
+    valuation summary, moat/management deep dives, catalysts) whenever the
+    cached dashboard's earnings period was stale. But this job's detectors
+    (`roic_fcf_deterioration`, `price_in_range`) only ever read
+    deterioration.factors and fair_value_range/price — none of which touch
+    an LLM (see build_nif_signals_only's docstring for the full audit
+    trail). Computes just that instead, cached under its own key
+    (_nif_signals_cache_key) — deliberately NOT build_nif_dashboard's
+    shared cache key, which would otherwise serve a narrative-less
+    skeleton to the next real user who opens that ticker's NIF dashboard.
+    That dashboard still gets a full, real refresh the normal way the
+    first time an organic user opens it."""
+    from app.api.routes.screener import _latest_reported_earnings_period
     from app.services import nif_service
     from app.core.cache import cache_get, cache_set
     import asyncio
 
-    cache_key = _nif_dashboard_cache_key(ticker, lang)
+    cache_key = _nif_signals_cache_key(ticker)
     cached = cache_get(cache_key)
     if cached:
         current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
         if not current_period or current_period == cached.get("_earnings_period"):
             return
-    result = await nif_service.build_nif_dashboard(ticker, lang)
+    result = await asyncio.to_thread(nif_service.build_nif_signals_only, ticker)
     if result:
         result["_earnings_period"] = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
-        cache_set(cache_key, result, _NIF_DASHBOARD_CACHE_TTL)
+        cache_set(cache_key, result, _NIF_SIGNALS_CACHE_TTL)
 
 
 async def refresh_watchlist_signal_sources() -> None:
