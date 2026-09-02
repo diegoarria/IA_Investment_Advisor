@@ -3305,7 +3305,7 @@ export default function PortfolioScreen() {
                 ) : (
                 <>
                 {/* Era filter chips */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6 }}>
                   {[
                     { id: "all",         label: t("portfolio.eraFilters.all") },
                     { id: "pre1950",     label: t("portfolio.eraFilters.pre1950") },
@@ -3321,45 +3321,35 @@ export default function PortfolioScreen() {
                         key={era.id}
                         onPress={() => setStressEra(era.id)}
                         style={{
-                          paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+                          paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
                           borderWidth: 1,
                           borderColor: active ? "#00d47e" : colors.border,
                           backgroundColor: active ? "rgba(0,212,126,0.12)" : "transparent",
                         }}
                       >
-                        <Text style={{ fontSize: 12.5, fontWeight: "700", color: active ? "#00d47e" : colors.textMuted }}>
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: active ? "#00d47e" : colors.textMuted }}>
                           {era.label}
                         </Text>
                       </TouchableOpacity>
                     );
                   })}
                 </ScrollView>
-                {/* Scenario cards — a wrapping 2-column grid (was a horizontal
-                    scroll that hid options off-screen) so every scenario is
-                    visible at once with real room to breathe. */}
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
+                {/* Scenario pills */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
                   {STRESS_SCENARIOS.filter((sc) => stressEra === "all" || sc.era === stressEra).map((sc) => (
                     <TouchableOpacity
                       key={sc.id}
-                      style={[
-                        s.stressChip,
-                        {
-                          width: "47.5%",
-                          borderColor: stressScenario === sc.id ? sc.color : colors.border,
-                          borderWidth: stressScenario === sc.id ? 1.5 : 1,
-                          backgroundColor: stressScenario === sc.id ? sc.color + "18" : colors.card,
-                        },
-                      ]}
+                      style={[s.stressChip, { borderColor: stressScenario === sc.id ? sc.color : colors.border, backgroundColor: stressScenario === sc.id ? sc.color + "18" : "transparent" }]}
                       onPress={() => runStressTest(sc.id)}
                     >
                       <Text style={s.stressChipIcon}>{sc.icon}</Text>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[s.stressChipName, { color: stressScenario === sc.id ? sc.color : colors.text }]}>{sc.name}</Text>
+                      <View>
+                        <Text style={[s.stressChipName, { color: stressScenario === sc.id ? sc.color : colors.textMuted }]}>{sc.name}</Text>
                         <Text style={[s.stressChipYear, { color: colors.textDim }]}>{sc.year}</Text>
                       </View>
                     </TouchableOpacity>
                   ))}
-                </View>
+                </ScrollView>
 
                 {/* Fake blurred result for free users */}
                 {!isPremiumAccess && (
@@ -4584,7 +4574,7 @@ const portfolioStyles = StyleSheet.create({
     calcCard:          { borderRadius: 20, borderWidth: 1, padding: 18, marginBottom: 14 },
     calcRow:           { flexDirection: "row", gap: 10, marginBottom: 14 },
     calcField:         { flex: 1 },
-    calcLabel:         { fontSize: 11.5, fontWeight: "700", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 },
+    calcLabel:         { fontSize: 10, fontWeight: "700", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
     calcInput:         { borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 12, fontSize: 15 },
     calcInputWrap:     { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 12 },
     calcInputPrefix:   { fontSize: 15, fontWeight: "800", marginRight: 4 },
@@ -4660,12 +4650,12 @@ const portfolioStyles = StyleSheet.create({
     diagFeedbackText: { flex: 1, fontSize: 13, lineHeight: 19 },
     // Stress Test
     stressChip: {
-      flexDirection: "column", alignItems: "flex-start", gap: 6,
-      borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12,
+      flexDirection: "row", alignItems: "center", gap: 8,
+      borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 9,
     },
-    stressChipIcon: { fontSize: 22 },
-    stressChipName: { fontSize: 13.5, fontWeight: "700", letterSpacing: -0.1, lineHeight: 17 },
-    stressChipYear: { fontSize: 11.5, marginTop: 2 },
+    stressChipIcon: { fontSize: 17 },
+    stressChipName: { fontSize: 12, fontWeight: "700", letterSpacing: -0.1 },
+    stressChipYear: { fontSize: 10, marginTop: 2 },
     stressResultCard: { borderRadius: 18, borderWidth: 1, padding: 16, marginBottom: 4 },
     stressResultTitle: { fontSize: 14, fontWeight: "700", marginBottom: 12, letterSpacing: -0.2 },
     stressSummary: { borderRadius: 12, padding: 14, marginBottom: 12 },
