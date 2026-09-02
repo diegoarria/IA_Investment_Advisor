@@ -314,7 +314,24 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
 
 @router.get("/insights")
 async def get_ai_insights(lang: str | None = None, user_id: str = Depends(get_current_user_id)):
-    """Analyze chat history to detect behavioral patterns and suggest profile updates."""
+    """Analyze chat history to detect behavioral patterns and suggest profile updates.
+
+    Cost fix, Sep 2026: this used to have zero caching and fired a fresh
+    Claude call on EVERY mount of the Profile screen (avatar, referrals,
+    subscription, and settings all live there too, so it's a
+    high-traffic tab) — a user bouncing in and out repeatedly triggered
+    repeated paid calls for no new signal, since chat history rarely
+    changes meaningfully within a day. Global daily spend cap
+    (ai_service._claude) already made this safe from a runaway bill, but
+    at scale it could still eat the whole shared daily budget and starve
+    other AI features for everyone. Cached once per user per calendar day
+    now, same "generate once, reuse on every view" pattern as
+    /mentor-letter just above (monthly instead of daily there since a
+    letter is meant to feel like a monthly ritual)."""
+    cache_key = f"profile_insights:{user_id}:{lang or 'auto'}:{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
     try:
         db = get_supabase()
         result = await run_query(
@@ -340,7 +357,9 @@ async def get_ai_insights(lang: str | None = None, user_id: str = Depends(get_cu
         min_msgs = 5 if is_premium else 8
         msgs = msgs[:50] if is_premium else msgs[:20]
         if len(msgs) < min_msgs:
-            return {"ready": False, "reason": "few_messages"}
+            result = {"ready": False, "reason": "few_messages"}
+            cache_set(cache_key, result, ttl=86400)
+            return result
 
         combined = "\n".join(f"- {m['content'][:200]}" for m in msgs)
         lang_directive = (
@@ -430,7 +449,9 @@ Responde SOLO con este JSON:
         match = re.search(r'\{.*\}', response, re.DOTALL)
         if match:
             data = json.loads(match.group())
-            return {"ready": True, "declared_risk": declared_risk, **data}
+            result = {"ready": True, "declared_risk": declared_risk, **data}
+            cache_set(cache_key, result, ttl=86400)
+            return result
     except Exception:
         pass
     return {"ready": False, "reason": "error"}

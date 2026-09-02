@@ -576,10 +576,15 @@ async def chat_stream(
 ):
     has_images = bool(body.images or body.image_data)
 
-    # NOTE: this route has no active caller — web and mobile both use
-    # /message (see chat_message below), which is where the generic-question
-    # cache (#8/#9) and the daily cost cap actually live. Kept minimal here
-    # rather than duplicating that logic into a route nothing calls.
+    # Cost fix, Sep 2026: this route was documented as having "no active
+    # caller" (web and mobile both use /message below) and, on that
+    # assumption, skipped /message's generic-question cache, GPT-mini
+    # routing, AND daily cost cap — but it's still live, authenticated,
+    # and rate-limited only 20/min. "No active caller today" is not a cost
+    # control; a future mobile build regression (or anyone hitting this
+    # URL directly) would have been a silent loophole around every spend
+    # guard in the app. Added the same free-tier msg-limit + daily-cost-cap
+    # checks /message enforces, so this route can't be cheaper to abuse.
 
     # Normalize: merge legacy single-image into the images list
     images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
@@ -588,7 +593,11 @@ async def chat_stream(
 
     # Fetch profile first (needed for premium check + enrichment timeout)
     profile = await _get_user_profile(user_id)
+    if profile:
+        await _check_and_increment_msg_limit(user_id, profile)
     premium = _is_premium(profile)
+    if not premium:
+        await _check_daily_cost_cap(user_id)
     enrich_timeout = 4.0 if premium else 2.5
 
     async def _safe_enrich():

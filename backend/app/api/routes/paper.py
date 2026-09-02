@@ -6,6 +6,8 @@ POST /paper/alias        — set or update your trading alias
 """
 
 import asyncio
+import hashlib
+import json
 import random
 import string
 import logging
@@ -28,6 +30,7 @@ router = APIRouter(prefix="/paper", tags=["paper"])
 PAPER_INITIAL_CASH = 10_000.0
 _PRICES_TTL      = 60    # seconds — price cache
 _LEADERBOARD_TTL = 30    # seconds — full leaderboard cache
+_ANALYZE_CACHE_TTL = 3600  # seconds — /analyze result cache, keyed on exact portfolio state
 
 _YF_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -229,13 +232,51 @@ async def get_leaderboard(user_id: str = Depends(get_current_user_id)):
 @router.post("/analyze")
 @limiter.limit("15/minute")
 async def analyze_paper(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
-    """AI analysis of the user's paper trading portfolio — premium only (enforced on frontend)."""
+    """AI analysis of the user's paper trading portfolio — premium only.
+
+    Cost fix, Sep 2026: this used to be premium-gated on the frontend ONLY
+    (any authenticated user, including free tier, could call this route
+    directly) and had zero caching — every "Volver a analizar" click, or
+    any repeat/scripted call with the same portfolio state, was a fresh
+    Sonnet call. Rate-limited 15/min but nothing stopped that from running
+    non-stop; it's shielded from a runaway bill only by the app-wide daily
+    spend cap (ai_service._claude), which meant repeat/abusive use here
+    could eat the whole day's shared budget and degrade Arthur/support for
+    every other user. Added a real server-side premium check plus a cache
+    keyed on the exact portfolio state — identical input (no new trades
+    since the last analysis) now serves the prior verdict for free."""
+    from app.core.subscription import is_premium_active
+
+    db = get_supabase()
+    profile_res = await run_query(
+        db.table("user_profiles")
+        .select("subscription_tier,trial_started_at,streak_bonus_premium_until")
+        .eq("user_id", user_id)
+    )
+    profile = (profile_res.data or [{}])[0]
+    if not is_premium_active(
+        profile.get("subscription_tier"), profile.get("trial_started_at"), profile.get("streak_bonus_premium_until"),
+    ):
+        raise HTTPException(status_code=403, detail="Premium required")
+
     positions      = body.get("positions") or []
     trades         = body.get("trades") or []
     total_return   = float(body.get("total_return_pct") or 0)
     cash           = float(body.get("cash") or 0)
     portfolio_value = float(body.get("portfolio_value") or 10000)
     lang           = body.get("lang") if body.get("lang") in ("es", "en") else "es"
+
+    state_fingerprint = hashlib.sha256(
+        json.dumps(
+            {"positions": positions, "trades": trades, "total_return": total_return, "cash": cash,
+             "portfolio_value": portfolio_value, "lang": lang},
+            sort_keys=True, default=str,
+        ).encode()
+    ).hexdigest()
+    ck = f"paper:analyze:{user_id}:{state_fingerprint}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
 
     result = await ai_service.analyze_paper_portfolio(
         positions=positions,
@@ -245,6 +286,7 @@ async def analyze_paper(request: Request, body: dict, user_id: str = Depends(get
         portfolio_value=portfolio_value,
         lang=lang,
     )
+    cache_set(ck, result, ttl=_ANALYZE_CACHE_TTL)
     return result
 
 
