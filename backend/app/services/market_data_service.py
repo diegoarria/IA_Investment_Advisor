@@ -1,3 +1,4 @@
+import os
 import re
 import time
 import math
@@ -5,8 +6,13 @@ import concurrent.futures
 import requests
 import yfinance as yf
 from datetime import datetime, timedelta
+from typing import Optional
 from app.core.cache import cache_get, cache_set
+from app.core.config import settings
 from app.services.valuation.numeric_helpers import derive_fcf
+
+FMP_KEY = settings.fmp_api_key or os.getenv("FMP_API_KEY", "")
+FMP_BASE = "https://financialmodelingprep.com/stable"
 
 # ── Company name → ticker map ─────────────────────────────────────────────
 COMPANY_TICKERS: dict[str, str] = {
@@ -368,7 +374,51 @@ def _fetch_finnhub_market_news() -> str:
 
 # ── Global market context (indices + IPOs, injected on every message) ──────
 
-def _get_index_summary(ticker: str, label: str) -> str:
+# yfinance's `.info` scrape is frequently rate-limited/blocked by Yahoo and
+# was the ONLY source here, so a single Yahoo hiccup took down every index
+# at once (confirmed: Arthur reporting all indices N/D). FMP's /quote
+# endpoint carries the same real-time indices reliably (it's already the
+# primary source for statements in financial_data_service.py) — try it
+# first and only fall back to yfinance for symbols FMP's plan doesn't
+# cover (e.g. CL=F / WTI oil).
+_FMP_INDEX_SYMBOL = {
+    "^GSPC": "^GSPC",
+    "^IXIC": "^IXIC",
+    "^DJI": "^DJI",
+    "^RUT": "^RUT",
+    "^VIX": "^VIX",
+    "BTC-USD": "BTCUSD",
+    "GC=F": "GCUSD",
+    "CL=F": "CLUSD",
+}
+
+
+def _get_index_summary_fmp(ticker: str, label: str) -> Optional[str]:
+    fmp_symbol = _FMP_INDEX_SYMBOL.get(ticker)
+    if not fmp_symbol or not FMP_KEY:
+        return None
+    try:
+        r = requests.get(
+            f"{FMP_BASE}/quote",
+            params={"symbol": fmp_symbol, "apikey": FMP_KEY},
+            timeout=6,
+        )
+        data = r.json()
+        if not isinstance(data, list) or not data:
+            return None
+        price = data[0].get("price")
+        chg = data[0].get("changePercentage")
+        if price is None:
+            return None
+        if chg is not None:
+            arrow = "⬆" if chg >= 0 else "⬇"
+            return f"  {label}: {price:,.2f} {arrow} {chg:+.2f}%"
+        return f"  {label}: {price:,.2f}"
+    except Exception:
+        return None
+
+
+def _get_index_summary_yfinance(ticker: str, label: str) -> Optional[str]:
     try:
         t = yf.Ticker(ticker)
         info = t.info or {}
@@ -380,9 +430,17 @@ def _get_index_summary(ticker: str, label: str) -> str:
             return f"  {label}: {price:,.2f} {arrow} {chg:+.2f}%"
         elif price:
             return f"  {label}: {price:,.2f}"
-        return f"  {label}: N/D"
+        return None
     except Exception:
-        return f"  {label}: N/D"
+        return None
+
+
+def _get_index_summary(ticker: str, label: str) -> str:
+    return (
+        _get_index_summary_fmp(ticker, label)
+        or _get_index_summary_yfinance(ticker, label)
+        or f"  {label}: N/D"
+    )
 
 
 def _fetch_recent_ipos() -> str:

@@ -13,14 +13,20 @@ from datetime import date, timedelta
 import httpx
 
 from app.core.cache import cache_get, cache_set
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 _BASE = "https://finnhub.io/api/v1"
+_FMP_BASE = "https://financialmodelingprep.com/stable"
 
 
 def _key() -> str:
     return os.getenv("FINNHUB_API_KEY", "")
+
+
+def _fmp_key() -> str:
+    return settings.fmp_api_key or os.getenv("FMP_API_KEY", "")
 
 
 def _get(path: str, params: dict) -> dict | None:
@@ -44,13 +50,55 @@ def _get(path: str, params: dict) -> dict | None:
 
 # ── Public helpers ─────────────────────────────────────────────────────────────
 
+def _fmp_quote_fallback(ticker: str) -> dict | None:
+    """FMP /quote as a fallback when Finnhub has no data or is rate-limited —
+    portfolio P&L (the mentor's live position performance) must not go dark
+    just because one provider hiccups. Same field shape as fh_quote's
+    result so callers don't need to know which provider answered."""
+    key = _fmp_key()
+    if not key:
+        return None
+    try:
+        r = httpx.get(
+            f"{_FMP_BASE}/quote",
+            params={"symbol": ticker, "apikey": key},
+            timeout=8,
+        )
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        if not isinstance(data, list) or not data:
+            return None
+        d = data[0]
+        price = d.get("price")
+        if not price:
+            return None
+        return {
+            "price":      round(float(price), 4),
+            "prev_close": round(float(d["previousClose"]), 4) if d.get("previousClose") is not None else None,
+            "change":     round(float(d["change"]), 4) if d.get("change") is not None else 0.0,
+            "change_pct": round(float(d["changePercentage"]), 2) if d.get("changePercentage") is not None else 0.0,
+            "open":       d.get("open"),
+            "high":       d.get("dayHigh"),
+            "low":        d.get("dayLow"),
+            "volume":     d.get("volume"),
+            "timestamp":  None,
+        }
+    except Exception as e:
+        logger.debug("FMP quote fallback error for %s: %s", ticker, e)
+        return None
+
+
 def fh_quote(ticker: str) -> dict | None:
     """
-    Real-time quote for a ticker.
+    Real-time quote for a ticker. Tries Finnhub first, falls back to FMP
+    (same provider financial_data_service already relies on for statements)
+    if Finnhub has no data or is unavailable — a portfolio position's live
+    price/P&L should not depend on a single provider staying up.
 
     Returns:
         {price, prev_close, change, change_pct, open, high, low, volume, timestamp}
-        or None if no data / no key / error.
+        or None if no data from either provider.
     """
     ck = f"fh:quote:{ticker}"
     cached = cache_get(ck)
@@ -58,27 +106,26 @@ def fh_quote(ticker: str) -> dict | None:
         return cached
 
     d = _get("/quote", {"symbol": ticker})
-    if not d:
-        return None
+    price = d.get("c") if d else None
 
-    price = d.get("c")
-    if not price:
-        return None  # zero price = no data
+    if price:
+        result = {
+            "price":      round(float(price), 4),
+            "prev_close": round(float(d["pc"]), 4) if d.get("pc") else None,
+            "change":     round(float(d["d"]), 4) if d.get("d") is not None else 0.0,
+            "change_pct": round(float(d["dp"]), 2) if d.get("dp") is not None else 0.0,
+            "open":       d.get("o"),
+            "high":       d.get("h"),
+            "low":        d.get("l"),
+            "volume":     d.get("v"),
+            "timestamp":  d.get("t"),
+        }
+    else:
+        result = _fmp_quote_fallback(ticker)
 
-    prev = d.get("pc")
-    change = d.get("d")
-    change_pct = d.get("dp")
-    result = {
-        "price":      round(float(price), 4),
-        "prev_close": round(float(prev), 4) if prev else None,
-        "change":     round(float(change), 4) if change is not None else 0.0,
-        "change_pct": round(float(change_pct), 2) if change_pct is not None else 0.0,
-        "open":       d.get("o"),
-        "high":       d.get("h"),
-        "low":        d.get("l"),
-        "volume":     d.get("v"),
-        "timestamp":  d.get("t"),
-    }
+    if not result:
+        return None  # zero price / no data from either provider
+
     cache_set(ck, result, ttl=60)
     return result
 
