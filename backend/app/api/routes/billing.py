@@ -295,7 +295,7 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
 
     def _query():
         return db.table("user_profiles").select(
-            "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id, broker_offer_seen_at, duo_plan_purchased_at, duo_secondary_email, streak_bonus_premium_until, claimed_streak_milestones"
+            "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id, broker_offer_seen_at, duo_plan_purchased_at, duo_secondary_email, duo_invite_status, streak_bonus_premium_until, claimed_streak_milestones"
         ).eq("user_id", user_id).maybe_single()
 
     result = await run_query(_query())
@@ -371,6 +371,7 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
 
     duo_purchased = data.get("duo_plan_purchased_at")
     duo_secondary = data.get("duo_secondary_email")
+    duo_invite_status = data.get("duo_invite_status")
 
     return {
         "tier":                      effective_tier,
@@ -382,6 +383,11 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
         "broker_offer_seen_at":      data.get("broker_offer_seen_at"),
         "duo_setup_pending":         bool(duo_purchased and not duo_secondary),
         "duo_secondary_email":       duo_secondary,
+        # Consent-flow fix, Sep 2026: distinguishes "invited, waiting on the
+        # secondary to respond" from "they accepted" — the frontend shows a
+        # different state for each (duo_setup_pending above only means "you
+        # haven't invited anyone yet", unrelated to this).
+        "duo_invite_status":         duo_invite_status,
         "streak_bonus_premium_until": streak_bonus_until,
         "streak_bonus_active":       streak_bonus_active,
         "claimed_streak_milestones": list(data.get("claimed_streak_milestones") or []),
@@ -460,17 +466,35 @@ async def _revoke_duo_secondary(primary_customer_id: str, db):
             cache_delete(f"sync:all:{secondary_id}")
         await run_query(
             db.table("user_profiles")
-            .update({"duo_secondary_user_id": None})
+            .update({"duo_secondary_user_id": None, "duo_invite_status": None})
             .eq("user_id", primary_row["user_id"])
         )
     except Exception as e:
         logger.warning("_revoke_duo_secondary failed: %s", e)
 
 
+async def _notify_duo(user_id: str, category: str, title: str, body: str, data: dict) -> None:
+    """Fire-and-forget push for a duo invite/response — never let a
+    notification failure break the actual billing/consent operation."""
+    try:
+        from app.services.notification_engine import send_push
+        db = get_supabase()
+        await send_push(user_id, category, title, body, data, db)
+    except Exception as e:
+        logger.warning("_notify_duo(%s, %s) failed: %s", user_id, category, e)
+
+
 @router.post("/duo-setup")
 async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
-    """Save the secondary account email for a Duo plan and grant them premium access.
-    Validates that the secondary email belongs to an existing Nuvos account."""
+    """Invite a secondary account to a Duo plan pairing.
+
+    Security fix, Sep 2026: this used to grant the secondary account
+    premium AND expose their investing-progress data to the primary
+    (GET /duo-partner) immediately, with no consent step at all — the
+    secondary never approved being paired. Now this only creates a
+    PENDING invite; nothing is granted or shared until the secondary
+    calls POST /duo-accept themselves (see that route, and GET
+    /duo-invite which is how they find out an invite exists)."""
     secondary_email = (body.get("secondary_email") or "").strip().lower()
     if not secondary_email or "@" not in secondary_email:
         raise HTTPException(status_code=422, detail="Email del segundo usuario inválido")
@@ -480,7 +504,7 @@ async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
     # 1. Verify duo plan was purchased
     check = await run_query(
         db.table("user_profiles")
-        .select("duo_plan_purchased_at, duo_secondary_user_id, duo_secondary_email")
+        .select("duo_plan_purchased_at, duo_secondary_user_id, duo_secondary_email, full_name, name")
         .eq("user_id", user_id).maybe_single()
     )
     if not (check and check.data and check.data.get("duo_plan_purchased_at")):
@@ -503,6 +527,9 @@ async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
     # the old secondary becomes unreachable and un-revokable by any code
     # path. Revoke the old secondary here, before linking the new one, so a
     # duo plan can never grant premium to more than one secondary at a time.
+    # (Safe even if the old pairing was only ever "pending" — the downgrade
+    # check below is a no-op for an account that was never actually granted
+    # premium by this pairing.)
     old_secondary_id = check.data.get("duo_secondary_user_id")
     if old_secondary_id and old_secondary_id != secondary_id:
         # Same independently-premium check as _revoke_duo_secondary — the
@@ -520,49 +547,169 @@ async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
         cache_delete(f"profile:{old_secondary_id}")
         cache_delete(f"sync:all:{old_secondary_id}")
 
-    # 3. Grant premium to secondary account + link back to the primary, so the
-    # secondary can look up its own partner instead of the link only working
-    # one-directional (primary -> secondary by email).
+    # 3. Record the invite as PENDING — no premium grant, no bidirectional
+    # link yet. Those only happen when the secondary accepts.
     await run_query(
         db.table("user_profiles")
-        .update({"subscription_tier": "premium", "duo_primary_user_id": user_id})
-        .eq("user_id", secondary_id)
-    )
-    cache_delete(f"profile:{secondary_id}")
-    cache_delete(f"sync:all:{secondary_id}")
-
-    # 4. Save secondary email + resolved id on primary profile (caching the id
-    # avoids re-scanning all auth users by email on every future lookup).
-    await run_query(
-        db.table("user_profiles")
-        .update({"duo_secondary_email": secondary_email, "duo_secondary_user_id": secondary_id})
+        .update({"duo_secondary_email": secondary_email, "duo_secondary_user_id": secondary_id, "duo_invite_status": "pending"})
         .eq("user_id", user_id)
     )
+    cache_delete(f"profile:{user_id}")
+    cache_delete(f"sync:all:{user_id}")
 
-    logger.info("Duo setup: primary=%s granted premium to secondary=%s (%s)", user_id, secondary_email, secondary_id)
-    return {"ok": True, "duo_secondary_email": secondary_email}
+    primary_name = (check.data.get("full_name") or check.data.get("name") or "Alguien").split()[0]
+    await _notify_duo(
+        secondary_id, "duo_invite",
+        "Invitación al plan Dúo 👥",
+        f"{primary_name} te invitó a compartir su plan Dúo en Nuvos — acepta para activar tu Premium gratis.",
+        {"screen": "profile", "duo_invite": "pending"},
+    )
+
+    logger.info("Duo setup: primary=%s sent PENDING invite to secondary=%s (%s)", user_id, secondary_email, secondary_id)
+    return {"ok": True, "status": "pending", "duo_secondary_email": secondary_email}
+
+
+@router.get("/duo-invite")
+async def get_duo_invite(user_id: str = Depends(get_current_user_id)):
+    """Does the caller have a pending Duo invite waiting on THEM to accept
+    or decline? This is the secondary's-eye view — duo_setup only ever
+    writes the pending state on the primary's row, so this looks up
+    'who invited me' rather than 'who did I invite'."""
+    db = get_supabase()
+    res = await run_query(
+        db.table("user_profiles")
+        .select("user_id, full_name, name")
+        .eq("duo_secondary_user_id", user_id)
+        .eq("duo_invite_status", "pending")
+        .limit(1)
+    )
+    if not res.data:
+        return {"pending": False}
+    row = res.data[0]
+    return {
+        "pending": True,
+        "primary_user_id": row["user_id"],
+        "primary_name": row.get("full_name") or row.get("name") or "Alguien",
+    }
+
+
+@router.post("/duo-accept")
+async def accept_duo_invite(user_id: str = Depends(get_current_user_id)):
+    """Secondary explicitly accepts a pending Duo invite — this is the ONLY
+    place that grants premium via a duo pairing and establishes the
+    bidirectional link GET /duo-partner reads. Idempotency: re-accepting an
+    already-accepted invite is a no-op success (not an error), since a
+    double-tap/retry must never fail confusingly."""
+    db = get_supabase()
+    res = await run_query(
+        db.table("user_profiles")
+        .select("user_id, full_name, name, duo_invite_status")
+        .eq("duo_secondary_user_id", user_id)
+        .in_("duo_invite_status", ["pending", "accepted"])
+        .limit(1)
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="No tienes una invitación de Dúo pendiente")
+    primary_row = res.data[0]
+    primary_id = primary_row["user_id"]
+
+    await run_query(
+        db.table("user_profiles")
+        .update({"subscription_tier": "premium", "duo_primary_user_id": primary_id})
+        .eq("user_id", user_id)
+    )
+    cache_delete(f"profile:{user_id}")
+    cache_delete(f"sync:all:{user_id}")
+
+    if primary_row.get("duo_invite_status") != "accepted":
+        await run_query(
+            db.table("user_profiles").update({"duo_invite_status": "accepted"}).eq("user_id", primary_id)
+        )
+        cache_delete(f"profile:{primary_id}")
+        cache_delete(f"sync:all:{primary_id}")
+
+        secondary_res = await run_query(
+            db.table("user_profiles").select("full_name, name").eq("user_id", user_id).maybe_single()
+        )
+        secondary_name = "Tu pareja"
+        if secondary_res and secondary_res.data:
+            secondary_name = (secondary_res.data.get("full_name") or secondary_res.data.get("name") or secondary_name).split()[0]
+        await _notify_duo(
+            primary_id, "duo_accepted",
+            "¡Invitación aceptada! 🎉",
+            f"{secondary_name} aceptó tu invitación al plan Dúo — ya pueden comparar su progreso.",
+            {"screen": "profile"},
+        )
+
+    logger.info("Duo accept: secondary=%s accepted invite from primary=%s", user_id, primary_id)
+    return {"ok": True}
+
+
+@router.post("/duo-decline")
+async def decline_duo_invite(user_id: str = Depends(get_current_user_id)):
+    """Secondary declines a pending Duo invite — resets the primary's
+    invite state (no premium was ever granted, since that only happens on
+    accept) so the primary can invite someone else."""
+    db = get_supabase()
+    res = await run_query(
+        db.table("user_profiles")
+        .select("user_id")
+        .eq("duo_secondary_user_id", user_id)
+        .eq("duo_invite_status", "pending")
+        .limit(1)
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="No tienes una invitación de Dúo pendiente")
+    primary_id = res.data[0]["user_id"]
+
+    await run_query(
+        db.table("user_profiles")
+        .update({"duo_secondary_email": None, "duo_secondary_user_id": None, "duo_invite_status": None})
+        .eq("user_id", primary_id)
+    )
+    cache_delete(f"profile:{primary_id}")
+    cache_delete(f"sync:all:{primary_id}")
+
+    await _notify_duo(
+        primary_id, "duo_declined",
+        "Invitación al plan Dúo",
+        "Tu invitación al plan Dúo no fue aceptada. Puedes invitar a otra persona desde tu perfil.",
+        {"screen": "profile"},
+    )
+
+    logger.info("Duo decline: secondary=%s declined invite from primary=%s", user_id, primary_id)
+    return {"ok": True}
 
 
 @router.get("/duo-partner")
 async def get_duo_partner(user_id: str = Depends(get_current_user_id)):
     """
     Side-by-side progress comparison for a paired Duo account — works from
-    either side of the pairing (primary or secondary), since duo_setup now
-    writes the link both ways. Reuses compute_progress_summary exactly as
-    the solo dashboard does, so a missing field means "not enough data",
-    never zero, on either side.
+    either side of the pairing (primary or secondary). Only returns
+    paired=True once the secondary has explicitly ACCEPTED (duo-accept):
+    - Secondary side: duo_primary_user_id is only ever set at accept time,
+      so its mere presence already implies acceptance.
+    - Primary side: duo_secondary_user_id is set as soon as the invite is
+      sent (pending), so it alone is NOT enough — duo_invite_status must
+      also be 'accepted', or a pending invite would incorrectly read as
+      an active pairing before the secondary ever agreed to anything.
+    Reuses compute_progress_summary exactly as the solo dashboard does, so
+    a missing field means "not enough data", never zero, on either side.
     """
     db = get_supabase()
     res = await run_query(
         db.table("user_profiles")
-        .select("duo_primary_user_id, duo_secondary_user_id")
+        .select("duo_primary_user_id, duo_secondary_user_id, duo_invite_status")
         .eq("user_id", user_id)
         .limit(1)
     )
     row = res.data[0] if res.data else {}
-    partner_id = row.get("duo_secondary_user_id") or row.get("duo_primary_user_id")
+    partner_id = row.get("duo_primary_user_id")
+    if not partner_id and row.get("duo_invite_status") == "accepted":
+        partner_id = row.get("duo_secondary_user_id")
     if not partner_id:
-        return {"paired": False}
+        pending = bool(row.get("duo_secondary_user_id")) and row.get("duo_invite_status") == "pending"
+        return {"paired": False, "pending": pending}
 
     partner_res = await run_query(
         db.table("user_profiles").select("full_name").eq("user_id", partner_id).limit(1)

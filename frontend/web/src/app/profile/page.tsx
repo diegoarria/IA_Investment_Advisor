@@ -193,6 +193,11 @@ export default function ProfilePage() {
     my_summary?: Record<string, any>;
     partner_summary?: Record<string, any>;
   } | null>(null);
+  const [duoIncomingInvite, setDuoIncomingInvite] = useState<{
+    pending: boolean;
+    primary_name?: string;
+  } | null>(null);
+  const [duoResponding, setDuoResponding] = useState(false);
 
   const [voiceCalls, setVoiceCalls] = useState<{ id: string; mentor: string | null; started_at: string; duration_seconds: number }[]>([]);
   const [voiceCallsOpen, setVoiceCallsOpen] = useState(false);
@@ -234,9 +239,33 @@ export default function ProfilePage() {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!subStore.duoSecondaryEmail) return;
+    if (!subStore.duoSecondaryEmail || subStore.duoInviteStatus !== "accepted") return;
     billing.getDuoPartner().then((r) => setDuoPartner(r.data)).catch(() => {});
-  }, [subStore.duoSecondaryEmail]);
+  }, [subStore.duoSecondaryEmail, subStore.duoInviteStatus]);
+
+  // Consent fix, Sep 2026 — check once per profile view whether SOMEONE
+  // invited ME to their Duo plan, so it's never silently auto-paired.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    billing.getDuoInvite().then((r) => setDuoIncomingInvite(r.data)).catch(() => {});
+  }, [isAuthenticated]);
+
+  const respondToDuoInvite = async (accept: boolean) => {
+    setDuoResponding(true);
+    try {
+      if (accept) {
+        await billing.acceptDuoInvite();
+      } else {
+        await billing.declineDuoInvite();
+      }
+      setDuoIncomingInvite({ pending: false });
+      await subStore.fetchStatus();
+    } catch {
+      // Leave the invite visible so the user can retry.
+    } finally {
+      setDuoResponding(false);
+    }
+  };
 
   const toggleCallExpand = async (id: string) => {
     if (expandedCallId === id) {
@@ -980,6 +1009,45 @@ export default function ProfilePage() {
                   )}
                 </div>
 
+                {/* Incoming Duo invite — consent fix, Sep 2026. Someone else
+                    invited THIS account into their Duo plan; nothing was
+                    granted or shared automatically — show it explicitly and
+                    require an accept/decline before anything happens. */}
+                {duoIncomingInvite?.pending && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>{t("profile.duoPlan")}</p>
+                    <div className="rounded-2xl border p-4 flex flex-col gap-3" style={{ background: "var(--card)", borderColor: "rgba(245,158,11,0.4)" }}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">👫</span>
+                        <div className="flex-1">
+                          <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("profile.duoInviteReceivedTitle")}</p>
+                          <p className="text-xs" style={{ color: "var(--muted)" }}>
+                            {t("profile.duoInviteReceivedBody", { name: duoIncomingInvite.primary_name })}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          disabled={duoResponding}
+                          onClick={() => respondToDuoInvite(false)}
+                          className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+                          style={{ background: "var(--raised)", color: "var(--muted)", border: "1px solid var(--border)" }}
+                        >
+                          {t("profile.duoDecline")}
+                        </button>
+                        <button
+                          disabled={duoResponding}
+                          onClick={() => respondToDuoInvite(true)}
+                          className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white"
+                          style={{ background: duoResponding ? "rgba(245,158,11,0.4)" : "#f59e0b" }}
+                        >
+                          {duoResponding ? t("common.saving") : t("profile.duoAccept")}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Plan Dúo — secondary account management */}
                 {isPremium && (subStore.duoSetupPending || subStore.duoSecondaryEmail) && (
                   <div>
@@ -989,8 +1057,10 @@ export default function ProfilePage() {
                         <span className="text-lg">👫</span>
                         <div className="flex-1">
                           <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("profile.secondaryAccount")}</p>
-                          <p className="text-xs" style={{ color: "var(--muted)" }}>
-                            {subStore.duoSecondaryEmail
+                          <p className="text-xs" style={{ color: subStore.duoInviteStatus === "pending" ? "#f59e0b" : "var(--muted)" }}>
+                            {subStore.duoSecondaryEmail && subStore.duoInviteStatus === "pending"
+                              ? t("profile.duoAwaitingAcceptance", { email: subStore.duoSecondaryEmail })
+                              : subStore.duoSecondaryEmail
                               ? t("profile.sharingWith", { email: subStore.duoSecondaryEmail })
                               : t("profile.noSecondaryYet")}
                           </p>

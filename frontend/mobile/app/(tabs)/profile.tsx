@@ -196,7 +196,11 @@ export default function ProfileScreen() {
       setDuoPending(!!res?.data?.duo_setup_pending);
       setDuoSecondaryEmail(res?.data?.duo_secondary_email ?? null);
       setDuoInput(res?.data?.duo_secondary_email ?? "");
+      setDuoInviteStatus(res?.data?.duo_invite_status ?? null);
     }).catch(() => {});
+    // Consent fix, Sep 2026 — did someone ELSE invite me into their Duo
+    // plan? Never auto-granted; shown explicitly with accept/decline.
+    billingApi.getDuoInvite().then((r: any) => setDuoIncomingInvite(r.data)).catch(() => {});
     // Sync full profile from server to keep birth_date and other fields up to date
     profileApi.get().then((r: any) => {
       const current = useAppStore.getState().profile;
@@ -269,6 +273,9 @@ export default function ProfileScreen() {
   const [duoSaving, setDuoSaving] = useState(false);
   const [duoError, setDuoError] = useState("");
   const [duoEditing, setDuoEditing] = useState(false);
+  const [duoInviteStatus, setDuoInviteStatus] = useState<"pending" | "accepted" | null>(null);
+  const [duoIncomingInvite, setDuoIncomingInvite] = useState<{ pending: boolean; primary_name?: string } | null>(null);
+  const [duoResponding, setDuoResponding] = useState(false);
   const [duoPartner, setDuoPartner] = useState<{
     paired: boolean;
     partner_name?: string;
@@ -277,9 +284,29 @@ export default function ProfileScreen() {
   } | null>(null);
 
   useEffect(() => {
-    if (!duoSecondaryEmail) return;
+    if (!duoSecondaryEmail || duoInviteStatus !== "accepted") return;
     billingApi.getDuoPartner().then((r: any) => setDuoPartner(r.data)).catch(() => {});
-  }, [duoSecondaryEmail]);
+  }, [duoSecondaryEmail, duoInviteStatus]);
+
+  const respondToDuoInvite = async (accept: boolean) => {
+    setDuoResponding(true);
+    try {
+      if (accept) {
+        await billingApi.acceptDuoInvite();
+      } else {
+        await billingApi.declineDuoInvite();
+      }
+      setDuoIncomingInvite({ pending: false });
+      const res: any = await billingApi.getStatus();
+      setDuoPending(!!res?.data?.duo_setup_pending);
+      setDuoSecondaryEmail(res?.data?.duo_secondary_email ?? null);
+      setDuoInviteStatus(res?.data?.duo_invite_status ?? null);
+    } catch {
+      // Leave the invite visible so the user can retry.
+    } finally {
+      setDuoResponding(false);
+    }
+  };
 
   const [voiceCalls, setVoiceCalls] = useState<{ id: string; mentor: string | null; started_at: string; duration_seconds: number }[]>([]);
   const [voiceCallsOpen, setVoiceCallsOpen] = useState(false);
@@ -1297,6 +1324,46 @@ if (!profile) {
           </TouchableOpacity>
         </View>
 
+        {/* ── INCOMING DUO INVITE — consent fix, Sep 2026. Someone else
+             invited THIS account; nothing was granted/shared automatically
+             — show it explicitly and require accept/decline. ── */}
+        {duoIncomingInvite?.pending && (
+          <View style={s.section}>
+            <Text style={[s.plansSectionLabel, { color: colors.textMuted }]}>{t("profile.duo.sectionLabel")}</Text>
+            <View style={{ backgroundColor: "rgba(245,158,11,0.08)", borderRadius: 20, borderWidth: 1, borderColor: "rgba(245,158,11,0.35)", padding: 16, gap: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Text style={{ fontSize: 22 }}>👫</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.duo.inviteReceivedTitle")}</Text>
+                  <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
+                    {t("profile.duo.inviteReceivedBody", { name: duoIncomingInvite.primary_name })}
+                  </Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TouchableOpacity
+                  disabled={duoResponding}
+                  onPress={() => respondToDuoInvite(false)}
+                  activeOpacity={0.8}
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}
+                >
+                  <Text style={{ fontWeight: "900", fontSize: 14, color: colors.textMuted }}>{t("profile.duo.decline")}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  disabled={duoResponding}
+                  onPress={() => respondToDuoInvite(true)}
+                  activeOpacity={0.8}
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: duoResponding ? "rgba(245,158,11,0.4)" : "#f59e0b" }}
+                >
+                  <Text style={{ fontWeight: "900", fontSize: 14, color: "#fff" }}>
+                    {duoResponding ? t("profile.duo.saving") : t("profile.duo.accept")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* ── PLAN DÚO — secondary account management ── */}
         {isPremium && (duoPending || duoSecondaryEmail) && (
           <View style={s.section}>
@@ -1307,8 +1374,10 @@ if (!profile) {
                 <Text style={{ fontSize: 22 }}>👫</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.duo.secondaryAccount")}</Text>
-                  <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
-                    {duoSecondaryEmail
+                  <Text style={{ fontSize: 12, color: duoInviteStatus === "pending" ? "#f59e0b" : colors.textMuted, marginTop: 2 }}>
+                    {duoSecondaryEmail && duoInviteStatus === "pending"
+                      ? t("profile.duo.awaitingAcceptance", { email: duoSecondaryEmail })
+                      : duoSecondaryEmail
                       ? t("profile.duo.sharingWith", { email: duoSecondaryEmail })
                       : t("profile.duo.noSecondAccount")}
                   </Text>
@@ -1365,6 +1434,7 @@ if (!profile) {
                           await billingApi.duoSetup(duoInput.trim().toLowerCase());
                           setDuoSecondaryEmail(duoInput.trim().toLowerCase());
                           setDuoPending(false);
+                          setDuoInviteStatus("pending");
                           setDuoEditing(false);
                         } catch (err: any) {
                           setDuoError(err?.response?.data?.detail ?? t("profile.genericSaveError"));

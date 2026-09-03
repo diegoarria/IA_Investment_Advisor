@@ -581,6 +581,7 @@
       "sectionLabel": "PLAN DÚO",
       "secondaryAccount": "Cuenta secundaria",
       "sharingWith": "Compartiendo con {{email}}",
+      "awaitingAcceptance": "Invitación enviada a {{email}} — esperando que la acepte",
       "noSecondAccount": "Aún no has agregado la segunda cuenta",
       "edit": "Editar",
       "emailPlaceholder": "email@ejemplo.com",
@@ -589,6 +590,10 @@
       "save": "Guardar",
       "compareWith": "Comparar progreso con {{name}}",
       "you": "Tú",
+      "inviteReceivedTitle": "Te invitaron al plan Dúo",
+      "inviteReceivedBody": "{{name}} quiere compartir su plan Dúo contigo — si aceptas, tu cuenta pasa a Premium gratis y podrán comparar su progreso de inversión.",
+      "accept": "Aceptar",
+      "decline": "Rechazar",
       "metrics": {
         "current_patrimonio": "Patrimonio actual",
         "cumulative_return_pct": "Retorno acumulado",

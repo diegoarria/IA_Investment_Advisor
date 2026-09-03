@@ -219,6 +219,9 @@ export const billingApi = {
   brokerOfferSeen: () => api.post("/api/billing/broker-offer-seen"),
   duoSetup: (secondary_email: string) => api.post("/api/billing/duo-setup", { secondary_email }),
   getDuoPartner: () => api.get("/api/billing/duo-partner"),
+  getDuoInvite: () => api.get("/api/billing/duo-invite"),
+  acceptDuoInvite: () => api.post("/api/billing/duo-accept"),
+  declineDuoInvite: () => api.post("/api/billing/duo-decline"),
 };
 
 export const upsellsApi = {

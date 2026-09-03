@@ -668,6 +668,10 @@ interface SubscriptionState {
   msgWindowStart: string | null;
   duoSetupPending: boolean;
   duoSecondaryEmail: string | null;
+  /** null = no active invite you sent, "pending" = waiting on the
+   * secondary to accept/decline, "accepted" = pairing is live. Consent
+   * fix, Sep 2026 — distinct from duoSetupPending above. */
+  duoInviteStatus: "pending" | "accepted" | null;
   /** True once a fetchStatus() call has actually completed (success OR
    * failure) at least once this session. A trial/premium user's very
    * first paint before this flips true is the persisted (possibly stale
@@ -690,6 +694,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       msgWindowStart: null,
       duoSetupPending: false,
       duoSecondaryEmail: null,
+      duoInviteStatus: null,
       hasFetchedStatus: false,
       fetchStatus: async () => {
         const { billing } = await import("./api");
@@ -716,6 +721,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
               msgWindowStart:    res.data.msg_window_start ?? null,
               duoSetupPending:   res.data.duo_setup_pending ?? false,
               duoSecondaryEmail: res.data.duo_secondary_email ?? null,
+              duoInviteStatus:   res.data.duo_invite_status ?? null,
               hasFetchedStatus:  true,
             });
             return;

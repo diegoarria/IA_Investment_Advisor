@@ -581,6 +581,7 @@
       "sectionLabel": "DUO PLAN",
       "secondaryAccount": "Secondary account",
       "sharingWith": "Sharing with {{email}}",
+      "awaitingAcceptance": "Invite sent to {{email}} — waiting for them to accept",
       "noSecondAccount": "You haven't added the second account yet",
       "edit": "Edit",
       "emailPlaceholder": "email@example.com",
@@ -589,6 +590,10 @@
       "save": "Save",
       "compareWith": "Compare progress with {{name}}",
       "you": "You",
+      "inviteReceivedTitle": "You've been invited to a Duo plan",
+      "inviteReceivedBody": "{{name}} wants to share their Duo plan with you — if you accept, your account becomes Premium for free and you'll be able to compare investing progress.",
+      "accept": "Accept",
+      "decline": "Decline",
       "metrics": {
         "current_patrimonio": "Current net worth",
         "cumulative_return_pct": "Cumulative return",
