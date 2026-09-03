@@ -121,8 +121,17 @@ async def explain_screen(
         # hitting the token limit (screens like home/oportunidades ask it to
         # cover several items, which can run long). Cheap model, short calls,
         # so headroom costs nothing.
+        #
+        # Security hardening, Sep 2026 audit: `context` is client-supplied
+        # (the frontend's own screen state) and was concatenated straight
+        # into the prompt with no anti-injection instructions — a modified
+        # client or MITM'd request could plant "ignore previous instructions"
+        # inside a context field. Carry the same guardrails every other
+        # hand-rolled Claude prompt in the app now does.
+        from app.services.ai_service import SECURITY_GUARDRAILS_CORE
         resp = await client.messages.create(
             model="claude-haiku-4-5-20251001", max_tokens=700,
+            system=[{"type": "text", "text": SECURITY_GUARDRAILS_CORE}],
             messages=[{"role": "user", "content": prompt}],
         )
         from app.services.llm_usage import log_llm_usage

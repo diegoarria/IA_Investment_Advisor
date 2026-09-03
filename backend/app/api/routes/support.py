@@ -71,6 +71,15 @@ _SUPPORT_SYSTEM = """Eres el agente de soporte oficial de Nuvos AI — un asesor
 5. Responde siempre en español."""
 
 
+def _support_system_prompt() -> str:
+    # Security hardening, Sep 2026 audit: this prompt previously carried no
+    # anti-jailbreak/anti-leak instructions at all — appended lazily (not a
+    # module-level constant) to avoid a circular import with ai_service.py
+    # at module load time.
+    from app.services.ai_service import SECURITY_GUARDRAILS_CORE
+    return _SUPPORT_SYSTEM + SECURITY_GUARDRAILS_CORE
+
+
 @router.post("/chat")
 @limiter.limit("20/minute")
 async def support_chat(
@@ -84,7 +93,16 @@ async def support_chat(
     if not message:
         raise HTTPException(status_code=400, detail="Mensaje requerido")
 
-    messages = [{"role": m["role"], "content": m["content"]} for m in history if m.get("role") and m.get("content")]
+    # Security hardening, Sep 2026 audit: `history` is client-supplied and
+    # was trusted verbatim — a caller could inject a fabricated "system"-role
+    # (or arbitrary-role) turn to prime a jailbreak before their real
+    # message. Restrict to the two real conversational roles and string
+    # content only.
+    messages = [
+        {"role": m["role"], "content": m["content"]}
+        for m in history
+        if isinstance(m, dict) and m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str) and m.get("content")
+    ]
     messages.append({"role": "user", "content": message})
 
     async def generate():
@@ -98,7 +116,7 @@ async def support_chat(
         async with _client.messages.stream(
             model="claude-haiku-4-5-20251001",
             max_tokens=512,
-            system=[{"type": "text", "text": _SUPPORT_SYSTEM, "cache_control": {"type": "ephemeral"}}],
+            system=[{"type": "text", "text": _support_system_prompt(), "cache_control": {"type": "ephemeral"}}],
             messages=messages,
         ) as stream:
             async for chunk in stream.text_stream:
