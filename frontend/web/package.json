@@ -17,7 +17,7 @@
     "html2canvas": "^1.4.1",
     "i18next": "^26.3.4",
     "lucide-react": "^0.468.0",
-    "next": "15.5.18",
+    "next": "15.5.25",
     "posthog-js": "^1.396.2",
     "react": "19.0.0",
     "react-dom": "19.0.0",
@@ -25,7 +25,6 @@
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0",
     "tailwind-merge": "^2.6.0",
-    "xlsx": "^0.18.5",
     "zustand": "^5.0.2"
   },
   "devDependencies": {
