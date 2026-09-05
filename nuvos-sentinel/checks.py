@@ -49,7 +49,7 @@ async def check_worker_heartbeat() -> tuple[bool, str, dict | None]:
         data = resp.json()
         age = data.get("age_seconds")
         if age is None:
-            return False, "no worker heartbeat recorded yet", None
+            return False, data.get("detail") or "no worker heartbeat recorded yet", None
         if age > 300:  # 5x the worker's own 60s beat interval
             return False, f"worker heartbeat stale ({age:.0f}s old)", None
         return True, "ok", None
@@ -143,7 +143,7 @@ async def check_backup_heartbeat() -> tuple[bool, str, dict | None]:
         data = resp.json()
         age = data.get("age_seconds")
         if age is None:
-            return False, "no successful backup recorded yet", None
+            return False, data.get("detail") or "no successful backup recorded yet", None
         if age > config.BACKUP_STALE_SECONDS:
             hours = age / 3600
             return False, f"last successful backup was {hours:.1f}h ago (expected nightly)", None

@@ -150,17 +150,23 @@ async def backup_heartbeat():
     stale/missing row means either the workflow didn't run or it failed —
     previously the only signal was a GitHub Actions red X that nothing
     actively surfaced to a human."""
-    db = get_supabase()
-    result = await run_query(
-        db.table("backup_heartbeats").select("last_success_at, detail").eq("id", "nightly_backup").limit(1)
-    )
-    rows = result.data or []
-    if not rows:
-        return {"last_success_at": None, "age_seconds": None, "detail": "no successful backup recorded yet"}
+    try:
+        db = get_supabase()
+        result = await run_query(
+            db.table("backup_heartbeats").select("last_success_at, detail").eq("id", "nightly_backup").limit(1)
+        )
+        rows = result.data or []
+        if not rows:
+            return {"last_success_at": None, "age_seconds": None, "detail": "no successful backup recorded yet"}
 
-    last_success_at = rows[0]["last_success_at"]
-    age_seconds = (datetime.now(timezone.utc) - _parse_iso(last_success_at)).total_seconds()
-    return {"last_success_at": last_success_at, "age_seconds": age_seconds, "detail": rows[0].get("detail")}
+        last_success_at = rows[0]["last_success_at"]
+        age_seconds = (datetime.now(timezone.utc) - _parse_iso(last_success_at)).total_seconds()
+        return {"last_success_at": last_success_at, "age_seconds": age_seconds, "detail": rows[0].get("detail")}
+    except Exception as e:
+        # Report the real error to the Sentinel instead of a bare 500 — this
+        # endpoint's whole purpose is diagnostic, it must never itself be a
+        # black box when something about it breaks.
+        return {"last_success_at": None, "age_seconds": None, "detail": f"backup-heartbeat error: {type(e).__name__}: {e}"}
 
 
 @router.get("/worker-heartbeat")
@@ -169,17 +175,20 @@ async def worker_heartbeat():
     (job_heartbeat, migration 086). A stale/missing heartbeat means the
     Railway `worker` process is stuck or crashed — distinct from the `web`
     process, which /health covers."""
-    db = get_supabase()
-    result = await run_query(
-        db.table("worker_heartbeats").select("last_beat_at, detail").eq("id", "apscheduler").limit(1)
-    )
-    rows = result.data or []
-    if not rows:
-        return {"last_beat_at": None, "age_seconds": None, "detail": "no heartbeat row yet"}
+    try:
+        db = get_supabase()
+        result = await run_query(
+            db.table("worker_heartbeats").select("last_beat_at, detail").eq("id", "apscheduler").limit(1)
+        )
+        rows = result.data or []
+        if not rows:
+            return {"last_beat_at": None, "age_seconds": None, "detail": "no heartbeat row yet"}
 
-    last_beat_at = rows[0]["last_beat_at"]
-    age_seconds = (datetime.now(timezone.utc) - _parse_iso(last_beat_at)).total_seconds()
-    return {"last_beat_at": last_beat_at, "age_seconds": age_seconds, "detail": rows[0].get("detail")}
+        last_beat_at = rows[0]["last_beat_at"]
+        age_seconds = (datetime.now(timezone.utc) - _parse_iso(last_beat_at)).total_seconds()
+        return {"last_beat_at": last_beat_at, "age_seconds": age_seconds, "detail": rows[0].get("detail")}
+    except Exception as e:
+        return {"last_beat_at": None, "age_seconds": None, "detail": f"worker-heartbeat error: {type(e).__name__}: {e}"}
 
 
 @router.get("/client-errors")
