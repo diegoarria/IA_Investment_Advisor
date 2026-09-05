@@ -15,6 +15,15 @@ from app.core.feature_flags import get_ai_status, set_ai_enabled
 router = APIRouter(prefix="/sentinel", tags=["sentinel"], dependencies=[Depends(require_sentinel_secret)])
 
 
+def _parse_iso(ts: str) -> datetime:
+    """Supabase/Postgres timestamps sometimes come back with a trailing 'Z'
+    instead of '+00:00' — datetime.fromisoformat() rejects 'Z' on Python
+    versions before 3.11, which is exactly what caused this endpoint's
+    first real 500 in production (Railway's Python is older than the local
+    dev machine's). Normalize before parsing instead of assuming the format."""
+    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
+
 @router.get("/security-metrics")
 async def security_metrics(minutes: int = 15):
     """Counts from security_events (migration 033) in the last N minutes,
@@ -150,7 +159,7 @@ async def backup_heartbeat():
         return {"last_success_at": None, "age_seconds": None, "detail": "no successful backup recorded yet"}
 
     last_success_at = rows[0]["last_success_at"]
-    age_seconds = (datetime.now(timezone.utc) - datetime.fromisoformat(last_success_at)).total_seconds()
+    age_seconds = (datetime.now(timezone.utc) - _parse_iso(last_success_at)).total_seconds()
     return {"last_success_at": last_success_at, "age_seconds": age_seconds, "detail": rows[0].get("detail")}
 
 
@@ -169,7 +178,7 @@ async def worker_heartbeat():
         return {"last_beat_at": None, "age_seconds": None, "detail": "no heartbeat row yet"}
 
     last_beat_at = rows[0]["last_beat_at"]
-    age_seconds = (datetime.now(timezone.utc) - datetime.fromisoformat(last_beat_at)).total_seconds()
+    age_seconds = (datetime.now(timezone.utc) - _parse_iso(last_beat_at)).total_seconds()
     return {"last_beat_at": last_beat_at, "age_seconds": age_seconds, "detail": rows[0].get("detail")}
 
 

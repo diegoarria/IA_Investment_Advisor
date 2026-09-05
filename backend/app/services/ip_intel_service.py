@@ -53,7 +53,9 @@ async def _fetch_cached(ip: str) -> dict | None:
     if not rows:
         return None
     row = rows[0]
-    fetched_at = datetime.fromisoformat(row["fetched_at"])
+    # Supabase/Postgres timestamps sometimes come back with a trailing 'Z'
+    # instead of '+00:00' — fromisoformat() rejects 'Z' on Python <3.11.
+    fetched_at = datetime.fromisoformat(row["fetched_at"].replace("Z", "+00:00"))
     if datetime.now(timezone.utc) - fetched_at > timedelta(hours=CACHE_TTL_HOURS):
         return None
     return row
