@@ -10,6 +10,7 @@ from app.api.deps import get_current_user_id
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
 from app.core.limiter import limiter
+from app.core.feature_flags import require_ai_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -388,7 +389,7 @@ async def scenario_result(request: dict, user_id: str = Depends(get_current_user
 
 @router.post("/debate")
 @limiter.limit("10/minute")
-async def start_debate(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
+async def start_debate(request: Request, body: dict, user_id: str = Depends(get_current_user_id), _ai_gate: None = Depends(require_ai_enabled)):
     thesis = body.get("thesis", "").strip()
     difficulty = body.get("difficulty", "intermedio").lower()
     if not thesis:
@@ -435,7 +436,7 @@ async def start_debate(request: Request, body: dict, user_id: str = Depends(get_
 
 @router.post("/debate/reply")
 @limiter.limit("15/minute")
-async def debate_reply(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
+async def debate_reply(request: Request, body: dict, user_id: str = Depends(get_current_user_id), _ai_gate: None = Depends(require_ai_enabled)):
     thesis = body.get("thesis", "")
     previous = body.get("previous_debate", "")
     user_response = body.get("user_response", "")

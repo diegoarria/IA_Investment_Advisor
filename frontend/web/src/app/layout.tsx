@@ -9,6 +9,7 @@ import SessionExpiredBanner from "@/components/SessionExpiredBanner";
 import PostHogProvider from "@/components/PostHogProvider";
 import GuestSignupFlashcard from "@/components/GuestSignupFlashcard";
 import ReferralApplyProvider from "@/components/ReferralApplyProvider";
+import GlobalErrorBoundary from "@/components/GlobalErrorBoundary";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -41,13 +42,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="antialiased">
         <PostHogProvider>
           <ThemeProvider>
-            {children}
-            <SubscriptionStatusProvider />
-            <ReferralApplyProvider />
-            <UpsellProvider />
-            <FeedbackBanner />
-            <SessionExpiredBanner />
-            <GuestSignupFlashcard />
+            <GlobalErrorBoundary>
+              {children}
+              <SubscriptionStatusProvider />
+              <ReferralApplyProvider />
+              <UpsellProvider />
+              <FeedbackBanner />
+              <SessionExpiredBanner />
+              <GuestSignupFlashcard />
+            </GlobalErrorBoundary>
           </ThemeProvider>
         </PostHogProvider>
       </body>

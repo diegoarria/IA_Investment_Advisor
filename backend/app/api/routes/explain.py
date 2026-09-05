@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from app.api.deps import get_current_user_id
 from app.core.limiter import limiter
 from app.core.config import settings
+from app.core.feature_flags import require_ai_enabled
 
 router = APIRouter(prefix="/explain", tags=["explain"])
 logger = logging.getLogger(__name__)
@@ -75,6 +76,7 @@ async def explain_screen(
     request: Request,
     body: dict,
     user_id: str = Depends(get_current_user_id),
+    _ai_gate: None = Depends(require_ai_enabled),
 ):
     from app.api.routes.chat import _get_user_profile, _is_premium
     from app.services.voice_service import synthesize_speech_b64

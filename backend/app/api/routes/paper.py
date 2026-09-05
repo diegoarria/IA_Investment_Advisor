@@ -17,6 +17,7 @@ _PRICES_POOL = ThreadPoolExecutor(max_workers=12, thread_name_prefix="paper-pric
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from app.core.limiter import limiter
+from app.core.feature_flags import require_ai_enabled
 
 from app.api.deps import get_current_user_id
 from app.core.cache import cache_get, cache_set
@@ -231,7 +232,7 @@ async def get_leaderboard(user_id: str = Depends(get_current_user_id)):
 
 @router.post("/analyze")
 @limiter.limit("15/minute")
-async def analyze_paper(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
+async def analyze_paper(request: Request, body: dict, user_id: str = Depends(get_current_user_id), _ai_gate: None = Depends(require_ai_enabled)):
     """AI analysis of the user's paper trading portfolio — premium only.
 
     Cost fix, Sep 2026: this used to be premium-gated on the frontend ONLY

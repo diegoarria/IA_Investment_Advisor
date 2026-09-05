@@ -2,11 +2,11 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.core.limiter import limiter
-from app.api.routes import auth, profile, chat, market, notifications, screener, billing, learn, sync, paper, referral, support, earnings, simulate, decisions, watchlist, financials, brokerage, belvo, notification_settings, price_alerts, actions, upsells, wrapped, push, feedback, profile_financial, library, voice_call, benchmark, admin, research, research_engine, investment_graph, explain, cash_holdings, dividends, checklist, weekly_rituals, morning_brief, smart_alerts, logo
+from app.api.routes import auth, profile, chat, market, notifications, screener, billing, learn, sync, paper, referral, support, earnings, simulate, decisions, watchlist, financials, brokerage, belvo, notification_settings, price_alerts, actions, upsells, wrapped, push, feedback, profile_financial, library, voice_call, benchmark, admin, research, research_engine, investment_graph, explain, cash_holdings, dividends, checklist, weekly_rituals, morning_brief, smart_alerts, logo, sentinel, telemetry
+from app.core.limiter import rate_limit_exceeded_handler
 
 _is_dev = settings.environment == "development"
 
@@ -19,7 +19,7 @@ app = FastAPI(
     openapi_url="/openapi.json" if _is_dev else None,
 )
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 _dev_origins = [
     "http://localhost:3000", "http://localhost:8081",
@@ -115,6 +115,8 @@ app.include_router(checklist.router,         prefix="/api")
 app.include_router(weekly_rituals.router,    prefix="/api")
 app.include_router(morning_brief.router,     prefix="/api")
 app.include_router(smart_alerts.router,      prefix="/api")
+app.include_router(sentinel.router,          prefix="/api")
+app.include_router(telemetry.router,         prefix="/api")
 
 # Scheduler runs in worker.py (separate process) — not here.
 # This prevents duplicate job execution when the web process scales horizontally.

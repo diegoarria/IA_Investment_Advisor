@@ -11,6 +11,7 @@ from app.models.user import UserProfile, UserProfileCreate, UserProfileUpdate, A
 from app.services import ai_service
 from app.core.cache import cache_get, cache_set, cache_delete
 from app.core.config import settings
+from app.core.feature_flags import require_ai_enabled
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -313,7 +314,7 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("/insights")
-async def get_ai_insights(lang: str | None = None, user_id: str = Depends(get_current_user_id)):
+async def get_ai_insights(lang: str | None = None, user_id: str = Depends(get_current_user_id), _ai_gate: None = Depends(require_ai_enabled)):
     """Analyze chat history to detect behavioral patterns and suggest profile updates.
 
     Cost fix, Sep 2026: this used to have zero caching and fired a fresh
@@ -444,7 +445,9 @@ Responde SOLO con este JSON:
   "maturity_signal": "beginner|intermediate|advanced"
 }}"""
 
-        response = await ai_service.generate_simple_completion(prompt, max_tokens=500)
+        response = await ai_service.generate_simple_completion(
+            prompt, max_tokens=500, system=ai_service.SECURITY_GUARDRAILS_CORE
+        )
 
         match = re.search(r'\{.*\}', response, re.DOTALL)
         if match:

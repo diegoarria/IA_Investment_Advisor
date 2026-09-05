@@ -24,6 +24,7 @@ from app.services.market_data_service import (
 from app.core.finnhub import fh_quote, fh_search
 from app.core.limiter import limiter
 from app.core.cache import cache_get, cache_set
+from app.core.feature_flags import require_ai_enabled
 
 FREE_MSG_LIMIT    = 15
 PREMIUM_MSG_LIMIT = 80
@@ -572,7 +573,8 @@ def _enrich_message(message: str, timeout: float = 3.0, premium: bool = False) -
 async def chat_stream(
     request: Request,
     body: ChatRequest,
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    _ai_gate: None = Depends(require_ai_enabled),
 ):
     has_images = bool(body.images or body.image_data)
 
@@ -679,7 +681,8 @@ async def chat_stream(
 async def chat_message(
     request: Request,
     body: ChatRequest,
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    _ai_gate: None = Depends(require_ai_enabled),
 ):
     profile = await _get_user_profile(user_id)
     if profile:
@@ -799,6 +802,7 @@ async def chat_message_public(
     request: Request,
     body: ChatRequest,
     guest_id: str = Query(..., min_length=1),
+    _ai_gate: None = Depends(require_ai_enabled),
 ):
     """No-auth counterpart of /message for guests ("Explorar sin cuenta")
     browsing without an account — Diego wanted Chat with Arthur (guest

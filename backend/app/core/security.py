@@ -86,12 +86,12 @@ def check_login_lockout(email: str, ip: str) -> None:
             )
 
 
-def record_login_failure(email: str, ip: str) -> None:
+def record_login_failure(email: str, ip: str, *, user_agent: str | None = None, accept_language: str | None = None) -> None:
     record_failure(f"login:email", email, max_attempts=LOGIN_MAX_ATTEMPTS,
                    window=LOGIN_WINDOW_SECONDS, lockout=LOGIN_LOCKOUT_SECONDS)
     record_failure(f"login:ip", ip, max_attempts=IP_MAX_ATTEMPTS,
                    window=IP_WINDOW_SECONDS, lockout=LOGIN_LOCKOUT_SECONDS)
-    log_security_event("login_failed", email=email, ip=ip)
+    log_security_event("login_failed", email=email, ip=ip, user_agent=user_agent, accept_language=accept_language)
 
 
 def record_login_success(email: str, ip: str) -> None:
@@ -110,17 +110,17 @@ def check_reset_code_lockout(identity: str) -> None:
         )
 
 
-def record_reset_code_failure(identity: str) -> None:
+def record_reset_code_failure(identity: str, *, user_agent: str | None = None, accept_language: str | None = None) -> None:
     locked = record_failure("reset_code", identity, max_attempts=RESET_CODE_MAX_ATTEMPTS,
                              window=RESET_CODE_WINDOW_SECONDS, lockout=RESET_CODE_WINDOW_SECONDS)
-    log_security_event("password_reset_code_failed", email=identity)
+    log_security_event("password_reset_code_failed", email=identity, user_agent=user_agent, accept_language=accept_language)
     if locked:
         # Also burn the code itself — a locked-out attacker shouldn't be able
         # to keep guessing once a new window starts; they must request fresh.
         from app.core.cache import cache_delete
         cache_delete(f"reset_code:email:{identity}")
         cache_delete(f"reset_code:phone:{identity}")
-        log_security_event("password_reset_lockout", email=identity)
+        log_security_event("password_reset_lockout", email=identity, user_agent=user_agent, accept_language=accept_language)
 
 
 def record_reset_code_success(identity: str) -> None:
@@ -128,10 +128,18 @@ def record_reset_code_success(identity: str) -> None:
 
 
 def log_security_event(event_type: str, *, email: str | None = None, ip: str | None = None,
-                        user_id: str | None = None, detail: str | None = None) -> None:
+                        user_id: str | None = None, detail: str | None = None,
+                        user_agent: str | None = None, accept_language: str | None = None) -> None:
     """Best-effort audit trail insert — never raises, never blocks the
     request path it's called from. A missing/broken security_events table
-    (e.g. before migration 033 is applied) degrades to a log line only."""
+    (e.g. before migration 033 is applied) degrades to a log line only.
+
+    user_agent/accept_language (migration 088) feed the standalone Nuvos
+    Sentinel monitor's attack-attribution view — device/client fingerprint
+    alongside the IP, so a flagged incident shows more than just an address.
+    IP geolocation/VPN enrichment is deliberately NOT done here (that's an
+    external, rate-limited API call) — see app/services/ip_intel_service.py,
+    called lazily only for IPs already involved in a flagged incident."""
     try:
         logger.warning("security_event=%s email=%s ip=%s user_id=%s detail=%s",
                         event_type, email, ip, user_id, detail)
@@ -143,6 +151,8 @@ def log_security_event(event_type: str, *, email: str | None = None, ip: str | N
             "ip_address": ip,
             "user_id": user_id,
             "detail": detail,
+            "user_agent": user_agent,
+            "accept_language": accept_language,
         }).execute()
     except Exception:
         # Logging a security event must never be the reason a request fails.

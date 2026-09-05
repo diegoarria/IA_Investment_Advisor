@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
-from app.services.ai_service import _claude
+from app.services.ai_service import _claude, SECURITY_GUARDRAILS_CORE, is_blatant_injection_attempt, _REFUSAL_MESSAGE
 from app.services import market_data_service, perplexity_service
 from app.api.routes.sync import _parse_portfolio
 
@@ -62,11 +62,21 @@ def _parse_json(raw: str) -> dict:
 async def create_plan(request_text: str) -> dict:
     """Single Claude call: free-text research request -> structured plan.
     Fast, synchronous — this is what powers POST /api/research/plan."""
+    if is_blatant_injection_attempt(request_text):
+        return {
+            "companies": [],
+            "comparison_type": "single",
+            "needs_portfolio_personalization": False,
+            "metrics_needed": [],
+            "relevant_blocks": [],
+            "summary": _REFUSAL_MESSAGE,
+        }
+
     system_prompt = (
         "Eres el planificador de un motor de investigación de inversiones. "
         "Tu único trabajo es interpretar la solicitud del usuario y devolver JSON puro "
         "describiendo qué investigación se necesita. No investigues nada tú mismo todavía."
-    )
+    ) + SECURITY_GUARDRAILS_CORE
     prompt = f"""Solicitud del usuario: "{request_text}"
 
 Devuelve JSON puro (sin markdown, sin texto extra):

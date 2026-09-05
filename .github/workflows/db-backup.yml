@@ -41,6 +41,22 @@ jobs:
           BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
         run: ./backend/scripts/backup_db.sh
 
+      # Only reached if the backup step above actually succeeded — writes a
+      # heartbeat row (migration 089) the standalone Nuvos Sentinel monitor
+      # polls via GET /sentinel/backup-heartbeat. Previously a failed or
+      # silently-not-running backup had no signal beyond a GitHub Actions
+      # red X that nothing actively watched.
+      - name: Record backup heartbeat
+        if: success()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          psql "$DATABASE_URL" -c "
+            INSERT INTO backup_heartbeats (id, last_success_at, detail)
+            VALUES ('nightly_backup', NOW(), 'run ${{ github.run_id }}')
+            ON CONFLICT (id) DO UPDATE SET last_success_at = EXCLUDED.last_success_at, detail = EXCLUDED.detail;
+          "
+
       - name: Upload dump as workflow artifact (short-term fallback copy)
         if: always()
         uses: actions/upload-artifact@v4

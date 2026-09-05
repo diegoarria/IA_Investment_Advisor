@@ -84,6 +84,15 @@ class Settings(BaseSettings):
     vapid_claim_email: str = "mailto:diego.arria19@gmail.com"
     # Comma-separated emails allowed to use the read-only admin "view as" panel
     admin_emails: str = "diego.arria19@gmail.com"
+    # Shared secret for the standalone Nuvos Sentinel monitor (separate
+    # infra, no Supabase session) to authenticate against /sentinel/* — see
+    # app/core/sentinel_auth.py. Empty by default so those routes 403 closed
+    # until explicitly configured.
+    sentinel_shared_secret: str = ""
+    # IPQualityScore — IP geolocation + VPN/proxy/TOR + fraud score, looked up
+    # LAZILY only for IPs already involved in a flagged security incident
+    # (see app/services/ip_intel_service.py). Free tier: 5,000 lookups/month.
+    ipqualityscore_api_key: str = ""
 
     class Config:
         env_file = ".env"

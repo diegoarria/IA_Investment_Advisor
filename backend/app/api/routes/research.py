@@ -9,6 +9,7 @@ from app.api.deps import get_current_user_id
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
 from app.core.limiter import limiter
+from app.core.feature_flags import require_ai_enabled
 from app.services import research_service
 from app.services.research_pdf import build_report_pdf
 
@@ -19,7 +20,7 @@ router = APIRouter(prefix="/research", tags=["research"])
 
 @router.post("/plan")
 @limiter.limit("10/minute")
-async def create_plan(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
+async def create_plan(request: Request, body: dict, user_id: str = Depends(get_current_user_id), _ai_gate: None = Depends(require_ai_enabled)):
     """Stage 1 only — fast, synchronous. Persists a pending job so the
     Stripe checkout that follows has something durable to reference."""
     request_text = (body.get("request_text") or "").strip()

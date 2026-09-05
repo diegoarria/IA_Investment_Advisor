@@ -17,6 +17,7 @@ from app.api.deps import get_current_user_id
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
 from app.core.limiter import limiter
+from app.core.feature_flags import require_ai_enabled
 from app.services.email_service import send_email
 from datetime import datetime, timezone
 
@@ -86,6 +87,7 @@ async def support_chat(
     request: Request,
     body: dict,
     user_id: str = Depends(get_current_user_id),
+    _ai_gate: None = Depends(require_ai_enabled),
 ):
     """Streaming support chatbot."""
     message = (body.get("message") or "").strip()

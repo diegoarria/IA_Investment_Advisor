@@ -4874,6 +4874,24 @@ async def job_belvo_resync_all():
     logger.info("job_belvo_resync_all: resynced %d connection(s)", len(connections))
 
 
+async def job_heartbeat():
+    """Every 60s — upsert this worker process's liveness timestamp, polled by
+    the standalone Nuvos Sentinel monitor (GET /sentinel/worker-heartbeat,
+    migration 086) to detect a stuck/crashed Railway `worker` process,
+    distinct from the `web` process (covered by /health)."""
+    from app.core.database import get_supabase, run_query
+    db = get_supabase()
+    try:
+        await run_query(
+            db.table("worker_heartbeats").upsert({
+                "id": "apscheduler",
+                "last_beat_at": datetime.now(timezone.utc).isoformat(),
+            })
+        )
+    except Exception as e:
+        logger.warning("job_heartbeat failed: %s", e)
+
+
 async def job_cleanup_analytics():
     """Hourly — delete notification_log entries older than 90 days."""
     from app.core.database import get_supabase, run_query
@@ -5090,7 +5108,15 @@ _research_tasks: set[asyncio.Task] = set()
 async def job_deep_research_worker():
     """Ticked every 10s (see scheduler.add_job below). Tops up concurrently-
     running Deep Research jobs up to _RESEARCH_MAX_CONCURRENT by claiming
-    pending jobs and running each as its own task."""
+    pending jobs and running each as its own task.
+
+    Respects the AI kill switch (app/core/feature_flags.py, Nuvos Sentinel
+    panel) — an already-queued job just stays pending and gets picked up on
+    the next tick once AI is re-enabled, instead of a paused kill switch
+    only blocking NEW requests while jobs already in the queue keep running."""
+    from app.core.feature_flags import is_ai_enabled
+    if not await is_ai_enabled():
+        return
     from app.services import research_service
     _research_tasks.difference_update({t for t in list(_research_tasks) if t.done()})
     open_slots = _RESEARCH_MAX_CONCURRENT - len(_research_tasks)
@@ -5637,6 +5663,9 @@ async def main():
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     scheduler.add_job(job_cleanup_analytics,    "interval", hours=1)
+
+    # ── Liveness heartbeat for the standalone Nuvos Sentinel monitor ─────────
+    scheduler.add_job(job_heartbeat, "interval", seconds=60, next_run_time=datetime.now())
 
     # ── Deep Research job queue (see job_deep_research_worker's docstring) ────
     scheduler.add_job(job_deep_research_worker,          "interval", seconds=10)

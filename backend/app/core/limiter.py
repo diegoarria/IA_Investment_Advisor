@@ -1,6 +1,7 @@
 """Shared rate limiter instance — imported by main.py and individual routers."""
 import hashlib
-from slowapi import Limiter
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from fastapi import Request
 
 
@@ -55,3 +56,17 @@ def _storage_uri() -> str:
 
 
 limiter = Limiter(key_func=_rate_key, storage_uri=_storage_uri())
+
+
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    """Wraps slowapi's default 429 handler to also log the trip into
+    security_events (migration 033) — previously a rate-limit trip left no
+    trace anywhere, so a scan/brute-force burst was invisible even though the
+    protection itself worked. Feeds the standalone Nuvos Sentinel monitor's
+    attack heuristics (see app/api/routes/sentinel.py)."""
+    from app.core.security import client_ip, log_security_event
+    log_security_event(
+        "rate_limit_exceeded", ip=client_ip(request), detail=request.url.path,
+        user_agent=request.headers.get("user-agent"), accept_language=request.headers.get("accept-language"),
+    )
+    return await _rate_limit_exceeded_handler(request, exc)

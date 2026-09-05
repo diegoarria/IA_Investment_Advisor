@@ -19,6 +19,16 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+
+def _ua_lang(request: Request) -> dict:
+    """Shorthand for the two headers every log_security_event call here
+    passes through, for the standalone Nuvos Sentinel monitor's device/
+    client attribution (see security.py's log_security_event docstring)."""
+    return {
+        "user_agent": request.headers.get("user-agent"),
+        "accept_language": request.headers.get("accept-language"),
+    }
+
 # Web reads auth from these httpOnly cookies instead of localStorage (never
 # JS-readable, so an XSS bug can't exfiltrate the token). Mobile is untouched —
 # it keeps sending `Authorization: Bearer <token>` from SecureStore, and the
@@ -222,7 +232,7 @@ async def register(request: Request, response: Response, body: AuthRequest):
     except Exception as e:
         msg = str(e)
         if "already registered" in msg or "already been registered" in msg or "User already registered" in msg:
-            log_security_event("register_duplicate_email", email=body.email, ip=client_ip(request))
+            log_security_event("register_duplicate_email", email=body.email, ip=client_ip(request), **_ua_lang(request))
             raise HTTPException(status_code=400, detail="Este email ya tiene una cuenta. Inicia sesión.")
         raise HTTPException(status_code=400, detail=f"Error al crear cuenta: {msg}")
 
@@ -244,7 +254,7 @@ async def login(request: Request, response: Response, body: AuthRequest):
             "password": body.password,
         })
         if result.user is None:
-            record_login_failure(email, ip)
+            record_login_failure(email, ip, **_ua_lang(request))
             raise HTTPException(status_code=401, detail="Credenciales inválidas")
         record_login_success(email, ip)
         _set_auth_cookies(response, result.session.access_token, result.session.refresh_token)
@@ -256,7 +266,7 @@ async def login(request: Request, response: Response, body: AuthRequest):
     except HTTPException:
         raise
     except Exception as e:
-        record_login_failure(email, ip)
+        record_login_failure(email, ip, **_ua_lang(request))
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
 
@@ -310,7 +320,7 @@ async def forgot_password(request: Request, body: dict):
     email = body.get("email", "").strip().lower()
     if not email:
         raise HTTPException(status_code=400, detail="Email requerido")
-    log_security_event("password_reset_requested", email=email, ip=client_ip(request))
+    log_security_event("password_reset_requested", email=email, ip=client_ip(request), **_ua_lang(request))
     db = get_supabase()
     try:
         users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
@@ -371,7 +381,7 @@ async def forgot_password_sms(request: Request, body: dict):
     phone = body.get("phone", "").strip()
     if not email or not phone:
         raise HTTPException(status_code=400, detail="Email y teléfono requeridos")
-    log_security_event("password_reset_sms_requested", email=email, ip=client_ip(request), detail=phone)
+    log_security_event("password_reset_sms_requested", email=email, ip=client_ip(request), detail=phone, **_ua_lang(request))
     db = get_supabase()
     try:
         users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
@@ -419,7 +429,7 @@ async def reset_password(request: Request, body: dict):
         if not entry:
             raise HTTPException(status_code=400, detail="Código inválido o expirado")
         if entry["code"] != code:
-            record_reset_code_failure(identity)
+            record_reset_code_failure(identity, **_ua_lang(request))
             raise HTTPException(status_code=400, detail="Código incorrecto")
         email = entry["email"]
         _del_reset_code(f"reset_code:phone:{phone}")
@@ -431,12 +441,12 @@ async def reset_password(request: Request, body: dict):
         if not entry:
             raise HTTPException(status_code=400, detail="Código inválido o expirado")
         if entry["code"] != code:
-            record_reset_code_failure(identity)
+            record_reset_code_failure(identity, **_ua_lang(request))
             raise HTTPException(status_code=400, detail="Código incorrecto")
         _del_reset_code(f"reset_code:email:{email}")
 
     record_reset_code_success(identity)
-    log_security_event("password_reset_completed", email=email, ip=client_ip(request))
+    log_security_event("password_reset_completed", email=email, ip=client_ip(request), **_ua_lang(request))
 
     db = get_supabase()
     users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
