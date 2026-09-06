@@ -134,12 +134,9 @@ def log_security_event(event_type: str, *, email: str | None = None, ip: str | N
     request path it's called from. A missing/broken security_events table
     (e.g. before migration 033 is applied) degrades to a log line only.
 
-    user_agent/accept_language (migration 088) feed the standalone Nuvos
-    Sentinel monitor's attack-attribution view — device/client fingerprint
-    alongside the IP, so a flagged incident shows more than just an address.
-    IP geolocation/VPN enrichment is deliberately NOT done here (that's an
-    external, rate-limited API call) — see app/services/ip_intel_service.py,
-    called lazily only for IPs already involved in a flagged incident."""
+    user_agent/accept_language (migration 088) give an attack-attribution
+    view — device/client fingerprint alongside the IP, so a flagged
+    incident shows more than just an address."""
     try:
         logger.warning("security_event=%s email=%s ip=%s user_id=%s detail=%s",
                         event_type, email, ip, user_id, detail)

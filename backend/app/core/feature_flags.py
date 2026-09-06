@@ -1,8 +1,8 @@
 """AI kill switch — lets Diego pause every AI feature (Arthur chat, support,
 paper-trading analysis, learn debates, deep research planning, screen
-explanations, profile insights) from the standalone Nuvos Sentinel panel
-without a deploy: a suspected attack, planned maintenance, or any other
-reason. Durable in Supabase (migration 090) so it survives a restart;
+explanations, profile insights) from /admin/ai-toggle without a deploy: a
+suspected attack, planned maintenance, or any other reason. Durable in
+Supabase (migration 090) so it survives a restart;
 cached briefly (SHORT_TTL) so a chat message doesn't pay a DB round-trip on
 every single request.
 

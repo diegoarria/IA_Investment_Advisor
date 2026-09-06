@@ -22,8 +22,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 def _ua_lang(request: Request) -> dict:
     """Shorthand for the two headers every log_security_event call here
-    passes through, for the standalone Nuvos Sentinel monitor's device/
-    client attribution (see security.py's log_security_event docstring)."""
+    passes through, for device/client attribution (see security.py's
+    log_security_event docstring)."""
     return {
         "user_agent": request.headers.get("user-agent"),
         "accept_language": request.headers.get("accept-language"),

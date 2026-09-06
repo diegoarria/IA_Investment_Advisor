@@ -62,8 +62,7 @@ async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     """Wraps slowapi's default 429 handler to also log the trip into
     security_events (migration 033) — previously a rate-limit trip left no
     trace anywhere, so a scan/brute-force burst was invisible even though the
-    protection itself worked. Feeds the standalone Nuvos Sentinel monitor's
-    attack heuristics (see app/api/routes/sentinel.py)."""
+    protection itself worked."""
     from app.core.security import client_ip, log_security_event
     log_security_event(
         "rate_limit_exceeded", ip=client_ip(request), detail=request.url.path,

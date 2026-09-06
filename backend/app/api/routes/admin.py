@@ -9,10 +9,12 @@ import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
+from app.core.feature_flags import get_ai_status, set_ai_enabled
 from app.services import investor_progress_service
 
 logger = logging.getLogger(__name__)
@@ -387,3 +389,32 @@ async def llm_usage_summary(
         "by_endpoint": by_endpoint_ranked,
         "by_user": ranked if user_id else ranked[:100],
     }
+
+
+class AiToggleBody(BaseModel):
+    enabled: bool
+    reason: str | None = None
+
+
+@router.get("/ai-status")
+async def ai_status(user: dict = Depends(get_current_user)):
+    """Current state of the AI kill switch (app/core/feature_flags.py) — is
+    Arthur/every AI feature enabled or paused, since when, and why. Moved
+    here from the retired standalone Nuvos Sentinel monitor's panel — this
+    is now the only way to read/flip it, gated on the same admin-email
+    check as the rest of this router instead of a shared-secret header."""
+    await _require_admin(user)
+    return await get_ai_status()
+
+
+@router.post("/ai-toggle")
+async def ai_toggle(body: AiToggleBody, user: dict = Depends(get_current_user)):
+    """Flips the AI kill switch. Takes effect within ~10s across every
+    backend process (see feature_flags.py's cache TTL), pausing Arthur/
+    support/paper-trading analysis/learn debates/deep research/screen
+    explanations/profile insights with a friendly maintenance message
+    instead of reaching the model. Logged to security_events as
+    'ai_toggled' for an audit trail."""
+    await _require_admin(user)
+    await set_ai_enabled(body.enabled, reason=body.reason, actor=user.get("email"))
+    return await get_ai_status()

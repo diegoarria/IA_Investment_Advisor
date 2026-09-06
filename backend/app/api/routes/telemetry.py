@@ -2,8 +2,6 @@
 Next.js global-error.tsx) — deliberately no auth, since the user may be
 logged out or the page may be mid-crash when this fires. Rate-limited per
 IP and payload-capped so it can't be abused as a free write-anything sink.
-Read by GET /sentinel/client-errors for the standalone Nuvos Sentinel
-monitor's "full-screen crash" detection.
 """
 import logging
 from fastapi import APIRouter, Request
