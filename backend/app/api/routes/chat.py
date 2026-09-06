@@ -320,7 +320,7 @@ async def _get_memory_context(user_id: str) -> str | None:
         return None
 
 
-async def _get_mentor_deep_context(user_id: str) -> tuple[str | None, str | None]:
+async def _get_mentor_deep_context(user_id: str) -> tuple[str | None, str | None, list[dict], dict]:
     """Fetch portfolio, decisions, watchlist, extended profile, and recent
     weekly reflections in parallel for the mentor. Diego's request (Aug
     16): Arthur already had the buy/sell "Diario de Decisiones" — this
@@ -402,9 +402,14 @@ async def _get_mentor_deep_context(user_id: str) -> tuple[str | None, str | None
 
         deep_ctx = ai_service.build_deep_user_context(extended, positions, decisions, watchlist, reflections)
         live_ctx = ai_service.build_live_market_snapshot(positions, watchlist, quotes)
-        return deep_ctx, live_ctx
+        # Also returning the raw positions/quotes (not just the rendered
+        # text blocks) so callers can pass them into chat_stream's Decision
+        # Context / Portfolio Truth layer (decision_engine.py) — that layer
+        # needs the real numbers to compute market-value-weighted
+        # concentration itself, not a pre-rendered string.
+        return deep_ctx, live_ctx, positions, quotes
     except Exception:
-        return None, None
+        return None, None, [], {}
 
 
 _FUNDAMENTALS_TIMEOUT = 12.0  # generous — only reached for Premium + explicit deep-analysis intent
@@ -631,14 +636,14 @@ async def chat_stream(
         return await _get_memory_context(user_id)
 
     if has_images:
-        memory, (deep_ctx, live_ctx), progress_ctx = await asyncio.gather(
+        memory, (deep_ctx, live_ctx, positions, quotes), progress_ctx = await asyncio.gather(
             _memory_ctx(),
             _get_mentor_deep_context(user_id),
             _progress_ctx(),
         )
         enriched = body.message
     else:
-        memory, (deep_ctx, live_ctx), progress_ctx, enriched = await asyncio.gather(
+        memory, (deep_ctx, live_ctx, positions, quotes), progress_ctx, enriched = await asyncio.gather(
             _memory_ctx(),
             _get_mentor_deep_context(user_id),
             _progress_ctx(),
@@ -667,6 +672,8 @@ async def chat_stream(
                 progress_context=progress_ctx,
                 is_premium=premium,
                 live_market_context=live_ctx,
+                positions=positions,
+                quotes=quotes,
             ):
                 yield chunk
         except Exception as e:
@@ -756,7 +763,7 @@ async def chat_message(
             return None
         return await _get_memory_context(user_id)
 
-    memory, (deep_ctx, live_ctx), progress_ctx = await asyncio.gather(
+    memory, (deep_ctx, live_ctx, positions, quotes), progress_ctx = await asyncio.gather(
         _memory_ctx(),
         _get_mentor_deep_context(user_id),
         _progress_ctx(),
@@ -775,6 +782,8 @@ async def chat_message(
         is_premium=premium,
         model=chat_model,
         live_market_context=live_ctx,
+        positions=positions,
+        quotes=quotes,
     ):
         full += chunk
     clean_reply, bscore = _extract_bscore(full)

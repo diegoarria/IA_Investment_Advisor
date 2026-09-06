@@ -12,6 +12,13 @@ from app.core.database import get_supabase, run_query
 from app.core.cache import cache_delete
 from app.services.llm_usage import log_llm_usage
 from app.models.user import UserProfile, ChatMessage
+from app.services.decision_engine import (
+    aggregate_positions_by_ticker,
+    build_decision_context,
+    check_recommendation_guard,
+    compute_portfolio_truth,
+    strip_prescriptive_sentences,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -1217,36 +1224,6 @@ si ya te lo dijo. Como mucho, desliza UNA pregunta suave por conversación sobre
 sin especificar, y solo si viene a cuento con lo que el usuario ya está platicando."""
 
 
-def aggregate_positions_by_ticker(positions: list[dict]) -> list[dict]:
-    """`positions` is one row per purchase LOT, by design — buying more of a
-    ticker you already hold adds a new lot rather than merging into the
-    existing one, so each lot keeps its own price/date. Any code that feeds
-    positions to an LLM (or counts them) must aggregate by ticker first, or
-    a stock bought twice reads as two separate holdings with split weights.
-    Returns one row per ticker with combined shares and a shares-weighted
-    average cost — never fabricates a price, just re-derives the same real
-    numbers the caller already had."""
-    agg_by_ticker: dict[str, dict] = {}
-    for p in positions:
-        ticker = (p.get("ticker") or "?").upper()
-        shares = float(p.get("shares", 0) or 0)
-        avg    = float(p.get("avg_price", p.get("avgPrice", 0)) or 0)
-        entry  = agg_by_ticker.setdefault(ticker, {"ticker": ticker, "name": p.get("name"), "shares": 0.0, "cost": 0.0})
-        entry["shares"] += shares
-        entry["cost"]   += shares * avg
-        if not entry.get("name") and p.get("name"):
-            entry["name"] = p.get("name")
-    return [
-        {
-            "ticker": e["ticker"],
-            "name": e.get("name"),
-            "shares": e["shares"],
-            "avg_price": (e["cost"] / e["shares"] if e["shares"] else 0.0),
-        }
-        for e in agg_by_ticker.values()
-    ]
-
-
 def build_deep_user_context(
     extended: dict,
     positions: list[dict],
@@ -1473,36 +1450,28 @@ def build_live_market_snapshot(
     any_line = False
 
     if positions:
-        agg = aggregate_positions_by_ticker(positions)
-        total_cost = sum(float(p.get("shares", 0) or 0) * float(p.get("avg_price", 0) or 0) for p in agg)
-        total_value = 0.0
-        any_price = False
-        pos_sorted = sorted(
-            agg,
-            key=lambda x: float(x.get("shares", 0) or 0) * float(x.get("avg_price", 0) or 0),
-            reverse=True,
-        )
+        # Reuses decision_engine's Portfolio Truth math instead of a second,
+        # independent value/P&L calculation (audit fix, section 34 pass:
+        # this function used to compute shares*price/P&L% inline itself,
+        # a second implementation of the exact same formula PositionTruth
+        # already provides — including a subtle divergence, since this
+        # inline version defaulted pl_pct to 0 on zero cost basis while
+        # PositionTruth leaves unrealized_return_pct as None. One
+        # implementation now, here and in DecisionContext's block.
+        truth_rows = compute_portfolio_truth(positions, quotes)
+        total_cost = sum(r.cost_basis for r in truth_rows)
+        total_value = sum((r.market_value if r.market_value is not None else r.cost_basis) for r in truth_rows)
+        any_price = any(r.market_value is not None for r in truth_rows)
+        pos_sorted = sorted(truth_rows, key=lambda r: r.cost_basis, reverse=True)
         pos_lines: list[str] = []
-        for p in pos_sorted:
-            ticker = (p.get("ticker") or "?").upper()
-            shares = float(p.get("shares", 0) or 0)
-            avg    = float(p.get("avg_price", 0) or 0)
-            cost   = shares * avg
-            q = quotes.get(ticker)
-            if q and q.get("price"):
-                any_price = True
-                price = float(q["price"])
-                value = shares * price
-                total_value += value
-                pl = value - cost
-                pl_pct = (pl / cost * 100) if cost > 0 else 0
-                sign = "+" if pl >= 0 else ""
+        for r in pos_sorted:
+            if r.market_value is not None:
+                sign = "+" if (r.unrealized_pnl or 0) >= 0 else ""
+                pl_pct = r.unrealized_return_pct if r.unrealized_return_pct is not None else 0.0
                 pos_lines.append(
-                    f"  - {ticker}: precio actual ${price:,.2f}, valor ≈${value:,.0f}, "
-                    f"P&L {sign}${pl:,.0f} ({sign}{pl_pct:.1f}%)"
+                    f"  - {r.ticker}: precio actual ${r.current_price:,.2f}, valor ≈${r.market_value:,.0f}, "
+                    f"P&L {sign}${r.unrealized_pnl:,.0f} ({sign}{pl_pct:.1f}%)"
                 )
-            else:
-                total_value += cost
         if pos_lines:
             any_line = True
             header = "\n### 💼 Portafolio"
@@ -2187,6 +2156,10 @@ async def chat_stream(
     is_voice: bool = False,
     model: str | None = None,
     live_market_context: str | None = None,
+    positions: list[dict] | None = None,
+    quotes: dict[str, dict] | None = None,
+    cash_position: float | None = None,
+    recent_decisions: list[dict] | None = None,
 ):
     if is_blatant_injection_attempt(message):
         yield _REFUSAL_MESSAGE
@@ -2203,6 +2176,21 @@ async def chat_stream(
     system_blocks: list[dict] = [{"type": "text", "text": static_prompt, "cache_control": {"type": "ephemeral"}}]
     if dynamic_addend:
         system_blocks.append({"type": "text", "text": dynamic_addend})
+
+    # Decision Context / Portfolio Truth (decision_engine.py) — built here,
+    # not cached, since it depends on THIS message's decision state and (via
+    # `quotes`) live prices that change every ~60s. Deliberately separate
+    # from `deep_context`/`live_market_context` above: those two already
+    # render portfolio/watchlist facts for general conversation, this block
+    # adds the decision-specific facts (inferred decision state, capital
+    # mentioned in THIS message, market-value-weighted concentration) a
+    # capital-allocation question specifically needs — computed in code so
+    # the model is told the numbers, never asked to recompute them.
+    decision_ctx = build_decision_context(
+        message=message, profile=profile, positions=positions, quotes=quotes,
+        cash_position=cash_position, recent_decisions=recent_decisions,
+    )
+    system_blocks.append({"type": "text", "text": decision_ctx.to_prompt_block()})
 
     # Repeated at the very END of the system prompt (recency), not just the
     # start (primacy) — `memory_context` above ("ÚLTIMAS CONVERSACIONES") is
@@ -2297,6 +2285,7 @@ async def chat_stream(
     max_tokens = 8192 if is_premium else 5000
     user_id    = getattr(profile, "user_id", None) if profile else None
 
+    full_response_text = ""
     for _round in range(_MAX_TOOL_ROUNDS):
         # Calls the client directly (not _claude()) since this streams —
         # check the breaker manually before each round (2026-08-21 audit:
@@ -2317,6 +2306,7 @@ async def chat_stream(
             tools=MENTOR_TOOLS,
         ) as stream:
             async for text in stream.text_stream:
+                full_response_text += text
                 yield text
             final = await stream.get_final_message()
 
@@ -2324,6 +2314,25 @@ async def chat_stream(
         asyncio.create_task(log_llm_usage(user_id, "chat_stream", model, final.usage))
 
         if final.stop_reason != "tool_use":
+            # Recommendation Guard — logging-only here, deliberately NOT
+            # blocking. Unlike simulate_whatif() (buffered JSON, so a
+            # violation can trigger a corrective regeneration before the
+            # user ever sees it), chat_stream tokens are already in the
+            # user's hands by the time `full_response_text` is complete —
+            # there is no way to retroactively fix a live stream without
+            # buffering the entire response first, which would defeat the
+            # point of streaming and roughly double perceived latency on
+            # the highest-volume path in the app. The real defense for this
+            # path is SYSTEM_PROMPT_BASE's NIVEL 1 guardrails (model-level,
+            # enforced before generation); this is telemetry to catch
+            # prompt drift, not a runtime block.
+            violations = check_recommendation_guard(full_response_text)
+            if violations:
+                _log.warning(
+                    "chat_stream: recommendation guard flagged prescriptive language "
+                    "(user=%s, matches=%s) — logged for prompt-quality review, not blocked",
+                    user_id, violations,
+                )
             return
 
         # Model asked to call one or more tools — execute them, feed the results
@@ -3227,13 +3236,72 @@ Usa los valores reales del portafolio para calcular estimaciones. Sin texto fuer
     asyncio.create_task(log_llm_usage(None, "simulate_whatif", settings.claude_model, response.usage, already_tracked=True))
     raw = response.content[0].text.strip()
     try:
-        return json.loads(raw)
+        result = json.loads(raw)
     except Exception:
         import re
         m = re.search(r"\{.*\}", raw, re.DOTALL)
         if m:
-            return json.loads(m.group())
-        return {"summary": raw, "scenario_type": scenario_type}
+            result = json.loads(m.group())
+        else:
+            return {"summary": raw, "scenario_type": scenario_type}
+
+    # Recommendation Guard on the free-text fields only — `recommendation`
+    # itself stays untouched (it's a fixed, app-defined category the
+    # frontend renders as a colored badge via WhatIfSimulator.tsx's own
+    # i18n labels, e.g. "Proceed with caution"; that's a structured
+    # classification of a hypothetical scenario, not personalized
+    # prescriptive prose, and changing/removing it would break that UI's
+    # existing contract). `mentor_verdict`/`summary` are open prose where
+    # the model could genuinely slip into "you should do X" — those get
+    # one corrective regeneration attempt, then a deterministic strip as a
+    # last resort (never silently ship prescriptive language to the user).
+    result = await _guard_whatif_prose_fields(result, system_prompt, prompt)
+    return result
+
+
+async def _guard_whatif_prose_fields(result: dict, system_prompt: str, original_prompt: str) -> dict:
+    prose_fields = [f for f in ("mentor_verdict", "summary") if isinstance(result.get(f), str)]
+    violations = {f: check_recommendation_guard(result[f]) for f in prose_fields}
+    violations = {f: v for f, v in violations.items() if v}
+    if not violations:
+        return result
+
+    # One corrective regeneration — cheap (same small max_tokens, one extra
+    # call only on the rare violation path, never on the happy path) rather
+    # than a full retry loop, per the cost-control constraint.
+    try:
+        corrective_prompt = (
+            f"{original_prompt}\n\nTu respuesta anterior usó lenguaje prescriptivo personalizado "
+            f"(ej. \"deberías\", \"te recomiendo\") en los campos {list(violations.keys())}. "
+            "Regenera el JSON completo describiendo las implicaciones del escenario sin decirle al "
+            "usuario qué hacer — nunca uses \"deberías\", \"te recomiendo\", \"lo mejor es\", ni "
+            "equivalentes en inglés."
+        )
+        response = await _claude(
+            model=settings.claude_model,
+            max_tokens=1000,
+            system=[{"type": "text", "text": system_prompt}],
+            messages=[{"role": "user", "content": corrective_prompt}],
+        )
+        asyncio.create_task(log_llm_usage(None, "simulate_whatif_retry", settings.claude_model, response.usage, already_tracked=True))
+        raw = response.content[0].text.strip()
+        retried = _parse_json_response(raw)
+        if retried:
+            still_bad = {f: check_recommendation_guard(retried[f]) for f in prose_fields if isinstance(retried.get(f), str)}
+            still_bad = {f: v for f, v in still_bad.items() if v}
+            if not still_bad:
+                return retried
+            result = retried
+            violations = still_bad
+    except Exception as e:
+        _log.warning("_guard_whatif_prose_fields: corrective regeneration failed: %s", e)
+
+    # Still violating (or the retry itself errored) — deterministic
+    # fallback, never a second free-form retry loop.
+    for field_name in violations:
+        result[field_name] = strip_prescriptive_sentences(result[field_name])
+    _log.warning("simulate_whatif: recommendation guard stripped prescriptive language from %s", list(violations.keys()))
+    return result
 
 
 # ──────────────────────────────────────────────────────────────
