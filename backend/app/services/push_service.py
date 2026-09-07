@@ -11,24 +11,35 @@ logger = logging.getLogger(__name__)
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 
 
-async def send_push(tokens: str | Sequence[str], title: str, body: str, data: dict | None = None, sound: str = "default") -> None:
-    """Fire-and-forget push to one or many Expo push tokens."""
+async def send_push(tokens: str | Sequence[str], title: str, body: str, data: dict | None = None, sound: str = "default") -> list[str]:
+    """Push to one or many Expo push tokens. Returns the subset of tokens
+    Expo reported as dead (DeviceNotRegistered) so callers can clear them —
+    Expo answers HTTP 200 even when an individual ticket errored, so the
+    per-ticket body has to be inspected or failures go unnoticed forever."""
     if isinstance(tokens, str):
         tokens = [tokens]
     tokens = [t for t in tokens if t and t.startswith("ExponentPushToken")]
     if not tokens:
-        return
+        return []
 
     messages = [
         {"to": token, "title": title, "body": body, "data": data or {}, "sound": sound}
         for token in tokens
     ]
+    dead_tokens: list[str] = []
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            await client.post(EXPO_PUSH_URL, json=messages,
+            resp = await client.post(EXPO_PUSH_URL, json=messages,
                               headers={"Accept": "application/json", "Content-Type": "application/json"})
+        tickets = (resp.json() or {}).get("data") or []
+        for token, ticket in zip(tokens, tickets):
+            if ticket.get("status") == "error":
+                logger.warning("Expo push ticket error for %s: %s", token, ticket.get("message"))
+                if ticket.get("details", {}).get("error") == "DeviceNotRegistered":
+                    dead_tokens.append(token)
     except Exception as e:
         logger.warning("Push send failed: %s", e)
+    return dead_tokens
 
 
 async def send_streak_danger(token: str, streak: int) -> None:

@@ -1,7 +1,7 @@
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack, usePathname, useGlobalSearchParams, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, Platform, Modal, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import { View, Platform, Modal, Text, TouchableOpacity, StyleSheet, Alert, Linking } from "react-native";
 import { useEffect, useRef, useState } from "react";
 import { PostHogProvider } from "posthog-react-native";
 import { posthog } from "../src/config/posthog";
@@ -195,7 +195,17 @@ function AppStack() {
             );
           });
         } else {
-          return; // already denied — don't ask again
+          // The OS won't show its permission dialog again once denied —
+          // the only way back is the device Settings app.
+          Alert.alert(
+            "Notificaciones desactivadas",
+            "Activa las notificaciones para Nuvos desde los ajustes de tu teléfono para recibir alertas de tus posiciones y del mercado.",
+            [
+              { text: "Ahora no", style: "cancel" },
+              { text: "Abrir ajustes", onPress: () => Linking.openSettings() },
+            ]
+          );
+          return;
         }
       }
 
@@ -209,7 +219,14 @@ function AppStack() {
       });
       const { default: api } = await import("../src/lib/api");
       await api.post("/api/sync/push-token", { token: tokenData.data });
-    } catch {}
+      posthog.capture("push_token_registered");
+    } catch (err) {
+      // Registration failures were previously swallowed silently, making
+      // "push never arrives" undiagnosable from telemetry alone.
+      posthog.capture("push_token_registration_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   };
 
   const showSidebar = !HIDE_SIDEBAR_ROUTES.some(

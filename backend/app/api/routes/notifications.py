@@ -165,7 +165,10 @@ async def trigger_market_close(
             push_body  = indices
             subject    = "El mercado ha cerrado — Nuvos AI"
 
-        await send_push(user_id, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
+        # Distinct category from the 16:05 ET cron job (worker.py job_market_close,
+        # same "market_close" category) — a manual trigger used to previously
+        # consume that day's dedup slot and silently starve the real scheduled push.
+        await send_push(user_id, "market_close_manual", push_title, push_body, {"screen": "portfolio"}, db)
 
         html = daily_email_v2(
             first_name=first, port_pct=user_pct, port_usd=port_usd,
