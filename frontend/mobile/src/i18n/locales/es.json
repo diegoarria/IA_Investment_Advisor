@@ -899,6 +899,11 @@
       "cta": "Desbloquear Premium",
       "paywallReason": "Screener de acciones subvaluadas"
     },
+    "valuationUnavailable": {
+      "title": "No se pudo calcular la valuación",
+      "subtitle": "Intenta de nuevo en unos minutos, o revisa que hayas iniciado sesión.",
+      "debug": "Estado: {{status}} · Código: {{code}}"
+    },
     "freeGate": {
       "banner": "Tienes 3 búsquedas gratis por semana. Premium: ilimitadas.",
       "bannerCta": "Ver Premium",
@@ -3648,6 +3653,17 @@
       "marginOfSafety": "Margen de Seguridad"
     },
     "sectorModelNoteTitle": "Cómo valora Nuvos a esta empresa",
+    "priceHistory": {
+      "today": "Hoy",
+      "chartTitle": "Precio real vs. valor razonable — últimos ~5 años",
+      "legendPrice": "Precio real",
+      "legendFairValue": "Valor razonable",
+      "hoverUndervalued": "infravalorada",
+      "hoverOvervalued": "sobrevalorada",
+      "hoverPrice": "precio",
+      "hoverFairValue": "valor razonable",
+      "chartDisclaimer": "El valor razonable (línea punteada) sí se mueve con el tiempo — sube y baja con la ganancia real que tenía {{ticker}} en cada momento, no queda fijo. Como el modelo completo (los dos tracks, WACC, ajustes) no se puede recalcular día a día porque esos datos no están historizados, esta línea reconstruye cada día con el mismo peso que hoy: el track de ganancias real ({{multiple}}x sobre la ganancia TTM de cada día) más el track de flujo de caja sostenido en su valor de hoy — calibrado para que el punto de \"Hoy\" coincida exactamente con el Nuvos Fair Value combinado ({{fairValue}}) que ya viste arriba."
+    },
     "thermometer": {
       "title": "Termómetro de Valuación",
       "priceToday": "Precio Hoy",
@@ -3823,6 +3839,62 @@
       "saving": "Guardando...",
       "saved": "Guardado en tu Diario de Decisiones ✓",
       "saveError": "No se pudo guardar. Intenta de nuevo."
+    },
+    "hero": {
+      "verdict": {
+        "undervalued": "infravalorada en un {{pct}}%",
+        "overvalued": "sobrevalorada en un {{pct}}%",
+        "fair": "valorada de forma justa"
+      },
+      "analystTarget": "Objetivo de Wall Street",
+      "sentence": "A {{price}}, Nuvos estima que {{ticker}} vale alrededor de {{fairValue}} —",
+      "disclaimer": "Esto es un análisis y una proyección, no una señal de compra o venta.",
+      "fairValueBar": "Valor razonable",
+      "priceTodayBar": "Precio hoy",
+      "wallStreetBar": "Wall Street",
+      "scenario": {
+        "bear": "Bajista",
+        "base": "Base",
+        "bull": "Alcista"
+      },
+      "scenarioHint": "Tocá un escenario para ver cómo cambia el veredicto",
+      "whyTitle": "¿Por qué llegamos a este número?",
+      "whySummary": "Se combinan dos tracks reales: uno por ganancias — según el tipo de negocio ({{classification}}), su tasa de descuento real y un múltiplo P/E justificado por crecimiento y calidad — y otro por flujo de caja, ponderados según qué tan confiable es cada uno.",
+      "whySummarySingleTrack": "Se combina el tipo de negocio — {{classification}} — con su tasa de descuento real y un múltiplo P/E justificado por crecimiento y calidad, nunca un múltiplo genérico de sector.",
+      "whySummaryFallback": "sin clasificación suficiente",
+      "whyShow": "Ver el razonamiento completo",
+      "whyHide": "Ocultar"
+    },
+    "classification": {
+      "step": "Clasificación según Peter Lynch",
+      "confidence": "Confianza",
+      "category": {
+        "fast_grower": "Fast Grower (crecimiento acelerado)",
+        "stalwart": "Stalwart (empresa madura y estable)",
+        "cyclical": "Cyclical (cíclica)",
+        "slow_grower": "Slow Grower (crecimiento lento)",
+        "turnaround": "Turnaround (en recuperación)",
+        "asset_play": "Asset Play (activos infravalorados)",
+        "financial": "Financiera",
+        "unknown": "Sin suficiente evidencia"
+      }
+    },
+    "fairPeBreakdown": {
+      "baseMultiple": "P/E base del sector",
+      "finalPe": "P/E justo final",
+      "band": "rango",
+      "baseLabel": "base",
+      "adjustmentsLabel": "Crecimiento, ROIC, margen, dividendo, moat y gestión →"
+    },
+    "shadowDualTrack": {
+      "title": "Cómo se combina",
+      "subtitle": "El desglose del valor razonable que ya viste arriba: track de ganancias + track de flujo de caja",
+      "notApplicable": "No se pudo calcular el valor razonable de esta empresa con este método — el de arriba usa el método anterior (solo P/E).",
+      "earningsTrack": "Por ganancias",
+      "fcfTrack": "Por flujo de caja",
+      "blended": "Combinado",
+      "weight": "{{pct}}% del peso",
+      "seeNotes": "Ver notas de esta estimación"
     }
   },
   "investmentJournal": {

@@ -27,7 +27,72 @@ export interface ValuationScenarios {
   waccDetails: { method: string; wacc_pct: number | null } | null;
   peForward: number | null;
   peNormalized: number | null;
+  // Diego, 2026-09-03 — brought over from web's Fase 3 hero redesign (see
+  // /Users/diegoarria/.claude/plans/dapper-scribbling-honey.md). Real
+  // production fields the backend already returns; mobile's type just
+  // hadn't declared them yet.
+  analystTarget: { target_high: number | null; target_low: number | null; target_mean: number | null; target_median: number | null } | null;
+  classification: {
+    category: string;
+    confidence: number;
+    secondary_category: string | null;
+    reason: string;
+    factors: string[];
+    method: string;
+  } | null;
+  fairPeBreakdown: {
+    fair_pe: number;
+    band: [number, number];
+    primary_anchor: string;
+    base_multiple: number | null;
+    adjustments: { factor: string; points: number; reason: string }[];
+    factors: { name: string; value: number | null; weight: number | null; reason: string }[];
+  } | null;
+  // Shadow-mode dual-track fair value — see CompanyDiagnosticShadowDualTrack.tsx.
+  // ADDITIVE ONLY: never used for baseFairValue/marginOfSafetyPercent above.
+  shadowDualTrack: ShadowDualTrack | null;
+  // Diego, 2026-09-06 — brought over from web (same real production fields
+  // company_diagnostic_service.py already returns; mobile's type just
+  // hadn't declared them yet, same gap the fields above had).
+  scenarioBreakdown: {
+    bear: { eps: number | null; fair_pe: number; fair_value_per_share: number | null };
+    base: { eps: number | null; fair_pe: number; fair_value_per_share: number | null };
+    bull: { eps: number | null; fair_pe: number; fair_value_per_share: number | null };
+  } | null;
+  priceHistoryContext: {
+    percentileCheaperThan: number;
+    daysUsed: number;
+    todayBucket: "cheap" | "normal" | "expensive";
+    buckets: Record<
+      "cheap" | "normal" | "expensive",
+      { daysCount: number; timesHigherLater: number; medianReturnPct: number } | null
+    >;
+  } | null;
+  fairValueChart: {
+    points: { date: string; price: number; fairValue: number }[];
+    effectiveMultiple: number;
+    currentTtmEps: number;
+  } | null;
 }
+
+export type ShadowDualTrack =
+  | { applicable: false; note: string | null }
+  | {
+      applicable: true;
+      earningsTrackValue: number;
+      earningsTrackMultiple: number;
+      multipleNote: string | null;
+      epsUsed: number;
+      epsNote: string | null;
+      epsFlaggedQuarters: string[];
+      fcfTrackValue: number | null;
+      fcfTrackNote: string | null;
+      capexSupercycleDetected: boolean;
+      normalizedFcfMarginPct: number | null;
+      blendedFairValue: number;
+      earningsTrackWeightPct: number | null;
+      fcfTrackWeightPct: number | null;
+    };
 
 export interface CompanyDiagnosticData {
   ticker: string;

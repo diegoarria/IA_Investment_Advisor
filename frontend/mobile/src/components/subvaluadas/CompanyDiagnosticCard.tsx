@@ -2,15 +2,14 @@ import React, { useState, type ReactNode } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
-import { ExplainableValue } from "./companyDiagnosticShared";
-import { CompanyDiagnosticValuationThermometer } from "./CompanyDiagnosticValuationThermometer";
+import { CompanyDiagnosticHero } from "./CompanyDiagnosticHero";
+import { CompanyDiagnosticFairValueChart } from "./CompanyDiagnosticFairValueChart";
 import { CompanyDiagnosticQualityPillar } from "./CompanyDiagnosticQualityPillar";
 import { CompanyDiagnosticTrustPillar } from "./CompanyDiagnosticTrustPillar";
 import { CompanyDiagnosticValuePillar } from "./CompanyDiagnosticValuePillar";
 import { CompanyDiagnosticSimplicityPillar } from "./CompanyDiagnosticSimplicityPillar";
 import { SelfCheckQuiz } from "./SelfCheckQuiz";
 import { CompanyDiagnosticBacktestPanel } from "./CompanyDiagnosticBacktestPanel";
-import { scoreColor, valuationStatus, VERDICT_COLOR, VERDICT_EMOJI, fmtPrice } from "../../lib/types/companyDiagnostic";
 import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
 
 // Mobile mirror of web's CompanyDiagnosticCard.tsx — hero + 4 collapsible
@@ -47,85 +46,21 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
   const { t } = useTranslation();
   const [assumptionsOpen, setAssumptionsOpen] = useState(false);
   const methodologyParagraphs = t("companyDiagnostic.methodology.paragraphs", { returnObjects: true }) as string[];
-  const verdictStatus = valuationStatus(data.valuation.baseFairValue, data.valuation.currentPrice);
 
   return (
     <View>
-      {/* Capa 1 — Hero */}
+      {/* Capa 1 — Hero (simplificado, ver CompanyDiagnosticHero.tsx) */}
       <View style={{ borderRadius: 18, padding: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-        <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", gap: 6 }}>
-              <Text style={{ fontSize: 23, fontWeight: "900", color: colors.text }}>{data.ticker}</Text>
-              <Text style={{ fontSize: 14, fontWeight: "600", color: colors.textSub, flexShrink: 1 }} numberOfLines={1}>{data.companyName}</Text>
-            </View>
-            <Text style={{ fontSize: 12.5, marginTop: 3, color: colors.textMuted }} numberOfLines={1}>{data.sector} · {data.exchange}</Text>
-          </View>
-          <View style={{ alignItems: "flex-end" }}>
-            <ExplainableValue
-              label={t("companyDiagnostic.explanations.scoreOverall.title")}
-              summary={t("companyDiagnostic.explanations.scoreOverall.body")}
-              colors={colors}
-            >
-              <Text style={{ fontSize: 34, fontWeight: "900", color: scoreColor(data.score) }}>{data.score}</Text>
-              <Text style={{ fontSize: 14, fontWeight: "800", color: colors.textMuted }}>/100</Text>
-            </ExplainableValue>
-            <Text style={{ fontSize: 10.5, fontWeight: "800", textTransform: "uppercase", color: scoreColor(data.score), marginTop: 3, textAlign: "right" }} numberOfLines={2}>
-              {data.scoreLabel}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={{ fontSize: 10.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 7 }}>
-          {t("companyDiagnostic.badgesTitle")}
-        </Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7, marginBottom: 15 }}>
-          {data.badges.map((b) => (
-            <View key={b} style={{ paddingHorizontal: 11, paddingVertical: 7, borderRadius: 11, backgroundColor: "#6366F11f", borderWidth: 1, borderColor: "#6366F1" }}>
-              <Text style={{ fontSize: 12, fontWeight: "800", color: "#6366F1" }}>{b}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={{ flexDirection: "row", gap: 8, marginBottom: 15 }}>
-          <View style={{ flex: 1, borderRadius: 12, padding: 11, backgroundColor: colors.bgRaised }}>
-            <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>{t("companyDiagnostic.kpi.currentPrice")}</Text>
-            <Text style={{ fontSize: 19, fontWeight: "900", color: colors.text, marginTop: 3 }} numberOfLines={1} adjustsFontSizeToFit>{fmtPrice(data.valuation.currentPrice)}</Text>
-          </View>
-          <View style={{ flex: 1, borderRadius: 12, padding: 11, backgroundColor: colors.bgRaised }}>
-            <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>{t("companyDiagnostic.kpi.fairValue")}</Text>
-            <Text style={{ fontSize: 19, fontWeight: "900", color: "#4FA695", marginTop: 3 }} numberOfLines={1} adjustsFontSizeToFit>{fmtPrice(data.valuation.baseFairValue)}</Text>
-          </View>
-        </View>
-
-        <View style={{ borderRadius: 12, padding: 12, marginBottom: 15, backgroundColor: colors.bgRaised, borderLeftWidth: 3, borderLeftColor: colors.accent }}>
-          <Text style={{ fontSize: 14, lineHeight: 20, color: colors.text, fontStyle: "italic" }}>&ldquo;{data.oneLinerPitch}&rdquo;</Text>
-        </View>
-
-        {verdictStatus && (
-          <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 9, marginBottom: 11 }}>
-            <Text style={{ fontSize: 19, fontWeight: "900", color: VERDICT_COLOR[verdictStatus.verdict], textAlign: "center" }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-              {VERDICT_EMOJI[verdictStatus.verdict]}{" "}
-              {verdictStatus.verdict === "undervalued"
-                ? t("companyDiagnostic.thermometer.undervalued")
-                : verdictStatus.verdict === "overvalued"
-                  ? t("companyDiagnostic.thermometer.overvalued")
-                  : t("companyDiagnostic.thermometer.fair")}
-              {" "}({verdictStatus.pct.toFixed(1)}%)
-            </Text>
-          </View>
-        )}
+        <CompanyDiagnosticHero data={data} colors={colors} />
 
         {data.sectorModelNote && (
-          <View style={{ borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 15, backgroundColor: "rgba(212,162,76,0.08)", borderWidth: 1, borderColor: "rgba(212,162,76,0.2)" }}>
+          <View style={{ borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 15, backgroundColor: "rgba(212,162,76,0.08)", borderWidth: 1, borderColor: "rgba(212,162,76,0.2)" }}>
             <Text style={{ fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.accentLight, marginBottom: 3 }}>
               {t("companyDiagnostic.sectorModelNoteTitle")}
             </Text>
             <Text style={{ fontSize: 11.5, lineHeight: 16, color: colors.textSub }}>{data.sectorModelNote.detalle}</Text>
           </View>
         )}
-
-        <CompanyDiagnosticValuationThermometer scenarios={data.valuation} colors={colors} />
 
         {(data.valuation.fcfAssumptions || data.valuation.waccDetails) && (
           <View style={{ marginTop: 8 }}>
@@ -170,6 +105,10 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
           </View>
         )}
       </View>
+
+      {/* Precio real vs. valor razonable — mismo dato/diseño que la web
+          (CompanyDiagnosticValuationTabs.tsx), con cursor arrastrable. */}
+      <CompanyDiagnosticFairValueChart data={data} colors={colors} />
 
       {/* Capa 2 — 4 pilares */}
       <View style={{ marginTop: 14, gap: 12 }}>

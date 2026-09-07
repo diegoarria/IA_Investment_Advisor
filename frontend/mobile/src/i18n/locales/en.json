@@ -899,6 +899,11 @@
       "cta": "Unlock Premium",
       "paywallReason": "Undervalued stocks screener"
     },
+    "valuationUnavailable": {
+      "title": "Couldn't compute the valuation",
+      "subtitle": "Try again in a few minutes, or check that you're logged in.",
+      "debug": "Status: {{status}} · Code: {{code}}"
+    },
     "freeGate": {
       "banner": "You get 3 free searches a week. Premium: unlimited.",
       "bannerCta": "See Premium",
@@ -3648,6 +3653,17 @@
       "marginOfSafety": "Margin of Safety"
     },
     "sectorModelNoteTitle": "How Nuvos values this company",
+    "priceHistory": {
+      "today": "Today",
+      "chartTitle": "Real price vs. fair value — last ~5 years",
+      "legendPrice": "Real price",
+      "legendFairValue": "Fair value",
+      "hoverUndervalued": "undervalued",
+      "hoverOvervalued": "overvalued",
+      "hoverPrice": "price",
+      "hoverFairValue": "fair value",
+      "chartDisclaimer": "The fair-value line (dashed) does move over time — it rises and falls with the real earnings {{ticker}} had at each point, it isn't fixed. Since the full model (both tracks, WACC, adjustments) can't be recalculated day by day because that data isn't historized, this line reconstructs each day with the same weighting as today: the real earnings track ({{multiple}}x on each day's real TTM earnings) plus the cash-flow track held at today's value — calibrated so the \"Today\" point lands exactly on the combined Nuvos Fair Value ({{fairValue}}) you already saw above."
+    },
     "thermometer": {
       "title": "Valuation Thermometer",
       "priceToday": "Price Today",
@@ -3823,6 +3839,62 @@
       "saving": "Saving...",
       "saved": "Saved to your Decisions Journal ✓",
       "saveError": "Couldn't save. Try again."
+    },
+    "hero": {
+      "verdict": {
+        "undervalued": "undervalued by {{pct}}%",
+        "overvalued": "overvalued by {{pct}}%",
+        "fair": "fairly valued"
+      },
+      "analystTarget": "Wall Street target",
+      "sentence": "At {{price}}, Nuvos estimates {{ticker}} is worth around {{fairValue}} —",
+      "disclaimer": "This is an analysis and a projection, not a buy or sell signal.",
+      "fairValueBar": "Fair value",
+      "priceTodayBar": "Price today",
+      "wallStreetBar": "Wall Street",
+      "scenario": {
+        "bear": "Bearish",
+        "base": "Base",
+        "bull": "Bullish"
+      },
+      "scenarioHint": "Tap a scenario to see how the verdict changes",
+      "whyTitle": "Why did we land on this number?",
+      "whySummary": "We combine two real tracks: one by earnings — based on the business type ({{classification}}), its real discount rate, and a P/E multiple justified by growth and quality — and one by cash flow, weighted by how reliable each one is.",
+      "whySummarySingleTrack": "We combine the business type — {{classification}} — with its real discount rate and a P/E multiple justified by growth and quality, never a generic sector multiple.",
+      "whySummaryFallback": "not enough evidence for a classification",
+      "whyShow": "See the full reasoning",
+      "whyHide": "Hide"
+    },
+    "classification": {
+      "step": "Classification by Peter Lynch",
+      "confidence": "Confidence",
+      "category": {
+        "fast_grower": "Fast Grower",
+        "stalwart": "Stalwart (mature, stable business)",
+        "cyclical": "Cyclical",
+        "slow_grower": "Slow Grower",
+        "turnaround": "Turnaround (recovering)",
+        "asset_play": "Asset Play (undervalued assets)",
+        "financial": "Financial",
+        "unknown": "Not enough evidence"
+      }
+    },
+    "fairPeBreakdown": {
+      "baseMultiple": "Sector base P/E",
+      "finalPe": "Final fair P/E",
+      "band": "range",
+      "baseLabel": "base",
+      "adjustmentsLabel": "Growth, ROIC, margin, dividend, moat & management →"
+    },
+    "shadowDualTrack": {
+      "title": "How it's combined",
+      "subtitle": "The breakdown of the fair value you already saw above: earnings track + cash-flow track",
+      "notApplicable": "This company's fair value couldn't be computed with this method — the one above uses the previous (P/E-only) method.",
+      "earningsTrack": "By earnings",
+      "fcfTrack": "By cash flow",
+      "blended": "Blended",
+      "weight": "{{pct}}% weight",
+      "seeNotes": "See notes for this estimate"
     }
   },
   "investmentJournal": {
