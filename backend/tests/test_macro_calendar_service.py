@@ -135,14 +135,33 @@ class TestGetMacroEventsHolidayMerge:
         self._freeze_today(monkeypatch, date(2026, 9, 1))
 
         events = await get_macro_events(days_ahead=10, lang="es")
-        holidays = [e for e in events if e["event_type"] == "market_holiday"]
-        assert len(holidays) == 1
-        h = holidays[0]
+        holidays = {e["date_et"]: e for e in events if e["event_type"] == "market_holiday"}
+        h = holidays["2026-09-07"]
         assert h["event_name"] == "Día del Trabajo"
-        assert h["date_et"] == "2026-09-07"
         assert h["status"] == "upcoming"
         assert h["country"] == "US"
         assert "no abre" in h["why_it_matters"]
+
+    async def test_holidays_shown_cover_the_full_year_regardless_of_days_ahead(self, monkeypatch):
+        # Diego, 2026-09: people should see every US market holiday for the
+        # whole year up front, not just whichever one happens to fall
+        # inside the macro-news lookahead window (the frontend's own
+        # default is only 45 days). Requesting a tiny `days_ahead` for
+        # macro news must NOT shrink the holiday list to match.
+        from datetime import date
+        from app.services.macro_calendar_service import get_macro_events
+
+        self._mock_empty_db(monkeypatch)
+        self._freeze_today(monkeypatch, date(2026, 9, 1))
+
+        events = await get_macro_events(days_ahead=10, lang="es")
+        holiday_dates = {e["date_et"] for e in events if e["event_type"] == "market_holiday"}
+        # Every remaining 2026 holiday, plus (since the window intentionally
+        # extends past a year) every 2027 holiday too.
+        assert "2026-09-07" in holiday_dates   # Labor Day
+        assert "2026-11-26" in holiday_dates   # Thanksgiving
+        assert "2026-12-25" in holiday_dates   # Christmas
+        assert "2027-01-01" in holiday_dates   # New Year's Day 2027
 
     async def test_holiday_event_name_and_copy_in_english(self, monkeypatch):
         from datetime import date
@@ -152,7 +171,7 @@ class TestGetMacroEventsHolidayMerge:
         self._freeze_today(monkeypatch, date(2026, 9, 1))
 
         events = await get_macro_events(days_ahead=10, lang="en")
-        holiday = next(e for e in events if e["event_type"] == "market_holiday")
+        holiday = next(e for e in events if e["date_et"] == "2026-09-07")
         assert holiday["event_name"] == "Labor Day"
         assert "closed" in holiday["why_it_matters"]
 
@@ -164,18 +183,19 @@ class TestGetMacroEventsHolidayMerge:
         self._freeze_today(monkeypatch, date(2026, 9, 7))
 
         events = await get_macro_events(days_ahead=10, lang="es")
-        holiday = next(e for e in events if e["event_type"] == "market_holiday")
+        holiday = next(e for e in events if e["date_et"] == "2026-09-07")
         assert holiday["status"] == "today"
 
     async def test_never_fabricates_a_holiday_never_returned_by_the_source_of_truth(self, monkeypatch):
-        # A day genuinely far from any real holiday (and outside
-        # upcoming_holidays' small trailing window) must never show a
-        # market_holiday event.
+        # A day with no entry in market_holidays.US_MARKET_HOLIDAYS must
+        # never show up as a market_holiday event, no matter how wide the
+        # (deliberately generous) holiday lookahead window is.
         from datetime import date
         from app.services.macro_calendar_service import get_macro_events
 
         self._mock_empty_db(monkeypatch)
-        self._freeze_today(monkeypatch, date(2026, 9, 20))
+        self._freeze_today(monkeypatch, date(2026, 9, 1))
 
-        events = await get_macro_events(days_ahead=1, lang="es")
-        assert not [e for e in events if e["event_type"] == "market_holiday"]
+        events = await get_macro_events(days_ahead=10, lang="es")
+        holiday_dates = {e["date_et"] for e in events if e["event_type"] == "market_holiday"}
+        assert "2026-09-08" not in holiday_dates  # the day right after Labor Day — not a holiday

@@ -361,7 +361,20 @@ async def get_macro_events(days_ahead: int = 30, lang: str = "es") -> list[dict]
     # frontend already destructures) so the web/mobile calendar components
     # can render it via a new `event_type == "market_holiday"` branch
     # without needing a second endpoint or a second fetch call.
-    for h in upcoming_holidays(days_ahead=days_ahead):
+    #
+    # Deliberately NOT limited to `days_ahead` (the frontend's default is
+    # 45 days, tuned for how far out a CPI/NFP release is worth showing) —
+    # Diego, 2026-09: people should be able to see every US market holiday
+    # for the whole year up front, not just whichever one happens to fall
+    # within the next month and a half. Holidays are a tiny, static, in-
+    # memory list (no extra query cost) so returning a full year+ of them
+    # on every call is free; the frontend already renders whatever's in
+    # this response keyed by date regardless of which month is on screen
+    # (see WatchlistEarningsCalendar.tsx's `eventMap`), so this alone makes
+    # every month's holiday(s) show up as the user navigates, no frontend
+    # change needed.
+    _HOLIDAYS_DAYS_AHEAD = 400  # a bit over a year — covers "the rest of this year" from any month
+    for h in upcoming_holidays(days_ahead=max(days_ahead, _HOLIDAYS_DAYS_AHEAD)):
         d = h["date"]
         name = h["name_es"] if lang != "en" else h["name_en"]
         status = "past" if d < today_et else "today" if d == today_et else "upcoming"
