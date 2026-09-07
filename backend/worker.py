@@ -1958,6 +1958,10 @@ async def job_portfolio_alerts():
     from app.services.notification_engine import enqueue_push
     import random
 
+    if _is_market_holiday_today():
+        logger.info("job_portfolio_alerts skipped: market holiday")
+        return
+
     db = get_supabase()
     try:
         # 1. Discover all eligible users: anyone with a push token OR watchlist/portfolio data.
@@ -3104,6 +3108,10 @@ async def job_ipo_alerts():
     from app.services.notification_engine import send_push
     from app.services.market_data_service import fetch_upcoming_ipos_raw
 
+    if _is_market_holiday_today():
+        logger.info("job_ipo_alerts skipped: market holiday")
+        return
+
     db   = get_supabase()
     ipos = await asyncio.to_thread(fetch_upcoming_ipos_raw, 2)
     if not ipos:
@@ -3542,6 +3550,11 @@ async def job_risk_mgmt_push():
     Uses Finnhub /quote for ^VIX (yfinance blocked on Railway)."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
+
+    if _is_market_holiday_today():
+        logger.info("job_risk_mgmt_push skipped: market holiday")
+        return
+
     db = get_supabase()
     try:
         vix_data = await asyncio.to_thread(_finnhub_quote, "^VIX")
@@ -3819,6 +3832,11 @@ async def job_market_crash_alert():
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     from app.services.price_alert_service import NO_CATALYST
+
+    if _is_market_holiday_today():
+        logger.info("job_market_crash_alert skipped: market holiday")
+        return
+
     db = get_supabase()
     try:
         spy_q = await asyncio.to_thread(_finnhub_quote, "SPY")
@@ -4972,6 +4990,11 @@ async def job_proactive_vs_market():
     """4:45 PM ET Mon-Fri — alert users whose portfolio moved significantly vs S&P today."""
     from app.core.database import get_supabase, run_query
     import httpx
+
+    if _is_market_holiday_today():
+        logger.info("job_proactive_vs_market skipped: market holiday")
+        return
+
     db = get_supabase()
     try:
         # Fetch S&P 500 daily change
