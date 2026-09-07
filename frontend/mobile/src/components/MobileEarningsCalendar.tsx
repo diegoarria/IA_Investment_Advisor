@@ -262,14 +262,18 @@ export default function MobileEarningsCalendar({
               const dayEvents = eventMap[dateStr] ?? [];
               const isSel    = selectedDay === dateStr;
               const hasEvent = dayEvents.length > 0;
-              // Macro events (FOMC, CPI, NFP...) are always rendered, never
-              // truncated by ticker-event overflow — mirrors web's
-              // WatchlistEarningsCalendar fix (Diego, 2026-08-20): they must
-              // never disappear from the grid, even on a day packed with
-              // earnings. Ticker badges get whatever slots remain.
+              // Diego, 2026-09: at most MAX_VISIBLE_EVENTS badges per day
+              // cell total (macro + ticker combined), single "+N" for the
+              // rest — mirrors web's WatchlistEarningsCalendar fix. Macro
+              // still gets priority for the visible slots but no longer
+              // bypasses the cap itself.
               const dayMacroEvents  = dayEvents.filter((e): e is MacroCalendarEvent => e.kind === "macro");
               const dayTickerEvents = dayEvents.filter((e): e is TickerCalendarEvent => e.kind === "ticker");
-              const tickerSlots     = Math.max(0, 2 - dayMacroEvents.length);
+              const MAX_VISIBLE_EVENTS = 2;
+              const visibleMacroEvents  = dayMacroEvents.slice(0, MAX_VISIBLE_EVENTS);
+              const tickerSlots         = Math.max(0, MAX_VISIBLE_EVENTS - visibleMacroEvents.length);
+              const visibleTickerEvents = dayTickerEvents.slice(0, tickerSlots);
+              const totalOverflow = (dayMacroEvents.length + dayTickerEvents.length) - (visibleMacroEvents.length + visibleTickerEvents.length);
 
               return (
                 <TouchableOpacity
@@ -296,8 +300,8 @@ export default function MobileEarningsCalendar({
                     </Text>
                   </View>
 
-                  {/* Event badges — macro events always shown first, never truncated */}
-                  {dayMacroEvents.map((e, idx) => {
+                  {/* Event badges — at most MAX_VISIBLE_EVENTS total, macro first */}
+                  {visibleMacroEvents.map((e, idx) => {
                     const colorSet = IMPACT_COLOR[e.impact_level] ?? IMPACT_COLOR.MEDIUM;
                     return (
                       <View key={`macro-${e.event_type}-${idx}`} style={[s.macroDot, { backgroundColor: colorSet.bg }]}>
@@ -305,7 +309,7 @@ export default function MobileEarningsCalendar({
                       </View>
                     );
                   })}
-                  {dayTickerEvents.slice(0, tickerSlots).map((e, idx) => {
+                  {visibleTickerEvents.map((e, idx) => {
                     const meta = EVENT_META[e.event_type];
                     const isPortfolio = portfolioSet.has(e.ticker);
                     const bg = isPortfolio ? meta.bgPortfolio : meta.bg;
@@ -318,10 +322,10 @@ export default function MobileEarningsCalendar({
                       </View>
                     );
                   })}
-                  {dayTickerEvents.length > tickerSlots && (
+                  {totalOverflow > 0 && (
                     <View style={[s.tickerBadge, { backgroundColor: colors.bgRaised }]}>
                       <Text style={[s.tickerBadgeText, { color: colors.textMuted }]}>
-                        +{dayTickerEvents.length - tickerSlots}
+                        +{totalOverflow}
                       </Text>
                     </View>
                   )}

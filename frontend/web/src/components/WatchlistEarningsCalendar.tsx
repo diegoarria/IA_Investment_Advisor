@@ -345,14 +345,21 @@ export default function WatchlistEarningsCalendar({
           const dayEvents = eventMap[dateStr] ?? [];
           const isSel    = selectedDay === dateStr;
           const hasEvent = dayEvents.length > 0;
-          // Macro events (FOMC, CPI, NFP...) are always rendered, never
-          // truncated by ticker-event overflow — Diego's explicit call
-          // (2026-08-20): they must never disappear from the grid, even
-          // on a day packed with earnings. Ticker badges get whatever
-          // slots remain instead of competing for the same slice.
+          // Diego, 2026-09: at most MAX_VISIBLE_EVENTS badges per day cell
+          // total (macro + ticker combined), with a single "+N" for
+          // whatever's left over — a day with 4+ macro releases used to
+          // stack every single one, making the grid look cluttered/
+          // disordered. Macro still gets priority for the visible slots
+          // (shown first, same as before), but no longer bypasses the cap
+          // itself; the overflow count folds in both kinds together
+          // instead of two separate, confusing "+N" badges.
           const dayMacroEvents  = dayEvents.filter((e): e is MacroCalendarEvent => e.kind === "macro");
           const dayTickerEvents = dayEvents.filter((e): e is TickerCalendarEvent => e.kind === "ticker");
-          const tickerSlots     = Math.max(0, 2 - dayMacroEvents.length);
+          const MAX_VISIBLE_EVENTS = 2;
+          const visibleMacroEvents  = dayMacroEvents.slice(0, MAX_VISIBLE_EVENTS);
+          const tickerSlots         = Math.max(0, MAX_VISIBLE_EVENTS - visibleMacroEvents.length);
+          const visibleTickerEvents = dayTickerEvents.slice(0, tickerSlots);
+          const totalOverflow = (dayMacroEvents.length + dayTickerEvents.length) - (visibleMacroEvents.length + visibleTickerEvents.length);
 
           return (
             <div
@@ -377,9 +384,9 @@ export default function WatchlistEarningsCalendar({
                 </span>
               </div>
 
-              {/* Event badges — macro events always shown first, never truncated */}
+              {/* Event badges — at most MAX_VISIBLE_EVENTS total, macro first */}
               <div className="flex flex-col gap-0.5 items-center">
-                {dayMacroEvents.map((e, ei) => {
+                {visibleMacroEvents.map((e, ei) => {
                   const colors = IMPACT_COLOR[e.impact_level] ?? IMPACT_COLOR.MEDIUM;
                   return (
                     <span
@@ -399,7 +406,7 @@ export default function WatchlistEarningsCalendar({
                     </span>
                   );
                 })}
-                {dayTickerEvents.slice(0, tickerSlots).map((e, ei) => {
+                {visibleTickerEvents.map((e, ei) => {
                   const meta = EVENT_META[e.event_type] ?? EVENT_META.earnings;
                   const isPortfolio = portfolioSet.has(e.ticker);
                   return (
@@ -419,10 +426,10 @@ export default function WatchlistEarningsCalendar({
                     </span>
                   );
                 })}
-                {dayTickerEvents.length > tickerSlots && (
+                {totalOverflow > 0 && (
                   <span className="text-[7px] font-bold px-1 py-px rounded"
                         style={{ background: "var(--raised)", color: "var(--muted)" }}>
-                    +{dayTickerEvents.length - tickerSlots}
+                    +{totalOverflow}
                   </span>
                 )}
               </div>
