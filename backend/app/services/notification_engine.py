@@ -64,22 +64,71 @@ def _et_week_start_utc_iso() -> str:
     return start_et.astimezone(timezone.utc).isoformat()
 
 
-async def _push_count_since(user_id: str, since_iso: str, db) -> int:
+async def _push_count_since(user_id: str, since_iso: str, db, high_priority: Optional[bool] = None) -> int:
     """Real count of pushes actually delivered (status="sent") to this user
     since `since_iso` — the fatigue cap must count real sends, not attempts
-    that were themselves skipped by quiet hours/snooze/dedup."""
+    that were themselves skipped by quiet hours/snooze/dedup.
+
+    `high_priority`: when given, counts only categories on the matching side
+    of `_is_high_priority()` (see that function and can_send_push's gate #3
+    for why this split exists). `None` counts everything, same as before
+    this split was introduced.
+
+    Fetches `category` instead of using `count="exact"` so the high/low
+    split can be applied in Python — volumes here are bounded by the caps
+    themselves (at most a few hundred rows/week per user even before this
+    split existed), so this isn't a real cost concern."""
     from app.core.database import run_query
     res = await run_query(
-        db.table("notification_log").select("id", count="exact")
+        db.table("notification_log").select("category")
         .eq("user_id", user_id).eq("type", "push").eq("status", "sent")
         .gte("sent_at", since_iso)
     )
-    return res.count or 0
+    rows = res.data or []
+    if high_priority is None:
+        return len(rows)
+    return sum(1 for r in rows if _is_high_priority(r.get("category") or "") == high_priority)
+
+
+# Categories that must NEVER be silently crowded out by a busy day of noisy,
+# per-ticker alerts (price movers, ex-dividend/dividend-payment pings, IPO
+# alerts, etc.) sharing the same weekly/daily budget. Real incident (Sep
+# 2026): a power user with a large watchlist/portfolio burned through their
+# entire `max_push_per_week` on price-mover alerts alone by Thursday — every
+# genuinely important push for the rest of the week (weekly portfolio
+# review, thesis-integrity alerts) was then silently dropped by gate #3
+# below, with zero visibility anywhere that this had happened.
+#
+# These get their own small, separate budget (below) instead of a
+# notification_preferences column, deliberately — they're all inherently
+# low-frequency by construction (weekly rituals fire at most once per
+# ritual per week; smart_alert_* and ai_insight_* are already deduped
+# per-ticker via 24h/30-day locks elsewhere), so a fixed, generous cap never
+# realistically becomes the bottleneck while still bounding the worst case
+# if something upstream misfires. Matched by prefix so per-ticker variants
+# (e.g. "smart_alert_thesis_change", "ai_insight_reversal_NVDA") are covered
+# without needing to enumerate every ticker.
+_HIGH_PRIORITY_CATEGORY_PREFIXES = (
+    "smart_alert_",              # thesis_change, guidance_change, roic_fcf_deterioration, new_risk, price_in_range
+    "sunday_portfolio_review",
+    "weekly_rituals_",           # question, saturday, sunday
+    "ai_insight_reversal_",
+    "ai_insight_concentration_",
+)
+_HIGH_PRIORITY_DAILY_CAP = 5
+_HIGH_PRIORITY_WEEKLY_CAP = 20
+
+
+def _is_high_priority(category: str) -> bool:
+    return category.startswith(_HIGH_PRIORITY_CATEGORY_PREFIXES)
 
 
 # ─── Fatigue control ──────────────────────────────────────────────────────────
 
-async def can_send_push(user_id: str, category: str, db) -> bool:
+async def can_send_push(user_id: str, category: str, db) -> tuple[bool, Optional[str]]:
+    """Returns (allowed, skip_reason). skip_reason is None when allowed —
+    callers log it to notification_log.error_text so a "skipped" row says
+    *which* gate fired instead of leaving every skip indistinguishable."""
     from app.core.database import run_query
 
     prefs = await _get_prefs(user_id, db)
@@ -90,7 +139,7 @@ async def can_send_push(user_id: str, category: str, db) -> bool:
         try:
             snooze_dt = datetime.fromisoformat(snooze.replace("Z", "+00:00"))
             if datetime.now(timezone.utc) < snooze_dt:
-                return False
+                return False, "snoozed"
         except Exception:
             pass
 
@@ -100,21 +149,34 @@ async def can_send_push(user_id: str, category: str, db) -> bool:
     qe = prefs.get("quiet_hours_end", 8)
     if qs > qe:  # spans midnight
         if hour >= qs or hour < qe:
-            return False
+            return False, "quiet_hours"
     else:
         if qs <= hour < qe:
-            return False
+            return False, "quiet_hours"
 
     # 3. Daily/weekly total push cap (max_push_per_day/max_push_per_week,
     # notification_preferences — previously defined in the schema with real
     # defaults but never read by this function, so a user's fatigue budget
     # was silently unenforced no matter what quiet-hours/snooze/dedup did).
-    max_per_day = prefs.get("max_push_per_day")
-    if max_per_day is not None and await _push_count_since(user_id, _et_day_start_utc_iso(), db) >= max_per_day:
-        return False
-    max_per_week = prefs.get("max_push_per_week")
-    if max_per_week is not None and await _push_count_since(user_id, _et_week_start_utc_iso(), db) >= max_per_week:
-        return False
+    #
+    # Split into two independent budgets (see _is_high_priority's docstring
+    # for the incident this fixes): high-priority categories (weekly
+    # rituals, portfolio review, thesis-integrity alerts) draw from their
+    # own small reserved bucket and can never be starved by a noisy day of
+    # per-ticker price-mover/dividend alerts, which draw from the user's
+    # configurable max_push_per_day/week instead.
+    if _is_high_priority(category):
+        if await _push_count_since(user_id, _et_day_start_utc_iso(), db, high_priority=True) >= _HIGH_PRIORITY_DAILY_CAP:
+            return False, "high_priority_daily_cap"
+        if await _push_count_since(user_id, _et_week_start_utc_iso(), db, high_priority=True) >= _HIGH_PRIORITY_WEEKLY_CAP:
+            return False, "high_priority_weekly_cap"
+    else:
+        max_per_day = prefs.get("max_push_per_day")
+        if max_per_day is not None and await _push_count_since(user_id, _et_day_start_utc_iso(), db, high_priority=False) >= max_per_day:
+            return False, "daily_cap"
+        max_per_week = prefs.get("max_push_per_week")
+        if max_per_week is not None and await _push_count_since(user_id, _et_week_start_utc_iso(), db, high_priority=False) >= max_per_week:
+            return False, "weekly_cap"
 
     today = _today_et()
 
@@ -133,9 +195,9 @@ async def can_send_push(user_id: str, category: str, db) -> bool:
     # where both could have passed the check.
     dedup_key = f"pushdedup:{user_id}:{category}:{today}"
     if acquire_lock(dedup_key, ttl=26 * 3600) is None:
-        return False
+        return False, "dedup_lock"
 
-    return True
+    return True, None
 
 
 # ─── Push dispatch ────────────────────────────────────────────────────────────
@@ -145,8 +207,9 @@ async def send_push(user_id: str, category: str, title: str, body: str, data: di
     from app.services.push_service import send_push as _expo_push
     from app.services.web_push_service import send_web_push_to_user
 
-    if not await can_send_push(user_id, category, db):
-        await _log_notification(db, user_id, "push", category, title, body, data, "skipped")
+    allowed, skip_reason = await can_send_push(user_id, category, db)
+    if not allowed:
+        await _log_notification(db, user_id, "push", category, title, body, data, "skipped", error_text=skip_reason)
         return
 
     today = _today_et()
@@ -167,10 +230,19 @@ async def send_push(user_id: str, category: str, title: str, body: str, data: di
     token = (tok_res.data[0].get("push_token") or "") if tok_res.data else ""
     if token and token.startswith("ExponentPushToken"):
         try:
-            await _expo_push(token, title=title, body=body, data={**data, "category": category}, sound=sound)
-            sent_any = True
+            dead_tokens = await _expo_push(token, title=title, body=body, data={**data, "category": category}, sound=sound)
+            if token in dead_tokens:
+                # Expo confirmed this token is permanently dead (uninstall,
+                # OS reset) — clear it so future sends don't keep silently
+                # no-oping against it, and so /api/notifications/test can
+                # tell the user their app needs to re-register.
+                await run_query(db.table("user_profiles").update({"push_token": None}).eq("user_id", user_id))
+                error_text = "expo_device_not_registered"
+            else:
+                sent_any = True
         except Exception as e:
             logger.warning("Expo push failed for %s: %s", user_id, e)
+            error_text = str(e)
 
     if not sent_any:
         status = "no_token"
