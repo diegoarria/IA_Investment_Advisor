@@ -80,7 +80,17 @@ logger = logging.getLogger(__name__)
 # scenarios unconditionally. A v1 cache entry was built by the old logic —
 # without this bump, Oportunidades keeps serving DCF-only candidates for up
 # to 8 more days (this cache's TTL) after the code changed.
-CACHE_KEY = "undervalued_screener:v8"
+# v9 — bumped 2026-09-06, same reason as company_diagnostic's v10 bump:
+# dual-track engine (earnings + FCF/DCF recovery blend) became PRIMARY
+# over the old P/E-only engine, plus ~10 sector-specific fixes landed the
+# same day (BRK.B P/B clamp, REIT exclusion actually working, cyclical
+# margin floor, CROX/turnaround gate, LIN/XOM fair-P/E band widening,
+# TRGP structural-improvement detection, BABA/NVO FX fixes, TTVO legacy-
+# DCF gate, historical P/E recency-weighting). A v8 entry was built with
+# the pre-rewrite engine — without this bump, Oportunidades keeps serving
+# stale fair values/margin-of-safety for up to 8 more days (this cache's
+# TTL) after the code changed.
+CACHE_KEY = "undervalued_screener:v9"
 CACHE_TTL = 8 * 24 * 3600      # slightly over a week — one missed weekly run doesn't go stale/empty
 BOOTSTRAP_TTL = 24 * 3600      # short-lived — the next full weekly/startup refresh supersedes this
 # Cost optimization (see /Users/diegoarria/.claude/plans/cosmic-munching-

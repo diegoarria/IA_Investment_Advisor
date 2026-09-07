@@ -1623,7 +1623,19 @@ def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
     # v16 — bumped 2026-08-19: financial-sector dcf now carries
     # pe_on_normalized_eps (fixes a real 404 for tickers like BRK.B whose
     # trailing GAAP EPS + Yahoo forward estimate were both unavailable).
-    return f"quick_analysis:v16:{lang}:{ticker}"
+    # v17 — bumped 2026-09-06: the dual-track fair value engine (earnings
+    # track + FCF/DCF recovery track blend) became PRIMARY over the old
+    # P/E-only engine, plus ~10 sector-specific fixes landed the same day
+    # (BRK.B P/B clamp, REIT exclusion actually working, cyclical margin
+    # floor, CROX/turnaround classification gate, LIN/XOM fair-P/E band
+    # widening + band-degeneracy fix, TRGP structural-improvement
+    # detection, BABA/NVO FX conversion + FX-lookup-failure fix, TTVO
+    # legacy-DCF mixed-regime gate, historical P/E recency-weighting).
+    # A v16 entry was computed with the pre-rewrite engine and none of
+    # these fixes — without this bump, every previously-viewed ticker
+    # keeps serving the old numbers for up to 90 more days regardless of
+    # what's deployed.
+    return f"quick_analysis:v17:{lang}:{ticker}"
 
 
 async def _build_quick_analysis(ticker: str, lang: str) -> dict:
@@ -2359,7 +2371,10 @@ def _nif_dashboard_cache_key(ticker: str, lang: str) -> str:
     # v2 — same reason as _quick_analysis_cache_key's v3 bump: the NIF
     # dashboard's Valuation pillar and Confidence Score both derive from
     # the DCF the Nuvos AI Fair Value Engine redesign rewrote end to end.
-    return f"nif_dashboard:v5:{lang}:{ticker}"
+    # v6 — same reason as _quick_analysis_cache_key's v17 bump: the
+    # Valuation pillar/Confidence Score both derive from nuvos_fair_value,
+    # which the dual-track engine rewrite + sector fixes changed.
+    return f"nif_dashboard:v6:{lang}:{ticker}"
 
 
 @router.get("/nif-dashboard")
@@ -2457,7 +2472,14 @@ def _company_diagnostic_cache_key(ticker: str, lang: str) -> str:
     # company_diagnostic returned None), not a cached success, so this
     # doesn't even need a special "was it a null result" check — a stale
     # None simply gets recomputed for real once this key changes.
-    return f"company_diagnostic:v9:{lang}:{ticker}"
+    # v10 — bumped 2026-09-06, same reason as _quick_analysis_cache_key's
+    # v17 bump: dual-track engine became primary + ~10 sector fixes, plus
+    # this endpoint's response shape gained classification/fairPeBreakdown/
+    # scenarioBreakdown/priceHistoryContext/fairValueChart/analystTarget —
+    # fields a v9 entry doesn't have at all. Without this bump the new
+    # tabbed diagnostic UI reads undefined/null for all of them off stale
+    # cache for up to 90 more days.
+    return f"company_diagnostic:v10:{lang}:{ticker}"
 
 
 async def _company_diagnostic_result(query: str, lang: str | None, user_id: str | None) -> dict:
