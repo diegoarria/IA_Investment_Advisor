@@ -3798,6 +3798,50 @@
       "marginOfSafety": {
         "title": "Margen de Seguridad",
         "body": "Qué tan por debajo del valor intrínseco estimado cotiza el precio actual, expresado en porcentaje. Un margen de seguridad amplio actúa como colchón ante errores en las proyecciones — comprar con margen es la esencia de la inversión en valor."
+      },
+      "beta": {
+        "title": "Beta",
+        "body": "Mide qué tanto se mueve el precio de esta acción comparado con el mercado en general. Beta de 1 = se mueve igual que el mercado; menos de 1 = más tranquila; más de 1 = más volátil, para bien y para mal."
+      },
+      "riskFree": {
+        "title": "Tasa libre de riesgo",
+        "body": "El retorno que podrías obtener casi sin riesgo, invirtiendo en bonos del gobierno de EE.UU. a 10 años. Es el punto de partida: cualquier inversión más riesgosa que esto debería exigir un retorno mayor."
+      },
+      "erp": {
+        "title": "Prima de riesgo del mercado",
+        "body": "El retorno extra que históricamente exige el mercado de acciones por encima de la tasa libre de riesgo, como compensación por el riesgo de invertir en empresas en vez de bonos del gobierno."
+      },
+      "costOfEquity": {
+        "title": "Costo de capital propio",
+        "body": "El retorno anual mínimo que un accionista exigiría para invertir en esta empresa en particular, considerando su volatilidad real (Beta). Cuanto más volátil es la acción, más alto es este número."
+      },
+      "costOfDebt": {
+        "title": "Costo de deuda",
+        "body": "La tasa de interés real que le cuesta a la empresa pedir dinero prestado, después del ahorro fiscal de pagar intereses. Una empresa financieramente sólida suele conseguir deuda más barata."
+      },
+      "adjGrowth": {
+        "title": "Crecimiento",
+        "body": "Si esta empresa crece más rápido que el promedio, se justifica pagar un múltiplo más alto por sus ganancias — y viceversa si crece más lento. El crecimiento de hoy no se asume para siempre: se desvanece gradualmente hacia un ritmo típico de largo plazo."
+      },
+      "adjQuality": {
+        "title": "Calidad (ROIC)",
+        "body": "Mide si el negocio gana más de lo que le cuesta financiarse (ROIC vs. costo de capital). Cuanto mayor esa diferencia, más múltiplo se justifica — es la señal más directa de una ventaja competitiva real."
+      },
+      "adjFcfMargin": {
+        "title": "Margen de flujo de caja",
+        "body": "Qué porcentaje de cada dólar de ventas se convierte en efectivo real. Un margen más alto que el típico de su sector suma múltiplo; uno más bajo lo resta."
+      },
+      "adjLeverage": {
+        "title": "Apalancamiento",
+        "body": "Cuánta deuda tiene la empresa relativa a su capacidad de pagarla. Una empresa muy endeudada es más riesgosa y merece un múltiplo menor; una con deuda sana no recibe penalización."
+      },
+      "adjDividend": {
+        "title": "Dividendo",
+        "body": "Si la empresa reparte dividendos reales a sus accionistas, eso suma un poco de múltiplo — es una devolución de efectivo tangible, no solo una promesa de crecimiento futuro."
+      },
+      "adjMoatManagement": {
+        "title": "Moat y gestión",
+        "body": "Qué tan defendible es su ventaja competitiva (moat) y qué tan bien administra la empresa su capital (recompras, decisiones de inversión). Mejor en ambos, mayor múltiplo justificado."
       }
     },
     "methodology": {
@@ -3863,10 +3907,26 @@
       "whySummarySingleTrack": "Se combina el tipo de negocio — {{classification}} — con su tasa de descuento real y un múltiplo P/E justificado por crecimiento y calidad, nunca un múltiplo genérico de sector.",
       "whySummaryFallback": "sin clasificación suficiente",
       "whyShow": "Ver el razonamiento completo",
-      "whyHide": "Ocultar"
+      "whyHide": "Ocultar",
+      "qualityOvervaluedNote": "{{ticker}} es un negocio excelente ({{score}}/100 en calidad) — hoy simplemente no es el mejor precio de entrada. Las mejores empresas del mundo rara vez cotizan \"baratas\": eso no las convierte en malas empresas, solo dice algo sobre el momento de comprar."
+    },
+    "discountRate": {
+      "step": "Tasa de descuento (WACC)",
+      "explainer": "Cuánto retorno anual exigimos para justificar invertir en esta empresa en vez de en algo más seguro — a mayor riesgo, mayor exigencia. Este número descuenta cada dólar futuro a lo que vale hoy.",
+      "beta": "Beta",
+      "riskFree": "tasa libre de riesgo",
+      "erp": "prima de riesgo del mercado",
+      "costOfEquity": "Costo de capital propio",
+      "costOfDebt": "Costo de deuda",
+      "weights": "Ponderación",
+      "equityLabel": "Capital propio {{pct}}%",
+      "debtLabel": "Deuda {{pct}}%",
+      "finalWacc": "WACC final",
+      "fallbackNote": "No se pudo calcular con CAPM real (falta beta o tasa libre de riesgo en vivo) — se usó una tasa de referencia del sector."
     },
     "classification": {
       "step": "Clasificación según Peter Lynch",
+      "explainer": "Cada tipo de negocio se valora distinto — una empresa que crece rápido no se analiza igual que una madura y estable. Este es el primer paso: identificar qué tipo de empresa es esta, para usar la metodología correcta.",
       "confidence": "Confianza",
       "category": {
         "fast_grower": "Fast Grower (crecimiento acelerado)",
@@ -3880,11 +3940,55 @@
       }
     },
     "fairPeBreakdown": {
+      "toggle": "Ver cómo se calculó el P/E justo",
+      "explainer": "El P/E justo es cuántas veces la ganancia anual creemos que vale esta empresa. Partimos de un múltiplo típico para su sector y lo ajustamos hacia arriba o abajo según qué tan bien crece, qué tan rentable es y qué tan sólida es frente a sus pares.",
       "baseMultiple": "P/E base del sector",
       "finalPe": "P/E justo final",
       "band": "rango",
+      "anchorsTitle": "Combinado con evidencia real de mercado:",
+      "weight": "peso",
       "baseLabel": "base",
-      "adjustmentsLabel": "Crecimiento, ROIC, margen, dividendo, moat y gestión →"
+      "adjustmentsLabel": "Crecimiento, ROIC, margen, dividendo, moat y gestión →",
+      "fairValueFormula": "Cálculo del valor razonable",
+      "fairValueFormulaNote": "Este es solo el resultado del track de ganancias — el valor combinado que se ve arriba en \"¿Por qué llegamos a este número?\" lo pondera, según confianza, con el track de flujo de caja."
+    },
+    "scenariosTab": {
+      "explainer": "Ningún cálculo es exacto, así que mostramos 3 versiones: una pesimista, una realista y una optimista. Ninguna es más probable que otra — son un rango razonable, no una predicción.",
+      "noProbabilityNote": "Este rango se basa en el EPS estimado (bajo/base/alto) y la banda real de P/E justo — no es una predicción de probabilidades."
+    },
+    "diagTabs": {
+      "valuation": "Valuación",
+      "scenarios": "Escenarios",
+      "comparables": "Comparables",
+      "history": "Historial",
+      "peers": "pares",
+      "sectorMedian": "Mediana sector",
+      "noComparables": "No hay suficientes pares reales para comparar este ticker.",
+      "whyGroupLabel": "¿Por qué este número?",
+      "pillarsGroupLabel": "Los 4 pilares de calidad",
+      "comparablesExplainer": "Comparamos los números reales de esta empresa contra otras similares — así se ve si es mejor, peor o está en línea con su industria."
+    },
+    "priceHistoryTab": {
+      "headline": {
+        "cheap": "{{ticker}} cotiza más barato de lo habitual",
+        "normal": "{{ticker}} cotiza dentro de su rango habitual",
+        "expensive": "{{ticker}} cotiza más caro de lo habitual"
+      },
+      "subheadline": {
+        "cheap": "más barata que en el {{pct}}% de los últimos {{days}} días de mercado reales.",
+        "normal": "ni especialmente cara ni barata frente a los últimos {{days}} días de mercado reales.",
+        "expensive": "más cara que en el {{pct}}% de los últimos {{days}} días de mercado reales."
+      },
+      "bucket": {
+        "cheap": "Barata",
+        "normal": "Rango habitual",
+        "expensive": "Cara"
+      },
+      "whatHappened": "¿Qué pasó después de valoraciones como la de hoy?",
+      "timesHigher": "{{n}} de {{total}} veces el precio fue más alto 1 año después",
+      "typicalReturn": "Retorno típico a 1 año",
+      "insufficientData": "Muy pocos días reales en esta banda para sacar una conclusión.",
+      "disclaimer": "Basado en {{days}} días de mercado reales — resultados históricos, no una predicción."
     },
     "shadowDualTrack": {
       "title": "Cómo se combina",

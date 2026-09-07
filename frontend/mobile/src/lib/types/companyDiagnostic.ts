@@ -8,6 +8,22 @@ export interface CompetitorComparison {
   nuvosAdvantageNote: string;
 }
 
+export interface SectorComparisonRow {
+  metricName: string;
+  companyValue: string;
+  sectorValue: string;
+  delta: "up" | "down" | "flat" | null;
+  deltaLabel: string;
+}
+
+export interface SectorComparison {
+  sector: string;
+  peerCount: number;
+  peerTickers: string[];
+  rows: SectorComparisonRow[];
+  insight: string;
+}
+
 export interface ValuationScenarios {
   conservative: number;
   baseFairValue: number;
@@ -24,7 +40,18 @@ export interface ValuationScenarios {
     growth_capex_estimate: number | null;
     methodology_note: string;
   } | null;
-  waccDetails: { method: string; wacc_pct: number | null } | null;
+  waccDetails: {
+    method: string;
+    wacc_pct: number | null;
+    beta: number | null;
+    risk_free_rate_pct: number | null;
+    equity_risk_premium_pct: number | null;
+    cost_of_equity_pct: number | null;
+    cost_of_debt_pct: number | null;
+    tax_rate_pct: number | null;
+    equity_weight_pct: number | null;
+    debt_weight_pct: number | null;
+  } | null;
   peForward: number | null;
   peNormalized: number | null;
   // Diego, 2026-09-03 — brought over from web's Fase 3 hero redesign (see
@@ -117,6 +144,7 @@ export interface CompanyDiagnosticData {
     rows: CompetitorComparison[];
     conclusion: string;
   } | null;
+  sectorComparison: SectorComparison | null;
   financialHealth: {
     longTermDebt: string;
     netCash: string;

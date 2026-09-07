@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { valuationStatus, VERDICT_COLOR, VERDICT_EMOJI, SCENARIO_COLOR, fmtPrice } from "../../lib/types/companyDiagnostic";
 import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
@@ -39,7 +40,17 @@ export function CompanyDiagnosticHero({ data, colors }: { data: CompanyDiagnosti
   const { conservative, baseFairValue, optimistic, currentPrice } = data.valuation;
   const scenarioValue: Record<ScenarioKey, number> = { bear: conservative, base: baseFairValue, bull: optimistic };
   const activeValue = scenarioValue[scenario];
-  const wallStreet = data.valuation.analystTarget?.target_mean ?? null;
+  // Diego, 2026-09-07 — mirrors web: the Wall Street bar tracks the same
+  // bear/base/bull toggle instead of always showing the flat analyst
+  // mean — target_low for Bajista, target_mean (falling back to
+  // target_median) for Base, target_high for Alcista.
+  const analystTarget = data.valuation.analystTarget;
+  const wallStreetByScenario: Record<ScenarioKey, number | null> = {
+    bear: analystTarget?.target_low ?? null,
+    base: analystTarget?.target_mean ?? analystTarget?.target_median ?? null,
+    bull: analystTarget?.target_high ?? null,
+  };
+  const wallStreet = wallStreetByScenario[scenario];
 
   const status = valuationStatus(activeValue, currentPrice);
   const maxVal = Math.max(activeValue, currentPrice, wallStreet ?? 0) || 1;
@@ -112,6 +123,21 @@ export function CompanyDiagnosticHero({ data, colors }: { data: CompanyDiagnosti
       <Text style={{ fontSize: 10.5, textAlign: "center", color: colors.textDim, marginBottom: 15 }}>
         {t("companyDiagnostic.hero.disclaimer")}
       </Text>
+
+      {/* Diego, 2026-09-07 — mirrors web: a real, narrowly-scoped guard
+          against "overvalued reads as bad company" for a genuinely high-
+          quality business (real names Diego gave: Apple, Walmart,
+          Costco, Google). Shown ONLY when real quality >=70 AND today's
+          verdict is overvalued — never a generic disclaimer on every
+          card. */}
+      {status?.verdict === "overvalued" && data.pillarScores.quality >= 70 && (
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 15, backgroundColor: `${_GOLD}24`, borderWidth: 1, borderColor: `${_GOLD}66` }}>
+          <Ionicons name="shield-outline" size={16} color={_GOLD} style={{ marginTop: 1 }} />
+          <Text style={{ flex: 1, fontSize: 12, lineHeight: 17, color: colors.textSub }}>
+            {t("companyDiagnostic.hero.qualityOvervaluedNote", { ticker: data.ticker, score: data.pillarScores.quality })}
+          </Text>
+        </View>
+      )}
 
       <View style={{ gap: 8, marginBottom: 14 }}>
         {bars.map((bar) => {

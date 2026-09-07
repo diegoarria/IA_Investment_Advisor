@@ -3,11 +3,7 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { CompanyDiagnosticHero } from "./CompanyDiagnosticHero";
-import { CompanyDiagnosticFairValueChart } from "./CompanyDiagnosticFairValueChart";
-import { CompanyDiagnosticQualityPillar } from "./CompanyDiagnosticQualityPillar";
-import { CompanyDiagnosticTrustPillar } from "./CompanyDiagnosticTrustPillar";
-import { CompanyDiagnosticValuePillar } from "./CompanyDiagnosticValuePillar";
-import { CompanyDiagnosticSimplicityPillar } from "./CompanyDiagnosticSimplicityPillar";
+import { CompanyDiagnosticValuationTabs } from "./CompanyDiagnosticValuationTabs";
 import { SelfCheckQuiz } from "./SelfCheckQuiz";
 import { CompanyDiagnosticBacktestPanel } from "./CompanyDiagnosticBacktestPanel";
 import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
@@ -106,34 +102,10 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
         )}
       </View>
 
-      {/* Precio real vs. valor razonable — mismo dato/diseño que la web
-          (CompanyDiagnosticValuationTabs.tsx), con cursor arrastrable. */}
-      <CompanyDiagnosticFairValueChart data={data} colors={colors} />
-
-      {/* Capa 2 — 4 pilares */}
-      <View style={{ marginTop: 14, gap: 12 }}>
-        <CompanyDiagnosticQualityPillar
-          score={data.pillarScores.quality}
-          revenueBreakdown={data.revenueBreakdown}
-          moatPoints={data.moatPoints}
-          competitorComparison={data.competitorComparison}
-          colors={colors}
-        />
-        <CompanyDiagnosticTrustPillar score={data.pillarScores.trust} financialHealth={data.financialHealth} roicAdjustedForBuybacks={data.roicAdjustedForBuybacks} colors={colors} />
-        <CompanyDiagnosticValuePillar
-          score={data.pillarScores.value}
-          ticker={data.ticker}
-          companyName={data.companyName}
-          valuation={data.valuation}
-          colors={colors}
-        />
-        <CompanyDiagnosticSimplicityPillar
-          score={data.pillarScores.simplicity}
-          noiseVsReality={data.noiseVsReality}
-          actionPlan={data.actionPlan}
-          colors={colors}
-        />
-      </View>
+      {/* Capa 2 — pestañas Valuación/Escenarios/Comparables/Historial (incluye
+          el gráfico precio vs. valor razonable) + los 4 pilares como pestañas,
+          mismo diseño que la web (CompanyDiagnosticValuationTabs.tsx). */}
+      <CompanyDiagnosticValuationTabs data={data} colors={colors} />
 
       {/* Tesis Final */}
       {data.investmentThesis && (
