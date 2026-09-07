@@ -58,6 +58,25 @@ class TestCategoryBounds:
         fast_grower_hi = _CATEGORY_BOUNDS[LynchCategory.FAST_GROWER][1]
         assert cyclical_hi < fast_grower_hi
 
+    def test_band_never_collapses_to_a_single_point_when_both_anchors_exceed_the_ceiling(self):
+        """Diego, 2026-09-05 — real bug found auditing the full Materials
+        sector: confirmed live for LIN (Linde) — a real wide-moat
+        industrial-gases oligopoly whose growth-based multiple (20.85x)
+        AND real historical P/E (32.9x) BOTH exceeded the (then-20.0x)
+        Slow Grower ceiling. Clamping each raw anchor independently to
+        [lo, hi] made both edges land on the same `hi`, collapsing the
+        displayed band to (20.0, 20.0) — showing zero uncertainty where
+        real spread between the two anchors existed. Reproduced here with
+        the widened 26.0x ceiling: two anchors both above 26.0 must still
+        produce a real, non-degenerate band."""
+        result = compute_fair_pe(**_neutral_kwargs(
+            category=LynchCategory.SLOW_GROWER, growth_evidence=_ge(forward=200.0),
+            roic_pct=99.0, cost_of_capital_pct=1.0, historical_median_pe=50.0,
+        ))
+        hi = _CATEGORY_BOUNDS[LynchCategory.SLOW_GROWER][1]
+        assert result.fair_pe == hi  # still correctly clamped at the ceiling
+        assert result.band[1] > result.band[0]  # but the band itself is real, not degenerate
+
 
 class TestBuybackDiscount:
     def test_growth_dominated_by_buybacks_is_discounted_vs_organic_growth(self):

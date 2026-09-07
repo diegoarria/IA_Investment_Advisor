@@ -39,6 +39,23 @@ _MIN_YEARS_FOR_NORMALIZATION = 4
 _PEAK_PERCENTILE = 0.85
 _TROUGH_PERCENTILE = 0.15
 
+# Diego, 2026-09-05 — real bug found auditing the full Energy sector
+# universe: the CYCLICAL branch below normalizes to the plain historical
+# MEDIAN net margin, with no floor. A commodity-cyclical business that
+# spent several real years near-breakeven/negative during a genuine
+# industry downturn (confirmed live for FTI/TechnipFMC — real 2015-2020
+# oilfield-services bust) can have a median margin near zero (0.3%) even
+# while its CURRENT margin trajectory is healthy — collapsing normalized
+# EPS to near-zero ($0.07) and the resulting fair value to an
+# economically meaningless number ($1.58 vs. a real $79.84 price, a
+# -4954% "margin of safety"). `shadow_dual_track_service.py` already
+# solved the identical problem for its own EPS normalization with a 50%-
+# of-historical-average floor (`_EARNINGS_TROUGH_FLOOR_FRACTION`) — this
+# is the same fix, applied here to the real, primary earnings-state
+# engine every cyclical company (Energy, Materials, semiconductors,
+# shipping, ...) actually gets valued through, not just the shadow one.
+_CYCLICAL_MARGIN_FLOOR_FRACTION = 0.5
+
 # Phase 1 (Nuvos Fair Value Engine V2, 2026-08-12) — which of
 # deterioration_engine's 5 tracked metrics actually prove a DURABLE change
 # in earnings power, as opposed to just moving. ROIC and margins measure
@@ -151,17 +168,79 @@ def detect_earnings_state(
         current_margin = valid_margin[-1]
         rank = _percentile_rank(current_margin, valid_margin)
         mid_cycle_margin = statistics.median(valid_margin)
+        # Real floor (see _CYCLICAL_MARGIN_FLOOR_FRACTION's own comment):
+        # a median dragged down by several real trough years shouldn't
+        # collapse the "mid-cycle" anchor below half of this same
+        # business's own average margin over the same real window — the
+        # mean is less dominated by a long, real downturn than the median
+        # is when MOST of the observed years happened to fall in it.
+        # Only ever raises the anchor (never lowers it further), and only
+        # when the average itself is positive — a business with a
+        # genuinely negative average margin has no meaningful positive
+        # floor to lift toward.
+        avg_margin = statistics.mean(valid_margin)
+        if avg_margin > 0:
+            mid_cycle_margin = max(mid_cycle_margin, avg_margin * _CYCLICAL_MARGIN_FLOOR_FRACTION)
         current_revenue_implied = valid_eps[-1] / current_margin if current_margin else None
         normalized = round(current_revenue_implied * mid_cycle_margin, 2) if current_revenue_implied is not None else None
+        # Diego, 2026-09-05 — real gap found auditing the full Energy
+        # sector: a Cyclical company was ALWAYS mean-reverted to its own
+        # mid-cycle margin at a percentile extreme, with no path to the
+        # "real, durable structural improvement" treatment the non-
+        # cyclical branches below already get via `_is_structural`.
+        # Confirmed live for TRGP (Targa Resources) — real structural
+        # growth (LNG export buildout, Permian gathering/processing
+        # volumes), not a one-off commodity-price spike, got treated as a
+        # transient cyclical peak and normalized down to a fraction of its
+        # real current earnings power. Same evidence bar as the non-
+        # cyclical STRUCTURALLY_ELEVATED/DEPRESSED branches (>=2 of 3
+        # profitability metrics moving the same way, zero contradicting)
+        # — a real cyclical commodity swing won't clear this bar (ROIC/
+        # margins swing with the SAME commodity cycle the EPS does, so
+        # they move together, they don't show independent structural
+        # evidence), but a genuine step-change in the underlying business
+        # will.
+        if rank >= _PEAK_PERCENTILE and _is_structural(deterioration, "mejorando"):
+            matching, _, matching_reasons = _structural_profitability_evidence(deterioration, "mejorando")
+            recent_window = valid_eps[-min(3, len(valid_eps)):]
+            structural_normalized = round(_recency_weighted_normalized_eps(recent_window), 2)
+            return EarningsStateResult(
+                state=EarningsState.STRUCTURALLY_ELEVATED, normalized_eps=structural_normalized, reliability_note=None,
+                reason=(
+                    f"Margen neto actual ({current_margin:.1f}%) está en el percentil {rank*100:.0f} de su propio "
+                    f"historial, pero {matching} de 3 métricas de rentabilidad (ROIC, margen operativo, margen neto) "
+                    f"muestran mejora estructural real, sin ninguna en dirección contraria: {' | '.join(matching_reasons)}. "
+                    "Se trata como mejora estructural en un negocio cíclico, no como pico transitorio — el EPS "
+                    "normalizado usa un promedio ponderado hacia los años recientes en vez de revertir al margen "
+                    "mediano histórico."
+                ),
+                structural_evidence_count=matching,
+            )
+        if rank <= _TROUGH_PERCENTILE and _is_structural(deterioration, "deteriorando"):
+            matching, _, matching_reasons = _structural_profitability_evidence(deterioration, "deteriorando")
+            recent_window = valid_eps[-min(3, len(valid_eps)):]
+            structural_normalized = round(_recency_weighted_normalized_eps(recent_window), 2)
+            return EarningsStateResult(
+                state=EarningsState.STRUCTURALLY_DEPRESSED, normalized_eps=structural_normalized, reliability_note=None,
+                reason=(
+                    f"Margen neto actual ({current_margin:.1f}%) está en el percentil {rank*100:.0f} de su propio "
+                    f"historial, pero {matching} de 3 métricas de rentabilidad (ROIC, margen operativo, margen neto) "
+                    f"muestran deterioro estructural real, sin ninguna en dirección contraria: {' | '.join(matching_reasons)}. "
+                    "Se trata como deterioro estructural en un negocio cíclico, no como valle transitorio — el EPS "
+                    "normalizado usa un promedio ponderado hacia los años recientes en vez de revertir a un margen "
+                    "mediano histórico que ya no refleja la economía real del negocio."
+                ),
+                structural_evidence_count=matching,
+            )
         if rank >= _PEAK_PERCENTILE:
             return EarningsStateResult(
                 state=EarningsState.CYCLICAL_PEAK, normalized_eps=normalized, reliability_note=None,
-                reason=f"Margen neto actual ({current_margin:.1f}%) está en el percentil {rank*100:.0f} de su propio historial — pico de ciclo. EPS normalizado usando el margen mediano histórico ({mid_cycle_margin:.1f}%), no el margen pico.",
+                reason=f"Margen neto actual ({current_margin:.1f}%) está en el percentil {rank*100:.0f} de su propio historial — pico de ciclo. EPS normalizado usando el margen de referencia del ciclo ({mid_cycle_margin:.1f}%, mediana histórica con un piso del 50% del promedio), no el margen pico.",
             )
         if rank <= _TROUGH_PERCENTILE:
             return EarningsStateResult(
                 state=EarningsState.CYCLICAL_TROUGH, normalized_eps=normalized, reliability_note=None,
-                reason=f"Margen neto actual ({current_margin:.1f}%) está en el percentil {rank*100:.0f} de su propio historial — valle de ciclo. EPS normalizado usando el margen mediano histórico ({mid_cycle_margin:.1f}%), no el margen deprimido.",
+                reason=f"Margen neto actual ({current_margin:.1f}%) está en el percentil {rank*100:.0f} de su propio historial — valle de ciclo. EPS normalizado usando el margen de referencia del ciclo ({mid_cycle_margin:.1f}%, mediana histórica con un piso del 50% del promedio), no el margen deprimido.",
             )
         return EarningsStateResult(
             state=EarningsState.NORMAL, normalized_eps=normalized, reliability_note=None,

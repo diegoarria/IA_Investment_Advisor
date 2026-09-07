@@ -193,6 +193,15 @@ def _sector_cyclicality_dampener(sector: str | None) -> float:
 _FINANCIAL_SECTOR_KEYS = ("financial services", "bank", "insurance")
 
 
+def get_analyst_price_target(ticker: str):
+    """Thin wrapper around `fh_price_target` — named/exposed at module
+    level (rather than called inline) so it can be mocked directly in
+    tests the same way `get_beta`/`get_risk_free_rate`/`get_revenue_
+    segments` already are, instead of needing to reach into
+    `app.core.finnhub` to patch it."""
+    return fh_price_target(ticker)
+
+
 def _is_financial_sector(sector: str | None) -> bool:
     if not sector:
         return False
@@ -234,10 +243,35 @@ _ASSET_LIGHT_FINANCIAL_INDUSTRY_KEYS = (
 )
 
 
-def _is_asset_light_financial_industry(industry: str | None) -> bool:
+# Diego, 2026-09-04 — real gap found auditing the full financial-sector
+# universe: "Investment Banking & Brokerage" groups real balance-sheet
+# dealers (Goldman Sachs, real leverage ~4.9x) with pure advisory
+# boutiques (Evercore/Houlihan Lokey, real leverage <0.3x, HLI literally
+# $0 debt) whose value comes from advisory fees, not book-value
+# compounding — the same asset-light mismatch as the payment-network/
+# asset-manager keyword carve-outs above, just not catchable by industry
+# name alone since this one industry string covers BOTH real dealer banks
+# and pure advisory shops. Scoped specifically to this one industry (not
+# a general "any financial with low leverage" rule) — a low-leverage
+# READING elsewhere could just mean incomplete balance-sheet data for an
+# otherwise real deposit-taking/underwriting business.
+_LOW_LEVERAGE_CARVEOUT_INDUSTRY = "investment banking & brokerage"
+_LOW_LEVERAGE_CARVEOUT_MAX_RATIO = 0.5  # total_debt / book_equity
+
+
+def _is_asset_light_financial_industry(
+    industry: str | None, total_debt: Optional[float] = None, book_equity: Optional[float] = None,
+) -> bool:
     if not industry:
         return False
-    return any(k in industry.lower() for k in _ASSET_LIGHT_FINANCIAL_INDUSTRY_KEYS)
+    if any(k in industry.lower() for k in _ASSET_LIGHT_FINANCIAL_INDUSTRY_KEYS):
+        return True
+    if (
+        industry.lower() == _LOW_LEVERAGE_CARVEOUT_INDUSTRY
+        and total_debt is not None and book_equity and book_equity > 0
+    ):
+        return (total_debt / book_equity) < _LOW_LEVERAGE_CARVEOUT_MAX_RATIO
+    return False
 
 
 # ── Liquidity gate ─────────────────────────────────────────────────────────────
@@ -782,6 +816,21 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
 
     quote   = fh_quote(ticker) or {}
     profile = fh_profile(ticker) or {}
+    if not profile.get("name") or not profile.get("finnhubIndustry") or not profile.get("exchange"):
+        # Finnhub's profile endpoint occasionally has no real data for a
+        # given ticker at all (confirmed live for META, WMT, CPRT — company
+        # name/sector/exchange all silently fell back to the raw ticker
+        # and "N/D") — independent second source (FMP's own /profile,
+        # already used for get_beta above) fills only the missing fields,
+        # never overwrites a real Finnhub value that IS present.
+        try:
+            from app.services.financial_data_service import get_company_profile_fmp
+            _fmp_profile = get_company_profile_fmp(ticker)
+            for _k in ("name", "finnhubIndustry", "exchange", "shareOutstanding", "marketCapitalization"):
+                if not profile.get(_k) and _fmp_profile.get(_k):
+                    profile[_k] = _fmp_profile[_k]
+        except Exception as e:
+            logger.warning("get_fundamental_analysis(%s): FMP profile fallback failed: %s", ticker, e)
     price = _num(quote.get("price"))
     if price is None:
         # Finnhub quote hiccup (rate limit/timeout/transient gap) used to
@@ -811,6 +860,20 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     market_cap_m = _num(profile.get("marketCapitalization"))
     if market_cap_m and price and price > 0:
         shares_out = market_cap_m * 1_000_000 / price
+    if shares_out is None:
+        # Finnhub's profile endpoint occasionally has no shareOutstanding/
+        # marketCapitalization for a given ticker at all (confirmed live
+        # for META) — independent second source (FMP's shares-float
+        # endpoint, already used for the liquidity gate) rather than
+        # letting every shares_out-dependent computation below silently
+        # go None for a ticker whose data is genuinely available elsewhere.
+        try:
+            from app.services.financial_data_service import get_shares_float
+            _float_data = get_shares_float(ticker)
+            if _float_data and _float_data.get("outstanding_shares"):
+                shares_out = _float_data["outstanding_shares"]
+        except Exception as e:
+            logger.warning("get_fundamental_analysis(%s): FMP shares_out fallback failed: %s", ticker, e)
 
     # Liquidity gate — must run before the valuation is shown with normal
     # confidence (see check_liquidity_gate's docstring: a precise-looking
@@ -828,10 +891,19 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     # actually worth today) — showing both, clearly labeled, is more honest
     # than picking one.
     try:
-        analyst_target = fh_price_target(ticker)
+        analyst_target = get_analyst_price_target(ticker)
     except Exception as e:
         logger.warning("get_fundamental_analysis(%s): analyst price target fetch failed: %s", ticker, e)
         analyst_target = None
+    if analyst_target is None:
+        # Finnhub's /stock/price-target confirmed live to 403 on this
+        # plan (not a transient outage) — FMP's own consensus endpoint
+        # covers the same real data.
+        try:
+            from app.services.financial_data_service import get_analyst_price_target_fmp
+            analyst_target = get_analyst_price_target_fmp(ticker)
+        except Exception as e:
+            logger.warning("get_fundamental_analysis(%s): FMP analyst price target fallback failed: %s", ticker, e)
 
     # Real segment revenue straight from the company's own filings (FMP-only —
     # no equivalent on Fiscal.ai/yfinance). Replaces the LLM's "approximate,
@@ -1077,6 +1149,27 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     else:
         avg_fcf_margin = None
 
+    # Diego, 2026-09-06 — real bug found auditing the full Communication
+    # Services sector: TTWO (Take-Two, mid-2022 Zynga mega-acquisition)
+    # had 3 real years of substantial FCF-margin losses sandwiched between
+    # a mild first year and a strong most-recent year, recency-weighted
+    # down to a barely-positive 0.39% average — the legacy DCF's old
+    # `avg_fcf_margin > 0` gate below accepted that at face value and
+    # projected it 10 years forward, producing a near-worthless fair
+    # value against a real market price (a -22,739% "margin of safety").
+    # A thin recency-weighted average built from a REAL mix of loss and
+    # profit years (not just noisy-but-consistently-positive years) isn't
+    # a trustworthy anchor for a full 10-year projection — same "don't
+    # trust a number that doesn't represent a stable regime" discipline
+    # `earnings_state.py`'s own mixed-regime baseline check already
+    # applies elsewhere in this pipeline.
+    _fcf_margin_mixed_regime = (
+        any(m < 0 for _, m in fcf_margin_pairs) and any(m > 0 for _, m in fcf_margin_pairs)
+    ) if fcf_margin_pairs else False
+    _fcf_margin_unreliable_thin_mixed = (
+        _fcf_margin_mixed_regime and avg_fcf_margin is not None and abs(avg_fcf_margin) < 0.02
+    )
+
     # Driver-based DCF anchors (Fase 1, Incremento 2 — valuation.dcf_engine):
     # same recency-weighting technique as avg_fcf_margin above, applied to
     # operating margin and net reinvestment rate instead of FCF margin.
@@ -1290,7 +1383,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         # Growth+Quality+Value framework to a bank/card network, where
         # ROIC/leverage/FCF-margin don't mean the same thing they do for a
         # normal operating company.
-        _gqv_is_financial_sector = _is_financial_sector(sector) and not _is_asset_light_financial_industry(_fin_industry)
+        _gqv_is_financial_sector = _is_financial_sector(sector) and not _is_asset_light_financial_industry(_fin_industry, total_debt=total_debt, book_equity=book_value_trend[-1] if book_value_trend else None)
         try:
             gqv_result = compute_nuvos_fair_value(
                 sector=sector, industry=None, is_financial_sector=_gqv_is_financial_sector,
@@ -1375,7 +1468,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             logger.info("get_fundamental_analysis(%s): gqv_fair_value not computable: %s", ticker, e)
             target["gqv_fair_value"] = None
 
-    if _is_financial_sector(sector) and not _is_asset_light_financial_industry(_fin_industry):
+    if _is_financial_sector(sector) and not _is_asset_light_financial_industry(_fin_industry, total_debt=total_debt, book_equity=book_value_trend[-1] if book_value_trend else None):
         # Banks/insurers/brokers/consumer lenders: the FCF-based DCF below
         # is unreliable for this sector (confirmed with Progressive Corp) —
         # use the real Residual Income / Excess Return model instead
@@ -1421,7 +1514,21 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         # appends the valuation_sanity_warning caution onto it when that
         # fires, so nothing else is needed here.
 
-    elif is_reit_sector(sector):
+    elif is_reit_sector(sector) or is_reit_sector(_fin_industry):
+        # Diego, 2026-09-04 — real, severe bug found auditing the full Real
+        # Estate universe (59 real tickers): Finnhub's real `sector` value
+        # for the WHOLE REIT asset class is just the coarse "Real Estate"
+        # (no "reit" substring anywhere) — `is_reit_sector(sector)` alone
+        # NEVER fired for a single real REIT, so every one of them silently
+        # fell through to the standard FCF-DCF below (which this branch
+        # exists specifically to prevent), producing absurd margins (DLR
+        # -859.6%, KRC -660.7%, EQIX -443.3%) with zero disclosure.
+        # `shadow_dual_track_service.py` already correctly checked BOTH
+        # `is_reit_sector(sector) or is_reit_sector(industry)` — this call
+        # site just never got the same fix. `_fin_industry` (the curated
+        # UNIVERSE's real GICS sub-industry, e.g. "Retail REITs") is
+        # granular enough to catch what the coarse sector string can't.
+        #
         # REITs don't generate a normal operating-company FCF the way the
         # standard DCF below assumes — GAAP depreciation on real property is
         # a real economic distortion (buildings typically appreciate, not
@@ -1444,7 +1551,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             ),
         }
 
-    elif avg_fcf_margin and avg_fcf_margin > 0 and latest_rev and shares_out and price:
+    elif avg_fcf_margin and avg_fcf_margin > 0 and not _fcf_margin_unreliable_thin_mixed and latest_rev and shares_out and price:
         base_fcf = avg_fcf_margin * latest_rev
 
         # High-ROIC discount-rate floor — same fix already applied to the
@@ -2556,8 +2663,8 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     # populate it with — just enough structure for every downstream
     # `dcf.get(...)` call site (screener.py, undervalued_screener_service.py,
     # the frontend) to keep working unchanged.
-    if dcf is None and not is_reit_sector(sector) and not (
-        _is_financial_sector(sector) and not _is_asset_light_financial_industry(_fin_industry)
+    if dcf is None and not is_reit_sector(sector) and not is_reit_sector(_fin_industry) and not (
+        _is_financial_sector(sector) and not _is_asset_light_financial_industry(_fin_industry, total_debt=total_debt, book_equity=book_value_trend[-1] if book_value_trend else None)
     ):
         dcf = {
             "sector": sector, "current_price": price,
@@ -2572,6 +2679,68 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
             ),
         }
         _attach_gqv_fair_value(dcf)
+        # Dual-track fair value, Priority-3 fallback call site — same logic
+        # as the rich call site further below, but with fewer inputs
+        # available this early (no historical/peer P/E, no confidence_meter
+        # yet) since the legacy DCF never ran to compute them. This is
+        # exactly the case the recovery-DCF track was built for (a real
+        # capex-supercycle company like META, whose average FCF margin
+        # dips negative and skips the standard DCF entirely) — without this
+        # second call site, precisely the companies this feature targets
+        # would never get it. See the rich call site's own comment for the
+        # full rationale/plan reference.
+        try:
+            _gqv_fb = dcf.get("gqv_fair_value") or {}
+            _fair_pe_fb = _gqv_fb.get("fair_pe") or {}
+            _classification_fb = _gqv_fb.get("classification") or {}
+            _earnings_state_fb = _gqv_fb.get("earnings_state") or {}
+            _confidence_score_fb = _classification_fb.get("confidence")
+            _revenue_per_share_fb = (
+                round(revenue_trend[-1] / shares_out, 2)
+                if revenue_trend and revenue_trend[-1] and shares_out else None
+            )
+            _fcf_per_share_fb = (
+                round(fcf_trend[-1] / shares_out, 2)
+                if fcf_trend and fcf_trend[-1] and shares_out else None
+            )
+            # sbc_latest isn't computed yet this early in the pipeline (see
+            # the rich call site below, which runs after it) — owner-
+            # earnings SBC adjustment simply isn't available at this
+            # fallback site; compute_shadow_dual_track degrades gracefully
+            # (uses raw FCF/share) when sbc_per_share is None.
+            _sbc_per_share_fb = None
+            _growth_pct_fb = (
+                growth_engine_result.quality_adjusted_growth_pct * 100
+                if growth_engine_result and growth_engine_result.quality_adjusted_growth_pct is not None else None
+            )
+            from app.services.valuation.fair_value_engine import sector_base_multiple as _sector_base_multiple_fb
+            from app.services.valuation.shadow_dual_track_service import compute_shadow_dual_track as _compute_shadow_dual_track_fb
+
+            shadow_result_fb = _compute_shadow_dual_track_fb(
+                ticker, sector=sector, industry=_fin_industry,
+                fair_pe_base_multiple=_sector_base_multiple_fb(sector),
+                fair_pe_adjustments=_fair_pe_fb.get("adjustments"),
+                historical_median_pe=None, classification_confidence=_confidence_score_fb,
+                confidence_score=_confidence_score_fb,
+                wacc_pct=round(base_discount_rate * 100, 2) if base_discount_rate is not None else None,
+                revenue_per_share_today=_revenue_per_share_fb, fcf_per_share_today=_fcf_per_share_fb,
+                growth_pct=_growth_pct_fb, historical_normalized_eps=_earnings_state_fb.get("normalized_eps"),
+                fair_pe_band=tuple(_fair_pe_fb["band"]) if _fair_pe_fb.get("band") else None,
+                production_raw_eps=eps_trend[-1] if eps_trend else None, sbc_per_share=_sbc_per_share_fb,
+            )
+            dcf["gqv_fair_value"]["shadow_dual_track"] = shadow_result_fb
+            _blended_fb = (shadow_result_fb or {}).get("blended_fair_value")
+            _scenarios_fb = dcf["gqv_fair_value"].get("scenarios") or {}
+            _old_base_fb = (_scenarios_fb.get("base") or {}).get("fair_value_per_share")
+            if _blended_fb and _blended_fb > 0 and _old_base_fb and _old_base_fb > 0:
+                _ratio_fb = _blended_fb / _old_base_fb
+                _scenarios_fb["base"]["fair_value_per_share"] = round(_blended_fb, 2)
+                if _scenarios_fb.get("bear", {}).get("fair_value_per_share") is not None:
+                    _scenarios_fb["bear"]["fair_value_per_share"] = round(_scenarios_fb["bear"]["fair_value_per_share"] * _ratio_fb, 2)
+                if _scenarios_fb.get("bull", {}).get("fair_value_per_share") is not None:
+                    _scenarios_fb["bull"]["fair_value_per_share"] = round(_scenarios_fb["bull"]["fair_value_per_share"] * _ratio_fb, 2)
+        except Exception as e:
+            logger.info("get_fundamental_analysis(%s): shadow_dual_track (fallback site) not computable: %s", ticker, e)
 
     # business_quality_score/financial_strength_score (and their component
     # scores: roic_score, margin_score, net_margin_score, growth_score,
@@ -2769,6 +2938,65 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
                 "financial_statement_quality_score": financial_statement_quality_score,
                 "management_consistency_score": management_consistency_score,
             })
+
+        # Dual-track fair value (earnings track + FCF/DCF track, confidence-
+        # weighted blend) — see /Users/diegoarria/.claude/plans/dapper-
+        # scribbling-honey.md, Fase 4 (full replacement, 2026-09-03, Diego
+        # confirmed twice via AskUserQuestion). Reuses gqv_fair_value's own
+        # fair_pe adjustments/classification/confidence rather than
+        # recomputing them. Own try/except: a failure here must never cost
+        # the real gqv_fair_value/dcf already built above.
+        try:
+            _gqv = dcf.get("gqv_fair_value") or {}
+            _fair_pe = _gqv.get("fair_pe") or {}
+            _classification = _gqv.get("classification") or {}
+            _earnings_state = _gqv.get("earnings_state") or {}
+            _confidence_meter = dcf.get("confidence_meter") or {}
+            _revenue_per_share_today = (
+                round(revenue_trend[-1] / shares_out, 2)
+                if revenue_trend and revenue_trend[-1] and shares_out else None
+            )
+            _fcf_per_share_today = (
+                round(fcf_trend[-1] / shares_out, 2)
+                if fcf_trend and fcf_trend[-1] and shares_out else None
+            )
+            _sbc_per_share = round(sbc_latest / shares_out, 2) if sbc_latest and shares_out else None
+            _shadow_growth_pct = (
+                growth_engine_result.quality_adjusted_growth_pct * 100
+                if growth_engine_result and growth_engine_result.quality_adjusted_growth_pct is not None else None
+            )
+            from app.services.valuation.fair_value_engine import sector_base_multiple as _sector_base_multiple
+            from app.services.valuation.shadow_dual_track_service import compute_shadow_dual_track
+
+            shadow_result = compute_shadow_dual_track(
+                ticker, sector=sector, industry=_fin_industry,
+                fair_pe_base_multiple=_sector_base_multiple(sector),
+                fair_pe_adjustments=_fair_pe.get("adjustments"),
+                historical_median_pe=(historical_valuation or {}).get("historical_median_pe"),
+                classification_confidence=_classification.get("confidence"),
+                confidence_score=_confidence_meter.get("score"),
+                wacc_pct=round(base_discount_rate * 100, 2) if base_discount_rate is not None else None,
+                revenue_per_share_today=_revenue_per_share_today,
+                fcf_per_share_today=_fcf_per_share_today,
+                growth_pct=_shadow_growth_pct,
+                historical_normalized_eps=_earnings_state.get("normalized_eps"),
+                fair_pe_band=tuple(_fair_pe["band"]) if _fair_pe.get("band") else None,
+                production_raw_eps=eps_trend[-1] if eps_trend else None,
+                sbc_per_share=_sbc_per_share,
+            )
+            dcf["gqv_fair_value"]["shadow_dual_track"] = shadow_result
+            _blended = (shadow_result or {}).get("blended_fair_value")
+            _scenarios = dcf["gqv_fair_value"].get("scenarios") or {}
+            _old_base = ((_scenarios.get("base") or {}).get("fair_value_per_share"))
+            if _blended and _blended > 0 and _old_base and _old_base > 0:
+                _ratio = _blended / _old_base
+                _scenarios["base"]["fair_value_per_share"] = round(_blended, 2)
+                if _scenarios.get("bear", {}).get("fair_value_per_share") is not None:
+                    _scenarios["bear"]["fair_value_per_share"] = round(_scenarios["bear"]["fair_value_per_share"] * _ratio, 2)
+                if _scenarios.get("bull", {}).get("fair_value_per_share") is not None:
+                    _scenarios["bull"]["fair_value_per_share"] = round(_scenarios["bull"]["fair_value_per_share"] * _ratio, 2)
+        except Exception as e:
+            logger.info("get_fundamental_analysis(%s): shadow_dual_track not computable: %s", ticker, e)
 
         gb = dcf.get("growth_buildup") or {}
         qual_growth = gb.get("quality_adjusted_growth_pct")

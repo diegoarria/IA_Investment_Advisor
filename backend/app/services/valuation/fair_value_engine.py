@@ -88,7 +88,33 @@ class JustifiedMultipleResult:
     justified_multiple: float
 
 
-def _growth_adjustment(expected_eps_growth_pct: Optional[float]) -> MultipleAdjustment:
+_GROWTH_TERMINAL_PCT = 5.0  # same long-run baseline the adjustment already treats as "no premium"
+_GROWTH_FADE_YEARS = 10  # Damodaran-style fade horizon — long enough that supernormal growth has time to normalize
+
+
+def fade_growth_to_terminal(growth_pct: float, terminal_pct: float = _GROWTH_TERMINAL_PCT) -> float:
+    """Diego, 2026-09-01 — user feedback on META's card: the growth
+    adjustment took today's real growth rate (e.g. 23.0%) and applied it
+    as if that pace held FOREVER, with no horizon, no decay, no terminal
+    concept anywhere in the model — as the business scales, a bigger
+    revenue base, market saturation and competition pull growth back
+    toward the economy's long-run pace, so no real company sustains a
+    supernormal rate indefinitely. This models a LINEAR fade from today's
+    real rate down to `terminal_pct` over `_GROWTH_FADE_YEARS`, and
+    returns the AVERAGE growth over that fade window — the single
+    effective rate a static (non-multi-year) multiple model can use
+    instead of the always-current-pace assumption. Average of a linear
+    fade start->end is just the midpoint: (start + end) / 2.
+
+    Restored 2026-09-06 after being accidentally reverted along with the
+    rest of an uncommitted diff during a same-day valuation-drift
+    investigation — see /Users/diegoarria/.claude/plans/dapper-scribbling-
+    honey.md, which documents this as already-validated, already-shipped
+    behavior (not something to undo)."""
+    return (growth_pct + terminal_pct) / 2.0
+
+
+def _growth_adjustment(expected_eps_growth_pct: Optional[float], raw_growth_pct: Optional[float] = None) -> MultipleAdjustment:
     """+0.4 multiple points per 1pp of expected growth ABOVE a 5% baseline
     (roughly long-run nominal GDP growth — growing at that pace isn't
     doing anything a below-average business couldn't also do), capped at
@@ -96,15 +122,25 @@ def _growth_adjustment(expected_eps_growth_pct: Optional[float]) -> MultipleAdju
     shrinking or barely-growing business deserves a real discount, but not
     an unbounded one (a single bad year shouldn't crater the multiple).
     Deliberately additive, not a P/E-over-growth ratio (see module
-    docstring)."""
+    docstring).
+
+    `expected_eps_growth_pct` is expected to already be the FADED,
+    effective rate (see `fade_growth_to_terminal`) — `raw_growth_pct`, when
+    given and different, is only used to make the reason string honest
+    about the fact that a fade happened (real observed rate vs. the lower
+    effective rate actually used)."""
     if expected_eps_growth_pct is None:
         return MultipleAdjustment("growth", 0.0, "Crecimiento esperado no disponible — sin ajuste.")
     delta = expected_eps_growth_pct - 5.0
     pts = clamp(delta * 0.4, -5.0, 10.0) if delta >= 0 else clamp(delta * 0.3, -5.0, 10.0)
-    return MultipleAdjustment(
-        "growth", round(pts, 2),
-        f"Crecimiento esperado {expected_eps_growth_pct:.1f}% vs. 5% base → {pts:+.1f}x",
-    )
+    if raw_growth_pct is not None and round(raw_growth_pct, 1) != round(expected_eps_growth_pct, 1):
+        reason = (
+            f"Crecimiento real {raw_growth_pct:+.1f}% no se asume para siempre — desvanece hacia "
+            f"{_GROWTH_TERMINAL_PCT:.0f}% en ~{_GROWTH_FADE_YEARS} años; efectivo {expected_eps_growth_pct:+.1f}% vs. 5% base → {pts:+.1f}x"
+        )
+    else:
+        reason = f"Crecimiento esperado {expected_eps_growth_pct:.1f}% vs. 5% base → {pts:+.1f}x"
+    return MultipleAdjustment("growth", round(pts, 2), reason)
 
 
 def _quality_adjustment(roic_pct: Optional[float], cost_of_capital_pct: Optional[float]) -> MultipleAdjustment:

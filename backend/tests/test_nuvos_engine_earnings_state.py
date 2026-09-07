@@ -46,6 +46,100 @@ class TestCyclical:
         )
         assert result.state == EarningsState.NORMAL
 
+    def test_median_floored_at_half_the_average_when_dragged_down_by_a_real_trough(self):
+        """Diego, 2026-09-05 — real bug found auditing the full Energy
+        sector: FTI (TechnipFMC), a real oilfield-services cyclical, spent
+        several real years near-breakeven during the 2015-2020 industry
+        downturn — its historical median net margin (0.3%) collapsed
+        normalized EPS to near-zero ($0.07) even at a genuine, real
+        current-margin peak, producing an economically meaningless fair
+        value ($1.58 vs. a real $79.84 price). Mirrors this with a
+        synthetic margin history dominated by near-zero trough years plus
+        one real peak year: median alone would floor normalized EPS far
+        below half the real historical average — the floor must lift it."""
+        # 5 near-breakeven trough years + 1 real peak year. Median ~= 0.4%
+        # (far below the average ~2.6%); floor = 50% of the average (~1.3%)
+        # must win, pulling the anchor up from the unfloored median.
+        margins = [0.3, 0.4, 0.5, 0.3, 0.4, 14.0]
+        eps = [0.05, 0.07, 0.08, 0.05, 0.07, 2.0]
+        result = detect_earnings_state(
+            eps_trend=eps, net_margin_trend=margins, category=LynchCategory.CYCLICAL, latest_eps=eps[-1],
+        )
+        assert result.state == EarningsState.CYCLICAL_PEAK
+        import statistics
+        unfloored_median = statistics.median(margins)
+        avg_margin = statistics.mean(margins)
+        # Real revenue implied by the peak year, same formula the engine uses.
+        revenue_implied = eps[-1] / margins[-1]
+        unfloored_normalized = revenue_implied * unfloored_median
+        floored_normalized = revenue_implied * (avg_margin * 0.5)
+        assert result.normalized_eps > unfloored_normalized
+        assert abs(result.normalized_eps - round(floored_normalized, 2)) < 0.01
+
+    def test_no_floor_applied_when_average_margin_is_itself_negative(self):
+        """A business with a genuinely negative average margin over its
+        real history has no meaningful positive floor to lift toward —
+        the plain median still applies unmodified."""
+        import statistics
+        margins = [-5.0, -3.0, -1.0, 8.0]
+        eps = [-0.5, -0.3, -0.1, 1.0]
+        result = detect_earnings_state(
+            eps_trend=eps, net_margin_trend=margins, category=LynchCategory.CYCLICAL, latest_eps=eps[-1],
+        )
+        avg_margin = statistics.mean(margins)
+        assert avg_margin < 0
+        median_margin = statistics.median(margins)
+        revenue_implied = eps[-1] / margins[-1]
+        expected = round(revenue_implied * median_margin, 2)
+        assert result.normalized_eps == expected
+
+    def test_peak_with_real_structural_improvement_is_not_mean_reverted(self):
+        """Diego, 2026-09-05 — real gap found auditing the full Energy
+        sector: TRGP (Targa Resources) has real structural growth (LNG
+        export buildout, Permian gathering/processing volumes), not a
+        one-off commodity-price spike, but a Cyclical classification
+        always mean-reverted a percentile-extreme margin regardless of
+        real structural evidence — unlike the non-cyclical branches below,
+        which already check `_is_structural` first. Real, matching
+        evidence (ROIC, operating margin, net margin all improving,
+        nothing contradicting) must now produce STRUCTURALLY_ELEVATED
+        instead of CYCLICAL_PEAK, with normalized EPS recency-weighted
+        toward the recent years, not reverted to the historical median."""
+        det = compute_deterioration_signals(
+            roic_trend=[8, 9, 10, 12, 14, 17],
+            operating_margin_trend=[9, 10, 11, 13, 15, 18],
+            net_margin_trend=[5, 6, 7, 8, 9, 20],
+            fcf_margin_trend=[7, 8, 9, 10, 11, 14],
+            revenue_trend=[100, 108, 116, 126, 137, 150],
+        )
+        margins = [5, 6, 7, 8, 9, 20]
+        eps = [1.0, 1.2, 1.4, 1.6, 1.8, 4.0]
+        result = detect_earnings_state(
+            eps_trend=eps, net_margin_trend=margins, category=LynchCategory.CYCLICAL,
+            latest_eps=eps[-1], deterioration=det,
+        )
+        assert result.state == EarningsState.STRUCTURALLY_ELEVATED
+        assert result.structural_evidence_count == 3
+        # Recency-weighted toward real recent earnings power — meaningfully
+        # ABOVE what the old mean-reversion-to-mid-cycle-margin approach
+        # would have given (1.5: mid_cycle_margin 7.5% floored from a 9.2%
+        # average, times revenue implied by the peak year), but still a
+        # genuine blend, not full credit for the single latest year (4.0).
+        old_mean_reverted_value = 1.5
+        assert old_mean_reverted_value < result.normalized_eps < eps[-1]
+
+    def test_peak_without_structural_evidence_still_mean_reverts(self):
+        """Same percentile-extreme shape as above, but with NO real
+        deterioration signal supplied — must still fall through to the
+        original CYCLICAL_PEAK mean-reversion behavior, unchanged."""
+        margins = [5, 6, 7, 8, 9, 20]
+        eps = [1.0, 1.2, 1.4, 1.6, 1.8, 4.0]
+        result = detect_earnings_state(
+            eps_trend=eps, net_margin_trend=margins, category=LynchCategory.CYCLICAL, latest_eps=eps[-1],
+        )
+        assert result.state == EarningsState.CYCLICAL_PEAK
+        assert result.normalized_eps < eps[-1]
+
 
 class TestTurnaround:
     def test_negative_base_with_real_improvement_is_recovery_without_a_fabricated_number(self):

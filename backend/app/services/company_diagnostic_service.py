@@ -546,6 +546,78 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
     roic_adjusted_for_buybacks = bool(data.get("roic_adjusted_for_buybacks"))
 
     historical_median_pe = (dcf.get("historical_valuation") or {}).get("historical_median_pe")
+    _gqv = dcf.get("gqv_fair_value") or {}
+    _gqv_classification = _gqv.get("classification")
+    _gqv_fair_pe = _gqv.get("fair_pe")
+    _gqv_scenarios = _gqv.get("scenarios")
+    fair_pe_breakdown = None
+    if _gqv_fair_pe:
+        from app.services.valuation.fair_value_engine import sector_base_multiple
+        fair_pe_breakdown = {
+            "fair_pe": _gqv_fair_pe.get("fair_pe"),
+            "band": list(_gqv_fair_pe["band"]) if _gqv_fair_pe.get("band") else None,
+            "primary_anchor": _gqv_fair_pe.get("primary_anchor"),
+            # `base_multiple` isn't a tracked field on the live FairPEResult
+            # (unlike the shadow/exploration variant referenced in old
+            # comments) — recomputed here from the same real sector table
+            # rather than left permanently null, since the frontend always
+            # renders it as its own "Base P/E (sector)" row.
+            "base_multiple": round(sector_base_multiple(data.get("sector")), 2) if data.get("sector") else None,
+            "adjustments": _gqv_fair_pe.get("adjustments") or [],
+            "factors": _gqv_fair_pe.get("factors") or [],
+        }
+    scenario_breakdown = (
+        {
+            "bear": _gqv_scenarios.get("bear"),
+            "base": _gqv_scenarios.get("base"),
+            "bull": _gqv_scenarios.get("bull"),
+        }
+        if _gqv_scenarios else None
+    )
+    price_history_context = None
+    try:
+        from app.services.price_history_context_service import build_daily_ttm_records, compute_daily_price_history_context
+        _ttm_records = build_daily_ttm_records(ticker)
+        _phc = compute_daily_price_history_context(_ttm_records, scenarios.get("current_price"))
+        if _phc:
+            price_history_context = {
+                "percentileCheaperThan": _phc["percentile_cheaper_than"],
+                "daysUsed": _phc["days_used"],
+                "todayBucket": _phc["today_bucket"],
+                "buckets": {
+                    bucket_key: (
+                        {
+                            "daysCount": b["days_count"],
+                            "timesHigherLater": b["times_price_higher_1y_later"],
+                            "medianReturnPct": b["median_forward_return_pct"],
+                        } if b else None
+                    )
+                    for bucket_key, b in (_phc.get("buckets") or {}).items()
+                },
+            }
+    except Exception as e:
+        logger.warning("company_diagnostic(%s): price_history_context not computable: %s", ticker, e)
+
+    fair_value_chart = None
+    try:
+        from app.services.price_history_context_service import compute_fair_value_chart_series
+        _shadow = _gqv.get("shadow_dual_track") or {}
+        _blend = _shadow.get("blend") or {}
+        _fvc = compute_fair_value_chart_series(
+            _ttm_records, scenarios.get("base"),
+            earnings_track_multiple=_shadow.get("earnings_track_multiple"),
+            earnings_track_weight_pct=_blend.get("earnings_track_weight_pct"),
+            fcf_track_value=_shadow.get("fcf_track_value"),
+            fcf_track_weight_pct=_blend.get("fcf_track_weight_pct"),
+        )
+        if _fvc:
+            fair_value_chart = {
+                "points": _fvc["points"],
+                "effectiveMultiple": _fvc["effective_multiple"],
+                "currentTtmEps": _fvc["current_ttm_eps"],
+            }
+    except Exception as e:
+        logger.warning("company_diagnostic(%s): fair_value_chart not computable: %s", ticker, e)
     valuation = {
         "conservative": scenarios["bear"],
         "baseFairValue": scenarios["base"],
@@ -563,6 +635,16 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
         # alongside the raw GAAP peCurrent above rather than replacing it.
         "peForward": data.get("pe_ratio_forward"),
         "peNormalized": scenarios.get("pe_on_normalized_eps"),
+        "fairPeBreakdown": fair_pe_breakdown,
+        "classification": _gqv_classification,
+        "scenarioBreakdown": scenario_breakdown,
+        "priceHistoryContext": price_history_context,
+        "fairValueChart": fair_value_chart,
+        # Real Wall Street consensus (Finnhub /stock/price-target, already
+        # snake_case-normalized by fh_price_target) — powers the hero's
+        # scenario-aware "Wall Street" bar. Lost in the same revert that
+        # dropped classification/fairPeBreakdown/etc.; restored the same way.
+        "analystTarget": data.get("analyst_target"),
         # Internal (not part of the public CompanyDiagnosticData TS type,
         # never rendered directly) — lets the read-time live-price overlay
         # (screener.py's `_with_live_price_diagnostic`, methodology audit

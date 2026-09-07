@@ -14,7 +14,7 @@ backward compatibility. Also verifies the dashboard's `moat` sibling key
 pillar's cutover to the Management Engine (capital allocation + insider
 alignment blend + AI deep dive), are wired in. Mocks every network
 boundary (get_financials/fh_quote/fh_profile/check_liquidity_gate/get_beta/
-get_risk_free_rate/fh_price_target/get_revenue_segments — same as
+get_risk_free_rate/get_analyst_price_target/get_revenue_segments — same as
 test_valuation_engine_integration.py — plus insider data, industry
 benchmarks, capital allocation, and the 5 parallel AI/evidence calls this
 function makes) so the whole async orchestration actually runs, with zero
@@ -45,7 +45,7 @@ async def test_business_quality_pillar_uses_the_new_quality_engine_score():
          }), \
          patch("app.services.fundamental_analysis_service.get_beta", return_value=1.1), \
          patch("app.services.fundamental_analysis_service.get_risk_free_rate", return_value=0.04), \
-         patch("app.services.fundamental_analysis_service.fh_price_target", return_value=None), \
+         patch("app.services.fundamental_analysis_service.get_analyst_price_target", return_value=None), \
          patch("app.services.fundamental_analysis_service.get_revenue_segments", return_value=[]), \
          patch("app.services.nif_service.fh_insider_transactions", return_value=None), \
          patch("app.services.nif_service.fh_insider_sentiment", return_value=None), \
@@ -138,7 +138,7 @@ async def test_moat_deep_dive_is_included_when_available():
          }), \
          patch("app.services.fundamental_analysis_service.get_beta", return_value=1.1), \
          patch("app.services.fundamental_analysis_service.get_risk_free_rate", return_value=0.04), \
-         patch("app.services.fundamental_analysis_service.fh_price_target", return_value=None), \
+         patch("app.services.fundamental_analysis_service.get_analyst_price_target", return_value=None), \
          patch("app.services.fundamental_analysis_service.get_revenue_segments", return_value=[]), \
          patch("app.services.nif_service.fh_insider_transactions", return_value=None), \
          patch("app.services.nif_service.fh_insider_sentiment", return_value=None), \
@@ -173,7 +173,7 @@ async def test_management_deep_dive_is_included_when_available():
          }), \
          patch("app.services.fundamental_analysis_service.get_beta", return_value=1.1), \
          patch("app.services.fundamental_analysis_service.get_risk_free_rate", return_value=0.04), \
-         patch("app.services.fundamental_analysis_service.fh_price_target", return_value=None), \
+         patch("app.services.fundamental_analysis_service.get_analyst_price_target", return_value=None), \
          patch("app.services.fundamental_analysis_service.get_revenue_segments", return_value=[]), \
          patch("app.services.nif_service.fh_insider_transactions", return_value=None), \
          patch("app.services.nif_service.fh_insider_sentiment", return_value=None), \
@@ -207,7 +207,7 @@ async def test_catalysts_are_included_when_available():
          }), \
          patch("app.services.fundamental_analysis_service.get_beta", return_value=1.1), \
          patch("app.services.fundamental_analysis_service.get_risk_free_rate", return_value=0.04), \
-         patch("app.services.fundamental_analysis_service.fh_price_target", return_value=None), \
+         patch("app.services.fundamental_analysis_service.get_analyst_price_target", return_value=None), \
          patch("app.services.fundamental_analysis_service.get_revenue_segments", return_value=[]), \
          patch("app.services.nif_service.fh_insider_transactions", return_value=None), \
          patch("app.services.nif_service.fh_insider_sentiment", return_value=None), \

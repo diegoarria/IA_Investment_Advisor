@@ -67,7 +67,14 @@ from app.services.quality.quality_engine import compute_cagr_windows
 
 _PROJECTION_YEARS = 10
 _TERMINAL_GROWTH_CEILING = 0.04  # same long-run real-GDP-ish ceiling the previous model used
-_COST_OF_EQUITY_FLOOR = 0.07     # practitioner floor (Damodaran-style) — CAPM with a low beta understates a financial's real equity risk
+# Diego, 2026-09-04 — raised from 7.0% to 9.0%: a live review found the
+# real BRK.B implied terminal P/B came out to 2.93x vs. its real ~1.5-1.7x
+# trading range — BRK.B's own real CAPM cost of equity (~7.5%) sat just
+# above the old 7.0% floor, barely damping a low-beta financial's implied
+# terminal value the way the floor was meant to. 2-6pp still firmly rules
+# out BRK.B's original 8-10pp CAPM output as the real driver — the floor
+# needed to be high enough to actually bind for low-beta names like this.
+_COST_OF_EQUITY_FLOOR = 0.09     # practitioner floor (Damodaran-style) — CAPM with a low beta understates a financial's real equity risk
 _MIN_ROE_POINTS = 2              # a single data point isn't a trend
 _MIN_PEERS_FOR_BENCHMARK = 3
 
@@ -646,6 +653,32 @@ def build_financial_fair_value(
     # ── Sanity checks (P/B, P/E) — descriptive only, NEVER adjust the value ──
     current_pb = price / book_value_per_share if book_value_per_share else None
     implied_pb_base = base_scenario["assumptions"]["exit_multiple"]
+
+    # Diego, 2026-09-04 — real fix for BRK.B: the model's real ROE/cost-of-
+    # equity inputs implied a terminal P/B of 2.93x against BRK.B's own
+    # real ~1.5-1.7x trading range — a real, own-model-driven distortion
+    # (not a data error) that the `valuation_sanity_warning` text below
+    # only ever DESCRIBED, never corrected. Unlike that warning, this is a
+    # real adjustment: when the model's own implied P/B sits more than
+    # `_MAX_MODEL_TO_MARKET_PB_RATIO` away from how this business (and, by
+    # extension, its real comparables) actually trades, the exit multiple
+    # — and every scenario built from it — is pulled back toward a real,
+    # market-anchored floor rather than left at an economically
+    # implausible extreme. Rescales bear/base/bull by the SAME ratio
+    # (preserves their relative ordering/spread) rather than recomputing
+    # each scenario's full residual-income projection from scratch.
+    _MAX_MODEL_TO_MARKET_PB_RATIO = 1.5
+    pb_clamped_to_market = False
+    if implied_pb_base and current_pb and current_pb > 0 and implied_pb_base > 0:
+        _pb_ratio = implied_pb_base / current_pb
+        if _pb_ratio < 1 / _MAX_MODEL_TO_MARKET_PB_RATIO:
+            _floor_pb = current_pb / _MAX_MODEL_TO_MARKET_PB_RATIO
+            _pb_scale = _floor_pb / implied_pb_base
+            for _key in ("bear", "base", "bull"):
+                if scenarios[_key].get("fair_value_per_share") is not None:
+                    scenarios[_key]["fair_value_per_share"] = round(scenarios[_key]["fair_value_per_share"] * _pb_scale, 2)
+            pb_clamped_to_market = True
+
     valuation_sanity_warning = False
     comparable_pbs = [v for v in [current_pb, peer_benchmarks.median_pb if peer_benchmarks else None] if v]
     if implied_pb_base and comparable_pbs:
@@ -675,6 +708,12 @@ def build_financial_fair_value(
             "cotiza realmente esta empresa (y sus comparables) en el mercado — puede deberse a supuestos de "
             "crecimiento/costo de capital poco representativos para este negocio en particular. Tratá este "
             "valor intrínseco con más cautela de la habitual."
+        )
+    if pb_clamped_to_market:
+        _sector_note_detalle += (
+            " El múltiplo precio/valor en libros que este cálculo implicaba originalmente se alejaba demasiado "
+            "de cómo cotiza realmente esta empresa (y sus comparables) en el mercado, así que el valor razonable "
+            "de acá ya fue ajustado hacia ese múltiplo real — no es el resultado sin ajustar del modelo."
         )
     sector_model_note = {"sector_type": "financial", "detalle": _sector_note_detalle}
 
@@ -719,6 +758,7 @@ def build_financial_fair_value(
             implied_growth_pct = round(g_implied * 100, 1)
 
     nuvos_fair_value = {
+        "pb_clamped_to_market": pb_clamped_to_market,
         "scenarios": {
             "bear": {k: v for k, v in scenarios["bear"].items() if not k.startswith("_")},
             "base": {k: v for k, v in scenarios["base"].items() if not k.startswith("_")},

@@ -287,8 +287,35 @@ class TestBuildFinancialFairValueFullOutput:
         assert result["cost_of_equity_pct"] == pytest.approx(9.5, abs=0.01)
 
     def test_cost_of_equity_floor_applies_when_capm_is_unusually_low(self):
+        # Floor raised 7.0% -> 9.0% on 2026-09-04 — see _COST_OF_EQUITY_
+        # FLOOR's own comment (a live review found 7.0% barely damped
+        # low-beta financials like BRK.B, whose real CAPM output sits just
+        # above it).
         result = build_financial_fair_value(**self._base_kwargs(cost_of_equity_capm=0.03))
-        assert result["cost_of_equity_pct"] == pytest.approx(7.0, abs=0.01)
+        assert result["cost_of_equity_pct"] == pytest.approx(9.0, abs=0.01)
+
+    def test_pb_clamp_corrects_a_real_implausible_case(self):
+        """Diego, 2026-09-04 — real fix for BRK.B (implied terminal P/B
+        2.93x vs. its real ~1.5-1.7x trading range): the ZZZBANK fixture's
+        own default price ($45, current P/B ~5.3x) sits far above what the
+        model's real ROE/cost-of-equity inputs justify (exit_multiple
+        1.52x) — ratio 1.52/5.3 ~= 0.29, well under 1/_MAX_MODEL_TO_MARKET_
+        PB_RATIO (0.667) — so the clamp must fire: flag `pb_clamped_to_
+        market`, preserve bear<=base<=bull ordering, and disclose the
+        adjustment in the note. A materially closer price ($18, current
+        P/B ~2.1x, ratio ~0.72, inside the band) must NOT trigger it."""
+        clamped = build_financial_fair_value(**self._base_kwargs(price=45.0))
+        not_clamped = build_financial_fair_value(**self._base_kwargs(price=18.0))
+        assert clamped is not None and not_clamped is not None
+
+        nfv_c = clamped["nuvos_fair_value"]
+        assert nfv_c["pb_clamped_to_market"] is True
+        assert nfv_c["scenarios"]["bear"]["fair_value_per_share"] <= nfv_c["scenarios"]["base"]["fair_value_per_share"] <= nfv_c["scenarios"]["bull"]["fair_value_per_share"]
+        assert "ajustado" in clamped["sector_model_note"]["detalle"]
+
+        nfv_nc = not_clamped["nuvos_fair_value"]
+        assert nfv_nc["pb_clamped_to_market"] is False
+        assert "ajustado" not in not_clamped["sector_model_note"]["detalle"]
 
     def test_margin_of_safety_and_scenarios_are_finite(self):
         result = build_financial_fair_value(**self._base_kwargs())

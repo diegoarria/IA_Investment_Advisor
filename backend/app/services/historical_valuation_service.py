@@ -21,7 +21,7 @@ from __future__ import annotations
 import statistics
 from typing import Optional
 
-from app.services.valuation.numeric_helpers import calc_margin_of_safety
+from app.services.valuation.numeric_helpers import calc_margin_of_safety, weighted_mean
 
 _MIN_HISTORICAL_YEARS = 5  # never build a "10-year distribution" claim off fewer real data points
 
@@ -113,7 +113,18 @@ def compute_historical_valuation(
     return {
         "methodology": "historical_valuation",
         "years_used": real_years_used,
-        "historical_median_pe": round(statistics.median(pe_hist), 1) if pe_hist else None,
+        # Diego, 2026-09-05 — real bug found auditing Materials (LIN): a
+        # flat median treats a business's oldest and most recent real P/E
+        # years as equally representative of "what the market pays for
+        # this business today" — but a real, durable re-rating (a wide-
+        # moat business the market has grown to pay more for over time)
+        # gets diluted by stale old-regime years that no longer reflect
+        # today's real multiple. Recency-weighted (oldest=1..newest=N,
+        # same linear-ramp technique as earnings_state.py's own recency
+        # weighting) rather than a flat median.
+        "historical_median_pe": (
+            round(weighted_mean([(v, i + 1) for i, v in enumerate(pe_hist)]), 1) if pe_hist else None
+        ),
         "historical_median_ev_ebitda": round(statistics.median(ev_ebitda_hist), 1) if ev_ebitda_hist else None,
         "historical_median_p_fcf": round(statistics.median(p_fcf_hist), 1) if p_fcf_hist else None,
         "historical_median_fcf_yield_pct": round(statistics.median(fcf_yield_hist), 1) if fcf_yield_hist else None,

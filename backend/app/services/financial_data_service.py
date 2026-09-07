@@ -132,8 +132,20 @@ _fx_failed: dict[str, float] = {}   # from_currency → failure timestamp
 _FX_FAILURE_TTL = 300
 
 
-def _usd_rate(currency: str) -> float:
-    """Return multiplier to convert `currency` → USD.  Returns 1.0 on failure."""
+def _usd_rate(currency: str) -> Optional[float]:
+    """Return multiplier to convert `currency` → USD, or None on a real
+    failure.
+
+    Diego, 2026-09-06 — real bug found auditing Healthcare (BABA, right
+    after the NVO EPS-currency fix below): returning 1.0 on a transient FX
+    lookup failure (confirmed live: Yahoo's "CNYUSD=X" pair failing) is
+    indistinguishable from a genuine 1:1 rate, so a foreign-currency
+    reporter's entire income statement silently stayed on its native
+    scale while the real market price stayed in USD — the exact same
+    class of bug as the EPS one below, just triggered by an outage
+    instead of a missing conversion call. None here forces every caller
+    (`_conv`) to propagate the missing value rather than fabricate a
+    wrong-scale number."""
     c = (currency or "USD").upper()
     if c in ("USD", "USX", ""):
         return 1.0
@@ -143,7 +155,7 @@ def _usd_rate(currency: str) -> float:
             return _fx[c]
         failed_at = _fx_failed.get(c)
         if failed_at is not None and time.time() - failed_at < _FX_FAILURE_TTL:
-            return 1.0
+            return None
 
     try:
         import yfinance as yf
@@ -160,7 +172,7 @@ def _usd_rate(currency: str) -> float:
         pass
     with _fx_mu:
         _fx_failed[c] = time.time()
-    return 1.0
+    return None
 
 
 def _conv(value, currency: str) -> Optional[float]:
@@ -168,6 +180,8 @@ def _conv(value, currency: str) -> Optional[float]:
     if v is None:
         return None
     r = _usd_rate(currency)
+    if r is None:
+        return None
     return round(v * r, 2)
 
 
@@ -363,8 +377,8 @@ class FMPProvider(FinancialProvider):
                 operating_income=n(r.get("operatingIncome")),
                 ebitda=n(r.get("ebitda")),
                 net_income=n(r.get("netIncome")),
-                diluted_eps=_num(r.get("epsDiluted") or r.get("epsdiluted")),
-                basic_eps=_num(r.get("eps")),
+                diluted_eps=n(r.get("epsDiluted") or r.get("epsdiluted")),
+                basic_eps=n(r.get("eps")),
                 gross_margin=pct_field(r.get("grossProfitRatio")),
                 operating_margin=pct_field(r.get("operatingIncomeRatio")),
                 net_margin=pct_field(r.get("netIncomeRatio")),
@@ -1173,3 +1187,280 @@ def invalidate_cache(symbol: str, limit: int = 5) -> None:
     """Force a fresh fetch on the next request for this ticker."""
     from app.core.cache import cache_delete
     cache_delete(f"fin_v3:{symbol.upper()}:{limit}")
+
+
+def get_quarterly_income_detail(symbol: str, limit: int = 8) -> list[dict]:
+    """Real quarterly income-statement rows for `earnings_normalization_
+    engine.normalized_ttm_eps` — a direct FMP fetch (not routed through
+    `FMPProvider`, whose `_MAX_LIMIT=5` plan cap would silently starve
+    the 8-quarter minimum this needs) since this only needs 5 real raw
+    fields, not the full computed-metrics shape `get_financials` builds.
+    Oldest-first (matches every other trend array in this codebase).
+    Returns [] if FMP isn't configured or the request fails — callers
+    already treat too-few-rows as "can't normalize," never a fabricated
+    result."""
+    if not FMP_KEY:
+        return []
+    cache_key = f"fmp_qtr_income_detail:{symbol.upper()}:{limit}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        r = requests.get(
+            f"{FMP_BASE}/income-statement",
+            params={"apikey": FMP_KEY, "symbol": symbol, "period": "quarter", "limit": limit},
+            headers=_REQ_HEADERS,
+            timeout=14,
+        )
+        raw = r.json()
+        if not isinstance(raw, list):
+            return []
+        rows = []
+        for row in raw:
+            cur = row.get("reportedCurrency", "USD")
+            operating_income = _conv(row.get("operatingIncome"), cur)
+            net_income = _conv(row.get("netIncome"), cur)
+            income_before_tax = _conv(row.get("incomeBeforeTax"), cur)
+            other_income = (
+                round(income_before_tax - operating_income, 2)
+                if income_before_tax is not None and operating_income is not None else None
+            )
+            rows.append({
+                "date": (row.get("date") or row.get("fillingDate") or "")[:10],
+                "revenue": _conv(row.get("revenue"), cur),
+                "operating_income": operating_income,
+                "other_income": other_income,
+                "tax_expense": _conv(row.get("incomeTaxExpense"), cur),
+                "net_income": net_income,
+                "diluted_shares": _num(row.get("weightedAverageShsOutDil")),
+                "eps_diluted": _num(row.get("epsDiluted") or row.get("epsdiluted")),
+            })
+        rows = [r for r in rows if r["date"]][::-1]  # FMP returns newest-first
+        cache_set(cache_key, rows, ttl=24 * 3600)
+        return rows
+    except Exception as exc:
+        logger.debug("FMP quarterly income detail request failed for %s: %s", symbol, exc)
+        return []
+
+
+def get_annual_cashflow_detail(symbol: str, limit: int = 8) -> list[dict]:
+    """Real annual cash-flow rows for `earnings_normalization_engine.
+    capex_supercycle_state` — same direct-fetch rationale as
+    `get_quarterly_income_detail` above (needs more real years than
+    `FMPProvider`'s 5-year plan cap allows). Oldest-first. Returns [] if
+    FMP isn't configured or the request fails."""
+    if not FMP_KEY:
+        return []
+    cache_key = f"fmp_annual_cf_detail:{symbol.upper()}:{limit}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        r = requests.get(
+            f"{FMP_BASE}/cash-flow-statement",
+            params={"apikey": FMP_KEY, "symbol": symbol, "period": "annual", "limit": limit},
+            headers=_REQ_HEADERS,
+            timeout=14,
+        )
+        raw = r.json()
+        if not isinstance(raw, list):
+            return []
+        rows = []
+        for row in raw:
+            cur = row.get("reportedCurrency", "USD")
+            rows.append({
+                "date": (row.get("date") or row.get("fillingDate") or "")[:10],
+                "revenue": None,  # filled in below from the income statement (cash-flow rows don't carry revenue)
+                "operating_cash_flow": _conv(row.get("operatingCashFlow") or row.get("netCashProvidedByOperatingActivities"), cur),
+                "capex": _conv(row.get("capitalExpenditure"), cur),
+            })
+        rows = [r for r in rows if r["date"]][::-1]  # FMP returns newest-first
+
+        # Cash-flow statement rows don't carry revenue — pull it from the
+        # annual income statement (same provider, same periods) and merge
+        # by date rather than adding a second required-field source the
+        # caller has to fetch itself.
+        income_rows = get_income_statement_annual(symbol, limit=limit)
+        revenue_by_date = {r["date"]: r.get("revenue") for r in income_rows}
+        for row in rows:
+            row["revenue"] = revenue_by_date.get(row["date"])
+        rows = [r for r in rows if r["revenue"]]
+
+        cache_set(cache_key, rows, ttl=24 * 3600)
+        return rows
+    except Exception as exc:
+        logger.debug("FMP annual cashflow detail request failed for %s: %s", symbol, exc)
+        return []
+
+
+def get_company_profile_fmp(symbol: str) -> dict:
+    """Real company name/sector/exchange/shares-outstanding fallback (FMP's
+    `/profile`) — an independent second source for the same fields
+    `fh_profile` (Finnhub) normally supplies, used when Finnhub's profile
+    endpoint has no data for a given ticker at all (confirmed live for
+    META, WMT, CPRT during a Finnhub outage/rate-limit window — company
+    name/sector/exchange all silently fell back to just the raw ticker
+    and "N/D"). Field names deliberately mirror Finnhub's own profile
+    shape (`name`, `finnhubIndustry`, `exchange`, `shareOutstanding`,
+    `marketCapitalization`) so callers can merge the two without a
+    separate mapping layer. Returns {} if FMP isn't configured or the
+    request fails — never fabricates a name/sector."""
+    if not FMP_KEY:
+        return {}
+    try:
+        r = requests.get(
+            f"{FMP_BASE}/profile",
+            params={"apikey": FMP_KEY, "symbol": symbol},
+            headers=_REQ_HEADERS,
+            timeout=14,
+        )
+        data = r.json()
+        if isinstance(data, list) and data:
+            d = data[0]
+            return {
+                "name": d.get("companyName"),
+                "finnhubIndustry": d.get("sector"),
+                "exchange": d.get("exchangeFullName") or d.get("exchange"),
+                "shareOutstanding": (_num(d.get("sharesOutstanding")) or 0) / 1_000_000 or None,
+                "marketCapitalization": (_num(d.get("marketCap")) or 0) / 1_000_000 or None,
+            }
+    except Exception as exc:
+        logger.debug("FMP profile fallback request failed for %s: %s", symbol, exc)
+    return {}
+
+
+def get_analyst_price_target_fmp(symbol: str) -> dict | None:
+    """Real analyst consensus price target fallback (FMP's `/price-target-
+    consensus`) — Diego, 2026-09-07: Finnhub's `/stock/price-target`
+    (the primary source, `fh_price_target` in app.core.finnhub) confirmed
+    live to return a real 403 "You don't have access to this resource"
+    for this Finnhub plan, not a transient failure — every ticker was
+    silently losing its analystTarget field with no way to tell a real
+    outage from a permanent plan limitation. Same real shape as
+    `fh_price_target` (target_high/target_low/target_mean/target_median)
+    so callers don't need a second code path. Returns None if FMP isn't
+    configured, the request fails, or this ticker has no real consensus."""
+    if not FMP_KEY:
+        return None
+    try:
+        r = requests.get(
+            f"{FMP_BASE}/price-target-consensus",
+            params={"apikey": FMP_KEY, "symbol": symbol},
+            headers=_REQ_HEADERS,
+            timeout=14,
+        )
+        data = r.json()
+        if isinstance(data, list) and data:
+            d = data[0]
+            target_mean = _num(d.get("targetConsensus"))
+            if target_mean is None:
+                return None
+            return {
+                "target_high": _num(d.get("targetHigh")),
+                "target_low": _num(d.get("targetLow")),
+                "target_mean": target_mean,
+                "target_median": _num(d.get("targetMedian")),
+            }
+    except Exception as exc:
+        logger.debug("FMP price-target-consensus request failed for %s: %s", symbol, exc)
+    return None
+
+
+def get_quarterly_eps_history(symbol: str, limit: int = 40) -> list[dict]:
+    """Real quarterly EPS + filing-date history for `price_history_
+    context_service.build_daily_ttm_records` — the real TTM-EPS backbone
+    behind the price-vs-fair-value chart and P/E percentile panel.
+    `filing_date` (not `date`, the fiscal period-end) is the date the
+    market actually saw this number — a real step function, not a smooth
+    estimate. Returns [] if FMP isn't configured or the request fails.
+    Oldest-first."""
+    if not FMP_KEY:
+        return []
+    cache_key = f"fmp_qtr_eps_history:{symbol.upper()}:{limit}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        r = requests.get(
+            f"{FMP_BASE}/income-statement",
+            params={"apikey": FMP_KEY, "symbol": symbol, "period": "quarter", "limit": limit},
+            headers=_REQ_HEADERS,
+            timeout=14,
+        )
+        raw = r.json()
+        if not isinstance(raw, list):
+            return []
+        rows = [
+            {
+                "date": (row.get("date") or "")[:10],
+                "filing_date": (row.get("fillingDate") or row.get("date") or "")[:10],
+                "eps": _num(row.get("epsDiluted") or row.get("epsdiluted")),
+            }
+            for row in raw
+        ]
+        rows = [r for r in rows if r["date"] and r["filing_date"] and r["eps"] is not None][::-1]  # FMP returns newest-first
+        cache_set(cache_key, rows, ttl=24 * 3600)
+        return rows
+    except Exception as exc:
+        logger.debug("FMP quarterly EPS history request failed for %s: %s", symbol, exc)
+        return []
+
+
+def get_daily_price_history(symbol: str, start_date: str, end_date: str) -> list[dict]:
+    """Real daily closing prices over [start_date, end_date] — same FMP
+    endpoint as `get_historical_prices_near_dates` (a single real range
+    fetch, not one call per day), but returns the full real daily series
+    instead of collapsing it to a handful of nearest-date lookups.
+    Ascending by date. Returns [] if FMP isn't configured or the request
+    fails."""
+    if not FMP_KEY or not start_date or not end_date:
+        return []
+    cache_key = f"fmp_daily_price_history:{symbol.upper()}:{start_date}:{end_date}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        r = requests.get(
+            f"{FMP_BASE}/historical-price-eod/light",
+            params={"apikey": FMP_KEY, "symbol": symbol, "from": start_date, "to": end_date},
+            headers=_REQ_HEADERS,
+            timeout=20,
+        )
+        raw = r.json()
+        if not isinstance(raw, list):
+            return []
+        rows = sorted(
+            ({"date": row.get("date"), "price": _num(row.get("price"))} for row in raw if row.get("date")),
+            key=lambda r: r["date"],
+        )
+        cache_set(cache_key, rows, ttl=6 * 3600)  # today's row still moves intraday, unlike the 30-day TTL above
+        return rows
+    except Exception as exc:
+        logger.debug("FMP daily price history request failed for %s: %s", symbol, exc)
+        return []
+
+
+def get_income_statement_annual(symbol: str, limit: int = 8) -> list[dict]:
+    """Real annual revenue-only rows (helper for `get_annual_cashflow_
+    detail` above) — a direct fetch for the same reason: more real years
+    than `FMPProvider`'s 5-year plan cap. Returns [] if FMP isn't
+    configured or the request fails."""
+    if not FMP_KEY:
+        return []
+    try:
+        r = requests.get(
+            f"{FMP_BASE}/income-statement",
+            params={"apikey": FMP_KEY, "symbol": symbol, "period": "annual", "limit": limit},
+            headers=_REQ_HEADERS,
+            timeout=14,
+        )
+        raw = r.json()
+        if not isinstance(raw, list):
+            return []
+        return [
+            {"date": (row.get("date") or row.get("fillingDate") or "")[:10], "revenue": _conv(row.get("revenue"), row.get("reportedCurrency", "USD"))}
+            for row in raw
+        ]
+    except Exception as exc:
+        logger.debug("FMP annual income (revenue-only) request failed for %s: %s", symbol, exc)
+        return []

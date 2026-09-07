@@ -118,6 +118,25 @@ def classify_business(
     # depressed/negative base — never inferred from a single good quarter.
     depressed_base = latest_eps is not None and latest_eps <= 0
     recovering = deterioration.has_any_signal and deterioration.improving_count > deterioration.deteriorating_count
+
+    # Priority 2 audit, 2026-09-06 — a negative GAAP EPS driven entirely by
+    # a BELOW-the-line, one-time item (goodwill impairment, litigation,
+    # debt extinguishment) is a very different situation from a business
+    # whose real operations are actually eroding, but `latest_eps <= 0`
+    # alone can't tell them apart. Confirmed live for CROX: net margin
+    # collapsed from +23.2% to -2.0% (a real HEYDUDE-goodwill-style
+    # one-time charge) while operating margin barely moved (24.9% ->
+    # 22.0%) — the core business stayed healthy the whole time, yet the
+    # old logic force-classified it Turnaround/Structurally Impaired,
+    # discarding 4 real years of $8.71-$15.88 EPS entirely (status=
+    # insufficient_data, no Fair Value shown at all). Operating margin is
+    # a cleaner corroborating signal than net margin here precisely
+    # because it sits ABOVE most one-time/non-operating charges. Ford, by
+    # contrast, shows real multi-year operating-margin decay (3.69% ->
+    # 1.35%) alongside its negative EPS — correctly stays Turnaround.
+    _op_margin_factor = next((f for f in deterioration.factors if f.name == "operating_margin"), None)
+    operating_margin_holding_up = _op_margin_factor is not None and _op_margin_factor.direction in ("mejorando", "estable")
+
     if depressed_base and recovering:
         factors.append(f"EPS actual no positivo ({latest_eps}) con {deterioration.improving_count} factor(es) mejorando vs. {deterioration.deteriorating_count} deteriorando.")
         return ClassificationResult(
@@ -126,7 +145,7 @@ def classify_business(
             reason="Ganancias deprimidas o negativas con evidencia real de mejora reciente — clasificado como Turnaround.",
             factors=factors,
         )
-    if depressed_base and not recovering:
+    if depressed_base and not recovering and not operating_margin_holding_up:
         factors.append(f"EPS actual no positivo ({latest_eps}) sin evidencia clara de recuperación.")
         return ClassificationResult(
             category=LynchCategory.TURNAROUND, confidence=25.0,
@@ -134,6 +153,20 @@ def classify_business(
             reason="Ganancias deprimidas o negativas sin evidencia de recuperación — clasificado como Turnaround de baja confianza (candidato a Insufficient Data en la valuación).",
             factors=factors,
         )
+    if depressed_base and not recovering and operating_margin_holding_up:
+        factors.append(
+            f"EPS actual no positivo ({latest_eps}), pero el margen operativo no muestra deterioro real "
+            f"({_op_margin_factor.reason}) — probable cargo puntual por debajo de la línea operativa, no se "
+            "fuerza Turnaround."
+        )
+        # Deliberately falls through to the normal classification steps
+        # below (Cyclical/Stalwart/Fast Grower/etc.) instead of returning
+        # here — `earnings_state.py`'s own non-cyclical branch already
+        # handles "one bad year against a healthy multi-year baseline"
+        # correctly (falls back to the real historical average when
+        # there's no structural deterioration evidence), so no new
+        # normalization logic is needed, just not short-circuiting into
+        # Turnaround before that branch ever runs.
 
     # 3. Cyclical: high earnings volatility AND a sector known to be
     # structurally lumpy — either signal alone is not enough (a volatile

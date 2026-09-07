@@ -100,7 +100,7 @@ def _patch_boundary(sector: str, price: float = 100.0, shares_out_millions: floa
         }),
         patch("app.services.fundamental_analysis_service.get_beta", return_value=1.1),
         patch("app.services.fundamental_analysis_service.get_risk_free_rate", return_value=0.04),
-        patch("app.services.fundamental_analysis_service.fh_price_target", return_value=None),
+        patch("app.services.fundamental_analysis_service.get_analyst_price_target", return_value=None),
         patch("app.services.fundamental_analysis_service.get_revenue_segments", return_value=[]),
     ]
 
@@ -137,6 +137,32 @@ class TestDriverBasedValuationWiring:
 
         prompt_text = format_fundamental_analysis_for_prompt(result)
         assert "FFO/AFFO" in prompt_text
+
+    def test_reit_excluded_via_curated_industry_even_when_finnhub_sector_is_generic(self):
+        """Diego, 2026-09-04 — real, severe bug found auditing the full
+        Real Estate universe (59 real tickers): Finnhub's real `sector`
+        value for the WHOLE REIT asset class is just the coarse "Real
+        Estate" (no "reit" substring anywhere) — `is_reit_sector(sector)`
+        alone NEVER fired for a single real REIT, so every one of them
+        silently fell through to the standard FCF-DCF (which the REIT
+        branch exists specifically to prevent), producing absurd margins
+        (DLR -859.6%, KRC -660.7%, EQIX -443.3%) with zero disclosure.
+        `shadow_dual_track_service.py` already correctly checked BOTH
+        `is_reit_sector(sector) or is_reit_sector(industry)`; this call
+        site just never got the same fix.
+
+        Real, unmocked ticker "O" (Realty Income) exercises the actual
+        fix: `_patch_boundary(sector="Real Estate")` reproduces Finnhub's
+        real broken sector string, and the curated UNIVERSE's real
+        industry for O ("Retail REITs") is what must now catch it."""
+        patches = _patch_boundary(sector="Real Estate")
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
+            result = get_fundamental_analysis("O")
+
+        assert result is not None
+        assert result["dcf"] is None
+        assert result["sector_model_note"] is not None
+        assert result["sector_model_note"]["sector_type"] == "reit"
 
     def test_financial_sector_uses_residual_income_and_has_no_note(self):
         # Financial Sector Fair Value Engine redesign — Residual Income /
@@ -182,6 +208,112 @@ class TestDriverBasedValuationWiring:
         assert "driver_based_valuation" in result["dcf"]
         assert result["dcf"]["nuvos_fair_value"] is not None
         assert not result["dcf"]["nuvos_fair_value"].get("is_financial_sector")
+
+    def test_legacy_dcf_declines_a_thin_margin_built_from_a_mixed_loss_profit_regime(self):
+        """Diego, 2026-09-06 — real bug found auditing the full
+        Communication Services sector: TTWO (Take-Two, mid-2022 Zynga
+        mega-acquisition) had 3 real years of substantial FCF-margin
+        losses sandwiched between a mild first year and a strong most-
+        recent year, recency-weighted down to a barely-positive 0.39%
+        average — which the legacy DCF's old `> 0` gate accepted at face
+        value and projected 10 years forward, producing a near-worthless
+        $0.94/share fair value against a real $214.69 price (a -22,739%
+        "margin of safety"). Reproduces the same real shape (positive net
+        income/EPS every year, so GQV's OWN gates stay unaffected — this
+        test isolates the LEGACY DCF branch's own confidence gate): the
+        legacy `dcf["scenarios"]` must now decline (stay None) rather
+        than build a full 10-year projection off an unreliable, mixed-
+        regime thin margin."""
+        revenue_0 = 5_000_000_000.0
+        growth = 0.10
+        # Real margins recency-weighted to ~0.4% (mirrors TTWO exactly):
+        # mild profit, then 3 real loss years, then a strong recovery.
+        fcf_margins = [0.0284, -0.038, -0.0295, -0.0381, 0.0693]
+        income, balance, cashflow = [], [], []
+        for i, margin in enumerate(fcf_margins):
+            period = f"{2021 + i}-12-31"
+            revenue = revenue_0 * ((1 + growth) ** i)
+            operating_income = revenue * 0.15
+            net_income = operating_income * 0.75  # stays real and positive every year
+            shares = 100_000_000
+            # D&A set equal to capex so maintenance_capex = min(capex, da) ==
+            # capex exactly (split_maintenance_growth_capex's own formula) —
+            # otherwise fcf_normalized_trend (maintenance-capex-only) would
+            # NOT equal the intended raw `margin` targets below.
+            da = revenue * 0.08
+            fcf_target = revenue * margin
+            # ocf - abs(capex) = fcf_target, holding capex at a fixed 8% of revenue
+            capex = -(revenue * 0.08)
+            ocf = fcf_target + abs(capex)
+            income.append({
+                "period": period, "Total Revenue": revenue, "Gross Profit": revenue * 0.55,
+                "Operating Income": operating_income, "Net Income": net_income,
+                "Diluted EPS": net_income / shares, "Pretax Income": operating_income,
+                "Tax Provision": 0.0, "Interest Expense": revenue * 0.01,
+            })
+            balance.append({
+                "Stockholders Equity": revenue * 0.6, "Total Assets": revenue * 1.8,
+                "Long Term Debt": revenue * 0.1, "Short Term Debt": revenue * 0.01,
+                "Cash And Short Term Investments": revenue * 0.15, "Working Capital": revenue * 0.10,
+            })
+            cashflow.append({
+                "Operating Cash Flow": ocf, "Capital Expenditure": capex,
+                "Depreciation And Amortization": da, "Dividends Paid": 0.0,
+            })
+        financials = {
+            "incomeStatement": {"annual": income}, "balanceSheet": {"annual": balance},
+            "cashFlow": {"annual": cashflow}, "provider": "synthetic-test",
+        }
+
+        with patch("app.services.fundamental_analysis_service.get_financials", return_value=financials), \
+             patch("app.services.fundamental_analysis_service.fh_quote", return_value={"price": 214.69}), \
+             patch("app.services.fundamental_analysis_service.fh_profile", return_value={
+                 "finnhubIndustry": "Communication Services", "shareOutstanding": 100.0,
+             }), \
+             patch("app.services.fundamental_analysis_service.check_liquidity_gate", return_value={
+                 "paso": True, "avg_volume_30d": 1_000_000, "free_float_pct": 80.0, "analyst_coverage": 10, "detalle": "OK",
+             }), \
+             patch("app.services.fundamental_analysis_service.get_beta", return_value=1.1), \
+             patch("app.services.fundamental_analysis_service.get_risk_free_rate", return_value=0.04), \
+             patch("app.services.fundamental_analysis_service.get_analyst_price_target", return_value=None), \
+             patch("app.services.fundamental_analysis_service.get_revenue_segments", return_value=[]):
+            result = get_fundamental_analysis("SYNMIXED")
+
+        assert result is not None
+        # The legacy FCF-fade DCF must decline this unreliable, mixed-
+        # regime thin margin rather than fabricate a near-worthless value.
+        assert result["dcf"] is None or (result["dcf"] or {}).get("scenarios") is None
+
+    def test_low_leverage_investment_bank_carved_out_like_asset_light(self):
+        """Diego, 2026-09-04 — real gap found auditing the full financial-
+        sector universe: "Investment Banking & Brokerage" groups real
+        balance-sheet dealers (Goldman Sachs, real leverage ~4.9x) with
+        pure advisory boutiques (Evercore/Houlihan Lokey, real leverage
+        <0.3x, HLI literally $0 debt) whose value comes from advisory fees,
+        not book-value compounding. `_is_asset_light_financial_industry`
+        now also carves out low-leverage names in this specific industry —
+        confirmed directly (not mocking the whole pipeline, since this is
+        pure function logic): a company with near-zero real debt in this
+        industry is NOT financial_sector-routed, while a heavily-levered
+        one (or the SAME company with high debt) still is."""
+        from app.services.fundamental_analysis_service import _is_asset_light_financial_industry
+
+        industry = "Investment Banking & Brokerage"
+        # HLI-like: $0 real debt against real book equity -> carved out.
+        assert _is_asset_light_financial_industry(industry, total_debt=0.0, book_equity=2_300_000_000.0) is True
+        # EVR-like: real but thin leverage (~0.29x) -> still carved out.
+        assert _is_asset_light_financial_industry(industry, total_debt=588_000_000.0, book_equity=2_031_000_000.0) is True
+        # GS-like: real, heavy leverage (~4.9x) -> stays in the Residual Income model.
+        assert _is_asset_light_financial_industry(industry, total_debt=607_000_000_000.0, book_equity=125_000_000_000.0) is False
+        # No leverage data available at all -> falls back to the prior, safer default (stays in RI).
+        assert _is_asset_light_financial_industry(industry, total_debt=None, book_equity=None) is False
+        # A DIFFERENT financial industry (e.g. Diversified Banks) never gets
+        # the leverage carve-out, even with near-zero debt — this is scoped
+        # specifically to "Investment Banking & Brokerage" boutiques.
+        assert _is_asset_light_financial_industry("Diversified Banks", total_debt=0.0, book_equity=1_000_000.0) is False
+        # Existing keyword-based carve-outs (payment processing, asset
+        # management, etc.) are untouched by the new leverage branch.
+        assert _is_asset_light_financial_industry("Transaction & Payment Processing Services") is True
 
 
 class TestPeerDependentDataWiring:

@@ -147,6 +147,44 @@ class TestComputeHistoricalValuation:
         # median P/E (20x) * latest_eps (5.0) = 100
         assert result["implied_values_by_multiple"]["pe"] == pytest.approx(100.0, abs=0.5)
 
+    def test_historical_pe_is_recency_weighted_not_a_flat_median(self):
+        """Diego, 2026-09-05 — real bug found auditing the full Energy
+        sector: a flat median over the whole real history let a
+        well-documented multi-year sector bust (oil & gas, 2014-2020)
+        permanently drag down "historical_own_pe" for companies whose
+        CURRENT earnings/multiple are perfectly normal (confirmed live for
+        XOM). Fixed by recency-weighting the historical P/E (and EV/EBITDA/
+        P-FCF) the same way `avg_fcf_margin`/ROE already are elsewhere in
+        this codebase (`recency_weighted_average`, oldest=weight 1..newest=
+        weight N) — a real crisis-era year still counts, just less than a
+        recent, more representative one.
+
+        4 old "depressed" years (real P/E 10x) + 2 recent "healthy" years
+        (real P/E 30x). A flat median would land at 10x (4 of 6 points);
+        recency weighting must land meaningfully ABOVE that, close to the
+        hand-computed weighted average."""
+        periods = [f"202{i}" for i in range(6)]
+        income = [_income_row(p, 2.0, 100.0, 50.0) for p in periods]
+        balance = [_balance_row(cash=10.0) for _ in periods]
+        cashflow = [_cashflow_row(60.0, -10.0) for _ in periods]
+        # EPS is a constant 2.0 -> price alone controls each year's real P/E.
+        prices_by_date = {periods[i]: (20.0 if i < 4 else 60.0) for i in range(6)}  # P/E 10x (old) / 30x (recent)
+
+        with patch(
+            "app.services.financial_data_service.get_historical_prices_near_dates",
+            return_value=prices_by_date,
+        ):
+            result = compute_historical_valuation(
+                "ZZZ", income, balance, cashflow, price=100.0, shares_out=10.0,
+                total_debt=0, cash=0, latest_eps=5.0, latest_ebitda=200.0, latest_fcf=150.0,
+            )
+        assert result is not None
+        flat_median = 10.0
+        # weights 1..6 (oldest..newest): (1+2+3+4)*10 + (5+6)*30 = 100 + 330 = 430; /21
+        expected_weighted = 430 / 21
+        assert result["historical_median_pe"] > flat_median + 2.0
+        assert result["historical_median_pe"] == pytest.approx(expected_weighted, abs=0.15)
+
     def test_returns_none_when_no_price_history_available(self):
         periods = [f"202{i}" for i in range(6)]
         income = [_income_row(p, 2.0, 100.0, 50.0) for p in periods]

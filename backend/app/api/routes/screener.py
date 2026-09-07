@@ -1366,11 +1366,21 @@ def _match_universe(query: str) -> str | None:
 def _resolve_quick_ticker(query: str) -> str | None:
     """Resolves free-text (a ticker or a company name) to a real ticker
     symbol for the quick-analysis search below."""
-    universe_match = _match_universe(query)
+    # Dual-class tickers (BRK.B, BF.B, ...) are stored/served everywhere
+    # downstream (UNIVERSE, FMP, get_fundamental_analysis) with a hyphen
+    # (BRK-B), never a dot — a user typing the dot form (how it's commonly
+    # written/quoted) was matching neither UNIVERSE nor the literal-ticker
+    # trust path below under its real spelling, so it fell through to
+    # external search or 404'd downstream as the literal, wrong "BRK.B".
+    # Same single-letter-class-suffix rule _yf_symbol already applies for
+    # Yahoo Finance lookups (see market.py), applied here before matching.
+    import re as _re
+    stripped = _re.sub(r'\.([A-Za-z])$', r'-\1', query.strip())
+
+    universe_match = _match_universe(stripped)
     if universe_match:
         return universe_match
 
-    stripped = query.strip()
     candidate = stripped.upper()
     looks_like_ticker = candidate.replace(".", "").replace("-", "").isalpha() and 1 <= len(candidate) <= 6
 

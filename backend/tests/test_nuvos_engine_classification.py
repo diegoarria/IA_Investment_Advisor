@@ -50,6 +50,43 @@ class TestTurnaround:
         assert result.category == LynchCategory.TURNAROUND
         assert result.confidence <= 30.0
 
+    def test_negative_eps_from_a_one_time_charge_with_healthy_operating_margin_is_not_turnaround(self):
+        # CROX-shaped, 2026-09-06 audit: net margin collapses from a real
+        # below-the-line charge (goodwill impairment) while operating
+        # margin barely moves — the business itself never deteriorated.
+        det = compute_deterioration_signals(
+            roic_trend=[20, 19, 21, 18, 19],
+            operating_margin_trend=[25, 24, 26, 23, 22],   # "estable"
+            net_margin_trend=[23, 20, 22, 24, -2],          # "deteriorando"
+            fcf_margin_trend=[15, 14, 16, 15, 14],
+            revenue_trend=[100, 110, 120, 125, 123],
+        )
+        result = classify_business(
+            revenue_cagr_3y_pct=8.0, eps_trend=[11.39, 8.71, 12.79, 15.88, -1.5],
+            deterioration=det, sector_category="Consumer Discretionary",
+            roic_avg_pct=19.4, industry_median_roic_pct=12.0,
+            is_financial_sector=False, latest_eps=-1.5,
+        )
+        assert result.category != LynchCategory.TURNAROUND
+
+    def test_negative_eps_with_real_operating_margin_decay_stays_turnaround(self):
+        # Ford-shaped: operating margin genuinely erodes over 5 years
+        # alongside the negative EPS — the old behavior is still correct.
+        det = compute_deterioration_signals(
+            roic_trend=[8, 7, 6, 5, 3],
+            operating_margin_trend=[3.69, 4.05, 3.05, 2.75, 1.35],  # "deteriorando"
+            net_margin_trend=[13.16, -1.25, 2.47, 3.18, -4.37],
+            fcf_margin_trend=[4, 3, 2, 1.5, 0.5],
+            revenue_trend=[136341, 158057, 176191, 184992, 187267],
+        )
+        result = classify_business(
+            revenue_cagr_3y_pct=6.0, eps_trend=[4.45, -0.49, 1.08, 1.46, -2.06],
+            deterioration=det, sector_category="Consumer Discretionary",
+            roic_avg_pct=5.8, industry_median_roic_pct=10.0,
+            is_financial_sector=False, latest_eps=-2.06,
+        )
+        assert result.category == LynchCategory.TURNAROUND
+
 
 class TestCyclical:
     def test_volatile_eps_in_cyclical_sector_is_cyclical(self):

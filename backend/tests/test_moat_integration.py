@@ -29,7 +29,7 @@ def test_moat_score_wiring_extracts_real_fields():
          }), \
          patch("app.services.fundamental_analysis_service.get_beta", return_value=1.1), \
          patch("app.services.fundamental_analysis_service.get_risk_free_rate", return_value=0.04), \
-         patch("app.services.fundamental_analysis_service.fh_price_target", return_value=None), \
+         patch("app.services.fundamental_analysis_service.get_analyst_price_target", return_value=None), \
          patch("app.services.fundamental_analysis_service.get_revenue_segments", return_value=[]):
         data = get_fundamental_analysis("SYNM1")
 

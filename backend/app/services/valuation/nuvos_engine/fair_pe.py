@@ -39,6 +39,7 @@ from app.services.valuation.fair_value_engine import (
     _leverage_adjustment,
     _dividend_adjustment,
     _moat_management_adjustment,
+    fade_growth_to_terminal,
     MultipleAdjustment,
 )
 from app.services.valuation.nuvos_engine.classification import LynchCategory
@@ -63,13 +64,37 @@ from app.services.valuation.nuvos_engine.growth_evidence import GrowthEvidenceRe
 # doesn't remove the cyclical discount, it corrects its magnitude for one
 # sub-industry the bucket was miscalibrated for. Flagged the same "honest
 # v1, not backtested per sub-industry" way as the rest of this table.
+#
+# ASSET_PLAY's ceiling widened 15.0 -> 20.0 — Diego, 2026-09-05, auditing
+# the full Energy sector: confirmed live for XOM (real peer P/E 18.9x,
+# low-confidence Asset Play classification, 40%) the 15.0x ceiling clamped
+# the blended fair P/E even AFTER fixing the historical-anchor recency-
+# weighting bug (historical_valuation_service.py), silently discarding
+# real peer-market evidence the anchor blend had already earned. 20.0x
+# still keeps Asset Play well below Stalwart/Cyclical's own ceilings —
+# this is a low-confidence category by design (its own classification
+# reason text says "requires additional asset-value review"), it just no
+# longer clips a real, evidence-backed peer multiple for no reason.
+#
+# SLOW_GROWER's ceiling widened 20.0 -> 26.0 — Diego, 2026-09-05, auditing
+# the full Materials sector: confirmed live for LIN (Linde), a real wide-
+# moat industrial-gases oligopoly the market has durably paid a premium
+# multiple for — both the growth-based multiple (20.85x) AND its own real
+# historical P/E (32.9x) exceeded the old 20.0x ceiling, which clamped
+# fair_pe down AND (see the band-degeneracy fix below) collapsed the
+# displayed band to a single point. "Slow Grower" measures REVENUE growth
+# rate, not business quality — Lynch's own framework already treats a
+# low-growth-but-wonderful-moat business as a real, distinct case (close
+# to a Stalwart in quality even if its growth rate technically scores
+# lower) — 26.0x gives that real case room without reaching Stalwart's
+# own 30.0x ceiling.
 _CATEGORY_BOUNDS: dict[LynchCategory, tuple[float, float]] = {
     LynchCategory.FAST_GROWER: (10.0, 45.0),
     LynchCategory.STALWART: (8.0, 30.0),
     LynchCategory.CYCLICAL: (5.0, 26.0),
-    LynchCategory.SLOW_GROWER: (6.0, 20.0),
+    LynchCategory.SLOW_GROWER: (6.0, 26.0),
     LynchCategory.TURNAROUND: (5.0, 20.0),
-    LynchCategory.ASSET_PLAY: (5.0, 15.0),
+    LynchCategory.ASSET_PLAY: (5.0, 20.0),
 }
 _DEFAULT_BOUNDS = (5.0, 60.0)
 
@@ -182,9 +207,15 @@ def compute_fair_pe(
     else:
         discounted_growth = _growth_input_for_adjustment(expected_eps_growth_pct, growth_quality)
 
+    # Fade discount (user feedback, 2026-09-01): today's real growth rate
+    # isn't assumed to hold forever — see fade_growth_to_terminal's
+    # docstring. `_growth_adjustment` gets the faded/effective rate but
+    # still reports the real observed one in its reason string.
+    faded_growth = fade_growth_to_terminal(discounted_growth) if discounted_growth is not None else None
+
     base = sector_base_multiple(sector)
     adjustments = [
-        _growth_adjustment(discounted_growth),
+        _growth_adjustment(faded_growth, raw_growth_pct=discounted_growth),
         _quality_adjustment(roic_pct, cost_of_capital_pct),
         _fcf_margin_adjustment(fcf_margin_pct),
         _leverage_adjustment(net_debt_to_ebitda, interest_coverage),
@@ -211,9 +242,25 @@ def compute_fair_pe(
     lo, hi = _CATEGORY_BOUNDS.get(category, _DEFAULT_BOUNDS)
     fair_pe = clamp(round(blended, 2), lo, hi)
 
+    # Diego, 2026-09-05 — real bug found auditing the full Materials
+    # sector: clamping each raw anchor to [lo, hi] independently can
+    # collapse the band to a single degenerate point — confirmed live for
+    # LIN, whose real anchors (20.85x, 32.9x) BOTH exceed the category
+    # ceiling, so both clamped to the same `hi` and the displayed band
+    # became (20.0, 20.0), showing zero uncertainty where real spread
+    # exists. Falls back to the same ±15%-around-fair_pe band the single-
+    # anchor case already uses whenever clamping would otherwise erase
+    # the real spread between anchors.
     band_values = list(present.values())
-    band_lo = clamp(round(min(band_values), 2), lo, hi) if len(band_values) > 1 else clamp(round(fair_pe * 0.85, 2), lo, hi)
-    band_hi = clamp(round(max(band_values), 2), lo, hi) if len(band_values) > 1 else clamp(round(fair_pe * 1.15, 2), lo, hi)
+    if len(band_values) > 1:
+        band_lo = clamp(round(min(band_values), 2), lo, hi)
+        band_hi = clamp(round(max(band_values), 2), lo, hi)
+        if band_lo >= band_hi:
+            band_lo = clamp(round(fair_pe * 0.85, 2), lo, hi)
+            band_hi = clamp(round(fair_pe * 1.15, 2), lo, hi)
+    else:
+        band_lo = clamp(round(fair_pe * 0.85, 2), lo, hi)
+        band_hi = clamp(round(fair_pe * 1.15, 2), lo, hi)
     if band_lo > band_hi:
         band_lo, band_hi = band_hi, band_lo
 
