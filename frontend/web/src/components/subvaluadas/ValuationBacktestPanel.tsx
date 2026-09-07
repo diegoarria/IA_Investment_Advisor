@@ -127,7 +127,7 @@ export function ValuationBacktestPanel() {
   );
 
   return (
-    <div className="mt-8">
+    <div className="mt-8" id="valuation-backtest-panel">
       <div
         className="rounded-2xl border overflow-hidden"
         style={{ borderColor: "rgba(255,255,255,0.08)", background: "linear-gradient(160deg, #0A0F1A 0%, #0D1420 55%, #10241F 100%)" }}

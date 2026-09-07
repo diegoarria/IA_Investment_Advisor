@@ -33,13 +33,13 @@ export function CompanyDiagnosticSimplicityPillar({
     >
       {noiseVsReality && (
         <div className="space-y-3">
-          <div className="rounded-xl p-4" style={{ background: "#ef44441a", border: "1px solid #ef4444" }}>
+          <div className="rounded-xl p-4" style={{ background: "#ef44441a", border: "1px solid #ef4444", boxShadow: "0 8px 22px rgba(239,68,68,0.1)" }}>
             <p className="text-[13px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "#ef4444" }}>
               🔴 {t("companyDiagnostic.pillars.simplicity.marketSaw")}
             </p>
             <p className="text-[14px] leading-relaxed" style={{ color: "var(--text)" }}>{noiseVsReality.marketSaw}</p>
           </div>
-          <div className="rounded-xl p-4" style={{ background: "#22c55e1a", border: "1px solid #22c55e" }}>
+          <div className="rounded-xl p-4" style={{ background: "#22c55e1a", border: "1px solid #22c55e", boxShadow: "0 8px 22px rgba(34,197,94,0.1)" }}>
             <p className="text-[13px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "#22c55e" }}>
               🟢 {t("companyDiagnostic.pillars.simplicity.nuvosReality")}
             </p>
@@ -53,7 +53,7 @@ export function CompanyDiagnosticSimplicityPillar({
           <p className="text-[13px] font-bold uppercase tracking-wide mb-2.5" style={{ color: "var(--muted)" }}>
             {t("companyDiagnostic.pillars.simplicity.actionPlanTitle")}
           </p>
-          <div className="rounded-xl p-4" style={{ background: "var(--raised)" }}>
+          <div className="rounded-xl p-4" style={{ background: "var(--card-2, var(--raised))", border: "1px solid var(--border-s, var(--border))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 22px rgba(0,0,0,0.3)" }}>
             <p className="text-[12px]" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.pillars.simplicity.profile")}</p>
             <p className="text-[15px] font-bold mb-2.5" style={{ color: "var(--text)" }}>{actionPlan.profile}</p>
             <p className="text-[12px]" style={{ color: "var(--muted)" }}>{t("companyDiagnostic.pillars.simplicity.strategy")}</p>

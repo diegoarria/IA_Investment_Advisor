@@ -1484,6 +1484,50 @@
       "marginOfSafety": {
         "title": "Margen de Seguridad",
         "body": "Qué tan por debajo del valor intrínseco estimado cotiza el precio actual, expresado en porcentaje. Un margen de seguridad amplio actúa como colchón ante errores en las proyecciones — comprar con margen es la esencia de la inversión en valor."
+      },
+      "beta": {
+        "title": "Beta",
+        "body": "Mide qué tanto se mueve el precio de esta acción comparado con el mercado en general. Beta de 1 = se mueve igual que el mercado; menos de 1 = más tranquila; más de 1 = más volátil, para bien y para mal."
+      },
+      "riskFree": {
+        "title": "Tasa libre de riesgo",
+        "body": "El retorno que podrías obtener casi sin riesgo, invirtiendo en bonos del gobierno de EE.UU. a 10 años. Es el punto de partida: cualquier inversión más riesgosa que esto debería exigir un retorno mayor."
+      },
+      "erp": {
+        "title": "Prima de riesgo del mercado",
+        "body": "El retorno extra que históricamente exige el mercado de acciones por encima de la tasa libre de riesgo, como compensación por el riesgo de invertir en empresas en vez de bonos del gobierno."
+      },
+      "costOfEquity": {
+        "title": "Costo de capital propio",
+        "body": "El retorno anual mínimo que un accionista exigiría para invertir en esta empresa en particular, considerando su volatilidad real (Beta). Cuanto más volátil es la acción, más alto es este número."
+      },
+      "costOfDebt": {
+        "title": "Costo de deuda",
+        "body": "La tasa de interés real que le cuesta a la empresa pedir dinero prestado, después del ahorro fiscal de pagar intereses. Una empresa financieramente sólida suele conseguir deuda más barata."
+      },
+      "adjGrowth": {
+        "title": "Crecimiento",
+        "body": "Si esta empresa crece más rápido que el promedio, se justifica pagar un múltiplo más alto por sus ganancias — y viceversa si crece más lento. El crecimiento de hoy no se asume para siempre: se desvanece gradualmente hacia un ritmo típico de largo plazo."
+      },
+      "adjQuality": {
+        "title": "Calidad (ROIC)",
+        "body": "Mide si el negocio gana más de lo que le cuesta financiarse (ROIC vs. costo de capital). Cuanto mayor esa diferencia, más múltiplo se justifica — es la señal más directa de una ventaja competitiva real."
+      },
+      "adjFcfMargin": {
+        "title": "Margen de flujo de caja",
+        "body": "Qué porcentaje de cada dólar de ventas se convierte en efectivo real. Un margen más alto que el típico de su sector suma múltiplo; uno más bajo lo resta."
+      },
+      "adjLeverage": {
+        "title": "Apalancamiento",
+        "body": "Cuánta deuda tiene la empresa relativa a su capacidad de pagarla. Una empresa muy endeudada es más riesgosa y merece un múltiplo menor; una con deuda sana no recibe penalización."
+      },
+      "adjDividend": {
+        "title": "Dividendo",
+        "body": "Si la empresa reparte dividendos reales a sus accionistas, eso suma un poco de múltiplo — es una devolución de efectivo tangible, no solo una promesa de crecimiento futuro."
+      },
+      "adjMoatManagement": {
+        "title": "Moat y gestión",
+        "body": "Qué tan defendible es su ventaja competitiva (moat) y qué tan bien administra la empresa su capital (recompras, decisiones de inversión). Mejor en ambos, mayor múltiplo justificado."
       }
     },
     "methodology": {
@@ -1501,6 +1545,18 @@
       "title": "Tesis Final",
       "subtitle": "El resumen de inversión de Nuvos AI en una sola idea"
     },
+    "shadowDualTrack": {
+      "title": "Cómo se combina",
+      "subtitle": "El flujo de caja de hoy no se capitaliza como si fuera para siempre — se proyecta una recuperación real hacia un margen normalizado, y se combina con el track de ganancias ponderado por qué tan confiable es cada uno. Este es el desglose del valor razonable que ya viste arriba.",
+      "notApplicable": "No se pudo calcular el valor razonable de esta empresa con este método — el de arriba usa el método anterior (solo P/E).",
+      "earningsTrack": "Por ganancias",
+      "fcfTrack": "Por flujo de caja",
+      "blended": "Combinado",
+      "weight": "{{pct}}% del peso",
+      "seeNotes": "Ver notas de esta estimación",
+      "stepLabel": "Segundo track: recuperación real del flujo de caja",
+      "normalizedMargin": "Margen de FCF normalizado"
+    },
     "badgesTitle": "Lo Destacado",
     "hero": {
       "sentencePrefix": "El valor razonable de {{company}} ({{ticker}}) en el escenario base es {{fairValue}}. Comparado con el precio actual de {{price}}, la acción parece",
@@ -1516,16 +1572,38 @@
         "peer_pe": "P/E de comparables"
       },
       "analystTarget": "Objetivo de Wall Street",
-      "backtestLink": "¿Nuestras valoraciones funcionan? Ver backtest"
+      "backtestLink": "¿Nuestras valoraciones funcionan? Ver backtest",
+      "sentence": "A {{price}}, Nuvos estima que {{ticker}} vale alrededor de {{fairValue}} —",
+      "disclaimer": "Esto es un análisis y una proyección, no una señal de compra o venta.",
+      "qualityOvervaluedNote": "{{ticker}} es un negocio excelente ({{score}}/100 en calidad) — hoy simplemente no es el mejor precio de entrada. Las mejores empresas del mundo rara vez cotizan \"baratas\": eso no las convierte en malas empresas, solo dice algo sobre el momento de comprar.",
+      "fairValueBar": "Valor razonable",
+      "priceTodayBar": "Precio hoy",
+      "wallStreetBar": "Wall Street",
+      "scenario": {
+        "bear": "Bajista",
+        "base": "Base",
+        "bull": "Alcista"
+      },
+      "scenarioHint": "Tocá un escenario para ver cómo cambia el veredicto",
+      "whyTitle": "¿Por qué llegamos a este número?",
+      "whySummary": "Se combinan dos tracks reales: uno por ganancias — según el tipo de negocio ({{classification}}), su tasa de descuento real y un múltiplo P/E justificado por crecimiento y calidad — y otro por flujo de caja, ponderados según qué tan confiable es cada uno.",
+      "whySummarySingleTrack": "Se combina el tipo de negocio — {{classification}} — con su tasa de descuento real y un múltiplo P/E justificado por crecimiento y calidad, nunca un múltiplo genérico de sector.",
+      "whySummaryFallback": "sin clasificación suficiente",
+      "whyShow": "Ver el razonamiento completo",
+      "whyHide": "Ocultar",
+      "whyFullDetail": "Ver el detalle completo paso a paso"
     },
     "discountRate": {
       "step": "Tasa de descuento (WACC)",
+      "explainer": "Cuánto retorno anual exigimos para justificar invertir en esta empresa en vez de en algo más seguro — a mayor riesgo, mayor exigencia. Este número descuenta cada dólar futuro a lo que vale hoy.",
       "beta": "Beta",
       "riskFree": "tasa libre de riesgo",
       "erp": "prima de riesgo del mercado",
       "costOfEquity": "Costo de capital propio",
       "costOfDebt": "Costo de deuda",
       "weights": "Ponderación",
+      "equityLabel": "Capital propio {{pct}}%",
+      "debtLabel": "Deuda {{pct}}%",
       "finalWacc": "WACC final",
       "fallbackNote": "No se pudo calcular con CAPM real (falta beta o tasa libre de riesgo en vivo) — se usó una tasa de referencia del sector."
     },
@@ -1538,11 +1616,14 @@
     },
     "fairPeBreakdown": {
       "toggle": "Ver cómo se calculó el P/E justo",
+      "explainer": "El P/E justo es cuántas veces la ganancia anual creemos que vale esta empresa. Partimos de un múltiplo típico para su sector y lo ajustamos hacia arriba o abajo según qué tan bien crece, qué tan rentable es y qué tan sólida es frente a sus pares.",
       "baseMultiple": "P/E base del sector",
       "finalPe": "P/E justo final",
       "band": "rango",
       "anchorsTitle": "Combinado con evidencia real de mercado:",
-      "weight": "peso"
+      "weight": "peso",
+      "baseLabel": "base",
+      "adjustmentsLabel": "Crecimiento, ROIC, margen, dividendo, moat y gestión →"
     },
     "tabs": {
       "valuation": "Valuación",
@@ -1552,7 +1633,11 @@
       "history": "Historial",
       "peers": "pares",
       "sectorMedian": "Mediana sector",
-      "noComparables": "No hay suficientes pares reales para comparar este ticker."
+      "noComparables": "No hay suficientes pares reales para comparar este ticker.",
+      "whyGroupLabel": "¿Por qué este número?",
+      "pillarsGroupLabel": "Los 4 pilares de calidad",
+      "comparablesExplainer": "Comparamos los números reales de esta empresa contra otras similares — así se ve si es mejor, peor o está en línea con su industria.",
+      "historyExplainer": "Miramos el precio real de los últimos años contra lo que creíamos que valía en cada momento, para ver si comprar cuando está \"barata\" según este modelo realmente funcionó."
     },
     "priceHistory": {
       "headline": {
@@ -1575,12 +1660,22 @@
       "timesHigher": "{{n}} de {{total}} veces el precio fue más alto 1 año después",
       "typicalReturn": "Retorno típico a 1 año",
       "insufficientData": "Muy pocos días reales en esta banda para sacar una conclusión.",
-      "disclaimer": "Basado en {{days}} días de mercado reales (P/E diario real, EPS TTM trimestral real) — resultados históricos, no una predicción."
+      "disclaimer": "Basado en {{days}} días de mercado reales (P/E diario real, EPS TTM trimestral real) — resultados históricos, no una predicción.",
+      "chartTitle": "Precio real vs. valor razonable — últimos ~5 años",
+      "legendPrice": "Precio real",
+      "legendFairValue": "Valor razonable",
+      "hoverUndervalued": "infravalorada",
+      "hoverOvervalued": "sobrevalorada",
+      "hoverPrice": "precio",
+      "hoverFairValue": "valor razonable",
+      "chartDisclaimer": "El valor razonable (línea punteada) sí se mueve con el tiempo — sube y baja con la ganancia real que tenía {{ticker}} en cada momento, no queda fijo. Como el modelo completo (los dos tracks, WACC, ajustes) no se puede recalcular día a día porque esos datos no están historizados, esta línea reconstruye cada día con el mismo peso que hoy: el track de ganancias real ({{multiple}}x sobre la ganancia TTM de cada día) más el track de flujo de caja sostenido en su valor de hoy — calibrado para que el punto de \"Hoy\" coincida exactamente con el Nuvos Fair Value combinado ({{fairValue}}) que ya viste arriba."
     },
     "classification": {
       "step": "Clasificación según Peter Lynch",
+      "explainer": "Cada tipo de negocio se valora distinto — una empresa que crece rápido no se analiza igual que una madura y estable. Este es el primer paso: identificar qué tipo de empresa es esta, para usar la metodología correcta.",
       "confidence": "Confianza",
       "fairValueFormula": "Cálculo del valor razonable",
+      "fairValueFormulaNote": "Este es solo el resultado del track de ganancias — el valor combinado que se ve arriba en \"¿Por qué llegamos a este número?\" lo pondera, según confianza, con el track de flujo de caja del paso 5.",
       "category": {
         "fast_grower": "Fast Grower (crecimiento acelerado)",
         "stalwart": "Stalwart (empresa madura y estable)",
@@ -1593,10 +1688,12 @@
       }
     },
     "scenarios": {
+      "explainer": "Ningún cálculo es exacto, así que mostramos 3 versiones: una pesimista, una realista y una optimista. Ninguna es más probable que otra — son un rango razonable, no una predicción.",
       "noProbabilityNote": "Este rango se basa en el EPS estimado (bajo/base/alto) y la banda real de P/E justo — no es una predicción de probabilidades."
     },
     "sensitivity": {
-      "subtitle": "Cómo cambia el valor razonable según el EPS y el múltiplo P/E que se use — mismos números ya mostrados en Valuación y Escenarios."
+      "title": "Track de ganancias solo: sensibilidad a EPS y múltiplo",
+      "subtitle": "Sin el track de flujo de caja — para ver qué tan sensible es el número de ganancias a cada supuesto por separado."
     },
     "selfCheckQuiz": {
       "title": "Ponte a prueba",

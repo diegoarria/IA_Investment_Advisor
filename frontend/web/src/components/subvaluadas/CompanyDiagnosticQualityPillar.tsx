@@ -15,7 +15,7 @@ import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 
 function SubCard({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl p-4" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+    <div className="rounded-2xl p-4" style={{ background: "var(--card-2, var(--raised))", border: "1px solid var(--border-s, var(--border))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 22px rgba(0,0,0,0.3)" }}>
       <div className="flex items-center gap-2.5 mb-3.5">
         {icon}
         <p className="text-[15px] font-bold" style={{ color: "var(--text)" }}>{title}</p>

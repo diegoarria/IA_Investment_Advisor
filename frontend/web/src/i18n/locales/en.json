@@ -1484,6 +1484,50 @@
       "marginOfSafety": {
         "title": "Margin of Safety",
         "body": "How far below the estimated intrinsic value the current price trades, as a percentage. A wide margin of safety acts as a cushion against forecasting errors — buying with a margin is the essence of value investing."
+      },
+      "beta": {
+        "title": "Beta",
+        "body": "How much this stock's price moves compared to the overall market. Beta of 1 = moves with the market; below 1 = calmer; above 1 = more volatile, for better and worse."
+      },
+      "riskFree": {
+        "title": "Risk-free rate",
+        "body": "The return you could get with almost no risk, investing in 10-year U.S. government bonds. It's the starting point: any riskier investment than this should demand a higher return."
+      },
+      "erp": {
+        "title": "Equity risk premium",
+        "body": "The extra return the stock market has historically demanded above the risk-free rate, as compensation for the risk of investing in companies instead of government bonds."
+      },
+      "costOfEquity": {
+        "title": "Cost of equity",
+        "body": "The minimum annual return a shareholder would require to invest in this specific company, given its real volatility (Beta). The more volatile the stock, the higher this number."
+      },
+      "costOfDebt": {
+        "title": "Cost of debt",
+        "body": "The real interest rate it costs the company to borrow money, after the tax savings from paying interest. A financially solid company usually gets cheaper debt."
+      },
+      "adjGrowth": {
+        "title": "Growth",
+        "body": "If this company grows faster than average, a higher multiple on its earnings is justified — and vice versa if it grows slower. Today's growth rate isn't assumed forever: it gradually fades toward a typical long-run pace."
+      },
+      "adjQuality": {
+        "title": "Quality (ROIC)",
+        "body": "Measures whether the business earns more than it costs to finance itself (ROIC vs. cost of capital). The bigger that gap, the more multiple is justified — it's the most direct signal of a real competitive advantage."
+      },
+      "adjFcfMargin": {
+        "title": "Cash flow margin",
+        "body": "What percentage of each sales dollar turns into real cash. A margin higher than typical for its sector adds to the multiple; a lower one subtracts from it."
+      },
+      "adjLeverage": {
+        "title": "Leverage",
+        "body": "How much debt the company carries relative to its ability to pay it off. A heavily indebted company is riskier and deserves a lower multiple; one with healthy debt gets no penalty."
+      },
+      "adjDividend": {
+        "title": "Dividend",
+        "body": "If the company pays out real dividends to shareholders, that adds a bit to the multiple — it's a tangible cash return, not just a promise of future growth."
+      },
+      "adjMoatManagement": {
+        "title": "Moat & management",
+        "body": "How defensible its competitive advantage (moat) is, and how well the company manages its capital (buybacks, investment decisions). Better on both, higher justified multiple."
       }
     },
     "methodology": {
@@ -1501,6 +1545,18 @@
       "title": "Final Thesis",
       "subtitle": "The Nuvos AI investment case in one summary"
     },
+    "shadowDualTrack": {
+      "title": "How it's combined",
+      "subtitle": "Today's cash flow isn't capitalized as if it were permanent — it's projected as a real recovery toward a normalized margin, and blended with the earnings track weighted by how reliable each one is. This is the breakdown of the fair value you already saw above.",
+      "notApplicable": "This company's fair value couldn't be computed with this method — the one above uses the previous (P/E-only) method.",
+      "earningsTrack": "By earnings",
+      "fcfTrack": "By cash flow",
+      "blended": "Blended",
+      "weight": "{{pct}}% weight",
+      "seeNotes": "See notes for this estimate",
+      "stepLabel": "Second track: real cash-flow recovery",
+      "normalizedMargin": "Normalized FCF margin"
+    },
     "badgesTitle": "Highlights",
     "hero": {
       "sentencePrefix": "{{company}}'s ({{ticker}}) fair value in the base scenario is {{fairValue}}. Compared to the current price of {{price}}, the stock looks",
@@ -1516,16 +1572,38 @@
         "peer_pe": "peer P/E"
       },
       "analystTarget": "Wall Street target",
-      "backtestLink": "Do our valuations actually work? See backtest"
+      "backtestLink": "Do our valuations actually work? See backtest",
+      "sentence": "At {{price}}, Nuvos estimates {{ticker}} is worth around {{fairValue}} —",
+      "disclaimer": "This is an analysis and a projection, not a buy or sell signal.",
+      "qualityOvervaluedNote": "{{ticker}} is an excellent business ({{score}}/100 on quality) — today just isn't the best entry price. The best companies in the world rarely trade \"cheap\": that doesn't make them bad companies, it just says something about the timing of buying.",
+      "fairValueBar": "Fair value",
+      "priceTodayBar": "Price today",
+      "wallStreetBar": "Wall Street",
+      "scenario": {
+        "bear": "Bearish",
+        "base": "Base",
+        "bull": "Bullish"
+      },
+      "scenarioHint": "Tap a scenario to see how the verdict changes",
+      "whyTitle": "Why did we land on this number?",
+      "whySummary": "We combine two real tracks: one by earnings — based on the business type ({{classification}}), its real discount rate, and a P/E multiple justified by growth and quality — and one by cash flow, weighted by how reliable each one is.",
+      "whySummarySingleTrack": "We combine the business type — {{classification}} — with its real discount rate and a P/E multiple justified by growth and quality, never a generic sector multiple.",
+      "whySummaryFallback": "not enough evidence for a classification",
+      "whyShow": "See the full reasoning",
+      "whyHide": "Hide",
+      "whyFullDetail": "See the full step-by-step detail"
     },
     "discountRate": {
       "step": "Discount rate (WACC)",
+      "explainer": "How much annual return we require to justify investing in this company instead of something safer — more risk, higher requirement. This number discounts every future dollar down to what it's worth today.",
       "beta": "Beta",
       "riskFree": "risk-free rate",
       "erp": "equity risk premium",
       "costOfEquity": "Cost of equity",
       "costOfDebt": "Cost of debt",
       "weights": "Weighting",
+      "equityLabel": "Equity {{pct}}%",
+      "debtLabel": "Debt {{pct}}%",
       "finalWacc": "Final WACC",
       "fallbackNote": "Couldn't compute a real CAPM WACC (beta or live risk-free rate unavailable) — a sector reference rate was used instead."
     },
@@ -1538,11 +1616,14 @@
     },
     "fairPeBreakdown": {
       "toggle": "See how the fair P/E was calculated",
+      "explainer": "The fair P/E is how many times its annual earnings we think this company is worth. We start from a typical multiple for its sector and adjust it up or down based on how well it grows, how profitable it is, and how solid it is versus peers.",
       "baseMultiple": "Sector base P/E",
       "finalPe": "Final fair P/E",
       "band": "range",
       "anchorsTitle": "Blended with real market evidence:",
-      "weight": "weight"
+      "weight": "weight",
+      "baseLabel": "base",
+      "adjustmentsLabel": "Growth, ROIC, margin, dividend, moat & management →"
     },
     "tabs": {
       "valuation": "Valuation",
@@ -1552,7 +1633,11 @@
       "history": "History",
       "peers": "peers",
       "sectorMedian": "Sector median",
-      "noComparables": "Not enough real peers to compare this ticker."
+      "noComparables": "Not enough real peers to compare this ticker.",
+      "whyGroupLabel": "Why did we land on this number?",
+      "pillarsGroupLabel": "The 4 quality pillars",
+      "comparablesExplainer": "We compare this company's real numbers against similar ones — that shows whether it's better, worse, or in line with its industry.",
+      "historyExplainer": "We look at the real price over the last few years against what we thought it was worth at each point, to see whether buying when it looked \"cheap\" by this model actually worked."
     },
     "priceHistory": {
       "headline": {
@@ -1575,12 +1660,22 @@
       "timesHigher": "{{n}} of {{total}} times the price was higher 1 year later",
       "typicalReturn": "Typical 1-year return",
       "insufficientData": "Too few real days in this band to draw a conclusion.",
-      "disclaimer": "Based on {{days}} real trading days (real daily P/E, real quarterly TTM EPS) — historical results, not a prediction."
+      "disclaimer": "Based on {{days}} real trading days (real daily P/E, real quarterly TTM EPS) — historical results, not a prediction.",
+      "chartTitle": "Real price vs. fair value — last ~5 years",
+      "legendPrice": "Real price",
+      "legendFairValue": "Fair value",
+      "hoverUndervalued": "undervalued",
+      "hoverOvervalued": "overvalued",
+      "hoverPrice": "price",
+      "hoverFairValue": "fair value",
+      "chartDisclaimer": "The fair-value line (dashed) does move over time — it rises and falls with the real earnings {{ticker}} had at each point, it isn't fixed. Since the full model (both tracks, WACC, adjustments) can't be recalculated day by day because that data isn't historized, this line reconstructs each day with the same weighting as today: the real earnings track ({{multiple}}x on each day's real TTM earnings) plus the cash-flow track held at today's value — calibrated so the \"Today\" point lands exactly on the combined Nuvos Fair Value ({{fairValue}}) you already saw above."
     },
     "classification": {
       "step": "Peter Lynch classification",
+      "explainer": "Different types of businesses get valued differently — a fast-growing company isn't analyzed the same way as a mature, stable one. This is the first step: figuring out what type of business this is, to use the right methodology.",
       "confidence": "Confidence",
       "fairValueFormula": "Fair value calculation",
+      "fairValueFormulaNote": "This is only the earnings track's own result — the blended value shown above in \"Why did we land on this number?\" weights it, by confidence, against the cash-flow track from step 5.",
       "category": {
         "fast_grower": "Fast Grower",
         "stalwart": "Stalwart (mature, stable business)",
@@ -1593,10 +1688,12 @@
       }
     },
     "scenarios": {
+      "explainer": "No calculation is exact, so we show 3 versions: a pessimistic one, a realistic one, and an optimistic one. None is more likely than another — they're a reasonable range, not a prediction.",
       "noProbabilityNote": "This range is based on estimated EPS (low/base/high) and the real fair P/E band — it is not a probability prediction."
     },
     "sensitivity": {
-      "subtitle": "How fair value changes with EPS and the P/E multiple used — same numbers already shown in Valuation and Scenarios."
+      "title": "Earnings track only: EPS and multiple sensitivity",
+      "subtitle": "Without the cash-flow track — to see how sensitive the earnings number is to each assumption on its own."
     },
     "selfCheckQuiz": {
       "title": "Self-Check",

@@ -112,6 +112,7 @@ export function CompanyDiagnosticValuePillar({
                   style={{
                     background: `${s.color}${isSelected ? "33" : "1f"}`,
                     border: `${isSelected ? 2 : 1}px solid ${s.color}`,
+                    boxShadow: isSelected ? `0 6px 18px ${s.color}33` : "none",
                   }}
                 >
                   <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: s.color }}>{s.label}</p>
