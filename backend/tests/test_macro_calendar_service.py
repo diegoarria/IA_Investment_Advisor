@@ -88,3 +88,94 @@ class TestWhyItMatters:
 
     def test_unknown_type_returns_empty(self):
         assert why_it_matters("not_a_real_type", "es") == ""
+
+
+class TestGetMacroEventsHolidayMerge:
+    """get_macro_events() merges real US market holidays (app.services.
+    market_holidays, the same source worker.py's job-gating reads from)
+    into the same event shape the web/mobile calendars already consume."""
+
+    @staticmethod
+    def _mock_empty_db(monkeypatch):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+        monkeypatch.setattr("app.core.database.get_supabase", lambda: MagicMock())
+        monkeypatch.setattr(
+            "app.core.database.run_query",
+            AsyncMock(return_value=SimpleNamespace(data=[])),
+        )
+
+    @staticmethod
+    def _freeze_today(monkeypatch, frozen_date):
+        """Freezes BOTH the date market_holidays.upcoming_holidays() computes
+        its window from, AND the "today" get_macro_events itself derives via
+        `datetime.now(_ET)` for status ("past"/"today"/"upcoming") — these
+        are two independent `datetime.now()` calls in two different modules,
+        so a real production run always has them agree (both read the real
+        clock), but a test freezing only one would leave the other reading
+        the real wall-clock date and produce a flaky/wrong "status"."""
+        import app.services.market_holidays as market_holidays
+        import app.services.macro_calendar_service as macro_calendar_service
+        from datetime import datetime as _real_datetime
+
+        monkeypatch.setattr(market_holidays, "_today_et", lambda: frozen_date)
+
+        class _FrozenDateTime(_real_datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return _real_datetime(frozen_date.year, frozen_date.month, frozen_date.day, 10, 0, tzinfo=tz)
+
+        monkeypatch.setattr(macro_calendar_service, "datetime", _FrozenDateTime)
+
+    async def test_labor_day_appears_as_a_market_holiday_event(self, monkeypatch):
+        from datetime import date
+        from app.services.macro_calendar_service import get_macro_events
+
+        self._mock_empty_db(monkeypatch)
+        self._freeze_today(monkeypatch, date(2026, 9, 1))
+
+        events = await get_macro_events(days_ahead=10, lang="es")
+        holidays = [e for e in events if e["event_type"] == "market_holiday"]
+        assert len(holidays) == 1
+        h = holidays[0]
+        assert h["event_name"] == "Día del Trabajo"
+        assert h["date_et"] == "2026-09-07"
+        assert h["status"] == "upcoming"
+        assert h["country"] == "US"
+        assert "no abre" in h["why_it_matters"]
+
+    async def test_holiday_event_name_and_copy_in_english(self, monkeypatch):
+        from datetime import date
+        from app.services.macro_calendar_service import get_macro_events
+
+        self._mock_empty_db(monkeypatch)
+        self._freeze_today(monkeypatch, date(2026, 9, 1))
+
+        events = await get_macro_events(days_ahead=10, lang="en")
+        holiday = next(e for e in events if e["event_type"] == "market_holiday")
+        assert holiday["event_name"] == "Labor Day"
+        assert "closed" in holiday["why_it_matters"]
+
+    async def test_holiday_on_the_day_itself_has_status_today(self, monkeypatch):
+        from datetime import date
+        from app.services.macro_calendar_service import get_macro_events
+
+        self._mock_empty_db(monkeypatch)
+        self._freeze_today(monkeypatch, date(2026, 9, 7))
+
+        events = await get_macro_events(days_ahead=10, lang="es")
+        holiday = next(e for e in events if e["event_type"] == "market_holiday")
+        assert holiday["status"] == "today"
+
+    async def test_never_fabricates_a_holiday_never_returned_by_the_source_of_truth(self, monkeypatch):
+        # A day genuinely far from any real holiday (and outside
+        # upcoming_holidays' small trailing window) must never show a
+        # market_holiday event.
+        from datetime import date
+        from app.services.macro_calendar_service import get_macro_events
+
+        self._mock_empty_db(monkeypatch)
+        self._freeze_today(monkeypatch, date(2026, 9, 20))
+
+        events = await get_macro_events(days_ahead=1, lang="es")
+        assert not [e for e in events if e["event_type"] == "market_holiday"]

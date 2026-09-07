@@ -3975,7 +3975,8 @@
       "impact": {
         "VERY_HIGH": "Very High",
         "HIGH": "High",
-        "MEDIUM": "Medium"
+        "MEDIUM": "Medium",
+        "MARKET_CLOSED": "Market closed"
       },
       "eventTypes": {
         "fomc_rate_decision": "Fed Rate Decision",
@@ -3993,7 +3994,8 @@
         "ppi": "Producer Prices (PPI)",
         "jolts": "JOLTS Openings",
         "fed_speaker": "Fed Speaker",
-        "housing_starts": "Housing Starts"
+        "housing_starts": "Housing Starts",
+        "market_holiday": "US Market Holiday"
       },
       "shortLabels": {
         "fomc_rate_decision": "FOMC",
@@ -4011,7 +4013,8 @@
         "ppi": "PPI",
         "jolts": "JOLTS",
         "fed_speaker": "Fed Speaker",
-        "housing_starts": "Housing"
+        "housing_starts": "Housing",
+        "market_holiday": "Holiday 🇺🇸"
       }
     }
   },

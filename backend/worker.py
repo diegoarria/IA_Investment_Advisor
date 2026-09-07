@@ -18,21 +18,19 @@ import concurrent.futures
 from datetime import datetime, timezone, timedelta, date
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-# ── NYSE holiday calendar (observed dates) ────────────────────────────────────
-_NYSE_HOLIDAYS: set[date] = {
-    # 2025
-    date(2025, 1, 1), date(2025, 1, 20), date(2025, 2, 17), date(2025, 4, 18),
-    date(2025, 5, 26), date(2025, 6, 19), date(2025, 7, 4), date(2025, 9, 1),
-    date(2025, 11, 27), date(2025, 12, 25),
-    # 2026
-    date(2026, 1, 1), date(2026, 1, 19), date(2026, 2, 16), date(2026, 4, 3),
-    date(2026, 5, 25), date(2026, 6, 19), date(2026, 7, 3), date(2026, 9, 7),
-    date(2026, 11, 26), date(2026, 12, 25),
-    # 2027
-    date(2027, 1, 1), date(2027, 1, 18), date(2027, 2, 15), date(2027, 3, 26),
-    date(2027, 5, 31), date(2027, 6, 18), date(2027, 7, 5), date(2027, 9, 6),
-    date(2027, 11, 25), date(2027, 12, 24),
-}
+# NYSE holiday calendar — moved to app/services/market_holidays.py (single
+# source of truth shared with the calendar UI's macro-events endpoint, so
+# the holidays shown to users can never drift from the ones that actually
+# gate these jobs). Re-imported below under the same private names this
+# file already used everywhere, so none of the existing call sites change.
+from app.services.market_holidays import (
+    is_market_open_today as _is_market_open_today,
+    is_market_holiday_today as _is_market_holiday_today,
+    is_trading_day as _is_trading_day,
+    is_first_trading_day_of_week as _is_first_trading_day_of_week,
+    is_last_trading_day_of_week as _is_last_trading_day_of_week,
+    holiday_name_today as _holiday_name_today,
+)
 
 
 def _agg_positions(rows: list[dict]) -> list:
@@ -82,59 +80,6 @@ def _build_portfolio_map(rows: list[dict]) -> dict:
     return mapping
 
 
-def _is_market_open_today() -> bool:
-    """True if NYSE is open right now (ET). Excludes weekends and observed holidays."""
-    import pytz
-    today = datetime.now(pytz.timezone("America/New_York")).date()
-    if today.weekday() >= 5:          # Saturday=5, Sunday=6
-        return False
-    return today not in _NYSE_HOLIDAYS
-
-
-def _is_market_holiday_today() -> bool:
-    """True if today is a weekday NYSE holiday (closed due to holiday, not weekend)."""
-    import pytz
-    today = datetime.now(pytz.timezone("America/New_York")).date()
-    if today.weekday() >= 5:
-        return False
-    return today in _NYSE_HOLIDAYS
-
-
-def _is_trading_day(d: date) -> bool:
-    return d.weekday() < 5 and d not in _NYSE_HOLIDAYS
-
-
-def _is_first_trading_day_of_week(d: date) -> bool:
-    """True if `d` is the first NYSE trading day of its (Mon-Sun) week —
-    i.e. no earlier day this week, back to Monday, was itself a trading
-    day. Used so the "Monday open" weekly snapshot still fires exactly
-    once per week even when Monday itself is a holiday (e.g. MLK Day,
-    Presidents' Day, Memorial Day, Labor Day are all Mondays)."""
-    if not _is_trading_day(d):
-        return False
-    monday = d - timedelta(days=d.weekday())
-    day = monday
-    while day < d:
-        if _is_trading_day(day):
-            return False
-        day += timedelta(days=1)
-    return True
-
-
-def _is_last_trading_day_of_week(d: date) -> bool:
-    """True if `d` is the last NYSE trading day of its (Mon-Sun) week —
-    i.e. no later day this week, through Friday, is itself a trading day.
-    Used so the "Friday close" weekly snapshot still fires exactly once
-    per week even when Friday itself is a holiday."""
-    if not _is_trading_day(d):
-        return False
-    friday = d + timedelta(days=4 - d.weekday())
-    day = d + timedelta(days=1)
-    while day <= friday:
-        if _is_trading_day(day):
-            return False
-        day += timedelta(days=1)
-    return True
 from app.core.config import settings
 from app.services.notification_service import scan_and_notify_all_users
 from app.services.email_service import (
@@ -1075,6 +1020,67 @@ async def job_holiday_midday():
         logger.info("job_holiday_midday: sent to %d users", len(uids))
     except Exception as e:
         logger.error("job_holiday_midday failed: %s", e)
+
+
+async def job_market_holiday_alert():
+    """9:30 AM ET weekdays — fires at the exact moment the market would
+    normally open, telling users explicitly WHICH US holiday it is and
+    that the market is closed today. Distinct from job_holiday_midday
+    above (same push_market_open opt-out, different category so it dedups
+    independently): that one is a noon, portfolio-review-framed nudge;
+    this one is the earlier, purely informational "market's closed today"
+    announcement Diego asked for verbatim (2026-09), so it reaches people
+    before they'd otherwise expect the market to have opened."""
+    if not _is_market_holiday_today():
+        logger.info("job_market_holiday_alert: today is not a market holiday — skipping")
+        return
+
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    db = get_supabase()
+    try:
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,push_market_open")
+        )
+        disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("push_market_open") is False}
+
+        token_res = await run_query(
+            db.table("user_profiles").select("user_id,push_token")
+            .neq("push_token", "").not_.is_("push_token", "null")
+        )
+        expo_uids = {r["user_id"] for r in (token_res.data or [])}
+        web_res = await run_query(db.table("web_push_subscriptions").select("user_id"))
+        web_uids = {r["user_id"] for r in (web_res.data or [])}
+        uids = list((expo_uids | web_uids) - disabled)
+        if not uids:
+            return
+
+        profiles_res = await run_query(
+            db.table("user_profiles").select("user_id,preferred_language").in_("user_id", uids)
+        )
+        lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (profiles_res.data or [])}
+
+        # Real, verified holiday name (app/services/market_holidays.py) —
+        # never a generic "hoy es feriado" if the lookup somehow misses,
+        # the fallback string says so honestly rather than inventing a name.
+        holiday_es = _holiday_name_today("es") or "feriado en Estados Unidos"
+        holiday_en = _holiday_name_today("en") or "a US holiday"
+
+        title_es = f"🇺🇸 Hoy es {holiday_es}"
+        body_es = f"Hoy es \"{holiday_es}\" en Estados Unidos. Por lo tanto la bolsa hoy no opera. ¡Te esperamos mañana!"
+        title_en = f"🇺🇸 Today is {holiday_en}"
+        body_en = f"Today is \"{holiday_en}\" in the United States, so the market isn't operating today. See you tomorrow!"
+
+        for uid in uids:
+            is_en = lang_map.get(uid, "es") == "en"
+            title = title_en if is_en else title_es
+            body = body_en if is_en else body_es
+            await send_push(uid, "market_holiday_alert", title, body, {"screen": "portfolio"}, db)
+            await asyncio.sleep(0.05)
+
+        logger.info("job_market_holiday_alert: sent to %d users (%s)", len(uids), holiday_es)
+    except Exception as e:
+        logger.error("job_market_holiday_alert failed: %s", e)
 
 
 async def job_market_close():
@@ -5577,6 +5583,10 @@ async def main():
     scheduler.add_job(job_earnings_watch,       "cron", day_of_week="mon-fri", hour="7-18",  minute="*/15", timezone="America/New_York")
     scheduler.add_job(job_morning_brief,        "cron", day_of_week="mon-fri", hour=9,       minute=15,    timezone="America/New_York")
     scheduler.add_job(job_market_open,          "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")
+    # Same 9:30 slot as job_market_open — the two are mutually exclusive by
+    # construction (one requires the market open, the other requires a
+    # holiday), so exactly one of them ever actually sends on a given day.
+    scheduler.add_job(job_market_holiday_alert, "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")
     scheduler.add_job(job_holiday_midday,       "cron", day_of_week="mon-fri", hour=12,      minute=0,     timezone="America/New_York")
     # Market opens 9:30 ET — first two runs (9:30, 9:35) get their own cron
     # since a single hour="9-15" field can't start mid-hour; 10-15 continues

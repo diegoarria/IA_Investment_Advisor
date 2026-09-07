@@ -49,6 +49,7 @@ from typing import Optional
 import httpx
 
 from app.core.database import get_supabase, run_query
+from app.services.market_holidays import upcoming_holidays
 
 logger = logging.getLogger(__name__)
 
@@ -350,6 +351,39 @@ async def get_macro_events(days_ahead: int = 30, lang: str = "es") -> list[dict]
             "time_et":        dt_et.strftime("%H:%M"),
             "status":         status,
             "why_it_matters": why_it_matters(row.get("event_type", ""), lang),
+        })
+
+    # US market holidays — merged in from the same single source of truth
+    # (app/services/market_holidays.py) that gates worker.py's market-open/
+    # close jobs, so a day shown here as "market closed" is guaranteed to
+    # be a day those jobs actually skip, never a separate, driftable list.
+    # Shaped to match a real macro-event row exactly (same fields the
+    # frontend already destructures) so the web/mobile calendar components
+    # can render it via a new `event_type == "market_holiday"` branch
+    # without needing a second endpoint or a second fetch call.
+    for h in upcoming_holidays(days_ahead=days_ahead):
+        d = h["date"]
+        name = h["name_es"] if lang != "en" else h["name_en"]
+        status = "past" if d < today_et else "today" if d == today_et else "upcoming"
+        out.append({
+            "event_id":       f"market_holiday:{d.isoformat()}",
+            "event_type":     "market_holiday",
+            "event_name":     name,
+            "event_date_utc": datetime(d.year, d.month, d.day, tzinfo=_ET).isoformat(),
+            "country":        "US",
+            "impact_source":  "market_holiday",
+            "impact_level":   "MARKET_CLOSED",
+            "actual_value":   None, "estimate_value": None, "previous_value": None, "unit": None,
+            "speaker_name":   None,
+            "source":         "NYSE",
+            "date_et":        d.isoformat(),
+            "time_et":        None,
+            "status":         status,
+            "why_it_matters": (
+                "El mercado de acciones de Estados Unidos (NYSE/Nasdaq) no abre este día."
+                if lang != "en" else
+                "US stock markets (NYSE/Nasdaq) are closed this day."
+            ),
         })
 
     out.sort(key=lambda e: e["event_date_utc"])

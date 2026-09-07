@@ -13,12 +13,17 @@ import { earningsApi } from "@/lib/api";
 import StockAvatar from "@/components/StockAvatar";
 
 type TickerEventType = "earnings" | "ex_dividend" | "dividend";
-type ImpactLevel = "VERY_HIGH" | "HIGH" | "MEDIUM";
+type ImpactLevel = "VERY_HIGH" | "HIGH" | "MEDIUM" | "MARKET_CLOSED";
 type MacroEventType =
   | "fomc_rate_decision" | "cpi" | "core_cpi" | "pce" | "core_pce" | "nfp"
   | "unemployment_rate" | "gdp" | "ism_manufacturing_pmi" | "ism_services_pmi"
   | "retail_sales" | "initial_jobless_claims" | "ppi" | "jolts"
-  | "fed_speaker" | "housing_starts";
+  | "fed_speaker" | "housing_starts"
+  // US market (NYSE/Nasdaq) holiday — `event_name` carries the REAL,
+  // specific holiday name for that date (e.g. "Labor Day"), already
+  // localized server-side; the generic `eventTypes.market_holiday` i18n
+  // label below is just the category heading shown above it.
+  | "market_holiday";
 
 interface TickerCalendarEvent {
   kind: "ticker";
@@ -110,9 +115,12 @@ function getEventMeta(t: TFunction): Record<TickerEventType, { icon: LucideIcon;
 // Impact-coded, not ticker-coded — macro events have no ticker, so they're
 // visually distinguished from company events by color + a landmark icon.
 const IMPACT_COLOR: Record<ImpactLevel, { bg: string; color: string }> = {
-  VERY_HIGH: { bg: "rgba(239,68,68,0.22)",  color: "#f87171" },
-  HIGH:      { bg: "rgba(249,115,22,0.22)", color: "#fb923c" },
-  MEDIUM:    { bg: "rgba(234,179,8,0.20)",  color: "#facc15" },
+  VERY_HIGH:     { bg: "rgba(239,68,68,0.22)",  color: "#f87171" },
+  HIGH:          { bg: "rgba(249,115,22,0.22)", color: "#fb923c" },
+  MEDIUM:        { bg: "rgba(234,179,8,0.20)",  color: "#facc15" },
+  // Neutral gray, deliberately distinct from the red/orange/yellow "risk"
+  // scale above — a holiday isn't an impact level, it's just "closed."
+  MARKET_CLOSED: { bg: "rgba(148,163,184,0.20)", color: "#94a3b8" },
 };
 
 function macroEventLabel(t: TFunction, eventType: string): string {
