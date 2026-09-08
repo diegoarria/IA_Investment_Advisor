@@ -654,6 +654,7 @@ export const adminApi = {
     api.get("/api/admin/llm-usage", { params: { days } }),
   refreshUndervaluedScreener: () => api.post("/api/admin/refresh-undervalued-screener"),
   pollUndervaluedScreenerBatch: () => api.post("/api/admin/poll-undervalued-screener-batch"),
+  undervaluedScreenerStatus: () => api.get("/api/admin/undervalued-screener-status"),
 };
 
 export default api;

@@ -116,6 +116,9 @@ async def test_price_alert_why(ticker: str, pct: float = 5.0, user: dict = Depen
     }
 
 
+_refresh_task: "asyncio.Task | None" = None
+
+
 @router.post("/refresh-undervalued-screener")
 async def admin_refresh_undervalued_screener(user: dict = Depends(get_current_user)):
     """Forces the weekly "Oportunidades" screener refresh right now, instead
@@ -123,20 +126,45 @@ async def admin_refresh_undervalued_screener(user: dict = Depends(get_current_us
     screener in worker.py). Useful right after a backend deploy that
     changes what a cached entry looks like.
 
+    Fire-and-forget (Diego, 2026-09-08, real incident): the full scan
+    (~930 tickers, real FMP/Finnhub calls, 10-25+ min) used to run AWAITED
+    directly inside this request handler — anything that drops the HTTP
+    connection before it finishes (a browser tab closed, Railway's own
+    proxy timeout, a flaky network) risks the request coroutine getting
+    cancelled mid-scan, silently losing the whole run with no error
+    logged anywhere. Spawning it as a background asyncio.Task instead
+    means it keeps running in the API server process regardless of what
+    happens to this HTTP request — the response returns almost instantly,
+    and the task's own try/except still logs a loud error if it genuinely
+    fails. `_refresh_task` is a simple in-process guard against firing a
+    SECOND full scan on top of one already running (a duplicate isn't
+    dangerous, just a wasted duplicate FMP/Finnhub/Claude spend) — reset
+    automatically once the task finishes, whether it succeeded or raised.
+
     Cost optimization (see /Users/diegoarria/.claude/plans/cosmic-
     munching-crown.md): candidate blurbs for tickers with new earnings now
     go through the Anthropic Message Batches API, which is NOT synchronous
-    — this call returns as soon as the batch is SUBMITTED (or immediately,
-    if every featured candidate's earnings were already reflected last
-    week and nothing needed recomputing), not once it's fully done. The
-    screener cache finalizes automatically within ~10 minutes of the batch
-    completing (worker.py's job_poll_undervalued_screener_batch runs every
-    10 min) — use /admin/poll-undervalued-screener-batch below to check/
-    force that step immediately instead of waiting for the next tick."""
+    either — the screener cache finalizes automatically within ~10 minutes
+    of the batch completing (worker.py's job_poll_undervalued_screener_
+    batch runs every 10 min) — use /admin/poll-undervalued-screener-batch
+    below to check/force that step immediately instead of waiting for the
+    next tick."""
     await _require_admin(user)
+    global _refresh_task
+    if _refresh_task is not None and not _refresh_task.done():
+        return {"status": "already_running", "note": "A refresh is already in progress — check back in a few minutes instead of firing another one."}
+
     from app.services.undervalued_screener_service import refresh_undervalued_screener
-    await refresh_undervalued_screener()
-    return {"status": "ok", "note": "Submitted — see /admin/poll-undervalued-screener-batch to check completion."}
+
+    async def _run():
+        try:
+            await refresh_undervalued_screener()
+            logger.info("admin_refresh_undervalued_screener: background refresh completed")
+        except Exception as exc:
+            logger.error("admin_refresh_undervalued_screener: background refresh failed: %s", exc, exc_info=True)
+
+    _refresh_task = asyncio.create_task(_run())
+    return {"status": "started", "note": "Running in the background (10-25+ min for the full ~930-ticker scan) — check /api/market/screener/sector-roster or the worker logs for \"full sector roster refreshed\" to confirm completion, or use /admin/poll-undervalued-screener-batch once the blurb batch itself is what's pending."}
 
 
 @router.post("/poll-undervalued-screener-batch")
@@ -148,6 +176,38 @@ async def admin_poll_undervalued_screener_batch(user: dict = Depends(get_current
     from app.services.undervalued_screener_service import poll_and_finalize_undervalued_screener_batch
     was_pending = await poll_and_finalize_undervalued_screener_batch()
     return {"status": "ok", "was_pending": was_pending}
+
+
+@router.get("/undervalued-screener-status")
+async def admin_undervalued_screener_status(user: dict = Depends(get_current_user)):
+    """Real, immediate answer to "is the refresh done yet?" instead of
+    guessing from elapsed time or digging through live logs (Diego,
+    2026-09-08: waited a long time with no visibility into whether a
+    triggered refresh was still running, stuck, or had silently failed).
+    Reports both cached lists' freshness (candidates = positive-MOS only,
+    roster = every company, see undervalued_screener_service's module
+    docstring for why they're separate caches) plus whether a background
+    refresh (see admin_refresh_undervalued_screener) is running right now
+    in THIS process — a refresh started from a different backend instance
+    (e.g. right after a redeploy replaced the process that started it)
+    won't show as running here even if it's still going elsewhere, but its
+    cache timestamps below still reflect real progress once it finishes."""
+    await _require_admin(user)
+    import time
+    from app.core.cache import cache_get_with_ts
+    from app.services.undervalued_screener_service import CACHE_KEY, FULL_ROSTER_CACHE_KEY
+
+    def _summarize(key: str) -> dict:
+        results, ts = cache_get_with_ts(key)
+        results = results or []
+        age_seconds = (time.time() - ts) if ts else None
+        return {"count": len(results), "generated_at": ts or 0, "age_minutes": round(age_seconds / 60, 1) if age_seconds is not None else None}
+
+    return {
+        "refresh_running_in_this_process": _refresh_task is not None and not _refresh_task.done(),
+        "candidates": _summarize(CACHE_KEY),
+        "full_roster": _summarize(FULL_ROSTER_CACHE_KEY),
+    }
 
 
 @router.post("/refresh-macro-calendar")

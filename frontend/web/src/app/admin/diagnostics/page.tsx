@@ -44,6 +44,9 @@ export default function AdminDiagnosticsPage() {
   const [screenerPollLoading, setScreenerPollLoading] = useState(false);
   const [screenerPollResult, setScreenerPollResult] = useState<any>(null);
   const [screenerPollError, setScreenerPollError] = useState<string | null>(null);
+  const [screenerStatusLoading, setScreenerStatusLoading] = useState(false);
+  const [screenerStatusResult, setScreenerStatusResult] = useState<any>(null);
+  const [screenerStatusError, setScreenerStatusError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId || !isAuthenticated) return;
@@ -104,6 +107,20 @@ export default function AdminDiagnosticsPage() {
       setScreenerPollError(err?.response?.data?.detail ?? "Error al revisar el batch.");
     } finally {
       setScreenerPollLoading(false);
+    }
+  };
+
+  const runScreenerStatus = async () => {
+    setScreenerStatusLoading(true);
+    setScreenerStatusError(null);
+    setScreenerStatusResult(null);
+    try {
+      const res = await adminApi.undervaluedScreenerStatus();
+      setScreenerStatusResult(res.data);
+    } catch (err: any) {
+      setScreenerStatusError(err?.response?.data?.detail ?? "Error al revisar el estado.");
+    } finally {
+      setScreenerStatusLoading(false);
     }
   };
 
@@ -181,14 +198,25 @@ export default function AdminDiagnosticsPage() {
               {screenerPollLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
               Revisar/finalizar batch
             </button>
+            <button
+              onClick={runScreenerStatus}
+              disabled={screenerStatusLoading}
+              className="px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1.5"
+              style={{ background: "var(--raised)", color: "var(--text)", border: "1px solid var(--border)" }}
+            >
+              {screenerStatusLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+              Ver estado
+            </button>
           </div>
           <p className="text-[11px]" style={{ color: "var(--dim)" }}>
-            El primer botón solo ENVÍA el trabajo (tarda un rato en terminar). Si a los pocos minutos "Oportunidades" sigue vacío, usa el segundo botón para forzar que se termine de procesar ya.
+            El primer botón corre el refresh EN SEGUNDO PLANO (10-25+ min para las ~930 empresas) y ya no depende de que dejes esta pestaña abierta. Usa "Ver estado" para saber si sigue corriendo y cuántas empresas/hace cuánto se actualizó cada lista, en vez de esperar a ciegas. "Revisar/finalizar batch" es solo para el texto con IA de las candidatas destacadas.
           </p>
           {screenerRefreshError && <p className="text-sm" style={{ color: "#f87171" }}>{screenerRefreshError}</p>}
           {screenerRefreshResult && <JsonBlock data={screenerRefreshResult} />}
           {screenerPollError && <p className="text-sm" style={{ color: "#f87171" }}>{screenerPollError}</p>}
           {screenerPollResult && <JsonBlock data={screenerPollResult} />}
+          {screenerStatusError && <p className="text-sm" style={{ color: "#f87171" }}>{screenerStatusError}</p>}
+          {screenerStatusResult && <JsonBlock data={screenerStatusResult} />}
         </section>
 
         {/* ── Por qué de alerta de precio ── */}
