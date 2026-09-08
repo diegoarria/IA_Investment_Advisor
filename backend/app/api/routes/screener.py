@@ -2708,20 +2708,39 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
     from app.services.company_diagnostic_service import build_company_diagnostic
     from app.services.ai_service import generate_company_diagnostic_narrative
 
-    data = await asyncio.to_thread(get_fundamental_analysis, ticker)
-    if not data:
-        logger.warning("company_diagnostic(%s): get_fundamental_analysis returned falsy", ticker)
-        raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para diagnosticar {ticker}")
+    async def _attempt_build() -> tuple[dict | None, dict | None]:
+        d = await asyncio.to_thread(get_fundamental_analysis, ticker)
+        if not d:
+            return None, None
+        # Wrapped so an unexpected exception here (a real code bug hitting
+        # some ticker-specific data shape, not one of build_company_
+        # diagnostic's own deliberate None-return gates, which already log
+        # their own reason) logs loudly with a traceback instead of
+        # surfacing as an opaque, unlabeled 500 indistinguishable from
+        # every other failure on this endpoint.
+        try:
+            diag = await asyncio.to_thread(build_company_diagnostic, ticker, d, lang)
+        except Exception:
+            logger.exception("company_diagnostic(%s): build_company_diagnostic raised", ticker)
+            return d, None
+        return d, diag
 
-    # Wrapped so an unexpected exception here (a real code bug hitting some
-    # ticker-specific data shape, not one of build_company_diagnostic's own
-    # deliberate None-return gates, which already log their own reason) logs
-    # loudly with a traceback instead of surfacing as an opaque, unlabeled
-    # 500 indistinguishable from every other failure on this endpoint.
-    try:
-        diagnostic = await asyncio.to_thread(build_company_diagnostic, ticker, data, lang)
-    except Exception:
-        logger.exception("company_diagnostic(%s): build_company_diagnostic raised", ticker)
+    data, diagnostic = await _attempt_build()
+    if not diagnostic:
+        # `ticker` already resolved to a real company above — for an
+        # established ticker, a failure here is far more likely a
+        # transient upstream hiccup (FMP/Finnhub rate limit or timeout,
+        # e.g. the FMP 300 calls/min Starter-plan cap getting exceeded
+        # under load, confirmed live 2026-09-07) than a genuine "not
+        # enough data" verdict. Diego: "esta pantalla NUNCA debe fallar,
+        # SIEMPRE debe abrir." One retry after a short backoff before the
+        # 404 the user actually sees — cheap relative to this endpoint's
+        # own ~15s compute time.
+        logger.warning("company_diagnostic(%s): first attempt failed (had_data=%s), retrying once", ticker, bool(data))
+        await asyncio.sleep(2.5)
+        data, diagnostic = await _attempt_build()
+    if not data:
+        logger.warning("company_diagnostic(%s): get_fundamental_analysis returned falsy on both attempts", ticker)
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para diagnosticar {ticker}")
     if not diagnostic:
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para diagnosticar {ticker}")
