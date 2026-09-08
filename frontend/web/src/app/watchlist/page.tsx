@@ -374,6 +374,10 @@ export default function WatchlistPage() {
   const router = useRouter();
   const [isTour, setIsTour] = useState(false);
   useEffect(() => { setIsTour(new URLSearchParams(window.location.search).get("tour") === "5"); }, []);
+  // job_macro_event_watch's push deep-links here via sw.js's notificationclick
+  // (?macroEventId=...) — read once on mount, same pattern as the tour flag above.
+  const [macroEventId, setMacroEventId] = useState<string | undefined>(undefined);
+  useEffect(() => { setMacroEventId(new URLSearchParams(window.location.search).get("macroEventId") ?? undefined); }, []);
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile } = useProfileStore();
   const userLevel = getUserLevel(profile);
@@ -1004,6 +1008,7 @@ export default function WatchlistPage() {
                   tickerLogos={Object.fromEntries(items.map((i) => [i.ticker, i.logo_url]))}
                   isPremium={isPremium}
                   onUpgrade={() => setPaywallOpen(true)}
+                  initialEventId={macroEventId}
                 />
               </div>
             )}

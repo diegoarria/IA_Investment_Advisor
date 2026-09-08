@@ -4250,6 +4250,168 @@ async def job_earnings_watch():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Macro economic events (CPI, Core CPI, PCE, Core PCE, NFP, Unemployment,
+# FOMC, GDP) — reuses the macro_economic_events table already populated
+# daily by job_refresh_macro_calendar (app/services/macro_calendar_service.py)
+# for the Watchlist calendar's display-only macro layer. Diego, 2026-09-07:
+# same "results just posted" push pattern as job_earnings_watch, but for
+# market-moving economic data instead of company earnings. Deliberately NOT
+# gated on _is_market_holiday_today() — these are federal/Fed releases, not
+# NYSE trading events (same reasoning that keeps job_major_news_alert
+# ungated on holidays — see feedback_holiday_notification_suppression).
+# ─────────────────────────────────────────────────────────────────────────────
+
+_TRACKED_MACRO_EVENT_TYPES = {
+    "cpi", "core_cpi", "pce", "core_pce", "nfp",
+    "unemployment_rate", "fomc_rate_decision", "gdp",
+}
+
+_MACRO_EVENT_DISPLAY_NAME: dict[str, dict[str, str]] = {
+    "cpi":                {"es": "CPI",                                   "en": "CPI"},
+    "core_cpi":           {"es": "Core CPI",                              "en": "Core CPI"},
+    "pce":                {"es": "PCE",                                   "en": "PCE"},
+    "core_pce":           {"es": "Core PCE",                              "en": "Core PCE"},
+    "nfp":                {"es": "Nómina no agrícola (NFP)",              "en": "Nonfarm Payrolls (NFP)"},
+    "unemployment_rate":  {"es": "Tasa de desempleo",                     "en": "Unemployment rate"},
+    "fomc_rate_decision": {"es": "Decisión de tasa de la Fed (FOMC)",     "en": "Fed rate decision (FOMC)"},
+    "gdp":                {"es": "PIB",                                  "en": "GDP"},
+}
+
+_MACRO_EVENT_VALUE_LABEL: dict[str, dict[str, str]] = {
+    "cpi":                {"es": "Interanual",              "en": "YoY"},
+    "core_cpi":           {"es": "Interanual (subyacente)",  "en": "Core YoY"},
+    "pce":                {"es": "Interanual",              "en": "YoY"},
+    "core_pce":           {"es": "Interanual (subyacente)",  "en": "Core YoY"},
+    "nfp":                {"es": "Empleos creados",          "en": "Jobs added"},
+    "unemployment_rate":  {"es": "Tasa",                     "en": "Rate"},
+    "fomc_rate_decision": {"es": "Tasa de referencia",       "en": "Rate"},
+    "gdp":                {"es": "Crecimiento QoQ",          "en": "QoQ growth"},
+}
+
+_MACRO_MONTHS_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+                    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+_MACRO_MONTHS_EN = ["January", "February", "March", "April", "May", "June",
+                    "July", "August", "September", "October", "November", "December"]
+
+
+def _macro_event_push_content(
+    event: dict,
+    language: str,
+    is_premium: bool,
+    first_name: str,
+) -> tuple[str, str]:
+    """(title, body) for a macro-event push. Mirrors _earnings_push_content's
+    shape (headline result line, then a CTA) but the CTA branches on Premium
+    — Diego, 2026-09-07: Free users get an explicit upsell instead of a
+    silent deep link into a paywall, Premium users get a personalized nudge
+    by first name straight into the portfolio-impact explanation."""
+    import pytz
+
+    is_en = language == "en"
+    event_type = event.get("event_type", "")
+    name_map  = _MACRO_EVENT_DISPLAY_NAME.get(event_type, {})
+    label_map = _MACRO_EVENT_VALUE_LABEL.get(event_type, {})
+    event_label = name_map.get("en" if is_en else "es") or event.get("event_name") or event_type
+    value_label = label_map.get("en" if is_en else "es") or ("Result" if is_en else "Resultado")
+
+    try:
+        dt_utc = datetime.fromisoformat(event["event_date_utc"])
+        dt_et  = dt_utc.astimezone(pytz.timezone("America/New_York"))
+        months = _MACRO_MONTHS_EN if is_en else _MACRO_MONTHS_ES
+        month  = months[dt_et.month - 1]
+    except Exception:
+        month = None
+
+    title = f"📊 {event_label} ({month}) is out" if is_en and month else \
+            f"📊 {event_label} ({month}) se publicó" if month else \
+            (f"📊 {event_label} is out" if is_en else f"📊 {event_label} se publicó")
+
+    actual   = event.get("actual_value")
+    estimate = event.get("estimate_value")
+    previous = event.get("previous_value")
+
+    if actual is None:
+        return title, ""
+
+    line = f"{value_label}: {actual}"
+    if estimate is not None:
+        line += f" vs {estimate} " + ("est." if is_en else "esperado")
+    if previous is not None:
+        line += f" ({'previous' if is_en else 'anterior'}: {previous})"
+
+    if is_premium:
+        cta = f"Come see how this affects you, {first_name}" if is_en else f"Ven a ver cómo te afecta a ti, {first_name}"
+    else:
+        cta = "Join Premium today to find out how this affects you" if is_en else "Únete a Premium hoy para que conozcas cómo te afecta a ti"
+
+    body = line + "\n\n" + cta
+    return title, body
+
+
+async def job_macro_event_watch():
+    """Every 15 min, 8 AM-3 PM ET Mon-Fri — the single macro-event
+    notification per release per user: fires as soon as job_refresh_macro_
+    calendar's daily FMP sync shows a real `actual_value` for one of
+    _TRACKED_MACRO_EVENT_TYPES (CPI/Core CPI/PCE/Core PCE/NFP/Unemployment/
+    FOMC/GDP), all released between 8:30am (most) and 2pm ET (FOMC).
+    send_push's per-user/category/day dedup already guarantees a released
+    event is only ever pushed once per user, so polling frequently just
+    shortens the delay — it never double-sends."""
+    import pytz
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+
+    db = get_supabase()
+    try:
+        today_et = datetime.now(pytz.timezone("America/New_York")).date().isoformat()
+        events_res = await run_query(
+            db.table("macro_economic_events")
+            .select("event_id,event_type,event_name,event_date_utc,actual_value,estimate_value,previous_value")
+            .gte("event_date_utc", f"{today_et}T00:00:00+00:00")
+            .lt("event_date_utc", f"{today_et}T23:59:59+00:00")
+        )
+        events = [
+            e for e in (events_res.data or [])
+            if e.get("event_type") in _TRACKED_MACRO_EVENT_TYPES and e.get("actual_value") is not None
+        ]
+        if not events:
+            return
+
+        users_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,name,subscription_tier,trial_started_at,preferred_language,streak_bonus_premium_until")
+        )
+        users = users_res.data or []
+        if not users:
+            return
+
+        notified = 0
+        for event in events:
+            category = f"macro_{event['event_type']}_{event['event_id'][:16]}"
+            for u in users:
+                uid       = u["user_id"]
+                language  = u.get("preferred_language") or "es"
+                is_prem   = _is_premium_user(
+                    u.get("subscription_tier") or "free",
+                    u.get("trial_started_at"),
+                    u.get("streak_bonus_premium_until"),
+                )
+                first_name = (u.get("name") or "Inversor").split()[0]
+                title, body = _macro_event_push_content(event, language, is_prem, first_name)
+                if not body:
+                    continue
+                data = {"screen": "watchlist", "event_id": event["event_id"], "macro": True}
+                await send_push(uid, category, title, body, data, db)
+                notified += 1
+                await asyncio.sleep(random.uniform(0, 0.02))
+
+        if notified:
+            logger.info("job_macro_event_watch: %d notifications sent across %d event(s)", notified, len(events))
+    except Exception as e:
+        logger.error("job_macro_event_watch failed: %s", e)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Email jobs
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -5701,6 +5863,11 @@ async def main():
     # ── Daily 6:00am ET: macro-economic events calendar refresh (Watchlist
     # calendar's macro layer) — before market open, no notification. ─────────
     scheduler.add_job(job_refresh_macro_calendar, "cron", hour=6, minute=0, timezone="America/New_York")
+
+    # ── Every 15 min, 8am-3pm ET Mon-Fri: CPI/Core CPI/PCE/Core PCE/NFP/
+    # Unemployment/FOMC/GDP push — covers every tracked release's window
+    # (8:30am for most, 2pm ET for FOMC). See job_macro_event_watch's docstring.
+    scheduler.add_job(job_macro_event_watch, "cron", day_of_week="mon-fri", hour="8-15", minute="*/15", timezone="America/New_York")
 
     # ── Sunday 7:05pm ET: index futures just came online for the week (5 min
     # after market.py's futures window opens at 7pm ET) ──────────────────────

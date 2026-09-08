@@ -22,7 +22,11 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const screen = event.notification.data?.screen || "portfolio";
-  const url = self.location.origin + "/" + screen;
+  const eventId = event.notification.data?.event_id;
+  // job_macro_event_watch's CPI/NFP/FOMC/etc. push carries an event_id so
+  // the watchlist page can auto-open that day's impact panel — see
+  // WatchlistEarningsCalendar's initialEventId prop.
+  const url = self.location.origin + "/" + screen + (screen === "watchlist" && eventId ? `?macroEventId=${encodeURIComponent(eventId)}` : "");
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((cs) => {
       const existing = cs.find((c) => c.url.startsWith(self.location.origin) && "focus" in c);

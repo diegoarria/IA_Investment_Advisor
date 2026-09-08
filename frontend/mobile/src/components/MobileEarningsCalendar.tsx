@@ -62,6 +62,11 @@ interface Props {
   tickerLogos?: Record<string, string | null>;
   isPremium?: boolean;
   onUpgrade?: () => void;
+  // Deep-link target from job_macro_event_watch's push (see _layout.tsx) —
+  // once macroEvents loads, jumps straight to that event's day and, for
+  // Premium users, auto-fires the personalized impact analysis so tapping
+  // the push opens directly on the explanation instead of another tap.
+  initialEventId?: string;
 }
 
 const getDays = (t: TFunction): string[] => [
@@ -110,6 +115,7 @@ export default function MobileEarningsCalendar({
   tickerLogos = {},
   isPremium = false,
   onUpgrade,
+  initialEventId,
 }: Props) {
   const { colors } = useTheme();
   const { t, i18n } = useTranslation();
@@ -205,6 +211,22 @@ export default function MobileEarningsCalendar({
       setAnalyzingMacro(null);
     }
   };
+
+  // Auto-open the deep-linked event's day once macroEvents has loaded, and
+  // for Premium users auto-fire the impact analysis so the push opens
+  // straight on the explanation. Runs once per initialEventId (a ref, not
+  // state, so it doesn't re-trigger after the user navigates elsewhere in
+  // the calendar).
+  const consumedInitialEventId = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialEventId || consumedInitialEventId.current === initialEventId) return;
+    const match = macroEvents.find((e) => e.event_id === initialEventId);
+    if (!match) return;
+    consumedInitialEventId.current = initialEventId;
+    setSelectedDay(match.date_et);
+    if (isPremium) handleAnalyzeMacro(match.event_id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialEventId, macroEvents, isPremium]);
 
   const selectedEntries = selectedDay ? (eventMap[selectedDay] ?? []) : [];
   const s = makeStyles(colors);

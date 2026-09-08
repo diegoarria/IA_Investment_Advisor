@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useTheme, type Colors } from "../../src/lib/ThemeContext";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -286,6 +286,7 @@ const rw = StyleSheet.create({
 export default function WatchlistScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const { macroEventId } = useLocalSearchParams<{ macroEventId?: string }>();
   const { items, add, remove, has, reorder } = useWatchlistStore();
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
@@ -625,6 +626,7 @@ export default function WatchlistScreen() {
             tickerNames={Object.fromEntries(items.map((i) => [i.ticker, i.name]))}
             isPremium={isPremium}
             onUpgrade={() => setPaywallOpen(true)}
+            initialEventId={typeof macroEventId === "string" ? macroEventId : undefined}
           />
         </ScrollView>
 

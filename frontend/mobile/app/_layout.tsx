@@ -139,8 +139,14 @@ function AppStack() {
         router.navigate("/(tabs)/portfolio");
       } else if (data.screen === "watchlist") {
         // job_portfolio_alerts' price-mover push for a watchlist (not
-        // portfolio) ticker.
-        router.navigate("/(tabs)/watchlist");
+        // portfolio) ticker — OR job_macro_event_watch's CPI/NFP/FOMC/etc.
+        // push, which carries an event_id to auto-open that day's impact
+        // panel (see MobileEarningsCalendar's initialEventId prop).
+        if (data.event_id) {
+          router.navigate({ pathname: "/(tabs)/watchlist", params: { macroEventId: data.event_id } });
+        } else {
+          router.navigate("/(tabs)/watchlist");
+        }
       } else if (data.screen === "paper") {
         // job_portfolio_alerts' price-mover push for a Paper Trading (Simulador) position.
         router.navigate("/(tabs)/paper");

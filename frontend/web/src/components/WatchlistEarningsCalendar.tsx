@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ChevronLeft, ChevronRight, Calendar, Loader2,
@@ -70,6 +70,11 @@ interface Props {
   tickerLogos?: Record<string, string | null>;
   isPremium?: boolean;
   onUpgrade?: () => void;
+  // Deep-link target from job_macro_event_watch's push (sw.js's
+  // notificationclick appends ?macroEventId=... for the "watchlist"
+  // screen) — once macroEvents loads, jumps straight to that event's day
+  // and, for Premium users, auto-fires the impact analysis.
+  initialEventId?: string;
 }
 
 function getDays(t: TFunction): string[] {
@@ -148,6 +153,7 @@ export default function WatchlistEarningsCalendar({
   tickerLogos = {},
   isPremium = false,
   onUpgrade,
+  initialEventId,
 }: Props) {
   const { t, i18n } = useTranslation();
   const DAYS = getDays(t);
@@ -279,6 +285,21 @@ export default function WatchlistEarningsCalendar({
       setAnalyzingMacro(null);
     }
   };
+
+  // Auto-open the deep-linked event's day once macroEvents has loaded, and
+  // for Premium users auto-fire the impact analysis — a ref (not state) so
+  // it only fires once per initialEventId even as the user navigates the
+  // calendar afterward.
+  const consumedInitialEventId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialEventId || consumedInitialEventId.current === initialEventId) return;
+    const match = macroEvents.find((e) => e.event_id === initialEventId);
+    if (!match) return;
+    consumedInitialEventId.current = initialEventId;
+    setSelectedDay(match.date_et);
+    if (isPremium) handleAnalyzeMacro(match.event_id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialEventId, macroEvents, isPremium]);
 
   const selectedEntries = selectedDay ? (eventMap[selectedDay] ?? []) : [];
 
