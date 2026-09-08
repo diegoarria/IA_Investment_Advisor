@@ -648,6 +648,8 @@ export const adminApi = {
     api.post("/api/admin/test-price-alert-why", null, { params: { ticker, pct } }),
   llmUsage: (days: number = 1) =>
     api.get("/api/admin/llm-usage", { params: { days } }),
+  refreshUndervaluedScreener: () => api.post("/api/admin/refresh-undervalued-screener"),
+  pollUndervaluedScreenerBatch: () => api.post("/api/admin/poll-undervalued-screener-batch"),
 };
 
 export default api;

@@ -38,6 +38,13 @@ export default function AdminDiagnosticsPage() {
   const [usageResult, setUsageResult] = useState<any>(null);
   const [usageError, setUsageError] = useState<string | null>(null);
 
+  const [screenerRefreshLoading, setScreenerRefreshLoading] = useState(false);
+  const [screenerRefreshResult, setScreenerRefreshResult] = useState<any>(null);
+  const [screenerRefreshError, setScreenerRefreshError] = useState<string | null>(null);
+  const [screenerPollLoading, setScreenerPollLoading] = useState(false);
+  const [screenerPollResult, setScreenerPollResult] = useState<any>(null);
+  const [screenerPollError, setScreenerPollError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!userId || !isAuthenticated) return;
     if (userId !== ADMIN_UID) router.push("/");
@@ -69,6 +76,34 @@ export default function AdminDiagnosticsPage() {
       setWhyError(err?.response?.data?.detail ?? "Error al ejecutar la prueba.");
     } finally {
       setWhyLoading(false);
+    }
+  };
+
+  const runScreenerRefresh = async () => {
+    setScreenerRefreshLoading(true);
+    setScreenerRefreshError(null);
+    setScreenerRefreshResult(null);
+    try {
+      const res = await adminApi.refreshUndervaluedScreener();
+      setScreenerRefreshResult(res.data);
+    } catch (err: any) {
+      setScreenerRefreshError(err?.response?.data?.detail ?? "Error al forzar el refresh.");
+    } finally {
+      setScreenerRefreshLoading(false);
+    }
+  };
+
+  const runScreenerPoll = async () => {
+    setScreenerPollLoading(true);
+    setScreenerPollError(null);
+    setScreenerPollResult(null);
+    try {
+      const res = await adminApi.pollUndervaluedScreenerBatch();
+      setScreenerPollResult(res.data);
+    } catch (err: any) {
+      setScreenerPollError(err?.response?.data?.detail ?? "Error al revisar el batch.");
+    } finally {
+      setScreenerPollLoading(false);
     }
   };
 
@@ -117,6 +152,43 @@ export default function AdminDiagnosticsPage() {
           </button>
           {marketOpenError && <p className="text-sm" style={{ color: "#f87171" }}>{marketOpenError}</p>}
           {marketOpenResult && <JsonBlock data={marketOpenResult} />}
+        </section>
+
+        {/* ── Refrescar Oportunidades (screener por sector) ── */}
+        <section className="rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+          <div>
+            <p className="text-sm font-bold" style={{ color: "var(--text)" }}>🔄 Refrescar Oportunidades</p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+              Fuerza el refresh completo del screener (todos los sectores) ahora mismo, en vez de esperar al cron del domingo 12:05pm ET. Úsalo después de un deploy que cambie el cache-key del screener — si no, cada sector se ve vacío hasta el próximo domingo.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={runScreenerRefresh}
+              disabled={screenerRefreshLoading}
+              className="px-4 py-2.5 rounded-xl text-sm font-bold text-white flex items-center gap-1.5"
+              style={{ background: "var(--accent)" }}
+            >
+              {screenerRefreshLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+              Forzar refresh ahora
+            </button>
+            <button
+              onClick={runScreenerPoll}
+              disabled={screenerPollLoading}
+              className="px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1.5"
+              style={{ background: "var(--raised)", color: "var(--text)", border: "1px solid var(--border)" }}
+            >
+              {screenerPollLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+              Revisar/finalizar batch
+            </button>
+          </div>
+          <p className="text-[11px]" style={{ color: "var(--dim)" }}>
+            El primer botón solo ENVÍA el trabajo (tarda un rato en terminar). Si a los pocos minutos "Oportunidades" sigue vacío, usa el segundo botón para forzar que se termine de procesar ya.
+          </p>
+          {screenerRefreshError && <p className="text-sm" style={{ color: "#f87171" }}>{screenerRefreshError}</p>}
+          {screenerRefreshResult && <JsonBlock data={screenerRefreshResult} />}
+          {screenerPollError && <p className="text-sm" style={{ color: "#f87171" }}>{screenerPollError}</p>}
+          {screenerPollResult && <JsonBlock data={screenerPollResult} />}
         </section>
 
         {/* ── Por qué de alerta de precio ── */}
