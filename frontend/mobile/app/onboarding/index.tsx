@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, KeyboardAvoidingView, Platform,
+  StyleSheet, KeyboardAvoidingView, Platform, Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -375,9 +375,25 @@ export default function OnboardingScreen() {
             </View>
             <Text style={S.checkLabel}>
               {t("onboarding.step9.termsPrefix")}{" "}
-              <Text style={{ color: "#00d47e", textDecorationLine: "underline" }}>{t("onboarding.step9.termsOfUse")}</Text>
+              {/* Diego, 2026-09-08 (pre-launch audit, P3): this styled as a
+                  link but had no onPress of its own — tapping it just
+                  toggled the checkbox like the rest of the row. RN's Text
+                  supports onPress natively (a nested TouchableOpacity/View
+                  isn't valid inside Text), and stopping propagation here
+                  keeps the checkbox from also toggling on this tap. */}
+              <Text
+                style={{ color: "#00d47e", textDecorationLine: "underline" }}
+                onPress={(e) => { e.stopPropagation(); Linking.openURL("https://nuvosai.app/terms"); }}
+              >
+                {t("onboarding.step9.termsOfUse")}
+              </Text>
               {" "}{t("onboarding.step9.and")}{" "}
-              <Text style={{ color: "#00d47e", textDecorationLine: "underline" }}>{t("onboarding.step9.privacyPolicy")}</Text>.
+              <Text
+                style={{ color: "#00d47e", textDecorationLine: "underline" }}
+                onPress={(e) => { e.stopPropagation(); Linking.openURL("https://nuvosai.app/privacy"); }}
+              >
+                {t("onboarding.step9.privacyPolicy")}
+              </Text>.
             </Text>
           </TouchableOpacity>
 
