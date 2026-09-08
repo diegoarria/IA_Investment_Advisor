@@ -3988,6 +3988,10 @@
         "label": "Volatility alerts",
         "desc": "High volatility events"
       },
+      "investmentReminder": {
+        "label": "Investment discipline reminder",
+        "desc": "On the 1st and 15th of each month — a nudge to keep your contribution rhythm, never a scold"
+      },
       "thesisChanges": {
         "label": "Thesis/strategy changes",
         "desc": "When a company you follow changes strategy"

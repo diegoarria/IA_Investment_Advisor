@@ -68,6 +68,10 @@ _DEFAULT_PREFS = {
     "push_thesis_changes": True, "push_guidance_changes": True,
     "push_roic_fcf_deterioration": True, "push_new_risks": True,
     "push_price_in_range": True,
+    # Diego, 2026-09-09 — 1st/15th-of-month investment-discipline nudge
+    # (see job_investment_discipline_reminder in worker.py). Real detection
+    # only, framed as a guide never a scold.
+    "push_investment_reminder": True,
     "email_daily_summary": True, "email_weekly_summary": True,
     "max_push_per_day": 15, "max_push_per_week": 60,
     "quiet_hours_start": 22, "quiet_hours_end": 8,
@@ -89,6 +93,7 @@ class PrefsUpdate(BaseModel):
     push_roic_fcf_deterioration:  Optional[bool] = None
     push_new_risks:               Optional[bool] = None
     push_price_in_range:          Optional[bool] = None
+    push_investment_reminder:     Optional[bool] = None
     email_daily_summary:     Optional[bool] = None
     email_weekly_summary:    Optional[bool] = None
     max_push_per_day:        Optional[int]  = None

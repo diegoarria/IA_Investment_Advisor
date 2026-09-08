@@ -3988,6 +3988,10 @@
         "label": "Alertas de volatilidad",
         "desc": "Eventos de alta volatilidad"
       },
+      "investmentReminder": {
+        "label": "Recordatorio de disciplina de inversión",
+        "desc": "El 1 y 15 de cada mes — un recordatorio para mantener tu ritmo de aportaciones, nunca un regaño"
+      },
       "thesisChanges": {
         "label": "Cambios de tesis/estrategia",
         "desc": "Cuando una empresa que sigues cambia de estrategia"

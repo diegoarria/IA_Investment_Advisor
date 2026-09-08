@@ -3678,6 +3678,119 @@ async def job_reengagement_push():
         logger.error("job_reengagement_push failed: %s", e)
 
 
+async def job_investment_discipline_reminder():
+    """10:00 AM ET, the 1st and 15th of each month — a habit/discipline
+    nudge, deliberately designed to never feel like a scold (Diego,
+    2026-09-09: "no quiero que se sienta como regaño sino una guía para
+    mantener la disciplina").
+
+    Only reaches users who stated a real monthly_contribution intent at
+    onboarding (nobody who never said they wanted to invest regularly gets
+    this) and who haven't opted out via push_investment_reminder.
+
+    Real detection only — checks investment_decisions for an actual logged
+    "buy" this period (the same auto-decision-journal entries sync.py's
+    _diff_positions_for_auto_decisions writes whenever a position really
+    increases), never assumes or guesses:
+      - On the 1st: evaluates the month that JUST closed. If they invested,
+        the message reinforces the habit (no ask, no question). If they
+        didn't, the message re-invites them to pick the habit back up,
+        framed around the habit/system, never the person ("nadie invierte
+        perfecto cada mes" — not "you didn't invest").
+      - On the 15th: evaluates the current month so far, and ONLY sends to
+        users who haven't invested yet — someone who already did doesn't
+        need a mid-month ping at all; the 1st's closing message already
+        covers positive reinforcement once a month, so this doesn't double
+        up on it.
+    """
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+
+    db = get_supabase()
+    today = date.today()
+    is_month_start = today.day == 1
+    if is_month_start:
+        # Evaluate the month that just closed.
+        period_end = today  # exclusive
+        period_start = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+    else:
+        # Evaluate the current month so far.
+        period_start = today.replace(day=1)
+        period_end = today + timedelta(days=1)  # exclusive, include today
+
+    try:
+        profiles_res = await run_query(
+            db.table("user_profiles").select("user_id, monthly_contribution, preferred_language")
+        )
+        candidates = [
+            r for r in (profiles_res.data or [])
+            if str(r.get("monthly_contribution") or "").strip() not in ("", "0", "0.0")
+        ]
+        if not candidates:
+            return
+        candidate_ids = [r["user_id"] for r in candidates]
+
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id")
+            .eq("push_investment_reminder", True).in_("user_id", candidate_ids)
+        )
+        opted_in = {r["user_id"] for r in (prefs_res.data or [])}
+        candidates = [r for r in candidates if r["user_id"] in opted_in]
+        if not candidates:
+            return
+
+        decisions_res = await run_query(
+            db.table("investment_decisions").select("user_id")
+            .eq("action", "buy")
+            .gte("created_at", period_start.isoformat())
+            .lt("created_at", period_end.isoformat())
+            .in_("user_id", [c["user_id"] for c in candidates])
+        )
+        invested_uids = {r["user_id"] for r in (decisions_res.data or [])}
+
+        sent = 0
+        for i, r in enumerate(candidates):
+            uid = r["user_id"]
+            invested = uid in invested_uids
+            if not is_month_start and invested:
+                continue  # mid-month: silence is the reward for already having invested
+            is_en = (r.get("preferred_language") or "es") == "en"
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            await asyncio.sleep(random.uniform(0, 0.12))
+
+            if invested:
+                title = "🎯 You already invested this month" if is_en else "🎯 Ya invertiste este mes"
+                body = (
+                    "Consistency — not perfect timing — is what compounds your wealth over the years."
+                    if is_en else
+                    "La constancia — no el timing perfecto — es lo que compone tu patrimonio con los años."
+                )
+            elif is_month_start:
+                title = "Get back on track" if is_en else "Retoma el ritmo"
+                body = (
+                    "Nobody invests perfectly every month. If you want to get back on track, here's 2 minutes to do it — the habit matters more than never missing one."
+                    if is_en else
+                    "Nadie invierte perfecto cada mes. Si quieres retomar el ritmo, aquí tienes 2 minutos para hacerlo — el hábito importa más que no fallar nunca."
+                )
+            else:
+                title = "📅 15 days into the month" if is_en else "📅 Van 15 días del mes"
+                body = (
+                    "If your plan is to contribute regularly, now's a good time — no pressure, just a reminder from you, to you."
+                    if is_en else
+                    "Si tu plan es aportar regularmente, este es un buen momento — sin presión, solo un recordatorio tuyo, no nuestro."
+                )
+
+            await send_push(uid, "investment_discipline_reminder", title, body, {"screen": "portfolio"}, db)
+            sent += 1
+        logger.info(
+            "job_investment_discipline_reminder: %d sent (%s, %d/%d already invested)",
+            sent, "month-start" if is_month_start else "mid-month", len(invested_uids), len(candidates),
+        )
+    except Exception as e:
+        logger.error("job_investment_discipline_reminder failed: %s", e)
+
+
 async def job_risk_mgmt_push():
     """3:00 PM ET Friday — push VIX spike warning + stop loss reminder when VIX > 20.
     Uses Finnhub /quote for ^VIX (yfinance blocked on Railway)."""
@@ -5973,6 +6086,9 @@ async def main():
     # "La IA encontró algo" — roughly every 2h during market hours, never more
     scheduler.add_job(job_ai_insight_scan,       "cron", day_of_week="mon-fri", hour="9,11,13,15", minute=30, timezone="America/New_York")
     scheduler.add_job(job_reengagement_push,     "cron",                        hour=11, minute=0, timezone="America/New_York")
+    # 1st and 15th of each month — investment-discipline nudge, see the job's own docstring
+    scheduler.add_job(job_investment_discipline_reminder, "cron", day=1,  hour=10, minute=0, timezone="America/New_York")
+    scheduler.add_job(job_investment_discipline_reminder, "cron", day=15, hour=10, minute=0, timezone="America/New_York")
 
     # ── Daily habit system ──────────────────────────────────────────────────────
     scheduler.add_job(job_sunday_portfolio_review,   "cron", day_of_week="sun", hour=17, minute=0,  timezone="America/New_York")
