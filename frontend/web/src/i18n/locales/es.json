@@ -915,7 +915,10 @@
       "teaser_one": "Hay {{count}} candidata real en este sector.",
       "teaser_other": "Hay {{count}} candidatas reales en este sector.",
       "priceLabel": "Precio",
-      "fairValueLabel": "Valor razonable"
+      "fairValueLabel": "Valor razonable",
+      "sortUndervalued": "Más infravalorada",
+      "sortMarketCap": "Market Cap",
+      "sortPrice": "Precio de la acción"
     },
     "dcf": {
       "level2Toggle": "Ver cómo Nuvos hizo esta valoración",

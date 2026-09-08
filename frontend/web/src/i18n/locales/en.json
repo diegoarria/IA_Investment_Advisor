@@ -915,7 +915,10 @@
       "teaser_one": "There's {{count}} real candidate in this sector.",
       "teaser_other": "There are {{count}} real candidates in this sector.",
       "priceLabel": "Price",
-      "fairValueLabel": "Fair value"
+      "fairValueLabel": "Fair value",
+      "sortUndervalued": "Most undervalued",
+      "sortMarketCap": "Market Cap",
+      "sortPrice": "Share price"
     },
     "dcf": {
       "level2Toggle": "See how Nuvos built this valuation",

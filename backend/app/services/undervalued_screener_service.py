@@ -361,14 +361,18 @@ def _build_roster_entry(entry: dict, data: Optional[dict]) -> Optional[dict]:
     value from at all."""
     if not data:
         return None
-    dcf = data.get("dcf")
+    dcf = data.get("dcf") or {}
     intrinsic_value_base = _primary_valuation(dcf).get("intrinsic_value_base") if dcf else None
+    price = data.get("current_price")
+    shares_out = dcf.get("shares_outstanding")
+    market_cap = price * shares_out if price and shares_out else None
     return {
         "ticker": entry["ticker"],
         "company_name": data.get("company_name"),
         "sector": entry.get("sector"),
-        "price": data.get("current_price"),
+        "price": price,
         "intrinsic_value_base": intrinsic_value_base,
+        "market_cap": market_cap,
     }
 
 

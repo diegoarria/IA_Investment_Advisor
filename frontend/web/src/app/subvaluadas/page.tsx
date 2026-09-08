@@ -172,8 +172,40 @@ interface SectorPreviewResult {
   sector: string | null;
   price: number | null;
   intrinsic_value_base: number | null;
+  market_cap: number | null;
   margin_of_safety_pct?: number | null;
   thesis_scores?: Record<string, number> | null;
+}
+
+// Diego, 2026-09-07: 3 sort chips within a sector's list — "Más
+// infravalorada" (computed client-side from price/intrinsic_value_base,
+// since the roster doesn't carry a server-side MOS at all), Market Cap,
+// and Price. null = the roster's own default order (alphabetical by
+// ticker, straight from the backend).
+type SectorSortMode = "undervalued" | "marketCap" | "price" | null;
+
+function sortSectorResults(results: SectorPreviewResult[], mode: SectorSortMode): SectorPreviewResult[] {
+  if (!mode) return results;
+  const withKey = results.map((r) => {
+    let key: number | null = null;
+    if (mode === "undervalued") {
+      key = r.price && r.intrinsic_value_base != null ? (r.intrinsic_value_base - r.price) / r.price : null;
+    } else if (mode === "marketCap") {
+      key = r.market_cap;
+    } else if (mode === "price") {
+      key = r.price;
+    }
+    return { r, key };
+  });
+  // Entries missing the sorted-by field sink to the bottom instead of
+  // being dropped — still real companies, just nothing to rank them by.
+  withKey.sort((a, b) => {
+    if (a.key === null && b.key === null) return 0;
+    if (a.key === null) return 1;
+    if (b.key === null) return -1;
+    return b.key - a.key;
+  });
+  return withKey.map((w) => w.r);
 }
 
 export default function SubvaluadasPage() {
@@ -236,6 +268,8 @@ function SubvaluadasPageInner() {
   // of how many candidates exist — same 100%-Premium pattern the rest of
   // this screen already uses (subvaluadas.freeGate.*).
   const [sectorTeaserCount, setSectorTeaserCount] = useState<number | null>(null);
+  const [sectorSort, setSectorSort] = useState<SectorSortMode>(null);
+  const sortedSectorResults = useMemo(() => sortSectorResults(sectorResults, sectorSort), [sectorResults, sectorSort]);
 
   useEffect(() => {
     if (!selectedSector || authRestoring) return;
@@ -243,6 +277,7 @@ function SubvaluadasPageInner() {
     setSectorLoading(true);
     setSectorError(false);
     setSectorTeaserCount(null);
+    setSectorSort(null);
     // getUndervalued (real, positive-MOS candidates) only decides the
     // free/Premium gate here (same 100%-Premium pattern as the rest of
     // this screen) — for Premium, the actual list rendered comes from
@@ -544,8 +579,30 @@ function SubvaluadasPageInner() {
                       <p className="text-sm" style={{ color: "var(--muted)" }}>{t("subvaluadas.sectors.empty")}</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {sectorResults.map((r) => (
+                    <>
+                      <div className="flex gap-2 mb-3">
+                        {([
+                          ["undervalued", "subvaluadas.sectors.sortUndervalued"],
+                          ["marketCap", "subvaluadas.sectors.sortMarketCap"],
+                          ["price", "subvaluadas.sectors.sortPrice"],
+                        ] as [SectorSortMode, string][]).map(([mode, labelKey]) => {
+                          const active = sectorSort === mode;
+                          return (
+                            <button
+                              key={mode}
+                              onClick={() => setSectorSort((cur) => (cur === mode ? null : mode))}
+                              className="px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors"
+                              style={active
+                                ? { background: "var(--brand-green)", borderColor: "var(--brand-green)", color: "#0A0F1A" }
+                                : { background: "var(--card)", borderColor: "var(--border)", color: "var(--sub)" }}
+                            >
+                              {t(labelKey)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="space-y-2">
+                      {sortedSectorResults.map((r) => (
                         <button
                           key={r.ticker}
                           onClick={() => handleSectorCardClick(r.ticker)}
@@ -571,7 +628,8 @@ function SubvaluadasPageInner() {
                           </div>
                         </button>
                       ))}
-                    </div>
+                      </div>
+                    </>
                   )}
                 </div>
               ) : loading ? (
