@@ -1,5 +1,5 @@
 """
-Nuvos Investor Recap — tests for the pure, DB/network-free logic:
+Nuvos Monthly Report — tests for the pure, DB/network-free logic:
 month-boundary math, achievement conditions, ctx date-filtering, and
 (the explicitly CRITICAL one, per spec) the Share Card DTO's privacy
 guarantee — it must be structurally IMPOSSIBLE for a money/portfolio-
@@ -10,7 +10,7 @@ from datetime import date
 
 import pytest
 
-from app.services.investor_recap_service import (
+from app.services.monthly_report_service import (
     _month_bounds,
     _ctx_as_of,
     ACHIEVEMENTS,

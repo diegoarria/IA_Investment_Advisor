@@ -4,18 +4,18 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock } from "lucide-react";
 import api from "@/lib/api";
-import RecapFlow from "@/components/investor-recap/RecapFlow";
-import { InvestorRecapResponse, WT } from "@/components/investor-recap/types";
+import MonthlyReportFlow from "@/components/monthly-report/MonthlyReportFlow";
+import { MonthlyReportResponse, WT } from "@/components/monthly-report/types";
 
 function currentYearMonth(): { year: number; month: number } {
   const now = new Date();
   return { year: now.getFullYear(), month: now.getMonth() + 1 };
 }
 
-export default function InvestorRecapPage() {
+export default function MonthlyReportPage() {
   const router = useRouter();
   const [{ year, month }, setYearMonth] = useState(currentYearMonth);
-  const [data, setData] = useState<InvestorRecapResponse | null>(null);
+  const [data, setData] = useState<MonthlyReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [premiumLocked, setPremiumLocked] = useState<string | null>(null);
   const [error, setError] = useState(false);
@@ -25,7 +25,7 @@ export default function InvestorRecapPage() {
     setLoading(true);
     setError(false);
     setPremiumLocked(null);
-    api.get("/api/recap/monthly", { params: { year, month }, timeout: 30000 })
+    api.get("/api/monthly-report", { params: { year, month }, timeout: 30000 })
       .then((res) => { if (!cancelled) setData(res.data); })
       .catch((err) => {
         if (cancelled) return;
@@ -68,7 +68,7 @@ export default function InvestorRecapPage() {
           <div style={{ width: 56, height: 56, borderRadius: 18, background: "rgba(212,162,76,0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
             <Lock size={26} color={WT.gold} />
           </div>
-          <h1 style={{ fontWeight: 800, fontSize: 20, color: WT.text, marginBottom: 10 }}>Investor Recap es Premium</h1>
+          <h1 style={{ fontWeight: 800, fontSize: 20, color: WT.text, marginBottom: 10 }}>Monthly Report es Premium</h1>
           <p style={{ fontFamily: "var(--font-ui)", fontSize: 14, color: WT.sub, lineHeight: 1.5, marginBottom: 24 }}>{premiumLocked}</p>
           <button onClick={close} style={{ padding: "12px 28px", borderRadius: 100, background: WT.gradGreen, border: "none", color: "#062a1a", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
             Volver
@@ -78,7 +78,7 @@ export default function InvestorRecapPage() {
 
       {!loading && error && (
         <div style={{ maxWidth: 320, textAlign: "center", padding: 32 }}>
-          <p style={{ fontFamily: "var(--font-ui)", fontSize: 14, color: WT.sub }}>No pudimos cargar tu Investor Recap. Intenta de nuevo en unos minutos.</p>
+          <p style={{ fontFamily: "var(--font-ui)", fontSize: 14, color: WT.sub }}>No pudimos cargar tu Monthly Report. Intenta de nuevo en unos minutos.</p>
         </div>
       )}
 
@@ -86,7 +86,7 @@ export default function InvestorRecapPage() {
         <div style={{ maxWidth: 340, textAlign: "center", padding: 32 }}>
           <div style={{ fontSize: 36, marginBottom: 14 }}>{month === now.month && year === now.year ? "🌱" : "📅"}</div>
           <h1 style={{ fontWeight: 800, fontSize: 18, color: WT.text, marginBottom: 10 }}>
-            {data.reason === "before_account_inception" ? "Todavía no existías en Nuvos" : "Tu Investor Recap está tomando forma"}
+            {data.reason === "before_account_inception" ? "Todavía no existías en Nuvos" : "Tu Monthly Report está tomando forma"}
           </h1>
           <p style={{ fontFamily: "var(--font-ui)", fontSize: 14, color: WT.sub, lineHeight: 1.5, marginBottom: 24 }}>
             {data.reason === "before_account_inception"
@@ -105,7 +105,7 @@ export default function InvestorRecapPage() {
       )}
 
       {!loading && data && data.available && (
-        <RecapFlow data={data} year={year} month={month} onClose={close} onNavigateMonth={navigateMonth} canGoPrev={canGoPrev} canGoNext={canGoNext} />
+        <MonthlyReportFlow data={data} year={year} month={month} onClose={close} onNavigateMonth={navigateMonth} canGoPrev={canGoPrev} canGoNext={canGoNext} />
       )}
     </div>
   );

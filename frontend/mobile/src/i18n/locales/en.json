@@ -577,8 +577,8 @@
       "subtitle": "Your annual recap as an investor",
       "cta": "View →"
     },
-    "investorRecap": {
-      "title": "Nuvos Investor Recap",
+    "monthlyReport": {
+      "title": "Nuvos Monthly Report",
       "subtitle": "Your month as an investor, at a glance",
       "cta": "View →"
     },
@@ -2314,13 +2314,13 @@
     "typeUpload": "File",
     "typeBookmark": "Saved"
   },
-  "investorRecap": {
+  "monthlyReport": {
     "unknownError": "Unknown error",
-    "loadingText": "Preparing your Investor Recap…",
-    "loadFailedText": "Couldn't load your Investor Recap.",
+    "loadingText": "Preparing your Monthly Report…",
+    "loadFailedText": "Could not load your Monthly Report.",
     "retry": "Retry",
     "back": "Back",
-    "premiumTitle": "Investor Recap is Premium",
+    "premiumTitle": "Monthly Report is Premium",
     "nextMonth": "Next month"
   },
   "wrapped": {

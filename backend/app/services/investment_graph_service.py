@@ -321,11 +321,11 @@ async def compute_metrics(user_id: str, price_lookup: dict[str, float] | None = 
 
 async def _most_analyzed_companies_in_range(user_id: str, start_iso: str, end_iso: str, limit: int) -> dict:
     """Shared by get_most_analyzed_companies (calendar-year, Wrapped) and
-    get_most_analyzed_companies_in_month (calendar-month, Investor Recap)
+    get_most_analyzed_companies_in_month (calendar-month, Monthly Report)
     — same real logged thesis/question event count, just over an
     arbitrary [start_iso, end_iso] string window instead of a hardcoded
     year. Also returns the FIRST-analyzed timestamp per ticker (chronological
-    order of real engagement) — Investor Recap's "research pattern" derives
+    order of real engagement) — Monthly Report's "research pattern" derives
     from this real ordering, never an invented narrative sequence."""
     events = await _fetch_graph_events(user_id, None, limit=1000)
     relevant = [
@@ -368,7 +368,7 @@ async def get_most_analyzed_companies(user_id: str, year: int, limit: int = 3) -
 
 
 async def get_most_analyzed_companies_in_month(user_id: str, year: int, month: int, limit: int = 5) -> dict:
-    """Investor Recap's month-scoped counterpart to get_most_analyzed_
+    """Monthly Report's month-scoped counterpart to get_most_analyzed_
     companies — same real event-count logic, calendar-month window
     instead of calendar-year."""
     import calendar

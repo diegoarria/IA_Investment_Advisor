@@ -9,7 +9,7 @@ import {
   ScreenPatrimonio, ScreenHabitos, ScreenEvolucion, ScreenProximoMes,
   ScreenLogros, ScreenCompartir,
 } from "./screens";
-import { InvestorRecapData, WT } from "./types";
+import { MonthlyReportData, WT } from "./types";
 
 // Exactly these 9 content screens (Overview counts as the "portada" —
 // spec calls it screen 1 of 10 total including the Compartir closer),
@@ -31,10 +31,10 @@ const NEXT_TEASERS = [
   "Tu próximo mes 🎯", "Tus logros 🏆", "Tu tarjeta para compartir 🎉",
 ] as const;
 
-export default function RecapFlow({
+export default function MonthlyReportFlow({
   data, year, month, onClose, onNavigateMonth, canGoPrev, canGoNext,
 }: {
-  data: InvestorRecapData;
+  data: MonthlyReportData;
   year: number;
   month: number;
   onClose: () => void;
@@ -53,14 +53,14 @@ export default function RecapFlow({
   const prev = useCallback(() => setIndex((i) => Math.max(i - 1, 0)), []);
 
   useEffect(() => {
-    posthog.capture("recap_opened", { year, month });
+    posthog.capture("monthly_report_opened", { year, month });
   }, [year, month]);
 
   useEffect(() => {
     if (isLast) {
-      posthog.capture("recap_share_card_viewed", { year, month });
+      posthog.capture("monthly_report_share_card_viewed", { year, month });
     } else {
-      posthog.capture("recap_section_viewed", { year, month, section: SCREEN_KEYS[index] });
+      posthog.capture("monthly_report_section_viewed", { year, month, section: SCREEN_KEYS[index] });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, isLast]);
@@ -85,22 +85,22 @@ export default function RecapFlow({
     return new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/png"));
   }, []);
 
-  const fileLabel = `nuvos-investor-recap-${year}-${String(month).padStart(2, "0")}`;
+  const fileLabel = `nuvos-monthly-report-${year}-${String(month).padStart(2, "0")}`;
 
   const handleDownload = useCallback(async () => {
     setExporting(true);
-    posthog.capture("recap_share_clicked", { year, month, method: "download" });
+    posthog.capture("monthly_report_share_clicked", { year, month, method: "download" });
     try {
       const blob = await captureShareImage();
       if (!blob) return;
-      posthog.capture("recap_share_generated", { year, month });
+      posthog.capture("monthly_report_share_generated", { year, month });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `${fileLabel}.png`;
       a.click();
       URL.revokeObjectURL(url);
-      posthog.capture("recap_share_downloaded", { year, month });
+      posthog.capture("monthly_report_share_downloaded", { year, month });
     } finally {
       setExporting(false);
     }
@@ -108,14 +108,14 @@ export default function RecapFlow({
 
   const handleShare = useCallback(async () => {
     setExporting(true);
-    posthog.capture("recap_share_clicked", { year, month, method: "native_share" });
+    posthog.capture("monthly_report_share_clicked", { year, month, method: "native_share" });
     try {
       const blob = await captureShareImage();
       if (!blob) return;
-      posthog.capture("recap_share_generated", { year, month });
+      posthog.capture("monthly_report_share_generated", { year, month });
       const file = new File([blob], `${fileLabel}.png`, { type: "image/png" });
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: "Nuvos Investor Recap", text: `Mi Investor Recap de ${data.overview.month_label} con Nuvos AI #NuvosInvestor` });
+        await navigator.share({ files: [file], title: "Nuvos Monthly Report", text: `Mi Monthly Report de ${data.overview.month_label} con Nuvos AI #NuvosInvestor` });
       } else {
         await handleDownload();
       }

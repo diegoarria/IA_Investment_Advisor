@@ -1921,7 +1921,7 @@ def _compute_portfolio_chart(
 ) -> dict:
     """`custom_start`/`custom_end` (both optional, both must be given
     together): overrides `period`'s own start/end-date resolution with an
-    exact calendar window instead — added for Nuvos Investor Recap
+    exact calendar window instead — added for Nuvos Monthly Report
     (2026-09), which needs a SPECIFIC calendar month's return (e.g.
     "August 2026"), not `period="1mo"`'s rolling "30ish days back from
     right now" window. Every existing caller (the live /portfolio-chart
@@ -2075,7 +2075,7 @@ def _compute_portfolio_chart(
     # For non-intraday charts, replace the last data point with real-time prices so the
     # chart always ends at the current price (adjclose from daily bars lags one session).
     # Skipped entirely for a CLOSED historical window (custom_end in the
-    # past, e.g. Investor Recap viewing August after September started) —
+    # past, e.g. Monthly Report viewing August after September started) —
     # overwriting that month's real closing value with today's live quote
     # would silently corrupt an otherwise-immutable historical number.
     is_closed_historical_window = custom_end is not None and custom_end < today

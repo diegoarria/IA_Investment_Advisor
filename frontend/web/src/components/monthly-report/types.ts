@@ -1,9 +1,9 @@
-// Reuse Wrapped's brand tokens/formatters — Investor Recap is a sibling
+// Reuse Wrapped's brand tokens/formatters — Monthly Report is a sibling
 // experience (same full-bleed story-card format), not a separate design
 // system. See wrapped/types.ts for the source of truth.
 export { WT, fmtPct, fmtUsd } from "../wrapped/types";
 
-export interface RecapArchetype {
+export interface MonthlyReportArchetype {
   key: string;
   name: string;
   emoji: string;
@@ -11,29 +11,29 @@ export interface RecapArchetype {
   traits: string[];
 }
 
-export interface RecapPositionMove {
+export interface MonthlyReportPositionMove {
   ticker: string;
   company_name?: string | null;
   move_pct: number;
 }
 
 // growth/quality/value/defensive/other -> % of portfolio (real GQV
-// classification rollup — see investor_recap_service.py). Only buckets
+// classification rollup — see monthly_report_service.py). Only buckets
 // that are actually present (>0%) are included.
-export type RecapComposition = Record<string, number>;
+export type MonthlyReportComposition = Record<string, number>;
 
-export interface RecapPortfolio {
+export interface MonthlyReportPortfolio {
   available: boolean;
   return_pct: number | null;
   benchmark_pct: number | null;
   diff_pp: number | null;
-  best_position: RecapPositionMove | null;
-  worst_position: RecapPositionMove | null;
-  composition: RecapComposition | null;
+  best_position: MonthlyReportPositionMove | null;
+  worst_position: MonthlyReportPositionMove | null;
+  composition: MonthlyReportComposition | null;
   insight: string | null;
 }
 
-export interface RecapDecisions {
+export interface MonthlyReportDecisions {
   total: number;
   buys_count: number;
   sells_count: number;
@@ -43,21 +43,21 @@ export interface RecapDecisions {
   improvement_tip: string | null;
 }
 
-export interface RecapCompany {
+export interface MonthlyReportCompany {
   ticker: string;
   company_name?: string | null;
   times_analyzed: number;
 }
 
-export interface RecapResearch {
+export interface MonthlyReportResearch {
   companies_researched: number;
-  top_companies: RecapCompany[];
-  favorite_company: RecapCompany | null;
+  top_companies: MonthlyReportCompany[];
+  favorite_company: MonthlyReportCompany | null;
   research_pattern: string[] | null;
   insight: string | null;
 }
 
-export interface RecapWealth {
+export interface MonthlyReportWealth {
   available: boolean;
   portfolio_value: number | null;
   variation_pct: number | null;
@@ -66,50 +66,50 @@ export interface RecapWealth {
   dividend_value: number | null;
 }
 
-export interface RecapHabits {
+export interface MonthlyReportHabits {
   active_days: number;
   longest_streak: number;
   favorite_weekday: string | null;
   activity_breakdown: { analizar: number; seguimiento: number; decisiones: number };
 }
 
-export interface RecapEvolution {
-  current_archetype: RecapArchetype | null;
-  past_archetype: RecapArchetype | null;
+export interface MonthlyReportEvolution {
+  current_archetype: MonthlyReportArchetype | null;
+  past_archetype: MonthlyReportArchetype | null;
   months_compared: number | null;
   insight: string | null;
 }
 
-export interface RecapMission {
+export interface MonthlyReportMission {
   key: string;
   title: string;
   text: string;
 }
 
-export interface RecapNextMonth {
-  missions: RecapMission[];
+export interface MonthlyReportNextMonth {
+  missions: MonthlyReportMission[];
   next_milestone: string | null;
 }
 
-export interface RecapAchievement {
+export interface MonthlyReportAchievement {
   id: string;
   name: string;
   description: string;
   icon: string;
 }
 
-export interface RecapAchievements {
-  unlocked_this_month: RecapAchievement[];
+export interface MonthlyReportAchievements {
+  unlocked_this_month: MonthlyReportAchievement[];
   total_unlocked: number;
   total_available: number;
-  next_achievement: RecapAchievement | null;
+  next_achievement: MonthlyReportAchievement | null;
 }
 
 // The PUBLIC, shareable subset — server-enforced to never carry money/
-// portfolio-value/return fields (see investor_recap_service.py's
+// portfolio-value/return fields (see monthly_report_service.py's
 // build_share_card + FORBIDDEN_SHARE_FIELDS). Trust the backend contract;
 // this type just mirrors its shape, it isn't itself the privacy boundary.
-export interface RecapShareCard {
+export interface MonthlyReportShareCard {
   month_label: string;
   archetype: { name: string; emoji: string; tagline: string; traits: string[] } | null;
   achievement: { name: string; icon: string } | null;
@@ -120,7 +120,7 @@ export interface RecapShareCard {
   active_days: number;
 }
 
-export interface RecapOverview {
+export interface MonthlyReportOverview {
   month_label: string;
   year: number;
   month: number;
@@ -130,26 +130,26 @@ export interface RecapOverview {
   active_days: number;
 }
 
-export interface InvestorRecapData {
+export interface MonthlyReportData {
   available: true;
-  overview: RecapOverview;
-  portfolio: RecapPortfolio;
-  decisions: RecapDecisions;
-  research: RecapResearch;
-  wealth: RecapWealth;
-  habits: RecapHabits;
-  evolution: RecapEvolution;
-  next_month: RecapNextMonth;
-  achievements: RecapAchievements;
-  share_card: RecapShareCard;
+  overview: MonthlyReportOverview;
+  portfolio: MonthlyReportPortfolio;
+  decisions: MonthlyReportDecisions;
+  research: MonthlyReportResearch;
+  wealth: MonthlyReportWealth;
+  habits: MonthlyReportHabits;
+  evolution: MonthlyReportEvolution;
+  next_month: MonthlyReportNextMonth;
+  achievements: MonthlyReportAchievements;
+  share_card: MonthlyReportShareCard;
 }
 
-export interface InvestorRecapUnavailable {
+export interface MonthlyReportUnavailable {
   available: false;
   reason?: "future_month" | "before_account_inception" | string;
 }
 
-export type InvestorRecapResponse = InvestorRecapData | InvestorRecapUnavailable;
+export type MonthlyReportResponse = MonthlyReportData | MonthlyReportUnavailable;
 
 // Composition bucket display labels (Spanish) — kept here, not derived
 // from the raw GQV category strings, since the backend already collapses

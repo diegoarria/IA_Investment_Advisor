@@ -22,7 +22,7 @@ export default function Stage({
    * the last content screen (nothing to tease). */
   nextLabel?: string;
   /** Footer tagline — defaults to Wrapped's own copy so every existing
-   * call site is unaffected; Investor Recap passes its own here instead
+   * call site is unaffected; Monthly Report passes its own here instead
    * of forking this whole component. */
   footerLabel?: string;
   /** Top-left brand lockup text next to the logo — same default-preserving

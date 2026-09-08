@@ -12,78 +12,78 @@ import { posthog } from "../src/config/posthog";
 
 const LOGO = require("../assets/images/logo_new.png");
 
-// Nuvos Investor Recap — monthly counterpart to wrapped.tsx (annual). Same
-// real backend-driven pattern: GET /api/recap/monthly?year=&month=, real
+// Nuvos Monthly Report — monthly counterpart to wrapped.tsx (annual). Same
+// real backend-driven pattern: GET /api/monthly-report?year=&month=, real
 // data only, empty states instead of fabricated numbers. Deliberately its
-// own file (not shared code with wrapped.tsx or with web's investor-recap
+// own file (not shared code with wrapped.tsx or with web's monthly-report
 // components) — same reasoning wrapped.tsx's own header comment gives for
 // not sharing code between mobile/web: each platform iterates on its
 // report screen independently without risking drift-by-refactor.
 
-// ── Real data shape (matches backend/app/services/investor_recap_service.py
-//    exactly, same as web's components/investor-recap/types.ts) ──────────
-interface RecapArchetype { key: string; name: string; emoji: string; tagline: string; traits: string[] }
-interface RecapPositionMove { ticker: string; company_name?: string | null; move_pct: number }
-type RecapComposition = Record<string, number>;
+// ── Real data shape (matches backend/app/services/monthly_report_service.py
+//    exactly, same as web's components/monthly-report/types.ts) ──────────
+interface MonthlyReportArchetype { key: string; name: string; emoji: string; tagline: string; traits: string[] }
+interface MonthlyReportPositionMove { ticker: string; company_name?: string | null; move_pct: number }
+type MonthlyReportComposition = Record<string, number>;
 
-interface RecapPortfolio {
+interface MonthlyReportPortfolio {
   available: boolean;
   return_pct: number | null;
   benchmark_pct: number | null;
   diff_pp: number | null;
-  best_position: RecapPositionMove | null;
-  worst_position: RecapPositionMove | null;
-  composition: RecapComposition | null;
+  best_position: MonthlyReportPositionMove | null;
+  worst_position: MonthlyReportPositionMove | null;
+  composition: MonthlyReportComposition | null;
   insight: string | null;
 }
-interface RecapDecisions {
+interface MonthlyReportDecisions {
   total: number; buys_count: number; sells_count: number; holds_count: number;
   has_activity: boolean; highlight: string | null; improvement_tip: string | null;
 }
-interface RecapCompany { ticker: string; company_name?: string | null; times_analyzed: number }
-interface RecapResearch {
-  companies_researched: number; top_companies: RecapCompany[];
-  favorite_company: RecapCompany | null; research_pattern: string[] | null; insight: string | null;
+interface MonthlyReportCompany { ticker: string; company_name?: string | null; times_analyzed: number }
+interface MonthlyReportResearch {
+  companies_researched: number; top_companies: MonthlyReportCompany[];
+  favorite_company: MonthlyReportCompany | null; research_pattern: string[] | null; insight: string | null;
 }
-interface RecapWealth {
+interface MonthlyReportWealth {
   available: boolean; portfolio_value: number | null; variation_pct: number | null;
   stocks_value: number | null; cash_value: number | null; dividend_value: number | null;
 }
-interface RecapHabits {
+interface MonthlyReportHabits {
   active_days: number; longest_streak: number; favorite_weekday: string | null;
   activity_breakdown: { analizar: number; seguimiento: number; decisiones: number };
 }
-interface RecapEvolution {
-  current_archetype: RecapArchetype | null; past_archetype: RecapArchetype | null;
+interface MonthlyReportEvolution {
+  current_archetype: MonthlyReportArchetype | null; past_archetype: MonthlyReportArchetype | null;
   months_compared: number | null; insight: string | null;
 }
-interface RecapMission { key: string; title: string; text: string }
-interface RecapNextMonth { missions: RecapMission[]; next_milestone: string | null }
-interface RecapAchievement { id: string; name: string; description: string; icon: string }
-interface RecapAchievements {
-  unlocked_this_month: RecapAchievement[]; total_unlocked: number; total_available: number;
-  next_achievement: RecapAchievement | null;
+interface MonthlyReportMission { key: string; title: string; text: string }
+interface MonthlyReportNextMonth { missions: MonthlyReportMission[]; next_milestone: string | null }
+interface MonthlyReportAchievement { id: string; name: string; description: string; icon: string }
+interface MonthlyReportAchievements {
+  unlocked_this_month: MonthlyReportAchievement[]; total_unlocked: number; total_available: number;
+  next_achievement: MonthlyReportAchievement | null;
 }
-interface RecapShareCard {
+interface MonthlyReportShareCard {
   month_label: string;
   archetype: { name: string; emoji: string; tagline: string; traits: string[] } | null;
   achievement: { name: string; icon: string } | null;
   favorite_activity: string | null; research_obsession: string | null;
   current_focus: string | null; strongest_skill: string | null; active_days: number;
 }
-interface RecapOverview {
+interface MonthlyReportOverview {
   month_label: string; year: number; month: number; is_current_month: boolean;
   decisions_count: number; companies_researched: number; active_days: number;
 }
-interface InvestorRecapData {
+interface MonthlyReportData {
   available: true;
-  overview: RecapOverview; portfolio: RecapPortfolio; decisions: RecapDecisions;
-  research: RecapResearch; wealth: RecapWealth; habits: RecapHabits;
-  evolution: RecapEvolution; next_month: RecapNextMonth; achievements: RecapAchievements;
-  share_card: RecapShareCard;
+  overview: MonthlyReportOverview; portfolio: MonthlyReportPortfolio; decisions: MonthlyReportDecisions;
+  research: MonthlyReportResearch; wealth: MonthlyReportWealth; habits: MonthlyReportHabits;
+  evolution: MonthlyReportEvolution; next_month: MonthlyReportNextMonth; achievements: MonthlyReportAchievements;
+  share_card: MonthlyReportShareCard;
 }
-interface InvestorRecapUnavailable { available: false; reason?: string }
-type InvestorRecapResponse = InvestorRecapData | InvestorRecapUnavailable;
+interface MonthlyReportUnavailable { available: false; reason?: string }
+type MonthlyReportResponse = MonthlyReportData | MonthlyReportUnavailable;
 
 const WT = {
   bg: "#03060e", card: "#090f1f", card2: "#0d1526",
@@ -189,12 +189,12 @@ function Stage({
           <Text style={st.nextText}>{nextLabel}</Text>
         </View>
       )}
-      {!noChrome && <Text style={st.footer}>NUVOS AI · TU INVESTOR RECAP</Text>}
+      {!noChrome && <Text style={st.footer}>NUVOS AI · TU MONTHLY REPORT</Text>}
     </View>
   );
 }
 
-type ScreenProps = { data: InvestorRecapData; total: number; page: number; nextLabel?: string };
+type ScreenProps = { data: MonthlyReportData; total: number; page: number; nextLabel?: string };
 
 // 1 — Portada
 function ScreenPortada({ data, total, page, nextLabel }: ScreenProps) {
@@ -538,14 +538,14 @@ function ScreenLogros({ data, total, page, nextLabel }: ScreenProps) {
 }
 
 // 10 — Investor Share Card
-function ScreenCompartir({ data }: { data: InvestorRecapData }) {
+function ScreenCompartir({ data }: { data: MonthlyReportData }) {
   const s = data.share_card;
   return (
     <Stage page={10} total={10} noChrome>
       <View style={{ borderRadius: 26, borderWidth: 1.5, borderColor: "rgba(0,232,135,0.18)", backgroundColor: "rgba(9,15,31,0.65)", alignItems: "center", padding: 18 }}>
         <Image source={LOGO} style={{ width: 46, height: 46, borderRadius: 13, marginBottom: 10 }} />
         <Text style={{ fontWeight: "700", fontSize: 10, color: WT.accentL, letterSpacing: 1.5, textTransform: "uppercase" }}>{s.month_label}</Text>
-        <Text style={{ fontWeight: "700", fontSize: 13, color: WT.sub, marginTop: 4 }}>MY INVESTOR RECAP</Text>
+        <Text style={{ fontWeight: "700", fontSize: 13, color: WT.sub, marginTop: 4 }}>MY MONTHLY REPORT</Text>
 
         {s.archetype ? (
           <View style={{ width: "100%", borderRadius: 20, borderWidth: 1, borderColor: "rgba(0,185,109,0.32)", backgroundColor: "rgba(0,185,109,0.10)", alignItems: "center", padding: 20, marginTop: 16 }}>
@@ -622,10 +622,10 @@ function currentYearMonth() {
   return { year: now.getFullYear(), month: now.getMonth() + 1 };
 }
 
-export default function InvestorRecapScreen() {
+export default function MonthlyReportScreen() {
   const { t } = useTranslation();
   const [{ year, month }, setYearMonth] = useState(currentYearMonth);
-  const [data, setData] = useState<InvestorRecapResponse | null>(null);
+  const [data, setData] = useState<MonthlyReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [premiumLocked, setPremiumLocked] = useState<string | null>(null);
@@ -637,20 +637,20 @@ export default function InvestorRecapScreen() {
     setLoading(true);
     setError(null);
     setPremiumLocked(null);
-    api.get("/api/recap/monthly", { params: { year: y, month: m }, timeout: 30000 })
+    api.get("/api/monthly-report", { params: { year: y, month: m }, timeout: 30000 })
       .then((r) => setData(r.data))
       .catch((e) => {
         const detail = e?.response?.data?.detail;
         if (e?.response?.status === 403 && detail?.code === "premium_required") {
           setPremiumLocked(detail.message);
         } else {
-          setError(String(detail ?? e?.response?.status ?? e?.message ?? t("investorRecap.unknownError")));
+          setError(String(detail ?? e?.response?.status ?? e?.message ?? t("monthlyReport.unknownError")));
         }
       })
       .finally(() => setLoading(false));
   };
   useEffect(() => { load(year, month); setIndex(0); }, [year, month]);
-  useEffect(() => { posthog.capture("recap_opened", { year, month }); }, [year, month]);
+  useEffect(() => { posthog.capture("monthly_report_opened", { year, month }); }, [year, month]);
 
   const total = SCREENS.length + 1;
   const isLast = index === SCREENS.length;
@@ -659,8 +659,8 @@ export default function InvestorRecapScreen() {
 
   useEffect(() => {
     if (loading || !data?.available) return;
-    if (isLast) posthog.capture("recap_share_card_viewed", { year, month });
-    else posthog.capture("recap_section_viewed", { year, month, section: index });
+    if (isLast) posthog.capture("monthly_report_share_card_viewed", { year, month });
+    else posthog.capture("monthly_report_section_viewed", { year, month, section: index });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, isLast, loading]);
 
@@ -678,13 +678,13 @@ export default function InvestorRecapScreen() {
   const handleShare = async () => {
     if (!shareRef.current) return;
     setSharing(true);
-    posthog.capture("recap_share_clicked", { year, month });
+    posthog.capture("monthly_report_share_clicked", { year, month });
     try {
       const uri = await captureRef(shareRef, { format: "png", quality: 1 });
-      posthog.capture("recap_share_generated", { year, month });
+      posthog.capture("monthly_report_share_generated", { year, month });
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "Nuvos Investor Recap" });
-        posthog.capture("recap_share_downloaded", { year, month });
+        await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "Nuvos Monthly Report" });
+        posthog.capture("monthly_report_share_downloaded", { year, month });
       }
     } catch {
       // user cancelled the share sheet, or capture failed — not fatal
@@ -696,30 +696,30 @@ export default function InvestorRecapScreen() {
   if (loading) return (
     <View style={ldg.container}>
       <ActivityIndicator color={WT.accentL} size="large" />
-      <Text style={ldg.text}>{t("investorRecap.loadingText")}</Text>
+      <Text style={ldg.text}>{t("monthlyReport.loadingText")}</Text>
     </View>
   );
 
   if (premiumLocked) return (
     <View style={ldg.container}>
       <Text style={{ fontSize: 34, marginBottom: 6 }}>🔒</Text>
-      <Text style={[ldg.text, { fontWeight: "800", color: WT.text, fontSize: 16 }]}>{t("investorRecap.premiumTitle")}</Text>
+      <Text style={[ldg.text, { fontWeight: "800", color: WT.text, fontSize: 16 }]}>{t("monthlyReport.premiumTitle")}</Text>
       <Text style={{ color: "#9ca3af", fontSize: 13, marginTop: 6, textAlign: "center", paddingHorizontal: 32 }}>{premiumLocked}</Text>
       <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 16 }}>
-        <Text style={{ color: WT.accentL, fontSize: 14 }}>{t("investorRecap.back")}</Text>
+        <Text style={{ color: WT.accentL, fontSize: 14 }}>{t("monthlyReport.back")}</Text>
       </TouchableOpacity>
     </View>
   );
 
   if (!data || error) return (
     <View style={ldg.container}>
-      <Text style={ldg.text}>{t("investorRecap.loadFailedText")}</Text>
+      <Text style={ldg.text}>{t("monthlyReport.loadFailedText")}</Text>
       {error && <Text style={{ color: "#ef4444", fontSize: 12, marginTop: 8, textAlign: "center", paddingHorizontal: 32 }}>{error}</Text>}
       <TouchableOpacity onPress={() => load(year, month)} style={{ marginTop: 16 }}>
-        <Text style={{ color: WT.accentL, fontSize: 14 }}>{t("investorRecap.retry")}</Text>
+        <Text style={{ color: WT.accentL, fontSize: 14 }}>{t("monthlyReport.retry")}</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 10 }}>
-        <Text style={{ color: "#6b7280", fontSize: 13 }}>{t("investorRecap.back")}</Text>
+        <Text style={{ color: "#6b7280", fontSize: 13 }}>{t("monthlyReport.back")}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -728,7 +728,7 @@ export default function InvestorRecapScreen() {
     <View style={ldg.container}>
       <Text style={{ fontSize: 34, marginBottom: 12 }}>{month === now.month && year === now.year ? "🌱" : "📅"}</Text>
       <Text style={[ldg.text, { fontWeight: "800", color: WT.text, fontSize: 16, textAlign: "center", paddingHorizontal: 32 }]}>
-        {data.reason === "before_account_inception" ? "Todavía no existías en Nuvos" : "Tu Investor Recap está tomando forma"}
+        {data.reason === "before_account_inception" ? "Todavía no existías en Nuvos" : "Tu Monthly Report está tomando forma"}
       </Text>
       <Text style={{ color: "#9ca3af", fontSize: 13, marginTop: 8, textAlign: "center", paddingHorizontal: 32 }}>
         {data.reason === "before_account_inception"
@@ -738,11 +738,11 @@ export default function InvestorRecapScreen() {
       <View style={{ flexDirection: "row", gap: 14, marginTop: 18 }}>
         {canGoNext && (
           <TouchableOpacity onPress={() => navigateMonth(1)}>
-            <Text style={{ color: WT.accentL, fontSize: 14 }}>{t("investorRecap.nextMonth")}</Text>
+            <Text style={{ color: WT.accentL, fontSize: 14 }}>{t("monthlyReport.nextMonth")}</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity onPress={() => router.back()}>
-          <Text style={{ color: "#6b7280", fontSize: 13 }}>{t("investorRecap.back")}</Text>
+          <Text style={{ color: "#6b7280", fontSize: 13 }}>{t("monthlyReport.back")}</Text>
         </TouchableOpacity>
       </View>
     </View>

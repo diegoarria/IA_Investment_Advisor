@@ -577,8 +577,8 @@
       "subtitle": "Tu resumen anual como inversor",
       "cta": "Ver →"
     },
-    "investorRecap": {
-      "title": "Nuvos Investor Recap",
+    "monthlyReport": {
+      "title": "Nuvos Monthly Report",
       "subtitle": "Tu mes como inversionista, en un vistazo",
       "cta": "Ver →"
     },
@@ -2321,13 +2321,13 @@
     "retry": "Reintentar",
     "back": "Volver"
   },
-  "investorRecap": {
+  "monthlyReport": {
     "unknownError": "Error desconocido",
-    "loadingText": "Preparando tu Investor Recap…",
-    "loadFailedText": "No se pudo cargar tu Investor Recap.",
+    "loadingText": "Preparando tu Monthly Report…",
+    "loadFailedText": "No se pudo cargar tu Monthly Report.",
     "retry": "Reintentar",
     "back": "Volver",
-    "premiumTitle": "Investor Recap es Premium",
+    "premiumTitle": "Monthly Report es Premium",
     "nextMonth": "Mes siguiente"
   },
   "index": {

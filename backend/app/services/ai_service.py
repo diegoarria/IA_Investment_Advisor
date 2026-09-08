@@ -4852,8 +4852,8 @@ async def parse_candidate_blurb_batch_results(batch_id: str) -> dict[str, dict]:
     return results
 
 
-async def generate_recap_insights(facts: dict, lang: str = "es") -> dict:
-    """Nuvos Investor Recap (monthly report) — ONE Haiku call generating
+async def generate_monthly_report_insights(facts: dict, lang: str = "es") -> dict:
+    """Nuvos Monthly Report — ONE Haiku call generating
     every natural-language insight the report needs at once (portfolio
     composition read, decisions summary + improvement tip, research
     pattern read, evolution framing), instead of one call per section —
@@ -4861,7 +4861,7 @@ async def generate_recap_insights(facts: dict, lang: str = "es") -> dict:
     file's other short/cheap Haiku-tier generators.
 
     `facts` is a STRUCTURED, already-computed object — every number in it
-    real, server-side, never sent raw from the client (see investor_recap_
+    real, server-side, never sent raw from the client (see monthly_report_
     service.py, which builds this). The model receives ONLY these facts,
     is told explicitly it may cite ONLY what's in them, and is never asked
     to predict prices, promise returns, or give personalized financial
@@ -4880,7 +4880,7 @@ async def generate_recap_insights(facts: dict, lang: str = "es") -> dict:
 
     facts_block = _json.dumps(facts, ensure_ascii=False, indent=2, default=str)
 
-    prompt = f"""{_output_language_directive(lang)}Eres el mentor de inversión de Nuvos AI. Vas a escribir frases cortas para el "Investor Recap" mensual de un usuario — un reporte tipo Spotify Wrapped sobre su comportamiento como inversionista.
+    prompt = f"""{_output_language_directive(lang)}Eres el mentor de inversión de Nuvos AI. Vas a escribir frases cortas para el "Monthly Report" mensual de un usuario — un reporte tipo Spotify Wrapped sobre su comportamiento como inversionista.
 
 REGLAS ABSOLUTAS:
 - Solo puedes citar números, tickers, sectores o hechos que aparezcan EXPLÍCITAMENTE en el bloque de datos de abajo. Nunca inventes una cifra, una empresa, un porcentaje o un patrón que no esté ahí.
@@ -4906,11 +4906,11 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o despu�
         max_tokens=1000,
         messages=[{"role": "user", "content": prompt}],
     )
-    asyncio.create_task(log_llm_usage(None, "recap_insights", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
+    asyncio.create_task(log_llm_usage(None, "monthly_report_insights", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
     text = response.content[0].text.strip()
     parsed = _parse_json_response(text)
     if not parsed:
-        _log.warning("generate_recap_insights: JSON parse failed, response likely truncated (%d chars)", len(text))
+        _log.warning("generate_monthly_report_insights: JSON parse failed, response likely truncated (%d chars)", len(text))
         return {"portfolio_insight": None, "decision_highlight": None, "decision_improvement": None, "research_insight": None, "evolution_insight": None}
     return {
         "portfolio_insight": parsed.get("portfolio_insight") or None,

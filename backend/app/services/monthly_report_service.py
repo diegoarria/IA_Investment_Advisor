@@ -1,5 +1,5 @@
 """
-Nuvos Investor Recap
+Nuvos Monthly Report
 ====================
 Monthly, Spotify-Wrapped-style personal report — "este mes no solamente
 invertiste, mejoraste tu proceso para tomar decisiones." See
@@ -9,7 +9,7 @@ full spec this implements.
 Hard rule, same as investor_progress_service.py: every number here must
 trace back to real, storable data. A metric that can't be computed from
 what actually exists is omitted (None) — never zero-filled, guessed, or
-invented. AI-generated text (see ai_service.generate_recap_insights) only
+invented. AI-generated text (see ai_service.generate_monthly_report_insights) only
 ever receives already-computed real facts, never raw access to anything.
 
 Deliberately reuses, rather than re-derives:
@@ -27,8 +27,8 @@ Deliberately reuses, rather than re-derives:
     custom_end — see that function's own docstring) for the real,
     benchmark-compared monthly return.
 
-No new monthly-snapshot table: the recap is computed live and cached in
-Redis (see get_monthly_recap's cache_key) — same "compute live + cache"
+No new monthly-snapshot table: the report is computed live and cached in
+Redis (see get_monthly_report's cache_key) — same "compute live + cache"
 pattern Wrapped already uses, not a second parallel aggregation system.
 The one real piece of NEW persistence is which achievements a user has
 already unlocked (migration 091) — that's a fact, not a derived number.
@@ -46,14 +46,14 @@ from app.core.database import get_supabase, run_query
 
 logger = logging.getLogger(__name__)
 
-_RECAP_CACHE_TTL = 6 * 3600  # 6h — short enough that today's new decision/thesis shows up same-day
+_MONTHLY_REPORT_CACHE_TTL = 6 * 3600  # 6h — short enough that today's new decision/thesis shows up same-day
 
 
 # ── Month window ─────────────────────────────────────────────────────────
 
 def _month_bounds(year: int, month: int) -> tuple[date, date, bool]:
     """(start, end, is_current_month). `end` is clamped to today for the
-    current in-progress month — a Recap for "September" viewed on Sep 12
+    current in-progress month — a Monthly Report for "September" viewed on Sep 12
     honestly covers Sep 1-12, never a fabricated full-month projection."""
     last_day = calendar.monthrange(year, month)[1]
     start = date(year, month, 1)
@@ -133,7 +133,7 @@ def _ctx_as_of(ctx: dict, cutoff: date) -> dict:
 
 # Maps the GQV engine's real Lynch-style per-company classification
 # (dcf["gqv_fair_value"]["classification"]["category"]) onto the 4 buckets
-# the Recap shows — never a new, independently-invented classification.
+# the report shows — never a new, independently-invented classification.
 # financial + unknown fall outside the 4 named buckets (shown as "Otro" if
 # present) rather than force-fit into one that doesn't really describe them.
 _GQV_TO_COMPOSITION_BUCKET = {
@@ -291,7 +291,7 @@ async def _build_decisions_section(user_id: str, positions: list[dict], closed_p
         "buys_count": len(buys),
         "sells_count": len(sells),
         "holds_count": len(holds),
-        "facts": facts,  # fed to generate_recap_insights, never shown raw to the user
+        "facts": facts,  # fed to generate_monthly_report_insights, never shown raw to the user
         "has_activity": bool(buys or sells),
     }
 
@@ -453,9 +453,9 @@ async def _build_habits_section(user_id: str, start: date, end: date, decisions_
     }
 
 
-# ── Section: Evolution — Investor Recap Archetype (distinct from Wrapped's) ─
+# ── Section: Evolution — Monthly Report Archetype (distinct from Wrapped's) ─
 
-_RECAP_ARCHETYPES = {
+_MONTHLY_REPORT_ARCHETYPES = {
     "analyst": {"key": "analyst", "name": "THE ANALYST", "emoji": "🧠",
                 "tagline": "Entiendes un negocio antes de tocarlo.",
                 "traits": ["🧠 Analítico", "📊 Metódico", "🔍 Curioso"]},
@@ -484,7 +484,7 @@ async def _classify_recap_archetype(user_id: str, ctx: dict, portfolio_compositi
     """Deterministic — same scoring-dict-then-argmax pattern as investor_
     progress_service's own archetype classifiers, reusing its private
     signal helpers instead of re-deriving them. A NEW, separate 7-label
-    system (not investor_progress_service's 4 or 5) per the Recap spec —
+    system (not investor_progress_service's 4 or 5) per the Monthly Report spec —
     but built from the exact same class of real signals, just different
     labels/thresholds, so it's additive, not a duplicate data pipeline."""
     from app.services import investment_graph_service
@@ -531,7 +531,7 @@ async def _classify_recap_archetype(user_id: str, ctx: dict, portfolio_compositi
     }
     if not any(scores.values()):
         return None
-    return _RECAP_ARCHETYPES[max(scores, key=scores.get)]
+    return _MONTHLY_REPORT_ARCHETYPES[max(scores, key=scores.get)]
 
 
 async def _build_evolution_section(user_id: str, ctx: dict, portfolio_composition: Optional[dict]) -> dict:
@@ -617,7 +617,7 @@ async def _build_achievements_section(user_id: str, ctx: dict, year: int, month:
         "longest_conviction_days": graph_metrics.get("longest_conviction_days"),
     }
 
-    existing_res = await run_query(db.table("investor_recap_achievements").select("achievement_id").eq("user_id", user_id))
+    existing_res = await run_query(db.table("monthly_report_achievements").select("achievement_id").eq("user_id", user_id))
     already_unlocked = {r["achievement_id"] for r in (existing_res.data or [])}
 
     newly_unlocked = []
@@ -628,15 +628,15 @@ async def _build_achievements_section(user_id: str, ctx: dict, year: int, month:
         try:
             if a["condition"](signals):
                 newly_unlocked.append(a)
-                to_insert.append({"user_id": user_id, "achievement_id": a["id"], "recap_year": year, "recap_month": month})
+                to_insert.append({"user_id": user_id, "achievement_id": a["id"], "report_year": year, "report_month": month})
         except Exception:
-            logger.warning("investor_recap: achievement condition for %s failed to evaluate for %s", a["id"], user_id, exc_info=True)
+            logger.warning("monthly_report: achievement condition for %s failed to evaluate for %s", a["id"], user_id, exc_info=True)
 
     if to_insert:
         try:
-            await run_query(db.table("investor_recap_achievements").insert(to_insert))
+            await run_query(db.table("monthly_report_achievements").insert(to_insert))
         except Exception:
-            logger.warning("investor_recap: failed to persist newly-unlocked achievements for %s", user_id, exc_info=True)
+            logger.warning("monthly_report: failed to persist newly-unlocked achievements for %s", user_id, exc_info=True)
 
     unlocked_ids = already_unlocked | {a["id"] for a in newly_unlocked}
     next_achievement = next((a for a in ACHIEVEMENTS if a["id"] not in unlocked_ids), None)
@@ -656,7 +656,7 @@ async def _build_achievements_section(user_id: str, ctx: dict, year: int, month:
 # Every key the Share Card is allowed to carry — anything not in this list
 # never reaches build_share_card's return value, even if a future section
 # adds new fields upstream. This is the single enforcement point tests
-# should target (see tests/test_investor_recap.py).
+# should target (see tests/test_monthly_report.py).
 _SHARE_CARD_ALLOWED_KEYS = {
     "month_label", "archetype", "achievement", "favorite_activity",
     "research_obsession", "current_focus", "strongest_skill", "active_days",
@@ -678,7 +678,7 @@ def build_share_card(month_label: str, evolution: dict, achievements: dict, habi
     computed section results — takes ONLY the specific fields it needs from
     each (never the whole section dict), so a future field added to e.g.
     the wealth section can't silently leak in here. See
-    tests/test_investor_recap.py::test_share_card_never_contains_money for
+    tests/test_monthly_report.py::test_share_card_never_contains_money for
     the enforcement test."""
     archetype = evolution.get("current_archetype")
     unlocked = achievements.get("unlocked_this_month") or []
@@ -721,14 +721,14 @@ _MONTH_LABEL_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio
                    "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 
 
-async def get_monthly_recap(user_id: str, year: int, month: int, lang: str = "es") -> dict:
-    """Public entrypoint — GET /api/recap/monthly. Returns the FULL private
-    recap (see recap.py's route for how the public Share Card gets carved
+async def get_monthly_report(user_id: str, year: int, month: int, lang: str = "es") -> dict:
+    """Public entrypoint — GET /api/monthly-report. Returns the FULL private
+    report (see monthly_report.py's route for how the public Share Card gets carved
     out of this via build_share_card). Cached in Redis per (user, year,
     month) — a real recomputation is 5-10 real network calls (prices,
     fundamentals per held/researched ticker), not something to redo on
     every screen view within the same session."""
-    cache_key = f"investor_recap:{user_id}:{year}:{month:02d}"
+    cache_key = f"monthly_report:{user_id}:{year}:{month:02d}"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
@@ -770,7 +770,7 @@ async def get_monthly_recap(user_id: str, year: int, month: int, lang: str = "es
     achievements = await _build_achievements_section(user_id, ctx, year, month, habits)
 
     # ── AI insights — ONE call, only real computed facts, never raw access ──
-    from app.services.ai_service import generate_recap_insights
+    from app.services.ai_service import generate_monthly_report_insights
     ai_facts = {
         "portfolio_composition": portfolio.get("composition"),
         "decisions": decisions["facts"],
@@ -782,9 +782,9 @@ async def get_monthly_recap(user_id: str, year: int, month: int, lang: str = "es
         } if evolution.get("current_archetype") else None,
     }
     try:
-        insights = await generate_recap_insights(ai_facts, lang=lang)
+        insights = await generate_monthly_report_insights(ai_facts, lang=lang)
     except Exception:
-        logger.warning("investor_recap: generate_recap_insights failed for %s", user_id, exc_info=True)
+        logger.warning("monthly_report: generate_monthly_report_insights failed for %s", user_id, exc_info=True)
         insights = {"portfolio_insight": None, "decision_highlight": None, "decision_improvement": None, "research_insight": None, "evolution_insight": None}
 
     month_label = f"{_MONTH_LABEL_ES[month - 1].upper()} {year}"
@@ -826,5 +826,5 @@ async def get_monthly_recap(user_id: str, year: int, month: int, lang: str = "es
     _assert_no_forbidden_fields(share_card)
     private_recap["share_card"] = share_card
 
-    cache_set(cache_key, private_recap, _RECAP_CACHE_TTL if is_current else _RECAP_CACHE_TTL * 20)
+    cache_set(cache_key, private_recap, _MONTHLY_REPORT_CACHE_TTL if is_current else _MONTHLY_REPORT_CACHE_TTL * 20)
     return private_recap

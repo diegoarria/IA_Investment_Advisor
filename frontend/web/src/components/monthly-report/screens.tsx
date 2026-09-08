@@ -6,14 +6,14 @@ import { useCountUp } from "../wrapped/useCountUp";
 import { apiBase } from "@/lib/apiBase";
 import {
   WT, fmtPct, fmtUsd, COMPOSITION_LABELS,
-  InvestorRecapData,
+  MonthlyReportData,
 } from "./types";
 
 const H1: React.CSSProperties = { fontWeight: 900, color: WT.text, letterSpacing: -0.5, textAlign: "center", lineHeight: 1.05 };
 const EYEBROW: React.CSSProperties = { fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase", color: WT.accentL, textAlign: "center", marginBottom: 6 };
 const CARD: React.CSSProperties = { background: WT.card, border: `1px solid ${WT.border}`, borderRadius: 20 };
 const EMPTY_TEXT: React.CSSProperties = { fontFamily: "var(--font-ui)", fontSize: 13, color: WT.sub, textAlign: "center", lineHeight: 1.5 };
-const FOOTER = "NUVOS AI · TU INVESTOR RECAP";
+const FOOTER = "NUVOS AI · TU MONTHLY REPORT";
 
 function heroStatCard(accentHex: string): React.CSSProperties {
   return { borderRadius: 22, padding: "18px 16px", background: `linear-gradient(160deg, ${accentHex}26 0%, ${WT.card} 65%)`, border: `1px solid ${accentHex}55` };
@@ -63,7 +63,7 @@ function TickerLogo({ ticker, size }: { ticker: string; size: number }) {
   );
 }
 
-type ScreenProps = { data: InvestorRecapData; total: number; page: number; nextLabel?: string };
+type ScreenProps = { data: MonthlyReportData; total: number; page: number; nextLabel?: string };
 
 // 1 — Portada
 export function ScreenPortada({ data, total, page, nextLabel }: ScreenProps) {
@@ -475,8 +475,8 @@ export function ScreenLogros({ data, total, page, nextLabel }: ScreenProps) {
 }
 
 // 10 — Investor Share Card (staticMode = the off-screen html2canvas clone,
-// see RecapFlow.tsx — no Reveal animations there, StaticReveal instead)
-export function ScreenCompartir({ data, staticMode }: { data: InvestorRecapData; staticMode?: boolean }) {
+// see MonthlyReportFlow.tsx — no Reveal animations there, StaticReveal instead)
+export function ScreenCompartir({ data, staticMode }: { data: MonthlyReportData; staticMode?: boolean }) {
   const R = staticMode ? StaticReveal : Reveal;
   const s = data.share_card;
 
@@ -489,7 +489,7 @@ export function ScreenCompartir({ data, staticMode }: { data: InvestorRecapData;
           <span style={{ fontWeight: 800, fontSize: 14, color: WT.text }}>NUVOS AI</span>
         </R>
         <R delay={80} style={EYEBROW}>{s.month_label}</R>
-        <R delay={140}><h1 style={{ ...H1, fontSize: 15, marginBottom: 24, color: WT.sub, fontWeight: 700 }}>MY INVESTOR RECAP</h1></R>
+        <R delay={140}><h1 style={{ ...H1, fontSize: 15, marginBottom: 24, color: WT.sub, fontWeight: 700 }}>MY MONTHLY REPORT</h1></R>
 
         {s.archetype ? (
           <R delay={220} anim="animate-fade-in-up-glow" style={{ ...CARD, padding: "28px 22px", background: "linear-gradient(160deg, rgba(0,185,109,0.16), rgba(9,15,31,0.4))", borderColor: "rgba(0,185,109,0.35)", width: "100%", marginBottom: 18 }}>

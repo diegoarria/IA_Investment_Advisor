@@ -944,21 +944,21 @@ export default function HomePage() {
               </button>
             </div>
 
-            {/* Nuvos Investor Recap — monthly counterpart to Wrapped (which
+            {/* Nuvos Monthly Report — monthly counterpart to Wrapped (which
                 lives in Profile, annual only); this one lives on Home since
                 it's a recurring, every-month thing worth surfacing where the
                 user already lands. Same gradient-card language as Wrapped's
                 own entry point (profile/page.tsx) for visual consistency
                 across the two. */}
             <button
-              onClick={() => router.push("/investor-recap")}
+              onClick={() => router.push("/monthly-report")}
               className="w-full flex items-center gap-3 p-4 rounded-2xl text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
               style={{ background: "linear-gradient(135deg, #00d47e18, #00d47e0a)", border: "1px solid #00d47e30" }}
             >
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ background: "#00d47e18" }}>🧭</div>
               <div className="flex-1">
-                <p className="text-sm font-black" style={{ color: "var(--text)" }}>{t("home.investorRecap.title")}</p>
-                <p className="text-xs" style={{ color: "var(--muted)" }}>{t("home.investorRecap.subtitle")}</p>
+                <p className="text-sm font-black" style={{ color: "var(--text)" }}>{t("home.monthlyReport.title")}</p>
+                <p className="text-xs" style={{ color: "var(--muted)" }}>{t("home.monthlyReport.subtitle")}</p>
               </div>
               <p className="text-xs font-black shrink-0" style={{ color: "#00d47e" }}>{t("profile.view")}</p>
             </button>
