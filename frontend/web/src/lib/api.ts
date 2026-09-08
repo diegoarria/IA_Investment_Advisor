@@ -544,11 +544,15 @@ export const screenerApi = {
     api.get("/api/market/screener/quick-analysis/public", { params: { query, guest_id: guestId, lang, is_default_view: isDefaultView }, timeout: 25000 }),
   nifDashboard: (query: string, lang?: string) =>
     api.get("/api/market/screener/nif-dashboard", { params: { query, lang }, timeout: 25000 }),
+  // 40s (vs. the 25s other screener endpoints use) — a fresh/uncached
+  // ticker runs the full dual-track engine plus an AI narrative call and
+  // has measured at ~15s server-side alone; 25s left too little headroom
+  // for real browser network latency on top of that.
   companyDiagnostic: (query: string, lang?: string) =>
-    api.get("/api/market/screener/company-diagnostic", { params: { query, lang }, timeout: 25000 }),
+    api.get("/api/market/screener/company-diagnostic", { params: { query, lang }, timeout: 40000 }),
   // No-auth counterpart for guests, same real data as companyDiagnostic.
   companyDiagnosticPublic: (query: string, guestId: string, lang?: string) =>
-    api.get("/api/market/screener/company-diagnostic/public", { params: { query, guest_id: guestId, lang }, timeout: 25000 }),
+    api.get("/api/market/screener/company-diagnostic/public", { params: { query, guest_id: guestId, lang }, timeout: 40000 }),
   getValuationBacktest: () => api.get("/api/market/screener/valuation-backtest"),
 };
 

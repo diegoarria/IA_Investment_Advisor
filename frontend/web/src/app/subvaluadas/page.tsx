@@ -383,20 +383,33 @@ function SubvaluadasPageInner() {
     // usuarios si no mostramos valor") — the backend, not isPremium, is the
     // source of truth for whether this search is still within the free
     // allowance; a 403 here means it isn't.
-    const req = shouldUsePublicApi()
-      ? screenerApi.companyDiagnosticPublic(ticker, getGuestId(), i18n.language)
-      : screenerApi.companyDiagnostic(ticker, i18n.language);
-    req
-      .then((res) => { if (!cancelled) setCompanyDiagnostic(res.data); })
-      .catch((err) => {
+    // Same reasoning as the quick-analysis effect above: a fresh (uncached)
+    // ticker can take 15s+ to compute (dual-track engine + AI narrative),
+    // and every ticker is uncached right after a cache-key bump — a single
+    // transient timeout/503 during that window must not permanently show
+    // "unavailable" with no retry.
+    const attempt = async (n: number): Promise<void> => {
+      const req = shouldUsePublicApi()
+        ? screenerApi.companyDiagnosticPublic(ticker, getGuestId(), i18n.language)
+        : screenerApi.companyDiagnostic(ticker, i18n.language);
+      try {
+        const res = await req;
+        if (!cancelled) setCompanyDiagnostic(res.data);
+      } catch (err) {
+        const status = (err as { response?: { status?: number; data?: { detail?: { code?: string } | string } } })?.response?.status;
+        const isDefinitive = status !== undefined && status !== 503;
+        if (!isDefinitive && n < 2) {
+          await new Promise((r) => setTimeout(r, 800 * (n + 1)));
+          return cancelled ? undefined : attempt(n + 1);
+        }
         if (cancelled) return;
         setCompanyDiagnostic(null);
-        const status = (err as { response?: { status?: number; data?: { detail?: { code?: string } | string } } })?.response?.status;
         const detail = (err as { response?: { data?: { detail?: { code?: string } | string } } })?.response?.data?.detail;
         const code = typeof detail === "object" ? detail?.code : undefined;
         setCompanyDiagnosticError({ status, code });
-      })
-      .finally(() => { if (!cancelled) setCompanyDiagnosticLoading(false); });
+      }
+    };
+    attempt(0).finally(() => { if (!cancelled) setCompanyDiagnosticLoading(false); });
     return () => { cancelled = true; };
   }, [ticker, isPremium, searchTriggered, i18n.language, authRestoring]);
 
