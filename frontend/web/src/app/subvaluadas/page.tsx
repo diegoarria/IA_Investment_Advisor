@@ -530,31 +530,30 @@ function SubvaluadasPageInner() {
                       <p className="text-sm" style={{ color: "var(--muted)" }}>{t("subvaluadas.sectors.empty")}</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div className="space-y-2">
                       {sectorResults.map((r) => (
                         <button
                           key={r.ticker}
                           onClick={() => handleSectorCardClick(r.ticker)}
-                          className="text-left rounded-xl border p-4 transition-colors hover:opacity-90"
+                          className="w-full flex items-center gap-3 rounded-xl border p-3 text-left hover:opacity-90 transition-colors"
                           style={{ borderColor: "var(--border)", background: "var(--card)" }}
                         >
-                          <div className="flex items-center gap-3 mb-3">
-                            <div style={{ width: 36, height: 36 }}><StockAvatar ticker={r.ticker} size="md" /></div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-bold truncate" style={{ color: "var(--text)" }}>{r.ticker}</p>
-                              <p className="text-[11px] truncate" style={{ color: "var(--muted)" }}>{r.company_name ?? ""}</p>
-                            </div>
+                          <StockAvatar ticker={r.ticker} size="sm" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{r.ticker}</p>
+                            <p className="text-[10px] truncate" style={{ color: "var(--muted)" }}>{r.company_name ?? ""}</p>
                           </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-bold tabular-nums" style={{ color: "var(--text)" }}>
-                              {r.price !== null ? `$${r.price.toFixed(2)}` : "—"}
-                            </span>
-                            {r.margin_of_safety_pct !== null && (
-                              <span className="text-xs font-black px-2 py-1 rounded-lg tabular-nums"
-                                    style={{ background: "rgba(34,197,94,0.12)", color: TEAL }}>
-                                +{r.margin_of_safety_pct.toFixed(0)}%
+                          <div className="flex flex-col gap-0.5 items-end shrink-0">
+                            <span className="text-[10px]" style={{ color: "var(--sub)" }}>
+                              {t("subvaluadas.sectors.priceLabel")}: <span className="font-bold tabular-nums" style={{ color: "var(--text)" }}>
+                                {r.price !== null ? `$${r.price.toFixed(2)}` : "—"}
                               </span>
-                            )}
+                            </span>
+                            <span className="text-[10px]" style={{ color: "var(--sub)" }}>
+                              {t("subvaluadas.sectors.fairValueLabel")}: <span className="font-bold tabular-nums" style={{ color: TEAL }}>
+                                {r.intrinsic_value_base !== null ? `$${r.intrinsic_value_base.toFixed(2)}` : "—"}
+                              </span>
+                            </span>
                           </div>
                         </button>
                       ))}

@@ -913,7 +913,9 @@
       "empty": "No real margin-of-safety candidates in this sector right now — check back later.",
       "error": "Couldn't load companies for this sector. Try again.",
       "teaser_one": "There's {{count}} real candidate in this sector.",
-      "teaser_other": "There are {{count}} real candidates in this sector."
+      "teaser_other": "There are {{count}} real candidates in this sector.",
+      "priceLabel": "Price",
+      "fairValueLabel": "Fair value"
     },
     "dcf": {
       "level2Toggle": "See how Nuvos built this valuation",

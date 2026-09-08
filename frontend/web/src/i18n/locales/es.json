@@ -913,7 +913,9 @@
       "empty": "No hay candidatos con margen de seguridad real en este sector por ahora — vuelve más tarde.",
       "error": "No se pudieron cargar las empresas de este sector. Intenta de nuevo.",
       "teaser_one": "Hay {{count}} candidata real en este sector.",
-      "teaser_other": "Hay {{count}} candidatas reales en este sector."
+      "teaser_other": "Hay {{count}} candidatas reales en este sector.",
+      "priceLabel": "Precio",
+      "fairValueLabel": "Valor razonable"
     },
     "dcf": {
       "level2Toggle": "Ver cómo Nuvos hizo esta valoración",
