@@ -101,6 +101,19 @@ BOOTSTRAP_TTL = 24 * 3600      # short-lived — the next full weekly/startup re
 _PENDING_BATCH_CACHE_KEY = "undervalued_screener:pending_batch:v1"
 _PENDING_BATCH_TTL = 48 * 3600
 
+# Diego, 2026-09-07: "no solo las de margen de seguridad positivo, me
+# refiero a todas las empresas del sector" — the Oportunidades sector-
+# browse list should show the WHOLE sector, not just real (positive-MOS,
+# quality-gate-passing) candidates. Separate cache key/list from CACHE_KEY
+# on purpose: CACHE_KEY (and every existing reader of get_undervalued —
+# the free-tier teaser count, the featured/AI-enriched carousel, chat's
+# context block) must keep meaning "genuine opportunities only," so this
+# doesn't touch that filter at all. Built from the SAME weekly scan's
+# analysis_cache (see refresh_undervalued_screener) — every ticker in
+# UNIVERSE is already fetched there regardless of its MOS sign, so this
+# roster costs zero extra get_fundamental_analysis calls.
+FULL_ROSTER_CACHE_KEY = "undervalued_screener_full_roster:v1"
+
 # Diego's explicit request (Aug 15) — the Fair Value formula (DCF/GQV
 # methodology) is being tuned frequently right now, and EVERY tuning pass
 # used to bump CACHE_KEY, which forced the AI blurb to regenerate too
@@ -339,6 +352,42 @@ def _build_candidate(entry: dict, data: Optional[dict]) -> Optional[dict]:
     }
 
 
+def _build_roster_entry(entry: dict, data: Optional[dict]) -> Optional[dict]:
+    """Unlike _build_candidate, keeps EVERY scanned ticker regardless of
+    margin-of-safety sign or the quality gate — this is a full sector
+    directory (see FULL_ROSTER_CACHE_KEY), not a curated opportunity list.
+    Still None when the real data fetch itself failed outright (no
+    fabricated placeholder row) or there's no DCF to derive a base fair
+    value from at all."""
+    if not data:
+        return None
+    dcf = data.get("dcf")
+    intrinsic_value_base = _primary_valuation(dcf).get("intrinsic_value_base") if dcf else None
+    return {
+        "ticker": entry["ticker"],
+        "company_name": data.get("company_name"),
+        "sector": entry.get("sector"),
+        "price": data.get("current_price"),
+        "intrinsic_value_base": intrinsic_value_base,
+    }
+
+
+def get_sector_roster(sector: str) -> dict:
+    """Cache-only read of EVERY real company in one GICS sector — ticker,
+    company name, current price, base fair value — no margin-of-safety
+    filter, unlike get_undervalued(). Populated by the same weekly full
+    refresh (refresh_undervalued_screener), so it goes stale/empty exactly
+    the same way; an empty list means "not refreshed yet" (or a real fetch
+    failure for every ticker in that sector), never "no companies in this
+    sector" — GICS sectors here are never actually empty."""
+    results, ts = cache_get_with_ts(FULL_ROSTER_CACHE_KEY)
+    results = results or []
+    if sector:
+        results = [r for r in results if (r.get("sector") or "").lower() == sector.lower()]
+    results.sort(key=lambda r: r["ticker"])
+    return {"results": results, "generated_at": ts or 0}
+
+
 def _scan(tickers: list[dict], analysis_cache: Optional[dict[str, Optional[dict]]] = None) -> list[dict]:
     """Runs the real DCF engine over the given ticker entries, keeps only
     positive-margin-of-safety results that also pass the data-quality gate
@@ -569,6 +618,19 @@ async def refresh_undervalued_screener() -> None:
     from app.api.routes.screener import UNIVERSE, _latest_reported_earnings_period
     analysis_cache: dict[str, Optional[dict]] = {}
     all_results = _scan(UNIVERSE, analysis_cache=analysis_cache)
+
+    # Full sector roster (see FULL_ROSTER_CACHE_KEY) — every ticker this
+    # scan just fetched, kept regardless of MOS sign, unlike `all_results`
+    # above. Written independently of the blurb-batch pending/finalize
+    # dance below since it carries no AI text at all.
+    roster = [
+        entry for entry in (
+            _build_roster_entry(u, analysis_cache.get(u["ticker"])) for u in UNIVERSE
+        ) if entry is not None
+    ]
+    cache_set(FULL_ROSTER_CACHE_KEY, roster, CACHE_TTL)
+    logger.info("undervalued_screener_service: full sector roster refreshed, %d/%d tickers", len(roster), len(UNIVERSE))
+
     featured = _cap_per_sector(all_results, _MAX_PER_SECTOR)
     featured_tickers = {r["ticker"] for r in featured}
     for entry in all_results:

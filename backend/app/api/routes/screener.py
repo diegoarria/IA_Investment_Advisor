@@ -1171,6 +1171,41 @@ async def undervalued(
     return {"is_premium": True, **result}
 
 
+@router.get("/sector-roster")
+async def sector_roster(sector: str, user_id: str = Depends(get_current_user_id)):
+    """Every real company in one GICS sector for the Oportunidades sector-
+    browse list — ticker, name, price, base fair value, NO margin-of-
+    safety filter (Diego, 2026-09-07: "no solo las de margen de seguridad
+    positivo, me refiero a todas las empresas del sector"). Deliberately a
+    separate endpoint from /undervalued: that one (and everything reading
+    get_undervalued — the free-tier teaser count, the featured/AI-enriched
+    carousel, chat's context block) must keep meaning "genuine positive-
+    MOS opportunities only." This one is a full directory instead — same
+    Premium wall as /undervalued's real sector browse, since the base
+    fair value shown is still the product's core paid content even for a
+    company that isn't currently cheap.
+
+    Cache-only read (see undervalued_screener_service.get_sector_roster),
+    refreshed by the same weekly job as /undervalued. Same bootstrap-on-
+    empty fallback would require its own subset scan; skipped for now —
+    an empty roster here just means the weekly/admin-triggered refresh
+    hasn't populated it yet, same as a cold /undervalued cache before its
+    own bootstrap fires."""
+    from app.api.routes.chat import _is_premium
+    profile = await _get_user_profile_safe(user_id)
+    if not _is_premium(profile):
+        raise HTTPException(status_code=403, detail={
+            "code": "premium_required",
+            "message": "La lista completa por sector es exclusiva para Premium.",
+        })
+    from app.services.undervalued_screener_service import get_sector_roster
+    try:
+        return get_sector_roster(sector)
+    except Exception as exc:
+        logger.error("sector_roster(): get_sector_roster failed: %s", exc, exc_info=True)
+        return {"results": [], "generated_at": 0}
+
+
 @router.get("/valuation-backtest")
 async def valuation_backtest(user_id: str = Depends(get_current_user_id)):
     """"What $10,000 became" panel — a real 5-year equal-weighted-basket

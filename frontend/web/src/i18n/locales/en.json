@@ -910,7 +910,7 @@
       "utilities": "Utilities",
       "realEstate": "Real Estate",
       "materials": "Materials",
-      "empty": "No real margin-of-safety candidates in this sector right now — check back later.",
+      "empty": "We haven't finished processing this sector's companies yet — check back in a few minutes.",
       "error": "Couldn't load companies for this sector. Try again.",
       "teaser_one": "There's {{count}} real candidate in this sector.",
       "teaser_other": "There are {{count}} real candidates in this sector.",

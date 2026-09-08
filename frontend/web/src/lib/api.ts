@@ -535,6 +535,10 @@ export const screenerApi = {
     api.get("/api/market/screener/weekly", { params: { tickers: existingTickers.join(",") }, timeout: 25000 }),
   getUndervalued: (sector?: string, limit = 10, lang?: string, browse?: boolean) =>
     api.get("/api/market/screener/undervalued", { params: { sector, limit, lang, browse } }),
+  // Full sector directory (every company, no margin-of-safety filter) —
+  // separate from getUndervalued, which stays scoped to real opportunities.
+  getSectorRoster: (sector: string) =>
+    api.get("/api/market/screener/sector-roster", { params: { sector } }),
   quickAnalysis: (query: string, lang?: string, isDefaultView?: boolean) =>
     api.get("/api/market/screener/quick-analysis", { params: { query, lang, is_default_view: isDefaultView }, timeout: 25000 }),
   // No-auth counterpart for guests (see the backend route's own docstring)

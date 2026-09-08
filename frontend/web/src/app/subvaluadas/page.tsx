@@ -162,14 +162,18 @@ const SECTORS: { value: string; labelKey: string }[] = [
 // score), never the full diagnostic, which only opens once a specific
 // ticker is searched (Diego, 2026-08-21: "solo como la probadita antes de
 // entrar a ver todo sobre 1 empresa a detalle").
+// Shape returned by /sector-roster (the full sector directory this list
+// now renders) — margin_of_safety_pct/thesis_scores are the older
+// /undervalued-only fields, kept optional here since that endpoint is no
+// longer what populates this list (see the sector-browse effect below).
 interface SectorPreviewResult {
   ticker: string;
   company_name: string | null;
   sector: string | null;
   price: number | null;
   intrinsic_value_base: number | null;
-  margin_of_safety_pct: number | null;
-  thesis_scores: Record<string, number> | null;
+  margin_of_safety_pct?: number | null;
+  thesis_scores?: Record<string, number> | null;
 }
 
 export default function SubvaluadasPage() {
@@ -239,23 +243,26 @@ function SubvaluadasPageInner() {
     setSectorLoading(true);
     setSectorError(false);
     setSectorTeaserCount(null);
-    // 500: effectively "no cap" — the whole UNIVERSE is ~930 tickers across
-    // 11 sectors, so no single sector can exceed this. Diego, 2026-09-07:
-    // "quiero todas todas todas las acciones de todos los sectores en esa
-    // lista" — every real MOS-positive candidate in the sector, not a
-    // truncated top-24 (browse=true below already lifts the per-sector cap
-    // that exists for the "featured" AI-enriched carousel; this raises the
-    // separate overall `limit` param that was still truncating this list).
-    screenerApi.getUndervalued(selectedSector, 500, i18n.language, true)
+    // getUndervalued (real, positive-MOS candidates) only decides the
+    // free/Premium gate here (same 100%-Premium pattern as the rest of
+    // this screen) — for Premium, the actual list rendered comes from
+    // /sector-roster instead (fetched below), which is the FULL sector
+    // directory, not just the undervalued subset. Diego, 2026-09-07: "no
+    // solo las de margen de seguridad positivo, me refiero a todas las
+    // empresas del sector."
+    screenerApi.getUndervalued(selectedSector, 1, i18n.language, true)
       .then((res) => {
         if (cancelled) return;
-        const body = res.data as { is_premium: boolean; results?: SectorPreviewResult[]; teaser_count?: number };
+        const body = res.data as { is_premium: boolean; teaser_count?: number };
         if (body.is_premium) {
-          setSectorResults(body.results ?? []);
-        } else {
-          setSectorResults([]);
-          setSectorTeaserCount(body.teaser_count ?? 0);
+          return screenerApi.getSectorRoster(selectedSector).then((rosterRes) => {
+            if (cancelled) return;
+            const rosterBody = rosterRes.data as { results?: SectorPreviewResult[] };
+            setSectorResults(rosterBody.results ?? []);
+          });
         }
+        setSectorResults([]);
+        setSectorTeaserCount(body.teaser_count ?? 0);
       })
       .catch(() => { if (!cancelled) setSectorError(true); })
       .finally(() => { if (!cancelled) setSectorLoading(false); });

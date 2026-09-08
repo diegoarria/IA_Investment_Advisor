@@ -910,7 +910,7 @@
       "utilities": "Servicios Públicos",
       "realEstate": "Bienes Raíces",
       "materials": "Materiales",
-      "empty": "No hay candidatos con margen de seguridad real en este sector por ahora — vuelve más tarde.",
+      "empty": "Todavía no terminamos de procesar las empresas de este sector — vuelve en unos minutos.",
       "error": "No se pudieron cargar las empresas de este sector. Intenta de nuevo.",
       "teaser_one": "Hay {{count}} candidata real en este sector.",
       "teaser_other": "Hay {{count}} candidatas reales en este sector.",
