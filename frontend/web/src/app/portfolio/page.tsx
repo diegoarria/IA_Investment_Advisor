@@ -35,7 +35,7 @@ import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Pencil, Eye,
   Cloud, CloudOff, Check, TrendingUp, Bell, Users, Share2,
-  ChevronDown, ChevronUp, ChevronRight, Loader2, Microscope, ArrowRight, FileBarChart,
+  ChevronDown, ChevronUp, ChevronRight, Loader2, Microscope, ArrowRight, FileBarChart, PlayCircle,
 } from "lucide-react";
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
@@ -839,6 +839,13 @@ function PortfolioHistoryChart({
   );
 }
 
+// Tutorial video shown next to "Importar captura o PDF" — set this to the
+// real direct video URL (mp4) once it's recorded; the modal shows a
+// "próximamente" placeholder while it's empty, so this ships safely before
+// the video exists. Mirrors frontend/mobile's PORTFOLIO_TUTORIAL_VIDEO_URL —
+// keep both in sync.
+const PORTFOLIO_TUTORIAL_VIDEO_URL = "";
+
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export default function PortfolioPage() {
@@ -1111,6 +1118,7 @@ export default function PortfolioPage() {
     setTimeout(() => setToastMsg(null), 3500);
   };
   const [confirmModal, setConfirmModal] = useState<{ msg: string; onConfirm: () => void } | null>(null);
+  const [tutorialVideoOpen, setTutorialVideoOpen] = useState(false);
 
   // Manual form — asks for money invested + price per share, not share count
   // directly; shares = amount / price, computed live.
@@ -1905,6 +1913,32 @@ export default function PortfolioPage() {
         {toastMsg.text}
       </div>
     )}
+    {/* Tutorial video modal — 1 min "cómo importar tu portafolio" */}
+    {tutorialVideoOpen && (
+      <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }}
+           onClick={() => setTutorialVideoOpen(false)}>
+        <div className="rounded-2xl overflow-hidden max-w-lg w-full"
+             style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+             onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+            <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("portfolio.actions.watchTutorial")}</p>
+            <button onClick={() => setTutorialVideoOpen(false)} className="p-1 rounded-lg hover:opacity-70" style={{ color: "var(--muted)" }}>
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {PORTFOLIO_TUTORIAL_VIDEO_URL ? (
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <video src={PORTFOLIO_TUTORIAL_VIDEO_URL} controls autoPlay className="w-full aspect-video block" style={{ background: "#000" }} />
+          ) : (
+            <div className="aspect-video flex flex-col items-center justify-center gap-2 px-6 text-center" style={{ background: "var(--raised)" }}>
+              <PlayCircle className="w-10 h-10" style={{ color: "var(--muted)" }} />
+              <p className="text-sm font-semibold" style={{ color: "var(--sub)" }}>{t("portfolio.actions.tutorialComingSoonTitle")}</p>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>{t("portfolio.actions.tutorialComingSoonBody")}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
     {/* Confirm Modal */}
     {confirmModal && (
       <div className="fixed inset-0 z-[9998] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)" }}
@@ -2268,6 +2302,15 @@ export default function PortfolioPage() {
             </div>
 
             <input ref={screenshotInputRef} type="file" accept="image/*,.pdf" multiple className="hidden" onChange={handleScreenshotChange} />
+
+            {/* Tutorial de 1 min — junto al botón de importar, momento exacto en que se necesita */}
+            <button
+              onClick={() => setTutorialVideoOpen(true)}
+              className="w-full flex items-center justify-center gap-1.5 py-2 mb-3 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80"
+              style={{ color: "var(--accent-l)" }}>
+              <PlayCircle className="w-3.5 h-3.5" />
+              {t("portfolio.actions.watchTutorial")}
+            </button>
 
             {/* Hint pegado / arrastrar — sutil */}
             {!screenshotAnalyzing && !screenshotPreview && !showForm && (

@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import Svg, { Path, Defs, Stop, LinearGradient, Circle, Line as SvgLine } from "react-native-svg";
 import * as ImagePicker from "expo-image-picker";
+import { Video, ResizeMode } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { marketApi, cashHoldingsApi, dividendsApi, screenerWeeklyApi } from "../../src/lib/api";
@@ -947,6 +948,13 @@ function PortfolioHistoryChart({
   );
 }
 
+// Tutorial video shown next to "Importar captura" — set this to the real
+// direct video URL (mp4) once it's recorded; the modal shows a "próximamente"
+// placeholder while it's empty, so this ships safely before the video
+// exists. Mirrors frontend/web's PORTFOLIO_TUTORIAL_VIDEO_URL — keep both
+// in sync.
+const PORTFOLIO_TUTORIAL_VIDEO_URL = "";
+
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export default function PortfolioScreen() {
@@ -986,6 +994,7 @@ export default function PortfolioScreen() {
   };
   const [portfolioCreating, setPortfolioCreating] = useState(false);
   const [showNewPortfolioModal, setShowNewPortfolioModal] = useState(false);
+  const [tutorialVideoOpen, setTutorialVideoOpen] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState("");
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renamingPortfolioId, setRenamingPortfolioId] = useState<string | null>(null);
@@ -1996,6 +2005,34 @@ export default function PortfolioScreen() {
         </View>
 
         {/* New portfolio modal */}
+        <Modal visible={tutorialVideoOpen} transparent animationType="fade" onRequestClose={() => setTutorialVideoOpen(false)}>
+          <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "center", alignItems: "center", padding: 20 }}>
+            <View style={{ backgroundColor: colors.card, borderRadius: 20, width: "100%", overflow: "hidden" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800", flex: 1 }}>{t("portfolio.buttons.watchTutorial")}</Text>
+                <TouchableOpacity onPress={() => setTutorialVideoOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close" size={20} color={colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+              {PORTFOLIO_TUTORIAL_VIDEO_URL ? (
+                <Video
+                  source={{ uri: PORTFOLIO_TUTORIAL_VIDEO_URL }}
+                  style={{ width: "100%", aspectRatio: 16 / 9, backgroundColor: "#000" }}
+                  useNativeControls
+                  resizeMode={ResizeMode.CONTAIN}
+                  shouldPlay
+                />
+              ) : (
+                <View style={{ width: "100%", aspectRatio: 16 / 9, backgroundColor: colors.bgRaised, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 24 }}>
+                  <Ionicons name="play-circle-outline" size={40} color={colors.textMuted} />
+                  <Text style={{ color: colors.textSub, fontSize: 13, fontWeight: "700", textAlign: "center" }}>{t("portfolio.buttons.tutorialComingSoonTitle")}</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: "center" }}>{t("portfolio.buttons.tutorialComingSoonBody")}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
+
         <Modal visible={showNewPortfolioModal} transparent animationType="fade" onRequestClose={() => setShowNewPortfolioModal(false)}>
           <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 }}>
             <View style={{ backgroundColor: colors.card, borderRadius: 20, padding: 24, width: "100%", gap: 16 }}>
@@ -2288,6 +2325,15 @@ export default function PortfolioScreen() {
             }
           </TouchableOpacity>
         </View>
+
+        {/* Tutorial de 1 min — junto al botón de importar, momento exacto en que se necesita */}
+        <TouchableOpacity
+          style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, marginBottom: 10 }}
+          onPress={() => setTutorialVideoOpen(true)}
+          activeOpacity={0.7}>
+          <Ionicons name="play-circle-outline" size={16} color={colors.accentLight} />
+          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.accentLight }}>{t("portfolio.buttons.watchTutorial")}</Text>
+        </TouchableOpacity>
 
         {/* Conectar broker — Premium */}
         <TouchableOpacity

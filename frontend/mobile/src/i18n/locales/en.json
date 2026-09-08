@@ -1347,6 +1347,9 @@
     "buttons": {
       "addPosition": "Add position",
       "importScreenshot": "Import screenshot",
+      "watchTutorial": "Watch tutorial (1 min): how to import your portfolio",
+      "tutorialComingSoonTitle": "Video coming soon",
+      "tutorialComingSoonBody": "We're putting together a 1-minute tutorial to guide you step by step.",
       "analyzing": "Analyzing...",
       "connectBroker": "Connect broker",
       "brokerBadgeConnected": "IBKR · IOL · Schwab",
