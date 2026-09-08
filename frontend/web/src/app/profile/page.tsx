@@ -17,7 +17,7 @@ import PaywallModal from "@/components/PaywallModal";
 import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, ChevronRight, NotebookPen, SlidersHorizontal, Star, BarChart,
   Loader2, Copy, Check, Gift, Users, Share2, Trash2, Phone, Video, FileSearch, Lock,
-  Bell, HeadphonesIcon,
+  Bell, HeadphonesIcon, Download,
 } from "lucide-react";
 import { getUserLevel, LEVEL_COLOR, getLevelLabel, LEVEL_EMOJI } from "@/lib/userLevel";
 
@@ -179,6 +179,8 @@ export default function ProfilePage() {
   const [copiedProfile, setCopiedProfile] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [exportingData, setExportingData] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [insights, setInsights] = useState<{
     ready: boolean; topics?: string[]; risk_match?: boolean;
     risk_note?: string; suggestion?: string;
@@ -370,6 +372,26 @@ export default function ProfilePage() {
       window.alert(t("profile.saveError", "No se pudo guardar. Intenta de nuevo."));
     }
     setSavingPsy(false);
+  };
+
+  const handleExportData = async () => {
+    setExportingData(true);
+    setExportError(null);
+    try {
+      const res = await authApi.exportData();
+      const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `nuvos-mis-datos-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError(t("profile.exportDataError", "No se pudo exportar tus datos. Intenta de nuevo."));
+    }
+    setExportingData(false);
   };
 
   const handleDeleteAccount = async () => {
@@ -1462,6 +1484,18 @@ export default function ProfilePage() {
                         style={{ borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.06)", color: "#ef4444" }}>
                   <LogOut className="w-4 h-4" />
                   {t("profile.logout")}
+                </button>
+
+                {/* Export data — self-serve "portabilidad" (Privacy Policy §6) */}
+                {exportError && (
+                  <p className="text-xs text-center px-2" style={{ color: "#ef4444" }}>{exportError}</p>
+                )}
+                <button onClick={handleExportData}
+                        disabled={exportingData}
+                        className="w-full py-3 rounded-2xl border flex items-center justify-center gap-2 text-sm font-semibold hover:opacity-80 transition-opacity disabled:opacity-60"
+                        style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}>
+                  {exportingData ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  {t("profile.exportData", "Descargar mis datos")}
                 </button>
 
                 {/* Delete account */}

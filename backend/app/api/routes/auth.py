@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import secrets
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Depends, Request, Response, Header, Cookie
 from app.core.config import settings
@@ -555,3 +556,39 @@ async def delete_account(user_id: str = Depends(get_current_user_id)):
         raise HTTPException(status_code=500, detail="No se pudo eliminar la cuenta.")
 
     return {"message": "Cuenta eliminada"}
+
+
+@router.get("/export-data")
+@limiter.limit("2/day")
+async def export_user_data(request: Request, user_id: str = Depends(get_current_user_id)):
+    """Diego, 2026-09-08 (pre-launch audit, P2): the Privacy Policy (section
+    6, "Portabilidad: Solicitar tus datos en formato legible") promised this
+    as a user right, but the only way to actually get it was emailing
+    legal@nuvosai.com — no self-serve path existed. Reads every table
+    _USER_DATA_TABLES lists (the same list delete_user_data's atomic
+    deletion covers) filtered to this user, one JSON blob, downloadable
+    from Settings. Rate-limited hard (2/day) since it's ~45 real table
+    reads — reasonable for an occasional self-serve export, not something
+    to let run unbounded.
+
+    Each table is fetched independently and wrapped in its own try/except
+    so one failing/renamed table can't take down the whole export — a
+    partial export the user can see is far better than a 500 with no
+    explanation for a right the Privacy Policy promises."""
+    db = get_supabase()
+    data: dict[str, list[dict]] = {}
+    errors: list[str] = []
+    for table in _USER_DATA_TABLES:
+        try:
+            res = await run_query(db.table(table).select("*").eq("user_id", user_id))
+            if res.data:
+                data[table] = res.data
+        except Exception as e:
+            logger.warning("export_user_data: table %s failed for %s: %s", table, user_id, e)
+            errors.append(table)
+    return {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "user_id": user_id,
+        "data": data,
+        "incomplete_tables": errors or None,
+    }
