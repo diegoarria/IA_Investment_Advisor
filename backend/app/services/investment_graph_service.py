@@ -88,40 +88,72 @@ def _decision_to_event(d: dict) -> dict:
     }
 
 
-async def _fetch_decisions(user_id: str, ticker: str | None, limit: int) -> list[dict]:
+async def _fetch_decisions(user_id: str, ticker: str | None, limit: int, before: str | None = None) -> list[dict]:
     db = get_supabase()
     q = db.table("investment_decisions").select("*").eq("user_id", user_id)
     if ticker:
         q = q.eq("ticker", ticker.upper())
+    if before:
+        q = q.lt("created_at", before)
     res = await run_query(q.order("created_at", desc=True).limit(limit))
     return [_decision_to_event(d) for d in (res.data or [])]
 
 
-async def _fetch_graph_events(user_id: str, ticker: str | None, limit: int) -> list[dict]:
+async def _fetch_graph_events(user_id: str, ticker: str | None, limit: int, before: str | None = None) -> list[dict]:
     db = get_supabase()
     q = db.table("investment_graph_events").select("*").eq("user_id", user_id)
     if ticker:
         q = q.eq("ticker", ticker.upper())
+    if before:
+        q = q.lt("occurred_at", before)
     res = await run_query(q.order("occurred_at", desc=True).limit(limit))
     return res.data or []
 
 
-async def get_company_timeline(user_id: str, ticker: str, limit: int = 100) -> list[dict]:
+async def get_company_timeline(user_id: str, ticker: str, limit: int = 100, before: str | None = None) -> tuple[list[dict], str | None]:
     """Merged, time-sorted feed for a single ticker — this is what powers
-    the 'Tu historia con esta empresa' tab on the stock detail page."""
-    events, decisions = await _fetch_graph_events(user_id, ticker, limit), await _fetch_decisions(user_id, ticker, limit)
+    the 'Tu historia con esta empresa' tab on the stock detail page.
+
+    Diego, 2026-09-08 (pre-launch audit, P2): this used to be a flat
+    `limit=100` with no way to page past it — a long-tenured user with
+    more than 100 logged events permanently lost access to their older
+    history, directly undercutting the feature's own promise ("vuelve en
+    diez años y ve cómo evolucionó tu pensamiento"). `before` is a
+    keyset cursor (an ISO timestamp — pass the previous page's
+    next_cursor to fetch the page before it), not an offset, so results
+    stay correct even as new events keep getting logged between page
+    fetches. Returns (page, next_cursor) — next_cursor is None once
+    there's nothing more to page to."""
+    events, decisions = (
+        await _fetch_graph_events(user_id, ticker, limit, before),
+        await _fetch_decisions(user_id, ticker, limit, before),
+    )
     combined = events + decisions
     combined.sort(key=lambda e: e.get("occurred_at") or "", reverse=True)
-    return combined[:limit]
+    page = combined[:limit]
+    # Heuristic has-more: if EITHER source returned a full page, there may
+    # be more beyond what fit in this merged/sorted/truncated page — errs
+    # toward "yes, try one more page" rather than silently dropping real
+    # history (a harmless empty extra fetch is a fine trade for that).
+    has_more = len(events) == limit or len(decisions) == limit
+    next_cursor = page[-1].get("occurred_at") if page and has_more else None
+    return page, next_cursor
 
 
-async def get_global_timeline(user_id: str, limit: int = 100) -> list[dict]:
+async def get_global_timeline(user_id: str, limit: int = 100, before: str | None = None) -> tuple[list[dict], str | None]:
     """Cross-company feed — the same data with no ticker filter, this is
-    what powers 'Tu Bitácora' in Mi Perfil."""
-    events, decisions = await _fetch_graph_events(user_id, None, limit), await _fetch_decisions(user_id, None, limit)
+    what powers 'Tu Bitácora' in Mi Perfil. See get_company_timeline's
+    docstring for the pagination/cursor rationale."""
+    events, decisions = (
+        await _fetch_graph_events(user_id, None, limit, before),
+        await _fetch_decisions(user_id, None, limit, before),
+    )
     combined = events + decisions
     combined.sort(key=lambda e: e.get("occurred_at") or "", reverse=True)
-    return combined[:limit]
+    page = combined[:limit]
+    has_more = len(events) == limit or len(decisions) == limit
+    next_cursor = page[-1].get("occurred_at") if page and has_more else None
+    return page, next_cursor
 
 
 async def get_then_now(user_id: str, ticker: str) -> dict | None:

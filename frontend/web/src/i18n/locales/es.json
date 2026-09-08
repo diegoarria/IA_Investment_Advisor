@@ -314,6 +314,8 @@
     "confirmDelete1": "Esta acción es permanente. Se borrarán todos tus datos. ¿Continuar?",
     "confirmDelete2": "¿Estás absolutamente seguro? No se puede deshacer.",
     "deleteAccountError": "No se pudo eliminar la cuenta. Intenta de nuevo o escríbenos a soporte.",
+    "exportData": "Descargar mis datos",
+    "exportDataError": "No se pudo exportar tus datos. Intenta de nuevo.",
     "noProfile": "No hay perfil configurado",
     "completeOnboarding": "Completar onboarding",
     "editProfile": "Editar perfil",
@@ -3415,6 +3417,7 @@
     "sectionTitle": "Tu Bitácora",
     "companyTabLabel": "Tu historia con esta empresa",
     "loading": "Cargando tu historial...",
+    "loadMore": "Cargar más",
     "empty": "Aún no hay historial registrado aquí.",
     "emptyCompany": "Todavía no tienes historial con esta empresa — cada pregunta, análisis o decisión que hagas sobre ella se guardará aquí.",
     "metrics": {

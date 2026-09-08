@@ -37,6 +37,11 @@ export default function InvestmentGraphSection({ isPremium, onUpgrade }: Props) 
   const [events, setEvents] = useState<GraphEvent[]>([]);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [loading, setLoading] = useState(false);
+  // Diego, 2026-09-08 (pre-launch audit, P2): pagination for a
+  // long-tenured user's older Bitácora history — see graphApi.
+  // getGlobalTimeline's comment for why this is a cursor, not an offset.
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     if (!isPremium) return;
@@ -44,11 +49,24 @@ export default function InvestmentGraphSection({ isPremium, onUpgrade }: Props) 
     Promise.all([graphApi.getGlobalTimeline(50), graphApi.getMetrics()])
       .then(([tl, m]) => {
         setEvents(tl.data?.timeline ?? []);
+        setNextCursor(tl.data?.next_cursor ?? null);
         setMetrics(m.data ?? null);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [isPremium]);
+
+  const loadMore = () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    graphApi.getGlobalTimeline(50, nextCursor)
+      .then((tl) => {
+        setEvents((prev) => [...prev, ...(tl.data?.timeline ?? [])]);
+        setNextCursor(tl.data?.next_cursor ?? null);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  };
 
   if (!isPremium) {
     return (
@@ -94,6 +112,16 @@ export default function InvestmentGraphSection({ isPremium, onUpgrade }: Props) 
               </div>
             )}
             <InvestmentGraphTimeline events={events} showTicker />
+            {nextCursor && (
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="w-full py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
+                style={{ background: "var(--raised)", color: "var(--sub)", border: "1px solid var(--border)" }}
+              >
+                {loadingMore ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : t("investmentGraph.loadMore", { defaultValue: "Cargar más" })}
+              </button>
+            )}
           </>
         )}
       </div>

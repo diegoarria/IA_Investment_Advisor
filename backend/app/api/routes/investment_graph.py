@@ -18,10 +18,15 @@ router = APIRouter(prefix="/graph", tags=["investment-graph"])
 
 
 @router.get("/company/{ticker}")
-async def get_company_timeline(ticker: str, limit: int = 100, user_id: str = Depends(get_current_user_id)):
-    """Merged, time-sorted feed for one ticker — 'Tu historia con esta empresa'."""
-    timeline = await graph_service.get_company_timeline(user_id, ticker, limit=limit)
-    return {"ticker": ticker.upper(), "timeline": timeline}
+async def get_company_timeline(
+    ticker: str, limit: int = 100, before: str | None = None, user_id: str = Depends(get_current_user_id),
+):
+    """Merged, time-sorted feed for one ticker — 'Tu historia con esta empresa'.
+    `before` (an ISO timestamp, from a previous response's `next_cursor`)
+    pages further back in time — see investment_graph_service.
+    get_company_timeline's docstring."""
+    timeline, next_cursor = await graph_service.get_company_timeline(user_id, ticker, limit=limit, before=before)
+    return {"ticker": ticker.upper(), "timeline": timeline, "next_cursor": next_cursor}
 
 
 @router.get("/company/{ticker}/then-now")
@@ -36,10 +41,11 @@ async def get_then_now(ticker: str, user_id: str = Depends(get_current_user_id))
 
 
 @router.get("/timeline")
-async def get_global_timeline(limit: int = 100, user_id: str = Depends(get_current_user_id)):
-    """Cross-company feed — 'Tu Bitácora'."""
-    timeline = await graph_service.get_global_timeline(user_id, limit=limit)
-    return {"timeline": timeline}
+async def get_global_timeline(limit: int = 100, before: str | None = None, user_id: str = Depends(get_current_user_id)):
+    """Cross-company feed — 'Tu Bitácora'. `before` pages further back in
+    time — see investment_graph_service.get_global_timeline's docstring."""
+    timeline, next_cursor = await graph_service.get_global_timeline(user_id, limit=limit, before=before)
+    return {"timeline": timeline, "next_cursor": next_cursor}
 
 
 @router.get("/metrics")

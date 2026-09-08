@@ -117,6 +117,10 @@ export const auth = {
     api.post("/api/auth/login", { email, password }),
   logout: () => api.post("/api/auth/logout"),
   deleteAccount: () => api.delete("/api/auth/account"),
+  // Self-serve "portabilidad" right the Privacy Policy promises — added
+  // 2026-09-08 (pre-launch audit); previously only fulfillable by emailing
+  // legal@nuvosai.com.
+  exportData: () => api.get("/api/auth/export-data"),
   forgotPassword: (email: string) =>
     api.post("/api/auth/forgot-password", { email }),
   forgotPasswordSms: (email: string, phone: string) =>
@@ -581,9 +585,15 @@ export const decisionsApi = {
 };
 
 export const graphApi = {
-  getCompanyTimeline: (ticker: string, limit = 100) => api.get(`/api/graph/company/${ticker}`, { params: { limit } }),
+  // `before` (an ISO timestamp, from a previous response's next_cursor)
+  // pages further back in time past the first `limit` events — added
+  // 2026-09-08 (pre-launch audit): a long-tenured user with more than
+  // `limit` events used to permanently lose access to their older history.
+  getCompanyTimeline: (ticker: string, limit = 100, before?: string) =>
+    api.get(`/api/graph/company/${ticker}`, { params: { limit, ...(before ? { before } : {}) } }),
   getThenNow: (ticker: string) => api.get(`/api/graph/company/${ticker}/then-now`),
-  getGlobalTimeline: (limit = 100) => api.get("/api/graph/timeline", { params: { limit } }),
+  getGlobalTimeline: (limit = 100, before?: string) =>
+    api.get("/api/graph/timeline", { params: { limit, ...(before ? { before } : {}) } }),
   getMetrics: () => api.get("/api/graph/metrics"),
 };
 

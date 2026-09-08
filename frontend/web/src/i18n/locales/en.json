@@ -314,6 +314,8 @@
     "confirmDelete1": "This action is permanent. All your data will be deleted. Continue?",
     "confirmDelete2": "Are you absolutely sure? This can't be undone.",
     "deleteAccountError": "We couldn't delete your account. Try again or contact support.",
+    "exportData": "Download my data",
+    "exportDataError": "We couldn't export your data. Try again.",
     "noProfile": "No profile set up",
     "completeOnboarding": "Complete onboarding",
     "editProfile": "Edit profile",
@@ -3415,6 +3417,7 @@
     "sectionTitle": "Your Journal",
     "companyTabLabel": "Your history with this company",
     "loading": "Loading your history...",
+    "loadMore": "Load more",
     "empty": "No history logged here yet.",
     "emptyCompany": "You don't have any history with this company yet — every question, analysis, or decision about it will be saved here.",
     "metrics": {
