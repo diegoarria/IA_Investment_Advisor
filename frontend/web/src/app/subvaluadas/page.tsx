@@ -539,14 +539,14 @@ function SubvaluadasPageInner() {
                 </button>
               </div>
 
-              <div className="flex gap-2 overflow-x-auto pb-2 mb-8 -mx-1 px-1" style={{ scrollbarWidth: "thin" }}>
+              <div className="flex gap-2.5 overflow-x-auto pb-2 mb-8 -mx-1 px-1" style={{ scrollbarWidth: "thin" }}>
                 {SECTORS.map((s) => {
                   const active = selectedSector === s.value;
                   return (
                     <button
                       key={s.value}
                       onClick={() => handleSectorClick(s.value)}
-                      className="shrink-0 px-3.5 py-1.5 rounded-full text-[12.5px] font-semibold border transition-colors"
+                      className="shrink-0 px-4 py-2 rounded-full text-sm font-bold border transition-colors"
                       style={active
                         ? { background: "var(--brand-green)", borderColor: "var(--brand-green)", color: "#0A0F1A" }
                         : { background: "var(--card)", borderColor: "var(--border)", color: "var(--sub)" }}
@@ -578,12 +578,12 @@ function SubvaluadasPageInner() {
                       </button>
                     </div>
                   ) : sectorResults.length === 0 ? (
-                    <div className="rounded-2xl border p-6 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                      <p className="text-sm" style={{ color: "var(--muted)" }}>{t("subvaluadas.sectors.empty")}</p>
+                    <div className="rounded-2xl border p-8 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                      <p className="text-base font-semibold" style={{ color: "var(--sub)" }}>{t("subvaluadas.sectors.empty")}</p>
                     </div>
                   ) : (
                     <>
-                      <div className="flex gap-2 mb-3">
+                      <div className="flex gap-2.5 mb-4">
                         {([
                           ["undervalued", "subvaluadas.sectors.sortUndervalued"],
                           ["marketCap", "subvaluadas.sectors.sortMarketCap"],
@@ -594,7 +594,7 @@ function SubvaluadasPageInner() {
                             <button
                               key={mode}
                               onClick={() => setSectorSort((cur) => (cur === mode ? null : mode))}
-                              className="px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors"
+                              className="px-4 py-2 rounded-full text-sm font-bold border transition-colors"
                               style={active
                                 ? { background: "var(--brand-green)", borderColor: "var(--brand-green)", color: "#0A0F1A" }
                                 : { background: "var(--card)", borderColor: "var(--border)", color: "var(--sub)" }}
@@ -604,33 +604,47 @@ function SubvaluadasPageInner() {
                           );
                         })}
                       </div>
-                      <div className="space-y-2">
-                      {sortedSectorResults.map((r) => (
+                      <div className="space-y-3">
+                      {sortedSectorResults.map((r) => {
+                        const mos = r.price && r.intrinsic_value_base != null ? ((r.intrinsic_value_base - r.price) / r.price) * 100 : null;
+                        const mosColor = mos === null ? "var(--muted)" : mos > 0 ? TEAL : "#ef4444";
+                        return (
                         <button
                           key={r.ticker}
                           onClick={() => handleSectorCardClick(r.ticker)}
-                          className="w-full flex items-center gap-3 rounded-xl border p-3 text-left hover:opacity-90 transition-colors"
+                          className="w-full flex items-center gap-4 rounded-2xl border p-4 text-left hover:opacity-90 hover:-translate-y-0.5 transition-all"
                           style={{ borderColor: "var(--border)", background: "var(--card)" }}
                         >
-                          <StockAvatar ticker={r.ticker} size="sm" />
+                          <div style={{ width: 44, height: 44 }} className="shrink-0"><StockAvatar ticker={r.ticker} size="md" /></div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{r.ticker}</p>
-                            <p className="text-[10px] truncate" style={{ color: "var(--muted)" }}>{r.company_name ?? ""}</p>
+                            <p className="text-base font-black tracking-tight" style={{ color: "var(--text)" }}>{r.ticker}</p>
+                            <p className="text-[13px] truncate" style={{ color: "var(--muted)" }}>{r.company_name ?? ""}</p>
                           </div>
-                          <div className="flex flex-col gap-0.5 items-end shrink-0">
-                            <span className="text-[10px]" style={{ color: "var(--sub)" }}>
-                              {t("subvaluadas.sectors.priceLabel")}: <span className="font-bold tabular-nums" style={{ color: "var(--text)" }}>
+                          <div className="flex items-center gap-5 shrink-0">
+                            <div className="text-right">
+                              <p className="text-[10px] font-bold uppercase tracking-wide mb-0.5" style={{ color: "var(--dim)" }}>{t("subvaluadas.sectors.priceLabel")}</p>
+                              <p className="text-lg font-black tabular-nums" style={{ color: "var(--text)" }}>
                                 {r.price !== null ? `$${r.price.toFixed(2)}` : "—"}
-                              </span>
-                            </span>
-                            <span className="text-[10px]" style={{ color: "var(--sub)" }}>
-                              {t("subvaluadas.sectors.fairValueLabel")}: <span className="font-bold tabular-nums" style={{ color: TEAL }}>
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[10px] font-bold uppercase tracking-wide mb-0.5" style={{ color: "var(--dim)" }}>{t("subvaluadas.sectors.fairValueLabel")}</p>
+                              <p className="text-lg font-black tabular-nums" style={{ color: TEAL }}>
                                 {r.intrinsic_value_base !== null ? `$${r.intrinsic_value_base.toFixed(2)}` : "—"}
+                              </p>
+                            </div>
+                            {mos !== null && (
+                              <span
+                                className="text-[13px] font-black px-2.5 py-1.5 rounded-xl tabular-nums shrink-0"
+                                style={{ background: mos > 0 ? "rgba(45,212,191,0.12)" : "rgba(239,68,68,0.12)", color: mosColor }}
+                              >
+                                {mos > 0 ? "+" : ""}{mos.toFixed(0)}%
                               </span>
-                            </span>
+                            )}
                           </div>
                         </button>
-                      ))}
+                        );
+                      })}
                       </div>
                     </>
                   )}
