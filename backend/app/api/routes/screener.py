@@ -1197,7 +1197,14 @@ async def sector_roster(sector: str, user_id: str = Depends(get_current_user_id)
     merges the result into the shared cache so it's instant for every
     later visitor. Slow (up to a few minutes) only the first time any
     given sector is opened after a cold cache; every visit after that —
-    by anyone — is fast."""
+    by anyone — is fast.
+
+    Every row's `price` is overlaid with a real ≤60s-old live quote
+    (_with_live_prices_bulk) regardless of how stale the cached roster
+    entry's own price is — Diego, 2026-09-08: "todas las empresas deben
+    tener sus precios actuales en tiempo real". `intrinsic_value_base`
+    is NOT overlaid — same "DCF/AI narrative can sit in cache, price
+    never does" split as every other screener card."""
     from app.api.routes.chat import _is_premium
     profile = await _get_user_profile_safe(user_id)
     if not _is_premium(profile):
@@ -1207,7 +1214,9 @@ async def sector_roster(sector: str, user_id: str = Depends(get_current_user_id)
         })
     from app.services.undervalued_screener_service import get_or_build_sector_roster
     try:
-        return await asyncio.to_thread(get_or_build_sector_roster, sector)
+        result = await asyncio.to_thread(get_or_build_sector_roster, sector)
+        result["results"] = await asyncio.to_thread(_with_live_prices_bulk, result["results"])
+        return result
     except Exception as exc:
         logger.error("sector_roster(): get_or_build_sector_roster failed: %s", exc, exc_info=True)
         return {"results": [], "generated_at": 0}
@@ -1292,6 +1301,35 @@ def _with_live_price(result: dict, ticker: str) -> dict:
     with something else (see _quick_analysis_result for the concurrent
     version)."""
     return _apply_live_quote(result, fh_quote(ticker))
+
+
+def _with_live_prices_bulk(results: list[dict]) -> list[dict]:
+    """_with_live_price's counterpart for a whole LIST of tickers at once —
+    the Oportunidades sector-browse list (Diego, 2026-09-08: "todas las
+    empresas deben tener sus precios actuales en tiempo real"). The
+    roster's own `price` field is only as fresh as whenever that sector
+    was last scanned (up to the 8-day cache TTL, or fresh-just-now on a
+    cold-sector live fill) — this overlays a real ≤60s-old quote per
+    ticker on top, same discipline as every other screener card, just
+    fanned out over a bounded thread pool (same _SCAN_MAX_WORKERS-style
+    concurrency as the roster scan itself) instead of one ticker at a
+    time, so a 100+-company sector doesn't serialize into a slow
+    request. A ticker whose live quote fails/is unavailable just keeps
+    its last-known roster price — never blocks or drops the row."""
+    import concurrent.futures
+
+    def _quote_one(entry: dict):
+        try:
+            return entry["ticker"], fh_quote(entry["ticker"])
+        except Exception:
+            return entry["ticker"], None
+
+    quotes: dict[str, dict | None] = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        for ticker, quote in executor.map(_quote_one, results):
+            quotes[ticker] = quote
+
+    return [_apply_live_quote(r, quotes.get(r["ticker"])) for r in results]
 
 
 def _apply_live_quote_diagnostic(cached: dict, quote: dict | None, lang: str = "es") -> dict:
