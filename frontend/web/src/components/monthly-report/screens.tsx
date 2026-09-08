@@ -476,9 +476,27 @@ export function ScreenLogros({ data, total, page, nextLabel }: ScreenProps) {
 
 // 10 — Investor Share Card (staticMode = the off-screen html2canvas clone,
 // see MonthlyReportFlow.tsx — no Reveal animations there, StaticReveal instead)
+function shareInitials(name: string) {
+  return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?";
+}
+
 export function ScreenCompartir({ data, staticMode }: { data: MonthlyReportData; staticMode?: boolean }) {
   const R = staticMode ? StaticReveal : Reveal;
   const s = data.share_card;
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  const showAvatar = !!s.avatar_url && !avatarFailed;
+  const returnColor = (s.return_pct ?? 0) >= 0 ? WT.accentL : WT.coral;
+  const moveColor = s.best_position && s.best_position.move_pct >= 0 ? WT.accentL : WT.coral;
+
+  const stats: { label: string; value: string; sub?: string }[] = [];
+  if (s.best_position) {
+    stats.push({ label: "Acción que más subió", value: s.best_position.ticker, sub: fmtPct(s.best_position.move_pct) });
+  }
+  stats.push({ label: "Decisiones tomadas", value: String(s.decisions_count) });
+  stats.push({ label: "Empresas investigadas", value: String(s.companies_researched) });
+  if (s.archetype_name) {
+    stats.push({ label: "Tu personalidad de inversor", value: s.archetype_name });
+  }
 
   return (
     <Stage page={0} total={0} noChrome glow="center">
@@ -491,49 +509,40 @@ export function ScreenCompartir({ data, staticMode }: { data: MonthlyReportData;
         <R delay={80} style={EYEBROW}>{s.month_label}</R>
         <R delay={140}><h1 style={{ ...H1, fontSize: 15, marginBottom: 24, color: WT.sub, fontWeight: 700 }}>MY MONTHLY REPORT</h1></R>
 
-        {s.archetype ? (
-          <R delay={220} anim="animate-fade-in-up-glow" style={{ ...CARD, padding: "28px 22px", background: "linear-gradient(160deg, rgba(0,185,109,0.16), rgba(9,15,31,0.4))", borderColor: "rgba(0,185,109,0.35)", width: "100%", marginBottom: 18 }}>
-            <div style={{ fontSize: 40, marginBottom: 10 }}>{s.archetype.emoji}</div>
-            <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, fontWeight: 700, color: WT.sub, textTransform: "uppercase", marginBottom: 6 }}>My Investor Personality</div>
-            <div style={{ fontWeight: 900, fontSize: 24, color: WT.accentL, letterSpacing: 0.5, marginBottom: 10 }}>{s.archetype.name}</div>
-            <p style={{ fontFamily: "var(--font-ui)", fontSize: 13, color: WT.text, lineHeight: 1.5, marginBottom: 14 }}>&ldquo;{s.archetype.tagline}&rdquo;</p>
-            <div style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
-              {s.archetype.traits.map((t) => (
-                <span key={t} style={{ fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 700, color: WT.text, background: WT.card2, border: `1px solid ${WT.border}`, borderRadius: 100, padding: "5px 10px" }}>{t}</span>
-              ))}
-            </div>
-          </R>
-        ) : (
-          <R delay={220} style={{ ...CARD, padding: "28px 22px", width: "100%", marginBottom: 18 }}>
-            <p style={EMPTY_TEXT}>Todavía construyendo tu personalidad como inversionista.</p>
-          </R>
-        )}
+        {/* Hero card — avatar + portfolio return % + open-position count.
+            Diego, 2026-09-08: explicit, confirmed exception to "never show
+            return on the Share Card" — this IS the point of the redesign. */}
+        <R delay={220} anim="animate-fade-in-up-glow" style={{ ...CARD, padding: "28px 22px", background: "linear-gradient(160deg, rgba(0,185,109,0.16), rgba(9,15,31,0.4))", borderColor: "rgba(0,185,109,0.35)", width: "100%", marginBottom: 18 }}>
+          <div style={{ width: 60, height: 60, borderRadius: "50%", background: WT.gradGreen, padding: 3, margin: "0 auto 14px" }}>
+            {showAvatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={s.avatar_url as string} alt={s.user_name} crossOrigin="anonymous" onError={() => setAvatarFailed(true)}
+                style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", display: "block" }} />
+            ) : (
+              <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: WT.card2, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 20, color: WT.text }}>
+                {shareInitials(s.user_name)}
+              </div>
+            )}
+          </div>
+          <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, fontWeight: 700, color: WT.sub, textTransform: "uppercase", marginBottom: 6 }}>Rendimiento del mes</div>
+          {s.return_pct !== null ? (
+            <div style={{ fontWeight: 900, fontSize: 36, color: returnColor, letterSpacing: -1, marginBottom: 10 }}>{fmtPct(s.return_pct)}</div>
+          ) : (
+            <div style={{ fontFamily: "var(--font-ui)", fontSize: 13, color: WT.sub, marginBottom: 10 }}>Sin datos todavía</div>
+          )}
+          <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: WT.sub }}>
+            <span style={{ color: WT.text, fontWeight: 800 }}>{s.positions_count}</span> {s.positions_count === 1 ? "posición" : "posiciones"}
+          </div>
+        </R>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, width: "100%", marginBottom: 18 }}>
-          {s.favorite_activity && (
-            <R delay={340} style={{ ...CARD, padding: "14px 10px" }}>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted, textTransform: "uppercase", marginBottom: 4 }}>Favorite activity</div>
-              <div style={{ fontWeight: 800, fontSize: 12, color: WT.text }}>{s.favorite_activity}</div>
+          {stats.map((stat, i) => (
+            <R key={stat.label} delay={340 + i * 40} style={{ ...CARD, padding: "14px 10px" }}>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted, textTransform: "uppercase", marginBottom: 4 }}>{stat.label}</div>
+              <div style={{ fontWeight: 800, fontSize: 12, color: WT.text }}>{stat.value}</div>
+              {stat.sub && <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 700, color: moveColor, marginTop: 2 }}>{stat.sub}</div>}
             </R>
-          )}
-          {s.research_obsession && (
-            <R delay={380} style={{ ...CARD, padding: "14px 10px" }}>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted, textTransform: "uppercase", marginBottom: 4 }}>Obsession</div>
-              <div style={{ fontWeight: 800, fontSize: 12, color: WT.text }}>{s.research_obsession}</div>
-            </R>
-          )}
-          {s.strongest_skill && (
-            <R delay={420} style={{ ...CARD, padding: "14px 10px" }}>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted, textTransform: "uppercase", marginBottom: 4 }}>Strongest skill</div>
-              <div style={{ fontWeight: 800, fontSize: 12, color: WT.text }}>{s.strongest_skill}</div>
-            </R>
-          )}
-          {s.current_focus && (
-            <R delay={460} style={{ ...CARD, padding: "14px 10px" }}>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted, textTransform: "uppercase", marginBottom: 4 }}>Working on</div>
-              <div style={{ fontWeight: 800, fontSize: 12, color: WT.text }}>{s.current_focus}</div>
-            </R>
-          )}
+          ))}
         </div>
 
         {s.achievement && (

@@ -66,10 +66,15 @@ interface MonthlyReportAchievements {
 }
 interface MonthlyReportShareCard {
   month_label: string;
-  archetype: { name: string; emoji: string; tagline: string; traits: string[] } | null;
+  user_name: string;
+  avatar_url: string | null;
+  return_pct: number | null;
+  positions_count: number;
+  best_position: { ticker: string; company_name?: string | null; move_pct: number } | null;
+  decisions_count: number;
+  companies_researched: number;
+  archetype_name: string | null;
   achievement: { name: string; icon: string } | null;
-  favorite_activity: string | null; research_obsession: string | null;
-  current_focus: string | null; strongest_skill: string | null; active_days: number;
 }
 interface MonthlyReportOverview {
   month_label: string; year: number; month: number; is_current_month: boolean;
@@ -98,6 +103,7 @@ const COMPOSITION_COLORS: Record<string, string> = { growth: WT.accentL, quality
 
 const fmtPct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 const fmtUsd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const initials = (name: string) => name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?";
 
 function useCountUp(target: number, durationMs = 900, decimals = 0): number {
   const [value, setValue] = useState(0);
@@ -540,6 +546,21 @@ function ScreenLogros({ data, total, page, nextLabel }: ScreenProps) {
 // 10 — Investor Share Card
 function ScreenCompartir({ data }: { data: MonthlyReportData }) {
   const s = data.share_card;
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  const showAvatar = !!s.avatar_url && !avatarFailed;
+  const returnColor = (s.return_pct ?? 0) >= 0 ? WT.accentL : WT.coral;
+  const moveColor = s.best_position && s.best_position.move_pct >= 0 ? WT.accentL : WT.coral;
+
+  const stats: { label: string; value: string; sub?: string }[] = [];
+  if (s.best_position) {
+    stats.push({ label: "Acción que más subió", value: s.best_position.ticker, sub: fmtPct(s.best_position.move_pct) });
+  }
+  stats.push({ label: "Decisiones tomadas", value: String(s.decisions_count) });
+  stats.push({ label: "Empresas investigadas", value: String(s.companies_researched) });
+  if (s.archetype_name) {
+    stats.push({ label: "Tu personalidad de inversor", value: s.archetype_name });
+  }
+
   return (
     <Stage page={10} total={10} noChrome>
       <View style={{ borderRadius: 26, borderWidth: 1.5, borderColor: "rgba(0,232,135,0.18)", backgroundColor: "rgba(9,15,31,0.65)", alignItems: "center", padding: 18 }}>
@@ -547,50 +568,38 @@ function ScreenCompartir({ data }: { data: MonthlyReportData }) {
         <Text style={{ fontWeight: "700", fontSize: 10, color: WT.accentL, letterSpacing: 1.5, textTransform: "uppercase" }}>{s.month_label}</Text>
         <Text style={{ fontWeight: "700", fontSize: 13, color: WT.sub, marginTop: 4 }}>MY MONTHLY REPORT</Text>
 
-        {s.archetype ? (
-          <View style={{ width: "100%", borderRadius: 20, borderWidth: 1, borderColor: "rgba(0,185,109,0.32)", backgroundColor: "rgba(0,185,109,0.10)", alignItems: "center", padding: 20, marginTop: 16 }}>
-            <Text style={{ fontSize: 36, marginBottom: 8 }}>{s.archetype.emoji}</Text>
-            <Text style={{ fontWeight: "900", fontSize: 21, color: WT.accentL, marginBottom: 8 }}>{s.archetype.name}</Text>
-            <Text style={[c.body, { textAlign: "center", marginBottom: 12 }]}>&ldquo;{s.archetype.tagline}&rdquo;</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
-              {s.archetype.traits.map((t) => (
-                <View key={t} style={{ backgroundColor: WT.card2, borderWidth: 1, borderColor: WT.border, borderRadius: 100, paddingHorizontal: 10, paddingVertical: 5 }}>
-                  <Text style={{ fontSize: 11, fontWeight: "700", color: WT.text }}>{t}</Text>
-                </View>
-              ))}
-            </View>
+        {/* Hero card — avatar + portfolio return % + open-position count.
+            Diego, 2026-09-08: explicit, confirmed exception to "never show
+            return on the Share Card" — this IS the point of the redesign. */}
+        <View style={{ width: "100%", borderRadius: 20, borderWidth: 1, borderColor: "rgba(0,185,109,0.32)", backgroundColor: "rgba(0,185,109,0.10)", alignItems: "center", padding: 20, marginTop: 16 }}>
+          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: WT.accentL, padding: 3, marginBottom: 12 }}>
+            {showAvatar ? (
+              <Image source={{ uri: s.avatar_url as string }} onError={() => setAvatarFailed(true)} style={{ width: "100%", height: "100%", borderRadius: 25 }} />
+            ) : (
+              <View style={{ width: "100%", height: "100%", borderRadius: 25, alignItems: "center", justifyContent: "center", backgroundColor: WT.card2 }}>
+                <Text style={{ fontWeight: "800", fontSize: 18, color: WT.text }}>{initials(s.user_name)}</Text>
+              </View>
+            )}
           </View>
-        ) : (
-          <View style={[c.card, { width: "100%", padding: 20, marginTop: 16 }]}>
-            <Text style={c.emptyText}>Todavía construyendo tu personalidad como inversionista.</Text>
-          </View>
-        )}
+          <Text style={{ fontSize: 10, fontWeight: "700", color: WT.sub, textTransform: "uppercase", marginBottom: 6 }}>Rendimiento del mes</Text>
+          {s.return_pct !== null ? (
+            <Text style={{ fontWeight: "900", fontSize: 32, color: returnColor, marginBottom: 8 }}>{fmtPct(s.return_pct)}</Text>
+          ) : (
+            <Text style={{ fontSize: 13, color: WT.sub, marginBottom: 8 }}>Sin datos todavía</Text>
+          )}
+          <Text style={{ fontSize: 12, color: WT.sub }}>
+            <Text style={{ color: WT.text, fontWeight: "800" }}>{s.positions_count}</Text> {s.positions_count === 1 ? "posición" : "posiciones"}
+          </Text>
+        </View>
 
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, width: "100%", marginTop: 16 }}>
-          {s.favorite_activity && (
-            <View style={[shareStat(WT.accentL), { flex: 1, minWidth: "45%" }]}>
-              <Text style={{ fontSize: 9, color: WT.muted, textTransform: "uppercase" }}>Favorite activity</Text>
-              <Text style={{ fontWeight: "800", fontSize: 12, color: WT.text, marginTop: 4 }}>{s.favorite_activity}</Text>
+          {stats.map((stat) => (
+            <View key={stat.label} style={[shareStat(WT.accentL), { flex: 1, minWidth: "45%" }]}>
+              <Text style={{ fontSize: 9, color: WT.muted, textTransform: "uppercase" }}>{stat.label}</Text>
+              <Text style={{ fontWeight: "800", fontSize: 12, color: WT.text, marginTop: 4 }}>{stat.value}</Text>
+              {stat.sub && <Text style={{ fontSize: 11, fontWeight: "700", color: moveColor, marginTop: 2 }}>{stat.sub}</Text>}
             </View>
-          )}
-          {s.research_obsession && (
-            <View style={[shareStat(WT.teal), { flex: 1, minWidth: "45%" }]}>
-              <Text style={{ fontSize: 9, color: WT.muted, textTransform: "uppercase" }}>Obsession</Text>
-              <Text style={{ fontWeight: "800", fontSize: 12, color: WT.text, marginTop: 4 }}>{s.research_obsession}</Text>
-            </View>
-          )}
-          {s.strongest_skill && (
-            <View style={[shareStat(WT.gold), { flex: 1, minWidth: "45%" }]}>
-              <Text style={{ fontSize: 9, color: WT.muted, textTransform: "uppercase" }}>Strongest skill</Text>
-              <Text style={{ fontWeight: "800", fontSize: 12, color: WT.text, marginTop: 4 }}>{s.strongest_skill}</Text>
-            </View>
-          )}
-          {s.current_focus && (
-            <View style={[shareStat(WT.coral), { flex: 1, minWidth: "45%" }]}>
-              <Text style={{ fontSize: 9, color: WT.muted, textTransform: "uppercase" }}>Working on</Text>
-              <Text style={{ fontWeight: "800", fontSize: 12, color: WT.text, marginTop: 4 }}>{s.current_focus}</Text>
-            </View>
-          )}
+          ))}
         </View>
 
         {s.achievement && (

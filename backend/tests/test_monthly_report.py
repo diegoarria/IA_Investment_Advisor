@@ -141,8 +141,22 @@ class TestAchievements:
 
 
 class TestShareCardPrivacy:
-    """The CRITICAL test the spec calls out explicitly: financial/monetary
-    data must be structurally impossible to leak into the Share Card."""
+    """The CRITICAL test the spec calls out explicitly: DOLLAR-AMOUNT
+    financial data must be structurally impossible to leak into the Share
+    Card. Diego, 2026-09-08: explicitly confirmed after being asked
+    directly that the monthly % return and a stock's own % move ARE now
+    allowed on the Share Card (the "MY MONTHLY REPORT" redesign) — that is
+    a deliberate, confirmed exception to the original "never show
+    money/return" rule, not a regression. What must STILL never appear,
+    even after that exception: any dollar-amount field (portfolio_value,
+    cash/dividend totals, position sizes, purchase/sell prices)."""
+
+    def _portfolio(self, with_best_position=True):
+        return {
+            "available": True, "return_pct": 8.4, "benchmark_pct": 6.1, "diff_pp": 2.3,
+            "best_position": {"ticker": "NVDA", "company_name": "NVIDIA", "move_pct": 15.2} if with_best_position else None,
+            "worst_position": None, "composition": None, "insight": None,
+        }
 
     def _evolution(self, with_archetype=True):
         return {
@@ -154,25 +168,40 @@ class TestShareCardPrivacy:
     def _achievements(self):
         return {"unlocked_this_month": [{"id": "analista", "name": "ANALISTA", "icon": "🔬"}], "total_unlocked": 1, "total_available": 6, "next_achievement": None}
 
-    def _habits(self):
-        return {"active_days": 12, "longest_streak": 5, "favorite_weekday": "Domingo", "activity_breakdown": {}}
+    def _build(self, with_archetype=True, with_best_position=True):
+        return build_share_card(
+            "SEPTIEMBRE 2026", "Diego", "https://example.com/avatar.png",
+            self._portfolio(with_best_position), 7, 12, 8,
+            self._evolution(with_archetype), self._achievements(),
+        )
 
-    def _research(self):
-        return {"companies_researched": 3, "favorite_company": {"ticker": "AMZN", "company_name": "Amazon"}}
+    def test_return_pct_and_move_pct_ARE_allowed_by_design(self):
+        # The confirmed 2026-09-08 exception — these must be PRESENT, not banned.
+        card = self._build()
+        assert card["return_pct"] == 8.4
+        assert card["best_position"]["move_pct"] == 15.2
 
-    def test_share_card_contains_no_forbidden_field_names(self):
-        card = build_share_card("SEPTIEMBRE 2026", self._evolution(), self._achievements(), self._habits(), self._research())
+    def test_share_card_contains_no_dollar_amount_fields(self):
+        card = self._build()
         card_str = str(card).lower()
-        for forbidden in FORBIDDEN_SHARE_FIELDS:
+        # "return" is a substring of the now-legitimate "return_pct" — exact-
+        # key enforcement (the other tests below) already covers a bare
+        # "return" field; this scan only guards the genuinely dollar-shaped
+        # names, which share no substring with any currently-allowed key.
+        for forbidden in FORBIDDEN_SHARE_FIELDS - {"return"}:
             assert forbidden not in card_str.replace("_", ""), f"Share card leaked forbidden concept: {forbidden}"
 
     def test_share_card_only_has_allowlisted_top_level_keys(self):
-        card = build_share_card("SEPTIEMBRE 2026", self._evolution(), self._achievements(), self._habits(), self._research())
+        card = self._build()
         assert set(card.keys()) <= _SHARE_CARD_ALLOWED_KEYS
 
     def test_share_card_works_with_no_archetype_yet(self):
-        card = build_share_card("SEPTIEMBRE 2026", self._evolution(with_archetype=False), self._achievements(), self._habits(), self._research())
-        assert card["archetype"] is None
+        card = self._build(with_archetype=False)
+        assert card["archetype_name"] is None
+
+    def test_share_card_works_with_no_best_position_yet(self):
+        card = self._build(with_best_position=False)
+        assert card["best_position"] is None
 
     def test_assert_no_forbidden_fields_raises_on_injected_money_field(self):
         poisoned = {"month_label": "x", "portfolio_value": 50000}
@@ -180,7 +209,8 @@ class TestShareCardPrivacy:
             _assert_no_forbidden_fields(poisoned)
 
     def test_assert_no_forbidden_fields_raises_on_nested_money_field(self):
-        poisoned = {"month_label": "x", "archetype": {"name": "X", "return_pct": 12.5}}
+        # A dollar amount nested under an otherwise-legit key must still be caught.
+        poisoned = {"month_label": "x", "best_position": {"ticker": "X", "purchase_price": 150.0}}
         with pytest.raises(ValueError):
             _assert_no_forbidden_fields(poisoned)
 
@@ -190,7 +220,8 @@ class TestShareCardPrivacy:
             _assert_no_forbidden_fields(poisoned)
 
     def test_assert_no_forbidden_fields_passes_clean_card(self):
-        clean = {"month_label": "x", "archetype": None, "achievement": None,
-                  "favorite_activity": None, "research_obsession": None,
-                  "current_focus": None, "strongest_skill": None, "active_days": 5}
+        clean = {"month_label": "x", "user_name": "Diego", "avatar_url": None,
+                  "return_pct": 8.4, "positions_count": 7, "best_position": None,
+                  "decisions_count": 12, "companies_researched": 8,
+                  "archetype_name": "THE COMPOUNDER", "achievement": None}
         _assert_no_forbidden_fields(clean)  # must not raise

@@ -105,19 +105,29 @@ export interface MonthlyReportAchievements {
   next_achievement: MonthlyReportAchievement | null;
 }
 
-// The PUBLIC, shareable subset — server-enforced to never carry money/
-// portfolio-value/return fields (see monthly_report_service.py's
-// build_share_card + FORBIDDEN_SHARE_FIELDS). Trust the backend contract;
-// this type just mirrors its shape, it isn't itself the privacy boundary.
+// The PUBLIC, shareable subset — server-enforced to never carry a DOLLAR-
+// AMOUNT field (portfolio value, cash, position sizes — see monthly_report_
+// service.py's build_share_card + FORBIDDEN_SHARE_FIELDS). return_pct/
+// move_pct ARE percentages, deliberately allowed here (Diego, 2026-09-08,
+// confirmed explicitly) — trust the backend contract; this type just
+// mirrors its shape, it isn't itself the privacy boundary.
+export interface MonthlyReportShareCardBestPosition {
+  ticker: string;
+  company_name?: string | null;
+  move_pct: number;
+}
+
 export interface MonthlyReportShareCard {
   month_label: string;
-  archetype: { name: string; emoji: string; tagline: string; traits: string[] } | null;
+  user_name: string;
+  avatar_url: string | null;
+  return_pct: number | null;
+  positions_count: number;
+  best_position: MonthlyReportShareCardBestPosition | null;
+  decisions_count: number;
+  companies_researched: number;
+  archetype_name: string | null;
   achievement: { name: string; icon: string } | null;
-  favorite_activity: string | null;
-  research_obsession: string | null;
-  current_focus: string | null;
-  strongest_skill: string | null;
-  active_days: number;
 }
 
 export interface MonthlyReportOverview {

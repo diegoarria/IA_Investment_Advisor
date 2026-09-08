@@ -657,42 +657,65 @@ async def _build_achievements_section(user_id: str, ctx: dict, year: int, month:
 # never reaches build_share_card's return value, even if a future section
 # adds new fields upstream. This is the single enforcement point tests
 # should target (see tests/test_monthly_report.py).
+#
+# Diego, 2026-09-08 — deliberate, explicit exception to the original "never
+# show money/return" rule, confirmed after being asked directly: the
+# monthly % return (and a stock's own % move) ARE allowed on the Share Card
+# now — that's the whole "MY MONTHLY REPORT" redesign (hero card = avatar +
+# portfolio return % + open-position count; 4 stat tiles below = best-
+# moving stock, decisions made, companies researched, investor
+# personality). Dollar amounts (portfolio_value, cash, dividends, position
+# sizes, purchase/sell prices) are still absolutely never allowed — only
+# PERCENTAGES and COUNTS, never a dollar figure that reveals account size.
 _SHARE_CARD_ALLOWED_KEYS = {
-    "month_label", "archetype", "achievement", "favorite_activity",
-    "research_obsession", "current_focus", "strongest_skill", "active_days",
+    "month_label", "user_name", "avatar_url", "return_pct", "positions_count",
+    "best_position", "decisions_count", "companies_researched", "archetype_name",
+    "achievement",
 }
 
 # Field names that must NEVER appear anywhere in a share card value, even
 # nested — a defense-in-depth check, not the primary mechanism (the
-# allowlist above is). Kept in sync with the spec's explicit ban list.
+# allowlist above is). Dollar-amount fields stay banned even after the
+# 2026-09-08 exception above, which only ever allows PERCENTAGES/COUNTS.
 FORBIDDEN_SHARE_FIELDS = {
-    "money", "portfolio_value", "profit", "loss", "return", "return_pct",
+    "money", "portfolio_value", "profit", "loss", "return",
     "account_balance", "net_worth", "position_size", "purchase_price",
     "sell_price", "variation_pct", "benchmark_pct", "diff_pp", "pnl", "pnl_pct",
     "stocks_value", "cash_value", "dividend_value", "invested", "current_value",
 }
 
 
-def build_share_card(month_label: str, evolution: dict, achievements: dict, habits: dict, research: dict) -> dict:
+def build_share_card(
+    month_label: str, user_name: str, avatar_url: Optional[str], portfolio: dict,
+    positions_count: int, decisions_count: int, companies_researched: int,
+    evolution: dict, achievements: dict,
+) -> dict:
     """Builds the PUBLIC, safe-to-post-anywhere Share Card DTO from already-
     computed section results — takes ONLY the specific fields it needs from
     each (never the whole section dict), so a future field added to e.g.
     the wealth section can't silently leak in here. See
-    tests/test_monthly_report.py::test_share_card_never_contains_money for
-    the enforcement test."""
+    tests/test_monthly_report.py::TestShareCardPrivacy for the enforcement
+    tests — dollar amounts are still absolutely forbidden even though
+    return_pct/move_pct (percentages) are now allowed (see
+    _SHARE_CARD_ALLOWED_KEYS's 2026-09-08 comment)."""
     archetype = evolution.get("current_archetype")
     unlocked = achievements.get("unlocked_this_month") or []
+    best = portfolio.get("best_position")
 
     card = {
         "month_label": month_label,
-        "archetype": ({"name": archetype["name"], "emoji": archetype["emoji"], "tagline": archetype["tagline"], "traits": archetype["traits"]}
-                       if archetype else None),
+        "user_name": user_name,
+        "avatar_url": avatar_url,
+        "return_pct": portfolio.get("return_pct"),
+        "positions_count": positions_count,
+        "best_position": (
+            {"ticker": best["ticker"], "company_name": best.get("company_name"), "move_pct": best["move_pct"]}
+            if best else None
+        ),
+        "decisions_count": decisions_count,
+        "companies_researched": companies_researched,
+        "archetype_name": archetype["name"] if archetype else None,
         "achievement": ({"name": unlocked[0]["name"], "icon": unlocked[0]["icon"]} if unlocked else None),
-        "favorite_activity": "Analizar empresas" if (research.get("companies_researched") or 0) > 0 else None,
-        "research_obsession": (research.get("favorite_company") or {}).get("company_name") or (research.get("favorite_company") or {}).get("ticker"),
-        "current_focus": None,  # filled by the caller from next_month's top mission title, kept generic (no financial detail)
-        "strongest_skill": None,  # filled by the caller from investor_score's highest sub-score label, no numeric score included
-        "active_days": habits.get("active_days"),
     }
 
     # Defense-in-depth: assert no forbidden key/substring made it in, even
@@ -738,6 +761,12 @@ async def get_monthly_report(user_id: str, year: int, month: int, lang: str = "e
         return {"available": False, "reason": "future_month"}
 
     from app.services import investor_progress_service
+
+    db = get_supabase()
+    prof_res = await run_query(db.table("user_profiles").select("name, avatar_url").eq("user_id", user_id))
+    prof = prof_res.data[0] if prof_res.data else {}
+    user_name = prof.get("name") or "Inversor"
+    avatar_url = prof.get("avatar_url")
 
     ctx = await investor_progress_service._build_context(user_id)
     positions = ctx["positions"]
@@ -811,19 +840,10 @@ async def get_monthly_report(user_id: str, year: int, month: int, lang: str = "e
         "achievements": achievements,
     }
 
-    share_card = build_share_card(month_label, evolution, achievements, habits, research)
-    if next_month.get("missions"):
-        share_card["current_focus"] = next_month["missions"][0]["title"]
-    if investor_score and investor_score.get("sub_scores"):
-        best_key = max(investor_score["sub_scores"].items(), key=lambda kv: kv[1])[0]
-        share_card["strongest_skill"] = {"analisis": "Investigación", "paciencia": "Paciencia",
-                                          "diversificacion": "Diversificación", "educacion": "Aprendizaje"}.get(best_key)
-    # Re-validate AFTER these two post-hoc field fills too — build_share_card's
-    # own internal check only covers what IT set; without this second call,
-    # a bug in either fill line above (e.g. someone later wiring a raw dict
-    # into current_focus instead of a plain string) would silently bypass
-    # the privacy guarantee entirely.
-    _assert_no_forbidden_fields(share_card)
+    share_card = build_share_card(
+        month_label, user_name, avatar_url, portfolio, len(positions),
+        decisions["total"], research["companies_researched"], evolution, achievements,
+    )
     private_recap["share_card"] = share_card
 
     cache_set(cache_key, private_recap, _MONTHLY_REPORT_CACHE_TTL if is_current else _MONTHLY_REPORT_CACHE_TTL * 20)
