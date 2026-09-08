@@ -551,12 +551,17 @@ function ScreenCompartir({ data }: { data: MonthlyReportData }) {
   const returnColor = (s.return_pct ?? 0) >= 0 ? WT.accentL : WT.coral;
   const moveColor = s.best_position && s.best_position.move_pct >= 0 ? WT.accentL : WT.coral;
 
+  // Defensive `!= null` / `?? 0` throughout (not just `!== null`) — a report
+  // cached under an older Share Card shape has these as `undefined`, not
+  // `null`; a strict null-only check let that crash the screen (real
+  // incident, 2026-09-08, fixed server-side by versioning the cache key —
+  // this is the defense-in-depth half of that fix).
   const stats: { label: string; value: string; sub?: string }[] = [];
   if (s.best_position) {
-    stats.push({ label: "Acción que más subió", value: s.best_position.ticker, sub: fmtPct(s.best_position.move_pct) });
+    stats.push({ label: "Acción que más subió", value: s.best_position.ticker, sub: fmtPct(s.best_position.move_pct ?? 0) });
   }
-  stats.push({ label: "Decisiones tomadas", value: String(s.decisions_count) });
-  stats.push({ label: "Empresas investigadas", value: String(s.companies_researched) });
+  stats.push({ label: "Decisiones tomadas", value: String(s.decisions_count ?? 0) });
+  stats.push({ label: "Empresas investigadas", value: String(s.companies_researched ?? 0) });
   if (s.archetype_name) {
     stats.push({ label: "Tu personalidad de inversor", value: s.archetype_name });
   }
@@ -577,18 +582,18 @@ function ScreenCompartir({ data }: { data: MonthlyReportData }) {
               <Image source={{ uri: s.avatar_url as string }} onError={() => setAvatarFailed(true)} style={{ width: "100%", height: "100%", borderRadius: 25 }} />
             ) : (
               <View style={{ width: "100%", height: "100%", borderRadius: 25, alignItems: "center", justifyContent: "center", backgroundColor: WT.card2 }}>
-                <Text style={{ fontWeight: "800", fontSize: 18, color: WT.text }}>{initials(s.user_name)}</Text>
+                <Text style={{ fontWeight: "800", fontSize: 18, color: WT.text }}>{initials(s.user_name || "")}</Text>
               </View>
             )}
           </View>
           <Text style={{ fontSize: 10, fontWeight: "700", color: WT.sub, textTransform: "uppercase", marginBottom: 6 }}>Rendimiento del mes</Text>
-          {s.return_pct !== null ? (
+          {s.return_pct != null ? (
             <Text style={{ fontWeight: "900", fontSize: 32, color: returnColor, marginBottom: 8 }}>{fmtPct(s.return_pct)}</Text>
           ) : (
             <Text style={{ fontSize: 13, color: WT.sub, marginBottom: 8 }}>Sin datos todavía</Text>
           )}
           <Text style={{ fontSize: 12, color: WT.sub }}>
-            <Text style={{ color: WT.text, fontWeight: "800" }}>{s.positions_count}</Text> {s.positions_count === 1 ? "posición" : "posiciones"}
+            <Text style={{ color: WT.text, fontWeight: "800" }}>{s.positions_count ?? 0}</Text> {(s.positions_count ?? 0) === 1 ? "posición" : "posiciones"}
           </Text>
         </View>
 

@@ -750,8 +750,21 @@ async def get_monthly_report(user_id: str, year: int, month: int, lang: str = "e
     out of this via build_share_card). Cached in Redis per (user, year,
     month) — a real recomputation is 5-10 real network calls (prices,
     fundamentals per held/researched ticker), not something to redo on
-    every screen view within the same session."""
-    cache_key = f"monthly_report:{user_id}:{year}:{month:02d}"
+    every screen view within the same session.
+
+    Cache key is VERSIONED (v2) — same discipline as screener.py's
+    _quick_analysis_cache_key. Confirmed live incident, 2026-09-08: the
+    Share Card redesign changed share_card's shape (archetype/
+    favorite_activity/current_focus/strongest_skill removed, replaced with
+    user_name/avatar_url/return_pct/positions_count/best_position/
+    archetype_name) — a report already cached under the OLD shape kept
+    serving it, and the new ScreenCompartir crashed reading fields
+    (return_pct, best_position) that simply didn't exist on that stale
+    object. Bump this version number again any time a section's response
+    shape changes, or any previously-cached report keeps serving the old
+    shape for up to _MONTHLY_REPORT_CACHE_TTL (or 20x that for a past,
+    "closed" month) after the code changes."""
+    cache_key = f"monthly_report:v2:{user_id}:{year}:{month:02d}"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached

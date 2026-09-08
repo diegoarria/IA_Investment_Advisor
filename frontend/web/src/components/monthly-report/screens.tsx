@@ -488,12 +488,18 @@ export function ScreenCompartir({ data, staticMode }: { data: MonthlyReportData;
   const returnColor = (s.return_pct ?? 0) >= 0 ? WT.accentL : WT.coral;
   const moveColor = s.best_position && s.best_position.move_pct >= 0 ? WT.accentL : WT.coral;
 
+  // Defensive `!= null` / `?? 0` throughout this screen (not just `!==
+  // null`) — a report cached under an older Share Card shape (before a
+  // field existed at all) has these as `undefined`, not `null`; a strict
+  // null-only check let that slip through and crashed the screen (real
+  // incident, 2026-09-08, fixed by versioning the cache key server-side
+  // — this is the defense-in-depth half of that fix).
   const stats: { label: string; value: string; sub?: string }[] = [];
   if (s.best_position) {
-    stats.push({ label: "Acción que más subió", value: s.best_position.ticker, sub: fmtPct(s.best_position.move_pct) });
+    stats.push({ label: "Acción que más subió", value: s.best_position.ticker, sub: fmtPct(s.best_position.move_pct ?? 0) });
   }
-  stats.push({ label: "Decisiones tomadas", value: String(s.decisions_count) });
-  stats.push({ label: "Empresas investigadas", value: String(s.companies_researched) });
+  stats.push({ label: "Decisiones tomadas", value: String(s.decisions_count ?? 0) });
+  stats.push({ label: "Empresas investigadas", value: String(s.companies_researched ?? 0) });
   if (s.archetype_name) {
     stats.push({ label: "Tu personalidad de inversor", value: s.archetype_name });
   }
@@ -520,18 +526,18 @@ export function ScreenCompartir({ data, staticMode }: { data: MonthlyReportData;
                 style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", display: "block" }} />
             ) : (
               <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: WT.card2, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 20, color: WT.text }}>
-                {shareInitials(s.user_name)}
+                {shareInitials(s.user_name || "")}
               </div>
             )}
           </div>
           <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, fontWeight: 700, color: WT.sub, textTransform: "uppercase", marginBottom: 6 }}>Rendimiento del mes</div>
-          {s.return_pct !== null ? (
+          {s.return_pct != null ? (
             <div style={{ fontWeight: 900, fontSize: 36, color: returnColor, letterSpacing: -1, marginBottom: 10 }}>{fmtPct(s.return_pct)}</div>
           ) : (
             <div style={{ fontFamily: "var(--font-ui)", fontSize: 13, color: WT.sub, marginBottom: 10 }}>Sin datos todavía</div>
           )}
           <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: WT.sub }}>
-            <span style={{ color: WT.text, fontWeight: 800 }}>{s.positions_count}</span> {s.positions_count === 1 ? "posición" : "posiciones"}
+            <span style={{ color: WT.text, fontWeight: 800 }}>{s.positions_count ?? 0}</span> {(s.positions_count ?? 0) === 1 ? "posición" : "posiciones"}
           </div>
         </R>
 
