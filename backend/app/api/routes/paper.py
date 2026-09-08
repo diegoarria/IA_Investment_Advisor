@@ -101,10 +101,12 @@ def _batch_prices(tickers: set[str]) -> dict[str, float | None]:
     return price_map
 
 
-def _calc_return_pct(positions: list, price_map: dict) -> tuple[float, str | None]:
-    """Returns (return_pct, top_holding_ticker) from real portfolio positions."""
-    cost_basis    = 0.0
-    current_value = 0.0
+def _calc_return_pct(positions: list, price_map: dict, cash: float) -> tuple[float, str | None]:
+    """Returns (return_pct, top_holding_ticker) from PAPER TRADING positions +
+    cash, against the fixed PAPER_INITIAL_CASH starting balance — see the
+    2026-09-08 privacy fix note on _build_leaderboard for why this must
+    never be computed from a user's real portfolio."""
+    current_value = cash
     top_holding   = None
     top_val       = 0.0
 
@@ -115,17 +117,13 @@ def _calc_return_pct(positions: list, price_map: dict) -> tuple[float, str | Non
         avg_price = float(pos.get("avgPrice") or pos.get("avg_price") or 0)
         cur_price = price_map.get(ticker) or avg_price
 
-        cost_basis    += shares * avg_price
         cur_val        = shares * cur_price
         current_value += cur_val
 
         if cur_val > top_val:
             top_val, top_holding = cur_val, ticker
 
-    if cost_basis <= 0:
-        return 0.0, top_holding
-
-    return_pct = round((current_value - cost_basis) / cost_basis * 100, 2)
+    return_pct = round((current_value - PAPER_INITIAL_CASH) / PAPER_INITIAL_CASH * 100, 2)
     return return_pct, top_holding
 
 
@@ -146,24 +144,30 @@ async def _build_leaderboard(user_id: str) -> list[dict]:
         except Exception:
             pass
 
-    # 2. Fetch all REAL portfolios (not paper trading)
-    portfolio_rows = await run_query(
-        db.table("user_portfolio").select("user_id, positions")
+    # 2. Fetch all PAPER TRADING accounts — NEVER the real portfolio.
+    #
+    # Diego, 2026-09-08 (pre-launch audit, P0): this used to query
+    # `user_portfolio` (real money, real holdings) despite this being the
+    # "Paper Trading" leaderboard — every authenticated user could see
+    # every other user's REAL portfolio return % and largest REAL holding,
+    # with no consent and no opt-out, just by calling this endpoint. Fixed
+    # by rebuilding the leaderboard entirely from `user_paper_trading`
+    # (the simulated account), which is what the feature was always
+    # supposed to rank.
+    paper_rows = await run_query(
+        db.table("user_paper_trading").select("user_id, cash, positions")
     )
-    if not portfolio_rows.data:
+    if not paper_rows.data:
         return []
 
-    # A user can have up to 3 portfolios (migration 018_multi_portfolio.sql),
-    # so this query can return multiple rows per user_id — group them here
-    # instead of treating each row as a separate leaderboard entry (that
-    # previously showed the same person 2-3 times, each with only a partial
-    # return, and never their true combined return).
     positions_by_user: dict[str, list[dict]] = {}
-    for r in portfolio_rows.data:
-        raw = r.get("positions") or {}
-        pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
-        if pos:
-            positions_by_user.setdefault(r["user_id"], []).extend(pos)
+    cash_by_user: dict[str, float] = {}
+    for r in paper_rows.data:
+        pos = r.get("positions") or []
+        if not isinstance(pos, list):
+            pos = []
+        positions_by_user[r["user_id"]] = pos
+        cash_by_user[r["user_id"]] = float(r.get("cash") if r.get("cash") is not None else PAPER_INITIAL_CASH)
     if not positions_by_user:
         return []
 
@@ -187,11 +191,11 @@ async def _build_leaderboard(user_id: str) -> list[dict]:
     # 5. Batch-fetch current prices (blocking network calls — run in thread)
     price_map = await asyncio.to_thread(_batch_prices, all_tickers)
 
-    # 6. Compute each user's return % from their real portfolio (all
-    # portfolios combined into one blended return)
+    # 6. Compute each user's return % from their paper trading account
+    # (cash + positions vs. the fixed PAPER_INITIAL_CASH starting balance)
     entries: list[dict] = []
     for uid, positions in positions_by_user.items():
-        return_pct, top_holding = _calc_return_pct(positions, price_map)
+        return_pct, top_holding = _calc_return_pct(positions, price_map, cash_by_user.get(uid, PAPER_INITIAL_CASH))
 
         entries.append({
             "user_id":     uid,
