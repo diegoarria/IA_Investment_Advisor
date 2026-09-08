@@ -917,9 +917,25 @@ async def refresh_if_empty_on_startup() -> None:
     cache is genuinely empty (first-ever run, or an intentional CACHE_KEY
     bump). A missing backtest cache alone gets a cheap, LLM-free repair —
     `_scan()` never calls Claude — never drags the AI-heavy blurb path
-    along with it."""
+    along with it.
+
+    2026-09-08 addition: FULL_ROSTER_CACHE_KEY (the Oportunidades sector-
+    browse "every company" list) is also treated as part of "the
+    screener's own cache" here — it's written by this SAME refresh_
+    undervalued_screener() call, just never existed before this cache key
+    shipped. Without this, a deploy that adds FULL_ROSTER_CACHE_KEY for
+    the first time would never trigger a real refresh on worker startup:
+    CACHE_KEY alone can look "non-empty" from nothing more than a live
+    request's own bootstrap_fill_if_empty_sync() fallback (a thin ~44-
+    ticker subset, not a real refresh), which would otherwise mask the
+    roster forever staying empty. This is also the reliable path around
+    the ad-hoc /admin/refresh-undervalued-screener endpoint being fragile
+    under Railway's own constraints (see the 2026-09-08 incident) —
+    restarting the worker service is a simpler, more robust way to force
+    a real refresh than that HTTP trigger."""
     _, screener_ts = cache_get_with_ts(CACHE_KEY)
-    if screener_ts:
+    _, roster_ts = cache_get_with_ts(FULL_ROSTER_CACHE_KEY)
+    if screener_ts and roster_ts:
         from app.services.valuation_backtest_service import CACHE_KEY as _BACKTEST_CACHE_KEY, refresh_valuation_backtest
         _, backtest_ts = cache_get_with_ts(_BACKTEST_CACHE_KEY)
         if backtest_ts:
@@ -934,7 +950,10 @@ async def refresh_if_empty_on_startup() -> None:
             logger.warning("undervalued_screener_service: valuation backtest repair failed: %s", exc)
         return
 
-    logger.info("undervalued_screener_service: screener cache empty at worker startup, refreshing now")
+    logger.info(
+        "undervalued_screener_service: screener cache%s empty at worker startup, refreshing now",
+        "" if not screener_ts else " (full roster)",
+    )
     await refresh_undervalued_screener()
 
 
