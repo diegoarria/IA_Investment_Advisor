@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import threading
-from fastapi import APIRouter, Depends, Form, Query, Request, UploadFile, File
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, UploadFile, File
 from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger("uvicorn.error")
@@ -1166,12 +1166,20 @@ _NEWS_SUMMARY_TTL = 6 * 3600  # article content/summary don't change once writte
 @router.post("/summarize-news")
 @limiter.limit("20/minute")
 async def summarize_news(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
-    """AI summary of a news article — premium-only, enforced on the frontend.
+    """AI summary of a news article — premium-only.
     The summary depends only on the article + language, never on who's asking,
     so it's cached and shared across every user who opens the same article —
     same pattern as stock-score/income-analysis below."""
     import hashlib
     import httpx
+    from app.api.routes.chat import _is_premium
+    # Diego, 2026-09-08 (pre-launch audit, P1): this was documented as
+    # "premium-only, enforced on the frontend" but never actually checked
+    # server-side — any authenticated free user could call this route
+    # directly and get the real AI summary. Matches the pattern every other
+    # premium AI route in this codebase already uses (see earnings.py).
+    if not _is_premium(_get_user_profile(user_id)):
+        raise HTTPException(status_code=403, detail="El resumen con IA es exclusivo de Premium")
     title = (body.get("title") or "").strip()
     url   = (body.get("url") or "").strip()
     if not title:
@@ -1374,9 +1382,46 @@ def _yf_breaker_record_success() -> None:
     cache_delete(_YF_BREAKER_FAIL_KEY)
 
 
+def _fx_to_usd_multiplier(currency: str) -> float:
+    """Returns the multiplier that converts a price denominated in
+    `currency` into USD (price_usd = price_in_currency * this). Synchronous
+    — every caller already runs inside asyncio.to_thread. Shares its cache
+    key (`fx:USD:{currency}:v2`) with GET /fx-rate so a live fetch from
+    either path warms the other's cache instead of duplicating it. Falls
+    back to the same hardcoded table GET /fx-rate uses if a live rate can't
+    be fetched — an approximate rate beats silently treating a foreign
+    price as if it were USD (see _fetch_ticker_history's docstring)."""
+    currency = (currency or "USD").upper()
+    if currency == "USD":
+        return 1.0
+    cache_key = f"fx:USD:{currency}:v2"
+    cached = cache_get(cache_key)
+    if cached and cached.get("rate"):
+        try:
+            return 1.0 / float(cached["rate"])
+        except (TypeError, ZeroDivisionError):
+            pass
+    try:
+        import httpx as _httpx
+        r = _httpx.get("https://open.er-api.com/v6/latest/USD", timeout=6)
+        d = r.json()
+        if d.get("result") == "success":
+            rate = (d.get("rates") or {}).get(currency)
+            if rate and float(rate) > 0:
+                rate = round(float(rate), 6)
+                cache_set(cache_key, {"rate": rate, "pair": f"USD/{currency}", "source": "open.er-api"}, ttl=3600)
+                return 1.0 / rate
+    except Exception:
+        pass
+    rate = _FX_FALLBACK_RATES.get(currency)
+    if rate:
+        return 1.0 / rate
+    return 1.0  # unknown currency — no signal to convert by; better to show it un-converted (investigable) than guess
+
+
 def _yfinance_history_fallback(
     ticker: str, period1: int, period2: int, interval: str = "1d"
-) -> tuple[list[int], list[float], float | None]:
+) -> tuple[list[int], list[float], float | None, str]:
     """Second-tier fallback for _fetch_ticker_history: the `yfinance` library
     itself (different code path/session handling than our direct httpx calls
     to Yahoo's v8 endpoint — enough to sometimes succeed when the direct
@@ -1387,7 +1432,7 @@ def _yfinance_history_fallback(
         t = yf.Ticker(_yf_symbol(ticker))
         hist = t.history(start=start, end=end, interval=interval, raise_errors=False, auto_adjust=True)
         if hist is None or hist.empty:
-            return [], [], None
+            return [], [], None, "USD"
         closes = [float(c) for c in hist["Close"].dropna().tolist()]
         ts = [int(idx.timestamp()) for idx in hist.index]
         rt_price = None
@@ -1395,20 +1440,30 @@ def _yfinance_history_fallback(
             rt_price = float(t.fast_info.last_price)
         except Exception:
             pass
-        return ts, closes, rt_price
+        currency = "USD"
+        try:
+            currency = (t.fast_info.currency or "USD").upper()
+        except Exception:
+            pass
+        return ts, closes, rt_price, currency
     except Exception:
-        return [], [], None
+        return [], [], None, "USD"
 
 
 def _fetch_ticker_history(
     ticker: str, period1: int, period2: int, interval: str = "1d"
-) -> tuple[list[int], list[float], float | None]:
+) -> tuple[list[int], list[float], float | None, str]:
     """Fetch historical adjusted-close prices + regularMarketPrice via Yahoo Finance Chart API,
     with a circuit breaker + yfinance-library fallback so a Yahoo throttling episode degrades
     gracefully instead of returning empty data to every user simultaneously.
 
-    Returns (timestamps, closes, rt_price) where rt_price is always the current real-time price
-    from the meta field — regardless of what the historical bars show (which can lag one day).
+    Returns (timestamps, closes, rt_price, currency) where rt_price is always the current
+    real-time price from the meta field — regardless of what the historical bars show (which
+    can lag one day) — and currency is the ticker's OWN quote currency (e.g. "MXN" for a
+    BMV-listed stock), consumed by _build_close_df to normalize everything to USD (see the
+    2026-09-08 pre-launch audit note there — mixing a non-USD live price with a USD-entered
+    avg_price silently produced wildly wrong portfolio returns for foreign-exchange-listed
+    tickers).
     """
     if _yf_breaker_is_open():
         return _yfinance_history_fallback(ticker, period1, period2, interval)
@@ -1427,6 +1482,7 @@ def _fetch_ticker_history(
             res = r.json()["chart"]["result"][0]
             meta = res.get("meta", {})
             rt_price = meta.get("regularMarketPrice")
+            currency = (meta.get("currency") or "USD").upper()
             ts = res.get("timestamp") or []
             # Prefer adjclose (accounts for splits + dividends)
             ac = (res.get("indicators", {}).get("adjclose") or [])
@@ -1435,7 +1491,7 @@ def _fetch_ticker_history(
                 closes = (res.get("indicators", {}).get("quote") or [{}])[0].get("close")
             if ts and closes and len(ts) == len(closes):
                 _yf_breaker_record_success()
-                return ts, closes, float(rt_price) if rt_price else None
+                return ts, closes, float(rt_price) if rt_price else None, currency
         except Exception:
             continue
 
@@ -1479,7 +1535,20 @@ def _build_close_df(
             pass  # fall through and refetch on any deserialization hiccup
 
     def _one(t: str) -> "tuple[str, _pd.Series | None, float | None]":
-        ts, closes, rt_price = _fetch_ticker_history(t, period1, period2, interval)
+        ts, closes, rt_price, currency = _fetch_ticker_history(t, period1, period2, interval)
+        # Normalize to USD right here, once, so every consumer of the
+        # returned df/rt_prices (portfolio returns, portfolio chart) never
+        # has to think about currency again — see _fetch_ticker_history's
+        # docstring for why this exists. A single current FX rate applied
+        # across the whole historical window is a deliberate approximation
+        # (not a true per-date historical rate), same simplification this
+        # codebase already makes elsewhere (e.g. the cash-holdings currency
+        # table) — far more correct than the prior silent no-conversion.
+        fx = _fx_to_usd_multiplier(currency) if currency != "USD" else 1.0
+        if fx != 1.0:
+            closes = [c * fx if c is not None else None for c in closes]
+            if rt_price is not None:
+                rt_price = rt_price * fx
         if not ts:
             return t, None, rt_price
         pairs = [
@@ -1555,7 +1624,11 @@ def _build_close_df_range(
                 res = r.json()["chart"]["result"][0]
                 ts = res.get("timestamp") or []
                 closes = (res.get("indicators", {}).get("quote") or [{}])[0].get("close") or []
-                pairs = [(s, float(c)) for s, c in zip(ts, closes) if c is not None]
+                # Same USD normalization as _build_close_df — see
+                # _fetch_ticker_history's docstring (2026-09-08 audit).
+                currency = ((res.get("meta") or {}).get("currency") or "USD").upper()
+                fx = _fx_to_usd_multiplier(currency) if currency != "USD" else 1.0
+                pairs = [(s, float(c) * fx) for s, c in zip(ts, closes) if c is not None]
                 if pairs:
                     dates, vals = zip(*pairs)
                     return t, _pd.Series(list(vals), index=[_pd.Timestamp(d, unit="s") for d in dates], name=t)
