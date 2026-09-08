@@ -2652,34 +2652,88 @@ async def job_refresh_macro_calendar():
 
 _QUICK_ANALYSIS_PREWARM_TICKER = "AAPL"
 
+# The Oportunidades screen's most-searched names — kept deliberately small
+# (Diego: cost-conscious, ~$2/day LLM budget) rather than the full screener
+# universe. Prewarmed on a schedule so a search for any of these is a cache
+# hit (<1s) for BOTH tiers instead of paying the live ~15-20s FMP/Finnhub
+# fetch (+ a Claude call for Premium) on whichever user happens to search
+# it first. AAPL stays first/separate as the screen's hardcoded default
+# view (_DEFAULT_VI_TICKER), guaranteed warm regardless of this list.
+_QUICK_ANALYSIS_POPULAR_TICKERS = [
+    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "BRK.B",
+    "JPM", "V", "JNJ", "WMT", "PG", "MA", "HD", "DIS", "NFLX", "KO", "PEP", "XOM",
+]
+
 
 async def job_prewarm_quick_analysis_default():
-    """Runs every few hours to guarantee the Oportunidades screen's default
-    ticker (AAPL) is NEVER cold in cache, in both languages — but the DCF+AI
-    analysis itself is only actually recomputed (re-billing Claude+FMP/
-    Finnhub) when AAPL has reported new earnings since the cached copy was
-    built, same check the /quick-analysis route itself does on every cache
-    hit (see screener._latest_reported_earnings_period). Most runs are a
-    cheap no-op: one lightweight earnings-period check per language, no
-    Claude call, no full recompute. Only a first-ever run (empty cache) or a
-    just-reported quarter actually pays the full cost."""
+    """Runs every few hours to guarantee the Oportunidades screen's most-
+    searched tickers (see _QUICK_ANALYSIS_POPULAR_TICKERS) are NEVER cold
+    in cache, in both languages AND both tiers (free-templated and Premium-
+    AI, see screener._quick_analysis_cache_key's tier param — 2026-09-07:
+    "los guests y free nunca jamás pueden gastar tokens en esta pantalla",
+    so the free entry must be prewarmed too, or a first-time free search of
+    a popular ticker would still cache-miss and block on a live DCF compute
+    — just without the Claude call — instead of a sub-1s hit; the premium
+    entry gets prewarmed with the real AI narrative so a Premium search of
+    these names is never the one paying for it live either). Each ticker's
+    DCF is only actually recomputed (re-billing FMP/Finnhub, plus Claude
+    for the premium tier) when it has reported new earnings since the
+    cached copy was built, same check the /quick-analysis route itself does
+    on every cache hit (see screener._latest_reported_earnings_period).
+    Most runs are a cheap no-op per ticker/lang/tier: one lightweight
+    earnings-period check, no Claude call, no full recompute. Only a
+    first-ever run (empty cache) or a just-reported quarter actually pays
+    the full cost for that one ticker."""
     from app.api.routes.screener import (
         _build_quick_analysis, _latest_reported_earnings_period, _quick_analysis_cache_key, _QUICK_ANALYSIS_CACHE_TTL,
     )
     from app.core.cache import cache_get, cache_set
 
-    for lang in ("es", "en"):
-        try:
-            cache_key = _quick_analysis_cache_key(_QUICK_ANALYSIS_PREWARM_TICKER, lang)
-            cached = cache_get(cache_key)
-            if cached:
-                current_period = await asyncio.to_thread(_latest_reported_earnings_period, _QUICK_ANALYSIS_PREWARM_TICKER)
-                if not current_period or current_period == cached.get("_earnings_period"):
-                    continue  # still the same reported quarter — nothing to do
-            result = await _build_quick_analysis(_QUICK_ANALYSIS_PREWARM_TICKER, lang)
-            cache_set(cache_key, result, _QUICK_ANALYSIS_CACHE_TTL)
-        except Exception as e:
-            logger.error("job_prewarm_quick_analysis_default(%s) failed: %s", lang, e)
+    for ticker in _QUICK_ANALYSIS_POPULAR_TICKERS:
+        for lang in ("es", "en"):
+            for tier, use_ai in (("free", False), ("premium", True)):
+                try:
+                    cache_key = _quick_analysis_cache_key(ticker, lang, tier=tier)
+                    cached = cache_get(cache_key)
+                    if cached:
+                        current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
+                        if not current_period or current_period == cached.get("_earnings_period"):
+                            continue  # still the same reported quarter — nothing to do
+                    result = await _build_quick_analysis(ticker, lang, use_ai=use_ai)
+                    cache_set(cache_key, result, _QUICK_ANALYSIS_CACHE_TTL)
+                except Exception as e:
+                    logger.error("job_prewarm_quick_analysis_default(%s, %s, %s) failed: %s", ticker, lang, tier, e)
+
+
+async def job_prewarm_company_diagnostic_popular():
+    """Same reasoning as job_prewarm_quick_analysis_default, for the
+    CompanyDiagnosticCard (/company-diagnostic) — fired in parallel with
+    quick-analysis for the same search on the Oportunidades screen, so a
+    popular ticker must be warm here too or the screen still blocks on this
+    second, slower (~15s uncached) call even after quick-analysis itself is
+    instant. Same free/premium tier split, same earnings-period recompute
+    trigger, same popular-ticker list."""
+    from app.api.routes.screener import (
+        _company_diagnostic_cache_key, _company_diagnostic_result, _latest_reported_earnings_period,
+    )
+    from app.core.cache import cache_get
+
+    for ticker in _QUICK_ANALYSIS_POPULAR_TICKERS:
+        for lang in ("es", "en"):
+            for tier, use_ai in (("free", False), ("premium", True)):
+                try:
+                    cache_key = _company_diagnostic_cache_key(ticker, lang, tier=tier)
+                    cached = cache_get(cache_key)
+                    if cached:
+                        current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
+                        if not current_period or current_period == cached.get("_earnings_period"):
+                            continue  # still the same reported quarter — nothing to do
+                    # _company_diagnostic_result already does its own cache_get/cache_set
+                    # under this same key — reuse it directly rather than duplicating its
+                    # build+cache_set logic here.
+                    await _company_diagnostic_result(ticker, lang, None, use_ai=use_ai)
+                except Exception as e:
+                    logger.error("job_prewarm_company_diagnostic_popular(%s, %s, %s) failed: %s", ticker, lang, tier, e)
 
 
 async def job_prewarm_nif_dashboard_default():
@@ -5691,6 +5745,11 @@ async def main():
     # next_run_time=now so a fresh deploy/restart warms the cache immediately
     # instead of waiting up to 6h for the first interval tick.
     scheduler.add_job(job_prewarm_quick_analysis_default, "interval", hours=6, next_run_time=datetime.now())
+    # Staggered 5 min after the quick-analysis prewarm above — both iterate
+    # the same 20-ticker popular list; running them at the exact same
+    # instant would double up the FMP/Finnhub/Claude request burst for no
+    # reason since they're independent caches.
+    scheduler.add_job(job_prewarm_company_diagnostic_popular, "interval", hours=6, next_run_time=datetime.now() + timedelta(minutes=5))
     scheduler.add_job(job_prewarm_nif_dashboard_default,  "interval", hours=6, next_run_time=datetime.now())
     scheduler.add_job(job_belvo_resync_all,               "interval", hours=6)
 

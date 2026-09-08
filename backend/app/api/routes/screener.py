@@ -1227,13 +1227,15 @@ def _latest_reported_earnings_period(ticker: str) -> str | None:
         return None
 
 
-def _with_live_price(result: dict, ticker: str) -> dict:
-    """Overlays a live (≤60s-old, Finnhub-cached) quote onto an otherwise
-    long-cached quick-analysis payload — the DCF/AI narrative can safely sit
-    in cache for months, but the price and day-change shown next to it
-    should always track the market. Falls back to whatever price the cached
-    payload already has if the live quote is unavailable."""
-    quote = fh_quote(ticker)
+def _apply_live_quote(result: dict, quote: dict | None) -> dict:
+    """Overlays an ALREADY-FETCHED live quote onto an otherwise long-cached
+    quick-analysis payload — the DCF/AI narrative can safely sit in cache
+    for months, but the price and day-change shown next to it should always
+    track the market. Falls back to whatever price the cached payload
+    already has if the live quote is unavailable. Split out from
+    _with_live_price so the quote fetch itself can be fired concurrently
+    with other work (see _quick_analysis_result) instead of blocking on it
+    inline."""
     if not quote or not quote.get("price"):
         return result
     result = dict(result)
@@ -1242,8 +1244,16 @@ def _with_live_price(result: dict, ticker: str) -> dict:
     return result
 
 
-def _with_live_price_diagnostic(cached: dict, ticker: str) -> dict:
-    """`_with_live_price`'s equivalent for `/company-diagnostic`'s nested
+def _with_live_price(result: dict, ticker: str) -> dict:
+    """Fetch-then-overlay convenience wrapper around _apply_live_quote, for
+    callers that don't already need the quote fetch to run concurrently
+    with something else (see _quick_analysis_result for the concurrent
+    version)."""
+    return _apply_live_quote(result, fh_quote(ticker))
+
+
+def _apply_live_quote_diagnostic(cached: dict, quote: dict | None) -> dict:
+    """`_apply_live_quote`'s equivalent for `/company-diagnostic`'s nested
     `CompanyDiagnosticData` shape (methodology audit round 3, see /Users/
     diegoarria/.claude/plans/cosmic-munching-crown.md) — this endpoint's
     cache-hit path previously returned the cached payload completely as-is,
@@ -1252,11 +1262,13 @@ def _with_live_price_diagnostic(cached: dict, ticker: str) -> dict:
     could silently be stale for up to 90 days on repeat views of the same
     ticker. `baseFairValue`/`conservative`/`optimistic` (the DCF scenario
     values themselves) are NOT price-dependent and stay untouched, same
-    philosophy as `_with_live_price`. Falls back to the cached values
-    unchanged if the live quote is unavailable — never fabricates one."""
+    philosophy as `_apply_live_quote`. Falls back to the cached values
+    unchanged if the live quote is unavailable — never fabricates one.
+    Takes an ALREADY-FETCHED quote — see _with_live_price_diagnostic for a
+    fetch-then-overlay wrapper, and _company_diagnostic_result for why the
+    fetch is fired concurrently instead."""
     from app.services.valuation.numeric_helpers import calc_margin_of_safety
 
-    quote = fh_quote(ticker)
     if not quote or not quote.get("price"):
         return cached
     price = quote["price"]
@@ -1279,6 +1291,14 @@ def _with_live_price_diagnostic(cached: dict, ticker: str) -> dict:
 
     cached["valuation"] = valuation
     return cached
+
+
+def _with_live_price_diagnostic(cached: dict, ticker: str) -> dict:
+    """Fetch-then-overlay convenience wrapper around
+    _apply_live_quote_diagnostic, for callers that don't already need the
+    quote fetch to run concurrently with something else (see
+    _company_diagnostic_result for the concurrent version)."""
+    return _apply_live_quote_diagnostic(cached, fh_quote(ticker))
 
 
 async def _get_user_profile_safe(user_id: str):
@@ -1526,7 +1546,15 @@ _QUICK_ANALYSIS_CACHE_TTL = 90 * 24 * 3600  # 3 months — a ceiling, not the re
 # all — see _with_live_price.
 
 
-def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
+def _quick_analysis_cache_key(ticker: str, lang: str, tier: str = "free") -> str:
+    # tier: "free" (default, unsuffixed — same key every pre-existing caller
+    # already uses, incl. watchlist.py/smart_alerts_service.py) holds the
+    # zero-Claude-cost templated summary; "premium" is a SEPARATE cache
+    # entry holding the real AI-generated narrative. Two tiers must never
+    # share one entry — Diego, 2026-09-07: "cero tokens de gasto para los
+    # usuarios gratis, para los premium mantenlo personalizado" — a shared
+    # key would leak whichever tier searched a ticker first onto the other.
+    suffix = ":premium" if tier == "premium" else ""
     # v13 — bumped for methodology audit round 5 — mandatory per-share Fair
     # Value Engine (see /Users/diegoarria/.claude/plans/cosmic-munching-
     # crown.md): GQV's growth-evidence hierarchy has a new top-priority
@@ -1635,16 +1663,23 @@ def _quick_analysis_cache_key(ticker: str, lang: str) -> str:
     # these fixes — without this bump, every previously-viewed ticker
     # keeps serving the old numbers for up to 90 more days regardless of
     # what's deployed.
-    return f"quick_analysis:v17:{lang}:{ticker}"
+    return f"quick_analysis:v17:{lang}:{ticker}{suffix}"
 
 
-async def _build_quick_analysis(ticker: str, lang: str) -> dict:
+async def _build_quick_analysis(ticker: str, lang: str, use_ai: bool = True) -> dict:
     """Computes the full quick-analysis payload for one ticker+lang — the
     real DCF engine plus a short AI narrative. Pure compute: doesn't touch
     cache or the per-user thesis-event log, so it can be called both by the
     /quick-analysis route (cache miss path) and by worker.py's cache-warming
     job for the screen's default ticker, without depending on a request or
-    user_id."""
+    user_id.
+
+    use_ai=False skips the Claude call entirely (zero tokens) and returns a
+    templated summary instead — Diego, 2026-09-07: free/guest searches must
+    never spend tokens, even on a ticker no one has ever searched before;
+    only Premium gets the real AI narrative. The real numbers (DCF, fair
+    value, margin of safety) are unaffected either way — those were always
+    pure computation, never LLM-derived."""
     import time
 
     from app.services.fundamental_analysis_service import get_fundamental_analysis
@@ -1672,19 +1707,31 @@ async def _build_quick_analysis(ticker: str, lang: str) -> dict:
 
     # The AI narrative is a nice-to-have layer on top of the real DCF
     # numbers already in `data` — a Claude timeout/error must degrade to a
-    # plain-numbers card, never take down the whole request.
-    try:
-        ai_result = await asyncio.wait_for(ai_service.generate_quick_valuation_summary(data, lang=lang), timeout=20.0)
-    except Exception as exc:
-        logger.error("quick_analysis(%s): generate_quick_valuation_summary failed: %s", ticker, exc, exc_info=True)
+    # plain-numbers card, never take down the whole request. For use_ai=
+    # False (free/guest tier) we take that same degraded shape proactively,
+    # never calling Claude at all.
+    if not use_ai:
         ai_result = {
             "summary": (
-                "We couldn't generate the AI summary right now. The real numbers above are still accurate."
+                "The AI-generated narrative is a Premium feature. The real numbers above (fair value, margin of safety) are just as accurate without it."
                 if lang == "en" else
-                "No pudimos generar el resumen con IA en este momento. Las cifras reales de arriba siguen siendo correctas."
+                "El resumen narrativo con IA es una función Premium. Las cifras reales de arriba (valor justo, margen de seguridad) son igual de precisas sin él."
             ),
             "business_understanding_stars": None, "business_understanding_reason": "", "checklist_reasons": {},
         }
+    else:
+        try:
+            ai_result = await asyncio.wait_for(ai_service.generate_quick_valuation_summary(data, lang=lang), timeout=20.0)
+        except Exception as exc:
+            logger.error("quick_analysis(%s): generate_quick_valuation_summary failed: %s", ticker, exc, exc_info=True)
+            ai_result = {
+                "summary": (
+                    "We couldn't generate the AI summary right now. The real numbers above are still accurate."
+                    if lang == "en" else
+                    "No pudimos generar el resumen con IA en este momento. Las cifras reales de arriba siguen siendo correctas."
+                ),
+                "business_understanding_stars": None, "business_understanding_reason": "", "checklist_reasons": {},
+            }
     dcf = data["dcf"]
     # Nuvos Fair Value Engine (Growth + Quality + Value) — primary whenever
     # it produced a real, gate-passed result for this ticker; same fallback
@@ -2266,7 +2313,8 @@ async def quick_analysis(
     # what, same as web. Validated against the literal query (not the
     # resolved ticker) so a client can't fake `is_default_view=true` for an
     # arbitrary ticker to bypass the limit.
-    if not _is_premium(profile):
+    is_premium = _is_premium(profile)
+    if not is_premium:
         if not (is_default_view and query.strip().upper() == _DEFAULT_VI_TICKER):
             await _check_and_increment_vi_search_limit(user_id, profile)
 
@@ -2280,19 +2328,36 @@ async def quick_analysis(
     if not ticker:
         raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
 
-    result = await _quick_analysis_result(ticker, lang)
+    result = await _quick_analysis_result(ticker, lang, use_ai=is_premium)
     _log_thesis_event(user_id, ticker, result)
-    return _with_live_price(result, ticker)
+    return result
 
 
-async def _quick_analysis_result(ticker: str, lang: str) -> dict:
+async def _quick_analysis_result(ticker: str, lang: str, use_ai: bool = True) -> dict:
     """Cache-or-build core shared by the authenticated /quick-analysis
     above and the no-auth /quick-analysis/public below — same real numbers
     either way, the only difference between the two routes is how the
-    caller is identified for the free-tier weekly counter. Caller still
-    applies _with_live_price() and any user-specific side effect
-    (_log_thesis_event) on top of what this returns."""
-    cache_key = _quick_analysis_cache_key(ticker, lang)
+    caller is identified for the free-tier weekly counter. Applies
+    _with_live_price() itself now (see below) and any user-specific side
+    effect (_log_thesis_event) is still applied by the caller on top of
+    what this returns.
+
+    use_ai selects a SEPARATE cache entry (see _quick_analysis_cache_key's
+    tier param) — free/guest (use_ai=False) never reads or writes the
+    Premium entry's AI narrative, and vice versa, so a free search never
+    "poisons" the cache with a template a Premium searcher of the same
+    ticker would then see.
+
+    On a cache hit, the earnings-freshness check and the live-quote fetch
+    used to run back to back (two sequential Finnhub round trips) — Diego,
+    2026-09-07: sub-1s cache-hit loads. They're independent (the quote
+    doesn't need the freshness check's answer), so the quote fetch is fired
+    as its own task up front and only awaited once we already know which
+    result (cached or freshly rebuilt) it needs to be overlaid onto — by
+    then it has usually already finished."""
+    tier = "premium" if use_ai else "free"
+    cache_key = _quick_analysis_cache_key(ticker, lang, tier=tier)
+    quote_task = asyncio.create_task(asyncio.to_thread(fh_quote, ticker))
     cached = cache_get(cache_key)
     if cached:
         current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
@@ -2301,13 +2366,13 @@ async def _quick_analysis_result(ticker: str, lang: str) -> dict:
         # if the live check fails (rate-limited, Finnhub hiccup) we fall back
         # to the cache rather than pay for a full recompute on a false alarm.
         if not current_period or current_period == cached_period:
-            return cached
+            return _apply_live_quote(cached, await quote_task)
 
-    result = await _build_quick_analysis(ticker, lang)
+    result = await _build_quick_analysis(ticker, lang, use_ai=use_ai)
     # Only successful, complete results are cached — never a 404/503, so a
     # transient provider hiccup doesn't get "stuck" wrong for 3 months.
     cache_set(cache_key, result, _QUICK_ANALYSIS_CACHE_TTL)
-    return result
+    return _apply_live_quote(result, await quote_task)
 
 
 @router.get("/quick-analysis/public")
@@ -2347,8 +2412,8 @@ async def quick_analysis_public(
     if not ticker:
         raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
 
-    result = await _quick_analysis_result(ticker, lang)
-    return _with_live_price(result, ticker)
+    # Guests are never Premium — always the zero-token templated tier.
+    return await _quick_analysis_result(ticker, lang, use_ai=False)
 
 
 _NIF_DASHBOARD_CACHE_TTL = _QUICK_ANALYSIS_CACHE_TTL  # same ceiling philosophy as quick-analysis
@@ -2435,7 +2500,12 @@ async def nif_dashboard(query: str, lang: str | None = None, user_id: str = Depe
 _COMPANY_DIAGNOSTIC_CACHE_TTL = _QUICK_ANALYSIS_CACHE_TTL  # same 90-day ceiling philosophy
 
 
-def _company_diagnostic_cache_key(ticker: str, lang: str) -> str:
+def _company_diagnostic_cache_key(ticker: str, lang: str, tier: str = "free") -> str:
+    # tier: same free/premium split as _quick_analysis_cache_key — "free"
+    # (default, unsuffixed) never touches Claude and holds a templated
+    # oneLinerPitch with investmentThesis/noiseVsReality/actionPlan all
+    # None; "premium" is the separate entry with the real AI narrative.
+    suffix = ":premium" if tier == "premium" else ""
     # v6 — bumped because `company_diagnostic_service.py` (scoreLabel,
     # badges, moatPoints, competitor comparison rows/conclusion,
     # financialHealth "N/D" fallbacks) and `moat_engine.py`'s MoatFactor
@@ -2479,13 +2549,19 @@ def _company_diagnostic_cache_key(ticker: str, lang: str) -> str:
     # fields a v9 entry doesn't have at all. Without this bump the new
     # tabbed diagnostic UI reads undefined/null for all of them off stale
     # cache for up to 90 more days.
-    return f"company_diagnostic:v10:{lang}:{ticker}"
+    return f"company_diagnostic:v10:{lang}:{ticker}{suffix}"
 
 
-async def _company_diagnostic_result(query: str, lang: str | None, user_id: str | None) -> dict:
+async def _company_diagnostic_result(query: str, lang: str | None, user_id: str | None, use_ai: bool = True) -> dict:
     """Shared core for company_diagnostic (authenticated) and
     company_diagnostic_public (guest) — identical real data for both, only
-    the caller's weekly-allowance check and thesis-logging differ."""
+    the caller's weekly-allowance check and thesis-logging differ.
+
+    use_ai=False (free/guest tier) skips generate_company_diagnostic_
+    narrative entirely — zero tokens, even for a ticker never diagnosed
+    before — and uses a separate cache entry (see _company_diagnostic_
+    cache_key's tier param) so a free search never caches over a Premium
+    searcher's real narrative for the same ticker, or vice versa."""
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Escribe un ticker o nombre de empresa")
 
@@ -2496,13 +2572,23 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
     if not ticker:
         raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
 
-    cache_key = _company_diagnostic_cache_key(ticker, lang)
+    tier = "premium" if use_ai else "free"
+    cache_key = _company_diagnostic_cache_key(ticker, lang, tier=tier)
+    # Fired concurrently with the earnings-freshness check below (previously
+    # sequential — two Finnhub round trips back to back on every cache hit)
+    # — Diego, 2026-09-07: sub-1s cache-hit loads.
+    quote_task = asyncio.create_task(asyncio.to_thread(fh_quote, ticker))
     cached = cache_get(cache_key)
     if cached:
         current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
         cached_period = cached.get("_earnings_period")
         if not current_period or current_period == cached_period:
-            return await asyncio.to_thread(_with_live_price_diagnostic, cached, ticker)
+            return _apply_live_quote_diagnostic(cached, await quote_task)
+    # Falling through to a rebuild below (cache miss, or stale earnings
+    # period) — the fresh build already fetches a near-live price of its
+    # own (get_fundamental_analysis), so this speculative quote fetch turns
+    # out to be unneeded; cancel it rather than leaving it to finish unused.
+    quote_task.cancel()
 
     from app.services.fundamental_analysis_service import get_fundamental_analysis
     from app.services.company_diagnostic_service import build_company_diagnostic
@@ -2527,12 +2613,13 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para diagnosticar {ticker}")
 
     narrative = None
-    try:
-        narrative = await generate_company_diagnostic_narrative(
-            data=data, diagnostic=diagnostic, lang=lang, user_id=user_id,
-        )
-    except Exception as exc:
-        logger.warning("company_diagnostic(%s): narrative generation failed: %s", ticker, exc)
+    if use_ai:
+        try:
+            narrative = await generate_company_diagnostic_narrative(
+                data=data, diagnostic=diagnostic, lang=lang, user_id=user_id,
+            )
+        except Exception as exc:
+            logger.warning("company_diagnostic(%s): narrative generation failed: %s", ticker, exc)
     if narrative:
         diagnostic["oneLinerPitch"] = narrative.get("oneLinerPitch") or f"{diagnostic['companyName']} ({ticker}) — {diagnostic['scoreLabel']}."
         diagnostic["investmentThesis"] = narrative.get("investmentThesis")
@@ -2562,21 +2649,26 @@ async def company_diagnostic(request: Request, query: str, lang: str | None = No
     """CompanyDiagnosticCard's real-data backing (see /Users/diegoarria/
     .claude/plans/cosmic-munching-crown.md) — real deterministic scores/
     badges/moat-points/competitor-comparison from `company_diagnostic_
-    service.py`, plus ONE new on-demand AI call (`ai_service.generate_
-    company_diagnostic_narrative`) for the thesis/noise-vs-reality/action-
-    plan narrative fields.
+    service.py`, plus (Premium only, see below) ONE on-demand AI call
+    (`ai_service.generate_company_diagnostic_narrative`) for the thesis/
+    noise-vs-reality/action-plan narrative fields.
 
-    Free/guest users get the identical real diagnostic Premium sees, for
-    their first _FREE_VI_SEARCH_LIMIT searches each week (Diego, 2026-08-19:
-    "vamos a asustar a todos los usuarios si no mostramos valor" — a flat
-    Premium-only 403 showed nothing but an upsell card even on searches well
-    within the free weekly allowance). This endpoint is called in parallel
-    with /quick-analysis for the same search action; quick_analysis is the
-    one that actually increments the weekly counter, so this only performs a
-    READ-ONLY check (_vi_search_limit_already_exceeded) to avoid double-
-    charging the same search.
+    Free/guest users get the identical real deterministic diagnostic
+    Premium sees, for their first _FREE_VI_SEARCH_LIMIT searches each week
+    (Diego, 2026-08-19: "vamos a asustar a todos los usuarios si no
+    mostramos valor" — a flat Premium-only 403 showed nothing but an
+    upsell card even on searches well within the free weekly allowance) —
+    but never the AI narrative (Diego, 2026-09-07: "cero tokens de gasto
+    para los usuarios gratis, para los premium mantenlo personalizado"):
+    oneLinerPitch is a templated sentence built from real fields, and
+    investmentThesis/noiseVsReality/actionPlan stay None, same shape as
+    the pre-existing Claude-failure fallback. This endpoint is called in
+    parallel with /quick-analysis for the same search action; quick_
+    analysis is the one that actually increments the weekly counter, so
+    this only performs a READ-ONLY check (_vi_search_limit_already_
+    exceeded) to avoid double-charging the same search.
 
-    Cached per (ticker, lang) for up to 90 days, same earnings-period
+    Cached per (ticker, lang, tier) for up to 90 days, same earnings-period
     freshness re-check as /quick-analysis and /nif-dashboard — this is a
     genuinely on-demand endpoint, never called from the weekly full-universe
     screener refresh (see company_diagnostic_service.py's own docstring for
@@ -2585,7 +2677,8 @@ async def company_diagnostic(request: Request, query: str, lang: str | None = No
     profile = await _get_user_profile_safe(user_id)
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
-    if not _is_premium(profile) and _vi_search_limit_already_exceeded(profile):
+    is_premium = _is_premium(profile)
+    if not is_premium and _vi_search_limit_already_exceeded(profile):
         raise HTTPException(status_code=403, detail={
             "code": "premium_required",
             "message": "La Ficha de Diagnóstico Nuvos AI es exclusiva para Premium.",
@@ -2594,7 +2687,7 @@ async def company_diagnostic(request: Request, query: str, lang: str | None = No
     if lang not in ("es", "en"):
         lang = getattr(profile, "preferred_language", None) or "es"
 
-    diagnostic = await _company_diagnostic_result(query, lang, user_id)
+    diagnostic = await _company_diagnostic_result(query, lang, user_id, use_ai=is_premium)
     return diagnostic
 
 
@@ -2612,7 +2705,8 @@ async def company_diagnostic_public(request: Request, query: str, guest_id: str 
         })
     if lang not in ("es", "en"):
         lang = "es"
-    diagnostic = await _company_diagnostic_result(query, lang, None)
+    # Guests are never Premium — always the zero-token templated tier.
+    diagnostic = await _company_diagnostic_result(query, lang, None, use_ai=False)
     return diagnostic
 
 
