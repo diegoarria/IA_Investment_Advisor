@@ -537,8 +537,12 @@ export const screenerApi = {
     api.get("/api/market/screener/undervalued", { params: { sector, limit, lang, browse } }),
   // Full sector directory (every company, no margin-of-safety filter) —
   // separate from getUndervalued, which stays scoped to real opportunities.
+  // Generous timeout: a cold sector (never opened before) live-scans that
+  // sector's ~30-170 tickers on the spot (see get_or_build_sector_roster's
+  // docstring) — up to a few minutes for the largest sectors, one-time
+  // only (cached after). A warm sector is a normal fast cache read.
   getSectorRoster: (sector: string) =>
-    api.get("/api/market/screener/sector-roster", { params: { sector } }),
+    api.get("/api/market/screener/sector-roster", { params: { sector }, timeout: 240000 }),
   quickAnalysis: (query: string, lang?: string, isDefaultView?: boolean) =>
     api.get("/api/market/screener/quick-analysis", { params: { query, lang, is_default_view: isDefaultView }, timeout: 25000 }),
   // No-auth counterpart for guests (see the backend route's own docstring)

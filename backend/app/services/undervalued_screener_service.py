@@ -392,6 +392,76 @@ def get_sector_roster(sector: str) -> dict:
     return {"results": results, "generated_at": ts or 0}
 
 
+def _scan_roster(tickers: list[dict]) -> list[dict]:
+    """_scan's counterpart for the full roster — same real, blocking
+    get_fundamental_analysis fetch per ticker (bounded thread pool), but
+    keeps EVERY ticker via _build_roster_entry instead of filtering to
+    positive-MOS candidates via _build_candidate. Used for the live,
+    on-demand per-sector fill below — never for the full-universe weekly
+    refresh, which builds the roster as a side effect of its own _scan()
+    call instead (see refresh_undervalued_screener)."""
+    import concurrent.futures
+    from app.services.fundamental_analysis_service import get_fundamental_analysis
+
+    def _fetch_one(entry: dict):
+        try:
+            data = get_fundamental_analysis(entry["ticker"], _compute_peer_dependent_data=False)
+            return entry, data, None
+        except Exception as exc:
+            return entry, None, exc
+
+    results = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=_SCAN_MAX_WORKERS) as executor:
+        futures = [executor.submit(_fetch_one, entry) for entry in tickers]
+        for future in concurrent.futures.as_completed(futures):
+            entry, data, exc = future.result()
+            if exc is not None:
+                logger.warning("undervalued_screener_service: roster fetch %s failed: %s", entry["ticker"], exc)
+                continue
+            built = _build_roster_entry(entry, data)
+            if built is not None:
+                results.append(built)
+    return results
+
+
+def get_or_build_sector_roster(sector: str) -> dict:
+    """get_sector_roster's live-fill fallback (Diego, 2026-09-08: the
+    weekly/admin-triggered full-universe refresh proved unreliable under
+    Railway's own constraints — build ONE sector on demand instead,
+    scoped to just that sector's ~30-170 tickers, same pattern as the
+    Earnings screen's on-demand per-ticker fetch, not a 930-ticker batch
+    job). Cache-first: only live-scans when this sector genuinely has no
+    cached roster entries yet. The result is merged into the SAME
+    FULL_ROSTER_CACHE_KEY the weekly refresh writes (replacing only this
+    sector's slice, leaving every other sector's cached entries intact)
+    — so each sector only ever needs this live scan once (until the
+    8-day TTL or the next real weekly refresh), and browsing sector by
+    sector progressively fills the whole cache without ever needing the
+    full-universe job to succeed."""
+    import time
+
+    cached = get_sector_roster(sector)
+    if cached["results"]:
+        return cached
+
+    from app.api.routes.screener import UNIVERSE
+    sector_tickers = [u for u in UNIVERSE if (u.get("sector") or "").lower() == (sector or "").lower()]
+    if not sector_tickers:
+        return cached  # not a real sector name — nothing to scan, honest empty result
+
+    logger.info("undervalued_screener_service: full roster empty for sector=%s, live-scanning %d tickers", sector, len(sector_tickers))
+    fresh = _scan_roster(sector_tickers)
+    fresh.sort(key=lambda r: r["ticker"])
+
+    existing, _ = cache_get_with_ts(FULL_ROSTER_CACHE_KEY)
+    existing = existing or []
+    merged = [r for r in existing if (r.get("sector") or "").lower() != (sector or "").lower()] + fresh
+    cache_set(FULL_ROSTER_CACHE_KEY, merged, CACHE_TTL)
+    logger.info("undervalued_screener_service: live-filled %d/%d tickers for sector=%s", len(fresh), len(sector_tickers), sector)
+
+    return {"results": fresh, "generated_at": time.time()}
+
+
 def _scan(tickers: list[dict], analysis_cache: Optional[dict[str, Optional[dict]]] = None) -> list[dict]:
     """Runs the real DCF engine over the given ticker entries, keeps only
     positive-margin-of-safety results that also pass the data-quality gate

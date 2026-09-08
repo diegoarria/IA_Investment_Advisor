@@ -918,7 +918,8 @@
       "fairValueLabel": "Fair value",
       "sortUndervalued": "Most undervalued",
       "sortMarketCap": "Market Cap",
-      "sortPrice": "Share price"
+      "sortPrice": "Share price",
+      "loadingNote": "The first time a sector is opened it can take a couple of minutes — after that it's saved and loads instantly."
     },
     "dcf": {
       "level2Toggle": "See how Nuvos built this valuation",

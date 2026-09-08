@@ -1185,12 +1185,19 @@ async def sector_roster(sector: str, user_id: str = Depends(get_current_user_id)
     fair value shown is still the product's core paid content even for a
     company that isn't currently cheap.
 
-    Cache-only read (see undervalued_screener_service.get_sector_roster),
-    refreshed by the same weekly job as /undervalued. Same bootstrap-on-
-    empty fallback would require its own subset scan; skipped for now —
-    an empty roster here just means the weekly/admin-triggered refresh
-    hasn't populated it yet, same as a cold /undervalued cache before its
-    own bootstrap fires."""
+    Cache-first (see undervalued_screener_service.get_or_build_sector_
+    roster): if the weekly/admin-triggered full-universe refresh already
+    populated this sector, this is a fast cache read like any other
+    screener endpoint. Diego, 2026-09-08: that full-universe refresh
+    proved unreliable under Railway's own constraints (stuck builds, a
+    502 on the trigger, a failed worker restart — all Railway-side, not
+    this app's code) — so on a cache MISS this now live-scans just this
+    ONE sector's ~30-170 tickers on the spot (same on-demand pattern as
+    the Earnings screen's per-ticker fetch, not a 930-ticker batch), and
+    merges the result into the shared cache so it's instant for every
+    later visitor. Slow (up to a few minutes) only the first time any
+    given sector is opened after a cold cache; every visit after that —
+    by anyone — is fast."""
     from app.api.routes.chat import _is_premium
     profile = await _get_user_profile_safe(user_id)
     if not _is_premium(profile):
@@ -1198,11 +1205,11 @@ async def sector_roster(sector: str, user_id: str = Depends(get_current_user_id)
             "code": "premium_required",
             "message": "La lista completa por sector es exclusiva para Premium.",
         })
-    from app.services.undervalued_screener_service import get_sector_roster
+    from app.services.undervalued_screener_service import get_or_build_sector_roster
     try:
-        return get_sector_roster(sector)
+        return await asyncio.to_thread(get_or_build_sector_roster, sector)
     except Exception as exc:
-        logger.error("sector_roster(): get_sector_roster failed: %s", exc, exc_info=True)
+        logger.error("sector_roster(): get_or_build_sector_roster failed: %s", exc, exc_info=True)
         return {"results": [], "generated_at": 0}
 
 

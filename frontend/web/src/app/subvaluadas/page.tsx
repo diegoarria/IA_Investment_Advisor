@@ -560,7 +560,10 @@ function SubvaluadasPageInner() {
               {selectedSector ? (
                 <div className="mb-10">
                   {sectorLoading ? (
-                    <div className="flex items-center justify-center py-16"><Loader2 className="w-7 h-7 animate-spin" style={{ color: GOLD }} /></div>
+                    <div className="flex flex-col items-center justify-center gap-3 py-16">
+                      <Loader2 className="w-7 h-7 animate-spin" style={{ color: GOLD }} />
+                      <p className="text-xs text-center max-w-xs" style={{ color: "var(--muted)" }}>{t("subvaluadas.sectors.loadingNote")}</p>
+                    </div>
                   ) : sectorError ? (
                     <div className="rounded-2xl border p-6 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
                       <p className="text-sm" style={{ color: "var(--muted)" }}>{t("subvaluadas.sectors.error")}</p>
