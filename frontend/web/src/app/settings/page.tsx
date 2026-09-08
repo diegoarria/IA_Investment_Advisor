@@ -50,7 +50,7 @@ function NumberField({
 export default function SettingsPage() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, authRestoring } = useAuthStore();
   const { detailLevel, setDetailLevel } = useDetailLevelStore();
   const {
     requiredReturnPct, minMarginOfSafetyPct, preferredDiscountRateMethod,
@@ -60,10 +60,16 @@ export default function SettingsPage() {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Diego, 2026-09-08 (pre-launch audit, P2): wait for the persisted
+  // session to rehydrate before deciding — same fix as onboarding/page.tsx.
+  // A hard refresh on this page while genuinely logged in used to bounce
+  // straight to /login because isAuthenticated reads its in-memory default
+  // (false) for a brief window before the persisted store rehydrates.
   useEffect(() => {
-    if (!isAuthenticated) router.push("/login");
-  }, [isAuthenticated, router]);
+    if (!authRestoring && !isAuthenticated) router.push("/login");
+  }, [isAuthenticated, authRestoring, router]);
 
+  if (authRestoring) return null;
   if (!isAuthenticated) return null;
 
   const toggleFavoriteMetric = (key: FavoriteMetricKey) => {

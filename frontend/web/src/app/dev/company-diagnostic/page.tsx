@@ -41,6 +41,15 @@ export default function CompanyDiagnosticDevPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Diego, 2026-09-08 (pre-launch audit, P2): this scaffolding had no auth
+  // guard and no env gate, so it was reachable in production. Placed after
+  // every hook above (an early return before a hook call breaks React's
+  // rules of hooks) — Next.js inlines NODE_ENV at build time, so this
+  // fails closed regardless of what else does or doesn't get tree-shaken.
+  if (process.env.NODE_ENV === "production") {
+    return null;
+  }
+
   return (
     <div className="h-screen overflow-y-auto" style={{ background: "var(--bg)" }}>
       <div className="max-w-[720px] mx-auto px-4 py-6 sm:px-6">

@@ -4,6 +4,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
+  // Diego, 2026-09-08 (pre-launch audit, P2): this dev-only scaffolding had
+  // no auth guard and no env gate — it was reachable in production at
+  // nuvosai.com/dev/company-diagnostic by anyone who found the URL. It
+  // only proxies to an already-public backend endpoint (no auth bypass or
+  // sensitive data exposure), but it has none of the launch polish a real
+  // user-facing page would, so it shouldn't be live at all outside dev.
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ detail: "Not found" }, { status: 404 });
+  }
   const ticker = req.nextUrl.searchParams.get("ticker");
   if (!ticker) {
     return NextResponse.json({ detail: "Missing ticker" }, { status: 400 });

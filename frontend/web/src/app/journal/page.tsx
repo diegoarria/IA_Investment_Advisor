@@ -213,7 +213,7 @@ function ThesisRow({ thesis, onSaved }: { thesis: MyThesisRow; onSaved: (row: My
 export default function JournalPage() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, authRestoring } = useAuthStore();
   const subStore = useSubscriptionStore();
   const isPremium = subStore.tier === "premium" || subStore.isTrialPremium;
 
@@ -222,9 +222,18 @@ export default function JournalPage() {
   const [theses, setTheses] = useState<MyThesisRow[]>([]);
   const [thesesLoading, setThesesLoading] = useState(true);
 
+  // Diego, 2026-09-08 (pre-launch audit, P2): wait for session rehydration
+  // before deciding — a hard refresh while genuinely logged in used to
+  // bounce to /login during the brief window before the persisted store
+  // rehydrates. This page also never gated its own render on the auth
+  // check at all, so an actually-unauthenticated visitor briefly saw the
+  // full page shell render before the redirect fired — fixed below too.
   useEffect(() => {
-    if (!isAuthenticated) { router.push("/login"); return; }
-  }, [isAuthenticated, router]);
+    if (!authRestoring && !isAuthenticated) { router.push("/login"); return; }
+  }, [isAuthenticated, authRestoring, router]);
+
+  if (authRestoring) return null;
+  if (!isAuthenticated) return null;
 
   useEffect(() => {
     if (!isPremium) { setThesesLoading(false); return; }

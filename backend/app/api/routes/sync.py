@@ -20,6 +20,40 @@ from app.core.cache import cache_get, cache_set, cache_delete
 from app.services import fmg_service
 
 
+_MAX_REASONABLE_SHARES = 1_000_000_000  # 1B shares — generous ceiling, catches fat-finger/garbage input
+_MAX_REASONABLE_PRICE = 10_000_000      # $10M/share — generous ceiling, catches fat-finger/garbage input
+
+
+def _validate_position_numbers(items: list) -> None:
+    """Diego, 2026-09-08 (pre-launch audit, P2): shares/price used to reach
+    storage with zero server-side validation — only the frontend blocked a
+    negative/zero/absurd value, trivially bypassed with a direct API call
+    (a negative or huge shares/price silently corrupts this user's own
+    displayed gain/loss and the auto-generated decision-journal diff below).
+    Rejects the whole request on the first bad entry rather than silently
+    dropping/clamping it, so the client finds out immediately."""
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        ticker = item.get("ticker", "?")
+        shares = item.get("shares")
+        if shares is not None:
+            try:
+                shares_f = float(shares)
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail=f"Cantidad de acciones inválida para {ticker}")
+            if shares_f <= 0 or shares_f > _MAX_REASONABLE_SHARES:
+                raise HTTPException(status_code=400, detail=f"Cantidad de acciones fuera de rango para {ticker}")
+        for price_key in ("avgPrice", "avg_price", "close_price"):
+            if item.get(price_key) is not None:
+                try:
+                    price_f = float(item[price_key])
+                except (TypeError, ValueError):
+                    raise HTTPException(status_code=400, detail=f"Precio inválido para {ticker}")
+                if price_f < 0 or price_f > _MAX_REASONABLE_PRICE:
+                    raise HTTPException(status_code=400, detail=f"Precio fuera de rango para {ticker}")
+
+
 async def _log_auto_decision(user_id: str, event: dict) -> None:
     """Fire-and-forget wrapper around decisions.py's journal writer, used by
     the portfolio-sync diff below. Isolated in its own try/except so a
@@ -135,6 +169,9 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
     positions     = body.get("positions", [])
     currency      = body.get("currency", "USD")
     portfolio_id  = body.get("portfolio_id", "default") or "default"
+    _validate_position_numbers(positions)
+    if body.get("closed_positions"):
+        _validate_position_numbers(body["closed_positions"])
 
     # Reserved for Belvo-synced brokerage portfolios (belvo.py Phase 2,
     # see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md) — only
@@ -395,6 +432,11 @@ async def sync_paper(body: dict, user_id: str = Depends(get_current_user_id)):
     """
     db = get_supabase()
     new_trades = body.get("trades", [])
+    # Only `positions` is validated here, not `trades` — a "topup" trade
+    # legitimately carries shares=0/price=0 (see paperStore.ts's topUp()),
+    # which _validate_position_numbers would otherwise reject.
+    if body.get("positions"):
+        _validate_position_numbers(body["positions"])
 
     # Soft lock — check if user is trying to add new trades without premium
     if new_trades:

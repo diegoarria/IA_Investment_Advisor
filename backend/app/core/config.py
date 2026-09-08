@@ -105,6 +105,12 @@ class Settings(BaseSettings):
             problems.append("SUPABASE_URL is unset (defaulting to http://localhost)")
         if self.supabase_service_key == _DEV_SUPABASE_SERVICE_KEY:
             problems.append("SUPABASE_SERVICE_KEY is unset (defaulting to a placeholder)")
+        # Diego, 2026-09-08 (pre-launch audit, P2): supabase_anon_key had the
+        # exact same "dummy" default as supabase_service_key but was never
+        # checked here — a deploy missing only this one var would boot
+        # "successfully" against a fake key instead of failing loudly.
+        if self.supabase_anon_key == _DEV_SUPABASE_SERVICE_KEY:
+            problems.append("SUPABASE_ANON_KEY is unset (defaulting to a placeholder)")
         if self.secret_key == _DEV_SECRET_KEY:
             problems.append("SECRET_KEY is unset (defaulting to a publicly-known dev value)")
         if problems:

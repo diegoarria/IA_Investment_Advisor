@@ -88,7 +88,10 @@ class UserProfile(BaseModel):
     mentor: Optional[str] = None
     avatar_url: Optional[str] = None
     subscription_tier: str = "free"
-    stripe_customer_id: Optional[str] = None
+    # Diego, 2026-09-08 (pre-launch audit, P3): removed stripe_customer_id
+    # — it was included in the /profile response with no client-side use
+    # anywhere (web or mobile), an internal billing identifier with no
+    # reason to reach the browser.
     msg_count: int = 0
     msg_window_start: Optional[str] = None
     vi_search_count: int = 0
@@ -179,6 +182,9 @@ class ChatImage(BaseModel):
             raise ValueError(f"Image too large (max ~5MB, got base64 length {len(v)})")
         return v
 
+_MAX_CHAT_MESSAGE_CHARS = 8000  # generous for a real chat turn; rejects a deliberate cost/abuse payload
+
+
 class ChatRequest(BaseModel):
     message: str
     conversation_history: list[ChatMessage] = []
@@ -188,6 +194,23 @@ class ChatRequest(BaseModel):
     image_type: Optional[str] = None
     # Multi-image support (1-8 images)
     images: list[ChatImage] = []
+
+    @field_validator("message")
+    @classmethod
+    def _validate_message(cls, v: str) -> str:
+        # Diego, 2026-09-08 (pre-launch audit, P2): `message` had no
+        # length bound at all — unlike image_data below, which does. The
+        # message is enriched with market/fundamentals context and sent to
+        # Claude, so an unbounded body was a real cost/abuse lever (the
+        # daily spend cap only reacts to PAST spend, so the first oversized
+        # message of the day always goes through before it can react). An
+        # empty message also used to pass straight through, burning a real
+        # message-count/cost-cap decrement for a no-op turn.
+        if not v.strip():
+            raise ValueError("El mensaje no puede estar vacío")
+        if len(v) > _MAX_CHAT_MESSAGE_CHARS:
+            raise ValueError(f"El mensaje es demasiado largo (máximo {_MAX_CHAT_MESSAGE_CHARS} caracteres)")
+        return v
 
     @field_validator("image_data")
     @classmethod
