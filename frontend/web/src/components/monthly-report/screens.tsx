@@ -494,71 +494,83 @@ export function ScreenCompartir({ data, staticMode }: { data: MonthlyReportData;
   // null-only check let that slip through and crashed the screen (real
   // incident, 2026-09-08, fixed by versioning the cache key server-side
   // — this is the defense-in-depth half of that fix).
-  const stats: { label: string; value: string; sub?: string }[] = [];
-  if (s.best_position) {
-    stats.push({ label: "Acción que más subió", value: s.best_position.ticker, sub: fmtPct(s.best_position.move_pct ?? 0) });
-  }
-  stats.push({ label: "Decisiones tomadas", value: String(s.decisions_count ?? 0) });
-  stats.push({ label: "Empresas investigadas", value: String(s.companies_researched ?? 0) });
+  //
+  // "Acción que más subió" gets its own richer tile (logo + company name),
+  // rendered separately below — the other 3 stay plain label/value tiles.
+  const plainStats: { label: string; value: string }[] = [
+    { label: "Decisiones tomadas", value: String(s.decisions_count ?? 0) },
+    { label: "Empresas investigadas", value: String(s.companies_researched ?? 0) },
+  ];
   if (s.archetype_name) {
-    stats.push({ label: "Tu personalidad de inversor", value: s.archetype_name });
+    plainStats.push({ label: "Tu personalidad de inversor", value: s.archetype_name });
   }
 
   return (
     <Stage page={0} total={0} noChrome glow="center">
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", padding: "40px 0" }}>
-        <R delay={0} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
+        <R delay={0} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Nuvos AI" width={26} height={26} crossOrigin="anonymous" style={{ borderRadius: 7 }} />
-          <span style={{ fontWeight: 800, fontSize: 14, color: WT.text }}>NUVOS AI</span>
+          <img src="/logo.png" alt="Nuvos AI" width={30} height={30} crossOrigin="anonymous" style={{ borderRadius: 8 }} />
+          <span style={{ fontWeight: 800, fontSize: 17, color: WT.text }}>NUVOS AI</span>
         </R>
-        <R delay={80} style={EYEBROW}>{s.month_label}</R>
-        <R delay={140}><h1 style={{ ...H1, fontSize: 15, marginBottom: 24, color: WT.sub, fontWeight: 700 }}>MY MONTHLY REPORT</h1></R>
+        <R delay={80} style={{ ...EYEBROW, fontSize: 13 }}>{s.month_label}</R>
+        <R delay={140}><h1 style={{ ...H1, fontSize: 19, marginBottom: 26, color: WT.sub, fontWeight: 700 }}>MY MONTHLY REPORT</h1></R>
 
         {/* Hero card — avatar + portfolio return % + open-position count.
             Diego, 2026-09-08: explicit, confirmed exception to "never show
             return on the Share Card" — this IS the point of the redesign. */}
-        <R delay={220} anim="animate-fade-in-up-glow" style={{ ...CARD, padding: "28px 22px", background: "linear-gradient(160deg, rgba(0,185,109,0.16), rgba(9,15,31,0.4))", borderColor: "rgba(0,185,109,0.35)", width: "100%", marginBottom: 18 }}>
-          <div style={{ width: 60, height: 60, borderRadius: "50%", background: WT.gradGreen, padding: 3, margin: "0 auto 14px" }}>
+        <R delay={220} anim="animate-fade-in-up-glow" style={{ ...CARD, padding: "32px 24px", background: "linear-gradient(160deg, rgba(0,185,109,0.16), rgba(9,15,31,0.4))", borderColor: "rgba(0,185,109,0.35)", width: "100%", marginBottom: 20 }}>
+          <div style={{ width: 72, height: 72, borderRadius: "50%", background: WT.gradGreen, padding: 3, margin: "0 auto 16px" }}>
             {showAvatar ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={s.avatar_url as string} alt={s.user_name} crossOrigin="anonymous" onError={() => setAvatarFailed(true)}
                 style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", display: "block" }} />
             ) : (
-              <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: WT.card2, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 20, color: WT.text }}>
+              <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: WT.card2, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 24, color: WT.text }}>
                 {shareInitials(s.user_name || "")}
               </div>
             )}
           </div>
-          <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, fontWeight: 700, color: WT.sub, textTransform: "uppercase", marginBottom: 6 }}>Rendimiento del mes</div>
+          <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 700, color: WT.sub, textTransform: "uppercase", marginBottom: 8 }}>Rendimiento del mes</div>
           {s.return_pct != null ? (
-            <div style={{ fontWeight: 900, fontSize: 36, color: returnColor, letterSpacing: -1, marginBottom: 10 }}>{fmtPct(s.return_pct)}</div>
+            <div style={{ fontWeight: 900, fontSize: 44, color: returnColor, letterSpacing: -1, marginBottom: 12 }}>{fmtPct(s.return_pct)}</div>
           ) : (
-            <div style={{ fontFamily: "var(--font-ui)", fontSize: 13, color: WT.sub, marginBottom: 10 }}>Sin datos todavía</div>
+            <div style={{ fontFamily: "var(--font-ui)", fontSize: 15, color: WT.sub, marginBottom: 12 }}>Sin datos todavía</div>
           )}
-          <div style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: WT.sub }}>
+          <div style={{ fontFamily: "var(--font-ui)", fontSize: 15, color: WT.sub }}>
             <span style={{ color: WT.text, fontWeight: 800 }}>{s.positions_count ?? 0}</span> {(s.positions_count ?? 0) === 1 ? "posición" : "posiciones"}
           </div>
         </R>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, width: "100%", marginBottom: 18 }}>
-          {stats.map((stat, i) => (
-            <R key={stat.label} delay={340 + i * 40} style={{ ...CARD, padding: "14px 10px" }}>
-              <div style={{ fontFamily: "var(--font-ui)", fontSize: 9, color: WT.muted, textTransform: "uppercase", marginBottom: 4 }}>{stat.label}</div>
-              <div style={{ fontWeight: 800, fontSize: 12, color: WT.text }}>{stat.value}</div>
-              {stat.sub && <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 700, color: moveColor, marginTop: 2 }}>{stat.sub}</div>}
+        {s.best_position && (
+          <R delay={300} style={{ ...CARD, padding: "16px 18px", width: "100%", marginBottom: 10, display: "flex", alignItems: "center", gap: 14, textAlign: "left" }}>
+            <TickerLogo ticker={s.best_position.ticker} size={40} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, color: WT.muted, textTransform: "uppercase", marginBottom: 2 }}>Acción que más subió</div>
+              <div style={{ fontWeight: 800, fontSize: 16, color: WT.text }}>{s.best_position.company_name || s.best_position.ticker}</div>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 13, color: WT.sub }}>{s.best_position.ticker}</div>
+            </div>
+            <div style={{ fontWeight: 900, fontSize: 20, color: moveColor, flexShrink: 0 }}>{fmtPct(s.best_position.move_pct ?? 0)}</div>
+          </R>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, width: "100%", marginBottom: 20 }}>
+          {plainStats.map((stat, i) => (
+            <R key={stat.label} delay={340 + i * 40} style={{ ...CARD, padding: "16px 12px" }}>
+              <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, color: WT.muted, textTransform: "uppercase", marginBottom: 6 }}>{stat.label}</div>
+              <div style={{ fontWeight: 800, fontSize: 15, color: WT.text }}>{stat.value}</div>
             </R>
           ))}
         </div>
 
         {s.achievement && (
-          <R delay={520} style={{ display: "flex", alignItems: "center", gap: 8, ...CARD, padding: "10px 16px", marginBottom: 18 }}>
-            <span style={{ fontSize: 16 }}>{s.achievement.icon}</span>
-            <span style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 12, color: WT.text }}>Achievement unlocked: {s.achievement.name}</span>
+          <R delay={520} style={{ display: "flex", alignItems: "center", gap: 10, ...CARD, padding: "12px 18px", marginBottom: 20 }}>
+            <span style={{ fontSize: 19 }}>{s.achievement.icon}</span>
+            <span style={{ fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 14, color: WT.text }}>Achievement unlocked: {s.achievement.name}</span>
           </R>
         )}
 
-        <R delay={600} style={{ fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 700, color: WT.muted, letterSpacing: 1 }}>NUVOS · DECIDE MEJOR.</R>
+        <R delay={600} style={{ fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 700, color: WT.muted, letterSpacing: 1 }}>NUVOS · DECIDE MEJOR.</R>
       </div>
     </Stage>
   );

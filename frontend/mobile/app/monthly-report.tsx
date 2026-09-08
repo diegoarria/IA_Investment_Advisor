@@ -556,65 +556,77 @@ function ScreenCompartir({ data }: { data: MonthlyReportData }) {
   // `null`; a strict null-only check let that crash the screen (real
   // incident, 2026-09-08, fixed server-side by versioning the cache key —
   // this is the defense-in-depth half of that fix).
-  const stats: { label: string; value: string; sub?: string }[] = [];
-  if (s.best_position) {
-    stats.push({ label: "Acción que más subió", value: s.best_position.ticker, sub: fmtPct(s.best_position.move_pct ?? 0) });
-  }
-  stats.push({ label: "Decisiones tomadas", value: String(s.decisions_count ?? 0) });
-  stats.push({ label: "Empresas investigadas", value: String(s.companies_researched ?? 0) });
+  //
+  // "Acción que más subió" gets its own richer tile (logo + company name),
+  // rendered separately below — the other stats stay plain label/value tiles.
+  const plainStats: { label: string; value: string }[] = [
+    { label: "Decisiones tomadas", value: String(s.decisions_count ?? 0) },
+    { label: "Empresas investigadas", value: String(s.companies_researched ?? 0) },
+  ];
   if (s.archetype_name) {
-    stats.push({ label: "Tu personalidad de inversor", value: s.archetype_name });
+    plainStats.push({ label: "Tu personalidad de inversor", value: s.archetype_name });
   }
 
   return (
     <Stage page={10} total={10} noChrome>
-      <View style={{ borderRadius: 26, borderWidth: 1.5, borderColor: "rgba(0,232,135,0.18)", backgroundColor: "rgba(9,15,31,0.65)", alignItems: "center", padding: 18 }}>
-        <Image source={LOGO} style={{ width: 46, height: 46, borderRadius: 13, marginBottom: 10 }} />
-        <Text style={{ fontWeight: "700", fontSize: 10, color: WT.accentL, letterSpacing: 1.5, textTransform: "uppercase" }}>{s.month_label}</Text>
-        <Text style={{ fontWeight: "700", fontSize: 13, color: WT.sub, marginTop: 4 }}>MY MONTHLY REPORT</Text>
+      <View style={{ borderRadius: 26, borderWidth: 1.5, borderColor: "rgba(0,232,135,0.18)", backgroundColor: "rgba(9,15,31,0.65)", alignItems: "center", padding: 20 }}>
+        <Image source={LOGO} style={{ width: 52, height: 52, borderRadius: 15, marginBottom: 12 }} />
+        <Text style={{ fontWeight: "700", fontSize: 12, color: WT.accentL, letterSpacing: 1.5, textTransform: "uppercase" }}>{s.month_label}</Text>
+        <Text style={{ fontWeight: "700", fontSize: 16, color: WT.sub, marginTop: 4 }}>MY MONTHLY REPORT</Text>
 
         {/* Hero card — avatar + portfolio return % + open-position count.
             Diego, 2026-09-08: explicit, confirmed exception to "never show
             return on the Share Card" — this IS the point of the redesign. */}
-        <View style={{ width: "100%", borderRadius: 20, borderWidth: 1, borderColor: "rgba(0,185,109,0.32)", backgroundColor: "rgba(0,185,109,0.10)", alignItems: "center", padding: 20, marginTop: 16 }}>
-          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: WT.accentL, padding: 3, marginBottom: 12 }}>
+        <View style={{ width: "100%", borderRadius: 20, borderWidth: 1, borderColor: "rgba(0,185,109,0.32)", backgroundColor: "rgba(0,185,109,0.10)", alignItems: "center", padding: 24, marginTop: 18 }}>
+          <View style={{ width: 68, height: 68, borderRadius: 34, backgroundColor: WT.accentL, padding: 3, marginBottom: 14 }}>
             {showAvatar ? (
-              <Image source={{ uri: s.avatar_url as string }} onError={() => setAvatarFailed(true)} style={{ width: "100%", height: "100%", borderRadius: 25 }} />
+              <Image source={{ uri: s.avatar_url as string }} onError={() => setAvatarFailed(true)} style={{ width: "100%", height: "100%", borderRadius: 31 }} />
             ) : (
-              <View style={{ width: "100%", height: "100%", borderRadius: 25, alignItems: "center", justifyContent: "center", backgroundColor: WT.card2 }}>
-                <Text style={{ fontWeight: "800", fontSize: 18, color: WT.text }}>{initials(s.user_name || "")}</Text>
+              <View style={{ width: "100%", height: "100%", borderRadius: 31, alignItems: "center", justifyContent: "center", backgroundColor: WT.card2 }}>
+                <Text style={{ fontWeight: "800", fontSize: 22, color: WT.text }}>{initials(s.user_name || "")}</Text>
               </View>
             )}
           </View>
-          <Text style={{ fontSize: 10, fontWeight: "700", color: WT.sub, textTransform: "uppercase", marginBottom: 6 }}>Rendimiento del mes</Text>
+          <Text style={{ fontSize: 12, fontWeight: "700", color: WT.sub, textTransform: "uppercase", marginBottom: 8 }}>Rendimiento del mes</Text>
           {s.return_pct != null ? (
-            <Text style={{ fontWeight: "900", fontSize: 32, color: returnColor, marginBottom: 8 }}>{fmtPct(s.return_pct)}</Text>
+            <Text style={{ fontWeight: "900", fontSize: 42, color: returnColor, marginBottom: 10 }}>{fmtPct(s.return_pct)}</Text>
           ) : (
-            <Text style={{ fontSize: 13, color: WT.sub, marginBottom: 8 }}>Sin datos todavía</Text>
+            <Text style={{ fontSize: 15, color: WT.sub, marginBottom: 10 }}>Sin datos todavía</Text>
           )}
-          <Text style={{ fontSize: 12, color: WT.sub }}>
+          <Text style={{ fontSize: 15, color: WT.sub }}>
             <Text style={{ color: WT.text, fontWeight: "800" }}>{s.positions_count ?? 0}</Text> {(s.positions_count ?? 0) === 1 ? "posición" : "posiciones"}
           </Text>
         </View>
 
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, width: "100%", marginTop: 16 }}>
-          {stats.map((stat) => (
+        {s.best_position && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14, width: "100%", marginTop: 12, backgroundColor: WT.card, borderWidth: 1, borderColor: WT.border, borderRadius: 20, padding: 16 }}>
+            <TickerLogo ticker={s.best_position.ticker} size={42} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11, color: WT.muted, textTransform: "uppercase" }}>Acción que más subió</Text>
+              <Text style={{ fontWeight: "800", fontSize: 16, color: WT.text }}>{s.best_position.company_name || s.best_position.ticker}</Text>
+              <Text style={{ fontSize: 13, color: WT.sub }}>{s.best_position.ticker}</Text>
+            </View>
+            <Text style={{ fontWeight: "900", fontSize: 20, color: moveColor }}>{fmtPct(s.best_position.move_pct ?? 0)}</Text>
+          </View>
+        )}
+
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, width: "100%", marginTop: 12 }}>
+          {plainStats.map((stat) => (
             <View key={stat.label} style={[shareStat(WT.accentL), { flex: 1, minWidth: "45%" }]}>
-              <Text style={{ fontSize: 9, color: WT.muted, textTransform: "uppercase" }}>{stat.label}</Text>
-              <Text style={{ fontWeight: "800", fontSize: 12, color: WT.text, marginTop: 4 }}>{stat.value}</Text>
-              {stat.sub && <Text style={{ fontSize: 11, fontWeight: "700", color: moveColor, marginTop: 2 }}>{stat.sub}</Text>}
+              <Text style={{ fontSize: 11, color: WT.muted, textTransform: "uppercase" }}>{stat.label}</Text>
+              <Text style={{ fontWeight: "800", fontSize: 15, color: WT.text, marginTop: 6 }}>{stat.value}</Text>
             </View>
           ))}
         </View>
 
         {s.achievement && (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 16, backgroundColor: WT.card2, borderWidth: 1, borderColor: WT.border, borderRadius: 100, paddingHorizontal: 14, paddingVertical: 8 }}>
-            <Text style={{ fontSize: 15 }}>{s.achievement.icon}</Text>
-            <Text style={{ fontWeight: "700", fontSize: 12, color: WT.text }}>Achievement unlocked: {s.achievement.name}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 18, backgroundColor: WT.card2, borderWidth: 1, borderColor: WT.border, borderRadius: 100, paddingHorizontal: 16, paddingVertical: 10 }}>
+            <Text style={{ fontSize: 18 }}>{s.achievement.icon}</Text>
+            <Text style={{ fontWeight: "700", fontSize: 14, color: WT.text }}>Achievement unlocked: {s.achievement.name}</Text>
           </View>
         )}
 
-        <Text style={{ fontWeight: "700", fontSize: 11, color: WT.muted, letterSpacing: 1, marginTop: 16 }}>NUVOS · DECIDE MEJOR.</Text>
+        <Text style={{ fontWeight: "700", fontSize: 13, color: WT.muted, letterSpacing: 1, marginTop: 18 }}>NUVOS · DECIDE MEJOR.</Text>
       </View>
     </Stage>
   );
