@@ -3385,7 +3385,8 @@
         "VERY_HIGH": "Very High",
         "HIGH": "High",
         "MEDIUM": "Medium",
-        "MARKET_CLOSED": "Market closed"
+        "MARKET_CLOSED": "Market closed",
+        "EARLY_CLOSE": "Closes at 1pm ET"
       },
       "eventTypes": {
         "fomc_rate_decision": "Fed Rate Decision",
@@ -3404,7 +3405,8 @@
         "jolts": "JOLTS Openings",
         "fed_speaker": "Fed Speaker",
         "housing_starts": "Housing Starts",
-        "market_holiday": "US Market Holiday"
+        "market_holiday": "US Market Holiday",
+        "market_early_close": "US Market Half Day"
       }
     }
   },

@@ -49,7 +49,7 @@ from typing import Optional
 import httpx
 
 from app.core.database import get_supabase, run_query
-from app.services.market_holidays import upcoming_holidays
+from app.services.market_holidays import upcoming_holidays, upcoming_early_closes
 
 logger = logging.getLogger(__name__)
 
@@ -396,6 +396,41 @@ async def get_macro_events(days_ahead: int = 30, lang: str = "es") -> list[dict]
                 "El mercado de acciones de Estados Unidos (NYSE/Nasdaq) no abre este día."
                 if lang != "en" else
                 "US stock markets (NYSE/Nasdaq) are closed this day."
+            ),
+        })
+
+    # US market early-close ("half day") dates — same single source of
+    # truth as the holidays above, merged in the same shape so the web/
+    # mobile calendar renders them via the existing `event_type ==
+    # "market_early_close"` branch, no second endpoint/fetch needed.
+    # Diego, 2026-09-07: market IS open these days (is_trading_day stays
+    # true — see market_holidays.py), it just closes at 1:00pm ET instead
+    # of 4:00pm, so this is deliberately a distinct impact_level
+    # ("EARLY_CLOSE") from "MARKET_CLOSED" — the calendar and any future
+    # UI must never conflate "closes early" with "doesn't open."
+    for ec in upcoming_early_closes(days_ahead=max(days_ahead, _HOLIDAYS_DAYS_AHEAD)):
+        d = ec["date"]
+        name = ec["name_es"] if lang != "en" else ec["name_en"]
+        close_et = ec["close_et"]
+        status = "past" if d < today_et else "today" if d == today_et else "upcoming"
+        out.append({
+            "event_id":       f"market_early_close:{d.isoformat()}",
+            "event_type":     "market_early_close",
+            "event_name":     name,
+            "event_date_utc": datetime(d.year, d.month, d.day, tzinfo=_ET).isoformat(),
+            "country":        "US",
+            "impact_source":  "market_early_close",
+            "impact_level":   "EARLY_CLOSE",
+            "actual_value":   None, "estimate_value": None, "previous_value": None, "unit": None,
+            "speaker_name":   None,
+            "source":         "NYSE",
+            "date_et":        d.isoformat(),
+            "time_et":        None,
+            "status":         status,
+            "why_it_matters": (
+                f"El mercado de acciones de Estados Unidos (NYSE/Nasdaq) cierra hoy a la 1:00 p.m. ET ({name})."
+                if lang != "en" else
+                f"US stock markets (NYSE/Nasdaq) close early today, at 1:00pm ET ({name})."
             ),
         })
 

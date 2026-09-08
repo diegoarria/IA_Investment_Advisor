@@ -4075,7 +4075,8 @@
         "VERY_HIGH": "Muy Alto",
         "HIGH": "Alto",
         "MEDIUM": "Medio",
-        "MARKET_CLOSED": "Mercado cerrado"
+        "MARKET_CLOSED": "Mercado cerrado",
+        "EARLY_CLOSE": "Cierre a la 1pm ET"
       },
       "eventTypes": {
         "fomc_rate_decision": "Decisión de Tasas (Fed)",
@@ -4094,7 +4095,8 @@
         "jolts": "Vacantes JOLTS",
         "fed_speaker": "Discurso de la Fed",
         "housing_starts": "Construcción de Viviendas",
-        "market_holiday": "Feriado bursátil en EE.UU."
+        "market_holiday": "Feriado bursátil en EE.UU.",
+        "market_early_close": "Medio día bursátil en EE.UU."
       },
       "shortLabels": {
         "fomc_rate_decision": "FOMC",
@@ -4113,7 +4115,8 @@
         "jolts": "JOLTS",
         "fed_speaker": "Fed Habla",
         "housing_starts": "Vivienda",
-        "market_holiday": "Feriado 🇺🇸"
+        "market_holiday": "Feriado 🇺🇸",
+        "market_early_close": "Medio Día 🕐"
       }
     }
   },

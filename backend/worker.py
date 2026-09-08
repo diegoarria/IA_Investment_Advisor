@@ -30,6 +30,8 @@ from app.services.market_holidays import (
     is_first_trading_day_of_week as _is_first_trading_day_of_week,
     is_last_trading_day_of_week as _is_last_trading_day_of_week,
     holiday_name_today as _holiday_name_today,
+    is_early_close_today as _is_early_close_today,
+    early_close_info_today as _early_close_info_today,
 )
 
 
@@ -1083,12 +1085,71 @@ async def job_market_holiday_alert():
         logger.error("job_market_holiday_alert failed: %s", e)
 
 
+async def job_early_close_alert():
+    """9:30 AM ET weekdays — Diego, 2026-09-07: same "tell people before
+    they'd otherwise expect otherwise" philosophy as job_market_holiday_alert,
+    but for NYSE early-close ("half day") dates (day after Thanksgiving,
+    Christmas Eve — see app/services/market_holidays.py's
+    US_MARKET_EARLY_CLOSES). The market IS open today, unlike a real
+    holiday — this only warns that it closes at 1:00pm ET instead of 4pm,
+    so it never suppresses/skips any of the normal market-hours jobs."""
+    if not _is_early_close_today():
+        logger.info("job_early_close_alert: today is not an early-close day — skipping")
+        return
+
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    db = get_supabase()
+    try:
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,push_market_open")
+        )
+        disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("push_market_open") is False}
+
+        token_res = await run_query(
+            db.table("user_profiles").select("user_id,push_token")
+            .neq("push_token", "").not_.is_("push_token", "null")
+        )
+        expo_uids = {r["user_id"] for r in (token_res.data or [])}
+        web_res = await run_query(db.table("web_push_subscriptions").select("user_id"))
+        web_uids = {r["user_id"] for r in (web_res.data or [])}
+        uids = list((expo_uids | web_uids) - disabled)
+        if not uids:
+            return
+
+        profiles_res = await run_query(
+            db.table("user_profiles").select("user_id,preferred_language").in_("user_id", uids)
+        )
+        lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (profiles_res.data or [])}
+
+        info_es = _early_close_info_today("es") or {"name": "hoy", "close_et": "13:00"}
+        info_en = _early_close_info_today("en") or {"name": "today", "close_et": "13:00"}
+
+        title_es = "🕐 Hoy la bolsa cierra temprano"
+        body_es  = f"Hoy es \"{info_es['name']}\" — la bolsa opera medio día y cierra a la 1:00 p.m. ET (en vez de las 4:00 p.m.)."
+        title_en = "🕐 Markets close early today"
+        body_en  = f"Today is \"{info_en['name']}\" — markets are open only half the day and close at 1:00pm ET (instead of 4:00pm)."
+
+        for uid in uids:
+            is_en = lang_map.get(uid, "es") == "en"
+            title = title_en if is_en else title_es
+            body = body_en if is_en else body_es
+            await send_push(uid, "early_close_alert", title, body, {"screen": "portfolio"}, db)
+            await asyncio.sleep(0.05)
+
+        logger.info("job_early_close_alert: sent to %d users (%s)", len(uids), info_es["name"])
+    except Exception as e:
+        logger.error("job_early_close_alert failed: %s", e)
+
+
 async def job_market_close():
-    """4:05 PM ET weekdays — personalized market close PUSH ONLY per user
-    (docstring/comment used to say "push + email" — that was true once, but
-    the email half was deliberately dropped in favor of job_daily_email's
-    richer Friday summary; nothing here has sent an email in a long time,
-    it just never got un-documented, see the fan-out section below).
+    """4:05 PM ET weekdays (1:05 PM ET on NYSE early-close/"half day" dates
+    — see the early-close guard below) — personalized market close PUSH
+    ONLY per user (docstring/comment used to say "push + email" — that was
+    true once, but the email half was deliberately dropped in favor of
+    job_daily_email's richer Friday summary; nothing here has sent an email
+    in a long time, it just never got un-documented, see the fan-out
+    section below).
     Skips weekends and NYSE holidays via _is_market_open_today().
     Uses SPY/QQQ as S&P 500/Nasdaq proxies (^GSPC/^IXIC are IP-blocked on Railway).
     Premium push leads with the dollar amount gained/lost and a brief, calm
@@ -1101,6 +1162,24 @@ async def job_market_close():
     # ── 0. Holiday / weekend guard ────────────────────────────────────────────
     if not _is_market_open_today():
         logger.info("job_market_close: market closed today (holiday or weekend) — skipping")
+        return
+
+    # ── 0b. Early-close guard — this job is scheduled at BOTH 13:05 and
+    # 16:05 ET every weekday (see run_worker's scheduler.add_job calls); on
+    # a normal day the market hasn't closed yet at 13:05, so that fire is a
+    # no-op, while on a NYSE early-close day ("half day" — day after
+    # Thanksgiving, Christmas Eve) the REAL close is at 1pm, so it's the
+    # 16:05 fire that's a no-op instead (the 13:05 run already captured the
+    # real closing price; running again 3 hours later would report
+    # after-hours drift as if it were the close). Diego, 2026-09-07.
+    import pytz
+    now_et_hour = datetime.now(pytz.timezone("America/New_York")).hour
+    if _is_early_close_today():
+        if now_et_hour >= 14:
+            logger.info("job_market_close: today is an early-close day and already closed at 1pm — skipping the 4:05pm run")
+            return
+    elif now_et_hour < 14:
+        logger.info("job_market_close: not an early-close day — skipping the spurious 1:05pm run")
         return
 
     db = get_supabase()
@@ -5827,12 +5906,21 @@ async def main():
     # holiday), so exactly one of them ever actually sends on a given day.
     scheduler.add_job(job_market_holiday_alert, "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")
     scheduler.add_job(job_holiday_midday,       "cron", day_of_week="mon-fri", hour=12,      minute=0,     timezone="America/New_York")
+    # Same 9:30 slot — early-close days aren't holidays (market opens
+    # normally), so this can coexist with job_market_open firing the same
+    # morning; it's purely an extra heads-up about today's 1pm ET close.
+    scheduler.add_job(job_early_close_alert,    "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")
     # Market opens 9:30 ET — first two runs (9:30, 9:35) get their own cron
     # since a single hour="9-15" field can't start mid-hour; 10-15 continues
     # the normal every-5-min cadence.
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour=9,       minute="30,35,40,45,50,55", timezone="America/New_York")
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="10-15", minute="*/5", timezone="America/New_York")
     scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=5,     timezone="America/New_York")
+    # Second fire, only actually acted on when today is a NYSE early-close
+    # day (see job_market_close's own early-close guard) — captures the
+    # REAL closing price at 1:05pm ET on those dates instead of 3-hours-
+    # stale after-hours data at the normal 4:05pm slot.
+    scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=13,      minute=5,     timezone="America/New_York")
     scheduler.add_job(job_refresh_smart_alerts_sources, "cron", day_of_week="mon-fri", hour=13, minute=0, timezone="America/New_York")
     scheduler.add_job(job_smart_alerts,           "cron", day_of_week="mon-fri", hour=16,    minute=20,    timezone="America/New_York")
     scheduler.add_job(job_daily_email,          "cron", day_of_week="fri",     hour=18,      minute=0,     timezone="America/New_York")

@@ -66,6 +66,20 @@ US_MARKET_HOLIDAYS: dict[date, dict[str, str]] = {
 }
 
 
+# NYSE early-close ("half day") calendar — the market IS open on these
+# dates, it just closes at 1:00pm ET instead of 4:00pm. Kept as a separate
+# dict from US_MARKET_HOLIDAYS above (never merged in) — is_trading_day/
+# is_market_open_today must stay TRUE for these days, since the market
+# really does open and trade normally that morning; only the close time
+# is different. Same hand-verified-only discipline as the holiday dict:
+# extending past what's listed here requires adding a real, checked date,
+# never a generic "day after Thanksgiving is always early close" rule.
+US_MARKET_EARLY_CLOSES: dict[date, dict] = {
+    date(2026, 11, 27): {"es": "Día después de Acción de Gracias", "en": "Day after Thanksgiving", "close_et": "13:00"},
+    date(2026, 12, 24): {"es": "Víspera de Navidad", "en": "Christmas Eve", "close_et": "13:00"},
+}
+
+
 def _today_et() -> date:
     return datetime.now(_ET).date()
 
@@ -131,6 +145,43 @@ def holiday_name(d: date, lang: str = "es") -> Optional[str]:
 
 def holiday_name_today(lang: str = "es") -> Optional[str]:
     return holiday_name(_today_et(), lang)
+
+
+def is_early_close_day(d: date) -> bool:
+    return d in US_MARKET_EARLY_CLOSES
+
+
+def is_early_close_today() -> bool:
+    """True if today (ET) is a known NYSE early-close ("half day") — the
+    market is open, it just closes at 1:00pm ET instead of 4:00pm."""
+    return is_early_close_day(_today_et())
+
+
+def early_close_info(d: date, lang: str = "es") -> Optional[dict]:
+    """Real, verified early-close info for `d` ({"name": str, "close_et":
+    "13:00"}), or None if `d` isn't a known early-close day (never guesses)."""
+    entry = US_MARKET_EARLY_CLOSES.get(d)
+    if not entry:
+        return None
+    return {"name": entry.get(lang) or entry.get("es"), "close_et": entry["close_et"]}
+
+
+def early_close_info_today(lang: str = "es") -> Optional[dict]:
+    return early_close_info(_today_et(), lang)
+
+
+def upcoming_early_closes(days_ahead: int = 60, days_behind: int = 3) -> list[dict]:
+    """Real NYSE early-close days within [today - days_behind, today +
+    days_ahead] (ET), sorted ascending. Mirrors upcoming_holidays' shape:
+    each entry {"date": date, "name_es": str, "name_en": str, "close_et": str}."""
+    today = _today_et()
+    start = today - timedelta(days=days_behind)
+    end = today + timedelta(days=days_ahead)
+    return [
+        {"date": d, "name_es": info["es"], "name_en": info["en"], "close_et": info["close_et"]}
+        for d, info in sorted(US_MARKET_EARLY_CLOSES.items())
+        if start <= d <= end
+    ]
 
 
 def upcoming_holidays(days_ahead: int = 60, days_behind: int = 3) -> list[dict]:

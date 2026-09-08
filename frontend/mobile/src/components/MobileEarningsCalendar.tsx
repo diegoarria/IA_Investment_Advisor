@@ -11,7 +11,7 @@ import { earningsApi } from "../lib/api";
 import StockAvatar from "./StockAvatar";
 
 type TickerEventType = "earnings" | "ex_dividend" | "dividend";
-type ImpactLevel = "VERY_HIGH" | "HIGH" | "MEDIUM" | "MARKET_CLOSED";
+type ImpactLevel = "VERY_HIGH" | "HIGH" | "MEDIUM" | "MARKET_CLOSED" | "EARLY_CLOSE";
 type MacroEventType =
   | "fomc_rate_decision" | "cpi" | "core_cpi" | "pce" | "core_pce" | "nfp"
   | "unemployment_rate" | "gdp" | "ism_manufacturing_pmi" | "ism_services_pmi"
@@ -19,7 +19,11 @@ type MacroEventType =
   | "fed_speaker" | "housing_starts"
   // US market (NYSE/Nasdaq) holiday — `event_name` carries the real,
   // specific holiday name for that date, already localized server-side.
-  | "market_holiday";
+  | "market_holiday"
+  // NYSE early-close ("half day") — market IS open, closes at 1pm ET
+  // instead of 4pm. `event_name` carries the real occasion (e.g. "Día
+  // después de Acción de Gracias"), already localized server-side.
+  | "market_early_close";
 
 interface TickerCalendarEvent {
   kind: "ticker";
@@ -97,6 +101,10 @@ const IMPACT_COLOR: Record<ImpactLevel, { bg: string; color: string }> = {
   HIGH:          { bg: "rgba(249,115,22,0.22)", color: "#fb923c" },
   MEDIUM:        { bg: "rgba(234,179,8,0.20)",  color: "#facc15" },
   MARKET_CLOSED: { bg: "rgba(148,163,184,0.20)", color: "#94a3b8" },
+  // Distinct from MARKET_CLOSED — the market IS open this day, it just
+  // closes early. Amber, same family as the ticker "ex_dividend" color,
+  // to read as "attention" without borrowing the red/orange risk scale.
+  EARLY_CLOSE: { bg: "rgba(245,158,11,0.20)", color: "#f59e0b" },
 };
 
 function macroEventLabel(t: TFunction, eventType: string): string {
