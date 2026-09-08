@@ -213,6 +213,10 @@
       "askMentor": "Ask your AI mentor →",
       "createFreeAccount": "Create my free account — it's completely free"
     },
+    "investorRecap": {
+      "title": "Nuvos Investor Recap",
+      "subtitle": "Your month as an investor, at a glance"
+    },
     "stats": {
       "portfolioToday": "Portfolio today",
       "streak": "Streak",

@@ -1915,7 +1915,22 @@ class _PortfolioChartRequest(_BaseModel):
     period: str = "1y"  # "1d","5d","1mo","3mo","6mo","ytd","1y","3y","5y","max","since_purchase"
 
 
-def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str) -> dict:
+def _compute_portfolio_chart(
+    positions: list[_PortfolioReturnsItem], period: str,
+    custom_start: "_Opt[_dt]" = None, custom_end: "_Opt[_dt]" = None,
+) -> dict:
+    """`custom_start`/`custom_end` (both optional, both must be given
+    together): overrides `period`'s own start/end-date resolution with an
+    exact calendar window instead — added for Nuvos Investor Recap
+    (2026-09), which needs a SPECIFIC calendar month's return (e.g.
+    "August 2026"), not `period="1mo"`'s rolling "30ish days back from
+    right now" window. Every existing caller (the live /portfolio-chart
+    route, Wrapped's `_real_ytd_return`) passes neither and is completely
+    unaffected — this only activates when both are explicitly supplied.
+    When `custom_end` is before today (a closed historical month), the
+    real-time end-price overlay below is also skipped — overwriting a
+    closed month's real closing value with TODAY's live quote would be
+    wrong, not just imprecise."""
     if not positions:
         return {"history": []}
 
@@ -1932,6 +1947,11 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
 
     today = _dt.now()
     today_ts = int(today.timestamp())
+    # end_ts is what the chart-window FETCH actually uses; today_ts (real
+    # "now") stays the reference for purchase-date inference below,
+    # regardless of custom_end — inferring when a lot was bought from its
+    # avg_price should always scan price history up to the real present.
+    end_ts = int(custom_end.timestamp()) if custom_end else today_ts
 
     # Pre-fetch 5y to infer purchase dates from avg_price before deciding chart range
     lot_purchase_date: list[_Opt[str]] = [p.purchase_date for p in positions]
@@ -1982,7 +2002,9 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
         }
         PERIOD_INTERVAL: dict[str, str] = {"3y": "1wk", "5y": "1wk", "max": "1mo"}
         interval = PERIOD_INTERVAL.get(period, "1d")
-        if period == "ytd":
+        if custom_start is not None:
+            start_ts = int(custom_start.timestamp())
+        elif period == "ytd":
             start_ts = int(_dt(today.year, 1, 1).timestamp())
         elif period == "max":
             start_ts = int(_dt(1993, 1, 1).timestamp())
@@ -1990,7 +2012,7 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
             start_ts = int((today - PERIOD_RELATIVEDELTA[period]).timestamp())
         else:
             start_ts = int((today - _td(days=370)).timestamp())
-        close, rt_prices = _build_close_df(fetch_tickers, start_ts, today_ts, interval=interval)
+        close, rt_prices = _build_close_df(fetch_tickers, start_ts, end_ts, interval=interval)
         intraday = False
 
     if close is None or close.empty:
@@ -2052,7 +2074,12 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
 
     # For non-intraday charts, replace the last data point with real-time prices so the
     # chart always ends at the current price (adjclose from daily bars lags one session).
-    if not intraday and rt_prices:
+    # Skipped entirely for a CLOSED historical window (custom_end in the
+    # past, e.g. Investor Recap viewing August after September started) —
+    # overwriting that month's real closing value with today's live quote
+    # would silently corrupt an otherwise-immutable historical number.
+    is_closed_historical_window = custom_end is not None and custom_end < today
+    if not intraday and rt_prices and not is_closed_historical_window:
         last_idx = close.index[-1] if not close.empty else _pd.Timestamp.now()
         rt_end_val = sum(
             p.shares * rt_prices[p.ticker.upper()]
@@ -2120,7 +2147,7 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
                     spy_pct = round((spy_equiv_value - total_bench_cost) / total_bench_cost * 100, 2)
         else:
             spy_start = _safe_price(close.iloc[0], _bench)
-            spy_end = rt_prices.get(_bench) if (not intraday and rt_prices and _bench in rt_prices) else _safe_price(close.iloc[-1], _bench)
+            spy_end = rt_prices.get(_bench) if (not intraday and rt_prices and _bench in rt_prices and not is_closed_historical_window) else _safe_price(close.iloc[-1], _bench)
             if spy_start and spy_start > 0 and spy_end and spy_end > 0:
                 spy_pct = round((spy_end - spy_start) / spy_start * 100, 2)
 

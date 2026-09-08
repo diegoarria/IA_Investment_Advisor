@@ -319,25 +319,30 @@ async def compute_metrics(user_id: str, price_lookup: dict[str, float] | None = 
     }
 
 
-async def get_most_analyzed_companies(user_id: str, year: int, limit: int = 3) -> dict:
-    """Top tickers by real logged thesis/question event count within a
-    calendar year — the honest substitute for "hours spent analyzing" (not
-    tracked anywhere in this app): a count of real, timestamped engagement
-    events per ticker, never a fabricated duration. Used by Wrapped's
-    "empresa favorita" (top N) and "empresas analizadas" (total distinct
-    count) screens — one events fetch serves both."""
+async def _most_analyzed_companies_in_range(user_id: str, start_iso: str, end_iso: str, limit: int) -> dict:
+    """Shared by get_most_analyzed_companies (calendar-year, Wrapped) and
+    get_most_analyzed_companies_in_month (calendar-month, Investor Recap)
+    — same real logged thesis/question event count, just over an
+    arbitrary [start_iso, end_iso] string window instead of a hardcoded
+    year. Also returns the FIRST-analyzed timestamp per ticker (chronological
+    order of real engagement) — Investor Recap's "research pattern" derives
+    from this real ordering, never an invented narrative sequence."""
     events = await _fetch_graph_events(user_id, None, limit=1000)
-    year_start, year_end = f"{year}-01-01", f"{year}-12-31T23:59:59"
     relevant = [
         e for e in events
         if e.get("event_type") in ("thesis", "question")
-        and year_start <= str(e.get("occurred_at") or "") <= year_end
+        and start_iso <= str(e.get("occurred_at") or "") <= end_iso
     ]
     counts: dict[str, int] = {}
+    first_seen: dict[str, str] = {}
     for e in relevant:
         t = e.get("ticker")
-        if t:
-            counts[t] = counts.get(t, 0) + 1
+        occurred = str(e.get("occurred_at") or "")
+        if not t:
+            continue
+        counts[t] = counts.get(t, 0) + 1
+        if t not in first_seen or occurred < first_seen[t]:
+            first_seen[t] = occurred
     top = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:limit]
 
     from app.core.finnhub import fh_profile
@@ -346,4 +351,28 @@ async def get_most_analyzed_companies(user_id: str, year: int, limit: int = 3) -
         {"ticker": t, "times_analyzed": c, "company_name": (p or {}).get("name")}
         for (t, c), p in zip(top, profiles)
     ]
-    return {"top": top_companies, "total_companies": len(counts)}
+    # Chronological order of ALL distinct tickers analyzed in the window
+    # (not just the top N) — the real basis for a "research pattern".
+    chronological_tickers = [t for t, _ in sorted(first_seen.items(), key=lambda kv: kv[1])]
+    return {"top": top_companies, "total_companies": len(counts), "chronological_tickers": chronological_tickers}
+
+
+async def get_most_analyzed_companies(user_id: str, year: int, limit: int = 3) -> dict:
+    """Top tickers by real logged thesis/question event count within a
+    calendar year — the honest substitute for "hours spent analyzing" (not
+    tracked anywhere in this app): a count of real, timestamped engagement
+    events per ticker, never a fabricated duration. Used by Wrapped's
+    "empresa favorita" (top N) and "empresas analizadas" (total distinct
+    count) screens — one events fetch serves both."""
+    return await _most_analyzed_companies_in_range(user_id, f"{year}-01-01", f"{year}-12-31T23:59:59", limit)
+
+
+async def get_most_analyzed_companies_in_month(user_id: str, year: int, month: int, limit: int = 5) -> dict:
+    """Investor Recap's month-scoped counterpart to get_most_analyzed_
+    companies — same real event-count logic, calendar-month window
+    instead of calendar-year."""
+    import calendar
+    last_day = calendar.monthrange(year, month)[1]
+    start_iso = f"{year}-{month:02d}-01"
+    end_iso = f"{year}-{month:02d}-{last_day:02d}T23:59:59"
+    return await _most_analyzed_companies_in_range(user_id, start_iso, end_iso, limit)

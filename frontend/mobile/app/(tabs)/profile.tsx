@@ -1324,6 +1324,24 @@ if (!profile) {
           </TouchableOpacity>
         </View>
 
+        {/* ── NUVOS INVESTOR RECAP — monthly counterpart to Wrapped ── */}
+        <View style={[s.section, { marginBottom: 0 }]}>
+          <TouchableOpacity
+            onPress={() => router.push("/investor-recap")}
+            activeOpacity={0.85}
+            style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 20, backgroundColor: "rgba(0,212,126,0.06)", borderWidth: 1, borderColor: "rgba(0,212,126,0.2)" }}
+          >
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(0,212,126,0.14)", alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ fontSize: 22 }}>🧭</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.investorRecap.title")}</Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>{t("profile.investorRecap.subtitle")}</Text>
+            </View>
+            <Text style={{ fontSize: 13, fontWeight: "900", color: "#00d47e" }}>{t("profile.investorRecap.cta")}</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* ── INCOMING DUO INVITE — consent fix, Sep 2026. Someone else
              invited THIS account; nothing was granted/shared automatically
              — show it explicitly and require accept/decline. ── */}

@@ -577,6 +577,11 @@
       "subtitle": "Tu resumen anual como inversor",
       "cta": "Ver →"
     },
+    "investorRecap": {
+      "title": "Nuvos Investor Recap",
+      "subtitle": "Tu mes como inversionista, en un vistazo",
+      "cta": "Ver →"
+    },
     "duo": {
       "sectionLabel": "PLAN DÚO",
       "secondaryAccount": "Cuenta secundaria",
@@ -2315,6 +2320,15 @@
     "loadFailedText": "No se pudo cargar tu Wrapped.",
     "retry": "Reintentar",
     "back": "Volver"
+  },
+  "investorRecap": {
+    "unknownError": "Error desconocido",
+    "loadingText": "Preparando tu Investor Recap…",
+    "loadFailedText": "No se pudo cargar tu Investor Recap.",
+    "retry": "Reintentar",
+    "back": "Volver",
+    "premiumTitle": "Investor Recap es Premium",
+    "nextMonth": "Mes siguiente"
   },
   "index": {
     "activate": "Activar",

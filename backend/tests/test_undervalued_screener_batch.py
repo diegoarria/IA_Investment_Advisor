@@ -466,10 +466,14 @@ class TestStartupSelfHealNeverTriggersAISpendForBacktestAlone:
     cache is missing — only the cheap, LLM-free repair runs."""
 
     async def test_backtest_cache_empty_alone_never_calls_the_ai_heavy_refresh(self, monkeypatch):
-        # Screener's own cache IS populated (truthy timestamp) — only the
-        # backtest cache is empty, e.g. right after this feature was added.
+        # Screener's own cache AND the full sector roster (2026-09-08
+        # addition — see refresh_if_empty_on_startup's docstring) are BOTH
+        # populated (truthy timestamps) — only the backtest cache is empty,
+        # e.g. right after this feature was added.
         monkeypatch.setattr(screener_service, "cache_get_with_ts", lambda key: (
-            (["fake", "screener", "data"], 1234567890.0) if key == screener_service.CACHE_KEY else (None, None)
+            (["fake", "screener", "data"], 1234567890.0)
+            if key in (screener_service.CACHE_KEY, screener_service.FULL_ROSTER_CACHE_KEY)
+            else (None, None)
         ))
 
         ai_heavy_refresh_calls = []
@@ -492,3 +496,23 @@ class TestStartupSelfHealNeverTriggersAISpendForBacktestAlone:
 
         assert ai_heavy_refresh_calls == []  # the expensive, AI-spending path was never touched
         assert backtest_repair_calls == [True]  # only the cheap, LLM-free repair ran
+
+    async def test_roster_cache_empty_alone_DOES_trigger_the_full_refresh(self, monkeypatch):
+        """2026-09-08 addition's own regression test: unlike the backtest
+        cache (asserted above), a missing FULL_ROSTER_CACHE_KEY must still
+        trigger the real full refresh even when CACHE_KEY itself looks
+        populated — otherwise a deploy that adds the roster for the first
+        time would never actually get it filled (see
+        refresh_if_empty_on_startup's docstring for the full incident)."""
+        monkeypatch.setattr(screener_service, "cache_get_with_ts", lambda key: (
+            (["fake", "screener", "data"], 1234567890.0) if key == screener_service.CACHE_KEY else (None, None)
+        ))
+
+        ai_heavy_refresh_calls = []
+        async def _tracking_refresh():
+            ai_heavy_refresh_calls.append(True)
+        monkeypatch.setattr(screener_service, "refresh_undervalued_screener", _tracking_refresh)
+
+        await screener_service.refresh_if_empty_on_startup()
+
+        assert ai_heavy_refresh_calls == [True]  # roster being empty must trigger the real refresh

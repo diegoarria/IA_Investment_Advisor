@@ -4852,3 +4852,72 @@ async def parse_candidate_blurb_batch_results(batch_id: str) -> dict[str, dict]:
     return results
 
 
+async def generate_recap_insights(facts: dict, lang: str = "es") -> dict:
+    """Nuvos Investor Recap (monthly report) — ONE Haiku call generating
+    every natural-language insight the report needs at once (portfolio
+    composition read, decisions summary + improvement tip, research
+    pattern read, evolution framing), instead of one call per section —
+    cost discipline (Diego: keep LLM spend low), same reasoning as this
+    file's other short/cheap Haiku-tier generators.
+
+    `facts` is a STRUCTURED, already-computed object — every number in it
+    real, server-side, never sent raw from the client (see investor_recap_
+    service.py, which builds this). The model receives ONLY these facts,
+    is told explicitly it may cite ONLY what's in them, and is never asked
+    to predict prices, promise returns, or give personalized financial
+    advice framed as certainty — same anti-hallucination discipline as
+    generate_quick_valuation_summary. Any facts field the caller omits
+    (None/missing) must not be invented — the prompt tells the model to
+    skip that insight rather than guess, and the parser leaves the
+    corresponding key null on top of that as a second guarantee.
+
+    Returns (any key can be None when that facts subset was too thin —
+    NEVER fabricated):
+    {"portfolio_insight": str|None, "decision_highlight": str|None,
+     "decision_improvement": str|None, "research_insight": str|None,
+     "evolution_insight": str|None}"""
+    import json as _json
+
+    facts_block = _json.dumps(facts, ensure_ascii=False, indent=2, default=str)
+
+    prompt = f"""{_output_language_directive(lang)}Eres el mentor de inversión de Nuvos AI. Vas a escribir frases cortas para el "Investor Recap" mensual de un usuario — un reporte tipo Spotify Wrapped sobre su comportamiento como inversionista.
+
+REGLAS ABSOLUTAS:
+- Solo puedes citar números, tickers, sectores o hechos que aparezcan EXPLÍCITAMENTE en el bloque de datos de abajo. Nunca inventes una cifra, una empresa, un porcentaje o un patrón que no esté ahí.
+- Nunca predigas precios futuros, nunca prometas rendimientos, nunca dés un consejo financiero personalizado como si fuera una certeza (nunca "deberías comprar X").
+- Si una sección de datos está vacía, ausente, o es null, el campo correspondiente en tu respuesta DEBE ser null — nunca la rellenes con una generalidad vacía tipo "sigue así".
+- Tono: mentor/compañero, no asesor financiero corporativo. Directo, humano, aspiracional pero honesto. Nunca lenguaje de "el usuario presenta una mejora en su comportamiento" — di "estás aprendiendo a..." en segunda persona.
+- Cada frase: máximo 2 oraciones cortas.
+
+DATOS REALES DE ESTE MES (única fuente permitida):
+{facts_block}
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin texto antes o después) con esta estructura exacta:
+{{
+  "portfolio_insight": "<1-2 oraciones sobre la composición/concentración real del portafolio (usa 'portfolio_composition' de los datos) — null si no hay datos de composición>",
+  "decision_highlight": "<1-2 oraciones describiendo la decisión más relevante del mes (usa 'decisions' de los datos — nunca inventes una decisión que no esté listada) — null si 'decisions' está vacío>",
+  "decision_improvement": "<1 sugerencia concreta y accionable para el próximo mes, basada en una debilidad REAL visible en los datos (ej. decisiones sin tesis registrada, trigger=fomo/panic) — null si no hay señal real de qué mejorar>",
+  "research_insight": "<1-2 oraciones sobre el patrón de investigación del mes (usa 'research_pattern'/'most_analyzed' de los datos) — null si no investigó nada>",
+  "evolution_insight": "<1-2 oraciones sobre cómo cambió su comportamiento (usa 'evolution' de los datos, comparando el arquetipo/señales de antes vs ahora) — null si no hay suficiente historia para comparar>"
+}}"""
+
+    response = await _claude(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1000,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    asyncio.create_task(log_llm_usage(None, "recap_insights", "claude-haiku-4-5-20251001", response.usage, already_tracked=True))
+    text = response.content[0].text.strip()
+    parsed = _parse_json_response(text)
+    if not parsed:
+        _log.warning("generate_recap_insights: JSON parse failed, response likely truncated (%d chars)", len(text))
+        return {"portfolio_insight": None, "decision_highlight": None, "decision_improvement": None, "research_insight": None, "evolution_insight": None}
+    return {
+        "portfolio_insight": parsed.get("portfolio_insight") or None,
+        "decision_highlight": parsed.get("decision_highlight") or None,
+        "decision_improvement": parsed.get("decision_improvement") or None,
+        "research_insight": parsed.get("research_insight") or None,
+        "evolution_insight": parsed.get("evolution_insight") or None,
+    }
+
+

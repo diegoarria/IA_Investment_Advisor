@@ -10,7 +10,7 @@ import { WT } from "./types";
  * through feels like it's building toward something instead of just
  * paging through a report. Mirrors the approved design canvas 1:1. */
 export default function Stage({
-  page, total, glow, children, noChrome, nextLabel,
+  page, total, glow, children, noChrome, nextLabel, footerLabel, brandLabel,
 }: {
   page: number;
   total: number;
@@ -21,6 +21,13 @@ export default function Stage({
    * one — shown as a bouncing "SIGUE: ..." hint above the footer. Omit on
    * the last content screen (nothing to tease). */
   nextLabel?: string;
+  /** Footer tagline — defaults to Wrapped's own copy so every existing
+   * call site is unaffected; Investor Recap passes its own here instead
+   * of forking this whole component. */
+  footerLabel?: string;
+  /** Top-left brand lockup text next to the logo — same default-preserving
+   * reasoning as footerLabel. */
+  brandLabel?: string;
 }) {
   const glowPos = glow === "bottom" ? "50% 110%" : glow === "center" ? "50% 50%" : "50% -10%";
   return (
@@ -49,7 +56,7 @@ export default function Stage({
         <>
           <div style={{ position: "absolute", top: 28, left: 28, display: "flex", alignItems: "center", gap: 10, zIndex: 5 }}>
             <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} style={{ borderRadius: 8 }} />
-            <span style={{ fontWeight: 800, fontSize: 15, color: WT.text }}>NUVOS AI</span>
+            <span style={{ fontWeight: 800, fontSize: 15, color: WT.text }}>{brandLabel ?? "NUVOS AI"}</span>
           </div>
           <div style={{ position: "absolute", top: 33, right: 28, fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: 12, color: WT.muted, zIndex: 5 }}>
             {String(page).padStart(2, "0")} / {total}
@@ -78,7 +85,7 @@ export default function Stage({
       )}
       {!noChrome && (
         <div style={{ position: "absolute", bottom: 22, left: 0, right: 0, textAlign: "center", fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: 10, color: WT.dim, letterSpacing: 1, zIndex: 5 }}>
-          NUVOS AI · TU AÑO COMO INVERSIONISTA
+          {footerLabel ?? "NUVOS AI · TU AÑO COMO INVERSIONISTA"}
         </div>
       )}
     </div>

@@ -577,6 +577,11 @@
       "subtitle": "Your annual recap as an investor",
       "cta": "View →"
     },
+    "investorRecap": {
+      "title": "Nuvos Investor Recap",
+      "subtitle": "Your month as an investor, at a glance",
+      "cta": "View →"
+    },
     "duo": {
       "sectionLabel": "DUO PLAN",
       "secondaryAccount": "Secondary account",
@@ -2308,6 +2313,15 @@
     "typeEarnings": "Earnings",
     "typeUpload": "File",
     "typeBookmark": "Saved"
+  },
+  "investorRecap": {
+    "unknownError": "Unknown error",
+    "loadingText": "Preparing your Investor Recap…",
+    "loadFailedText": "Couldn't load your Investor Recap.",
+    "retry": "Retry",
+    "back": "Back",
+    "premiumTitle": "Investor Recap is Premium",
+    "nextMonth": "Next month"
   },
   "wrapped": {
     "unknownError": "Unknown error",
