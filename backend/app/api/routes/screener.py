@@ -1252,7 +1252,7 @@ def _with_live_price(result: dict, ticker: str) -> dict:
     return _apply_live_quote(result, fh_quote(ticker))
 
 
-def _apply_live_quote_diagnostic(cached: dict, quote: dict | None) -> dict:
+def _apply_live_quote_diagnostic(cached: dict, quote: dict | None, lang: str = "es") -> dict:
     """`_apply_live_quote`'s equivalent for `/company-diagnostic`'s nested
     `CompanyDiagnosticData` shape (methodology audit round 3, see /Users/
     diegoarria/.claude/plans/cosmic-munching-crown.md) — this endpoint's
@@ -1266,7 +1266,21 @@ def _apply_live_quote_diagnostic(cached: dict, quote: dict | None) -> dict:
     unchanged if the live quote is unavailable — never fabricates one.
     Takes an ALREADY-FETCHED quote — see _with_live_price_diagnostic for a
     fetch-then-overlay wrapper, and _company_diagnostic_result for why the
-    fetch is fired concurrently instead."""
+    fetch is fired concurrently instead.
+
+    Diego, 2026-09-07: `scoreLabel` ("Cara"/"Precio Justo"/"+ Descuento"),
+    `pillarScores.value` and the "Descuento Significativo" badge are all
+    ALSO derived from margin-of-safety at build time (see
+    company_diagnostic_service._score_label/_pillar_scores/_badges) — a
+    stale-price cache hit used to leave those exactly as they were at the
+    old price while only marginOfSafetyPercent itself got refreshed above,
+    so a big enough price move could show e.g. a "Cara" scoreLabel right
+    above a freshly-recomputed "infravalorada en un 26%" verdict on the
+    same card. Recomputed here from the SAME fresh mos so every mos-derived
+    field the response carries stays internally consistent."""
+    from app.services.company_diagnostic_service import (
+        _score_label, _BADGE_CATALOG_ES, _BADGE_CATALOG_EN,
+    )
     from app.services.valuation.numeric_helpers import calc_margin_of_safety
 
     if not quote or not quote.get("price"):
@@ -1279,8 +1293,10 @@ def _apply_live_quote_diagnostic(cached: dict, quote: dict | None) -> dict:
 
     valuation["currentPrice"] = price
     base_fv = valuation.get("baseFairValue")
+    mos = None
     if base_fv is not None:
-        valuation["marginOfSafetyPercent"] = calc_margin_of_safety(base_fv, price)
+        mos = calc_margin_of_safety(base_fv, price)
+        valuation["marginOfSafetyPercent"] = mos
 
     eps_gaap = valuation.get("_epsGaap")
     if eps_gaap and eps_gaap > 0:
@@ -1290,15 +1306,33 @@ def _apply_live_quote_diagnostic(cached: dict, quote: dict | None) -> dict:
         valuation["peNormalized"] = round(price / eps_normalized, 1)
 
     cached["valuation"] = valuation
+
+    pillar_scores = dict(cached.get("pillarScores") or {})
+    if mos is not None and pillar_scores.get("value") is not None:
+        pillar_scores["value"] = round(min(100, max(0, 50 + mos)))
+        cached["pillarScores"] = pillar_scores
+        overall_score = round(sum(pillar_scores.values()) / len(pillar_scores))
+        cached["score"] = overall_score
+        cached["scoreLabel"] = _score_label(overall_score, mos, lang)
+
+        discount_label = (_BADGE_CATALOG_EN if lang == "en" else _BADGE_CATALOG_ES)["discount"]
+        badges = list(cached.get("badges") or [])
+        has_discount = discount_label in badges
+        if mos >= 25 and not has_discount and len(badges) < 3:
+            badges.append(discount_label)
+            cached["badges"] = badges
+        elif mos < 25 and has_discount:
+            cached["badges"] = [b for b in badges if b != discount_label]
+
     return cached
 
 
-def _with_live_price_diagnostic(cached: dict, ticker: str) -> dict:
+def _with_live_price_diagnostic(cached: dict, ticker: str, lang: str = "es") -> dict:
     """Fetch-then-overlay convenience wrapper around
     _apply_live_quote_diagnostic, for callers that don't already need the
     quote fetch to run concurrently with something else (see
     _company_diagnostic_result for the concurrent version)."""
-    return _apply_live_quote_diagnostic(cached, fh_quote(ticker))
+    return _apply_live_quote_diagnostic(cached, fh_quote(ticker), lang)
 
 
 async def _get_user_profile_safe(user_id: str):
@@ -2583,7 +2617,7 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
         current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
         cached_period = cached.get("_earnings_period")
         if not current_period or current_period == cached_period:
-            return _apply_live_quote_diagnostic(cached, await quote_task)
+            return _apply_live_quote_diagnostic(cached, await quote_task, lang)
     # Falling through to a rebuild below (cache miss, or stale earnings
     # period) — the fresh build already fetches a near-live price of its
     # own (get_fundamental_analysis), so this speculative quote fetch turns
