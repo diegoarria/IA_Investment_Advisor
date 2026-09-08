@@ -1189,32 +1189,51 @@ def invalidate_cache(symbol: str, limit: int = 5) -> None:
     cache_delete(f"fin_v3:{symbol.upper()}:{limit}")
 
 
-def get_quarterly_income_detail(symbol: str, limit: int = 8) -> list[dict]:
-    """Real quarterly income-statement rows for `earnings_normalization_
-    engine.normalized_ttm_eps` — a direct FMP fetch (not routed through
-    `FMPProvider`, whose `_MAX_LIMIT=5` plan cap would silently starve
-    the 8-quarter minimum this needs) since this only needs 5 real raw
-    fields, not the full computed-metrics shape `get_financials` builds.
-    Oldest-first (matches every other trend array in this codebase).
-    Returns [] if FMP isn't configured or the request fails — callers
-    already treat too-few-rows as "can't normalize," never a fabricated
-    result."""
+def _fmp_quarterly_income_raw(symbol: str) -> list[dict]:
+    """Shared raw FMP quarterly income-statement fetch — `get_quarterly_
+    income_detail` and `get_quarterly_eps_history` below both used to hit
+    this exact same endpoint separately (limit=8 and limit=40, two
+    different cache keys), doubling real FMP calls for identical
+    underlying data on every single diagnostic request. Confirmed live,
+    2026-09-07: this was a real contributor to the Starter plan's 300
+    calls/min cap being exceeded (475/min observed) right after a mass
+    cache-invalidation event. One fetch at the larger of the two callers'
+    needs (40), cached under one key; each caller slices/derives its own
+    shape from the same raw (newest-first) rows."""
     if not FMP_KEY:
         return []
-    cache_key = f"fmp_qtr_income_detail:{symbol.upper()}:{limit}"
+    cache_key = f"fmp_qtr_income_raw:{symbol.upper()}:40"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
     try:
         r = requests.get(
             f"{FMP_BASE}/income-statement",
-            params={"apikey": FMP_KEY, "symbol": symbol, "period": "quarter", "limit": limit},
+            params={"apikey": FMP_KEY, "symbol": symbol, "period": "quarter", "limit": 40},
             headers=_REQ_HEADERS,
             timeout=14,
         )
         raw = r.json()
         if not isinstance(raw, list):
             return []
+        cache_set(cache_key, raw, ttl=24 * 3600)
+        return raw
+    except Exception as exc:
+        logger.debug("FMP quarterly income-statement raw fetch failed for %s: %s", symbol, exc)
+        return []
+
+
+def get_quarterly_income_detail(symbol: str, limit: int = 8) -> list[dict]:
+    """Real quarterly income-statement rows for `earnings_normalization_
+    engine.normalized_ttm_eps` — needs only 5 real raw fields, not the
+    full computed-metrics shape `get_financials` builds. Oldest-first
+    (matches every other trend array in this codebase). Returns [] if FMP
+    isn't configured or the request fails — callers already treat
+    too-few-rows as "can't normalize," never a fabricated result."""
+    raw = _fmp_quarterly_income_raw(symbol)[:limit]
+    if not raw:
+        return []
+    try:
         rows = []
         for row in raw:
             cur = row.get("reportedCurrency", "USD")
@@ -1236,7 +1255,6 @@ def get_quarterly_income_detail(symbol: str, limit: int = 8) -> list[dict]:
                 "eps_diluted": _num(row.get("epsDiluted") or row.get("epsdiluted")),
             })
         rows = [r for r in rows if r["date"]][::-1]  # FMP returns newest-first
-        cache_set(cache_key, rows, ttl=24 * 3600)
         return rows
     except Exception as exc:
         logger.debug("FMP quarterly income detail request failed for %s: %s", symbol, exc)
@@ -1372,38 +1390,22 @@ def get_quarterly_eps_history(symbol: str, limit: int = 40) -> list[dict]:
     behind the price-vs-fair-value chart and P/E percentile panel.
     `filing_date` (not `date`, the fiscal period-end) is the date the
     market actually saw this number — a real step function, not a smooth
-    estimate. Returns [] if FMP isn't configured or the request fails.
-    Oldest-first."""
-    if not FMP_KEY:
+    estimate. Shares `_fmp_quarterly_income_raw`'s fetch with
+    `get_quarterly_income_detail` (see that helper's docstring) instead of
+    hitting the same FMP endpoint again. Returns [] if FMP isn't
+    configured or the request fails. Oldest-first."""
+    raw = _fmp_quarterly_income_raw(symbol)[:limit]
+    if not raw:
         return []
-    cache_key = f"fmp_qtr_eps_history:{symbol.upper()}:{limit}"
-    cached = cache_get(cache_key)
-    if cached is not None:
-        return cached
-    try:
-        r = requests.get(
-            f"{FMP_BASE}/income-statement",
-            params={"apikey": FMP_KEY, "symbol": symbol, "period": "quarter", "limit": limit},
-            headers=_REQ_HEADERS,
-            timeout=14,
-        )
-        raw = r.json()
-        if not isinstance(raw, list):
-            return []
-        rows = [
-            {
-                "date": (row.get("date") or "")[:10],
-                "filing_date": (row.get("fillingDate") or row.get("date") or "")[:10],
-                "eps": _num(row.get("epsDiluted") or row.get("epsdiluted")),
-            }
-            for row in raw
-        ]
-        rows = [r for r in rows if r["date"] and r["filing_date"] and r["eps"] is not None][::-1]  # FMP returns newest-first
-        cache_set(cache_key, rows, ttl=24 * 3600)
-        return rows
-    except Exception as exc:
-        logger.debug("FMP quarterly EPS history request failed for %s: %s", symbol, exc)
-        return []
+    rows = [
+        {
+            "date": (row.get("date") or "")[:10],
+            "filing_date": (row.get("fillingDate") or row.get("date") or "")[:10],
+            "eps": _num(row.get("epsDiluted") or row.get("epsdiluted")),
+        }
+        for row in raw
+    ]
+    return [r for r in rows if r["date"] and r["filing_date"] and r["eps"] is not None][::-1]  # FMP returns newest-first
 
 
 def get_daily_price_history(symbol: str, start_date: str, end_date: str) -> list[dict]:
