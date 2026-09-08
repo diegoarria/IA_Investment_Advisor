@@ -239,7 +239,14 @@ function SubvaluadasPageInner() {
     setSectorLoading(true);
     setSectorError(false);
     setSectorTeaserCount(null);
-    screenerApi.getUndervalued(selectedSector, 24, i18n.language, true)
+    // 500: effectively "no cap" — the whole UNIVERSE is ~930 tickers across
+    // 11 sectors, so no single sector can exceed this. Diego, 2026-09-07:
+    // "quiero todas todas todas las acciones de todos los sectores en esa
+    // lista" — every real MOS-positive candidate in the sector, not a
+    // truncated top-24 (browse=true below already lifts the per-sector cap
+    // that exists for the "featured" AI-enriched carousel; this raises the
+    // separate overall `limit` param that was still truncating this list).
+    screenerApi.getUndervalued(selectedSector, 500, i18n.language, true)
       .then((res) => {
         if (cancelled) return;
         const body = res.data as { is_premium: boolean; results?: SectorPreviewResult[]; teaser_count?: number };
