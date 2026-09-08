@@ -847,6 +847,15 @@ NOTAS IMPORTANTES:
     # Inject currency hint so the AI knows not to convert prices
     _PROMPT += f"\n- MONEDA DE LOS PRECIOS: El usuario indicó que los precios en esta captura están en {screenshot_currency}. Extrae avg_price exactamente como aparece, sin convertir."
 
+    # Diego, 2026-09-08 cost audit: this call was gated by check_daily_spend_cap()
+    # but never called log_llm_usage() afterward — real cost happened but was
+    # invisible in /admin/llm-usage AND never fed the same counter
+    # check_daily_spend_cap() reads, so this call site alone could never trip
+    # the daily circuit breaker no matter how much it actually spent. Captured
+    # via this holder (closures can't reassign an outer local) and logged by
+    # the route after _run_sync returns, matching every other real call site.
+    _usage_holder: list = []
+
     def _call_claude(img_data: str, img_type: str) -> list:
         import logging as _log
         from app.services.ai_service import check_daily_spend_cap
@@ -861,6 +870,7 @@ NOTAS IMPORTANTES:
                 {"type": "text", "text": _PROMPT},
             ]}],
         )
+        _usage_holder.append(msg.usage)
         _log.getLogger(__name__).info(
             "OCR screenshot: in=%d out=%d cost≈$%.4f",
             msg.usage.input_tokens, msg.usage.output_tokens,
@@ -916,9 +926,13 @@ NOTAS IMPORTANTES:
             return {"positions": result}
 
     try:
-        return await asyncio.to_thread(_run_sync, image_data, image_type)
+        result = await asyncio.to_thread(_run_sync, image_data, image_type)
     except Exception as e:
         return {"positions": [], "error": str(e)}
+    if _usage_holder:
+        from app.services.llm_usage import log_llm_usage
+        await log_llm_usage(user_id, "portfolio_screenshot_import", "claude-haiku-4-5-20251001", _usage_holder[0])
+    return result
 
 
 @router.post("/portfolio/from-pdf")
@@ -974,6 +988,9 @@ Responde SOLO el JSON array, nada más."""
 
     _PROMPT += f"\n- MONEDA DE LOS PRECIOS: El usuario indicó que los precios en este documento están en {screenshot_currency}. Extrae avg_price exactamente como aparece, sin convertir."
 
+    # Same cost-tracking gap fix as portfolio_from_screenshot above.
+    _usage_holder: list = []
+
     def _call_claude_pdf(pdf_data: str) -> list:
         import logging as _log
         from app.services.ai_service import check_daily_spend_cap
@@ -992,6 +1009,7 @@ Responde SOLO el JSON array, nada más."""
                 ],
             }],
         )
+        _usage_holder.append(msg.usage)
         _log.getLogger(__name__).info(
             "OCR PDF: in=%d out=%d cost≈$%.4f",
             msg.usage.input_tokens, msg.usage.output_tokens,
@@ -1031,9 +1049,13 @@ Responde SOLO el JSON array, nada más."""
             return {"positions": result}
 
     try:
-        return await asyncio.to_thread(_run_sync_pdf, pdf_b64)
+        result = await asyncio.to_thread(_run_sync_pdf, pdf_b64)
     except Exception as e:
         return {"positions": [], "error": str(e)}
+    if _usage_holder:
+        from app.services.llm_usage import log_llm_usage
+        await log_llm_usage(user_id, "portfolio_pdf_import", "claude-haiku-4-5-20251001", _usage_holder[0])
+    return result
 
 
 @router.get("/earnings")
@@ -3032,6 +3054,10 @@ async def get_stock_detail(
         if cached_score:
             return {**result, "score": cached_score}
         score_data = _compute_stock_score(result)
+        usage = score_data.pop("_usage", None)
+        if usage is not None:
+            from app.services.llm_usage import log_llm_usage
+            await log_llm_usage(user_id, "stock_score", "claude-haiku-4-5-20251001", usage)
         cache_set(score_cache_key, score_data, ttl=3600)
         return {**result, "score": score_data}
     return result
@@ -3381,6 +3407,12 @@ def _compute_stock_score(detail: dict) -> dict:
     # ── Claude AI verdict ─────────────────────────────────────────────────────
     verdict_short = ""
     verdict_long  = ""
+    _usage = None  # returned as result["_usage"] below — _compute_stock_score is
+    # sync (called via a plain function call, not asyncio.to_thread), so it can't
+    # await log_llm_usage() itself; the two async route callers pop this off and
+    # log it. Diego, 2026-09-08 cost audit: this call was gated by check_daily_
+    # spend_cap() but nothing ever logged/counted it — same gap as the portfolio
+    # import routes and stock-income-analysis fixed alongside this.
     try:
         _ant_key = os.getenv("ANTHROPIC_API_KEY", "")
         if _ant_key:
@@ -3412,6 +3444,7 @@ def _compute_stock_score(detail: dict) -> dict:
                 max_tokens=220,
                 messages=[{"role": "user", "content": prompt}],
             )
+            _usage = msg.usage
             text = msg.content[0].text.strip()
             lines = [l.strip() for l in text.split("\n") if l.strip()]
             for line in lines:
@@ -3533,6 +3566,10 @@ def _compute_stock_score(detail: dict) -> dict:
         "verdict_long": verdict_long,
         "entry_ranges": entry_ranges,
         "entry_ranges_meta": entry_ranges_meta,
+        # Popped and logged by the two async callers below (never cached,
+        # never sent to the client) — see the comment above the Claude
+        # verdict block for why this can't just be awaited in here.
+        "_usage": _usage,
         "categories": [
             {
                 "key": "valuation",
@@ -3743,6 +3780,10 @@ async def get_stock_score(
         return cached
     detail = await asyncio.to_thread(_fetch_stock_detail, sym)
     result = _compute_stock_score(detail)
+    usage = result.pop("_usage", None)
+    if usage is not None:
+        from app.services.llm_usage import log_llm_usage
+        await log_llm_usage(user_id, "stock_score", "claude-haiku-4-5-20251001", usage)
     cache_set(cache_key, result, ttl=3600)
     return result
 
@@ -3815,6 +3856,13 @@ async def get_stock_income_analysis(
                 messages=[{"role": "user", "content": prompt}],
             )
             analysis = msg.content[0].text.strip()
+            # Diego, 2026-09-08 cost audit: same gap as the two portfolio
+            # import routes above — check_daily_spend_cap() gated this call
+            # but nothing ever fed its counter back, so real cost here was
+            # both invisible in /admin/llm-usage and uncounted against the
+            # daily circuit breaker.
+            from app.services.llm_usage import log_llm_usage
+            await log_llm_usage(user_id, "stock_income_analysis", "claude-haiku-4-5-20251001", msg.usage)
     except Exception:
         pass
 
