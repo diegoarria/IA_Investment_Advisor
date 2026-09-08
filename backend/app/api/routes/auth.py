@@ -453,7 +453,22 @@ async def reset_password(request: Request, body: dict):
     user = next((u for u in users if u.email and u.email.lower() == email), None)
     if not user:
         raise HTTPException(status_code=400, detail="Usuario no encontrado")
-    await asyncio.to_thread(lambda: db.auth.admin.update_user_by_id(user.id, {"password": new_password}))
+    # Diego, 2026-09-08 (pre-launch audit, P1): a password reset used to
+    # leave any existing session (stolen token, shared device) valid for
+    # the rest of its 90-day refresh window — exactly the access a reset is
+    # supposed to shut off. `admin.sign_out` (used by /logout) needs a JWT
+    # to sign out, which we don't have here (the caller isn't logged in,
+    # they're proving identity via the emailed code) — there's no GoTrue
+    # admin API to revoke sessions by user id directly. `ban_duration`
+    # self-expires in 1s (so the user can log back in immediately with
+    # their new password) but forces every existing session invalid in the
+    # meantime: get_current_user_id (app/api/deps.py) re-verifies via a
+    # real db.auth.get_user() call, cached only 60s by token hash, so any
+    # session already in flight is rejected within at most that window
+    # instead of surviving up to 90 more days.
+    await asyncio.to_thread(lambda: db.auth.admin.update_user_by_id(
+        user.id, {"password": new_password, "ban_duration": "1s"},
+    ))
     return {"message": "Contraseña actualizada correctamente"}
 
 
