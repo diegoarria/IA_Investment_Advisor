@@ -881,6 +881,14 @@ Instrucciones críticas:
                     {mentor ? mentor.title : t("chat.mentorSub")}
                   </Text>
 
+                  {!mentor && (
+                    <Text style={[styles.heroDetail, { color: colors.textMuted }]}>
+                      {getUserLevel(profile) === "basico"
+                        ? t("chat.welcomeSubtitleBasic")
+                        : t("chat.welcomeSubtitleDefault")}
+                    </Text>
+                  )}
+
                   {mentor && (
                     <View style={styles.principlesRow}>
                       {mentor.principles.map((p, i) => (
@@ -1425,7 +1433,11 @@ function makeStyles(c: Colors) {
     },
     heroSub: {
       fontSize: 12, fontWeight: "600" as const, letterSpacing: 0.2,
-      marginBottom: 12, textAlign: "center" as const,
+      marginBottom: 6, textAlign: "center" as const,
+    },
+    heroDetail: {
+      fontSize: 13, lineHeight: 19, textAlign: "center" as const,
+      marginBottom: 12, paddingHorizontal: 8,
     },
     principlesRow: {
       flexDirection: "row" as const, flexWrap: "wrap" as const,

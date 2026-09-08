@@ -2477,15 +2477,15 @@
       "speculative": "Especulativo"
     },
     "riskAssessmentTitle": "Evaluación de riesgo",
-    "defaultMentorTitle": "Soy Arthur — te ayudo a decidir mejor con tu dinero.",
+    "defaultMentorTitle": "Soy Arthur — te ayudo a decidir mejor con tu dinero, nunca decido por ti.",
     "objectiveGreeting": {
       "protect": "Veo que priorizas proteger tu capital. Buena base para empezar. ¿Por dónde quieres comenzar?",
       "grow": "Tu objetivo es hacer crecer tu dinero a largo plazo. Es el enfoque más sólido. ¿Qué tienes en mente?",
       "maximize": "Buscas maximizar retorno. El riesgo es parte del juego — te enseño a manejarlo bien. ¿Empezamos?"
     },
     "defaultGreetingQuestion": "¿En qué puedo ayudarte hoy?",
-    "welcomeSubtitleBasic": "Cuéntame cuánto tienes para invertir y qué quieres lograr — te guío paso a paso, sin complicaciones.",
-    "welcomeSubtitleDefault": "Pregúntame sobre empresas, ETFs, estrategias o conceptos",
+    "welcomeSubtitleBasic": "Cuéntame cuánto tienes para invertir y qué quieres lograr. Te lo explico en lenguaje simple, paso a paso y sin tecnicismos — para que entiendas tus opciones y decidas con confianza.",
+    "welcomeSubtitleDefault": "Analizo empresas, reviso tu portafolio y te explico el porqué detrás de cada número — para que decidas con más claridad y menos ruido. La decisión siempre es tuya.",
     "positionsCount": "{{count}} posiciones",
     "positionsCountSingular": "{{count}} posición",
     "msgToday": "{{count}} msg hoy",

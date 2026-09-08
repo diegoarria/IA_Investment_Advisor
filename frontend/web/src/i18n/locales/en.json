@@ -2477,15 +2477,15 @@
       "speculative": "Speculative"
     },
     "riskAssessmentTitle": "Risk assessment",
-    "defaultMentorTitle": "I'm Arthur — I help you decide better with your money.",
+    "defaultMentorTitle": "I'm Arthur — I help you decide better with your money, I never decide for you.",
     "objectiveGreeting": {
       "protect": "I see you're focused on protecting your capital. Solid place to start. Where would you like to begin?",
       "grow": "Your goal is to grow your money long term. It's the most solid approach. What's on your mind?",
       "maximize": "You're looking to maximize returns. Risk comes with the territory — I'll teach you to manage it well. Ready?"
     },
     "defaultGreetingQuestion": "How can I help you today?",
-    "welcomeSubtitleBasic": "Tell me how much you have to invest and what you want to achieve — I'll guide you step by step, no complications.",
-    "welcomeSubtitleDefault": "Ask me about companies, ETFs, strategies, or concepts",
+    "welcomeSubtitleBasic": "Tell me how much you have to invest and what you want to achieve. I'll explain everything in plain language, step by step, no jargon — so you understand your options and decide with confidence.",
+    "welcomeSubtitleDefault": "I analyze companies, review your portfolio, and explain the reasoning behind every number — so you can decide with more clarity and less noise. The decision is always yours.",
     "positionsCount": "{{count}} positions",
     "positionsCountSingular": "{{count}} position",
     "msgToday": "{{count}} msg today",
