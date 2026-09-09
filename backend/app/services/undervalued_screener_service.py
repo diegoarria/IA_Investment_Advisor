@@ -1193,3 +1193,74 @@ def get_undervalued(limit: int = 60, sector: Optional[str] = None, lang: str = "
             logger.warning("get_undervalued: skipping malformed cached entry for %s: %s", r.get("ticker"), exc)
 
     return {"results": finalized, "generated_at": ts}
+
+
+# Diego, 2026-09-09 — GICS sector risk tiers for the weekly "5 Nuevas
+# Oportunidades" push (worker.py's job_weekly_opportunities_push). Standard,
+# defensible defensive/cyclical/growth convention — Utilities/Staples/
+# Healthcare are classically the lowest-beta sectors; Tech/Discretionary/
+# Energy classically the highest. Deterministic on purpose (real sector
+# data, zero AI/tokens) — matching a real candidate's real sector to a
+# user's stated risk_tolerance doesn't need judgment, per this codebase's
+# own cost-discipline rule (prefer computed logic over an LLM call
+# wherever the answer doesn't actually require one).
+_SECTOR_RISK_TIER: dict[str, str] = {
+    "Utilities": "low", "Consumer Staples": "low", "Healthcare": "low", "Real Estate": "low",
+    "Financials": "medium", "Industrials": "medium", "Materials": "medium", "Communication Services": "medium",
+    "Technology": "high", "Consumer Discretionary": "high", "Energy": "high",
+}
+# risk_tolerance (8 real levels, see chat.py's riskLabel/onboarding) bucketed
+# into which sector risk tier(s) to prefer, ordered by preference — the
+# first tier listed is tried first, falling back to the next only if not
+# enough new (never-sent) candidates remain in it that week.
+_RISK_TOLERANCE_TIER_PREFERENCE: dict[str, list[str]] = {
+    "conservative":            ["low", "medium", "high"],
+    "conservative_moderate":   ["low", "medium", "high"],
+    "moderate":                ["medium", "low", "high"],
+    "moderate_growth":         ["medium", "high", "low"],
+    "growth":                  ["high", "medium", "low"],
+    "aggressive":              ["high", "medium", "low"],
+    "aggressive_speculative":  ["high", "medium", "low"],
+    "speculative":             ["high", "medium", "low"],
+}
+
+
+def pick_weekly_opportunities_for_user(
+    risk_tolerance: Optional[str], already_sent: set[str], count: int = 5,
+) -> list[dict]:
+    """Real, DCF-backed candidates for the Sunday "5 Nuevas Oportunidades de
+    Inversión" push — cache-only read of the SAME Oportunidades universe the
+    in-app screen shows (get_undervalued, uncapped per sector so nothing in
+    a large sector is silently excluded), filtered to exclude every ticker
+    this user has ever already been sent (the `already_sent` set — the
+    caller loads this from weekly_opportunities_history, the durable "never
+    repeat" record), then ranked by fit to the user's real risk_tolerance
+    tier preference (falling back to the next tier only when the preferred
+    one doesn't have enough new candidates left this week). Ties within a
+    tier break on composite_score, same ordering Oportunidades itself uses.
+
+    Returns fewer than `count` (never fabricated placeholders) when the
+    real universe genuinely doesn't have that many new, never-sent
+    candidates this week — the caller sends however many real ones exist."""
+    full = get_undervalued(limit=10_000, sector=None, lang="es", per_sector_cap=None)
+    candidates = [r for r in (full.get("results") or []) if r.get("ticker") not in already_sent]
+    if not candidates:
+        return []
+
+    tier_order = _RISK_TOLERANCE_TIER_PREFERENCE.get(risk_tolerance or "", ["medium", "low", "high"])
+    by_tier: dict[str, list[dict]] = {"low": [], "medium": [], "high": [], "unknown": []}
+    for c in candidates:
+        tier = _SECTOR_RISK_TIER.get(c.get("sector") or "", "unknown")
+        by_tier[tier].append(c)
+    for bucket in by_tier.values():
+        bucket.sort(key=lambda r: (r.get("composite_score") if r.get("composite_score") is not None else -1), reverse=True)
+
+    picked: list[dict] = []
+    for tier in tier_order + ["unknown"]:
+        for c in by_tier.get(tier, []):
+            if len(picked) >= count:
+                break
+            picked.append(c)
+        if len(picked) >= count:
+            break
+    return picked

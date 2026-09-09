@@ -3994,6 +3994,10 @@
         "label": "Recordatorio de disciplina de inversión",
         "desc": "El 1 y 15 de cada mes — un recordatorio para mantener tu ritmo de aportaciones, nunca un regaño"
       },
+      "weeklyOpportunities": {
+        "label": "5 Nuevas Oportunidades de Inversión",
+        "desc": "Domingos 12:10 PM — 5 empresas reales de Oportunidades, elegidas según tu perfil de riesgo, que nunca se repiten"
+      },
       "thesisChanges": {
         "label": "Cambios de tesis/estrategia",
         "desc": "Cuando una empresa que sigues cambia de estrategia"

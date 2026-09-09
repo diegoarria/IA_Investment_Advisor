@@ -72,6 +72,9 @@ _DEFAULT_PREFS = {
     # (see job_investment_discipline_reminder in worker.py). Real detection
     # only, framed as a guide never a scold.
     "push_investment_reminder": True,
+    # Diego, 2026-09-09 — Sunday 12:10pm ET "5 Nuevas Oportunidades de
+    # Inversión" (Premium only, worker.py's job_weekly_opportunities_push).
+    "push_weekly_opportunities": True,
     "email_daily_summary": True, "email_weekly_summary": True,
     "max_push_per_day": 15, "max_push_per_week": 60,
     "quiet_hours_start": 22, "quiet_hours_end": 8,
@@ -94,6 +97,7 @@ class PrefsUpdate(BaseModel):
     push_new_risks:               Optional[bool] = None
     push_price_in_range:          Optional[bool] = None
     push_investment_reminder:     Optional[bool] = None
+    push_weekly_opportunities:    Optional[bool] = None
     email_daily_summary:     Optional[bool] = None
     email_weekly_summary:    Optional[bool] = None
     max_push_per_day:        Optional[int]  = None

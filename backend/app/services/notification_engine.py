@@ -32,6 +32,7 @@ async def _get_prefs(user_id: str, db) -> dict:
         "push_roic_fcf_deterioration": True, "push_new_risks": True,
         "push_price_in_range": True,
         "push_investment_reminder": True,
+        "push_weekly_opportunities": True,
         "email_daily_summary": True, "email_weekly_summary": True,
         "max_push_per_day": 15, "max_push_per_week": 60,
         "quiet_hours_start": 22, "quiet_hours_end": 8,

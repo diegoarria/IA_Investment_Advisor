@@ -2856,14 +2856,109 @@ async def job_daily_question():
         logger.error("job_daily_question failed: %s", e)
 
 
+async def job_weekly_opportunities_push():
+    """12:10 PM ET Sundays — "5 Nuevas Oportunidades de Inversión", Premium
+    only. Diego, 2026-09-09: replaces the old Free "Prepárate para la
+    semana" slot at this time (that push moved to 9pm ET and now also
+    reaches Premium — see job_weekly_prep_sunday below).
+
+    Real, DCF-backed candidates pulled straight from the SAME "Oportunidades"
+    universe the in-app screen shows (undervalued_screener_service.
+    get_undervalued, cache-only, zero extra cost) — not the AI-driven
+    Screener Semanal pipeline (job_weekly_screener_generate, 8am ET), which
+    is a separate, complementary feature. Matched to each user's real
+    risk_tolerance (deterministic sector-tier ranking, zero AI/tokens — see
+    pick_weekly_opportunities_for_user's docstring) and, critically,
+    NEVER repeats a ticker to the same user — weekly_opportunities_history
+    is a permanent, durable record (not a TTL'd cache entry), checked and
+    appended to on every run, so this guarantee holds forever, not just
+    for a rolling few-week window."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from app.services.undervalued_screener_service import pick_weekly_opportunities_for_user
+
+    db = get_supabase()
+    try:
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id").eq("push_weekly_opportunities", True)
+        )
+        pref_uids = {u["user_id"] for u in (prefs_res.data or [])}
+        if not pref_uids:
+            return
+
+        profiles_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,subscription_tier,trial_started_at,streak_bonus_premium_until,preferred_language,risk_tolerance")
+            .in_("user_id", list(pref_uids))
+        )
+        premium_profiles = [
+            r for r in (profiles_res.data or [])
+            if _is_premium_user(r.get("subscription_tier"), r.get("trial_started_at"), r.get("streak_bonus_premium_until"))
+        ]
+        if not premium_profiles:
+            return
+
+        history_res = await run_query(
+            db.table("weekly_opportunities_history").select("user_id,ticker")
+            .in_("user_id", [r["user_id"] for r in premium_profiles])
+        )
+        sent_by_user: dict[str, set[str]] = {}
+        for row in (history_res.data or []):
+            sent_by_user.setdefault(row["user_id"], set()).add(row["ticker"])
+
+        sent = 0
+        for i, r in enumerate(premium_profiles):
+            uid = r["user_id"]
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            await asyncio.sleep(random.uniform(0, 0.12))
+
+            picks = pick_weekly_opportunities_for_user(r.get("risk_tolerance"), sent_by_user.get(uid, set()), count=5)
+            if not picks:
+                continue  # honest — no real new candidates for this user this week, never fabricated
+
+            is_en = (r.get("preferred_language") or "es") == "en"
+            names = [p.get("company_name") or p["ticker"] for p in picks]
+            numbered = "\n".join(f"{idx + 1}. {name}" for idx, name in enumerate(names))
+            title = f"👀 We found {len(picks)} new investment opportunities for you" if is_en else f"👀 Tenemos {len(picks)} nuevas oportunidades de inversión para ti"
+            body = (
+                f"{numbered}\n\nCome see if they fit your portfolio and profile."
+                if is_en else
+                f"{numbered}\n\nEntra a ver si encajan con tu portafolio y tu perfil."
+            )
+            await send_push(uid, "weekly_opportunities", title, body, {"screen": "subvaluadas"}, db)
+
+            try:
+                await run_query(
+                    db.table("weekly_opportunities_history").upsert(
+                        [{"user_id": uid, "ticker": p["ticker"]} for p in picks],
+                        on_conflict="user_id,ticker",
+                    )
+                )
+            except Exception as exc:
+                logger.warning("job_weekly_opportunities_push: failed to record history for %s: %s", uid, exc)
+            sent += 1
+        logger.info("job_weekly_opportunities_push: sent to %d/%d premium users", sent, len(premium_profiles))
+    except Exception as e:
+        logger.error("job_weekly_opportunities_push failed: %s", e)
+
+
 async def job_weekly_prep_sunday():
-    """12:10 PM ET Sundays — Nuvos Weekly Rituals: "Prepárate para la
-    semana" (Free tier only), a real per-user rollup of the coming week's
-    portfolio/watchlist events, counts only. See app/services/
-    weekly_rituals_service.py's module docstring."""
+    """9:00 PM ET Sundays — Nuvos Weekly Rituals: "Prepárate para la
+    semana", a real per-user rollup of the coming week's portfolio/
+    watchlist events. Free gets counts only (unchanged copy/logic).
+
+    Diego, 2026-09-09: moved from 12:10pm ET (that slot now belongs to
+    job_weekly_opportunities_push, "5 Nuevas Oportunidades") and extended
+    to ALSO reach Premium here, in addition to the existing Premium-only
+    Saturday 3:30pm ET push (job_weekly_prep_saturday_premium, "Tu semana
+    en Nuvos") — Premium users now get both. Not deduped/merged since
+    that wasn't asked for; flagging in this docstring in case that
+    overlap should be revisited."""
     from app.services.weekly_rituals_service import send_weekly_prep_push
     try:
         await send_weekly_prep_push("free")
+        await send_weekly_prep_push("premium")
     except Exception as e:
         logger.error("job_weekly_prep_sunday failed: %s", e)
 
@@ -6076,7 +6171,8 @@ async def main():
 
     # ── Nuvos Weekly Rituals ────────────────────────────────────────────────────
     scheduler.add_job(job_daily_question,               "cron", day_of_week="sun", hour=14, minute=0,  timezone="America/New_York")
-    scheduler.add_job(job_weekly_prep_sunday,            "cron", day_of_week="sun", hour=12, minute=10, timezone="America/New_York")
+    scheduler.add_job(job_weekly_opportunities_push,     "cron", day_of_week="sun", hour=12, minute=10, timezone="America/New_York")
+    scheduler.add_job(job_weekly_prep_sunday,            "cron", day_of_week="sun", hour=21, minute=0,  timezone="America/New_York")
     scheduler.add_job(job_weekly_prep_saturday_premium,  "cron", day_of_week="sat", hour=15, minute=30, timezone="America/New_York")
     scheduler.add_job(job_saturday_reflection,           "cron", day_of_week="sat", hour=18, minute=0,  timezone="America/New_York")
 

@@ -21,6 +21,7 @@ function getPushToggles(t: TFunction) {
     { key: "push_milestones",         label: t("notificationSettings.push.milestones.label"),        desc: t("notificationSettings.push.milestones.desc") },
     { key: "push_volatility",         label: t("notificationSettings.push.volatility.label"),        desc: t("notificationSettings.push.volatility.desc") },
     { key: "push_investment_reminder", label: t("notificationSettings.push.investmentReminder.label"), desc: t("notificationSettings.push.investmentReminder.desc") },
+    { key: "push_weekly_opportunities", label: t("notificationSettings.push.weeklyOpportunities.label"), desc: t("notificationSettings.push.weeklyOpportunities.desc") },
   ];
 }
 // Fase 4, Incremento 10 (Alertas Inteligentes, Parte J) — each bridges a

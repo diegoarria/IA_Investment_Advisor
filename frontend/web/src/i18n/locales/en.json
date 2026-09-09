@@ -3994,6 +3994,10 @@
         "label": "Investment discipline reminder",
         "desc": "On the 1st and 15th of each month — a nudge to keep your contribution rhythm, never a scold"
       },
+      "weeklyOpportunities": {
+        "label": "5 New Investment Opportunities",
+        "desc": "Sundays 12:10 PM — 5 real companies from Oportunidades, matched to your risk profile, never repeated"
+      },
       "thesisChanges": {
         "label": "Thesis/strategy changes",
         "desc": "When a company you follow changes strategy"
