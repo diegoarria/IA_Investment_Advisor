@@ -419,9 +419,18 @@ def _fetch_earnings_data(symbol: str) -> dict:
         if not latest:
             return {"symbol": symbol, "error": "No real earnings data available from Finnhub for this ticker."}
 
-        revenue = _fetch_revenue_for_period(symbol, latest["period"])
-        quote = fh_quote(symbol) or {}
-        profile = fh_profile(symbol) or {}
+        # Diego, 2026-09-09 (perf audit): revenue/quote/profile are mutually
+        # independent (revenue needs `latest["period"]`, computed above, but
+        # nothing else here) — used to run one after another, 3 sequential
+        # network round trips that are now concurrent instead.
+        from concurrent.futures import ThreadPoolExecutor as _TPE
+        with _TPE(max_workers=3, thread_name_prefix="earnings-data") as _ex:
+            _f_revenue = _ex.submit(_fetch_revenue_for_period, symbol, latest["period"])
+            _f_quote = _ex.submit(fh_quote, symbol)
+            _f_profile = _ex.submit(fh_profile, symbol)
+            revenue = _f_revenue.result()
+            quote = _f_quote.result() or {}
+            profile = _f_profile.result() or {}
         fiscal_label = f"Q{latest['fiscal_quarter']} {latest['fiscal_year']}" if latest.get("fiscal_quarter") and latest.get("fiscal_year") else symbol
 
         data = {

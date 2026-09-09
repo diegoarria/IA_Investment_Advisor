@@ -513,8 +513,13 @@ export const paperApi = {
 export const earningsApi = {
   getCalendar: (symbols: string[]) =>
     api.get("/api/earnings/calendar", { params: { symbols: symbols.join(",") } }),
+  // 45s — on a cache miss this chains a Perplexity web search (backend
+  // budgets it up to 35s) + a Sonnet call; every other heavy AI-backed
+  // call in this file sets an explicit timeout, this one didn't (Diego,
+  // 2026-09-09 perf audit) — with none, a slow backend path just hangs
+  // client-side with no fail-fast escape hatch.
   getAnalysis: (symbol: string, shares = 0, avgCost = 0, lang?: string) =>
-    api.get(`/api/earnings/analysis/${symbol}`, { params: { shares, avg_cost: avgCost, lang } }),
+    api.get(`/api/earnings/analysis/${symbol}`, { params: { shares, avg_cost: avgCost, lang }, timeout: 45000 }),
   getRecentReporters: (symbols: string[]) =>
     api.get("/api/earnings/recent-reporters", { params: { symbols: symbols.join(",") } }),
   // Explicit timeout — this had none before, so a hung request (network

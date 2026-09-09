@@ -1824,21 +1824,21 @@ async def _build_quick_analysis(ticker: str, lang: str, use_ai: bool = True) -> 
     # plain-numbers card, never take down the whole request. For use_ai=
     # False (free/guest tier) we take that same degraded shape proactively,
     # never calling Claude at all.
-    if not use_ai:
-        ai_result = {
-            "summary": (
-                "The AI-generated narrative is a Premium feature. The real numbers above (fair value, margin of safety) are just as accurate without it."
-                if lang == "en" else
-                "El resumen narrativo con IA es una función Premium. Las cifras reales de arriba (valor justo, margen de seguridad) son igual de precisas sin él."
-            ),
-            "business_understanding_stars": None, "business_understanding_reason": "", "checklist_reasons": {},
-        }
-    else:
+    async def _get_ai_result() -> dict:
+        if not use_ai:
+            return {
+                "summary": (
+                    "The AI-generated narrative is a Premium feature. The real numbers above (fair value, margin of safety) are just as accurate without it."
+                    if lang == "en" else
+                    "El resumen narrativo con IA es una función Premium. Las cifras reales de arriba (valor justo, margen de seguridad) son igual de precisas sin él."
+                ),
+                "business_understanding_stars": None, "business_understanding_reason": "", "checklist_reasons": {},
+            }
         try:
-            ai_result = await asyncio.wait_for(ai_service.generate_quick_valuation_summary(data, lang=lang), timeout=20.0)
+            return await asyncio.wait_for(ai_service.generate_quick_valuation_summary(data, lang=lang), timeout=20.0)
         except Exception as exc:
             logger.error("quick_analysis(%s): generate_quick_valuation_summary failed: %s", ticker, exc, exc_info=True)
-            ai_result = {
+            return {
                 "summary": (
                     "We couldn't generate the AI summary right now. The real numbers above are still accurate."
                     if lang == "en" else
@@ -1867,16 +1867,20 @@ async def _build_quick_analysis(ticker: str, lang: str, use_ai: bool = True) -> 
     # (already computed inside get_fundamental_analysis, on
     # `dcf["nuvos_fair_value"]`), not refreshed from anything computed here.
     # Consensus Engine itself is retired (Incremento 12).
-    relative_valuation = None
-    historical_valuation = None
-    industry_benchmarks = None
-    peer_analysis_cache: dict = {}
-    try:
-        relative_valuation, historical_valuation, industry_benchmarks, peer_analysis_cache = await asyncio.wait_for(
-            _compute_extra_valuations(ticker, data, dcf), timeout=15.0,
-        )
-    except Exception as exc:
-        logger.warning("quick_analysis(%s): valuation engine (relative/historical/industry) failed: %s", ticker, exc)
+    async def _get_extra_valuations() -> tuple:
+        try:
+            return await asyncio.wait_for(_compute_extra_valuations(ticker, data, dcf), timeout=15.0)
+        except Exception as exc:
+            logger.warning("quick_analysis(%s): valuation engine (relative/historical/industry) failed: %s", ticker, exc)
+            return None, None, None, {}
+
+    # Diego, 2026-09-09 (perf audit): the AI narrative and the relative/
+    # historical/industry valuation engine both depend only on `data`/`dcf`
+    # above, never on each other — they used to run one after another
+    # (up to 20s + 15s of sequential timeout budget) for no reason.
+    ai_result, (relative_valuation, historical_valuation, industry_benchmarks, peer_analysis_cache) = await asyncio.gather(
+        _get_ai_result(), _get_extra_valuations(),
+    )
 
     # 7-point investment checklist — item 1 (Entender el negocio) is Claude's
     # qualitative judgment from ai_result above; items 2-7's "stars" ratings

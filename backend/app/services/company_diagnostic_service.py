@@ -25,11 +25,33 @@ from __future__ import annotations
 
 import logging
 import statistics
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 from app.services.fundamental_analysis_service import get_fundamental_analysis
 from app.services.relative_valuation_service import _find_peers
 from app.services.quality.moat_engine import compute_moat_score
+
+# Diego, 2026-09-09 (perf audit): price-history/chart, competitor
+# comparison, and sector comparison are three genuinely independent real
+# network-bound computations — none of their inputs depend on another's
+# output — that build_company_diagnostic used to run one after another.
+# Confirmed live: an uncached ticker's company-diagnostic call took 15-51s
+# (sometimes a Railway gateway timeout/502) with these stacked serially.
+# Same bounded-thread-pool pattern already used elsewhere in this codebase
+# (market.py's _MARKET_POOL) — submitted early, awaited only where each
+# result is actually needed, so they run concurrently with whatever
+# CPU-only formatting work happens on the main thread in between.
+#
+# Sized for the worst case, not just the 3 top-level tasks: _sector_
+# comparison (one of the 3) itself fans out to up to 10 more peer fetches
+# on THIS SAME pool (see below) while its own task-thread blocks waiting
+# on them — so real concurrent demand can hit ~13 (1 price-history + 1
+# competitor + 1 sector-task-itself-blocked + 10 sector peers). A pool
+# too small for that wouldn't deadlock (ThreadPoolExecutor just queues
+# the rest), but it would silently throttle the exact fan-out this exists
+# to speed up.
+_DIAG_ENRICHMENT_POOL = ThreadPoolExecutor(max_workers=16, thread_name_prefix="diag-enrich")
 
 logger = logging.getLogger(__name__)
 
@@ -268,7 +290,15 @@ def _competitor_comparison(ticker: str, data: dict, dcf: dict, scenarios: Option
     if not competitor_ticker:
         return None
     try:
-        competitor_data = get_fundamental_analysis(competitor_ticker)
+        # Diego, 2026-09-09 (perf audit): this was missing
+        # _compute_peer_dependent_data=False — the exact same "unguarded
+        # second peer pass" pattern that fundamental_analysis_service.py's
+        # own comment documents once produced a real 94s response (a single
+        # competitor fetch was triggering ITS OWN full relative-valuation +
+        # industry-benchmarks peer waterfall, ~10 more sequential fetches,
+        # just to render a simple side-by-side comparison table that only
+        # needs the competitor's own numbers, never its peer-relative ones).
+        competitor_data = get_fundamental_analysis(competitor_ticker, _compute_peer_dependent_data=False)
     except Exception as e:
         logger.warning("company_diagnostic(%s): competitor fetch failed for %s: %s", ticker, competitor_ticker, e)
         competitor_data = None
@@ -404,13 +434,21 @@ def _sector_comparison(ticker: str, data: dict, dcf: dict, sector: Optional[str]
     if len(peers) < _MIN_SECTOR_PEERS:
         return None
 
-    peer_values: list[dict] = []
-    for peer_ticker in peers:
+    def _fetch_one_peer(peer_ticker: str) -> Optional[dict]:
         try:
-            peer_data = get_fundamental_analysis(peer_ticker, _compute_peer_dependent_data=False)
+            return get_fundamental_analysis(peer_ticker, _compute_peer_dependent_data=False)
         except Exception as e:
             logger.warning("sector_comparison(%s): peer fetch failed for %s: %s", ticker, peer_ticker, e)
-            continue
+            return None
+
+    # Diego, 2026-09-09 (perf audit): up to 10 real peer fetches used to run
+    # one at a time in a plain for-loop — the single biggest contributor to
+    # company-diagnostic's 15-51s worst-case load time. Same bounded-pool
+    # pattern as market.py's _MARKET_POOL; .map() preserves input order, so
+    # peer_values still lines up positionally with `peers` the way the
+    # sequential loop's append order used to.
+    peer_values: list[dict] = []
+    for peer_data in _DIAG_ENRICHMENT_POOL.map(_fetch_one_peer, peers):
         if not peer_data:
             continue
         peer_values.append(_sector_metric_values(peer_data, peer_data.get("dcf") or {}))
@@ -574,50 +612,65 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
         }
         if _gqv_scenarios else None
     )
-    price_history_context = None
-    try:
-        from app.services.price_history_context_service import build_daily_ttm_records, compute_daily_price_history_context
-        _ttm_records = build_daily_ttm_records(ticker)
-        _phc = compute_daily_price_history_context(_ttm_records, scenarios.get("current_price"))
-        if _phc:
-            price_history_context = {
-                "percentileCheaperThan": _phc["percentile_cheaper_than"],
-                "daysUsed": _phc["days_used"],
-                "todayBucket": _phc["today_bucket"],
-                "buckets": {
-                    bucket_key: (
-                        {
-                            "daysCount": b["days_count"],
-                            "timesHigherLater": b["times_price_higher_1y_later"],
-                            "medianReturnPct": b["median_forward_return_pct"],
-                        } if b else None
-                    )
-                    for bucket_key, b in (_phc.get("buckets") or {}).items()
-                },
-            }
-    except Exception as e:
-        logger.warning("company_diagnostic(%s): price_history_context not computable: %s", ticker, e)
+    # sector/industry only need `data`/`dcf`, both already available — moved
+    # up from where they used to sit (right before the competitor/sector
+    # calls) so all 3 independent enrichment tasks below can be submitted
+    # together and run concurrently instead of one after another.
+    sector = data.get("sector")
+    industry = (dcf.get("industry_benchmarks") or {}).get("industry")
 
-    fair_value_chart = None
-    try:
-        from app.services.price_history_context_service import compute_fair_value_chart_series
-        _shadow = _gqv.get("shadow_dual_track") or {}
-        _blend = _shadow.get("blend") or {}
-        _fvc = compute_fair_value_chart_series(
-            _ttm_records, scenarios.get("base"),
-            earnings_track_multiple=_shadow.get("earnings_track_multiple"),
-            earnings_track_weight_pct=_blend.get("earnings_track_weight_pct"),
-            fcf_track_value=_shadow.get("fcf_track_value"),
-            fcf_track_weight_pct=_blend.get("fcf_track_weight_pct"),
-        )
-        if _fvc:
-            fair_value_chart = {
-                "points": _fvc["points"],
-                "effectiveMultiple": _fvc["effective_multiple"],
-                "currentTtmEps": _fvc["current_ttm_eps"],
-            }
-    except Exception as e:
-        logger.warning("company_diagnostic(%s): fair_value_chart not computable: %s", ticker, e)
+    def _price_history_task() -> tuple[Optional[dict], Optional[dict]]:
+        _phc_out, _fvc_out = None, None
+        _ttm_records_local = None
+        try:
+            from app.services.price_history_context_service import build_daily_ttm_records, compute_daily_price_history_context
+            _ttm_records_local = build_daily_ttm_records(ticker)
+            _phc = compute_daily_price_history_context(_ttm_records_local, scenarios.get("current_price"))
+            if _phc:
+                _phc_out = {
+                    "percentileCheaperThan": _phc["percentile_cheaper_than"],
+                    "daysUsed": _phc["days_used"],
+                    "todayBucket": _phc["today_bucket"],
+                    "buckets": {
+                        bucket_key: (
+                            {
+                                "daysCount": b["days_count"],
+                                "timesHigherLater": b["times_price_higher_1y_later"],
+                                "medianReturnPct": b["median_forward_return_pct"],
+                            } if b else None
+                        )
+                        for bucket_key, b in (_phc.get("buckets") or {}).items()
+                    },
+                }
+        except Exception as e:
+            logger.warning("company_diagnostic(%s): price_history_context not computable: %s", ticker, e)
+
+        try:
+            from app.services.price_history_context_service import compute_fair_value_chart_series
+            _shadow = _gqv.get("shadow_dual_track") or {}
+            _blend = _shadow.get("blend") or {}
+            _fvc = compute_fair_value_chart_series(
+                _ttm_records_local, scenarios.get("base"),
+                earnings_track_multiple=_shadow.get("earnings_track_multiple"),
+                earnings_track_weight_pct=_blend.get("earnings_track_weight_pct"),
+                fcf_track_value=_shadow.get("fcf_track_value"),
+                fcf_track_weight_pct=_blend.get("fcf_track_weight_pct"),
+            )
+            if _fvc:
+                _fvc_out = {
+                    "points": _fvc["points"],
+                    "effectiveMultiple": _fvc["effective_multiple"],
+                    "currentTtmEps": _fvc["current_ttm_eps"],
+                }
+        except Exception as e:
+            logger.warning("company_diagnostic(%s): fair_value_chart not computable: %s", ticker, e)
+        return _phc_out, _fvc_out
+
+    _price_history_future = _DIAG_ENRICHMENT_POOL.submit(_price_history_task)
+    _competitor_future = _DIAG_ENRICHMENT_POOL.submit(_competitor_comparison, ticker, data, dcf, scenarios, sector, industry, lang)
+    _sector_future = _DIAG_ENRICHMENT_POOL.submit(_sector_comparison, ticker, data, dcf, sector, industry, lang)
+
+    price_history_context, fair_value_chart = _price_history_future.result()
     valuation = {
         "conservative": scenarios["bear"],
         "baseFairValue": scenarios["base"],
@@ -685,8 +738,6 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
         logger.warning("company_diagnostic(%s): all 3 P/E fields are None (peCurrent/peForward/peNormalized)", ticker)
         return None
 
-    sector = data.get("sector")
-    industry = (dcf.get("industry_benchmarks") or {}).get("industry")
     # Optional, not gating: `_find_peers` matches on UNIVERSE's broad GICS
     # `sector` field, while `sector` here is Finnhub's much more granular
     # `finnhubIndustry` string ("Commercial Services & Supplies" vs.
@@ -697,8 +748,15 @@ def build_company_diagnostic(ticker: str, data: dict, lang: str = "es") -> Optio
     # when no real peer is found — same "insufficient_data per-field, never
     # block everything for one missing enrichment" discipline the rest of
     # this pipeline already uses for relative/historical valuation.
-    competitor_comparison = _competitor_comparison(ticker, data, dcf, scenarios, sector, industry, lang)
-    sector_comparison = _sector_comparison(ticker, data, dcf, sector, industry, lang)
+    #
+    # Both futures were submitted way up above (right by sector/industry's
+    # first computation) so they've been running concurrently with
+    # price_history_context/fair_value_chart and all the CPU-only dict
+    # formatting in between — .result() here usually just collects an
+    # already-finished (or nearly finished) computation instead of waiting
+    # for it to start.
+    competitor_comparison = _competitor_future.result()
+    sector_comparison = _sector_future.result()
 
     return {
         "ticker": ticker.upper(),

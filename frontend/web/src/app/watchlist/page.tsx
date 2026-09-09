@@ -524,15 +524,18 @@ export default function WatchlistPage() {
   const fetchWatchlist = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const res = await watchlistApi.get();
+      // Diego, 2026-09-09 (perf audit): these two reads are independent
+      // (one fetches the watchlist + prices, the other the saved item
+      // order) but used to run one after another — Promise.all instead of
+      // two sequential awaits.
+      const [res, syncRes] = await Promise.all([
+        watchlistApi.get(),
+        syncApi.getAll().catch(() => null),
+      ]);
       const data = res.data as WatchlistItem[];
       if (data.length === 0 && readCache().length > 0) return;
       // Prefer server-persisted order; fall back to localStorage
-      let serverOrder: string[] = [];
-      try {
-        const syncRes = await syncApi.getAll();
-        serverOrder = syncRes.data?.watchlist_order ?? [];
-      } catch { /* ignore */ }
+      const serverOrder: string[] = syncRes?.data?.watchlist_order ?? [];
       const order = serverOrder.length ? serverOrder : readOrder();
       const ordered = applyOrder(data, order);
       if (serverOrder.length) writeOrder(serverOrder);

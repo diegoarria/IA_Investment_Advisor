@@ -1136,12 +1136,28 @@ def get_financials(symbol: str, limit: int = 5) -> dict:
                 logger.warning("get_financials(%s/%s): every provider failed — %s", sym, method_name, "; ".join(failures))
             return [], "none"
 
-        income_a,  income_prov  = fetch_best("get_income",   annual=True,  lim=limit)
-        income_q,  _            = fetch_best("get_income",   annual=False, lim=8)
-        balance_a, balance_prov = fetch_best("get_balance",  annual=True,  lim=limit)
-        balance_q, _            = fetch_best("get_balance",  annual=False, lim=8)
-        cf_a,      cf_prov      = fetch_best("get_cashflow", annual=True,  lim=limit)
-        cf_q,      _            = fetch_best("get_cashflow", annual=False, lim=8)
+        # Diego, 2026-09-09 (perf audit): these 6 statement fetches are
+        # mutually independent (each only reads `active_providers`/`sym`,
+        # none depends on another's result) but used to run one after
+        # another — this function is the base unit that company-diagnostic's
+        # peer-comparison loops repeat 10-20x per request, so every second
+        # shaved here multiplies straight through. Six short-lived threads
+        # for one already-network-bound call is cheap relative to the
+        # sequential round-trips it replaces.
+        from concurrent.futures import ThreadPoolExecutor as _TPE
+        with _TPE(max_workers=6, thread_name_prefix="get-financials") as _ex:
+            _f_income_a  = _ex.submit(fetch_best, "get_income",   True,  limit)
+            _f_income_q  = _ex.submit(fetch_best, "get_income",   False, 8)
+            _f_balance_a = _ex.submit(fetch_best, "get_balance",  True,  limit)
+            _f_balance_q = _ex.submit(fetch_best, "get_balance",  False, 8)
+            _f_cf_a      = _ex.submit(fetch_best, "get_cashflow", True,  limit)
+            _f_cf_q      = _ex.submit(fetch_best, "get_cashflow", False, 8)
+            income_a,  income_prov  = _f_income_a.result()
+            income_q,  _            = _f_income_q.result()
+            balance_a, balance_prov = _f_balance_a.result()
+            balance_q, _            = _f_balance_q.result()
+            cf_a,      cf_prov      = _f_cf_a.result()
+            cf_q,      _            = _f_cf_q.result()
 
         # Use the provider that answered the income statement as the canonical label
         best_provider = income_prov if income_prov != "none" else (balance_prov if balance_prov != "none" else cf_prov)

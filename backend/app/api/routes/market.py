@@ -1859,6 +1859,43 @@ def _compute_portfolio_returns(
         except Exception:
             pass
 
+    # Diego, 2026-09-09 (perf audit): every period except "1d" (which reuses
+    # the wide `close` fetched above) used to call _build_close_df one at a
+    # time in this loop — 8 sequential real network fetches for a single
+    # /portfolio-returns request, confirmed the single biggest contributor
+    # to Portfolio's slow load. Each call is independent (different
+    # `period1`, same `all_tickers`/`today_ts`) and _build_close_df is
+    # already internally parallel across tickers — this just also
+    # parallelizes ACROSS periods, computing each one's real cutoff first
+    # (same logic as below, unchanged) and firing all the fetches at once
+    # instead of waiting for each to finish before starting the next. The
+    # per-period cost/value math right after stays exactly as it was,
+    # sequential on the main thread — it's pure CPU work on an
+    # already-fetched DataFrame, not the bottleneck.
+    from concurrent.futures import ThreadPoolExecutor as _TPE
+    _period_cutoffs: dict[str, _pd.Timestamp] = {}
+    _period_futures: dict[str, "Future"] = {}
+    with _TPE(max_workers=len(PERIODS), thread_name_prefix="portfolio-returns-period") as _period_pool:
+        for key, delta in PERIODS:
+            if key == "1d":
+                continue
+            if key == "ytd":
+                _cutoff = ytd_start
+            elif key == "max":
+                if not _max_cutoff_str:
+                    continue
+                _cutoff = _pd.Timestamp(_max_cutoff_str)
+            elif key in _PERIOD_RELATIVEDELTA:
+                _cutoff = _pd.Timestamp(today - _PERIOD_RELATIVEDELTA[key])
+            else:
+                _cutoff = _pd.Timestamp(today - delta)
+            _cutoff = _cutoff.normalize()
+            _period_cutoffs[key] = _cutoff
+            _period_futures[key] = _period_pool.submit(_build_close_df, all_tickers, int(_cutoff.timestamp()), today_ts, interval="1d")
+        # __exit__ below blocks (shutdown(wait=True)) until every submitted
+        # fetch above has completed — the loop below then just collects
+        # already-finished results via .result(), never blocks on I/O itself.
+
     for key, delta in PERIODS:
         try:
             if key == "1d":
@@ -1879,36 +1916,16 @@ def _compute_portfolio_returns(
                 cutoff = start_row.name
                 close_for_period = close
             else:
-                if key == "ytd":
-                    cutoff = ytd_start
-                elif key == "max":
-                    if not _max_cutoff_str:
-                        continue  # no purchase date known for anything — nothing to anchor "max" to
-                    cutoff = _pd.Timestamp(_max_cutoff_str)
-                elif key in _PERIOD_RELATIVEDELTA:
-                    cutoff = _pd.Timestamp(today - _PERIOD_RELATIVEDELTA[key])
-                else:
-                    cutoff = _pd.Timestamp(today - delta)
-                # Midnight-normalize BEFORE using it for both the fetch
-                # window and the `.index >= cutoff` row filter below. Was
-                # `datetime.now() - relativedelta(...)`, which carries
-                # today's current hour/minute/second (e.g. "2026-07-17
-                # 15:34:25") — the DataFrame's own index is midnight-
-                # normalized per day, so "2026-07-17 00:00:00 >= 2026-07-17
-                # 15:34:25" is False and that day's own row got silently
-                # excluded, shifting the effective period start to the next
-                # available trading day (2026-07-20, a day the market had
-                # already risen) and changing the computed 1mo return from
-                # the real 3.85% to 4.05% — confirmed live 2026-08-18.
-                cutoff = cutoff.normalize()
-                period_start_ts = int(cutoff.timestamp())
-
-                # Fetch a window scoped tightly to THIS period instead of
-                # slicing the wide multi-year `close` fetched above for
-                # since_purchase/date-inference — a fresh request avoids any
-                # chance of the wide fetch's own caching/window returning
-                # different adjusted-close values for the same date.
-                period_close, _ = _build_close_df(all_tickers, period_start_ts, today_ts, interval="1d")
+                # cutoff already computed + midnight-normalized, and the fetch
+                # already submitted/completed, in the pre-fetch pass above —
+                # same values, same _build_close_df call, just done for every
+                # period concurrently instead of one at a time here. `key not
+                # in _period_cutoffs` only happens for "max" with no known
+                # purchase date (the pre-fetch pass `continue`s that case too).
+                if key not in _period_cutoffs:
+                    continue
+                cutoff = _period_cutoffs[key]
+                period_close, _ = _period_futures[key].result()
                 if period_close.empty:
                     continue
                 subset = period_close[period_close.index >= cutoff]
