@@ -10,7 +10,7 @@ from app.api.deps import get_current_user_id
 from app.services import ai_service
 from app.services import nif_service
 from app.api.routes.market import _get_user_profile
-from app.core.cache import cache_get, cache_set
+from app.core.cache import cache_get, cache_set, acquire_lock, release_lock
 from app.core.database import get_supabase, run_query
 from app.core.finnhub import fh_quote, fh_metrics, fh_search
 from app.core.limiter import limiter
@@ -1212,13 +1212,45 @@ async def sector_roster(sector: str, user_id: str = Depends(get_current_user_id)
             "code": "premium_required",
             "message": "La lista completa por sector es exclusiva para Premium.",
         })
-    from app.services.undervalued_screener_service import get_or_build_sector_roster
+    from app.services.undervalued_screener_service import get_sector_roster, get_or_build_sector_roster
     try:
-        result = await asyncio.to_thread(get_or_build_sector_roster, sector)
-        result["results"] = await asyncio.to_thread(_with_live_prices_bulk, result["results"])
-        return result
+        cached = await asyncio.to_thread(get_sector_roster, sector)
+        if cached["results"]:
+            cached["results"] = await asyncio.to_thread(_with_live_prices_bulk, cached["results"])
+            return cached
+
+        # Diego, 2026-09-09: "las 927 empresas tienen que estar ahí sí o
+        # sí" — a cold sector's live scan (get_or_build_sector_roster) is
+        # real, bounded work (10-worker pool, ~30-170 tickers), but for the
+        # 5 biggest sectors (Industrials 169, Financials 140, Technology
+        # 134, Consumer Discretionary 101, Healthcare 98 — together most of
+        # the 927-ticker universe) that comfortably exceeds Railway's own
+        # edge-proxy timeout (confirmed live: ~51s before a 502, well under
+        # this scan's realistic worst case) — the request died at the edge
+        # before ever getting a real answer, no matter how generous the
+        # client-side timeout was set. Dispatched as a real background task
+        # instead: returns immediately with `building: true`, the frontend
+        # polls this same endpoint again a few seconds later and gets the
+        # real, complete result once the scan (still running server-side,
+        # unaffected by the client/edge connection dropping) finishes and
+        # merges into the shared cache — every later visitor to this sector
+        # then hits the fast cache-read path above, exactly as designed.
+        # The lock stops 50 people opening the same cold sector at once
+        # from launching 50 redundant full scans.
+        lock_key = f"sectorroster_scan_lock:{sector.lower()}"
+        token = acquire_lock(lock_key, ttl=180)
+        if token is not None:
+            async def _scan_and_release():
+                try:
+                    await asyncio.to_thread(get_or_build_sector_roster, sector)
+                except Exception as exc:
+                    logger.error("sector_roster(): background scan failed for %s: %s", sector, exc, exc_info=True)
+                finally:
+                    release_lock(lock_key, token)
+            asyncio.create_task(_scan_and_release())
+        return {"results": [], "generated_at": 0, "building": True}
     except Exception as exc:
-        logger.error("sector_roster(): get_or_build_sector_roster failed: %s", exc, exc_info=True)
+        logger.error("sector_roster(): failed: %s", exc, exc_info=True)
         return {"results": [], "generated_at": 0}
 
 

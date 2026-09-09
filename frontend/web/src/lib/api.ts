@@ -546,12 +546,15 @@ export const screenerApi = {
     api.get("/api/market/screener/undervalued", { params: { sector, limit, lang, browse } }),
   // Full sector directory (every company, no margin-of-safety filter) —
   // separate from getUndervalued, which stays scoped to real opportunities.
-  // Generous timeout: a cold sector (never opened before) live-scans that
-  // sector's ~30-170 tickers on the spot (see get_or_build_sector_roster's
-  // docstring) — up to a few minutes for the largest sectors, one-time
-  // only (cached after). A warm sector is a normal fast cache read.
+  // Diego, 2026-09-09: a cold sector's live scan (up to ~170 tickers) used
+  // to run inline here and reliably exceeded Railway's own edge-proxy
+  // timeout for the biggest sectors — now dispatched as a real background
+  // task server-side (see the route), so THIS call always returns fast:
+  // either the real cached results, or `{building: true}` immediately,
+  // which the page (subvaluadas/page.tsx) polls on its own timer. No
+  // reason for a long timeout anymore.
   getSectorRoster: (sector: string) =>
-    api.get("/api/market/screener/sector-roster", { params: { sector }, timeout: 240000 }),
+    api.get("/api/market/screener/sector-roster", { params: { sector }, timeout: 20000 }),
   quickAnalysis: (query: string, lang?: string, isDefaultView?: boolean) =>
     api.get("/api/market/screener/quick-analysis", { params: { query, lang, is_default_view: isDefaultView }, timeout: 25000 }),
   // No-auth counterpart for guests (see the backend route's own docstring)

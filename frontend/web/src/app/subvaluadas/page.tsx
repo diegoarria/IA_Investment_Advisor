@@ -269,15 +269,46 @@ function SubvaluadasPageInner() {
   // this screen already uses (subvaluadas.freeGate.*).
   const [sectorTeaserCount, setSectorTeaserCount] = useState<number | null>(null);
   const [sectorSort, setSectorSort] = useState<SectorSortMode>(null);
+  // Diego, 2026-09-09: "las 927 empresas tienen que estar ahí sí o sí" — a
+  // sector nobody has opened yet gets built server-side in the background
+  // (see backend/app/api/routes/screener.py's sector_roster route; a
+  // synchronous live-scan of a 100+ ticker sector reliably exceeded
+  // Railway's own edge-proxy timeout). `building: true` means "keep
+  // polling," never an error — this state distinguishes that from a real
+  // failure so the UI says "cargando por primera vez," not "algo salió mal."
+  const [sectorBuilding, setSectorBuilding] = useState(false);
   const sortedSectorResults = useMemo(() => sortSectorResults(sectorResults, sectorSort), [sectorResults, sectorSort]);
 
   useEffect(() => {
     if (!selectedSector || authRestoring) return;
     let cancelled = false;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
     setSectorLoading(true);
     setSectorError(false);
+    setSectorBuilding(false);
     setSectorTeaserCount(null);
     setSectorSort(null);
+
+    const POLL_INTERVAL_MS = 8000;
+    const MAX_POLLS = 15; // ~2 minutes total — matches the scan's own realistic worst case
+
+    const fetchRoster = (attempt: number) => {
+      screenerApi.getSectorRoster(selectedSector!)
+        .then((rosterRes) => {
+          if (cancelled) return;
+          const rosterBody = rosterRes.data as { results?: SectorPreviewResult[]; building?: boolean };
+          if (rosterBody.building && attempt < MAX_POLLS) {
+            setSectorBuilding(true);
+            pollTimer = setTimeout(() => fetchRoster(attempt + 1), POLL_INTERVAL_MS);
+            return;
+          }
+          setSectorBuilding(false);
+          setSectorResults(rosterBody.results ?? []);
+        })
+        .catch(() => { if (!cancelled) { setSectorError(true); setSectorBuilding(false); } })
+        .finally(() => { if (!cancelled) setSectorLoading(false); });
+    };
+
     // getUndervalued (real, positive-MOS candidates) only decides the
     // free/Premium gate here (same 100%-Premium pattern as the rest of
     // this screen) — for Premium, the actual list rendered comes from
@@ -290,18 +321,15 @@ function SubvaluadasPageInner() {
         if (cancelled) return;
         const body = res.data as { is_premium: boolean; teaser_count?: number };
         if (body.is_premium) {
-          return screenerApi.getSectorRoster(selectedSector).then((rosterRes) => {
-            if (cancelled) return;
-            const rosterBody = rosterRes.data as { results?: SectorPreviewResult[] };
-            setSectorResults(rosterBody.results ?? []);
-          });
+          fetchRoster(0);
+          return;
         }
         setSectorResults([]);
         setSectorTeaserCount(body.teaser_count ?? 0);
+        setSectorLoading(false);
       })
-      .catch(() => { if (!cancelled) setSectorError(true); })
-      .finally(() => { if (!cancelled) setSectorLoading(false); });
-    return () => { cancelled = true; };
+      .catch(() => { if (!cancelled) { setSectorError(true); setSectorLoading(false); } });
+    return () => { cancelled = true; if (pollTimer) clearTimeout(pollTimer); };
   }, [selectedSector, i18n.language, authRestoring]);
 
   const handleSectorClick = (value: string) => {
@@ -567,6 +595,12 @@ function SubvaluadasPageInner() {
                   ) : sectorError ? (
                     <div className="rounded-2xl border p-6 text-center" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
                       <p className="text-sm" style={{ color: "var(--muted)" }}>{t("subvaluadas.sectors.error")}</p>
+                    </div>
+                  ) : sectorBuilding ? (
+                    <div className="flex flex-col items-center justify-center gap-3 py-16">
+                      <Loader2 className="w-7 h-7 animate-spin" style={{ color: GOLD }} />
+                      <p className="text-sm font-semibold text-center max-w-sm" style={{ color: "var(--text)" }}>{t("subvaluadas.sectors.buildingTitle")}</p>
+                      <p className="text-xs text-center max-w-xs" style={{ color: "var(--muted)" }}>{t("subvaluadas.sectors.buildingNote")}</p>
                     </div>
                   ) : sectorTeaserCount !== null ? (
                     <div className="rounded-2xl border p-6 text-center" style={{ borderColor: "rgba(212,162,76,0.25)", background: "rgba(212,162,76,0.08)" }}>
