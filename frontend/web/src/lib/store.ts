@@ -304,6 +304,17 @@ export const useAuthStore = create<AuthState>()(
       authRestoring: true,
       sessionExpired: false,
       setAuth: (token, userId) => {
+        // Diego, 2026-09-09: a real bug reported live — a guest who
+        // registers/logs in (or converts from guest browsing to a real
+        // account) kept seeing the guest-nag flashcard ("Se nota que te
+        // está gustando esto... Crea tu cuenta gratis") indefinitely,
+        // because `nuvos_guest` was only ever cleared inside clearAuth()
+        // (i.e. on logout) — setAuth() never removed it on the way IN.
+        // useGuestGateStore.showFlashcard() already re-checks this exact
+        // flag before popping the modal (guards a stale reschedule timer
+        // from firing after a real login), but that guard is worthless if
+        // the flag itself is never actually cleared on login.
+        try { localStorage.removeItem("nuvos_guest"); } catch {}
         set({ token, userId, isAuthenticated: true, authRestoring: false, sessionExpired: false });
       },
       clearAuth: async () => {
