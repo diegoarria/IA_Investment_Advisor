@@ -374,6 +374,7 @@ export const explain = {
 
 export const wrapped = {
   notifyMe: () => api.post("/api/wrapped/notify-me"),
+  getNotifyStatus: () => api.get("/api/wrapped/notify-me"),
 };
 
 export const notifications = {

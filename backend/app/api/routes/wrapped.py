@@ -189,6 +189,21 @@ async def notify_me_when_wrapped_opens(user: dict = Depends(get_current_user)):
     return {"status": "ok"}
 
 
+@router.get("/notify-me")
+async def get_wrapped_notify_status(user: dict = Depends(get_current_user)):
+    """Diego, 2026-09-09: the flashcard's confirmation ("Listo — te
+    avisamos...") must stay showing forever once a user has opted in, not
+    just for the modal session they clicked it in — so the frontend checks
+    this on load instead of relying on local component state alone."""
+    db = get_supabase()
+    res = await run_query(
+        db.table("feature_notify_optins")
+        .select("user_id")
+        .eq("user_id", user["id"]).eq("feature_key", "annual_wrapped")
+    )
+    return {"opted_in": bool(res.data)}
+
+
 @router.get("/annual")
 # TEMP TEST BYPASS — same reason/scope as _test_bypass below: Diego hit the
 # real 10/hour cap while we iterated on the mobile Wrapped screen today.

@@ -262,6 +262,14 @@ export default function ProfilePage() {
     billing.getDuoPartner().then((r) => setDuoPartner(r.data)).catch(() => {});
   }, [subStore.duoSecondaryEmail, subStore.duoInviteStatus]);
 
+  // Persisted "already opted in" state — so the flashcard shows "Listo — te
+  // avisamos apenas esté disponible" forever once clicked, not just for the
+  // modal session it was clicked in (a fresh page load used to reset it).
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    wrappedApi.getNotifyStatus().then((r) => setWrappedNotifyRequested(!!r.data?.opted_in)).catch(() => {});
+  }, [isAuthenticated]);
+
   // Consent fix, Sep 2026 — check once per profile view whether SOMEONE
   // invited ME to their Duo plan, so it's never silently auto-paired.
   useEffect(() => {
@@ -1417,7 +1425,6 @@ export default function ProfilePage() {
                     if (isWrappedWindowOpenLocal(new Date())) {
                       router.push("/wrapped");
                     } else {
-                      setWrappedNotifyRequested(false);
                       setWrappedLockedOpen(true);
                     }
                   }}

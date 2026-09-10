@@ -303,6 +303,13 @@ export default function ProfileScreen() {
     billingApi.getDuoPartner().then((r: any) => setDuoPartner(r.data)).catch(() => {});
   }, [duoSecondaryEmail, duoInviteStatus]);
 
+  // Persisted "already opted in" state — so the flashcard shows "Listo — te
+  // avisamos apenas esté disponible" forever once tapped, not just for the
+  // modal session it was tapped in (a fresh app open used to reset it).
+  useEffect(() => {
+    wrappedApi.getNotifyStatus().then((r: any) => setWrappedNotifyRequested(!!r.data?.opted_in)).catch(() => {});
+  }, []);
+
   const respondToDuoInvite = async (accept: boolean) => {
     setDuoResponding(true);
     try {
@@ -1328,7 +1335,6 @@ if (!profile) {
               if (isWrappedWindowOpenLocal(new Date())) {
                 router.push("/wrapped");
               } else {
-                setWrappedNotifyRequested(false);
                 setWrappedLockedOpen(true);
               }
             }}
