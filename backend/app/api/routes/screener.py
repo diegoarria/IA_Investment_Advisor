@@ -1008,6 +1008,17 @@ UNIVERSE = [
 _TTL        = 4 * 3600   # 4 hours — individual ticker cache
 _WEEKLY_TTL = 7 * 86400  # 7 days — weekly picks cache (one set per week per user)
 
+# asyncio.create_task() only holds a WEAK reference to the Task via the
+# event loop's internal bookkeeping — per the stdlib docs, "the event loop
+# only keeps a weak reference to the task... the task will disappear
+# mid-execution" if nothing else references it. sector_roster()'s
+# background scan (below) is the longest-lived fire-and-forget task in the
+# app (up to a few minutes for the biggest sectors), so it's the task most
+# likely to actually get garbage-collected before finishing — this set is
+# a real strong reference, cleared via add_done_callback once each task
+# completes (see sector_roster()).
+_BACKGROUND_SCAN_TASKS: set[asyncio.Task] = set()
+
 
 def _fetch_one(entry: dict) -> dict:
     ticker = entry["ticker"]
@@ -1247,7 +1258,16 @@ async def sector_roster(sector: str, user_id: str = Depends(get_current_user_id)
                     logger.error("sector_roster(): background scan failed for %s: %s", sector, exc, exc_info=True)
                 finally:
                     release_lock(lock_key, token)
-            asyncio.create_task(_scan_and_release())
+            # Bug fix (2026-09-09): the task from create_task() was never
+            # stored anywhere, so it only had asyncio's WEAK reference —
+            # real production symptom: Industrials/Communication Services/
+            # Consumer Staples (the biggest, slowest-to-scan sectors, so
+            # the task lived longest) intermittently never finished, the
+            # lock and the "no results yet" state just stuck. Storing it
+            # in a real module-level set keeps it alive until it's done.
+            task = asyncio.create_task(_scan_and_release())
+            _BACKGROUND_SCAN_TASKS.add(task)
+            task.add_done_callback(_BACKGROUND_SCAN_TASKS.discard)
         return {"results": [], "generated_at": 0, "building": True}
     except Exception as exc:
         logger.error("sector_roster(): failed: %s", exc, exc_info=True)
