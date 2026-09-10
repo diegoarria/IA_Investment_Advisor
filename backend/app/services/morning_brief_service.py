@@ -265,16 +265,6 @@ async def _top_news_for_positions(tickers: list[str], lang: str = "es") -> list[
 
 
 
-# Real Dow Jones Industrial Average constituents — an objective, real "30
-# most systemically important US companies" set (not an arbitrary pick),
-# scanned for today's earnings/dividend events instead of hitting Finnhub
-# for the full 928-ticker S&P 500 UNIVERSE every morning. Diego, 2026-08-30.
-_MORNING_BRIEF_MEGACAPS = [
-    "AAPL", "AMGN", "AMZN", "AXP", "BA", "CAT", "CRM", "CSCO", "CVX", "DIS",
-    "GS", "HD", "HON", "IBM", "JNJ", "JPM", "KO", "MCD", "MMM", "MRK",
-    "MSFT", "NKE", "NVDA", "PG", "SHW", "TRV", "UNH", "V", "VZ", "WMT",
-]
-
 # Sectors whose valuations/earnings historically move more on rate
 # decisions (higher-duration cash flows, more debt-financed growth) — used
 # only to explain REAL portfolio composition sensitivity, never to predict
@@ -351,26 +341,18 @@ def _earnings_yoy_real(ticker: str) -> Optional[dict]:
     return result
 
 
-async def _top_market_events_today(lang: str = "es") -> list[dict]:
-    """Real, market-wide top-3 events for today — NOT scoped to any one
-    user's holdings. Cached once per ET trading day and reused across
-    every Premium user's push/flashcard (single computation, not per
-    user). Diego, 2026-08-30.
+async def _top_events_for_user_today(positions: list[dict], watchlist_tickers: list[str], lang: str = "es") -> list[dict]:
+    """The day's top 3 real events for THIS user — scoped to their own
+    portfolio + watchlist tickers, plus today's real macro events (never a
+    fixed megacap list, never another user's tickers). Diego, 2026-09-10 —
+    explicit priority order: 1) macro VERY_HIGH, 2) company earnings
+    reports, 3) macro HIGH, 4) dividend payments, 5) ex-dividend dates.
+    Deduped, capped at 3, never padded when fewer real events exist today.
 
-    Combines: macro events today (FOMC/CPI/NFP/GDP — already
-    impact-classified by macro_calendar_service), plus earnings/dividend
-    events today for the real Dow 30 (_MORNING_BRIEF_MEGACAPS). Ranked
-    macro VERY_HIGH/HIGH > earnings > dividend > macro MEDIUM/LOW,
-    deduped, capped at 3 — never padded when fewer real events exist."""
-    from app.core.cache import cache_get, cache_set
-    import zoneinfo
-    today_et = datetime.now(zoneinfo.ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
-
-    cache_key = f"morning_brief_top_events:{lang}:{today_et}"
-    cached = cache_get(cache_key)
-    if cached is not None:
-        return cached
-
+    Per-user, not cached across users like the old megacap-based version —
+    same per-ticker sequential fetch pattern weekly_rituals_service.py's
+    _week_events_for_user already uses (each call is itself cached inside
+    _fetch_events_for_symbol, so this stays cheap in practice)."""
     candidates: list[tuple[int, dict]] = []
 
     try:
@@ -379,33 +361,39 @@ async def _top_market_events_today(lang: str = "es") -> list[dict]:
         for e in macro:
             if e.get("status") != "today":
                 continue
-            impact = (e.get("impact_level") or "LOW").upper()
-            rank = 0 if impact in ("VERY_HIGH", "HIGH") else (3 if impact == "MEDIUM" else 4)
+            impact = (e.get("impact_level") or "").upper()
+            if impact not in ("VERY_HIGH", "HIGH"):
+                continue  # MEDIUM/LOW never rank in the user's top 3
+            rank = 0 if impact == "VERY_HIGH" else 2
             label = e.get("event_name") or e.get("event_type")
             if label:
                 candidates.append((rank, {"type": "macro", "ticker": None, "label": label}))
     except Exception as exc:
-        logger.warning("_top_market_events_today: get_macro_events failed: %s", exc)
+        logger.warning("_top_events_for_user_today: get_macro_events failed: %s", exc)
 
-    try:
-        from app.api.routes.earnings import _fetch_earnings_calendar
+    tickers = sorted({p["ticker"] for p in positions if p.get("ticker")} | set(watchlist_tickers))
+    if tickers:
+        from app.api.routes.earnings import _fetch_events_for_symbol
         today_str = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
-        calendar = await asyncio.to_thread(_fetch_earnings_calendar, _MORNING_BRIEF_MEGACAPS)
-        for ev in calendar:
-            if ev.get("event_date") != today_str:
+
+        for ticker in tickers:
+            try:
+                events_for_ticker = await asyncio.to_thread(_fetch_events_for_symbol, ticker)
+            except Exception as exc:
+                logger.warning("_top_events_for_user_today: events fetch failed for %s: %s", ticker, exc)
                 continue
-            ticker = ev.get("ticker")
-            if not ticker:
-                continue
-            if ev.get("event_type") == "earnings":
-                reported = ev.get("eps_actual") is not None
-                yoy = _earnings_yoy_real(ticker) if reported else None
-                event = {"type": "earnings", "ticker": ticker, "reported": reported, **(yoy or {})}
-                candidates.append((1, event))
-            elif ev.get("event_type") == "dividend":
-                candidates.append((2, {"type": "dividend", "ticker": ticker}))
-    except Exception as exc:
-        logger.warning("_top_market_events_today: earnings/dividend calendar failed: %s", exc)
+            for ev in events_for_ticker:
+                if ev.get("event_date") != today_str:
+                    continue
+                etype = ev.get("event_type")
+                if etype == "earnings":
+                    reported = ev.get("eps_actual") is not None
+                    yoy = _earnings_yoy_real(ticker) if reported else None
+                    candidates.append((1, {"type": "earnings", "ticker": ticker, "reported": reported, **(yoy or {})}))
+                elif etype == "dividend":
+                    candidates.append((3, {"type": "dividend", "ticker": ticker}))
+                elif etype == "ex_dividend":
+                    candidates.append((4, {"type": "ex_dividend", "ticker": ticker}))
 
     candidates.sort(key=lambda c: c[0])
     seen: set[str] = set()
@@ -419,7 +407,6 @@ async def _top_market_events_today(lang: str = "es") -> list[dict]:
         if len(top3) == 3:
             break
 
-    cache_set(cache_key, top3, ttl=12 * 3600)
     return top3
 
 
@@ -510,6 +497,22 @@ async def _event_label_and_impact(event: dict, user_id: str, ticker_shares: dict
                     if not is_en else
                     "Depending on what they report, this could affect your position positively or negatively — let's wait for the results."
                 )
+
+    elif event["type"] == "ex_dividend" and ticker:
+        name = _ticker_company_name(ticker)
+        label = f"Fecha ex-dividendo de {name}" if not is_en else f"{name} ex-dividend date"
+        if ticker in ticker_shares:
+            impact = (
+                f"Ya tienes posición en {ticker}, así que calificas automáticamente para el próximo pago de dividendos."
+                if not is_en else
+                f"You already hold {ticker}, so you automatically qualify for the next dividend payment."
+            )
+        else:
+            impact = (
+                f"{ticker} está en tu watchlist — para calificar al próximo dividendo necesitarías tener la acción antes de hoy."
+                if not is_en else
+                f"{ticker} is on your watchlist — to qualify for the next dividend you'd need to hold the stock before today."
+            )
     else:
         label = event.get("label", "")
 
@@ -540,8 +543,15 @@ async def _events_with_impact_for_user(user_id: str, positions: list[dict], lang
     """The day's top 3 real market events, each with a personalized impact
     line grounded in this user's real portfolio (dividend $ actually paid
     to them, real earnings YoY numbers, real sector exposure) — or no
-    impact field when there's nothing real to ground one in."""
-    events = await _top_market_events_today(lang)
+    impact field when there's nothing real to ground one in.
+
+    Diego, 2026-09-10: events now come from this user's own portfolio +
+    watchlist tickers (plus real macro), not a fixed megacap list — see
+    _top_events_for_user_today's docstring for the exact priority order."""
+    watch_res = await run_query(db.table("watchlist").select("ticker").eq("user_id", user_id))
+    watchlist_tickers = [r["ticker"] for r in (watch_res.data or []) if r.get("ticker")]
+
+    events = await _top_events_for_user_today(positions, watchlist_tickers, lang)
     if not events:
         return []
 
