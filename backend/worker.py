@@ -2950,11 +2950,12 @@ async def job_weekly_prep_sunday():
 
     Diego, 2026-09-09: moved from 12:10pm ET (that slot now belongs to
     job_weekly_opportunities_push, "5 Nuevas Oportunidades") and extended
-    to ALSO reach Premium here, in addition to the existing Premium-only
-    Saturday 3:30pm ET push (job_weekly_prep_saturday_premium, "Tu semana
-    en Nuvos") — Premium users now get both. Not deduped/merged since
-    that wasn't asked for; flagging in this docstring in case that
-    overlap should be revisited."""
+    to ALSO reach Premium here. Note: the Saturday 3:30pm ET slot that
+    used to double up on Premium with this same "week ahead" framing
+    (job_weekly_prep_saturday_premium, "Tu semana en Nuvos") no longer
+    exists — Diego replaced it same day with job_saturday_engagement_push,
+    a portfolio-connected-or-not split, so the overlap this docstring used
+    to flag is resolved."""
     from app.services.weekly_rituals_service import send_weekly_prep_push
     try:
         await send_weekly_prep_push("free")
@@ -2963,16 +2964,127 @@ async def job_weekly_prep_sunday():
         logger.error("job_weekly_prep_sunday failed: %s", e)
 
 
-async def job_weekly_prep_saturday_premium():
-    """3:30 PM ET Saturdays — Nuvos Weekly Rituals: "Tu semana en Nuvos"
-    (Premium tier only), the same weekly event rollup as the Free Sunday
-    push but naming which of the user's own portfolio tickers have an
-    event. See app/services/weekly_rituals_service.py's module docstring."""
-    from app.services.weekly_rituals_service import send_weekly_prep_push
+async def job_saturday_engagement_push():
+    """3:30 PM ET Saturdays — Diego, 2026-09-09: replaces the old Premium-
+    only "Tu semana en Nuvos" (job_weekly_prep_saturday_premium). Split by
+    whether the user has a portfolio connected, not by subscription tier —
+    everyone on Weekly Rituals (notification_preferences.push_weekly_
+    rituals) gets exactly ONE of two real, non-fabricated pushes:
+
+    - Has a portfolio (a `user_portfolio` row): an Arthur-voiced recap of
+      the week's real $/% change, reusing the exact same weekly_range_
+      snapshots data/methodology as job_sunday_portfolio_review (migration
+      082) — skipped entirely if no real Monday-open/Friday-close pair
+      exists yet for that user this week (never invents a number).
+    - No portfolio: a real, cache-only count of how many opportunities are
+      live right now in Oportunidades (undervalued_screener_service.
+      get_undervalued, zero extra cost — same cached data the in-app
+      screen reads), nudging them to connect a portfolio so picks can be
+      matched to their own profile."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from app.services.undervalued_screener_service import get_undervalued
+
+    db = get_supabase()
     try:
-        await send_weekly_prep_push("premium")
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id").eq("push_weekly_rituals", True)
+        )
+        pref_uids = {r["user_id"] for r in (prefs_res.data or [])}
+        if not pref_uids:
+            return
+
+        port_res = await run_query(db.table("user_portfolio").select("user_id"))
+        has_portfolio = {r["user_id"] for r in (port_res.data or [])} & pref_uids
+        no_portfolio = pref_uids - has_portfolio
+
+        prof_res = await run_query(
+            db.table("user_profiles").select("user_id,preferred_language").in_("user_id", list(pref_uids))
+        )
+        lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (prof_res.data or [])}
+
+        sent = 0
+
+        # ── Con portafolio: recap de Arthur con el $/% real de la semana ──
+        if has_portfolio:
+            today = datetime.now(timezone.utc).date()
+            week_start = (today - timedelta(days=today.weekday())).isoformat()
+            range_res = await run_query(
+                db.table("weekly_range_snapshots")
+                .select("user_id,snapshot_type,total_value")
+                .eq("week_start", week_start)
+                .in_("user_id", list(has_portfolio))
+            )
+            close_by_user: dict[str, float] = {}
+            open_by_user: dict[str, float] = {}
+            for row in (range_res.data or []):
+                if row["snapshot_type"] == "close":
+                    close_by_user[row["user_id"]] = row["total_value"]
+                else:
+                    open_by_user[row["user_id"]] = row["total_value"]
+
+            for uid in has_portfolio:
+                total = close_by_user.get(uid)
+                prev = open_by_user.get(uid)
+                if not total or total <= 0 or not prev:
+                    continue  # sin par real apertura/cierre esta semana — nunca se inventa
+                is_en = lang_map.get(uid, "es") == "en"
+                delta = total - prev
+                pct = delta / prev * 100
+                gained = delta >= 0
+
+                if is_en:
+                    title = "💬 Arthur has a note for you"
+                    body = (
+                        f"Your portfolio is +${delta:,.0f} (+{pct:.1f}%) this week. Ask me why."
+                        if gained else
+                        f"Your portfolio is -${abs(delta):,.0f} ({pct:.1f}%) this week. Ask me why."
+                    )
+                    prefill = "Why did my portfolio move this week?"
+                else:
+                    title = "💬 Arthur tiene una nota para ti"
+                    body = (
+                        f"Tu portafolio va +${delta:,.0f} (+{pct:.1f}%) esta semana. Pregúntame por qué."
+                        if gained else
+                        f"Tu portafolio va -${abs(delta):,.0f} ({pct:.1f}%) esta semana. Pregúntame por qué."
+                    )
+                    prefill = "¿Por qué se movió mi portafolio esta semana?"
+
+                await send_push(
+                    uid, "weekly_rituals_saturday_recap", title, body,
+                    {"screen": "chat", "prefill": prefill}, db,
+                )
+                sent += 1
+                await asyncio.sleep(random.uniform(0.05, 0.15))
+
+        # ── Sin portafolio: invitación real a explorar Oportunidades ──
+        if no_portfolio:
+            data = get_undervalued(limit=10_000, sector=None, lang="es", per_sector_cap=None)
+            n = len(data.get("results") or [])
+            if n == 0:
+                logger.info("job_saturday_engagement_push: undervalued cache vacío — se omite el grupo sin portafolio")
+            else:
+                for uid in no_portfolio:
+                    is_en = lang_map.get(uid, "es") == "en"
+                    if is_en:
+                        title = "👀 Real opportunities are waiting"
+                        body = f"There are {n} real opportunities live in Nuvos right now. Connect your portfolio and I'll match them to your profile."
+                    else:
+                        title = "👀 Hay oportunidades reales esperándote"
+                        body = f"Hay {n} oportunidades reales activas ahora mismo en Nuvos. Conecta tu portafolio y te las ajusto a tu perfil."
+                    await send_push(
+                        uid, "weekly_rituals_saturday_explore", title, body,
+                        {"screen": "subvaluadas"}, db,
+                    )
+                    sent += 1
+                    await asyncio.sleep(random.uniform(0.05, 0.15))
+
+        logger.info(
+            "job_saturday_engagement_push: %d enviados (%d con portafolio, %d sin)",
+            sent, len(has_portfolio), len(no_portfolio),
+        )
     except Exception as e:
-        logger.error("job_weekly_prep_saturday_premium failed: %s", e)
+        logger.error("job_saturday_engagement_push failed: %s", e)
 
 
 async def job_saturday_reflection():
@@ -6173,7 +6285,7 @@ async def main():
     scheduler.add_job(job_daily_question,               "cron", day_of_week="sun", hour=14, minute=0,  timezone="America/New_York")
     scheduler.add_job(job_weekly_opportunities_push,     "cron", day_of_week="sun", hour=12, minute=10, timezone="America/New_York")
     scheduler.add_job(job_weekly_prep_sunday,            "cron", day_of_week="sun", hour=21, minute=0,  timezone="America/New_York")
-    scheduler.add_job(job_weekly_prep_saturday_premium,  "cron", day_of_week="sat", hour=15, minute=30, timezone="America/New_York")
+    scheduler.add_job(job_saturday_engagement_push,      "cron", day_of_week="sat", hour=15, minute=30, timezone="America/New_York")
     scheduler.add_job(job_saturday_reflection,           "cron", day_of_week="sat", hour=18, minute=0,  timezone="America/New_York")
 
     # ── AI Portfolio Manager — proactive alerts (written earlier, now scheduled) ──
