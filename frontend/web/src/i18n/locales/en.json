@@ -1358,6 +1358,11 @@
     }
   },
   "companyDiagnostic": {
+    "locked": {
+      "title": "You used your 3 free searches this week",
+      "body": "This is the real diagnostic for this company. Go Premium to see it in full, with no limits.",
+      "cta": "Go Premium"
+    },
     "header": {
       "scoreLabel": "{{score}}/100"
     },
@@ -3276,6 +3281,7 @@
     "previewWhy1": "Personalized analysis based on your risk profile and mentor...",
     "previewWhy2": "A concrete catalyst to watch in the coming weeks...",
     "previewWhy3": "Matched to your investment horizon and risk tolerance...",
+    "previewRowHint": "Full analysis available with Premium...",
     "unlockPreview": "Unlock your 5 ideas for the week",
     "unlockCta": "Unlock with Premium"
   },

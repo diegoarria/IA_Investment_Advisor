@@ -3673,6 +3673,11 @@
     }
   },
   "companyDiagnostic": {
+    "locked": {
+      "title": "You used your 3 free searches this week",
+      "body": "This is the real diagnostic for this company. Go Premium to see it in full, with no limits.",
+      "cta": "Go Premium"
+    },
     "header": {
       "scoreLabel": "{{score}}/100"
     },

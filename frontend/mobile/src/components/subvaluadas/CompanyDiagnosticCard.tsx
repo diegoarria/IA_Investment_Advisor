@@ -38,12 +38,26 @@ function DiagSectionHeader({ title, subtitle, icon, colors }: { title: string; s
   );
 }
 
-export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosticData; colors: any }) {
+export function CompanyDiagnosticCard({
+  data, colors, locked, onUnlock,
+}: {
+  data: CompanyDiagnosticData;
+  colors: any;
+  // Diego, 2026-09-09: past the free weekly search limit, the caller
+  // still passes real (never fabricated) data — this just dims everything
+  // below the name/logo/price header (rendered by the caller, app/
+  // subvaluadas/index.tsx, above this card) and shows an upgrade CTA over
+  // it, instead of the search dead-ending on an empty/blocked screen. RN
+  // has no reliable text-blur filter (same constraint as MobileWeekly
+  // Screener's own free-tier preview), so this dims via opacity, not blur.
+  locked?: boolean;
+  onUnlock?: () => void;
+}) {
   const { t } = useTranslation();
   const [assumptionsOpen, setAssumptionsOpen] = useState(false);
   const methodologyParagraphs = t("companyDiagnostic.methodology.paragraphs", { returnObjects: true }) as string[];
 
-  return (
+  const content = (
     <View>
       {/* Capa 1 — Hero (simplificado, ver CompanyDiagnosticHero.tsx) */}
       <View style={{ borderRadius: 18, padding: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
@@ -150,6 +164,32 @@ export function CompanyDiagnosticCard({ data, colors }: { data: CompanyDiagnosti
       <Text style={{ fontSize: 11, lineHeight: 16, marginTop: 16, textAlign: "center", color: colors.textDim }}>
         {t("companyDiagnostic.disclaimer")}
       </Text>
+    </View>
+  );
+
+  if (!locked) return content;
+
+  return (
+    <View>
+      <View style={{ opacity: 0.35 }} pointerEvents="none">
+        {content}
+      </View>
+      <View style={{ position: "absolute", top: 50, left: 0, right: 0, alignItems: "center", paddingHorizontal: 20 }}>
+        <View style={{ width: "100%", maxWidth: 340, borderRadius: 18, padding: 20, alignItems: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: "rgba(212,162,76,0.4)" }}>
+          <View style={{ width: 44, height: 44, borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 10, backgroundColor: "rgba(212,162,76,0.14)" }}>
+            <Ionicons name="lock-closed" size={20} color="#D4A24C" />
+          </View>
+          <Text style={{ fontSize: 14, fontWeight: "800", color: colors.text, marginBottom: 5, textAlign: "center" }}>
+            {t("companyDiagnostic.locked.title")}
+          </Text>
+          <Text style={{ fontSize: 12.5, lineHeight: 17, color: colors.textSub, marginBottom: 16, textAlign: "center" }}>
+            {t("companyDiagnostic.locked.body")}
+          </Text>
+          <TouchableOpacity onPress={onUnlock} style={{ width: "100%", borderRadius: 12, paddingVertical: 12, alignItems: "center", backgroundColor: "#D4A24C" }}>
+            <Text style={{ fontSize: 13.5, fontWeight: "800", color: "#0A0F1A" }}>{t("companyDiagnostic.locked.cta")}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 }

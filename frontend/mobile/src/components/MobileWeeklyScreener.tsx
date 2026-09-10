@@ -23,7 +23,10 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
   const s = styles();
 
   const load = useCallback(() => {
-    if (!isPremium) return;
+    // Diego, 2026-09-09: Free now fetches too — the backend returns 3 real
+    // (never fabricated) teaser tickers for Free instead of the full
+    // AI-personalized picks (see screener.py's /weekly route), so the
+    // dimmed preview below shows real data instead of an abstract skeleton.
     setLoading(true);
     screenerWeeklyApi.getWeekly(existingTickers)
       .then((res: any) => setData(res.data))
@@ -57,22 +60,25 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
 
         <View style={s.content}>
           <View style={[s.lockedPreview, { borderColor: colors.border }]}>
-            <View style={{ opacity: 0.35 }}>
-              {[0, 1, 2].map((i) => (
-                <View key={i} style={[s.pickRow, { borderTopColor: colors.border, borderTopWidth: i > 0 ? StyleSheet.hairlineWidth : 0 }]}>
+            <View style={{ opacity: 0.4 }}>
+              {(data?.picks?.length ? data.picks.slice(0, 3) : [null, null, null]).map((pick: any, i: number) => (
+                <View key={pick?.ticker ?? i} style={[s.pickRow, { borderTopColor: colors.border, borderTopWidth: i > 0 ? StyleSheet.hairlineWidth : 0 }]}>
                   <View style={[s.rankBox, { backgroundColor: TOOL_COLOR + "15" }]}>
                     <Text style={[s.rank, { color: TOOL_COLOR }]}>{i + 1}</Text>
                   </View>
                   <View style={{ flex: 1, gap: 6 }}>
-                    <View style={{ flexDirection: "row", gap: 6 }}>
-                      <View style={[s.skeletonBar, { width: 46, height: 12, backgroundColor: colors.textMuted }]} />
-                      <View style={[s.skeletonBar, { width: 60, height: 12, backgroundColor: colors.border }]} />
+                    <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                      <Text style={[s.ticker, { color: colors.text }]}>{pick?.ticker ?? "TICK"}</Text>
+                      {pick?.sector && (
+                        <View style={[s.sectorBadge, { backgroundColor: colors.bgRaised }]}>
+                          <Text style={[s.sector, { color: colors.textMuted }]}>{pick.sector}</Text>
+                        </View>
+                      )}
                     </View>
                     <View style={[s.skeletonBar, { width: "80%", height: 9, backgroundColor: colors.border }]} />
                   </View>
-                  <View style={{ alignItems: "flex-end", gap: 6 }}>
-                    <View style={[s.skeletonBar, { width: 40, height: 12, backgroundColor: colors.textMuted }]} />
-                    <View style={[s.skeletonBar, { width: 32, height: 9, backgroundColor: colors.border }]} />
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={[s.price, { color: colors.text }]}>{pick?.price != null ? `$${pick.price.toFixed(2)}` : "$—.—"}</Text>
                   </View>
                 </View>
               ))}

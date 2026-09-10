@@ -3673,6 +3673,11 @@
     }
   },
   "companyDiagnostic": {
+    "locked": {
+      "title": "Usaste tus 3 búsquedas gratis de esta semana",
+      "body": "Este es el diagnóstico real de esta empresa. Actívate Premium para verlo completo, sin límites.",
+      "cta": "Activar Premium"
+    },
     "header": {
       "scoreLabel": "{{score}}/100"
     },

@@ -267,7 +267,12 @@ export default function SubvaluadasScreen() {
             {/* CompanyDiagnosticCard — LA ÚNICA tarjeta de valoración de esta
                 pantalla, igual que web (Diego, "siempre siempre siempre"). */}
             {valuationPanelMode === "diagnostic" ? (
-            <CompanyDiagnosticCard data={companyDiagnostic!} colors={viColors} />
+            <CompanyDiagnosticCard
+              data={companyDiagnostic!}
+              colors={viColors}
+              locked={!!companyDiagnostic!.locked}
+              onUnlock={() => setPaywallOpen(true)}
+            />
           ) : valuationPanelMode === "loading" ? (
             <View style={{ borderRadius: 16, borderWidth: 1, borderColor: viColors.border, backgroundColor: viColors.card, paddingVertical: 40, alignItems: "center" }}>
               <ActivityIndicator size="large" color={GOLD} />

@@ -10,14 +10,16 @@ import { useTranslation } from "react-i18next";
 
 interface Pick {
   ticker: string;
-  name: string;
+  name?: string;
   sector: string;
-  price: number;
-  change_pct: number;
-  score: number;
-  why: string;
-  catalyst: string;
-  risk: string;
+  price: number | null;
+  // null for Free's real-but-unlabeled teaser rows (screener.py's /weekly
+  // route) — only Premium's AI-generated picks carry a narrative.
+  change_pct?: number | null;
+  score?: number;
+  why?: string | null;
+  catalyst?: string | null;
+  risk?: string | null;
 }
 
 interface WeeklyData {
@@ -44,9 +46,12 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
   const [expanded, setExpanded]  = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!isPremium) return;
     setLoading(true);
     try {
+      // Diego, 2026-09-09: Free users now fetch too — the backend returns 3
+      // real (never fabricated) teaser tickers for them instead of the full
+      // AI-personalized picks (see screener.py's /weekly route), so the
+      // blurred preview below shows real data, not hardcoded placeholders.
       const res = await screenerApi.getWeekly(tickers);
       setData(res.data);
     } catch {
@@ -61,16 +66,12 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
   };
 
   if (!isPremium) {
-    // Diego, 2026-08-30: blurred preview instead of a plain locked card —
-    // the rows below are generic placeholder text, never real picks (the
-    // backend itself now refuses to generate/send real Screener Semanal
-    // data to a Free user, see screener.py's /weekly route), so blurring
-    // is purely a visual "there's something real here" cue, not a leak.
-    const previewWhy = [
-      t("weeklyScreenerCard.previewWhy1"),
-      t("weeklyScreenerCard.previewWhy2"),
-      t("weeklyScreenerCard.previewWhy3"),
-    ];
+    // Diego, 2026-09-09: blurred preview of 3 REAL tickers (never
+    // fabricated) — the backend's /weekly route returns real, zero-AI-cost
+    // candidates for Free (see screener.py's docstring: reuses the same
+    // real DCF-backed picker the Sunday push uses), so what's blurred here
+    // is genuinely this user's own data, not a generic placeholder.
+    const previewRows = data?.picks?.length ? data.picks.slice(0, 3) : [null, null, null];
     return (
       <div
         onClick={onUpgrade}
@@ -105,21 +106,24 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
           {/* Blurred preview */}
           <div className="relative rounded-2xl border overflow-hidden mb-5" style={{ borderColor: "var(--border)" }}>
             <div className="pointer-events-none select-none" style={{ filter: "blur(6px)" }} aria-hidden="true">
-              {previewWhy.map((why, i, arr) => (
-                <div key={i}
+              {previewRows.map((pick, i, arr) => (
+                <div key={pick?.ticker ?? i}
                      className="flex items-center gap-3 px-4 py-3.5"
                      style={{ borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none" }}>
                   <span className="text-xs font-black w-4 text-center shrink-0" style={{ color: "var(--dim)" }}>{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm" style={{ color: "var(--text)" }}>TICK</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--raised)", color: "var(--muted)" }}>Sector</span>
+                      <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{pick?.ticker ?? "TICK"}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--raised)", color: "var(--muted)" }}>{pick?.sector ?? "Sector"}</span>
                     </div>
-                    <p className="text-[11px] mt-0.5 leading-snug truncate" style={{ color: "var(--sub)" }}>{why}</p>
+                    <p className="text-[11px] mt-0.5 leading-snug truncate" style={{ color: "var(--sub)" }}>
+                      {t("weeklyScreenerCard.previewRowHint")}
+                    </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-sm font-bold" style={{ color: "var(--text)" }}>$—.—</p>
-                    <p className="text-[10px]" style={{ color: "var(--muted)" }}>+—.—%</p>
+                    <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
+                      {pick?.price != null ? `$${pick.price.toFixed(2)}` : "$—.—"}
+                    </p>
                   </div>
                 </div>
               ))}

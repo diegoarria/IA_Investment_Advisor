@@ -122,6 +122,10 @@ export type ShadowDualTrack =
     };
 
 export interface CompanyDiagnosticData {
+  // Diego, 2026-09-09: set when this search was past the free weekly VI
+  // search limit — data is still real (never fabricated); the card dims
+  // everything but name/logo/price and shows an upgrade CTA.
+  locked?: boolean;
   ticker: string;
   companyName: string;
   sector: string;

@@ -2308,7 +2308,7 @@ _FREE_VI_SEARCH_LIMIT = 3
 _VI_SEARCH_WINDOW_HOURS = 24 * 7  # 1 week
 
 
-async def _check_and_increment_vi_search_limit(user_id: str, profile) -> None:
+async def _check_and_increment_vi_search_limit(user_id: str, profile) -> bool:
     """Free users get 3 Valor Intrínseco searches per rolling 7-day window
     (raised from 2 to 3, Diego, 2026-08-19: explicit revision of the Aug 16
     spec's original limit — "esas 3 búsquedas x semana"), on top of the
@@ -2316,7 +2316,16 @@ async def _check_and_increment_vi_search_limit(user_id: str, profile) -> None:
     quick_analysis, which skips this check entirely). Premium is
     unlimited — the caller checks _is_premium and skips this entirely for
     a Premium user. Same counter+window pattern as chat.py's
-    msg_count/msg_window_start free-message limit."""
+    msg_count/msg_window_start free-message limit.
+
+    Diego, 2026-09-09: past the limit, this used to hard-block with a 429
+    (nothing shown at all). Both quick_analysis and company_diagnostic
+    already compute the real deterministic numbers at zero AI cost for
+    free/guest users regardless of this counter (use_ai=is_premium, a
+    SEPARATE gate) — so blocking the 4th+ search bought no real cost
+    savings, just an empty page. Now returns whether this call is over
+    the limit instead of raising; the caller still gets the full real
+    result and blurs everything but name/logo/price client-side."""
     db = get_supabase()
     now = datetime.now(timezone.utc)
     window_start = None
@@ -2333,23 +2342,15 @@ async def _check_and_increment_vi_search_limit(user_id: str, profile) -> None:
                 "vi_search_window_start": now.isoformat(),
             }).eq("user_id", user_id)
         )
-        return
+        return False
 
     if profile.vi_search_count >= _FREE_VI_SEARCH_LIMIT:
-        reset_at = window_start + timedelta(hours=_VI_SEARCH_WINDOW_HOURS)
-        days_left = max(1, int((reset_at - now).total_seconds() / 86400))
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "code": "vi_search_limit",
-                "message": f"Ya usaste tus {_FREE_VI_SEARCH_LIMIT} búsquedas gratis de esta semana. Actívate Premium para búsquedas ilimitadas, o vuelve en {days_left} día(s).",
-                "reset_in_days": days_left,
-            },
-        )
+        return True
 
     await run_query(
         db.table("user_profiles").update({"vi_search_count": profile.vi_search_count + 1}).eq("user_id", user_id)
     )
+    return False
 
 
 def _vi_search_limit_already_exceeded(profile) -> bool:
@@ -2394,7 +2395,10 @@ def _guest_vi_search_key(guest_id: str) -> str:
     return f"guest_vi_search:{guest_id}"
 
 
-async def _check_and_increment_guest_vi_search_limit(guest_id: str) -> None:
+async def _check_and_increment_guest_vi_search_limit(guest_id: str) -> bool:
+    """Returns whether this call is over the guest's weekly limit — see
+    _check_and_increment_vi_search_limit's docstring (2026-09-09 change)
+    for why this no longer raises."""
     now = datetime.now(timezone.utc)
     key = _guest_vi_search_key(guest_id)
     entry = cache_get(key)
@@ -2407,22 +2411,14 @@ async def _check_and_increment_guest_vi_search_limit(guest_id: str) -> None:
 
     if window_start is None or (now - window_start) >= timedelta(hours=_VI_SEARCH_WINDOW_HOURS):
         cache_set(key, {"count": 1, "window_start": now.isoformat()}, ttl=_VI_SEARCH_WINDOW_HOURS * 3600)
-        return
+        return False
 
     count = entry.get("count", 0) if entry else 0
     if count >= _FREE_VI_SEARCH_LIMIT:
-        reset_at = window_start + timedelta(hours=_VI_SEARCH_WINDOW_HOURS)
-        days_left = max(1, int((reset_at - now).total_seconds() / 86400))
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "code": "vi_search_limit",
-                "message": f"Ya usaste tus {_FREE_VI_SEARCH_LIMIT} búsquedas gratis de esta semana. Crea una cuenta gratis para guardar tu historial, o vuelve en {days_left} día(s).",
-                "reset_in_days": days_left,
-            },
-        )
+        return True
 
     cache_set(key, {"count": count + 1, "window_start": window_start.isoformat()}, ttl=_VI_SEARCH_WINDOW_HOURS * 3600)
+    return False
 
 
 def _guest_vi_search_limit_already_exceeded(guest_id: str) -> bool:
@@ -2469,12 +2465,18 @@ async def quick_analysis(
     cached analysis on every request, cache hit or not.
 
     `lang` is passed explicitly by the frontend (see /undervalued's
-    docstring for why this is preferred over profile.preferred_language)."""
+    docstring for why this is preferred over profile.preferred_language).
+
+    Diego, 2026-09-09: past the free weekly search limit, this used to
+    hard-block with a 429 and show nothing. Now it still returns the real
+    result (`locked: true` added) — the frontend blurs everything but
+    name/logo/price and shows an upgrade CTA over the rest, instead of
+    the search just going nowhere."""
     from app.api.routes.chat import _is_premium
     profile = await _get_user_profile_safe(user_id)
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
-    # Free users get 1 search per week as a taste of the real feature —
+    # Free users get 3 searches per week as a taste of the real feature —
     # Premium is unlimited. Checked here (not a flat block) so the search
     # box itself is never fully behind a paywall. The screen's own default
     # AAPL view (`is_default_view`, set by the frontend only for the
@@ -2484,9 +2486,10 @@ async def quick_analysis(
     # resolved ticker) so a client can't fake `is_default_view=true` for an
     # arbitrary ticker to bypass the limit.
     is_premium = _is_premium(profile)
+    locked = False
     if not is_premium:
         if not (is_default_view and query.strip().upper() == _DEFAULT_VI_TICKER):
-            await _check_and_increment_vi_search_limit(user_id, profile)
+            locked = await _check_and_increment_vi_search_limit(user_id, profile)
 
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Escribe un ticker o nombre de empresa")
@@ -2499,6 +2502,8 @@ async def quick_analysis(
         raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
 
     result = await _quick_analysis_result(ticker, lang, use_ai=is_premium)
+    if locked:
+        result = {**result, "locked": True}
     _log_thesis_event(user_id, ticker, result)
     return result
 
@@ -2569,8 +2574,9 @@ async def quick_analysis_public(
     untouched by this at all; this only unlocks the same quick valuation
     summary a free logged-in user already gets, not the Premium ficha."""
     guest_id = (guest_id or "").strip()
+    locked = False
     if not (is_default_view and query.strip().upper() == _DEFAULT_VI_TICKER):
-        await _check_and_increment_guest_vi_search_limit(guest_id)
+        locked = await _check_and_increment_guest_vi_search_limit(guest_id)
 
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Escribe un ticker o nombre de empresa")
@@ -2583,7 +2589,10 @@ async def quick_analysis_public(
         raise HTTPException(status_code=404, detail="No se pudo identificar esa empresa/ticker")
 
     # Guests are never Premium — always the zero-token templated tier.
-    return await _quick_analysis_result(ticker, lang, use_ai=False)
+    result = await _quick_analysis_result(ticker, lang, use_ai=False)
+    if locked:
+        result = {**result, "locked": True}
+    return result
 
 
 _NIF_DASHBOARD_CACHE_TTL = _QUICK_ANALYSIS_CACHE_TTL  # same ceiling philosophy as quick-analysis
@@ -2867,16 +2876,21 @@ async def company_diagnostic(request: Request, query: str, lang: str | None = No
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
     is_premium = _is_premium(profile)
-    if not is_premium and _vi_search_limit_already_exceeded(profile):
-        raise HTTPException(status_code=403, detail={
-            "code": "premium_required",
-            "message": "La Ficha de Diagnóstico Nuvos AI es exclusiva para Premium.",
-        })
+    # Diego, 2026-09-09: past the weekly free search limit, this used to
+    # hard-403 with nothing but an upsell card. The real deterministic
+    # diagnostic already costs zero AI tokens for free/guest either way
+    # (use_ai=is_premium below, independent of this counter) — so it still
+    # computes and returns the real thing now, flagged `locked: true`; the
+    # frontend blurs everything but name/logo/price instead of showing an
+    # empty page.
+    locked = not is_premium and _vi_search_limit_already_exceeded(profile)
 
     if lang not in ("es", "en"):
         lang = getattr(profile, "preferred_language", None) or "es"
 
     diagnostic = await _company_diagnostic_result(query, lang, user_id, use_ai=is_premium)
+    if locked:
+        diagnostic = {**diagnostic, "locked": True}
     return diagnostic
 
 
@@ -2887,15 +2901,13 @@ async def company_diagnostic_public(request: Request, query: str, guest_id: str 
     same cache, gated by the same read-only weekly-allowance check keyed by
     an anonymous client-generated guest_id (see _guest_vi_search_limit_
     already_exceeded / quick_analysis_public for the identical pattern)."""
-    if _guest_vi_search_limit_already_exceeded(guest_id):
-        raise HTTPException(status_code=403, detail={
-            "code": "premium_required",
-            "message": "La Ficha de Diagnóstico Nuvos AI es exclusiva para Premium.",
-        })
+    locked = _guest_vi_search_limit_already_exceeded(guest_id)
     if lang not in ("es", "en"):
         lang = "es"
     # Guests are never Premium — always the zero-token templated tier.
     diagnostic = await _company_diagnostic_result(query, lang, None, use_ai=False)
+    if locked:
+        diagnostic = {**diagnostic, "locked": True}
     return diagnostic
 
 
@@ -2982,11 +2994,31 @@ async def weekly_picks(
     free (and cost a real Claude call on top of it). Diego, 2026-08-30 —
     Free's web/mobile card now renders its own blurred preview and never
     calls this route; this is the actual enforcement, not just UI
-    politeness."""
+    politeness.
+
+    Diego, 2026-09-09: the Free preview used to be 3 hardcoded fake rows
+    (ticker "TICK", price "$—.—"). Free now gets 3 REAL tickers instead —
+    reusing pick_weekly_opportunities_for_user, the exact same zero-AI-cost
+    real DCF-backed candidate picker the Sunday "5 Nuevas Oportunidades"
+    push already uses — with no `why`/`catalyst`/`risk` narrative (that's
+    the actual Premium AI content this route still never generates for
+    Free). `already_sent` is deliberately empty here: this is a read-only
+    display, never written to weekly_opportunities_history, so it can't
+    interfere with that push's own never-repeat guarantee."""
     from app.api.routes.chat import _is_premium
+    from app.services.undervalued_screener_service import pick_weekly_opportunities_for_user
     profile = await _get_user_profile_safe(user_id)
     if not _is_premium(profile):
-        return {"locked": True, "week_theme": None, "business_profile": None, "picks": [], "mentor_note": None, "disclaimer": None}
+        risk_tolerance = getattr(profile, "risk_tolerance", None) if profile else None
+        teaser = pick_weekly_opportunities_for_user(risk_tolerance, already_sent=set(), count=3)
+        teaser_picks = [
+            {
+                "ticker": c.get("ticker"), "sector": c.get("sector"), "price": c.get("price"),
+                "change_pct": None, "why": None, "catalyst": None, "risk": None,
+            }
+            for c in teaser
+        ]
+        return {"locked": True, "week_theme": None, "business_profile": None, "picks": teaser_picks, "mentor_note": None, "disclaimer": None}
 
     existing  = [t.strip().upper() for t in tickers.split(",") if t.strip()]
     cache_key = _weekly_cache_key(user_id)

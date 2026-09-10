@@ -196,6 +196,11 @@ export type ShadowDualTrack =
     };
 
 export interface CompanyDiagnosticData {
+  // Diego, 2026-09-09: set when this search was past the free weekly VI
+  // search limit — the data itself is still real (never fabricated), the
+  // frontend just blurs everything but name/logo/price and shows an
+  // upgrade CTA instead of the backend hard-blocking the search entirely.
+  locked?: boolean;
   ticker: string;
   companyName: string;
   sector: string;

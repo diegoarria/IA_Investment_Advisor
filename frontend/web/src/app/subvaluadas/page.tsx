@@ -40,6 +40,9 @@ import { useSubscriptionStore, useThemeStore, useAuthStore, isGuestUser, getGues
 const shouldUsePublicApi = () => isGuestUser() || !useAuthStore.getState().userId;
 
 export interface QuickAnalysisResult {
+  // Diego, 2026-09-09: past the free weekly VI search limit — data is
+  // still real, the diagnostic card below blurs its own content.
+  locked?: boolean;
   ticker: string;
   company_name: string | null;
   sector: string | null;
@@ -737,7 +740,11 @@ function SubvaluadasPageInner() {
                       cargando, o datos insuficientes) se muestra un estado
                       honesto en su lugar, nunca el diseño antiguo. */}
                   {valuationPanelMode === "diagnostic" ? (
-                    <CompanyDiagnosticCard data={companyDiagnostic!} />
+                    <CompanyDiagnosticCard
+                      data={companyDiagnostic!}
+                      locked={!!companyDiagnostic!.locked}
+                      onUnlock={() => setPaywallOpen(true)}
+                    />
                   ) : valuationPanelMode === "loading" ? (
                     <Card padding="p-10">
                       <div className="flex items-center justify-center">

@@ -12,7 +12,7 @@
 
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { BookOpen, Target } from "lucide-react";
+import { BookOpen, Lock, Target } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { CompanyDiagnosticHero } from "@/components/subvaluadas/CompanyDiagnosticHero";
@@ -35,12 +35,23 @@ function renderWithBoldNumbers(text: string): ReactNode[] {
   );
 }
 
-export function CompanyDiagnosticCard({ data }: { data: CompanyDiagnosticData }) {
+export function CompanyDiagnosticCard({
+  data, locked, onUnlock,
+}: {
+  data: CompanyDiagnosticData;
+  // Diego, 2026-09-09: past the free weekly search limit, the caller
+  // still passes real (never fabricated) data — this just blurs
+  // everything below the name/logo/price header (rendered by the caller,
+  // app/subvaluadas/page.tsx, above this card) and shows an upgrade CTA
+  // over it instead of the search dead-ending on an empty/blocked page.
+  locked?: boolean;
+  onUnlock?: () => void;
+}) {
   const { t } = useTranslation();
 
   const methodologyParagraphs = t("companyDiagnostic.methodology.paragraphs", { returnObjects: true }) as string[];
 
-  return (
+  const content = (
     <div>
       {/* Capa 1 — Hero (simplificado, ver CompanyDiagnosticHero.tsx) */}
       <Card
@@ -118,6 +129,43 @@ export function CompanyDiagnosticCard({ data }: { data: CompanyDiagnosticData })
       <p className="text-[12px] leading-relaxed mt-5 text-center" style={{ color: "var(--dim)" }}>
         {t("companyDiagnostic.disclaimer")}
       </p>
+    </div>
+  );
+
+  if (!locked) return content;
+
+  return (
+    <div className="relative">
+      <div
+        className="pointer-events-none select-none"
+        style={{ filter: "blur(7px)", opacity: 0.55 }}
+        aria-hidden="true"
+      >
+        {content}
+      </div>
+      <div className="absolute inset-0 flex items-start justify-center pt-16 px-5">
+        <div
+          className="w-full max-w-[340px] rounded-2xl p-5 text-center"
+          style={{ background: "var(--card)", border: "1px solid rgba(212,162,76,0.4)", boxShadow: "0 20px 50px -15px rgba(0,0,0,0.6)" }}
+        >
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: "rgba(212,162,76,0.14)" }}>
+            <Lock className="w-5 h-5" style={{ color: "#D4A24C" }} />
+          </div>
+          <p className="text-[14px] font-bold mb-1.5" style={{ color: "var(--text)" }}>
+            {t("companyDiagnostic.locked.title")}
+          </p>
+          <p className="text-[12.5px] leading-relaxed mb-4" style={{ color: "var(--sub)" }}>
+            {t("companyDiagnostic.locked.body")}
+          </p>
+          <button
+            onClick={onUnlock}
+            className="w-full rounded-xl py-2.5 px-4 text-[13.5px] font-bold"
+            style={{ background: "#D4A24C", color: "#0A0F1A" }}
+          >
+            {t("companyDiagnostic.locked.cta")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
