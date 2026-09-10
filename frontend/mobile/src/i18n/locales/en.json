@@ -577,6 +577,12 @@
       "subtitle": "Your annual recap as an investor",
       "cta": "View →"
     },
+    "wrappedLocked": {
+      "title": "Your Annual ScoreBoard {{year}} isn't ready yet",
+      "body": "It'll be available starting December 15 — want a notification when it is?",
+      "notifyMe": "Notify me",
+      "confirmed": "Done — we'll let you know as soon as it's ready."
+    },
     "monthlyReport": {
       "title": "Nuvos Monthly Report",
       "subtitle": "Your month as an investor, at a glance",

@@ -205,6 +205,10 @@ export const explainApi = {
     api.post("/api/explain", { screen, context, lang, text_only: textOnly }, { timeout: 25000 }),
 };
 
+export const wrappedApi = {
+  notifyMe: () => api.post("/api/wrapped/notify-me"),
+};
+
 export const notificationsApi = {
   getAll: () => api.get("/api/notifications"),
   markRead: (id: string) => api.post(`/api/notifications/${id}/read`),

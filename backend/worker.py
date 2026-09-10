@@ -3937,6 +3937,77 @@ async def job_investment_discipline_reminder():
         logger.error("job_investment_discipline_reminder failed: %s", e)
 
 
+async def job_wrapped_notify_available():
+    """9:00 AM ET, December 15 every year — the Annual ScoreBoard (Nuvos
+    Wrapped) window opens (app/core/wrapped_window.py). Diego, 2026-09-09:
+    clicking the card before this date shows a flashcard offering a
+    "recibir notificación" opt-in (POST /api/wrapped/notify-me) instead of
+    the old silent navigate-through-to-a-locked-page behavior. This is the
+    other half — pushes every user who opted in and hasn't already been
+    notified this cycle.
+
+    `notified_at` (not a row delete) tracks "already notified this cycle"
+    so an opt-in survives across years — a user who opts in once gets
+    notified every Dec 15 forever, same recurring-window philosophy as
+    is_wrapped_window_open() itself, without needing to re-opt-in annually.
+    Compares by year, not by a fixed date, since this job only ever runs
+    once (Dec 15), so any real notified_at from THIS run is already
+    current-year by construction — this guards a manual re-run/retry, not
+    a real yearly gap."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+
+    db = get_supabase()
+    try:
+        now = datetime.now(timezone.utc)
+        current_year = now.year
+
+        optins_res = await run_query(
+            db.table("feature_notify_optins")
+            .select("user_id,notified_at")
+            .eq("feature_key", "annual_wrapped")
+        )
+        rows = optins_res.data or []
+        pending_uids = [
+            r["user_id"] for r in rows
+            if not r.get("notified_at") or datetime.fromisoformat(r["notified_at"].replace("Z", "+00:00")).year < current_year
+        ]
+        if not pending_uids:
+            return
+
+        prof_res = await run_query(
+            db.table("user_profiles").select("user_id,preferred_language").in_("user_id", pending_uids)
+        )
+        lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (prof_res.data or [])}
+
+        sent = 0
+        for i, uid in enumerate(pending_uids):
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            try:
+                is_en = lang_map.get(uid, "es") == "en"
+                title = "✨ Your Annual ScoreBoard is here" if is_en else "✨ Tu Annual ScoreBoard ya está disponible"
+                body = (
+                    "Your year as an investor, recapped. Come see it."
+                    if is_en else
+                    "Tu año como inversionista, resumido. Ven a verlo."
+                )
+                await send_push(uid, "annual_scoreboard_available", title, body, {"screen": "wrapped"}, db)
+                await run_query(
+                    db.table("feature_notify_optins")
+                    .update({"notified_at": now.isoformat()})
+                    .eq("user_id", uid).eq("feature_key", "annual_wrapped")
+                )
+                sent += 1
+                await asyncio.sleep(random.uniform(0.05, 0.15))
+            except Exception as e:
+                logger.warning("job_wrapped_notify_available: failed for %s: %s", uid, e)
+
+        logger.info("job_wrapped_notify_available: %d/%d users notified", sent, len(pending_uids))
+    except Exception as e:
+        logger.error("job_wrapped_notify_available failed: %s", e)
+
+
 async def job_risk_mgmt_push():
     """3:00 PM ET Friday — push VIX spike warning + stop loss reminder when VIX > 20.
     Uses Finnhub /quote for ^VIX (yfinance blocked on Railway)."""
@@ -6236,6 +6307,7 @@ async def main():
     # 1st and 15th of each month — investment-discipline nudge, see the job's own docstring
     scheduler.add_job(job_investment_discipline_reminder, "cron", day=1,  hour=10, minute=0, timezone="America/New_York")
     scheduler.add_job(job_investment_discipline_reminder, "cron", day=15, hour=10, minute=0, timezone="America/New_York")
+    scheduler.add_job(job_wrapped_notify_available, "cron", month=12, day=15, hour=9, minute=0, timezone="America/New_York")
 
     # ── Daily habit system ──────────────────────────────────────────────────────
     scheduler.add_job(job_sunday_portfolio_review,   "cron", day_of_week="sun", hour=17, minute=0,  timezone="America/New_York")

@@ -528,6 +528,7 @@ _USER_DATA_TABLES = [
     "investment_graph_events", "user_investment_theses",
     "user_checklist_items", "checklist_completions", "investable_marks",
     "smart_alert_state", "weekly_range_snapshots", "weekly_opportunities_history",
+    "feature_notify_optins",
 ]
 
 

@@ -577,6 +577,12 @@
       "subtitle": "Tu resumen anual como inversor",
       "cta": "Ver →"
     },
+    "wrappedLocked": {
+      "title": "Tu Annual ScoreBoard {{year}} aún no está disponible",
+      "body": "Estará disponible a partir del 15 de diciembre, ¿deseas recibir una notificación?",
+      "notifyMe": "Recibir notificación",
+      "confirmed": "Listo — te avisamos apenas esté disponible."
+    },
     "monthlyReport": {
       "title": "Nuvos Monthly Report",
       "subtitle": "Tu mes como inversionista, en un vistazo",

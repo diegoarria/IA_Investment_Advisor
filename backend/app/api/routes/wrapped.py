@@ -170,6 +170,25 @@ async def _real_ytd_return(positions: list[dict]) -> float | None:
     return result.get("period_pct")
 
 
+@router.post("/notify-me")
+async def notify_me_when_wrapped_opens(user: dict = Depends(get_current_user)):
+    """Diego, 2026-09-09: clicking the Annual ScoreBoard card outside the
+    Dec 15–Jan 15 window shows a flashcard ("aún no está disponible... ¿deseas
+    recibir una notificación?") instead of navigating through to the locked
+    /wrapped page. This is what that button calls — an idempotent opt-in
+    (upsert, not insert) into feature_notify_optins under feature_key
+    "annual_wrapped". worker.py's job_wrapped_notify_available reads this
+    table once the window opens (Dec 15) and pushes every opted-in user who
+    hasn't already been notified for the current cycle (see that table's
+    `notified_at` column, migration 095)."""
+    db = get_supabase()
+    await run_query(
+        db.table("feature_notify_optins")
+        .upsert({"user_id": user["id"], "feature_key": "annual_wrapped"}, on_conflict="user_id,feature_key")
+    )
+    return {"status": "ok"}
+
+
 @router.get("/annual")
 # TEMP TEST BYPASS — same reason/scope as _test_bypass below: Diego hit the
 # real 10/hour cap while we iterated on the mobile Wrapped screen today.

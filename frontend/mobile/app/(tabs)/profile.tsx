@@ -14,7 +14,7 @@ import { getMentorInfo } from "../../src/lib/mentorData";
 import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
 import PaywallModal from "../../src/components/PaywallModal";
-import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, billingApi, voiceCallsApi } from "../../src/lib/api";
+import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, billingApi, voiceCallsApi, wrappedApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -28,6 +28,19 @@ const LANGUAGE_OPTIONS: { key: Language; label: string; icon: string; color: str
 ];
 
 const _fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+
+// Mirrors backend/app/core/wrapped_window.py's is_wrapped_window_open — a
+// local check so the card can decide instantly whether to navigate to the
+// real /wrapped screen or show the "not available yet" flashcard, no extra
+// round-trip. The backend still enforces the real gate (404
+// wrapped_window_closed) on /api/wrapped/annual.
+function isWrappedWindowOpenLocal(d: Date): boolean {
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  if (month === 12) return day >= 15;
+  if (month === 1) return day <= 15;
+  return false;
+}
 
 const START_SCREEN_ICONS = [
   { key: "home",          icon: "home-outline",          color: "#00d47e" },
@@ -266,6 +279,8 @@ export default function ProfileScreen() {
   const [tutorialFromProfile, setTutorialFromProfile] = useState(false);
   const [savingLevel, setSavingLevel] = useState(false);
   const [psyEditField, setPsyEditField] = useState<string | null>(null);
+  const [wrappedLockedOpen, setWrappedLockedOpen] = useState(false);
+  const [wrappedNotifyRequested, setWrappedNotifyRequested] = useState(false);
   const [savingPsy, setSavingPsy] = useState(false);
   const [duoSecondaryEmail, setDuoSecondaryEmail] = useState<string | null>(null);
   const [duoPending, setDuoPending] = useState(false);
@@ -1309,7 +1324,14 @@ if (!profile) {
         {/* ── NUVOS WRAPPED ── */}
         <View style={[s.section, { marginBottom: 0 }]}>
           <TouchableOpacity
-            onPress={() => router.push("/wrapped")}
+            onPress={() => {
+              if (isWrappedWindowOpenLocal(new Date())) {
+                router.push("/wrapped");
+              } else {
+                setWrappedNotifyRequested(false);
+                setWrappedLockedOpen(true);
+              }
+            }}
             activeOpacity={0.85}
             style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 20, backgroundColor: "rgba(0,212,126,0.06)", borderWidth: 1, borderColor: "rgba(0,212,126,0.2)" }}
           >
@@ -1323,6 +1345,48 @@ if (!profile) {
             <Text style={{ fontSize: 13, fontWeight: "900", color: "#00d47e" }}>{t("profile.wrapped.cta")}</Text>
           </TouchableOpacity>
         </View>
+
+        {/* ── NUVOS WRAPPED — "not available yet" flashcard ── */}
+        <Modal visible={wrappedLockedOpen} transparent animationType="fade" onRequestClose={() => setWrappedLockedOpen(false)}>
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center", padding: 24 }}
+            activeOpacity={1}
+            onPress={() => setWrappedLockedOpen(false)}
+          >
+            <View
+              onStartShouldSetResponder={() => true}
+              style={{ width: "100%", maxWidth: 380, borderRadius: 24, padding: 24, backgroundColor: colors.card, borderWidth: 1, borderColor: "rgba(0,232,135,0.25)", alignItems: "center" }}
+            >
+              <TouchableOpacity
+                onPress={() => setWrappedLockedOpen(false)}
+                style={{ position: "absolute", top: 14, right: 14, width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(127,127,127,0.08)" }}
+              >
+                <Ionicons name="close" size={16} color={colors.textMuted} />
+              </TouchableOpacity>
+              <Text style={{ fontSize: 30, marginBottom: 10 }}>✨</Text>
+              <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text, textAlign: "center", marginBottom: 8 }}>
+                {t("profile.wrappedLocked.title", { year: new Date().getFullYear() })}
+              </Text>
+              <Text style={{ fontSize: 13.5, color: colors.textMuted, textAlign: "center", lineHeight: 19, marginBottom: 20 }}>
+                {t("profile.wrappedLocked.body")}
+              </Text>
+              {wrappedNotifyRequested ? (
+                <Text style={{ fontSize: 13.5, fontWeight: "800", color: "#00d47e" }}>{t("profile.wrappedLocked.confirmed")}</Text>
+              ) : (
+                <TouchableOpacity
+                  onPress={async () => {
+                    setWrappedNotifyRequested(true);
+                    try { await wrappedApi.notifyMe(); } catch { /* opt-in is best-effort; button already reflects success */ }
+                  }}
+                  style={{ width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 16, paddingVertical: 14, backgroundColor: "#00d47e" }}
+                >
+                  <Ionicons name="notifications" size={16} color="#04140c" />
+                  <Text style={{ fontSize: 14, fontWeight: "900", color: "#04140c" }}>{t("profile.wrappedLocked.notifyMe")}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </TouchableOpacity>
+        </Modal>
 
         {/* ── NUVOS MONTHLY REPORT — monthly counterpart to Wrapped ── */}
         <View style={[s.section, { marginBottom: 0 }]}>

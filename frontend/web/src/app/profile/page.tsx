@@ -11,7 +11,7 @@ import {
   useAuthStore, useProfileStore, useSubscriptionStore, useNotificationStore,
   useThemeStore, useLanguageStore, useGuestGateStore, isGuestUser, msgsRemaining, FREE_MSG_LIMIT, maturityLabel, maturitySignalI18nKey,
 } from "@/lib/store";
-import { auth as authApi, billing, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi, voiceCallsApi } from "@/lib/api";
+import { auth as authApi, billing, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi, voiceCallsApi, wrapped as wrappedApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
 import {
@@ -22,6 +22,21 @@ import {
 import { getUserLevel, LEVEL_COLOR, getLevelLabel, LEVEL_EMOJI } from "@/lib/userLevel";
 
 const _fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+
+// Mirrors app/core/wrapped_window.py's is_wrapped_window_open — a local,
+// client-side check so the card can decide instantly whether to navigate
+// to the real /wrapped page or show the "not available yet" flashcard,
+// with no extra round-trip. The backend still enforces the real gate
+// (404 wrapped_window_closed) on /api/wrapped/annual, so a client clock
+// mismatch at worst shows the wrong one of these two UI states for a
+// moment — never a real access bypass.
+function isWrappedWindowOpenLocal(d: Date): boolean {
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  if (month === 12) return day >= 15;
+  if (month === 1) return day <= 15;
+  return false;
+}
 
 function getDuoMetricDefs(t: TFunction): { key: string; label: string; format: (v: any) => string }[] {
   return [
@@ -164,6 +179,8 @@ export default function ProfilePage() {
   const [letterOpen, setLetterOpen] = useState(false);
   const [letter, setLetter] = useState<string | null>(null);
   const [letterLoading, setLetterLoading] = useState(false);
+  const [wrappedLockedOpen, setWrappedLockedOpen] = useState(false);
+  const [wrappedNotifyRequested, setWrappedNotifyRequested] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
@@ -1396,7 +1413,14 @@ export default function ProfilePage() {
 
                 {/* Nuvos Wrapped */}
                 <button
-                  onClick={() => router.push("/wrapped")}
+                  onClick={() => {
+                    if (isWrappedWindowOpenLocal(new Date())) {
+                      router.push("/wrapped");
+                    } else {
+                      setWrappedNotifyRequested(false);
+                      setWrappedLockedOpen(true);
+                    }
+                  }}
                   className="w-full flex items-center gap-3 p-4 rounded-2xl text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
                   style={{ background: "linear-gradient(135deg, #00d47e18, #00d47e0a)", border: "1px solid #00d47e30" }}
                 >
@@ -1532,6 +1556,50 @@ export default function ProfilePage() {
             <div className="flex-1 overflow-y-auto scrollbar-thin">
               <p className="text-sm leading-relaxed italic" style={{ color: "var(--text)" }}>{letter}</p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Annual ScoreBoard (Nuvos Wrapped) — "not available yet" flashcard */}
+      {wrappedLockedOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6"
+             style={{ background: "rgba(0,0,0,0.7)" }}
+             onClick={() => setWrappedLockedOpen(false)}>
+          <div className="relative w-full max-w-[380px] rounded-3xl border p-6 text-center"
+               style={{ background: "linear-gradient(180deg, var(--card-2, var(--card)) 0%, var(--card) 100%)", borderColor: "#00e88740" }}
+               onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setWrappedLockedOpen(false)}
+              aria-label={t("profile.wrappedLocked.close")}
+              className="absolute top-4 right-4 w-[30px] h-[30px] rounded-full flex items-center justify-center"
+              style={{ background: "rgba(127,127,127,0.08)", border: "1px solid var(--border)", color: "var(--muted)" }}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+            <div className="text-3xl mb-3">✨</div>
+            <h2 className="text-lg font-black mb-2" style={{ color: "var(--text)" }}>
+              {t("profile.wrappedLocked.title", { year: new Date().getFullYear() })}
+            </h2>
+            <p className="text-sm leading-relaxed mb-5" style={{ color: "var(--muted)" }}>
+              {t("profile.wrappedLocked.body")}
+            </p>
+            {wrappedNotifyRequested ? (
+              <p className="text-sm font-bold" style={{ color: "#00e887" }}>
+                {t("profile.wrappedLocked.confirmed")}
+              </p>
+            ) : (
+              <button
+                onClick={async () => {
+                  setWrappedNotifyRequested(true);
+                  try { await wrappedApi.notifyMe(); } catch { /* opt-in is best-effort; button already reflects success */ }
+                }}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl py-3 px-4 text-sm font-extrabold"
+                style={{ color: "#04140c", background: "linear-gradient(100deg, #00e887, #00c87a)" }}
+              >
+                <Bell className="w-4 h-4" />
+                {t("profile.wrappedLocked.notifyMe")}
+              </button>
+            )}
           </div>
         </div>
       )}

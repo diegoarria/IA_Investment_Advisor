@@ -445,6 +445,13 @@
     "referralTerms": "Las recompensas se activan automáticamente en cuanto tus amigos se registran con tu código.",
     "annualScoreboard": "Annual ScoreBoard {{year}}",
     "yearAsInvestor": "Tu año como inversor en Nuvos AI",
+    "wrappedLocked": {
+      "title": "Tu Annual ScoreBoard {{year}} aún no está disponible",
+      "body": "Estará disponible a partir del 15 de diciembre, ¿deseas recibir una notificación?",
+      "notifyMe": "Recibir notificación",
+      "confirmed": "Listo — te avisamos apenas esté disponible.",
+      "close": "Cerrar"
+    },
     "view": "Ver →",
     "marketNews": "Noticias del mercado",
     "notificationsSubtitle": "Alertas de precio y actividad",

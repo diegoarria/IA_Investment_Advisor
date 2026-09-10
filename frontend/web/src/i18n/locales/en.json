@@ -445,6 +445,13 @@
     "referralTerms": "Rewards activate automatically as soon as your friends sign up with your code.",
     "annualScoreboard": "Annual ScoreBoard {{year}}",
     "yearAsInvestor": "Your year as an investor on Nuvos AI",
+    "wrappedLocked": {
+      "title": "Your Annual ScoreBoard {{year}} isn't ready yet",
+      "body": "It'll be available starting December 15 — want a notification when it is?",
+      "notifyMe": "Notify me",
+      "confirmed": "Done — we'll let you know as soon as it's ready.",
+      "close": "Close"
+    },
     "view": "View →",
     "marketNews": "Market news",
     "notificationsSubtitle": "Price alerts and activity",
