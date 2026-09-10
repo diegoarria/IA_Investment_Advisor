@@ -2,10 +2,12 @@
 Nuvos Weekly Rituals — three cadence-based touchpoints (confirmed with
 Diego before building): a daily "Pregunta del Día" (one question shared by
 every user, vote A/B, see the community %; Premium also sees Nuvos's own
-pick + a short explanation), a Sunday "Prepárate para la semana" event
-rollup (Free sees counts only, Premium sees which of their own portfolio
-tickers have an event), and a Saturday "Reflexión de la semana" (3 saved
-free-text prompts).
+pick + a short explanation), a Sunday 9pm ET "Prepárate para la semana"
+event rollup (Free sees 3 real counts — macro events, companies reporting,
+dividend payments; Premium sees the 5 most crucial events of the week,
+ranked and shown chronologically — see send_weekly_prep_push, redesigned
+2026-09-09), and a Saturday "Reflexión de la semana" (3 saved free-text
+prompts).
 
 None of this existed before — no poll/vote table, no curated-content bank,
 no weekly event rollup anywhere in the codebase (see migration
@@ -26,6 +28,39 @@ from app.core.database import get_supabase, run_query
 logger = logging.getLogger(__name__)
 
 _SUNDAY_PREP_WINDOW_DAYS = 7
+
+# Short display label per macro_calendar_service event_type, for the
+# Premium "Prepárate para la semana" top-5 (Diego, 2026-09-09) — that
+# service's own event_name is FMP's raw label ("Inflation Rate YoY (Sep)"),
+# not the short, friendly phrasing wanted in push copy.
+_MACRO_EVENT_LABEL: dict[str, dict[str, str]] = {
+    "fomc_rate_decision":     {"es": "decisión de tasas de la Fed", "en": "Fed rate decision"},
+    "cpi":                    {"es": "datos de inflación (CPI)",    "en": "CPI inflation data"},
+    "core_cpi":                {"es": "datos de inflación subyacente (Core CPI)", "en": "Core CPI inflation data"},
+    "pce":                    {"es": "datos de inflación (PCE)",    "en": "PCE inflation data"},
+    "core_pce":               {"es": "datos de inflación subyacente (Core PCE)", "en": "Core PCE inflation data"},
+    "nfp":                    {"es": "nóminas no agrícolas (NFP)",  "en": "non-farm payrolls (NFP)"},
+    "unemployment_rate":      {"es": "tasa de desempleo",           "en": "unemployment rate"},
+    "gdp":                    {"es": "dato de PIB",                 "en": "GDP data"},
+    "ism_manufacturing_pmi":  {"es": "PMI manufacturero",           "en": "manufacturing PMI"},
+    "ism_services_pmi":       {"es": "PMI de servicios",            "en": "services PMI"},
+    "retail_sales":           {"es": "ventas minoristas",           "en": "retail sales"},
+    "initial_jobless_claims": {"es": "solicitudes de desempleo",    "en": "jobless claims"},
+    "ppi":                    {"es": "inflación al productor (PPI)", "en": "producer inflation (PPI)"},
+    "jolts":                  {"es": "vacantes laborales (JOLTS)",  "en": "job openings (JOLTS)"},
+}
+# Same ranking macro_calendar_service already assigns (VERY_HIGH before
+# HIGH) — reused, not reinvented, so "most crucial" tracks the one place
+# that impact ranking is actually maintained.
+_MACRO_IMPACT_PRIORITY = {"VERY_HIGH": 0, "HIGH": 1}
+_WEEKDAY_NAMES = {
+    "es": ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"],
+    "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+}
+
+
+def _weekday_name(d: date, lang: str) -> str:
+    return _WEEKDAY_NAMES["en" if lang == "en" else "es"][d.weekday()]
 
 
 def _today_et() -> date:
@@ -204,6 +239,7 @@ async def _week_events_for_user(user_id: str) -> dict:
     all_tickers = port_tickers | watch_tickers
     event_dates: set[str] = set()
     reporting_tickers: set[str] = set()
+    dividend_tickers: set[str] = set()
     portfolio_events: list[dict] = []
 
     for ticker in all_tickers:
@@ -221,6 +257,8 @@ async def _week_events_for_user(user_id: str) -> dict:
             event_dates.add(f"{ticker}:{evt_date_str}")
             if evt.get("event_type") == "earnings":
                 reporting_tickers.add(ticker)
+            elif evt.get("event_type") == "dividend":
+                dividend_tickers.add(ticker)
             if ticker in port_tickers:
                 portfolio_events.append({
                     "ticker": ticker, "event_type": evt.get("event_type"), "event_date": evt_date_str,
@@ -229,6 +267,10 @@ async def _week_events_for_user(user_id: str) -> dict:
     return {
         "total_events": len(event_dates),
         "reporting_count": len(reporting_tickers),
+        # Added 2026-09-09 for the Free/Premium "Prepárate para la semana"
+        # redesign — additive, doesn't change get_sunday_prep's existing
+        # contract for the two pre-existing keys above.
+        "dividend_count": len(dividend_tickers),
         "portfolio_events": sorted(portfolio_events, key=lambda e: e["event_date"]),
     }
 
@@ -244,19 +286,56 @@ async def get_sunday_prep(user_id: str, is_premium: bool) -> dict:
     return {"total_events": data["total_events"], "reporting_count": data["reporting_count"]}
 
 
+async def _week_macro_events() -> list[dict]:
+    """Real macro releases (CPI, NFP, FOMC, etc.) landing in the next 7
+    days — one fetch shared by every user in a send_weekly_prep_push run,
+    not user-specific. Reuses macro_calendar_service.get_macro_events (same
+    VERY_HIGH/HIGH-only filter the in-app calendar already applies — never
+    invents an impact level), dropping the synthetic market_holiday/
+    market_early_close/fed_speaker rows that aren't real scheduled data
+    releases."""
+    from app.services.macro_calendar_service import get_macro_events
+
+    today = _today_et()
+    window_end = today + timedelta(days=_SUNDAY_PREP_WINDOW_DAYS)
+    rows = await get_macro_events(days_ahead=_SUNDAY_PREP_WINDOW_DAYS + 1, lang="es")
+
+    out = []
+    for row in rows:
+        if row.get("event_type") in ("market_holiday", "market_early_close", "fed_speaker"):
+            continue
+        try:
+            d = datetime.strptime(row["date_et"], "%Y-%m-%d").date()
+        except (KeyError, ValueError):
+            continue
+        if not (today <= d <= window_end):
+            continue
+        out.append({**row, "_date": d})
+    return out
+
+
 async def send_weekly_prep_push(tier_filter: str) -> None:
     """Cron entry point — `tier_filter` is "free" or "premium". Split into
     two separate calls/schedules (Diego wants Free's "Prepárate para la
-    semana" on Sunday 12:10pm ET and Premium's "Tu semana en Nuvos" on
-    Saturday 3:30pm ET — different days, so this can no longer be one loop
-    branching per-user like the original single-Sunday-run version).
-    Free gets counts only, Premium gets the real list of which of their OWN
-    portfolio tickers have an event (never watchlist, per the confirmed
-    spec — watchlist still counts toward the total but isn't named for
-    Premium either, same "portafolio" framing the copy uses)."""
+    semana" on Sunday 9pm ET and Premium's real top-5 on the same slot —
+    different content, so this can no longer be one loop branching
+    per-user like the original single-Sunday-run version).
+
+    Diego, 2026-09-09 redesign: Free now gets 3 real counts (macro events,
+    companies reporting, dividend payments) instead of one combined
+    total; Premium gets the 5 most crucial events of the week — ranked
+    macro VERY_HIGH > macro HIGH > their own portfolio earnings > their
+    own portfolio dividends (never watchlist, same "portafolio" framing
+    as before), then the selected 5 are shown in chronological order.
+    Never invents a number or pads to 5 — a user with 3 real candidates
+    sees 3. If a user genuinely has zero real candidates for the week
+    (rare — macro alone almost always has something), the push still
+    goes out and says so honestly ("no hay ningún evento crucial") rather
+    than being silently skipped."""
     import asyncio
     import random
     from app.services.notification_engine import send_push
+    from app.services.company_names import company_name
 
     if tier_filter not in ("free", "premium"):
         raise ValueError("tier_filter debe ser 'free' o 'premium'")
@@ -291,6 +370,11 @@ async def send_weekly_prep_push(tier_filter: str) -> None:
         uid for uid in uids
         if is_premium_map.get(uid, False) == (tier_filter == "premium")
     ]
+    if not target_uids:
+        return
+
+    macro_events = await _week_macro_events()
+    macro_count = len(macro_events)
 
     sent = 0
     for i, uid in enumerate(target_uids):
@@ -298,27 +382,95 @@ async def send_weekly_prep_push(tier_filter: str) -> None:
             await asyncio.sleep(12)
         try:
             is_en = lang_map.get(uid, "es") == "en"
+            lang = "en" if is_en else "es"
             data = await _week_events_for_user(uid)
-            if data["total_events"] == 0:
-                continue  # nothing real to report — never send an empty "prepárate" push
+            reporting_count = data["reporting_count"]
+            dividend_count = data["dividend_count"]
 
-            if tier_filter == "premium":
-                title = "🔭 Your week at Nuvos" if is_en else "🔭 Tu semana en Nuvos"
-                n_port = len({e["ticker"] for e in data["portfolio_events"]})
-                if n_port:
-                    body = (
-                        f"👀 {n_port} {'companies in your portfolio have events.' if is_en else 'empresas de tu portafolio tienen eventos.'}"
-                    )
-                else:
-                    body = (
-                        f"📅 {data['total_events']} {'important events this week.' if is_en else 'eventos importantes esta semana.'}"
-                    )
-            else:
+            if tier_filter == "free":
                 title = "🔭 Get ready for the week" if is_en else "🔭 Prepárate para la semana"
+                if macro_count == 0 and reporting_count == 0 and dividend_count == 0:
+                    # Genuinely nothing real this week (rare — macro alone
+                    # almost always has something) — say so honestly
+                    # instead of silently skipping the ritual.
+                    body = (
+                        "No crucial events this week. A quiet one — good time to review your plan."
+                        if is_en else
+                        "Esta semana no hay ningún evento crucial. Una semana tranquila — buen momento para revisar tu plan."
+                    )
+                    await send_push(uid, "weekly_rituals_sunday", title, body, {"screen": "weekly-ritual/sunday"}, db)
+                    sent += 1
+                    await asyncio.sleep(random.uniform(0.05, 0.15))
+                    continue
                 if is_en:
-                    body = f"📅 {data['total_events']} important events\n📊 {data['reporting_count']} companies report"
+                    body = (
+                        f"🌐 {macro_count} macro event{'s' if macro_count != 1 else ''}\n"
+                        f"📈 {reporting_count} compan{'ies' if reporting_count != 1 else 'y'} reporting earnings\n"
+                        f"💵 {dividend_count} dividend payment{'s' if dividend_count != 1 else ''}"
+                    )
                 else:
-                    body = f"📅 {data['total_events']} eventos importantes\n📊 {data['reporting_count']} empresas reportan"
+                    empresas = "empresas reportan" if reporting_count != 1 else "empresa reporta"
+                    pagos = "pagos de dividendos" if dividend_count != 1 else "pago de dividendos"
+                    body = (
+                        f"🌐 {macro_count} evento{'s' if macro_count != 1 else ''} macro\n"
+                        f"📈 {reporting_count} {empresas} ganancias\n"
+                        f"💵 {dividend_count} {pagos}"
+                    )
+                await send_push(uid, "weekly_rituals_sunday", title, body, {"screen": "weekly-ritual/sunday"}, db)
+                sent += 1
+                await asyncio.sleep(random.uniform(0.05, 0.15))
+                continue
+
+            # ── Premium: top 5 eventos más cruciales de la semana ──
+            candidates: list[dict] = []
+            for m in macro_events:
+                candidates.append({
+                    "priority": _MACRO_IMPACT_PRIORITY.get(m.get("impact_level"), 1),
+                    "date": m["_date"],
+                    "label": (
+                        f"{_MACRO_EVENT_LABEL.get(m['event_type'], {}).get(lang, m.get('event_name', ''))}"
+                    ),
+                })
+            for evt in data["portfolio_events"]:
+                if evt.get("event_type") not in ("earnings", "dividend"):
+                    continue
+                try:
+                    evt_date = datetime.strptime(evt["event_date"], "%Y-%m-%d").date()
+                except ValueError:
+                    continue
+                name = company_name(evt["ticker"])
+                if evt["event_type"] == "earnings":
+                    label = f"{name} {'reports earnings' if is_en else 'reporta ganancias'}"
+                    priority = 2
+                else:
+                    label = f"{name} {'pays dividends' if is_en else 'paga dividendos'}"
+                    priority = 3
+                candidates.append({"priority": priority, "date": evt_date, "label": label})
+
+            if not candidates:
+                # Genuinely nothing real this week (rare — macro alone
+                # almost always has something) — say so honestly instead
+                # of silently skipping the ritual.
+                title = "🔭 Your week at Nuvos" if is_en else "🔭 Tu semana en Nuvos"
+                body = (
+                    "No crucial events this week. A quiet one — good time to review your plan."
+                    if is_en else
+                    "Esta semana no hay ningún evento crucial. Una semana tranquila — buen momento para revisar tu plan."
+                )
+                await send_push(uid, "weekly_rituals_sunday", title, body, {"screen": "weekly-ritual/sunday"}, db)
+                sent += 1
+                await asyncio.sleep(random.uniform(0.05, 0.15))
+                continue
+
+            top5 = sorted(candidates, key=lambda c: (c["priority"], c["date"]))[:5]
+            top5.sort(key=lambda c: c["date"])  # display order: chronological, not priority
+
+            title = "🔭 Your 5 key events this week" if is_en else "🔭 Tus 5 eventos clave de la semana"
+            lines = [
+                f"{idx}. {c['label']} ({_weekday_name(c['date'], lang)})"
+                for idx, c in enumerate(top5, start=1)
+            ]
+            body = "\n".join(lines)
 
             await send_push(uid, "weekly_rituals_sunday", title, body, {"screen": "weekly-ritual/sunday"}, db)
             sent += 1
