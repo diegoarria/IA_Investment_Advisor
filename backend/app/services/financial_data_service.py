@@ -1105,9 +1105,33 @@ def get_financials(symbol: str, limit: int = 5) -> dict:
     if cached:
         return cached
 
-    # Deduplication: if another thread is already fetching, wait and re-read cache
+    # Deduplication: if another thread is already fetching, wait and re-read
+    # cache. Diego, 2026-09-10 — real bug fixed: under real FMP throughput
+    # pressure (a confirmed, still-open condition — see fetch_best's own
+    # comment below about the 300/min Starter-plan cap), the first fetch
+    # can genuinely take longer than one 20s wait, so a second concurrent
+    # caller (quick_analysis and company_diagnostic fire in PARALLEL for
+    # the same search — screener.py's own docstring calls this out) used
+    # to give up after that single wait and get served a hardcoded EMPTY
+    # response, which get_fundamental_analysis then read as "insufficient
+    # data" — a false 404 for a perfectly real, liquid ticker (confirmed
+    # live: PEP). Waits up to 3 rounds (~60s total) before falling back to
+    # fetching it itself instead of silently declaring "no data" on the
+    # very first timeout — a rare duplicate fetch in that edge case is a
+    # far better trade than showing a real user a fabricated data gap.
     if not _claim(cache_key):
-        return cache_get(cache_key) or _empty_response(sym)
+        cached = cache_get(cache_key)
+        if cached:
+            return cached
+        for _ in range(2):
+            if _claim(cache_key):
+                break
+            cached = cache_get(cache_key)
+            if cached:
+                return cached
+        # Still nothing after ~60s of waiting on another thread/claim that
+        # never released — proceed to fetch it ourselves below rather than
+        # returning a fake empty result.
 
     try:
         active_providers = [p for p in _REGISTRY if p.available()]
