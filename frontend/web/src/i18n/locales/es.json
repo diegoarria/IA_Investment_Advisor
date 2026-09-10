@@ -2124,6 +2124,8 @@
       "modeScenarios": "Escenarios de Crisis",
       "modeReal": "Real, año por año (1985–hoy)",
       "estImpact": "impacto est.",
+      "showAll": "Ver los {{count}} escenarios",
+      "showLess": "Ver menos",
       "eras": {
         "all": "Todos",
         "pre1950": "Hasta 1950",

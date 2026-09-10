@@ -1752,6 +1752,7 @@ export default function PortfolioScreen() {
   // Stress Test state
   const [stressScenario, setStressScenario] = useState<string | null>(null);
   const [stressEra, setStressEra] = useState<string>("all");
+  const [showAllScenarios, setShowAllScenarios] = useState(false);
   const [stressResult, setStressResult] = useState<null | {
     total: number; stressed: number; diff: number; pct: number;
     rows: { ticker: string; invested: number; stressed: number; diff: number; pct: number; sector: string }[];
@@ -3369,7 +3370,7 @@ export default function PortfolioScreen() {
                       <View key={era.id} style={{ flexDirection: "row", alignItems: "center" }}>
                         {i > 0 && <View style={{ width: 1, height: 12, backgroundColor: colors.border }} />}
                         <TouchableOpacity
-                          onPress={() => setStressEra(era.id)}
+                          onPress={() => { setStressEra(era.id); setShowAllScenarios(false); }}
                           style={{ paddingHorizontal: 12 }}
                         >
                           <Text style={{ fontSize: 12.5, fontWeight: active ? "700" : "500", color: active ? "#00e887" : colors.textMuted }}>
@@ -3382,33 +3383,48 @@ export default function PortfolioScreen() {
                 </ScrollView>
                 {/* Scenario ledger — full-width historical drawdown rows (was a
                     horizontal-scroll chip carousel) — severity bar, year, $ impact. */}
-                <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 16, overflow: "hidden", backgroundColor: colors.card, marginBottom: 12 }}>
-                  {STRESS_SCENARIOS.filter((sc) => stressEra === "all" || sc.era === stressEra).map((sc, i) => {
-                    const severe = Math.abs(sc.default) >= 30;
-                    const severityColor = severe ? "#ef4444" : "#f59e0b";
-                    const selected = stressScenario === sc.id;
-                    return (
-                      <TouchableOpacity
-                        key={sc.id}
-                        onPress={() => runStressTest(sc.id)}
-                        style={{
-                          flexDirection: "row", alignItems: "center", gap: 12,
-                          paddingHorizontal: 16, paddingVertical: 14,
-                          borderTopWidth: i > 0 ? StyleSheet.hairlineWidth : 0, borderTopColor: colors.border,
-                          backgroundColor: selected ? severityColor + "0d" : "transparent",
-                        }}
-                      >
-                        <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, backgroundColor: severityColor }} />
-                        <Text style={{ fontSize: 18, marginLeft: 4 }}>{sc.icon}</Text>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>{sc.name}</Text>
-                          <Text style={{ fontSize: 11.5, color: colors.textMuted, marginTop: 2 }}>{sc.year}</Text>
-                        </View>
-                        <Text style={{ fontSize: 14.5, fontWeight: "700", color: severityColor }}>{sc.default}%</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                {(() => {
+                  const filteredScenarios = STRESS_SCENARIOS.filter((sc) => stressEra === "all" || sc.era === stressEra);
+                  const visibleScenarios = showAllScenarios ? filteredScenarios : filteredScenarios.slice(0, 2);
+                  return (
+                    <>
+                      <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 16, overflow: "hidden", backgroundColor: colors.card, marginBottom: 12 }}>
+                        {visibleScenarios.map((sc, i) => {
+                          const severe = Math.abs(sc.default) >= 30;
+                          const severityColor = severe ? "#ef4444" : "#f59e0b";
+                          const selected = stressScenario === sc.id;
+                          return (
+                            <TouchableOpacity
+                              key={sc.id}
+                              onPress={() => runStressTest(sc.id)}
+                              style={{
+                                flexDirection: "row", alignItems: "center", gap: 12,
+                                paddingHorizontal: 16, paddingVertical: 14,
+                                borderTopWidth: i > 0 ? StyleSheet.hairlineWidth : 0, borderTopColor: colors.border,
+                                backgroundColor: selected ? severityColor + "0d" : "transparent",
+                              }}
+                            >
+                              <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, backgroundColor: severityColor }} />
+                              <Text style={{ fontSize: 18, marginLeft: 4 }}>{sc.icon}</Text>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>{sc.name}</Text>
+                                <Text style={{ fontSize: 11.5, color: colors.textMuted, marginTop: 2 }}>{sc.year}</Text>
+                              </View>
+                              <Text style={{ fontSize: 14.5, fontWeight: "700", color: severityColor }}>{sc.default}%</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                      {filteredScenarios.length > 2 && (
+                        <TouchableOpacity onPress={() => setShowAllScenarios((s) => !s)} style={{ marginTop: -8, marginBottom: 12 }}>
+                          <Text style={{ fontSize: 11, fontWeight: "700", color: "#00e887", textDecorationLine: "underline" }}>
+                            {showAllScenarios ? t("portfolio.stressTest.showLess") : t("portfolio.stressTest.showAll", { count: filteredScenarios.length })}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
+                  );
+                })()}
 
                 {/* Fake blurred result for free users */}
                 {!isPremiumAccess && (

@@ -1136,6 +1136,7 @@ export default function PortfolioPage() {
   // Stress test
   const [stressScenario, setStressScenario] = useState<string|null>(null);
   const [stressEra, setStressEra] = useState<string>("all");
+  const [showAllScenarios, setShowAllScenarios] = useState(false);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
   type StressResult = { total:number; stressed:number; diff:number; pct:number; rows:{ticker:string;invested:number;stressed:number;diff:number;pct:number;sector:string}[] };
   const [stressResult, setStressResult] = useState<StressResult|null>(null);
@@ -3586,7 +3587,7 @@ export default function PortfolioPage() {
                         {ERAS.map((era, i) => (
                           <Fragment key={era.id}>
                             {i > 0 && <div className="shrink-0" style={{ width:1, height:12, background:"var(--border)" }} />}
-                            <button onClick={() => { setStressEra(era.id); setStressScenario(null); }}
+                            <button onClick={() => { setStressEra(era.id); setStressScenario(null); setShowAllScenarios(false); }}
                                     className="shrink-0 text-[13px] transition-colors"
                                     style={{
                                       padding: i===0 ? "0 16px 0 0" : "0 16px",
@@ -3602,34 +3603,51 @@ export default function PortfolioPage() {
                   })()}
                   {/* Scenario ledger — a full-width historical drawdown table (was a
                       chip grid) — each row: severity bar, year, name, $ impact. */}
-                  <div className="rounded-2xl border overflow-hidden" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
-                    {STRESS_SCENARIOS.filter((sc) => stressEra==="all" || sc.era===stressEra).map((sc, i) => {
-                      const severe = Math.abs(sc.default) >= 30;
-                      const severityColor = severe ? "#ef4444" : "#f59e0b";
-                      const selected = stressScenario===sc.id;
-                      return (
-                        <button key={sc.id}
-                                onClick={() => runStressTest(sc.id)}
-                                className="w-full flex items-center gap-4 px-5 py-4 text-left transition-colors relative"
-                                style={{
-                                  borderTop: i>0 ? "1px solid var(--border)" : "none",
-                                  background: selected ? severityColor+"0d" : "transparent",
-                                }}>
-                          <div className="absolute left-0 top-0 bottom-0" style={{ width:3, background:severityColor }} />
-                          <span className="text-lg leading-none shrink-0 ml-1">{sc.icon}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[14.5px] font-bold" style={{ color:"var(--text)" }}>{sc.name}</p>
-                            <p className="text-[11.5px] font-mono mt-0.5" style={{ color:"var(--muted)" }}>{sc.year}</p>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-[14.5px] font-bold" style={{ color:severityColor }}>{sc.default}%</p>
-                            <p className="text-[10.5px]" style={{ color:"var(--dim)" }}>{t("portfolio.stressTest.estImpact")}</p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 shrink-0" style={{ color:"var(--dim)" }} />
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {(() => {
+                    const filteredScenarios = STRESS_SCENARIOS.filter((sc) => stressEra==="all" || sc.era===stressEra);
+                    const visibleScenarios = showAllScenarios ? filteredScenarios : filteredScenarios.slice(0, 2);
+                    return (
+                      <>
+                        <div className="rounded-2xl border overflow-hidden" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
+                          {visibleScenarios.map((sc, i) => {
+                            const severe = Math.abs(sc.default) >= 30;
+                            const severityColor = severe ? "#ef4444" : "#f59e0b";
+                            const selected = stressScenario===sc.id;
+                            return (
+                              <button key={sc.id}
+                                      onClick={() => runStressTest(sc.id)}
+                                      className="w-full flex items-center gap-4 px-5 py-4 text-left transition-colors relative"
+                                      style={{
+                                        borderTop: i>0 ? "1px solid var(--border)" : "none",
+                                        background: selected ? severityColor+"0d" : "transparent",
+                                      }}>
+                                <div className="absolute left-0 top-0 bottom-0" style={{ width:3, background:severityColor }} />
+                                <span className="text-lg leading-none shrink-0 ml-1">{sc.icon}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[14.5px] font-bold" style={{ color:"var(--text)" }}>{sc.name}</p>
+                                  <p className="text-[11.5px] font-mono mt-0.5" style={{ color:"var(--muted)" }}>{sc.year}</p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <p className="text-[14.5px] font-bold" style={{ color:severityColor }}>{sc.default}%</p>
+                                  <p className="text-[10.5px]" style={{ color:"var(--dim)" }}>{t("portfolio.stressTest.estImpact")}</p>
+                                </div>
+                                <ChevronRight className="w-4 h-4 shrink-0" style={{ color:"var(--dim)" }} />
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {filteredScenarios.length > 2 && (
+                          <button
+                            onClick={() => setShowAllScenarios((s) => !s)}
+                            className="mt-3 text-[11px] font-bold underline underline-offset-2"
+                            style={{ color: "var(--accent-l)" }}
+                          >
+                            {showAllScenarios ? t("portfolio.stressTest.showLess") : t("portfolio.stressTest.showAll", { count: filteredScenarios.length })}
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
                   {/* Fake blurred result */}
                   {!isPremium && (
                     <div className="rounded-2xl border p-4 mt-3" style={{ borderColor:"rgba(239,68,68,0.3)", background:"var(--card)" }}>

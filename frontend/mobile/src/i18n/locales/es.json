@@ -1489,6 +1489,8 @@
     "stressTest": {
       "title": "Stress Test de Portafolio",
       "subtitle": "¿Cuánto aguantaría tu portafolio en una crisis histórica?",
+      "showAll": "Ver los {{count}} escenarios",
+      "showLess": "Ver menos",
       "impactTotal": "Impacto total estimado",
       "disclaimer": "Estimación basada en datos históricos. No garantiza resultados futuros.",
       "unlockTitle": "Desbloquea el Stress Test",
