@@ -30,7 +30,7 @@ import copy
 import logging
 from typing import Optional
 
-from app.core.cache import cache_set, cache_get_with_ts, cache_get, cache_delete
+from app.core.cache import cache_set, cache_get_with_ts, cache_get, cache_delete, acquire_lock, release_lock
 
 logger = logging.getLogger(__name__)
 
@@ -667,7 +667,7 @@ def _partition_featured_by_blurb_cache(featured: list[dict], get_earnings_period
     return to_recompute
 
 
-async def refresh_undervalued_screener() -> None:
+async def refresh_undervalued_screener(submit_blurbs: bool = True) -> None:
     """Full weekly refresh — the entire curated universe (now the real S&P
     500, see screener.py's UNIVERSE). Caches EVERY real positive-margin-of-
     safety + data-quality-gate-passing candidate (potentially 100-200+ once
@@ -688,7 +688,17 @@ async def refresh_undervalued_screener() -> None:
     how English UI users get real, non-mixed-language checklist text instead
     of either always seeing Spanish or paying for a live translation call
     per read. Nothing is finalized into a single "checklist" here — that
-    merge happens per-request, per-language, in get_undervalued()."""
+    merge happens per-request, per-language, in get_undervalued().
+
+    `submit_blurbs=False` (Diego, 2026-09-11 cost audit) skips submitting a
+    new AI blurb batch entirely — the real DCF math/roster still refreshes
+    (zero Claude cost either way), candidates needing a fresh blurb just
+    keep last week's real one (or none) until the next run with blurbs
+    enabled. Used by refresh_if_empty_on_startup so a worker restart/deploy
+    — at any hour, including after market close — can never trigger real
+    AI spend on its own; only the scheduled Sunday cron (job_refresh_
+    undervalued_screener, the default True) and an explicit admin trigger
+    actually submit blurbs."""
     from app.api.routes.screener import UNIVERSE, _latest_reported_earnings_period
     analysis_cache: dict[str, Optional[dict]] = {}
     all_results = _scan(UNIVERSE, analysis_cache=analysis_cache)
@@ -834,48 +844,80 @@ async def refresh_undervalued_screener() -> None:
     # keeps serving last week's real cached data — never a half-updated or
     # empty-blurb result.
     batch_pending = False
-    already_pending = cache_get(_PENDING_BATCH_CACHE_KEY)
-    if already_pending:
-        # Real duplicate-spend guard: a manual /admin/refresh-undervalued-
-        # screener trigger (or two redeploys close together) while a
-        # previous batch hasn't finalized yet would otherwise submit a
-        # SECOND full batch and silently orphan the first one's cost —
-        # never double-pay for the same candidates. The existing pending
-        # batch is left to finish; this run's blurb generation is skipped
-        # entirely (CACHE_KEY keeps serving last week's real data either
-        # way, same as the normal pending-batch path below).
-        logger.warning(
-            "undervalued_screener_service: batch %s already pending — skipping blurb (re)submission to avoid a duplicate batch",
-            already_pending.get("batch_id"),
-        )
-        batch_pending = True
-    elif to_recompute_blurb:
-        from app.services.ai_service import submit_candidate_blurb_batch
-        try:
-            batch_id = await submit_candidate_blurb_batch(to_recompute_blurb)
-            cache_set(_PENDING_BATCH_CACHE_KEY, {"batch_id": batch_id, "all_results": all_results}, _PENDING_BATCH_TTL)
-            logger.info(
-                "undervalued_screener_service: submitted blurb batch %s for %d candidates — refresh will finalize once it completes",
-                batch_id, len(to_recompute_blurb),
+    # Diego, 2026-09-11 (cost audit): the old check-then-set on
+    # _PENDING_BATCH_CACHE_KEY (plain cache_get, then cache_set further
+    # down) had a real TOCTOU race — two near-simultaneous callers (an
+    # admin manual trigger landing right as the Sunday cron also fires, or
+    # two admin clicks from different Railway instances) could both read
+    # "nothing pending" before either wrote the key, and both submit a
+    # real batch for the same candidates. acquire_lock is the same atomic
+    # Redis SET-NX primitive already used for this exact "only one
+    # submitter" guarantee elsewhere (e.g. screener.py's sector-roster
+    # scan lock) — held for the same TTL as the pending-batch record so a
+    # crashed submitter can't wedge this lock forever.
+    submit_lock_token = acquire_lock(f"{_PENDING_BATCH_CACHE_KEY}:lock", ttl=_PENDING_BATCH_TTL)
+    try:
+        if submit_lock_token is None:
+            # Another process is mid-way through this exact decision right
+            # now — never proceed unprotected; treat it the same as "already
+            # pending" and let that other caller be the one to submit (or not).
+            logger.warning(
+                "undervalued_screener_service: another process is deciding on blurb submission right now — "
+                "skipping this run to avoid a duplicate batch"
             )
             batch_pending = True
-        except Exception as exc:
-            # Emergency fix (Aug 15, real-money incident) — this used to fall
-            # back to _fill_blurbs_sequentially(), a real per-call loop that
-            # (a) never called log_llm_usage, so it was 100% invisible to
-            # /admin/llm-usage, and (b) could fire automatically on every
-            # worker restart via refresh_if_empty_on_startup with ZERO real
-            # users involved, silently burning real Anthropic credits any
-            # time batch submission failed for any reason. Never again:
-            # a batch failure now just skips this run's blurb generation
-            # (featured candidates keep last week's real blurb or none —
-            # same "never fabricate" discipline as everywhere else) and
-            # logs loudly so an admin investigates, instead of silently
-            # spending money nobody can see.
-            logger.error(
-                "undervalued_screener_service: batch submission failed (%s) — skipping blurb generation this run "
-                "(NOT falling back to the sequential per-call loop, see Aug 15 incident)", exc,
-            )
+        else:
+            already_pending = cache_get(_PENDING_BATCH_CACHE_KEY)
+            if already_pending:
+                # Real duplicate-spend guard: a manual /admin/refresh-undervalued-
+                # screener trigger (or two redeploys close together) while a
+                # previous batch hasn't finalized yet would otherwise submit a
+                # SECOND full batch and silently orphan the first one's cost —
+                # never double-pay for the same candidates. The existing pending
+                # batch is left to finish; this run's blurb generation is skipped
+                # entirely (CACHE_KEY keeps serving last week's real data either
+                # way, same as the normal pending-batch path below).
+                logger.warning(
+                    "undervalued_screener_service: batch %s already pending — skipping blurb (re)submission to avoid a duplicate batch",
+                    already_pending.get("batch_id"),
+                )
+                batch_pending = True
+            elif not submit_blurbs:
+                logger.info(
+                    "undervalued_screener_service: %d candidates need a fresh AI blurb but submit_blurbs=False — "
+                    "deferring to the next run with blurbs enabled (never spends Claude tokens from this path)",
+                    len(to_recompute_blurb),
+                )
+            elif to_recompute_blurb:
+                from app.services.ai_service import submit_candidate_blurb_batch
+                try:
+                    batch_id = await submit_candidate_blurb_batch(to_recompute_blurb)
+                    cache_set(_PENDING_BATCH_CACHE_KEY, {"batch_id": batch_id, "all_results": all_results}, _PENDING_BATCH_TTL)
+                    logger.info(
+                        "undervalued_screener_service: submitted blurb batch %s for %d candidates — refresh will finalize once it completes",
+                        batch_id, len(to_recompute_blurb),
+                    )
+                    batch_pending = True
+                except Exception as exc:
+                    # Emergency fix (Aug 15, real-money incident) — this used to fall
+                    # back to _fill_blurbs_sequentially(), a real per-call loop that
+                    # (a) never called log_llm_usage, so it was 100% invisible to
+                    # /admin/llm-usage, and (b) could fire automatically on every
+                    # worker restart via refresh_if_empty_on_startup with ZERO real
+                    # users involved, silently burning real Anthropic credits any
+                    # time batch submission failed for any reason. Never again:
+                    # a batch failure now just skips this run's blurb generation
+                    # (featured candidates keep last week's real blurb or none —
+                    # same "never fabricate" discipline as everywhere else) and
+                    # logs loudly so an admin investigates, instead of silently
+                    # spending money nobody can see.
+                    logger.error(
+                        "undervalued_screener_service: batch submission failed (%s) — skipping blurb generation this run "
+                        "(NOT falling back to the sequential per-call loop, see Aug 15 incident)", exc,
+                    )
+    finally:
+        if submit_lock_token is not None:
+            release_lock(f"{_PENDING_BATCH_CACHE_KEY}:lock", submit_lock_token)
 
     if not batch_pending:
         all_results = _rotate_featured_order(all_results)
@@ -1021,10 +1063,12 @@ async def refresh_if_empty_on_startup() -> None:
         return
 
     logger.info(
-        "undervalued_screener_service: screener cache%s empty at worker startup, refreshing now",
+        "undervalued_screener_service: screener cache%s empty at worker startup, refreshing now "
+        "(submit_blurbs=False — a deploy/restart must never spend Claude tokens on its own; "
+        "candidates needing a fresh blurb wait for the scheduled Sunday refresh or an explicit admin trigger)",
         "" if not screener_ts else " (full roster)",
     )
-    await refresh_undervalued_screener()
+    await refresh_undervalued_screener(submit_blurbs=False)
 
 
 def _diverse_bootstrap_sample(universe: list[dict], limit: int) -> list[dict]:

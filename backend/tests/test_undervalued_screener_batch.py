@@ -210,7 +210,8 @@ def _fake_result_item(custom_id: str, result_type: str, text: str = ""):
     result = type("Result", (), {"type": result_type})()
     if result_type == "succeeded":
         block = type("Block", (), {"text": text})()
-        message = type("Message", (), {"content": [block]})()
+        usage = type("Usage", (), {"input_tokens": 100, "output_tokens": 20})()
+        message = type("Message", (), {"content": [block], "usage": usage})()
         result.message = message
     return type("Item", (), {"custom_id": custom_id, "result": result})()
 
@@ -251,6 +252,36 @@ class TestParseCandidateBlurbBatchResults:
         assert set(results.keys()) == {"AAPL:es", "AAPL:en"}
         assert results["AAPL:es"]["blurb"] == "buena empresa"
         assert results["AAPL:en"]["blurb"] == "good company"
+
+    async def test_logs_cost_per_succeeded_item_so_it_counts_against_the_daily_cap(self, monkeypatch):
+        """Real bug fixed 2026-09-11 (cost audit): this used to never call
+        log_llm_usage at all — the weekly blurb batch's real cost was
+        invisible to both /admin/llm-usage and check_daily_spend_cap()'s
+        counter for the rest of that day. already_tracked must be False
+        (the default) here since batches bypass _claude() entirely —
+        nothing else increments the daily counter for this cost."""
+        import asyncio
+        fake_batches = _FakeBatchesAPI()
+        fake_batches._results = [
+            _fake_result_item("AAPL:es", "succeeded", '{"blurb": "buena empresa", "checklist_reasons": {}}'),
+            _fake_result_item("MSFT:es", "succeeded", '{"blurb": "great company", "checklist_reasons": {}}'),
+        ]
+        monkeypatch.setattr(ai_service.client, "messages", type("M", (), {"batches": fake_batches})())
+
+        logged_calls = []
+        async def _fake_log_llm_usage(user_id, endpoint, model, usage, already_tracked=False):
+            logged_calls.append((user_id, endpoint, model, already_tracked))
+        monkeypatch.setattr(ai_service, "log_llm_usage", _fake_log_llm_usage)
+
+        await ai_service.parse_candidate_blurb_batch_results("batch_123")
+        await asyncio.sleep(0)  # let the fire-and-forget create_task calls actually run
+
+        assert len(logged_calls) == 2
+        for user_id, endpoint, model, already_tracked in logged_calls:
+            assert user_id is None
+            assert endpoint == "candidate_blurb_batch"
+            assert model == ai_service._BLURB_MODEL
+            assert already_tracked is False
 
     async def test_a_failed_request_is_omitted_without_crashing_the_finalize_step(self, monkeypatch):
         fake_batches = _FakeBatchesAPI()
@@ -477,8 +508,8 @@ class TestStartupSelfHealNeverTriggersAISpendForBacktestAlone:
         ))
 
         ai_heavy_refresh_calls = []
-        async def _tracking_refresh():
-            ai_heavy_refresh_calls.append(True)
+        async def _tracking_refresh(submit_blurbs=True):
+            ai_heavy_refresh_calls.append(submit_blurbs)
         monkeypatch.setattr(screener_service, "refresh_undervalued_screener", _tracking_refresh)
 
         monkeypatch.setattr(screener_service, "_scan", lambda tickers, analysis_cache=None: [])
@@ -509,10 +540,14 @@ class TestStartupSelfHealNeverTriggersAISpendForBacktestAlone:
         ))
 
         ai_heavy_refresh_calls = []
-        async def _tracking_refresh():
-            ai_heavy_refresh_calls.append(True)
+        async def _tracking_refresh(submit_blurbs=True):
+            ai_heavy_refresh_calls.append(submit_blurbs)
         monkeypatch.setattr(screener_service, "refresh_undervalued_screener", _tracking_refresh)
 
         await screener_service.refresh_if_empty_on_startup()
 
-        assert ai_heavy_refresh_calls == [True]  # roster being empty must trigger the real refresh
+        # Diego, 2026-09-11 (cost audit): roster being empty must still
+        # trigger the real refresh, but a worker startup/deploy must NEVER
+        # spend a Claude token on its own — submit_blurbs=False here is the
+        # whole point of that fix.
+        assert ai_heavy_refresh_calls == [False]

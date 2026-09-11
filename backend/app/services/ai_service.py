@@ -4840,6 +4840,17 @@ async def parse_candidate_blurb_batch_results(batch_id: str) -> dict[str, dict]:
     the whole finalize step over one bad candidate; the caller's merge
     step should treat a missing key the same as `generate_candidate_blurb`
     itself failing (leave that field unset, never a fabricated blurb)."""
+    # Diego, 2026-09-11 (cost audit): this used to never call log_llm_usage
+    # at all — submit_candidate_blurb_batch's daily-spend-cap CHECK happens
+    # before submission, but nothing incremented that same counter once the
+    # batch actually completed, and nothing wrote to llm_usage_log either.
+    # Net effect: this weekly batch's real cost (up to ~110 candidates x 2
+    # langs) was invisible to both /admin/llm-usage and the circuit breaker
+    # for the rest of that day — exactly the kind of blind spot that made a
+    # real spend spike hard to explain. already_tracked=False (the default)
+    # deliberately, unlike the _claude()-routed call sites elsewhere in this
+    # file: batches bypass _claude() entirely, so nothing else increments
+    # the daily counter for this cost.
     results: dict[str, dict] = {}
     async for item in client.messages.batches.results(batch_id):
         custom_id = item.custom_id
@@ -4848,6 +4859,9 @@ async def parse_candidate_blurb_batch_results(batch_id: str) -> dict[str, dict]:
             continue
         ticker = custom_id.split(":", 1)[0] if ":" in custom_id else custom_id
         text = item.result.message.content[0].text
+        usage = getattr(item.result.message, "usage", None)
+        if usage is not None:
+            asyncio.create_task(log_llm_usage(None, "candidate_blurb_batch", _BLURB_MODEL, usage))
         results[custom_id] = _parse_blurb_response_text(text, ticker)
     return results
 

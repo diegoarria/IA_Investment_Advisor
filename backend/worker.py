@@ -2728,11 +2728,20 @@ async def job_prewarm_quick_analysis_default():
     from app.api.routes.screener import (
         _build_quick_analysis, _latest_reported_earnings_period, _quick_analysis_cache_key, _QUICK_ANALYSIS_CACHE_TTL,
     )
+    from app.api.routes.market import _is_market_open
     from app.core.cache import cache_get, cache_set
+
+    # Diego, 2026-09-11 (cost audit, "$0.000000 fuera de mercado"): the
+    # premium/use_ai=True tier is the only one that can ever spend a real
+    # Claude token here — the free tier's own cache entry is deterministic
+    # (use_ai=False). Computed once per run, not per ticker.
+    market_open = _is_market_open()
 
     for ticker in _QUICK_ANALYSIS_POPULAR_TICKERS:
         for lang in ("es", "en"):
             for tier, use_ai in (("free", False), ("premium", True)):
+                if use_ai and not market_open:
+                    continue  # never spend Claude tokens on this screen after market hours
                 try:
                     cache_key = _quick_analysis_cache_key(ticker, lang, tier=tier)
                     cached = await _cache_get_resilient(cache_get, cache_key)
@@ -2757,11 +2766,18 @@ async def job_prewarm_company_diagnostic_popular():
     from app.api.routes.screener import (
         _company_diagnostic_cache_key, _company_diagnostic_result, _latest_reported_earnings_period,
     )
+    from app.api.routes.market import _is_market_open
     from app.core.cache import cache_get
+
+    # See job_prewarm_quick_analysis_default's identical comment — computed
+    # once per run, gates the only tier that can spend a real Claude token.
+    market_open = _is_market_open()
 
     for ticker in _QUICK_ANALYSIS_POPULAR_TICKERS:
         for lang in ("es", "en"):
             for tier, use_ai in (("free", False), ("premium", True)):
+                if use_ai and not market_open:
+                    continue  # never spend Claude tokens on this screen after market hours
                 try:
                     cache_key = _company_diagnostic_cache_key(ticker, lang, tier=tier)
                     cached = await _cache_get_resilient(cache_get, cache_key)
@@ -2782,12 +2798,22 @@ async def job_prewarm_nif_dashboard_default():
     dashboard — the Oportunidades screen's default ticker must never be
     cold for either card. Separate cache entry/TTL from quick-analysis (see
     screener._nif_dashboard_cache_key), so this is its own job rather than
-    folded into the one above."""
+    folded into the one above.
+
+    Diego, 2026-09-11 (cost audit): unlike the other two prewarm jobs,
+    build_nif_dashboard has no free/deterministic tier at all — it always
+    calls 3 real AI functions (nif_service.py). So the WHOLE job (not just
+    one branch) is skipped outside market hours — this screen must never
+    spend a Claude token after close, full stop."""
     from app.api.routes.screener import (
         _latest_reported_earnings_period, _nif_dashboard_cache_key, _NIF_DASHBOARD_CACHE_TTL,
     )
+    from app.api.routes.market import _is_market_open
     from app.services import nif_service
     from app.core.cache import cache_get, cache_set
+
+    if not _is_market_open():
+        return
 
     for lang in ("es", "en"):
         try:
