@@ -1,31 +1,54 @@
 """
-Regression tests — cost audit, 2026-09-11: Diego's explicit, zero-tolerance
-requirement for the Oportunidades screen ("$0.000000... ni 1 solo gasto")
-is that NOTHING on it may spend a real Claude token after market close.
-The three cache-prewarm jobs (job_prewarm_quick_analysis_default,
-job_prewarm_company_diagnostic_popular, job_prewarm_nif_dashboard_default)
-fire immediately on every worker.py restart by design — a deploy at any
-hour must never trigger their premium/AI-tier branch when the market is
-closed. These tests lock in that gate without touching real
-Finnhub/Anthropic/Redis.
+Regression tests — cost audit, 2026-09-11. Two rounds of fixes on the
+Oportunidades screen's cache-prewarm jobs:
+
+Round 1 (superseded by round 2 for job_prewarm_quick_analysis_default and
+job_prewarm_company_diagnostic_popular, kept live for job_refresh_
+undervalued_screener): gate any AI/Premium-tier work to real market hours
+(_is_market_open()).
+
+Round 2 (this file's current state): even market-hours-gated, a cold-cache
+prewarm run of the Premium/AI tier across 20 tickers x 2 langs was real,
+unavoidable spend (~$1.30 confirmed live the moment it fired) — Diego's
+call was to stop prewarming Premium's AI narrative on a schedule
+entirely. job_prewarm_quick_analysis_default and job_prewarm_company_
+diagnostic_popular now only ever prewarm the FREE/deterministic tier
+(zero Claude cost, no market-hours gate needed). job_prewarm_nif_
+dashboard_default (100% AI, no free tier at all) is disabled outright —
+no longer registered with the scheduler.
+
+job_refresh_undervalued_screener (the Sunday weekly Oportunidades
+refresh) is untouched by round 2 — it's real, budgeted, admin-visible
+spend, not a background prewarm — and still gates its AI blurb batch to
+market hours (it's scheduled Sunday, when the market is always closed,
+so as currently scheduled it never submits one automatically).
 """
 import worker
 import app.api.routes.market as market_module
 import app.api.routes.screener as screener_module
 import app.services.undervalued_screener_service as undervalued_screener_service
-from app.services import nif_service
 
 
 def _no_cache(*args, **kwargs):
     return None
 
 
+def _fake_cache_get_resilient(fn):
+    """Wraps a plain sync function as the async signature
+    _cache_get_resilient(cache_get_fn, key) expects, always returning
+    `fn`'s result regardless of args — a stand-in for "cache is empty"
+    across every ticker/lang combo without touching Redis."""
+    async def _wrapped(cache_get_fn, key):
+        return fn(key)
+    return _wrapped
+
+
 class TestWeeklyRefreshJobRespectsMarketHoursToo:
-    """Diego, 2026-09-11: the absolute rule has no exception, including
-    this job's own real, intentional weekly AI blurb generation. It's
-    scheduled Sunday — the market is ALWAYS closed then — so as currently
-    scheduled this must never submit a blurb batch; only the real, free
-    DCF/roster refresh runs."""
+    """The absolute rule has no exception, including this job's own real,
+    intentional weekly AI blurb generation. It's scheduled Sunday — the
+    market is ALWAYS closed then — so as currently scheduled this must
+    never submit a blurb batch; only the real, free DCF/roster refresh
+    runs."""
 
     async def test_sunday_run_never_submits_blurbs(self, monkeypatch):
         monkeypatch.setattr(market_module, "_is_market_open", lambda: False)
@@ -52,9 +75,8 @@ class TestWeeklyRefreshJobRespectsMarketHoursToo:
         assert submit_blurbs_seen == [True]
 
 
-class TestQuickAnalysisPrewarmMarketHoursGate:
-    async def test_market_closed_never_builds_the_premium_ai_tier(self, monkeypatch):
-        monkeypatch.setattr(market_module, "_is_market_open", lambda: False)
+class TestQuickAnalysisPrewarmNeverSpendsClaudeAnymore:
+    async def test_only_ever_builds_the_free_tier(self, monkeypatch):
         monkeypatch.setattr(worker, "_QUICK_ANALYSIS_POPULAR_TICKERS", ["AAPL"])
         monkeypatch.setattr(worker, "_cache_get_resilient", _fake_cache_get_resilient(_no_cache))
 
@@ -71,34 +93,13 @@ class TestQuickAnalysisPrewarmMarketHoursGate:
 
         await worker.job_prewarm_quick_analysis_default()
 
-        # One ticker x 2 languages x free-tier-only — never use_ai=True
+        # One ticker x 2 languages x free-tier-only — never use_ai=True,
+        # regardless of market hours (no gate needed: zero cost either way).
         assert build_calls == [False, False]
 
-    async def test_market_open_still_builds_both_tiers(self, monkeypatch):
-        monkeypatch.setattr(market_module, "_is_market_open", lambda: True)
-        monkeypatch.setattr(worker, "_QUICK_ANALYSIS_POPULAR_TICKERS", ["AAPL"])
-        monkeypatch.setattr(worker, "_cache_get_resilient", _fake_cache_get_resilient(_no_cache))
 
-        build_calls = []
-        async def _tracking_build(ticker, lang, use_ai=True):
-            build_calls.append(use_ai)
-            return {"ticker": ticker}
-        monkeypatch.setattr(screener_module, "_build_quick_analysis", _tracking_build)
-        monkeypatch.setattr(screener_module, "_quick_analysis_cache_key", lambda ticker, lang, tier: f"k:{ticker}:{lang}:{tier}")
-        monkeypatch.setattr(screener_module, "_latest_reported_earnings_period", lambda ticker: "2026Q2")
-
-        from app.core import cache as cache_module
-        monkeypatch.setattr(cache_module, "cache_set", lambda *a, **k: None)
-
-        await worker.job_prewarm_quick_analysis_default()
-
-        # One ticker x 2 languages x both tiers — market is open
-        assert sorted(build_calls) == [False, False, True, True]
-
-
-class TestCompanyDiagnosticPrewarmMarketHoursGate:
-    async def test_market_closed_never_builds_the_premium_ai_tier(self, monkeypatch):
-        monkeypatch.setattr(market_module, "_is_market_open", lambda: False)
+class TestCompanyDiagnosticPrewarmNeverSpendsClaudeAnymore:
+    async def test_only_ever_builds_the_free_tier(self, monkeypatch):
         monkeypatch.setattr(worker, "_QUICK_ANALYSIS_POPULAR_TICKERS", ["AAPL"])
         monkeypatch.setattr(worker, "_cache_get_resilient", _fake_cache_get_resilient(_no_cache))
 
@@ -115,48 +116,12 @@ class TestCompanyDiagnosticPrewarmMarketHoursGate:
         assert result_calls == [False, False]  # 2 languages, free-tier-only
 
 
-class TestNifDashboardPrewarmMarketHoursGate:
-    async def test_market_closed_skips_the_whole_job(self, monkeypatch):
-        # build_nif_dashboard has no free/deterministic tier at all — it's
-        # always 3 real AI calls, so the whole job must no-op outside
-        # market hours, not just one branch of it.
-        monkeypatch.setattr(market_module, "_is_market_open", lambda: False)
+class TestNifDashboardPrewarmIsDisabled:
+    """No longer registered with the scheduler at all (see main()) — this
+    just documents why: it's 100% AI, no free tier, so there was no way to
+    make scheduled prewarming of it cost nothing."""
 
-        build_calls = []
-        async def _tracking_build(ticker, lang):
-            build_calls.append(ticker)
-            return {"ticker": ticker}
-        monkeypatch.setattr(nif_service, "build_nif_dashboard", _tracking_build)
-
-        await worker.job_prewarm_nif_dashboard_default()
-
-        assert build_calls == []
-
-    async def test_market_open_runs_normally(self, monkeypatch):
-        monkeypatch.setattr(market_module, "_is_market_open", lambda: True)
-        monkeypatch.setattr(worker, "_cache_get_resilient", _fake_cache_get_resilient(_no_cache))
-        monkeypatch.setattr(screener_module, "_nif_dashboard_cache_key", lambda ticker, lang: f"k:{ticker}:{lang}")
-        monkeypatch.setattr(screener_module, "_latest_reported_earnings_period", lambda ticker: "2026Q2")
-
-        build_calls = []
-        async def _tracking_build(ticker, lang):
-            build_calls.append(ticker)
-            return {"ticker": ticker, "_earnings_period": "2026Q2"}
-        monkeypatch.setattr(nif_service, "build_nif_dashboard", _tracking_build)
-
-        from app.core import cache as cache_module
-        monkeypatch.setattr(cache_module, "cache_set", lambda *a, **k: None)
-
-        await worker.job_prewarm_nif_dashboard_default()
-
-        assert len(build_calls) == 2  # once per supported language
-
-
-def _fake_cache_get_resilient(fn):
-    """Wraps a plain sync function as the async signature
-    _cache_get_resilient(cache_get_fn, key) expects, always returning
-    `fn`'s result regardless of args — a stand-in for "cache is empty"
-    across every ticker/lang/tier combo without touching Redis."""
-    async def _wrapped(cache_get_fn, key):
-        return fn(key)
-    return _wrapped
+    def test_not_registered_in_the_scheduler_main_source(self):
+        import inspect
+        source = inspect.getsource(worker.main)
+        assert "job_prewarm_nif_dashboard_default" not in source

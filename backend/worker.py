@@ -2724,50 +2724,45 @@ async def job_prewarm_quick_analysis_default():
     """Runs at 9:35am and 3:35pm ET on trading days (see its scheduler
     registration) to guarantee the Oportunidades screen's most-
     searched tickers (see _QUICK_ANALYSIS_POPULAR_TICKERS) are NEVER cold
-    in cache, in both languages AND both tiers (free-templated and Premium-
-    AI, see screener._quick_analysis_cache_key's tier param — 2026-09-07:
-    "los guests y free nunca jamás pueden gastar tokens en esta pantalla",
-    so the free entry must be prewarmed too, or a first-time free search of
-    a popular ticker would still cache-miss and block on a live DCF compute
-    — just without the Claude call — instead of a sub-1s hit; the premium
-    entry gets prewarmed with the real AI narrative so a Premium search of
-    these names is never the one paying for it live either). Each ticker's
-    DCF is only actually recomputed (re-billing FMP/Finnhub, plus Claude
-    for the premium tier) when it has reported new earnings since the
-    cached copy was built, same check the /quick-analysis route itself does
-    on every cache hit (see screener._latest_reported_earnings_period).
-    Most runs are a cheap no-op per ticker/lang/tier: one lightweight
-    earnings-period check, no Claude call, no full recompute. Only a
-    first-ever run (empty cache) or a just-reported quarter actually pays
-    the full cost for that one ticker."""
+    in cache — FREE tier only (see screener._quick_analysis_cache_key's
+    tier param — 2026-09-07: "los guests y free nunca jamás pueden gastar
+    tokens en esta pantalla", so the free entry must be prewarmed too, or
+    a first-time free search of a popular ticker would still cache-miss
+    and block on a live DCF compute instead of a sub-1s hit).
+
+    Diego, 2026-09-11: the Premium/AI tier used to be prewarmed here too,
+    gated to market hours — but even gated, a full cold-cache run across
+    20 tickers x 2 langs was real, unavoidable, ~$1.30 the moment it fired
+    (confirmed live). Diego's call: stop prewarming Premium's AI narrative
+    on a schedule entirely — a real Premium user's own live search still
+    generates and caches it (same 90-day cache, same zero-extra-cost
+    reuse for every later visitor), so cost now tracks actual demand
+    instead of a blanket refresh nobody may even be about to use.
+
+    Each ticker's DCF is only actually recomputed (re-billing FMP/
+    Finnhub) when it has reported new earnings since the cached copy was
+    built, same check the /quick-analysis route itself does on every
+    cache hit (see screener._latest_reported_earnings_period). Most runs
+    are a cheap no-op per ticker/lang: one lightweight earnings-period
+    check, no full recompute."""
     from app.api.routes.screener import (
         _build_quick_analysis, _latest_reported_earnings_period, _quick_analysis_cache_key, _QUICK_ANALYSIS_CACHE_TTL,
     )
-    from app.api.routes.market import _is_market_open
     from app.core.cache import cache_get, cache_set
-
-    # Diego, 2026-09-11 (cost audit, "$0.000000 fuera de mercado"): the
-    # premium/use_ai=True tier is the only one that can ever spend a real
-    # Claude token here — the free tier's own cache entry is deterministic
-    # (use_ai=False). Computed once per run, not per ticker.
-    market_open = _is_market_open()
 
     for ticker in _QUICK_ANALYSIS_POPULAR_TICKERS:
         for lang in ("es", "en"):
-            for tier, use_ai in (("free", False), ("premium", True)):
-                if use_ai and not market_open:
-                    continue  # never spend Claude tokens on this screen after market hours
-                try:
-                    cache_key = _quick_analysis_cache_key(ticker, lang, tier=tier)
-                    cached = await _cache_get_resilient(cache_get, cache_key)
-                    if cached:
-                        current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
-                        if not current_period or current_period == cached.get("_earnings_period"):
-                            continue  # still the same reported quarter — nothing to do
-                    result = await _build_quick_analysis(ticker, lang, use_ai=use_ai)
-                    cache_set(cache_key, result, _QUICK_ANALYSIS_CACHE_TTL)
-                except Exception as e:
-                    logger.error("job_prewarm_quick_analysis_default(%s, %s, %s) failed: %s", ticker, lang, tier, e)
+            try:
+                cache_key = _quick_analysis_cache_key(ticker, lang, tier="free")
+                cached = await _cache_get_resilient(cache_get, cache_key)
+                if cached:
+                    current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
+                    if not current_period or current_period == cached.get("_earnings_period"):
+                        continue  # still the same reported quarter — nothing to do
+                result = await _build_quick_analysis(ticker, lang, use_ai=False)
+                cache_set(cache_key, result, _QUICK_ANALYSIS_CACHE_TTL)
+            except Exception as e:
+                logger.error("job_prewarm_quick_analysis_default(%s, %s) failed: %s", ticker, lang, e)
 
 
 async def job_prewarm_company_diagnostic_popular():
@@ -2776,59 +2771,49 @@ async def job_prewarm_company_diagnostic_popular():
     quick-analysis for the same search on the Oportunidades screen, so a
     popular ticker must be warm here too or the screen still blocks on this
     second, slower (~15s uncached) call even after quick-analysis itself is
-    instant. Same free/premium tier split, same earnings-period recompute
-    trigger, same popular-ticker list."""
+    instant. FREE tier only — see job_prewarm_quick_analysis_default's
+    2026-09-11 note: Premium's AI narrative is no longer prewarmed on a
+    schedule, only generated (and cached 90 days) on a real Premium
+    user's own live search."""
     from app.api.routes.screener import (
         _company_diagnostic_cache_key, _company_diagnostic_result, _latest_reported_earnings_period,
     )
-    from app.api.routes.market import _is_market_open
     from app.core.cache import cache_get
-
-    # See job_prewarm_quick_analysis_default's identical comment — computed
-    # once per run, gates the only tier that can spend a real Claude token.
-    market_open = _is_market_open()
 
     for ticker in _QUICK_ANALYSIS_POPULAR_TICKERS:
         for lang in ("es", "en"):
-            for tier, use_ai in (("free", False), ("premium", True)):
-                if use_ai and not market_open:
-                    continue  # never spend Claude tokens on this screen after market hours
-                try:
-                    cache_key = _company_diagnostic_cache_key(ticker, lang, tier=tier)
-                    cached = await _cache_get_resilient(cache_get, cache_key)
-                    if cached:
-                        current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
-                        if not current_period or current_period == cached.get("_earnings_period"):
-                            continue  # still the same reported quarter — nothing to do
-                    # _company_diagnostic_result already does its own cache_get/cache_set
-                    # under this same key — reuse it directly rather than duplicating its
-                    # build+cache_set logic here.
-                    await _company_diagnostic_result(ticker, lang, None, use_ai=use_ai)
-                except Exception as e:
-                    logger.error("job_prewarm_company_diagnostic_popular(%s, %s, %s) failed: %s", ticker, lang, tier, e)
+            try:
+                cache_key = _company_diagnostic_cache_key(ticker, lang, tier="free")
+                cached = await _cache_get_resilient(cache_get, cache_key)
+                if cached:
+                    current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
+                    if not current_period or current_period == cached.get("_earnings_period"):
+                        continue  # still the same reported quarter — nothing to do
+                # _company_diagnostic_result already does its own cache_get/cache_set
+                # under this same key — reuse it directly rather than duplicating its
+                # build+cache_set logic here.
+                await _company_diagnostic_result(ticker, lang, None, use_ai=False)
+            except Exception as e:
+                logger.error("job_prewarm_company_diagnostic_popular(%s, %s) failed: %s", ticker, lang, e)
 
 
 async def job_prewarm_nif_dashboard_default():
-    """Same reasoning as job_prewarm_quick_analysis_default, for the NIF
-    dashboard — the Oportunidades screen's default ticker must never be
-    cold for either card. Separate cache entry/TTL from quick-analysis (see
-    screener._nif_dashboard_cache_key), so this is its own job rather than
-    folded into the one above.
-
-    Diego, 2026-09-11 (cost audit): unlike the other two prewarm jobs,
-    build_nif_dashboard has no free/deterministic tier at all — it always
-    calls 3 real AI functions (nif_service.py). So the WHOLE job (not just
-    one branch) is skipped outside market hours — this screen must never
-    spend a Claude token after close, full stop."""
+    """DISABLED, Diego 2026-09-11 (cost audit) — no longer registered with
+    the scheduler (see setup, below), kept here only so it can be turned
+    back on later without rewriting it. build_nif_dashboard has no free/
+    deterministic tier at all — it's always 3 real AI calls (nif_
+    service.py), so scheduled prewarming of it can never be "mostly free
+    no-ops" the way the other two prewarm jobs are; even market-hours-
+    gated, this was real, avoidable Claude spend for a dashboard most
+    visitors never open. A real Premium user's own live search into the
+    NIF dashboard still generates and caches it normally (screener.py's
+    /nif-dashboard route, unaffected by this) — cost now tracks actual
+    demand instead of a schedule."""
     from app.api.routes.screener import (
         _latest_reported_earnings_period, _nif_dashboard_cache_key, _NIF_DASHBOARD_CACHE_TTL,
     )
-    from app.api.routes.market import _is_market_open
     from app.services import nif_service
     from app.core.cache import cache_get, cache_set
-
-    if not _is_market_open():
-        return
 
     for lang in ("es", "en"):
         try:
@@ -6396,23 +6381,23 @@ async def main():
     scheduler.add_job(job_weekly_close_snapshot, "cron", day_of_week="mon-fri", hour=16, minute=7, timezone="America/New_York")
 
     # ── Oportunidades default-ticker cache warmer ─────────────────────────────
-    # Diego, 2026-09-11: moved off a round-the-clock "every 6h" interval onto
-    # a cron fixed at two times INSIDE the real 9:30am-4:00pm ET market
-    # window (9:35am and 3:35pm — ~6h apart, both within it), weekdays only.
-    # Each job's own _is_market_open() check (see their docstrings) is kept
-    # as defense-in-depth — an early-close day, a holiday miscalculation, or
-    # a manual out-of-schedule trigger still can't spend outside real market
-    # hours even if this cron ever fired at the wrong moment. next_run_time=
-    # now is still safe to keep: it only ever warms the free/deterministic
-    # tier immediately on a fresh deploy (see each job's own market-hours
-    # gate for why the AI tier specifically can't run off-schedule).
+    # Diego, 2026-09-11: both jobs below now prewarm the FREE/deterministic
+    # tier ONLY — zero Claude spend either way, so the market-hours cron
+    # window (9:35am/3:35pm ET, weekdays) is kept just because that's when
+    # real search traffic actually happens, not because it's cost-gating
+    # anything anymore. Premium's AI narrative is no longer prewarmed on a
+    # schedule at all (was a real, unavoidable ~$1.30 the moment a cold
+    # cache run fired, confirmed live) — it's generated on a real Premium
+    # user's own live search and cached 90 days from there, so cost tracks
+    # actual demand instead of a blanket refresh. job_prewarm_nif_dashboard_
+    # default (100% AI, no free tier at all) is disabled entirely — see its
+    # own docstring.
     scheduler.add_job(job_prewarm_quick_analysis_default, "cron", day_of_week="mon-fri", hour="9,15", minute=35, timezone="America/New_York", next_run_time=datetime.now())
     # Staggered 5 min after the quick-analysis prewarm above — both iterate
     # the same 20-ticker popular list; running them at the exact same
-    # instant would double up the FMP/Finnhub/Claude request burst for no
-    # reason since they're independent caches.
+    # instant would double up the FMP/Finnhub request burst for no reason
+    # since they're independent caches.
     scheduler.add_job(job_prewarm_company_diagnostic_popular, "cron", day_of_week="mon-fri", hour="9,15", minute=40, timezone="America/New_York", next_run_time=datetime.now() + timedelta(minutes=5))
-    scheduler.add_job(job_prewarm_nif_dashboard_default,  "cron", day_of_week="mon-fri", hour="9,15", minute=35, timezone="America/New_York", next_run_time=datetime.now())
     scheduler.add_job(job_belvo_resync_all,               "interval", hours=6)
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
