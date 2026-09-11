@@ -2683,6 +2683,29 @@ _QUICK_ANALYSIS_POPULAR_TICKERS = [
 ]
 
 
+async def _cache_get_resilient(cache_get_fn, key: str):
+    """Real bug fixed 2026-09-11: these prewarm jobs fire immediately on
+    every worker.py restart (next_run_time=now, by design — so a fresh
+    deploy never leaves the default view cold for up to 6h). The very
+    first Redis calls right after a fresh process boot are exactly when a
+    transient connection hiccup is most likely — and app.core.cache.
+    cache_get() silently treats ANY Redis exception as "no value" and
+    falls back to this process's own (empty) in-memory dict, not "unsure,
+    ask again." For most callers that's the right degrade-gracefully
+    behavior; for these specific jobs it meant a real cache entry in
+    Redis got silently ignored, "looked" cold, and triggered a real paid
+    Claude rebuild — confirmed live: a burst of ~40 unnecessary
+    quick_valuation_summary calls (~$1.20) in one worker restart, with
+    zero real users involved. One retry after a short pause survives a
+    one-off hiccup without meaningfully slowing this already-infrequent
+    (every 6h) job."""
+    val = cache_get_fn(key)
+    if val:
+        return val
+    await asyncio.sleep(1.5)
+    return cache_get_fn(key)
+
+
 async def job_prewarm_quick_analysis_default():
     """Runs every few hours to guarantee the Oportunidades screen's most-
     searched tickers (see _QUICK_ANALYSIS_POPULAR_TICKERS) are NEVER cold
@@ -2712,7 +2735,7 @@ async def job_prewarm_quick_analysis_default():
             for tier, use_ai in (("free", False), ("premium", True)):
                 try:
                     cache_key = _quick_analysis_cache_key(ticker, lang, tier=tier)
-                    cached = cache_get(cache_key)
+                    cached = await _cache_get_resilient(cache_get, cache_key)
                     if cached:
                         current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
                         if not current_period or current_period == cached.get("_earnings_period"):
@@ -2741,7 +2764,7 @@ async def job_prewarm_company_diagnostic_popular():
             for tier, use_ai in (("free", False), ("premium", True)):
                 try:
                     cache_key = _company_diagnostic_cache_key(ticker, lang, tier=tier)
-                    cached = cache_get(cache_key)
+                    cached = await _cache_get_resilient(cache_get, cache_key)
                     if cached:
                         current_period = await asyncio.to_thread(_latest_reported_earnings_period, ticker)
                         if not current_period or current_period == cached.get("_earnings_period"):
@@ -2769,7 +2792,7 @@ async def job_prewarm_nif_dashboard_default():
     for lang in ("es", "en"):
         try:
             cache_key = _nif_dashboard_cache_key(_QUICK_ANALYSIS_PREWARM_TICKER, lang)
-            cached = cache_get(cache_key)
+            cached = await _cache_get_resilient(cache_get, cache_key)
             if cached:
                 current_period = await asyncio.to_thread(_latest_reported_earnings_period, _QUICK_ANALYSIS_PREWARM_TICKER)
                 if not current_period or current_period == cached.get("_earnings_period"):
