@@ -2721,7 +2721,8 @@ async def _cache_get_resilient(cache_get_fn, key: str):
 
 
 async def job_prewarm_quick_analysis_default():
-    """Runs every few hours to guarantee the Oportunidades screen's most-
+    """Runs at 9:35am and 3:35pm ET on trading days (see its scheduler
+    registration) to guarantee the Oportunidades screen's most-
     searched tickers (see _QUICK_ANALYSIS_POPULAR_TICKERS) are NEVER cold
     in cache, in both languages AND both tiers (free-templated and Premium-
     AI, see screener._quick_analysis_cache_key's tier param — 2026-09-07:
@@ -6395,15 +6396,23 @@ async def main():
     scheduler.add_job(job_weekly_close_snapshot, "cron", day_of_week="mon-fri", hour=16, minute=7, timezone="America/New_York")
 
     # ── Oportunidades default-ticker cache warmer ─────────────────────────────
-    # next_run_time=now so a fresh deploy/restart warms the cache immediately
-    # instead of waiting up to 6h for the first interval tick.
-    scheduler.add_job(job_prewarm_quick_analysis_default, "interval", hours=6, next_run_time=datetime.now())
+    # Diego, 2026-09-11: moved off a round-the-clock "every 6h" interval onto
+    # a cron fixed at two times INSIDE the real 9:30am-4:00pm ET market
+    # window (9:35am and 3:35pm — ~6h apart, both within it), weekdays only.
+    # Each job's own _is_market_open() check (see their docstrings) is kept
+    # as defense-in-depth — an early-close day, a holiday miscalculation, or
+    # a manual out-of-schedule trigger still can't spend outside real market
+    # hours even if this cron ever fired at the wrong moment. next_run_time=
+    # now is still safe to keep: it only ever warms the free/deterministic
+    # tier immediately on a fresh deploy (see each job's own market-hours
+    # gate for why the AI tier specifically can't run off-schedule).
+    scheduler.add_job(job_prewarm_quick_analysis_default, "cron", day_of_week="mon-fri", hour="9,15", minute=35, timezone="America/New_York", next_run_time=datetime.now())
     # Staggered 5 min after the quick-analysis prewarm above — both iterate
     # the same 20-ticker popular list; running them at the exact same
     # instant would double up the FMP/Finnhub/Claude request burst for no
     # reason since they're independent caches.
-    scheduler.add_job(job_prewarm_company_diagnostic_popular, "interval", hours=6, next_run_time=datetime.now() + timedelta(minutes=5))
-    scheduler.add_job(job_prewarm_nif_dashboard_default,  "interval", hours=6, next_run_time=datetime.now())
+    scheduler.add_job(job_prewarm_company_diagnostic_popular, "cron", day_of_week="mon-fri", hour="9,15", minute=40, timezone="America/New_York", next_run_time=datetime.now() + timedelta(minutes=5))
+    scheduler.add_job(job_prewarm_nif_dashboard_default,  "cron", day_of_week="mon-fri", hour="9,15", minute=35, timezone="America/New_York", next_run_time=datetime.now())
     scheduler.add_job(job_belvo_resync_all,               "interval", hours=6)
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
