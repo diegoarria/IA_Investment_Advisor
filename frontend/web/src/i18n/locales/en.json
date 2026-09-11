@@ -1760,7 +1760,13 @@
       "positionsCount": "Positions ({{count}})",
       "empty": "You don't have any positions yet",
       "sharesAvg": "{{shares}} shares · ${{avgPrice}} avg",
-      "viewFull": "View full portfolio"
+      "viewFull": "View full portfolio",
+      "topMoverInsight": {
+        "title": "{{ticker}} was your biggest mover today",
+        "bodyPositive": "It added {{amount}} today ({{pct}}) — before you get too comfortable, it's worth checking whether this actually changed something in your thesis or was just market noise.",
+        "bodyNegative": "It cost you {{amount}} today ({{pct}}) — before reacting, check whether this is market noise or a real change in the company.",
+        "cta": "View {{ticker}}"
+      }
     },
     "watchlist": {
       "itemsCount": "Watchlist ({{count}})",
@@ -4015,23 +4021,23 @@
       },
       "thesisChanges": {
         "label": "Thesis/strategy changes",
-        "desc": "When a company you follow changes strategy"
+        "desc": "Something you believed about a company stopped being true — so you can decide if it still makes sense to hold it"
       },
       "guidanceChanges": {
         "label": "Guidance changes",
-        "desc": "When a company you follow changes its guidance"
+        "desc": "The company changed what it expects from itself — that can change whether it's still a good investment"
       },
       "roicFcfDeterioration": {
         "label": "ROIC/FCF deterioration",
-        "desc": "When ROIC or FCF margin starts deteriorating"
+        "desc": "Real profitability starts slipping before it shows up in the price — time to decide while you still can"
       },
       "newRisks": {
         "label": "New risks in the thesis",
-        "desc": "When a new risk appears in the research thesis"
+        "desc": "Something your original thesis didn't account for just showed up — worth checking if it changes your decision"
       },
       "priceInRange": {
         "label": "Price in fair value range",
-        "desc": "When the price enters the calculated fair value range"
+        "desc": "The price reached the level you defined as fair — it's time to decide whether to act"
       }
     },
     "email": {

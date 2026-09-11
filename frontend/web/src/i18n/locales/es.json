@@ -1760,7 +1760,13 @@
       "positionsCount": "Posiciones ({{count}})",
       "empty": "No tienes posiciones aún",
       "sharesAvg": "{{shares}} acciones · ${{avgPrice}} promedio",
-      "viewFull": "Ver portafolio completo"
+      "viewFull": "Ver portafolio completo",
+      "topMoverInsight": {
+        "title": "{{ticker}} fue tu movimiento más fuerte hoy",
+        "bodyPositive": "Te sumó {{amount}} hoy ({{pct}}) — antes de sentirte demasiado cómodo, vale la pena revisar si esto cambió algo real en tu tesis o fue solo ruido del mercado.",
+        "bodyNegative": "Te costó {{amount}} hoy ({{pct}}) — antes de reaccionar, revisa si esto es ruido de mercado o un cambio real en la empresa.",
+        "cta": "Ver {{ticker}}"
+      }
     },
     "watchlist": {
       "itemsCount": "Watchlist ({{count}})",
@@ -4015,23 +4021,23 @@
       },
       "thesisChanges": {
         "label": "Cambios de tesis/estrategia",
-        "desc": "Cuando una empresa que sigues cambia de estrategia"
+        "desc": "Algo que creías cierto de una empresa dejó de serlo — para que decidas si sigue teniendo sentido tenerla"
       },
       "guidanceChanges": {
         "label": "Cambios de guidance",
-        "desc": "Cuando una empresa que sigues cambia su guidance"
+        "desc": "La empresa cambió lo que espera de sí misma — puede cambiar si sigue siendo una buena inversión"
       },
       "roicFcfDeterioration": {
         "label": "Deterioro de ROIC/FCF",
-        "desc": "Cuando el ROIC o el margen de FCF empieza a deteriorarse"
+        "desc": "La rentabilidad real empieza a caer, antes de que se note en el precio — tiempo de decidir mientras aún puedes"
       },
       "newRisks": {
         "label": "Nuevos riesgos en la tesis",
-        "desc": "Cuando aparece un riesgo nuevo en la tesis de investigación"
+        "desc": "Apareció algo que tu tesis original no consideraba — vale la pena revisar si cambia tu decisión"
       },
       "priceInRange": {
         "label": "Precio en rango de valor razonable",
-        "desc": "Cuando el precio entra al rango de valor razonable calculado"
+        "desc": "El precio llegó al nivel que tú mismo definiste como razonable — es el momento de decidir si actúas"
       }
     },
     "email": {
