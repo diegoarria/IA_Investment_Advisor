@@ -12,11 +12,44 @@ Finnhub/Anthropic/Redis.
 import worker
 import app.api.routes.market as market_module
 import app.api.routes.screener as screener_module
+import app.services.undervalued_screener_service as undervalued_screener_service
 from app.services import nif_service
 
 
 def _no_cache(*args, **kwargs):
     return None
+
+
+class TestWeeklyRefreshJobRespectsMarketHoursToo:
+    """Diego, 2026-09-11: the absolute rule has no exception, including
+    this job's own real, intentional weekly AI blurb generation. It's
+    scheduled Sunday — the market is ALWAYS closed then — so as currently
+    scheduled this must never submit a blurb batch; only the real, free
+    DCF/roster refresh runs."""
+
+    async def test_sunday_run_never_submits_blurbs(self, monkeypatch):
+        monkeypatch.setattr(market_module, "_is_market_open", lambda: False)
+
+        submit_blurbs_seen = []
+        async def _tracking_refresh(submit_blurbs=True):
+            submit_blurbs_seen.append(submit_blurbs)
+        monkeypatch.setattr(undervalued_screener_service, "refresh_undervalued_screener", _tracking_refresh)
+
+        await worker.job_refresh_undervalued_screener()
+
+        assert submit_blurbs_seen == [False]
+
+    async def test_run_during_market_hours_does_submit_blurbs(self, monkeypatch):
+        monkeypatch.setattr(market_module, "_is_market_open", lambda: True)
+
+        submit_blurbs_seen = []
+        async def _tracking_refresh(submit_blurbs=True):
+            submit_blurbs_seen.append(submit_blurbs)
+        monkeypatch.setattr(undervalued_screener_service, "refresh_undervalued_screener", _tracking_refresh)
+
+        await worker.job_refresh_undervalued_screener()
+
+        assert submit_blurbs_seen == [True]
 
 
 class TestQuickAnalysisPrewarmMarketHoursGate:

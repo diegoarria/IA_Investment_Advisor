@@ -2628,10 +2628,24 @@ async def job_refresh_undervalued_screener():
     Oportunidades screen reads — no notification of its own. Distinct from
     job_weekly_screener_generate (8am ET Sunday), which is the separate,
     per-user-personalized "Screener Semanal" pipeline and owns the only
-    Sunday opportunities-style push."""
+    Sunday opportunities-style push.
+
+    Diego, 2026-09-11 (cost audit, absolute rule): "en horario post-mercado
+    no se pueden gastar tokens" — no exception, including this job's own
+    real, intentional weekly AI blurb generation. This fires Sunday, when
+    the market is ALWAYS closed, so submit_blurbs is gated to _is_market_
+    open() same as every other AI-spending path on this screen — meaning,
+    as scheduled today, this run never actually submits a blurb batch
+    anymore (still does the real, free DCF/roster refresh every week).
+    Candidates keep last week's real blurb (or none) until either an
+    explicit admin trigger (/admin/refresh-undervalued-screener, run
+    during market hours) generates fresh ones, or this job's schedule is
+    deliberately moved to a weekday market-hours slot — Diego's call, not
+    assumed here."""
+    from app.api.routes.market import _is_market_open
     from app.services.undervalued_screener_service import refresh_undervalued_screener
     try:
-        await refresh_undervalued_screener()
+        await refresh_undervalued_screener(submit_blurbs=_is_market_open())
     except Exception as e:
         logger.error("job_refresh_undervalued_screener failed: %s", e)
 
