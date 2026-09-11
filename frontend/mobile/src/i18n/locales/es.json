@@ -1108,7 +1108,13 @@
       "positions": "Posiciones ({{count}})",
       "empty": "No tienes posiciones aún",
       "sharesAvgLabel": "{{shares}} acc · ${{avgPrice}} prom.",
-      "viewFull": "Ver portafolio completo →"
+      "viewFull": "Ver portafolio completo →",
+      "topMoverInsight": {
+        "title": "{{ticker}} fue tu movimiento más fuerte hoy",
+        "bodyPositive": "Te sumó {{amount}} hoy ({{pct}}) — antes de sentirte demasiado cómodo, vale la pena revisar si esto cambió algo real en tu tesis o fue solo ruido del mercado.",
+        "bodyNegative": "Te costó {{amount}} hoy ({{pct}}) — antes de reaccionar, revisa si esto es ruido de mercado o un cambio real en la empresa.",
+        "cta": "Ver {{ticker}}"
+      }
     },
     "watchlistTab": {
       "title": "Watchlist ({{count}})",
