@@ -2750,6 +2750,10 @@ async def job_prewarm_quick_analysis_default():
     )
     from app.core.cache import cache_get, cache_set
 
+    if _is_market_holiday_today():
+        logger.info("job_prewarm_quick_analysis_default skipped: market holiday")
+        return
+
     for ticker in _QUICK_ANALYSIS_POPULAR_TICKERS:
         for lang in ("es", "en"):
             try:
@@ -2779,6 +2783,10 @@ async def job_prewarm_company_diagnostic_popular():
         _company_diagnostic_cache_key, _company_diagnostic_result, _latest_reported_earnings_period,
     )
     from app.core.cache import cache_get
+
+    if _is_market_holiday_today():
+        logger.info("job_prewarm_company_diagnostic_popular skipped: market holiday")
+        return
 
     for ticker in _QUICK_ANALYSIS_POPULAR_TICKERS:
         for lang in ("es", "en"):
