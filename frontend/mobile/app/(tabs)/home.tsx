@@ -22,6 +22,7 @@ import { marketApi, notificationsApi, cashHoldingsApi, dividendsApi } from "../.
 import { useChatStore } from "../../src/lib/chatStore";
 import { usePaperStore } from "../../src/lib/paperStore";
 import StockAvatar from "../../src/components/StockAvatar";
+import InsightCallout from "../../src/components/InsightCallout";
 import MobileOnboardingChecklist, { type OnboardingStep } from "../../src/components/MobileOnboardingChecklist";
 import MobileHomeScreenPickerModal, { HOME_SCREEN_KEY } from "../../src/components/MobileHomeScreenPickerModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -631,6 +632,27 @@ export default function HomeScreen() {
       .sort((a, b) => a.chg - b.chg)
       .slice(0, 4);
   }, [uniquePositionsByTicker, prices]);
+
+  // ── "Decide mejor" audit, 2026-09-11 — mirrors web's home/page.tsx:
+  // real, honest insight (which position moved the most $ today, never
+  // just biggest %) from data already loaded here — no new endpoint,
+  // never shown with nothing real to say. ──────────────────────────────
+  const topMoverInsight = React.useMemo(() => {
+    if (uniquePositionsByTicker.length < 2) return null;
+    let best: { ticker: string; dollarImpact: number; pct: number } | null = null;
+    for (const p of uniquePositionsByTicker) {
+      const px = prices[p.ticker];
+      const curr = px?.price ?? p.avgPrice;
+      const cp = px?.change_pct ?? 0;
+      if (!cp) continue;
+      const prev = cp !== -100 ? curr / (1 + cp / 100) : curr;
+      const dollarImpact = (curr - prev) * p.shares * fxRate;
+      if (!best || Math.abs(dollarImpact) > Math.abs(best.dollarImpact)) {
+        best = { ticker: p.ticker, dollarImpact, pct: cp };
+      }
+    }
+    return best;
+  }, [uniquePositionsByTicker, prices, fxRate]);
 
   // ── Data loading ──────────────────────────────────────────────────────────
   const loadData = useCallback(async (silent = false) => {
@@ -1536,6 +1558,30 @@ export default function HomeScreen() {
             onPress={() => router.navigate("/(tabs)/academy")} colors={colors} />
 
         </View>
+
+        {/* Diego, 2026-09-11 — "Decide mejor" audit: real decision-hook for
+            Home, mirroring web (frontend/web/src/app/home/page.tsx). Only
+            rendered when there's genuinely something real to say. */}
+        {topMoverInsight && (
+          <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+            <InsightCallout
+              colors={colors}
+              icon="flash"
+              title={t("home.topMoverInsight.title", { ticker: topMoverInsight.ticker })}
+              body={t(
+                topMoverInsight.dollarImpact >= 0
+                  ? "home.topMoverInsight.bodyPositive"
+                  : "home.topMoverInsight.bodyNegative",
+                {
+                  amount: balanceHidden ? "••••" : fmt(Math.abs(topMoverInsight.dollarImpact) * fxRate, portfolioCurrency),
+                  pct: fmtPct(topMoverInsight.pct),
+                },
+              )}
+              ctaLabel={t("home.topMoverInsight.cta", { ticker: topMoverInsight.ticker })}
+              onPressCta={() => router.push(`/subvaluadas?ticker=${topMoverInsight.ticker}` as any)}
+            />
+          </View>
+        )}
 
         {/* ── Top Movers ───────────────────────────────────────────────────── */}
         {(loading || movers.length > 0) && (

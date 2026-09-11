@@ -18,7 +18,6 @@ import StockAvatar from "../../src/components/StockAvatar";
 import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
 import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore";
 import ExplainButton from "../../src/components/ExplainButton";
-import InsightCallout from "../../src/components/InsightCallout";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -131,28 +130,6 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
   }, { dayGain: 0, dayPrev: 0 });
   const dayGainPct = dayPrev > 0 ? (dayGain / dayPrev) * 100 : 0;
 
-  // Diego, 2026-09-11 — "Decide mejor" audit, same fix as web: this
-  // screen was pure data with zero connection to an actual decision.
-  // Real, always-honest insight computed from data already loaded here —
-  // no new endpoint, no fabricated advice. Only shown with 2+ positions,
-  // otherwise it's just restating the single row already visible below.
-  const topMover = useMemo(() => {
-    if (positions.length < 2) return null;
-    let best: { ticker: string; dollarImpact: number; pct: number } | null = null;
-    for (const pos of positions) {
-      const pr = prices[pos.ticker];
-      if (!pr?.price) continue;
-      const cp = pr.change_pct ?? 0;
-      if (!cp) continue;
-      const prevPrice = cp !== -100 ? pr.price / (1 + cp / 100) : pr.price;
-      const dollarImpact = pos.shares * (pr.price - prevPrice);
-      if (!best || Math.abs(dollarImpact) > Math.abs(best.dollarImpact)) {
-        best = { ticker: pos.ticker, dollarImpact, pct: cp };
-      }
-    }
-    return best;
-  }, [positions, prices]);
-
   return (
     <View style={{ flex: 1 }}>
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 12 }}>
@@ -197,21 +174,6 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
         </Text>
       </View>
 
-      {topMover && (
-        <InsightCallout
-          colors={colors}
-          icon="flash"
-          title={t("patrimonio.portfolioTab.topMoverInsight.title", { ticker: topMover.ticker })}
-          body={t(
-            topMover.dollarImpact >= 0
-              ? "patrimonio.portfolioTab.topMoverInsight.bodyPositive"
-              : "patrimonio.portfolioTab.topMoverInsight.bodyNegative",
-            { amount: mask(fmtMoney(Math.abs(topMover.dollarImpact) * fxRate, portfolioCurrency)), pct: fmtPct(topMover.pct) },
-          )}
-          ctaLabel={t("patrimonio.portfolioTab.topMoverInsight.cta", { ticker: topMover.ticker })}
-          onPressCta={() => router.push(`/subvaluadas?ticker=${topMover.ticker}` as any)}
-        />
-      )}
 
       {/* Positions List */}
       <View style={[ss.card, { backgroundColor: colors.card, borderColor: colors.border }]}>

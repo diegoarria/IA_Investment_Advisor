@@ -217,6 +217,12 @@
       "title": "Nuvos Monthly Report",
       "subtitle": "Your month as an investor, at a glance"
     },
+    "topMoverInsight": {
+      "title": "{{ticker}} was your biggest mover today",
+      "bodyPositive": "It added {{amount}} today ({{pct}}) — before you get too comfortable, it's worth checking whether this actually changed something in your thesis or was just market noise.",
+      "bodyNegative": "It cost you {{amount}} today ({{pct}}) — before reacting, check whether this is market noise or a real change in the company.",
+      "cta": "View {{ticker}}"
+    },
     "stats": {
       "portfolioToday": "Portfolio today",
       "streak": "Streak",
@@ -1760,13 +1766,7 @@
       "positionsCount": "Positions ({{count}})",
       "empty": "You don't have any positions yet",
       "sharesAvg": "{{shares}} shares · ${{avgPrice}} avg",
-      "viewFull": "View full portfolio",
-      "topMoverInsight": {
-        "title": "{{ticker}} was your biggest mover today",
-        "bodyPositive": "It added {{amount}} today ({{pct}}) — before you get too comfortable, it's worth checking whether this actually changed something in your thesis or was just market noise.",
-        "bodyNegative": "It cost you {{amount}} today ({{pct}}) — before reacting, check whether this is market noise or a real change in the company.",
-        "cta": "View {{ticker}}"
-      }
+      "viewFull": "View full portfolio"
     },
     "watchlist": {
       "itemsCount": "Watchlist ({{count}})",

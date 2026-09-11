@@ -15,8 +15,7 @@ import { useCombinedPositions, useCombinedCurrency } from "@/lib/portfolioStore"
 import { useFxRate } from "@/lib/useFxRate";
 import { useWatchlistStore, useBalanceVisibilityStore } from "@/lib/store";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
-import { TrendingUp, TrendingDown, ArrowRight, Wallet, Eye, BarChart2, Zap } from "lucide-react";
-import { InsightCallout } from "@/components/ui";
+import { TrendingUp, TrendingDown, ArrowRight, Wallet, Eye, BarChart2 } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -165,30 +164,6 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
   const dayGain = dayGainUSD * fxRate;
   const dayGainPctFinal = dayPrev > 0 ? (dayGainUSD / dayPrev) * 100 : 0;
 
-  // Diego, 2026-09-11 — "Decide mejor" audit: this home screen was pure
-  // data (total/day/gain), zero connection to an actual decision. This is
-  // the one real, always-honest insight cheap enough to compute from data
-  // already loaded on this page — no new endpoint, no fabricated advice,
-  // just "here's what actually moved your money today and by how much."
-  // Only shown with 2+ positions — with a single position it's just
-  // restating the one row already visible below, not a real insight.
-  const topMover = useMemo(() => {
-    if (positions.length < 2) return null;
-    let best: { ticker: string; dollarImpact: number; pct: number } | null = null;
-    for (const pos of positions) {
-      const pr = prices[pos.ticker];
-      if (!pr?.price) continue;
-      const cp = pr.change_pct ?? 0;
-      if (!cp) continue;
-      const prevPrice = cp !== -100 ? pr.price / (1 + cp / 100) : pr.price;
-      const dollarImpact = pos.shares * (pr.price - prevPrice) * fxRate;
-      if (!best || Math.abs(dollarImpact) > Math.abs(best.dollarImpact)) {
-        best = { ticker: pos.ticker, dollarImpact, pct: cp };
-      }
-    }
-    return best;
-  }, [positions, prices, fxRate]);
-
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
@@ -224,23 +199,6 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
           positive={totalGain >= 0}
         />
       </div>
-
-      {topMover && (
-        <InsightCallout
-          icon={<Zap size={16} style={{ color: "#D4A24C" }} />}
-          title={t("patrimonio.portfolio.topMoverInsight.title", { ticker: topMover.ticker })}
-          body={t(
-            topMover.dollarImpact >= 0
-              ? "patrimonio.portfolio.topMoverInsight.bodyPositive"
-              : "patrimonio.portfolio.topMoverInsight.bodyNegative",
-            { amount: mask(fmtMoney(Math.abs(topMover.dollarImpact), portfolioCurrency)), pct: fmtPct(topMover.pct) },
-          )}
-          cta={{
-            label: t("patrimonio.portfolio.topMoverInsight.cta", { ticker: topMover.ticker }),
-            onClick: () => router.push(`/subvaluadas?ticker=${topMover.ticker}`),
-          }}
-        />
-      )}
 
       {/* Positions List */}
       <div

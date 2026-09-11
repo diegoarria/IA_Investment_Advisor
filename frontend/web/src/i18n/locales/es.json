@@ -217,6 +217,12 @@
       "title": "Nuvos Monthly Report",
       "subtitle": "Tu mes como inversionista, en un vistazo"
     },
+    "topMoverInsight": {
+      "title": "{{ticker}} fue tu movimiento más fuerte hoy",
+      "bodyPositive": "Te sumó {{amount}} hoy ({{pct}}) — antes de sentirte demasiado cómodo, vale la pena revisar si esto cambió algo real en tu tesis o fue solo ruido del mercado.",
+      "bodyNegative": "Te costó {{amount}} hoy ({{pct}}) — antes de reaccionar, revisa si esto es ruido de mercado o un cambio real en la empresa.",
+      "cta": "Ver {{ticker}}"
+    },
     "stats": {
       "portfolioToday": "Portafolio hoy",
       "streak": "Racha",
@@ -1760,13 +1766,7 @@
       "positionsCount": "Posiciones ({{count}})",
       "empty": "No tienes posiciones aún",
       "sharesAvg": "{{shares}} acciones · ${{avgPrice}} promedio",
-      "viewFull": "Ver portafolio completo",
-      "topMoverInsight": {
-        "title": "{{ticker}} fue tu movimiento más fuerte hoy",
-        "bodyPositive": "Te sumó {{amount}} hoy ({{pct}}) — antes de sentirte demasiado cómodo, vale la pena revisar si esto cambió algo real en tu tesis o fue solo ruido del mercado.",
-        "bodyNegative": "Te costó {{amount}} hoy ({{pct}}) — antes de reaccionar, revisa si esto es ruido de mercado o un cambio real en la empresa.",
-        "cta": "Ver {{ticker}}"
-      }
+      "viewFull": "Ver portafolio completo"
     },
     "watchlist": {
       "itemsCount": "Watchlist ({{count}})",
