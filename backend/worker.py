@@ -45,6 +45,27 @@ def _agg_positions(rows: list[dict]) -> list:
     return result
 
 
+def _split_portfolios_for_weekly_email(rows: list[dict]) -> list[tuple[str | None, list]]:
+    """Groups a user's `user_portfolio` rows into (portfolio_name, positions)
+    pairs for the Friday weekly-summary email. When the user has 0 or 1
+    portfolio with actual positions, returns a single (None, positions) group
+    — same flat behavior the email always had, no name shown. Only when 2+
+    portfolios each have positions does this split them into separate named
+    groups, so job_daily_email can send one email per portfolio instead of
+    blending performance across them (Diego, 2026-09-11: multi-portfolio
+    users shouldn't get one email mixing unrelated portfolios' returns)."""
+    groups: list[tuple[str | None, list]] = []
+    for row in rows:
+        raw = row.get("positions") or {}
+        pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        if pos:
+            groups.append((row.get("portfolio_name"), pos))
+    if len(groups) <= 1:
+        flat = groups[0][1] if groups else []
+        return [(None, flat)]
+    return groups
+
+
 def _agg_positions_by_ticker(pos: list[dict]) -> dict[str, dict]:
     """{ticker: {shares, avg_cost}} from an already-flattened position list
     (e.g. from _agg_positions) — sums shares and weight-averages cost when
@@ -1603,17 +1624,22 @@ async def job_daily_email():
 
         # ── 4. Portfolios — premium users only ────────────────────────────────
         premium_uids = {uid for uid in opted_ids if tier_map.get(uid) == "premium"}
-        portfolio_map: dict[str, list] = {}
+        # Each value is a list of (portfolio_name, positions) groups — one
+        # group per portfolio when the user has 2+ portfolios with positions,
+        # so a separate email can be sent per portfolio instead of blending
+        # their performance together.
+        portfolio_map: dict[str, list[tuple]] = {}
         all_tickers: set[str] = set()
         for uid in premium_uids:
             port_res = await run_query(
-                db.table("user_portfolio").select("positions").eq("user_id", uid)
+                db.table("user_portfolio").select("portfolio_name,positions").eq("user_id", uid)
             )
             if port_res.data:
-                pos = _agg_positions(port_res.data or [])
-                if pos:
-                    portfolio_map[uid] = pos
-                    all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
+                groups = _split_portfolios_for_weekly_email(port_res.data)
+                flat_pos = [p for _, pos in groups for p in pos]
+                if flat_pos:
+                    portfolio_map[uid] = groups
+                    all_tickers.update(p["ticker"] for p in flat_pos if p.get("ticker"))
 
         # ── 5. Fetch stock prices via Finnhub (Railway-safe, no IP block) ─────
         # Weekly closes (last Friday → today), not _finnhub_quote's single-day
@@ -1725,19 +1751,24 @@ async def job_daily_email():
 
             first      = name_map.get(uid, "Inversor").split()[0]
             is_premium = tier_map.get(uid) == "premium"
-            positions  = portfolio_map.get(uid, [])
+            groups     = portfolio_map.get(uid) or [(None, [])]
             watchlist  = watch_by_uid.get(uid, set())
             lang       = lang_map.get(uid, "es")
+            multi      = len(groups) > 1
 
-            subject, html = build_weekly_email_for_user(
-                first=first, is_premium=is_premium, positions=positions, watchlist=watchlist, lang=lang,
-                week_prices=week_prices, ticker_meta=ticker_meta, sp_pct=sp_pct, sp_px=sp_px, nq_pct=nq_pct, nq_px=nq_px,
-                market_wrap_by_lang=market_wrap_by_lang, all_today_earnings=all_today_earnings,
-                earnings_ai_map_by_lang=earnings_ai_map_by_lang, week_label_by_lang=week_label_by_lang,
-                sp_str=sp_str, nq_str=nq_str,
-            )
-            await send_email_notification(uid, "weekly_summary", subject, html, db)
-            sent += 1
+            for portfolio_name, positions in groups:
+                subject, html = build_weekly_email_for_user(
+                    first=first, is_premium=is_premium, positions=positions, watchlist=watchlist, lang=lang,
+                    week_prices=week_prices, ticker_meta=ticker_meta, sp_pct=sp_pct, sp_px=sp_px, nq_pct=nq_pct, nq_px=nq_px,
+                    market_wrap_by_lang=market_wrap_by_lang, all_today_earnings=all_today_earnings,
+                    earnings_ai_map_by_lang=earnings_ai_map_by_lang, week_label_by_lang=week_label_by_lang,
+                    sp_str=sp_str, nq_str=nq_str,
+                    portfolio_name=portfolio_name if multi else None,
+                )
+                await send_email_notification(uid, "weekly_summary", subject, html, db)
+                sent += 1
+                if multi:
+                    await asyncio.sleep(0.3)
 
         logger.info(
             "Friday email: %d sent (%d premium, %d free) | S&P %s | NQ %s",
@@ -1754,6 +1785,7 @@ def build_weekly_email_for_user(
     week_prices, ticker_meta, sp_pct, sp_px, nq_pct, nq_px,
     market_wrap_by_lang, all_today_earnings, earnings_ai_map_by_lang,
     week_label_by_lang, sp_str, nq_str,
+    portfolio_name: str | None = None,
 ) -> tuple[str, str]:
     """Builds one user's (subject, html) for the Friday weekly-summary email
     — extracted out of job_daily_email's per-user loop so a manual test send
@@ -1833,19 +1865,21 @@ def build_weekly_email_for_user(
             earnings_items=earnings_items,
             period="semana",
             language=lang,
+            portfolio_name=portfolio_name,
         )
         sign = "+" if port_pct and port_pct >= 0 else ""
+        name_suffix = f" ({portfolio_name})" if portfolio_name else ""
         if is_en:
             subject = (
-                f"Your portfolio this week: {sign}{port_pct:.2f}% — Nuvos AI"
+                f"Your portfolio this week{name_suffix}: {sign}{port_pct:.2f}% — Nuvos AI"
                 if port_pct is not None
-                else "Your weekly market summary — Nuvos AI"
+                else f"Your weekly market summary{name_suffix} — Nuvos AI"
             )
         else:
             subject = (
-                f"Tu portafolio esta semana: {sign}{port_pct:.2f}% — Nuvos AI"
+                f"Tu portafolio esta semana{name_suffix}: {sign}{port_pct:.2f}% — Nuvos AI"
                 if port_pct is not None
-                else "Tu resumen semanal del mercado — Nuvos AI"
+                else f"Tu resumen semanal del mercado{name_suffix} — Nuvos AI"
             )
     else:
         # ── Free: general market summary for the week ──────────────────

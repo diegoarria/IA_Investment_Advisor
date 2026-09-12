@@ -211,8 +211,9 @@ async def trigger_weekly_summary(user_id: str = Depends(get_current_user_id)):
     is_premium = (prof.get("subscription_tier") or "free") == "premium"
     lang = prof.get("preferred_language") or "es"
 
-    port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id))
-    positions = _worker._agg_positions(port_res.data or []) if port_res.data else []
+    port_res = await run_query(db.table("user_portfolio").select("portfolio_name,positions").eq("user_id", user_id))
+    portfolio_groups = _worker._split_portfolios_for_weekly_email(port_res.data or []) if port_res.data else [(None, [])]
+    positions = [p for _, pos in portfolio_groups for p in pos]
 
     watch_res = await run_query(db.table("watchlist").select("ticker").eq("user_id", user_id))
     watchlist = {r["ticker"] for r in (watch_res.data or [])}
@@ -286,18 +287,22 @@ async def trigger_weekly_summary(user_id: str = Depends(get_current_user_id)):
     sp_str = f"{sp_pct:+.1f}%" if sp_pct is not None else "—"
     nq_str = f"{nq_pct:+.1f}%" if nq_pct is not None else "—"
 
-    subject, html = _worker.build_weekly_email_for_user(
-        first=first, is_premium=is_premium, positions=positions, watchlist=watchlist, lang=lang,
-        week_prices=week_prices, ticker_meta=ticker_meta, sp_pct=sp_pct, sp_px=sp_px, nq_pct=nq_pct, nq_px=nq_px,
-        market_wrap_by_lang={lang: market_wrap}, all_today_earnings=all_today_earnings,
-        earnings_ai_map_by_lang={lang: earnings_ai}, week_label_by_lang=week_label_by_lang,
-        sp_str=sp_str, nq_str=nq_str,
-    )
-    ok = await send_email_notification(user_id, "weekly_summary", subject, html, db)
+    multi = len(portfolio_groups) > 1
+    sent_emails = []
+    for portfolio_name, group_positions in portfolio_groups:
+        subject, html = _worker.build_weekly_email_for_user(
+            first=first, is_premium=is_premium, positions=group_positions, watchlist=watchlist, lang=lang,
+            week_prices=week_prices, ticker_meta=ticker_meta, sp_pct=sp_pct, sp_px=sp_px, nq_pct=nq_pct, nq_px=nq_px,
+            market_wrap_by_lang={lang: market_wrap}, all_today_earnings=all_today_earnings,
+            earnings_ai_map_by_lang={lang: earnings_ai}, week_label_by_lang=week_label_by_lang,
+            sp_str=sp_str, nq_str=nq_str,
+            portfolio_name=portfolio_name if multi else None,
+        )
+        ok = await send_email_notification(user_id, "weekly_summary", subject, html, db)
+        sent_emails.append({"sent": ok, "subject": subject, "portfolio_name": portfolio_name})
 
     return {
-        "sent": ok,
-        "subject": subject,
+        "emails": sent_emails,
         "is_premium": is_premium,
         "language": lang,
         "sp500_weekly_pct": sp_pct,

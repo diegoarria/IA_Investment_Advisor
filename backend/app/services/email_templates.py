@@ -391,6 +391,7 @@ def daily_email_v2(
     earnings_items: list = [],
     period: str = "día",
     language: str = "es",
+    portfolio_name: str | None = None,
 ) -> str:
     """Shared template for both the real daily market-close email/push AND the
     Friday weekly summary (worker.py's job_daily_email passes period="semana"
@@ -437,6 +438,7 @@ def daily_email_v2(
   <div style="text-align:center;padding-bottom:30px">
     <div style="color:#f3f5f7;font-size:20px;font-weight:800;letter-spacing:-0.01em;margin-bottom:6px">{t["greeting"].format(first_name=first_name)}</div>
     <div style="color:#5b6478;font-size:12.5px">{t["subheading"]}</div>
+    {f'<div style="display:inline-block;margin-top:10px;padding:4px 12px;border-radius:999px;background:rgba(0,212,126,0.1);color:#00d47e;font-size:11px;font-weight:700">{portfolio_name}</div>' if portfolio_name else ''}
   </div>"""
 
     # ── Hero: portfolio figure ────────────────────────────────────────────────
