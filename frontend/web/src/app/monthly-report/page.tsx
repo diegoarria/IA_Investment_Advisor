@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Lock } from "lucide-react";
 import api from "@/lib/api";
@@ -13,6 +13,18 @@ function currentYearMonth(): { year: number; month: number } {
 }
 
 export default function MonthlyReportPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ position: "fixed", inset: 0, background: WT.bg, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+        <Loader2 className="animate-spin" size={28} color={WT.accentL} />
+      </div>
+    }>
+      <MonthlyReportPageInner />
+    </Suspense>
+  );
+}
+
+function MonthlyReportPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Deep-link support (?year=&month=) — the monthly-summary email links here
