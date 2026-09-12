@@ -28,6 +28,7 @@ from app.services.market_holidays import (
     is_market_holiday_today as _is_market_holiday_today,
     is_trading_day as _is_trading_day,
     is_first_trading_day_of_week as _is_first_trading_day_of_week,
+    is_first_trading_day_of_month as _is_first_trading_day_of_month,
     is_last_trading_day_of_week as _is_last_trading_day_of_week,
     holiday_name_today as _holiday_name_today,
     is_early_close_today as _is_early_close_today,
@@ -1962,6 +1963,360 @@ def build_weekly_email_for_user(
         subject = fc["subject"].format(sp_str=sp_str, nq_str=nq_str)
 
     return subject, html
+
+
+# ── Monthly Report email (1st trading day of the month) ───────────────────
+
+_MONTHLY_EMAIL_COPY = {
+    "es": {
+        "header_tagline": "Tu resumen mensual",
+        "greeting": "Hola {first},",
+        "best_label": "Tu mejor jugada",
+        "worst_label": "Tu peor jugada",
+        "value_label": "Valor de tu portafolio",
+        "cta": "Ver tu Monthly Report completo",
+        "empty_subheading": "Este mes no tuvimos suficientes datos para calcular tu retorno — pero tu Monthly Report ya tiene el detalle de decisiones e investigación del mes.",
+        "slogan": "Decide mejor, cada mes.",
+    },
+    "en": {
+        "header_tagline": "Your monthly recap",
+        "greeting": "Hi {first},",
+        "best_label": "Your best move",
+        "worst_label": "Your worst move",
+        "value_label": "Your portfolio value",
+        "cta": "See your full Monthly Report",
+        "empty_subheading": "We didn't have enough data to compute your return this month — but your Monthly Report already has the month's decisions and research detail.",
+        "slogan": "Decide better, every month.",
+    },
+}
+
+
+def build_monthly_report_email_for_user(
+    *, first: str, month_label: str, year: int, month: int, report: dict, lang: str,
+) -> tuple[str, str]:
+    """Builds one user's (subject, html) monthly-summary email from a REAL
+    get_monthly_report() result (app/services/monthly_report_service.py) —
+    same reuse-the-real-computation discipline as build_weekly_email_for_user,
+    so this can never quietly show numbers that disagree with the in-app
+    Monthly Report the CTA links to."""
+    c = _MONTHLY_EMAIL_COPY.get(lang, _MONTHLY_EMAIL_COPY["es"])
+    is_en = lang == "en"
+    portfolio = report.get("portfolio") or {}
+    wealth = report.get("wealth") or {}
+    return_pct = portfolio.get("return_pct")
+    best = portfolio.get("best_position")
+    worst = portfolio.get("worst_position")
+    portfolio_value = wealth.get("portfolio_value")
+
+    def _pct_str(p):
+        if p is None:
+            return "—"
+        return f"{p:+.2f}%"
+
+    def _usd_str(v):
+        if v is None:
+            return "—"
+        return f"${v:,.0f}"
+
+    color = "#22c55e" if (return_pct or 0) >= 0 else "#ef4444"
+    report_url = "https://www.nuvosai.com/monthly-report"
+
+    mover_rows = ""
+    for label, mover in ((c["best_label"], best), (c["worst_label"], worst)):
+        if not mover:
+            continue
+        mv_color = "#22c55e" if (mover.get("move_pct") or 0) >= 0 else "#ef4444"
+        name = mover.get("company_name") or mover["ticker"]
+        mover_rows += f"""
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #2a2d3a">
+          <div>
+            <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 2px">{label}</p>
+            <p style="color:#f3f5f7;font-size:14px;font-weight:700;margin:0">{name} ({mover["ticker"]})</p>
+          </div>
+          <p style="color:{mv_color};font-size:16px;font-weight:900;margin:0">{_pct_str(mover.get("move_pct"))}</p>
+        </div>"""
+
+    subheading = (
+        f'<p style="color:{color};font-size:34px;font-weight:900;margin:0 0 4px;letter-spacing:-0.5px">{_pct_str(return_pct)}</p>'
+        if return_pct is not None
+        else f'<p style="color:#9ca3af;font-size:14px;line-height:1.6;margin:0 0 4px">{c["empty_subheading"]}</p>'
+    )
+
+    html = f"""<!DOCTYPE html>
+<html lang="{lang}">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuvos AI</title></head>
+<body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
+<div style="max-width:580px;margin:0 auto;padding:28px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+    <div style="background:linear-gradient(135deg,#0d1f14,#0f2a1a);padding:28px 32px;text-align:center;border-bottom:1px solid #1e3a28">
+      <img src="https://www.nuvosai.com/logo.png" alt="Nuvos AI" width="48" height="48" style="display:block;margin:0 auto 10px;border-radius:12px"/>
+      <p style="margin:0;color:#00d47e;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase">{c["header_tagline"]}</p>
+    </div>
+    <div style="background:#161b27;padding:28px 32px">
+      <h1 style="color:#fff;font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-0.3px">{c["greeting"].format(first=first)}</h1>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 20px">{month_label}</p>
+
+      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:22px;margin-bottom:20px;text-align:center">
+        {subheading}
+        {f'<p style="color:#6b7280;font-size:12px;margin:0">{c["value_label"]}: {_usd_str(portfolio_value)}</p>' if portfolio_value is not None else ''}
+      </div>
+
+      {f'<div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:8px 22px;margin-bottom:20px">{mover_rows}</div>' if mover_rows else ''}
+
+      <div style="text-align:center;margin-bottom:20px">
+        <a href="{report_url}?year={year}&month={month}" style="display:inline-block;background:#00d47e;color:#000;font-weight:900;font-size:14px;padding:13px 28px;border-radius:12px;text-decoration:none">{c["cta"]}</a>
+      </div>
+
+      <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0">{c["slogan"]}</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>"""
+
+    sign = "+" if return_pct is not None and return_pct >= 0 else ""
+    if return_pct is not None:
+        subject = (
+            f"Your month: {sign}{return_pct:.2f}% — Nuvos AI" if is_en
+            else f"Tu mes: {sign}{return_pct:.2f}% — Nuvos AI"
+        )
+    else:
+        subject = "Your Monthly Report is ready — Nuvos AI" if is_en else "Tu Monthly Report ya está listo — Nuvos AI"
+
+    return subject, html
+
+
+async def job_monthly_report_email():
+    """9:00 AM ET, first NYSE trading day of the month — premium users get an
+    email recap of the month that JUST closed (not the barely-started new
+    one), reusing get_monthly_report() (same computation the in-app Monthly
+    Report screen shows) so the numbers can never drift from what the CTA
+    link takes them to."""
+    import pytz
+    if not settings.resend_api_key:
+        return
+    today = datetime.now(pytz.timezone("America/New_York")).date()
+    if not _is_first_trading_day_of_month(today):
+        return
+
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_email_notification
+    from app.services.monthly_report_service import get_monthly_report
+
+    db = get_supabase()
+    try:
+        prev_month_end = today.replace(day=1) - timedelta(days=1)
+        year, month = prev_month_end.year, prev_month_end.month
+
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,email_daily_summary")
+        )
+        disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("email_daily_summary") is False}
+
+        profiles_res = await run_query(
+            db.table("user_profiles").select("user_id,name,subscription_tier,preferred_language")
+        )
+        premium_profiles = [
+            r for r in (profiles_res.data or [])
+            if r["user_id"] not in disabled and (r.get("subscription_tier") or "free") == "premium"
+        ]
+        if not premium_profiles:
+            return
+
+        month_label_map = {
+            "es": f"{_SPANISH_MONTHS[month - 1].capitalize()} {year}",
+            "en": f"{_ENGLISH_MONTHS[month - 1]} {year}",
+        }
+
+        sent = 0
+        for i, prof in enumerate(premium_profiles):
+            uid = prof["user_id"]
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            await asyncio.sleep(random.uniform(0, 0.1))
+            lang = prof.get("preferred_language") or "es"
+            first = (prof.get("name") or "Inversor").split()[0]
+            try:
+                report = await get_monthly_report(uid, year, month, lang=lang)
+            except Exception as e:
+                logger.warning("job_monthly_report_email: get_monthly_report failed for %s: %s", uid, e)
+                continue
+            if not report.get("available"):
+                continue
+
+            subject, html = build_monthly_report_email_for_user(
+                first=first, month_label=month_label_map.get(lang, month_label_map["es"]),
+                year=year, month=month, report=report, lang=lang,
+            )
+            await send_email_notification(uid, "monthly_report", subject, html, db)
+            sent += 1
+
+        logger.info("Monthly report email: %d/%d premium users sent (%s-%02d)", sent, len(premium_profiles), year, month)
+    except Exception as e:
+        logger.error("job_monthly_report_email failed: %s", e)
+
+
+# ── Annual Wrapped email (Dec 15, when the window opens) ───────────────────
+
+_ANNUAL_EMAIL_COPY = {
+    "es": {
+        "header_tagline": "Tu Annual ScoreBoard",
+        "greeting": "Hola {first},",
+        "subheading": "Tu {year} como inversionista, resumido.",
+        "growth_label": "Retorno del año",
+        "value_label": "Valor de tu portafolio",
+        "best_label": "Tu mejor posición",
+        "cta": "Ver tu Annual ScoreBoard completo",
+        "slogan": "Nuevo año, mejores decisiones.",
+    },
+    "en": {
+        "header_tagline": "Your Annual ScoreBoard",
+        "greeting": "Hi {first},",
+        "subheading": "Your {year} as an investor, recapped.",
+        "growth_label": "Year return",
+        "value_label": "Your portfolio value",
+        "best_label": "Your best position",
+        "cta": "See your full Annual ScoreBoard",
+        "slogan": "New year, better decisions.",
+    },
+}
+
+
+def build_annual_wrapped_email_for_user(
+    *, first: str, wrapped: dict, lang: str,
+) -> tuple[str, str]:
+    """Builds one user's (subject, html) annual-summary email from a REAL
+    compute_wrapped() result (app/api/routes/wrapped.py) — same reuse
+    discipline as the weekly/monthly emails, so the numbers here can never
+    drift from what the CTA takes them to see in-app."""
+    c = _ANNUAL_EMAIL_COPY.get(lang, _ANNUAL_EMAIL_COPY["es"])
+    is_en = lang == "en"
+    year = wrapped.get("year")
+    growth_pct = wrapped.get("growth_pct")
+    portfolio_value = wrapped.get("portfolio_value")
+    top_positions = wrapped.get("top_positions") or []
+    best = top_positions[0] if top_positions else None
+
+    def _pct_str(p):
+        return "—" if p is None else f"{p:+.2f}%"
+
+    def _usd_str(v):
+        return "—" if v is None else f"${v:,.0f}"
+
+    color = "#22c55e" if (growth_pct or 0) >= 0 else "#ef4444"
+    wrapped_url = "https://www.nuvosai.com/wrapped"
+
+    best_block = ""
+    if best:
+        name = best.get("company_name") or best["ticker"]
+        best_block = f"""
+      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:16px 22px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 2px">{c["best_label"]}</p>
+          <p style="color:#f3f5f7;font-size:14px;font-weight:700;margin:0">{name} ({best["ticker"]})</p>
+        </div>
+        <p style="color:#22c55e;font-size:16px;font-weight:900;margin:0">{_pct_str(best.get("return_pct"))}</p>
+      </div>"""
+
+    html = f"""<!DOCTYPE html>
+<html lang="{lang}">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuvos AI</title></head>
+<body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
+<div style="max-width:580px;margin:0 auto;padding:28px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+    <div style="background:linear-gradient(135deg,#0d1f14,#0f2a1a);padding:28px 32px;text-align:center;border-bottom:1px solid #1e3a28">
+      <img src="https://www.nuvosai.com/logo.png" alt="Nuvos AI" width="48" height="48" style="display:block;margin:0 auto 10px;border-radius:12px"/>
+      <p style="margin:0;color:#00d47e;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase">✨ {c["header_tagline"]}</p>
+    </div>
+    <div style="background:#161b27;padding:28px 32px">
+      <h1 style="color:#fff;font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-0.3px">{c["greeting"].format(first=first)}</h1>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 20px">{c["subheading"].format(year=year)}</p>
+
+      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:22px;margin-bottom:20px;text-align:center">
+        <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 8px">{c["growth_label"]}</p>
+        <p style="color:{color};font-size:34px;font-weight:900;margin:0 0 4px;letter-spacing:-0.5px">{_pct_str(growth_pct)}</p>
+        <p style="color:#6b7280;font-size:12px;margin:0">{c["value_label"]}: {_usd_str(portfolio_value)}</p>
+      </div>
+
+      {best_block}
+
+      <div style="text-align:center;margin-bottom:20px">
+        <a href="{wrapped_url}" style="display:inline-block;background:#00d47e;color:#000;font-weight:900;font-size:14px;padding:13px 28px;border-radius:12px;text-decoration:none">{c["cta"]}</a>
+      </div>
+
+      <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0">{c["slogan"]}</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>"""
+
+    sign = "+" if growth_pct is not None and growth_pct >= 0 else ""
+    if growth_pct is not None:
+        subject = (
+            f"Your {year} return: {sign}{growth_pct:.2f}% — Nuvos AI" if is_en
+            else f"Tu retorno de {year}: {sign}{growth_pct:.2f}% — Nuvos AI"
+        )
+    else:
+        subject = f"Your Annual ScoreBoard is ready — Nuvos AI" if is_en else f"Tu Annual ScoreBoard ya está listo — Nuvos AI"
+
+    return subject, html
+
+
+async def job_wrapped_email():
+    """9:00 AM ET, December 15 — the Wrapped window opens (same trigger as
+    job_wrapped_notify_available's push, but this reaches EVERY user, not
+    just push opt-ins) with an email recap linking into the full in-app
+    Annual ScoreBoard. Reuses compute_wrapped() (app/api/routes/wrapped.py)
+    — the exact same computation /api/wrapped/annual serves — so the
+    numbers here can never disagree with what the CTA takes them to."""
+    if not settings.resend_api_key:
+        return
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_email_notification
+    from app.api.routes.wrapped import compute_wrapped
+    from app.core.wrapped_window import wrapped_year_for
+
+    db = get_supabase()
+    try:
+        now = datetime.now(timezone.utc)
+        year = wrapped_year_for(now)
+
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,email_daily_summary")
+        )
+        disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("email_daily_summary") is False}
+
+        profiles_res = await run_query(
+            db.table("user_profiles").select("user_id,name,preferred_language")
+        )
+        recipients = [r for r in (profiles_res.data or []) if r["user_id"] not in disabled]
+        if not recipients:
+            return
+
+        sent = 0
+        for i, prof in enumerate(recipients):
+            uid = prof["user_id"]
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            await asyncio.sleep(random.uniform(0, 0.1))
+            lang = prof.get("preferred_language") or "es"
+            first = (prof.get("name") or "Inversor").split()[0]
+            try:
+                wrapped = await compute_wrapped(uid, now, year)
+            except Exception as e:
+                logger.warning("job_wrapped_email: compute_wrapped failed for %s: %s", uid, e)
+                continue
+
+            subject, html = build_annual_wrapped_email_for_user(first=first, wrapped=wrapped, lang=lang)
+            await send_email_notification(uid, "annual_scoreboard", subject, html, db)
+            sent += 1
+
+        logger.info("Annual ScoreBoard email: %d/%d users sent (year=%s)", sent, len(recipients), year)
+    except Exception as e:
+        logger.error("job_wrapped_email failed: %s", e)
 
 
 async def get_price_alert_why_with_diagnostics(ticker: str, pct: float, price: float) -> dict:
@@ -6345,6 +6700,14 @@ async def main():
     scheduler.add_job(job_refresh_smart_alerts_sources, "cron", day_of_week="mon-fri", hour=13, minute=0, timezone="America/New_York")
     scheduler.add_job(job_smart_alerts,           "cron", day_of_week="mon-fri", hour=16,    minute=20,    timezone="America/New_York")
     scheduler.add_job(job_daily_email,          "cron", day_of_week="fri",     hour=18,      minute=0,     timezone="America/New_York")
+    # 9:00am ET, days 1-4 — job_monthly_report_email's own
+    # _is_first_trading_day_of_month gate makes this fire exactly once per
+    # month even when the 1st is a weekend/holiday (same idiom as
+    # job_weekly_open_snapshot's day-of-week cron + internal gate).
+    scheduler.add_job(job_monthly_report_email, "cron", day="1-4",             hour=9,       minute=0,     timezone="America/New_York")
+    # Dec 15, 9:00am ET — same moment job_wrapped_notify_available pushes its
+    # opt-in users, but this email reaches every user (see docstring).
+    scheduler.add_job(job_wrapped_email,        "cron", month=12, day=15,      hour=9,       minute=0,     timezone="America/New_York")
 
     # ── Sunday 8:00am ET: Screener Semanal — submits ONE Message Batch for
     # every premium user (2026-08-21 cost optimization), see

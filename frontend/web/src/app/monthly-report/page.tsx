@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Lock } from "lucide-react";
 import api from "@/lib/api";
 import MonthlyReportFlow from "@/components/monthly-report/MonthlyReportFlow";
@@ -14,7 +14,16 @@ function currentYearMonth(): { year: number; month: number } {
 
 export default function MonthlyReportPage() {
   const router = useRouter();
-  const [{ year, month }, setYearMonth] = useState(currentYearMonth);
+  const searchParams = useSearchParams();
+  // Deep-link support (?year=&month=) — the monthly-summary email links here
+  // pointing at the month it just recapped, not whatever month happens to be
+  // current when the user clicks through.
+  const [{ year, month }, setYearMonth] = useState(() => {
+    const y = Number(searchParams.get("year"));
+    const m = Number(searchParams.get("month"));
+    if (y && m && m >= 1 && m <= 12) return { year: y, month: m };
+    return currentYearMonth();
+  });
   const [data, setData] = useState<MonthlyReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [premiumLocked, setPremiumLocked] = useState<string | null>(null);

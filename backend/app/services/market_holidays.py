@@ -118,6 +118,22 @@ def is_first_trading_day_of_week(d: date) -> bool:
     return True
 
 
+def is_first_trading_day_of_month(d: date) -> bool:
+    """True if `d` is the first NYSE trading day of its calendar month —
+    i.e. no earlier day this month, back to the 1st, was itself a trading
+    day. Same idiom as is_first_trading_day_of_week, for a "1st of the
+    month" job (e.g. the monthly-report email) that must still fire exactly
+    once even when the 1st falls on a weekend or holiday."""
+    if not is_trading_day(d):
+        return False
+    day = d.replace(day=1)
+    while day < d:
+        if is_trading_day(day):
+            return False
+        day += timedelta(days=1)
+    return True
+
+
 def is_last_trading_day_of_week(d: date) -> bool:
     """True if `d` is the last NYSE trading day of its (Mon-Sun) week —
     i.e. no later day this week, through Friday, is itself a trading day.
