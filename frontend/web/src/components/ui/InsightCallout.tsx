@@ -8,22 +8,25 @@
 // a generic tip, never shown when there's nothing real to say (the caller
 // is responsible for that; this component never fabricates a fallback).
 import type { ReactNode } from "react";
-import { Lightbulb, ArrowRight } from "lucide-react";
+import { Lightbulb, ArrowRight, X } from "lucide-react";
 
 const GOLD = "#D4A24C";
 
 export function InsightCallout({
-  icon, title, body, cta, className = "",
+  icon, title, body, cta, onClose, className = "",
 }: {
   icon?: ReactNode;
   title: string;
   body: string;
   cta?: { label: string; onClick: () => void };
+  /** Renders a dismiss (X) button in the top-right corner when provided —
+   * omitted entirely means no way to close, same as before this existed. */
+  onClose?: () => void;
   className?: string;
 }) {
   return (
     <div
-      className={`rounded-2xl border p-4 flex gap-3 ${className}`}
+      className={`relative rounded-2xl border p-4 flex gap-3 ${className}`}
       style={{ borderColor: `${GOLD}40`, background: `${GOLD}0d` }}
     >
       <div
@@ -32,7 +35,7 @@ export function InsightCallout({
       >
         {icon ?? <Lightbulb size={16} style={{ color: GOLD }} />}
       </div>
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 pr-5">
         <p className="text-sm font-bold mb-1" style={{ color: "var(--text)" }}>{title}</p>
         <p className="text-[13px] leading-relaxed" style={{ color: "var(--sub)" }}>{body}</p>
         {cta && (
@@ -45,6 +48,15 @@ export function InsightCallout({
           </button>
         )}
       </div>
+      {onClose && (
+        <button
+          onClick={onClose}
+          aria-label="Cerrar"
+          className="absolute top-3 right-3 p-1 rounded-md opacity-60 hover:opacity-100 transition-opacity"
+        >
+          <X size={14} style={{ color: "var(--sub)" }} />
+        </button>
+      )}
     </div>
   );
 }

@@ -498,6 +498,16 @@ export default function HomePage() {
     return best;
   }, [uniquePositionsByTicker, prices, fxRate]);
 
+  // Dismissible for the rest of today (Diego, 2026-09-12) — same
+  // daily-reset pattern as the Morning Brief flashcard above, own key so
+  // the two don't share state. Resets tomorrow since it's a new top mover
+  // by then anyway.
+  const TOP_MOVER_INSIGHT_DISMISS_KEY = "nuvos_top_mover_insight_dismissed";
+  const [topMoverDismissed, setTopMoverDismissed] = useState(false);
+  useEffect(() => {
+    if (isDismissedToday(TOP_MOVER_INSIGHT_DISMISS_KEY)) setTopMoverDismissed(true);
+  }, []);
+
   // ── Goal ───────────────────────────────────────────────────────────────────
   const GOAL_MAP: Record<string, { label: string; emoji: string }> = {
     house:             { label: t("common.goalMap.house"),             emoji: "🏠" },
@@ -981,7 +991,7 @@ export default function HomePage() {
                 primary "recap" surface). This is the real decision-hook
                 the audit found Home was missing — only rendered when
                 there's genuinely something real to say. */}
-            {topMoverInsight && (
+            {topMoverInsight && !topMoverDismissed && (
               <InsightCallout
                 icon={<Zap className="w-4 h-4" style={{ color: "#D4A24C" }} />}
                 title={t("home.topMoverInsight.title", { ticker: topMoverInsight.ticker })}
@@ -997,6 +1007,10 @@ export default function HomePage() {
                 cta={{
                   label: t("home.topMoverInsight.cta", { ticker: topMoverInsight.ticker }),
                   onClick: () => router.push(`/subvaluadas?ticker=${topMoverInsight.ticker}`),
+                }}
+                onClose={() => {
+                  dismissToday(TOP_MOVER_INSIGHT_DISMISS_KEY);
+                  setTopMoverDismissed(true);
                 }}
               />
             )}

@@ -11,13 +11,16 @@ import { Ionicons } from "@expo/vector-icons";
 const GOLD = "#D4A24C";
 
 export default function InsightCallout({
-  icon = "bulb", title, body, ctaLabel, onPressCta, colors,
+  icon = "bulb", title, body, ctaLabel, onPressCta, onDismiss, colors,
 }: {
   icon?: keyof typeof Ionicons.glyphMap;
   title: string;
   body: string;
   ctaLabel?: string;
   onPressCta?: () => void;
+  /** Renders a dismiss (X) button in the top-right corner when provided —
+   * omitted entirely means no way to close, same as before this existed. */
+  onDismiss?: () => void;
   /** Same theme colors object every screen already threads through
    * (colors.text / colors.textMuted) — keeps this component correct in
    * both light and dark mode instead of hardcoding one. */
@@ -34,7 +37,7 @@ export default function InsightCallout({
       }}>
         <Ionicons name={icon} size={16} color={GOLD} />
       </View>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, paddingRight: onDismiss ? 16 : 0 }}>
         <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text, marginBottom: 3 }}>{title}</Text>
         <Text style={{ fontSize: 12.5, lineHeight: 18, color: colors.textMuted }}>{body}</Text>
         {ctaLabel && (
@@ -44,6 +47,15 @@ export default function InsightCallout({
           </TouchableOpacity>
         )}
       </View>
+      {onDismiss && (
+        <TouchableOpacity
+          onPress={onDismiss}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={{ position: "absolute", top: 10, right: 10 }}
+        >
+          <Ionicons name="close" size={16} color={colors.textMuted} />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

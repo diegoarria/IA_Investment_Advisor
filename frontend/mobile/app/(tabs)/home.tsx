@@ -662,6 +662,17 @@ export default function HomeScreen() {
     return best;
   }, [uniquePositionsByTicker, prices, fxRate]);
 
+  // Dismissible for the rest of today (Diego, 2026-09-12) — same
+  // daily-reset pattern as the Morning Brief flashcard below, own key so
+  // the two don't share state.
+  const TOP_MOVER_INSIGHT_DISMISS_KEY = "nuvos_top_mover_insight_dismissed";
+  const [topMoverDismissed, setTopMoverDismissed] = React.useState(false);
+  React.useEffect(() => {
+    isDismissedToday(TOP_MOVER_INSIGHT_DISMISS_KEY).then((dismissed) => {
+      if (dismissed) setTopMoverDismissed(true);
+    });
+  }, []);
+
   // ── Data loading ──────────────────────────────────────────────────────────
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -1570,7 +1581,7 @@ export default function HomeScreen() {
         {/* Diego, 2026-09-11 — "Decide mejor" audit: real decision-hook for
             Home, mirroring web (frontend/web/src/app/home/page.tsx). Only
             rendered when there's genuinely something real to say. */}
-        {topMoverInsight && (
+        {topMoverInsight && !topMoverDismissed && (
           <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
             <InsightCallout
               colors={colors}
@@ -1587,6 +1598,10 @@ export default function HomeScreen() {
               )}
               ctaLabel={t("home.topMoverInsight.cta", { ticker: topMoverInsight.ticker })}
               onPressCta={() => router.push(`/subvaluadas?ticker=${topMoverInsight.ticker}` as any)}
+              onDismiss={() => {
+                dismissToday(TOP_MOVER_INSIGHT_DISMISS_KEY);
+                setTopMoverDismissed(true);
+              }}
             />
           </View>
         )}
