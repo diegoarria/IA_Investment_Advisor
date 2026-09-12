@@ -16,6 +16,7 @@ import { useFxRate } from "@/lib/useFxRate";
 import { useWatchlistStore, useBalanceVisibilityStore } from "@/lib/store";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
 import { TrendingUp, TrendingDown, ArrowRight, Wallet, Eye, BarChart2 } from "lucide-react";
+import { fetchWithRetry } from "@/lib/fetchWithRetry";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -133,7 +134,12 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
   const [dividendTotalUSD, setDividendTotalUSD] = useState(0);
   const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };
   useEffect(() => {
-    cashHoldingsApi.list().then((res) => {
+    // A transient failure here must never silently drop cash/dividends out
+    // of the total shown (Diego, 2026-09-12: "SIEMPRE debe quedarse fijo") —
+    // retry a few times with backoff before giving up, same discipline as
+    // useSubscriptionStore.fetchStatus.
+    fetchWithRetry(() => cashHoldingsApi.list()).then((res) => {
+      if (!res) return;
       const holdings = res.data?.holdings ?? [];
       const usd = holdings.reduce((sum: number, c: { amount: number; currency: string; accrued_amount?: number }) => {
         const amt = c.accrued_amount ?? c.amount;
@@ -141,8 +147,10 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
         return sum + amt / (CASH_APPROX_TO_USD[c.currency] ?? 1);
       }, 0);
       setCashTotalUSD(usd);
-    }).catch(() => {});
-    dividendsApi.getIncome().then((res) => setDividendTotalUSD(res.data?.total ?? 0)).catch(() => {});
+    });
+    fetchWithRetry(() => dividendsApi.getIncome()).then((res) => {
+      if (res) setDividendTotalUSD(res.data?.total ?? 0);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const totalValue = stocksValue + cashTotalUSD * fxRate + dividendTotalUSD * fxRate;

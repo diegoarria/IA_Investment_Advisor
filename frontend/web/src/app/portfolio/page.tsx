@@ -11,6 +11,7 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { market as marketApi, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
+import { fetchWithRetry } from "@/lib/fetchWithRetry";
 import { useAuthStore, useSubscriptionStore, useProfileStore, useBalanceVisibilityStore } from "@/lib/store";
 import { getUserLevel, isAtLeast } from "@/lib/userLevel";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
@@ -964,8 +965,15 @@ export default function PortfolioPage() {
   // cash the user received, so it counts toward the total same as cash.
   const [dividendTotalUSD, setDividendTotalUSD] = useState(0);
   useEffect(() => {
-    dividendsApi.getIncome().then((res) => setDividendTotalUSD(res.data?.total ?? 0)).catch(() => {});
-  }, []);
+    // Same gating + retry discipline as the cash fetch above (Diego,
+    // 2026-09-12: cash/dividends must never silently drop out of the total)
+    // — an unguarded fetch used to 401 on login/remount, and the silent
+    // .catch() left this stuck at 0 with no retry.
+    if (!isAuthenticated) return;
+    fetchWithRetry(() => dividendsApi.getIncome()).then((res) => {
+      if (res) setDividendTotalUSD(res.data?.total ?? 0);
+    });
+  }, [isAuthenticated]);
   const dividendTotal = portfolioCurrency === "USD" ? dividendTotalUSD : dividendTotalUSD * fxRate;
 
   const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };

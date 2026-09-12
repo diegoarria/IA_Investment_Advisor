@@ -14,6 +14,7 @@ import { useFxRate } from "../../src/lib/useFxRate";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { usePaperStore, PAPER_INITIAL_CASH } from "../../src/lib/paperStore";
 import { marketApi, cashHoldingsApi, dividendsApi } from "../../src/lib/api";
+import { fetchWithRetry } from "../../src/lib/fetchWithRetry";
 import StockAvatar from "../../src/components/StockAvatar";
 import BalanceVisibilityToggle from "../../src/components/BalanceVisibilityToggle";
 import { useBalanceVisibilityStore } from "../../src/lib/balanceVisibilityStore";
@@ -101,7 +102,12 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
   const [dividendTotalUSD, setDividendTotalUSD] = useState(0);
   const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };
   useEffect(() => {
-    cashHoldingsApi.list().then((res: any) => {
+    // A transient failure here must never silently drop cash/dividends out
+    // of the total shown (Diego, 2026-09-12: "SIEMPRE debe quedarse fijo") —
+    // retry a few times with backoff before giving up, same discipline as
+    // useSubscriptionStore.fetchStatus.
+    fetchWithRetry(() => cashHoldingsApi.list()).then((res: any) => {
+      if (!res) return;
       const holdings = res.data?.holdings ?? [];
       const usd = holdings.reduce((sum: number, c: { amount: number; currency: string; accrued_amount?: number }) => {
         const amt = c.accrued_amount ?? c.amount;
@@ -109,8 +115,10 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
         return sum + amt / (CASH_APPROX_TO_USD[c.currency] ?? 1);
       }, 0);
       setCashTotalUSD(usd);
-    }).catch(() => {});
-    dividendsApi.getIncome().then((res: any) => setDividendTotalUSD(res.data?.total ?? 0)).catch(() => {});
+    });
+    fetchWithRetry(() => dividendsApi.getIncome()).then((res: any) => {
+      if (res) setDividendTotalUSD(res.data?.total ?? 0);
+    });
   }, []);
   const totalValueWithExtras = totalValue + cashTotalUSD + dividendTotalUSD;
 
