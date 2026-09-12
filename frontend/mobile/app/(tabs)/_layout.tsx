@@ -344,6 +344,16 @@ export default function TabsLayout() {
     loadOrder();
     loadWatchlist();
 
+    // Re-verify premium/trial status against the server on every foreground
+    // resume — without this, hasPremiumAccess() renders whatever `tier` was
+    // persisted from the PREVIOUS session (e.g. a manual_comp grant applied
+    // after the last time this ran, or a webhook downgrade later corrected
+    // server-side), and only self-corrects once the user happens to open a
+    // screen that separately calls fetchStatus(). This is the one gap that
+    // let a real premium user briefly see "free" right after reopening the
+    // app (Diego, 2026-09-11).
+    useSubscriptionStore.getState().fetchStatus();
+
     // Portfolio has its own store method for this: it fetches every portfolio by
     // its real id (not just "default", which /sync/all always returns regardless
     // of which portfolio is actually active on this device), and skips the pull
