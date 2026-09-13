@@ -286,7 +286,7 @@ function AppStack() {
   if (Platform.OS === "web") {
     return (
       <View style={{ flex: 1, flexDirection: showSidebar ? "row" : "column", backgroundColor: colors.bg }}>
-        <StatusBar style={isDark ? "light" : "dark"} backgroundColor={colors.bg} />
+        <StatusBar style={isDark ? "light" : "dark"} />
         {showSidebar && <Sidebar />}
         <View style={{ flex: 1, overflow: "hidden" }}>
           {stackScreens}
@@ -297,7 +297,11 @@ function AppStack() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <StatusBar style={isDark ? "light" : "dark"} backgroundColor={colors.bg} />
+      {/* backgroundColor dropped (SDK 57 upgrade, 2026-09-13): Android
+          edge-to-edge makes the status bar transparent-only now, so the
+          prop no longer exists on StatusBarProps — the container View's
+          own backgroundColor already shows through identically. */}
+      <StatusBar style={isDark ? "light" : "dark"} />
       {stackScreens}
       {showSidebar && <Sidebar />}
       <TrialExpiredModal />

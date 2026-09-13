@@ -425,7 +425,13 @@ export default function TabsLayout() {
   return (
     <Tabs
       initialRouteName="home"
-      tabBar={isWeb ? undefined : (props) => <CustomTabBar {...props} />}
+      // expo-router@57 vendors its own BottomTabDescriptorMap type, which
+      // no longer structurally matches @react-navigation/bottom-tabs'
+      // BottomTabBarProps (ColorValue vs string on tintColor callbacks) —
+      // a type-only mismatch between two copies of the same shape, not a
+      // real runtime incompatibility. Cast at this one boundary rather
+      // than loosening CustomTabBar's own prop types.
+      tabBar={isWeb ? undefined : (props: any) => <CustomTabBar {...props} />}
       screenOptions={{
         tabBarStyle: isWeb ? { display: "none" } : undefined,
         headerShown: !isWeb,

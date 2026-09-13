@@ -52,6 +52,9 @@ export default {
       "expo-font",
       "expo-secure-store",
       "expo-web-browser",
+      "expo-sharing",
+      "expo-splash-screen",
+      "expo-status-bar",
     ],
     experiments: {
       typedRoutes: true,

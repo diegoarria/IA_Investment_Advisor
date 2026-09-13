@@ -600,7 +600,7 @@ const styles = StyleSheet.create({
   },
   // Mobile overlay
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "black",
     zIndex: 100,
   },
