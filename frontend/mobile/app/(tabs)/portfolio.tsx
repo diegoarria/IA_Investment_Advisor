@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import Svg, { Path, Defs, Stop, LinearGradient, Circle, Line as SvgLine } from "react-native-svg";
 import * as ImagePicker from "expo-image-picker";
-import { Video, ResizeMode } from "expo-av";
+import { useVideoPlayer, VideoView } from "expo-video";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { marketApi, cashHoldingsApi, dividendsApi, screenerWeeklyApi } from "../../src/lib/api";
@@ -995,6 +995,17 @@ export default function PortfolioScreen() {
   const [portfolioCreating, setPortfolioCreating] = useState(false);
   const [showNewPortfolioModal, setShowNewPortfolioModal] = useState(false);
   const [tutorialVideoOpen, setTutorialVideoOpen] = useState(false);
+  // expo-video (SDK 57 migration, 2026-09-13, replacing expo-av's <Video>,
+  // whose native module Expo Go no longer ships) — the player must be
+  // created unconditionally at the top level (Rules of Hooks), which is
+  // fine here since PORTFOLIO_TUTORIAL_VIDEO_URL is a static module-level
+  // constant, not derived from render state.
+  const tutorialVideoPlayer = useVideoPlayer(PORTFOLIO_TUTORIAL_VIDEO_URL || null);
+  useEffect(() => {
+    if (!PORTFOLIO_TUTORIAL_VIDEO_URL) return;
+    if (tutorialVideoOpen) tutorialVideoPlayer.play();
+    else tutorialVideoPlayer.pause();
+  }, [tutorialVideoOpen, tutorialVideoPlayer]);
   const [newPortfolioName, setNewPortfolioName] = useState("");
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renamingPortfolioId, setRenamingPortfolioId] = useState<string | null>(null);
@@ -2016,12 +2027,11 @@ export default function PortfolioScreen() {
                 </TouchableOpacity>
               </View>
               {PORTFOLIO_TUTORIAL_VIDEO_URL ? (
-                <Video
-                  source={{ uri: PORTFOLIO_TUTORIAL_VIDEO_URL }}
+                <VideoView
+                  player={tutorialVideoPlayer}
                   style={{ width: "100%", aspectRatio: 16 / 9, backgroundColor: "#000" }}
-                  useNativeControls
-                  resizeMode={ResizeMode.CONTAIN}
-                  shouldPlay
+                  nativeControls
+                  contentFit="contain"
                 />
               ) : (
                 <View style={{ width: "100%", aspectRatio: 16 / 9, backgroundColor: colors.bgRaised, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 24 }}>

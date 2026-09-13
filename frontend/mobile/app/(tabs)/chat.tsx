@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { Audio } from "expo-av";
+import {
+  useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync,
+  setAudioModeAsync, createAudioPlayer, type AudioPlayer,
+} from "expo-audio";
 import * as FileSystem from "expo-file-system/legacy";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
@@ -160,8 +163,14 @@ export default function ChatScreen() {
   const [showRecordingModal, setShowRecordingModal] = useState(false);
   const [recordingSecs, setRecordingSecs] = useState(0);
   const [showCallModal, setShowCallModal] = useState(false);
-  const recordingRef = useRef<Audio.Recording | null>(null);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  // expo-audio (SDK 57 migration, 2026-09-13, replacing expo-av — Expo Go
+  // no longer ships expo-av's native module) — the recorder is a single
+  // long-lived instance created via the hook (expo-audio has no imperative
+  // recorder constructor), reused across record sessions via
+  // prepareToRecordAsync()/record()/stop() instead of creating a new one
+  // each time like the old Audio.Recording.createAsync() did.
+  const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
+  const soundRef = useRef<AudioPlayer | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const meteringRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const waveAnimValues = useRef<Animated.Value[]>(
@@ -388,26 +397,23 @@ Instrucciones críticas:
 
   const startRecording = async () => {
     try {
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== "granted") {
+      const { granted } = await requestRecordingPermissionsAsync();
+      if (!granted) {
         Alert.alert(t("chat.micPermissionError"));
         return;
       }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync({
-        ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
-        isMeteringEnabled: true,
-      });
-      recordingRef.current = recording;
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setIsRecording(true);
       setRecordingSecs(0);
       setShowRecordingModal(true);
 
       timerRef.current = setInterval(() => setRecordingSecs((s) => s + 1), 1000);
 
-      meteringRef.current = setInterval(async () => {
+      meteringRef.current = setInterval(() => {
         try {
-          const st = await recordingRef.current?.getStatusAsync() as any;
+          const st = recorder.getStatus();
           if (st?.isRecording) {
             const metering: number = st.metering ?? -60;
             const level = Math.max(0, Math.min(1, (metering + 60) / 60));
@@ -427,11 +433,9 @@ Instrucciones críticas:
 
   const cancelRecording = async () => {
     _clearRecordingTimers();
-    const recording = recordingRef.current;
-    if (recording) {
-      try { await recording.stopAndUnloadAsync(); } catch {}
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-      recordingRef.current = null;
+    if (recorder.isRecording) {
+      try { await recorder.stop(); } catch {}
+      await setAudioModeAsync({ allowsRecording: false });
     }
     waveAnimValues.forEach((v) => v.setValue(0.12));
     setIsRecording(false);
@@ -442,16 +446,14 @@ Instrucciones críticas:
   const stopRecording = async () => {
     _clearRecordingTimers();
     setShowRecordingModal(false);
-    const recording = recordingRef.current;
-    if (!recording) return;
+    if (!recorder.isRecording) return;
     setIsRecording(false);
     setIsTranscribing(true);
     waveAnimValues.forEach((v) => v.setValue(0.12));
     try {
-      await recording.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-      recordingRef.current = null;
-      const uri = recording.getURI();
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false });
+      const uri = recorder.uri;
       if (!uri) {
         Alert.alert(t("chat.errorTitle"), t("chat.audioNotObtained"));
         return;
@@ -475,8 +477,8 @@ Instrucciones críticas:
 
   const playMessageAudio = async (text: string, idx: number) => {
     if (soundRef.current) {
-      await soundRef.current.stopAsync().catch(() => {});
-      await soundRef.current.unloadAsync().catch(() => {});
+      soundRef.current.pause();
+      soundRef.current.remove();
       soundRef.current = null;
       if (playingIdx === idx) { setPlayingIdx(null); return; }
     }
@@ -487,15 +489,19 @@ Instrucciones críticas:
       if (!data?.audio) return;
       const path = (FileSystem.cacheDirectory ?? "") + "nuvos_tts.mp3";
       await FileSystem.writeAsStringAsync(path, data.audio, { encoding: FileSystem.EncodingType.Base64 });
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, allowsRecordingIOS: false });
-      const { sound } = await Audio.Sound.createAsync({ uri: path });
+      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
+      const sound = createAudioPlayer({ uri: path });
       soundRef.current = sound;
       setIsLoadingAudio(false);
-      await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate((status) => {
+      sound.play();
+      // expo-audio@57's shipped .d.ts drops addListener from AudioPlayer's
+      // type (it's really there at runtime — AudioPlayer extends
+      // EventEmitter — this is an upstream type-declaration gap, confirmed
+      // in isolation against expo-modules-core@57.0.18, the latest 57.x).
+      (sound as any).addListener("playbackStatusUpdate", (status: any) => {
         if (status.isLoaded && status.didJustFinish) {
           setPlayingIdx(null);
-          sound.unloadAsync().catch(() => {});
+          sound.remove();
           soundRef.current = null;
         }
       });

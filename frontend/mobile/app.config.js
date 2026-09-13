@@ -55,6 +55,8 @@ export default {
       "expo-sharing",
       "expo-splash-screen",
       "expo-status-bar",
+      "expo-audio",
+      "expo-video",
     ],
     experiments: {
       typedRoutes: true,

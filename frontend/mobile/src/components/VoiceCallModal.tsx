@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Audio } from "expo-av";
+import {
+  useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync,
+  setAudioModeAsync, createAudioPlayer, type AudioPlayer,
+} from "expo-audio";
 import * as FileSystem from "expo-file-system/legacy";
 import * as SecureStore from "expo-secure-store";
 import { useTranslation } from "react-i18next";
@@ -45,9 +48,14 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  // expo-audio (SDK 57 migration, 2026-09-13, replacing expo-av — Expo Go
+  // no longer ships expo-av's native module) — a single long-lived recorder
+  // instance, reused across every utterance segment for the whole call via
+  // prepareToRecordAsync()/record()/stop(), instead of a new Audio.Recording
+  // object per segment like the old code created.
+  const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
   const meteringTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<AudioPlayer | null>(null);
 
   const hasSpokenRef = useRef(false);
   const silenceSinceRef = useRef<number | null>(null);
@@ -102,22 +110,23 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
   // and playNextInQueue() each called setAudioModeAsync with their own
   // hardcoded literal, so a speaker preference set here would've silently
   // been overwritten the next time a sentence started playing.
-  // Note: playThroughEarpieceAndroid reliably controls speaker vs earpiece on
-  // Android. iOS has no public expo-av API to force loudspeaker while
-  // allowsRecordingIOS is true (required here for continuous barge-in
-  // listening) — iOS may still route to the earpiece regardless of this flag.
+  // expo-audio's shouldRouteThroughEarpiece works cross-platform (per its
+  // own docs: on iOS it takes effect whenever allowsRecording is true, which
+  // it is here for continuous barge-in listening) — unlike expo-av's
+  // Android-only playThroughEarpieceAndroid, so the speaker toggle should
+  // now actually work on iOS too, not just Android.
   async function applyAudioMode() {
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
-      playThroughEarpieceAndroid: !speakerOnRef.current,
+    await setAudioModeAsync({
+      allowsRecording: true,
+      playsInSilentMode: true,
+      shouldRouteThroughEarpiece: !speakerOnRef.current,
     });
   }
 
   async function start() {
     try {
-      const { status: permStatus } = await Audio.requestPermissionsAsync();
-      if (permStatus !== "granted") {
+      const { granted } = await requestRecordingPermissionsAsync();
+      if (!granted) {
         setStatus("error");
         setErrorMsg(t("voiceCallModal.errors.micPermission"));
         return;
@@ -143,7 +152,7 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
       reconnectAttemptsRef.current = 0;
       setIsReconnecting(false);
       setStatus("listening");
-      if (!recordingRef.current) beginNewSegment();
+      if (!recorder.isRecording) beginNewSegment();
       if (!durationTimerRef.current) {
         durationTimerRef.current = setInterval(() => setCallSeconds((s) => s + 1), 1000);
       }
@@ -187,11 +196,8 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
 
   async function beginNewSegment() {
     try {
-      const { recording } = await Audio.Recording.createAsync({
-        ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
-        isMeteringEnabled: true,
-      });
-      recordingRef.current = recording;
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       hasSpokenRef.current = false;
       silenceSinceRef.current = null;
       startMeteringLoop();
@@ -203,12 +209,11 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
   function startMeteringLoop() {
     if (meteringTimerRef.current) clearInterval(meteringTimerRef.current);
     meteringTimerRef.current = setInterval(async () => {
-      const recording = recordingRef.current;
-      if (!recording) return;
+      if (!recorder.isRecording) return;
       let db = -160;
       try {
-        const st = await recording.getStatusAsync();
-        db = (st as any)?.metering ?? -160;
+        const st = recorder.getStatus();
+        db = st?.metering ?? -160;
       } catch {
         return;
       }
@@ -245,11 +250,9 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
   }
 
   async function restartSegmentDiscardingCurrent() {
-    const recording = recordingRef.current;
-    recordingRef.current = null;
-    if (recording) {
+    if (recorder.isRecording) {
       try {
-        await recording.stopAndUnloadAsync();
+        await recorder.stop();
       } catch {}
     }
     setStatus("listening");
@@ -259,16 +262,14 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
   async function finalizeSegment() {
     if (finalizingRef.current) return;
     finalizingRef.current = true;
-    const recording = recordingRef.current;
-    recordingRef.current = null;
     if (meteringTimerRef.current) {
       clearInterval(meteringTimerRef.current);
       meteringTimerRef.current = null;
     }
     try {
-      if (recording) {
-        await recording.stopAndUnloadAsync();
-        const uri = recording.getURI();
+      if (recorder.isRecording) {
+        await recorder.stop();
+        const uri = recorder.uri;
         if (uri) {
           const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
           wsRef.current?.send(JSON.stringify({ type: "utterance_audio", audio_b64: b64, mime: "audio/m4a" }));
@@ -325,18 +326,22 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
       const path = (FileSystem.cacheDirectory ?? "") + `nuvos_call_${Date.now()}.mp3`;
       await FileSystem.writeAsStringAsync(path, next, { encoding: FileSystem.EncodingType.Base64 });
       await applyAudioMode();
-      const { sound } = await Audio.Sound.createAsync({ uri: path });
+      const sound = createAudioPlayer({ uri: path });
       soundRef.current = sound;
       assistantSpeakingRef.current = true;
       setStatus("assistant_speaking");
-      sound.setOnPlaybackStatusUpdate((st) => {
+      // expo-audio@57's shipped .d.ts drops addListener from AudioPlayer's
+      // type (it's really there at runtime — AudioPlayer extends
+      // EventEmitter — an upstream type-declaration gap, confirmed in
+      // isolation against expo-modules-core@57.0.18, the latest 57.x).
+      (sound as any).addListener("playbackStatusUpdate", (st: any) => {
         if (st.isLoaded && st.didJustFinish) {
-          sound.unloadAsync().catch(() => {});
+          sound.remove();
           FileSystem.deleteAsync(path, { idempotent: true }).catch(() => {});
           playNextInQueue();
         }
       });
-      await sound.playAsync();
+      sound.play();
     } catch {
       playNextInQueue();
     }
@@ -353,8 +358,8 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
     playQueueRef.current = [];
     if (soundRef.current) {
       try {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
+        soundRef.current.pause();
+        soundRef.current.remove();
       } catch {}
       soundRef.current = null;
     }
@@ -379,22 +384,19 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
     playQueueRef.current = [];
     assistantSpeakingRef.current = false;
     awaitingMoreRef.current = false;
-    const recording = recordingRef.current;
-    recordingRef.current = null;
-    if (recording) {
-      recording.stopAndUnloadAsync().catch(() => {});
+    if (recorder.isRecording) {
+      recorder.stop().catch(() => {});
     }
     if (soundRef.current) {
       const sound = soundRef.current;
       soundRef.current = null;
-      // Must stopAsync() before unloadAsync() — unloading a still-playing
-      // sound without stopping it first could let the assistant's voice
-      // keep audibly playing for a moment after hang-up.
-      sound.stopAsync().catch(() => {}).finally(() => {
-        sound.unloadAsync().catch(() => {});
-      });
+      // Must pause() before remove() — removing a still-playing sound
+      // without pausing it first could let the assistant's voice keep
+      // audibly playing for a moment after hang-up.
+      try { sound.pause(); } catch {}
+      try { sound.remove(); } catch {}
     }
-    Audio.setAudioModeAsync({ allowsRecordingIOS: false }).catch(() => {});
+    setAudioModeAsync({ allowsRecording: false }).catch(() => {});
     wsRef.current?.close();
     wsRef.current = null;
   }

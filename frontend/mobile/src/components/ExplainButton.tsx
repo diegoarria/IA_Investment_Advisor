@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Audio } from "expo-av";
+import { setAudioModeAsync, createAudioPlayer, type AudioPlayer } from "expo-audio";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTranslation } from "react-i18next";
@@ -76,7 +76,7 @@ export default function ExplainButton({
   // there's no flash of the full button before the stored value resolves.
   const [dismissed, setDismissed] = useState<boolean | null>(null);
   const dismissKey = `nuvos_explain_dismissed:${screen}`;
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<AudioPlayer | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,8 +89,8 @@ export default function ExplainButton({
 
   const stop = async () => {
     if (soundRef.current) {
-      await soundRef.current.stopAsync().catch(() => {});
-      await soundRef.current.unloadAsync().catch(() => {});
+      soundRef.current.pause();
+      soundRef.current.remove();
       soundRef.current = null;
     }
     setState("idle");
@@ -105,15 +105,19 @@ export default function ExplainButton({
   const playAudio = async (b64: string) => {
     const path = (FileSystem.cacheDirectory ?? "") + "nuvos_explain.mp3";
     await FileSystem.writeAsStringAsync(path, b64, { encoding: FileSystem.EncodingType.Base64 });
-    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, allowsRecordingIOS: false });
-    const { sound } = await Audio.Sound.createAsync({ uri: path });
+    await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
+    const sound = createAudioPlayer({ uri: path });
     soundRef.current = sound;
     setState("playing");
-    await sound.playAsync();
-    sound.setOnPlaybackStatusUpdate((status) => {
+    sound.play();
+    // expo-audio@57's shipped .d.ts drops addListener from AudioPlayer's
+    // type (it's really there at runtime — AudioPlayer extends
+    // EventEmitter — an upstream type-declaration gap, confirmed in
+    // isolation against expo-modules-core@57.0.18, the latest 57.x).
+    (sound as any).addListener("playbackStatusUpdate", (status: any) => {
       if (status.isLoaded && status.didJustFinish) {
         setState("idle");
-        sound.unloadAsync().catch(() => {});
+        sound.remove();
         soundRef.current = null;
       }
     });
