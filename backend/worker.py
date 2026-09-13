@@ -5205,19 +5205,33 @@ def _macro_event_push_content(
 
 async def job_macro_event_watch():
     """Every 15 min, 8 AM-3 PM ET Mon-Fri — the single macro-event
-    notification per release per user: fires as soon as job_refresh_macro_
-    calendar's daily FMP sync shows a real `actual_value` for one of
-    _TRACKED_MACRO_EVENT_TYPES (CPI/Core CPI/PCE/Core PCE/NFP/Unemployment/
-    FOMC/GDP), all released between 8:30am (most) and 2pm ET (FOMC).
+    notification per release per user: fires as soon as a real `actual_value`
+    shows up for one of _TRACKED_MACRO_EVENT_TYPES (CPI/Core CPI/PCE/Core
+    PCE/NFP/Unemployment/FOMC/GDP), all released between 8:30am (most) and
+    2pm ET (FOMC). Each tick refreshes TODAY's events from FMP itself
+    (refresh_todays_macro_events) before checking — the daily 6am full sync
+    alone isn't enough, since it runs before same-day releases post (see
+    that function's docstring for the 2026-09-13 incident this fixed).
     send_push's per-user/category/day dedup already guarantees a released
     event is only ever pushed once per user, so polling frequently just
     shortens the delay — it never double-sends."""
     import pytz
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
+    from app.services.macro_calendar_service import refresh_todays_macro_events
 
     db = get_supabase()
     try:
+        # Root-cause fix, 2026-09-13: the daily 6am full sync runs BEFORE
+        # same-day releases (e.g. 8:30am CPI) post, so actual_value stayed
+        # null here all day and this job never had fresh data to check —
+        # a targeted one-day FMP refresh right before the query below closes
+        # that gap (see refresh_todays_macro_events's docstring).
+        try:
+            await refresh_todays_macro_events()
+        except Exception as e:
+            logger.warning("job_macro_event_watch: refresh_todays_macro_events failed: %s", e)
+
         today_et = datetime.now(pytz.timezone("America/New_York")).date().isoformat()
         events_res = await run_query(
             db.table("macro_economic_events")

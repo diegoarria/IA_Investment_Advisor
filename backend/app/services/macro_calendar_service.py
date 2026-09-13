@@ -277,6 +277,27 @@ async def refresh_macro_calendar() -> int:
     return len(rows)
 
 
+async def refresh_todays_macro_events() -> int:
+    """Targeted, cheap refresh — re-fetches ONLY today's window from FMP
+    (a single _fetch_fmp_window call, not the full 123-day sync) and
+    upserts. Root-cause fix, 2026-09-13: job_refresh_macro_calendar only
+    runs once at 6am ET, before same-day releases like 8:30am CPI have
+    posted — actual_value stayed null in Supabase all day, and by the next
+    day's 6am refresh the event was no longer "today" for job_macro_event_
+    watch's query, so the push silently never fired (confirmed: Friday's
+    CPI release produced zero notifications). Called by job_macro_event_
+    watch on every 15-min tick during market hours so actual_value picks
+    up a same-day release within minutes instead of never."""
+    import asyncio
+    rows = await asyncio.to_thread(fetch_and_normalize_macro_events, 0, 0)
+    if not rows:
+        return 0
+
+    db = get_supabase()
+    await run_query(db.table("macro_economic_events").upsert(rows, on_conflict="event_id"))
+    return len(rows)
+
+
 async def refresh_if_empty_on_startup() -> None:
     """Called once at worker startup — populates the macro calendar
     immediately if the table is empty (fresh deploy, first-ever run),
