@@ -195,9 +195,19 @@ async def _posthog_hogql(client: httpx.AsyncClient, query: str) -> list[list] | 
 
 
 async def _get_posthog_metrics() -> dict:
-    """DAU/WAU/MAU + top 10 events in the last 7 days, via PostHog's HogQL
+    """DAU/WAU/MAU + product usage in the last 7 days, via PostHog's HogQL
     query API — generic SQL-like queries instead of depending on any
-    specific Insight having been pre-built in the PostHog UI."""
+    specific Insight having been pre-built in the PostHog UI.
+
+    Diego, 2026-09-14: "qué es $autocapture y cada cosa" — the original
+    top-10 query mixed PostHog's automatic `$`-prefixed events (autocapture
+    clicks, $pageview, $pageleave, etc. — captured for free, not something
+    anyone named) with real named product actions (e.g.
+    "premium_upgrade_completed"), which drowned out the actually
+    interesting signal. Now split into `top_custom_events_last_7d` (named
+    events only — what people actually DO) and `automatic_events_last_7d`
+    (one collapsed count for all `$`-prefixed noise, so it's still visible
+    that it exists without cluttering the list)."""
     if not settings.posthog_personal_api_key or not settings.posthog_project_id:
         return {"available": False, "reason": "not_configured"}
 
@@ -205,19 +215,24 @@ async def _get_posthog_metrics() -> dict:
         dau_q = "SELECT count(DISTINCT person_id) FROM events WHERE timestamp > now() - INTERVAL 1 DAY"
         wau_q = "SELECT count(DISTINCT person_id) FROM events WHERE timestamp > now() - INTERVAL 7 DAY"
         mau_q = "SELECT count(DISTINCT person_id) FROM events WHERE timestamp > now() - INTERVAL 30 DAY"
-        top_events_q = (
+        top_custom_events_q = (
             "SELECT event, count() AS c FROM events "
-            "WHERE timestamp > now() - INTERVAL 7 DAY "
+            "WHERE timestamp > now() - INTERVAL 7 DAY AND event NOT LIKE '$%' "
             "GROUP BY event ORDER BY c DESC LIMIT 10"
         )
-        dau_res, wau_res, mau_res, top_res = await asyncio.gather(
+        automatic_events_q = (
+            "SELECT count() FROM events "
+            "WHERE timestamp > now() - INTERVAL 7 DAY AND event LIKE '$%'"
+        )
+        dau_res, wau_res, mau_res, top_custom_res, automatic_res = await asyncio.gather(
             _posthog_hogql(client, dau_q),
             _posthog_hogql(client, wau_q),
             _posthog_hogql(client, mau_q),
-            _posthog_hogql(client, top_events_q),
+            _posthog_hogql(client, top_custom_events_q),
+            _posthog_hogql(client, automatic_events_q),
         )
 
-    if dau_res is None and wau_res is None and mau_res is None and top_res is None:
+    if all(r is None for r in (dau_res, wau_res, mau_res, top_custom_res, automatic_res)):
         return {"available": False, "reason": "posthog_error"}
 
     def _first_count(rows: list[list] | None) -> int | None:
@@ -228,7 +243,8 @@ async def _get_posthog_metrics() -> dict:
         "dau": _first_count(dau_res),
         "wau": _first_count(wau_res),
         "mau": _first_count(mau_res),
-        "top_events_last_7d": [{"event": r[0], "count": r[1]} for r in (top_res or [])],
+        "top_custom_events_last_7d": [{"event": r[0], "count": r[1]} for r in (top_custom_res or [])],
+        "automatic_events_last_7d": _first_count(automatic_res),
     }
 
 
@@ -242,11 +258,80 @@ async def get_business_overview(force_refresh: bool = False) -> dict:
         _get_user_metrics(), _get_stripe_metrics(), _get_posthog_metrics(),
         return_exceptions=True,
     )
+    if isinstance(users, Exception):
+        users = {"error": str(users)}
+    if isinstance(stripe_metrics, Exception):
+        stripe_metrics = {"available": False, "reason": "error"}
+    if isinstance(posthog_metrics, Exception):
+        posthog_metrics = {"available": False, "reason": "error"}
+
+    # Diego, 2026-09-14: "30%+ de usuarios activos semanalmente" is the real
+    # Fase 0 target — a bare WAU count doesn't say whether that goal is
+    # being hit, only WAU as a % of total_users does. Computed here (not
+    # inside _get_posthog_metrics) since it needs both sections combined.
+    wau = posthog_metrics.get("wau") if posthog_metrics.get("available") else None
+    total = users.get("total_users") if isinstance(users, dict) else None
+    if wau is not None and total:
+        posthog_metrics["wau_pct_of_total"] = round(wau / total * 100, 1)
+
     result = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "users":   users   if not isinstance(users, Exception)   else {"error": str(users)},
-        "stripe":  stripe_metrics  if not isinstance(stripe_metrics, Exception)  else {"available": False, "reason": "error"},
-        "posthog": posthog_metrics if not isinstance(posthog_metrics, Exception) else {"available": False, "reason": "error"},
+        "users":   users,
+        "stripe":  stripe_metrics,
+        "posthog": posthog_metrics,
     }
     cache_set(_CACHE_KEY, result, _CACHE_TTL)
     return result
+
+
+async def snapshot_business_overview() -> None:
+    """Called once daily (job_snapshot_business_overview, worker.py) —
+    writes today's business-overview numbers as one row so /admin/overview
+    can show trend charts instead of just today's snapshot. Diego,
+    2026-09-14: a single number never says whether things are getting
+    better or worse; upserts on snapshot_date so a manual re-run same-day
+    (or the job firing twice) can't create duplicate rows for one date."""
+    import pytz
+    overview = await get_business_overview(force_refresh=True)
+    users = overview["users"]
+    stripe_metrics = overview["stripe"]
+    posthog_metrics = overview["posthog"]
+
+    today_et = datetime.now(pytz.timezone("America/New_York")).date().isoformat()
+    row = {
+        "snapshot_date":          today_et,
+        "total_users":            users.get("total_users", 0),
+        "premium_count":          users.get("premium_count", 0),
+        "manual_comp_count":      users.get("manual_comp_count", 0),
+        "trialing_count":         users.get("trialing_count", 0),
+        "free_count":             users.get("free_count", 0),
+        "signups_last_7d":        users.get("signups_last_7d", 0),
+        "signups_last_30d":       users.get("signups_last_30d", 0),
+        "mrr_usd":                stripe_metrics.get("mrr_usd") if stripe_metrics.get("available") else None,
+        "active_subscriptions":   stripe_metrics.get("active_subscriptions") if stripe_metrics.get("available") else None,
+        "trialing_subscriptions": stripe_metrics.get("trialing_subscriptions") if stripe_metrics.get("available") else None,
+        "cancellations_last_30d": stripe_metrics.get("cancellations_last_30d") if stripe_metrics.get("available") else None,
+        "churn_rate_pct_30d":     stripe_metrics.get("churn_rate_pct_30d") if stripe_metrics.get("available") else None,
+        "dau":                    posthog_metrics.get("dau") if posthog_metrics.get("available") else None,
+        "wau":                    posthog_metrics.get("wau") if posthog_metrics.get("available") else None,
+        "mau":                    posthog_metrics.get("mau") if posthog_metrics.get("available") else None,
+    }
+    db = get_supabase()
+    await run_query(db.table("business_overview_snapshots").upsert(row, on_conflict="snapshot_date"))
+    logger.info("snapshot_business_overview: wrote snapshot for %s", today_et)
+
+
+async def get_business_overview_history(days: int = 56) -> list[dict]:
+    """Last `days` days of snapshots, oldest first — for /admin/overview's
+    trend charts. Not cached: this is a small, indexed, once-a-day-written
+    table, cheap enough to always read fresh."""
+    from datetime import date
+    db = get_supabase()
+    since = (date.today() - timedelta(days=days)).isoformat()
+    res = await run_query(
+        db.table("business_overview_snapshots")
+        .select("*")
+        .gte("snapshot_date", since)
+        .order("snapshot_date", desc=False)
+    )
+    return res.data or []

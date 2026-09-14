@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, RefreshCw, Users, Crown, TrendingDown, Activity, Lock } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 import { adminApi } from "@/lib/api";
+import { Sparkline, type SparklinePoint } from "@/components/ui";
 
 const ADMIN_UID = "86961402-9072-4670-9f73-b2aa91930b04";
 
@@ -35,7 +36,9 @@ interface PosthogMetrics {
   dau?: number | null;
   wau?: number | null;
   mau?: number | null;
-  top_events_last_7d?: { event: string; count: number }[];
+  wau_pct_of_total?: number;
+  top_custom_events_last_7d?: { event: string; count: number }[];
+  automatic_events_last_7d?: number | null;
 }
 
 interface Overview {
@@ -45,11 +48,31 @@ interface Overview {
   posthog: PosthogMetrics;
 }
 
+interface HistoryRow {
+  snapshot_date: string;
+  total_users: number;
+  premium_count: number;
+  mrr_usd: number | null;
+  wau: number | null;
+}
+
 const fmtNum = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("en-US"));
 const fmtUSD = (n: number | null | undefined) =>
   n == null ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-function Card({ label, value, sub, icon }: { label: string; value: string; sub?: string; icon?: React.ReactNode }) {
+function series(history: HistoryRow[], key: keyof HistoryRow): SparklinePoint[] {
+  return history.map((h) => ({
+    date: new Date(h.snapshot_date + "T00:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "short" }),
+    value: h[key] as number | null,
+  }));
+}
+
+function Card({
+  label, value, sub, icon, trend, formatTrend,
+}: {
+  label: string; value: string; sub?: string; icon?: React.ReactNode;
+  trend?: SparklinePoint[]; formatTrend?: (v: number) => string;
+}) {
   return (
     <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
       <div className="flex items-center gap-1.5 mb-2" style={{ color: "var(--muted)" }}>
@@ -58,6 +81,11 @@ function Card({ label, value, sub, icon }: { label: string; value: string; sub?:
       </div>
       <p className="text-2xl font-black" style={{ color: "var(--text)" }}>{value}</p>
       {sub && <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>{sub}</p>}
+      {trend && trend.length >= 2 && (
+        <div className="mt-2">
+          <Sparkline data={trend} height={32} formatValue={formatTrend} />
+        </div>
+      )}
     </div>
   );
 }
@@ -75,6 +103,7 @@ export default function AdminBusinessOverviewPage() {
   const router = useRouter();
   const { userId, isAuthenticated } = useAuthStore();
   const [data, setData] = useState<Overview | null>(null);
+  const [history, setHistory] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,8 +117,12 @@ export default function AdminBusinessOverviewPage() {
     forceRefresh ? setRefreshing(true) : setLoading(true);
     setError(null);
     try {
-      const res = await adminApi.businessOverview(forceRefresh);
-      setData(res.data);
+      const [overviewRes, historyRes] = await Promise.all([
+        adminApi.businessOverview(forceRefresh),
+        adminApi.businessOverviewHistory(56),
+      ]);
+      setData(overviewRes.data);
+      setHistory(historyRes.data ?? []);
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "No se pudo cargar el panel.");
     } finally {
@@ -103,6 +136,16 @@ export default function AdminBusinessOverviewPage() {
   }, [userId, load]);
 
   if (userId && userId !== ADMIN_UID) return null;
+
+  const usersTrend = series(history, "total_users");
+  const premiumTrend = series(history, "premium_count");
+  const mrrTrend = series(history, "mrr_usd");
+  // WAU% needs total_users from the SAME day's row, computed here rather
+  // than stored — history only keeps raw wau/total_users per snapshot.
+  const wauPctTrend: SparklinePoint[] = history.map((h) => ({
+    date: new Date(h.snapshot_date + "T00:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "short" }),
+    value: h.wau != null && h.total_users ? Math.round((h.wau / h.total_users) * 1000) / 10 : null,
+  }));
 
   return (
     <div className="h-screen overflow-y-auto p-6" style={{ background: "var(--bg)" }}>
@@ -135,15 +178,20 @@ export default function AdminBusinessOverviewPage() {
             <section className="space-y-3">
               <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Usuarios</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Card label="Total" value={fmtNum(data.users.total_users)} icon={<Users className="w-3.5 h-3.5" />} />
+                <Card label="Total" value={fmtNum(data.users.total_users)} icon={<Users className="w-3.5 h-3.5" />} trend={usersTrend} />
                 <Card label="Premium" value={fmtNum(data.users.premium_count)}
                       sub={data.users.manual_comp_count ? `${data.users.manual_comp_count} manual` : undefined}
-                      icon={<Crown className="w-3.5 h-3.5" />} />
+                      icon={<Crown className="w-3.5 h-3.5" />} trend={premiumTrend} />
                 <Card label="En trial" value={fmtNum(data.users.trialing_count)} />
                 <Card label="Free" value={fmtNum(data.users.free_count)} />
                 <Card label="Nuevos (7d)" value={fmtNum(data.users.signups_last_7d)} />
                 <Card label="Nuevos (30d)" value={fmtNum(data.users.signups_last_30d)} />
               </div>
+              {history.length < 2 && (
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                  Las tendencias (líneas debajo de cada número) van a aparecer en cuanto se acumulen unos días de snapshots — corre una vez al día a las 7am ET.
+                </p>
+              )}
             </section>
 
             {/* Stripe */}
@@ -152,7 +200,7 @@ export default function AdminBusinessOverviewPage() {
               {data.stripe.available ? (
                 <>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <Card label="MRR" value={fmtUSD(data.stripe.mrr_usd)} />
+                    <Card label="MRR" value={fmtUSD(data.stripe.mrr_usd)} trend={mrrTrend} formatTrend={(v) => fmtUSD(v)} />
                     <Card label="Suscripciones activas" value={fmtNum(data.stripe.active_subscriptions)} />
                     <Card label="En trial (Stripe)" value={fmtNum(data.stripe.trialing_subscriptions)} />
                     <Card label="Churn (30d)" value={`${data.stripe.churn_rate_pct_30d ?? "—"}%`}
@@ -183,24 +231,43 @@ export default function AdminBusinessOverviewPage() {
               <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Uso del producto (PostHog)</p>
               {data.posthog.available ? (
                 <>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <Card label="Activos hoy (DAU)" value={fmtNum(data.posthog.dau)} icon={<Activity className="w-3.5 h-3.5" />} />
                     <Card label="Activos 7 días (WAU)" value={fmtNum(data.posthog.wau)} />
                     <Card label="Activos 30 días (MAU)" value={fmtNum(data.posthog.mau)} />
+                    <Card
+                      label="Retención semanal"
+                      value={data.posthog.wau_pct_of_total != null ? `${data.posthog.wau_pct_of_total}%` : "—"}
+                      sub="Meta Fase 0: 30%+"
+                      trend={wauPctTrend}
+                      formatTrend={(v) => `${v}%`}
+                    />
                   </div>
-                  {!!data.posthog.top_events_last_7d?.length && (
-                    <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                      <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>Eventos más frecuentes (7 días)</p>
-                      <div className="space-y-1.5">
-                        {data.posthog.top_events_last_7d.map((e, i) => (
-                          <div key={i} className="flex items-center justify-between text-sm">
-                            <span style={{ color: "var(--text)" }}>{e.event}</span>
-                            <span style={{ color: "var(--muted)" }}>{fmtNum(e.count)}</span>
-                          </div>
-                        ))}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {!!data.posthog.top_custom_events_last_7d?.length && (
+                      <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                        <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>Qué hace la gente (7 días)</p>
+                        <div className="space-y-1.5">
+                          {data.posthog.top_custom_events_last_7d.map((e, i) => (
+                            <div key={i} className="flex items-center justify-between text-sm">
+                              <span style={{ color: "var(--text)" }}>{e.event}</span>
+                              <span style={{ color: "var(--muted)" }}>{fmtNum(e.count)}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
+                    )}
+                    <div className="rounded-xl border p-4 flex flex-col justify-between" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                      <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>
+                        Eventos automáticos (clicks, vistas de página, etc.)
+                      </p>
+                      <p className="text-lg font-black" style={{ color: "var(--text)" }}>{fmtNum(data.posthog.automatic_events_last_7d)}</p>
+                      <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
+                        Capturados solos por PostHog ($autocapture, $pageview, etc.) — no son acciones que tú nombraste, agrupados aquí para no llenar la lista de arriba de ruido.
+                      </p>
                     </div>
-                  )}
+                  </div>
                 </>
               ) : <NotConfigured what="PostHog" />}
             </section>

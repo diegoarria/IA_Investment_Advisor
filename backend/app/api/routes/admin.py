@@ -325,6 +325,16 @@ async def business_overview(force_refresh: bool = False, user: dict = Depends(ge
     return await get_business_overview(force_refresh=force_refresh)
 
 
+@router.get("/business-overview/history")
+async def business_overview_history(days: int = 56, user: dict = Depends(get_current_user)):
+    """Daily snapshots (job_snapshot_business_overview, worker.py) for the
+    trend charts on /admin/overview — a bare today-only number never says
+    whether things are getting better or worse."""
+    await _require_admin(user)
+    from app.services.business_overview_service import get_business_overview_history
+    return await get_business_overview_history(days=days)
+
+
 @router.get("/llm-usage")
 async def llm_usage_summary(
     user_id: str | None = None,

@@ -6,3 +6,4 @@ export { Badge, ScorePill, scoreColor } from "./Badge";
 export { SectionHeader } from "./SectionHeader";
 export { DetailLevelToggle } from "./DetailLevelToggle";
 export { ExplainableValue, type ExplanationContent, type ExplanationFactor } from "./ExplainableValue";
+export { Sparkline, type SparklinePoint } from "./Sparkline";

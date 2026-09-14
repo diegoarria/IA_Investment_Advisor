@@ -5693,6 +5693,17 @@ def _benchmark_cohort(risk_tolerance: str | None) -> str:
     return "moderate"
 
 
+async def job_snapshot_business_overview():
+    """7:00 AM ET daily — writes today's /admin/overview numbers (users,
+    Premium, MRR, churn, DAU/WAU/MAU) as one row so the panel can show trend
+    charts instead of just a same-day snapshot (Diego, 2026-09-14)."""
+    from app.services.business_overview_service import snapshot_business_overview
+    try:
+        await snapshot_business_overview()
+    except Exception as e:
+        logger.error("job_snapshot_business_overview failed: %s", e)
+
+
 async def job_compute_benchmarks():
     """Domingo 6:00 AM ET — recalcula las distribuciones anónimas de retorno
     acumulado y constancia por cohorte de riesgo (conservador/moderado/
@@ -6780,6 +6791,7 @@ async def main():
     # ── Daily habit system ──────────────────────────────────────────────────────
     scheduler.add_job(job_sunday_portfolio_review,   "cron", day_of_week="sun", hour=17, minute=0,  timezone="America/New_York")
     scheduler.add_job(job_compute_benchmarks,        "cron", day_of_week="sun", hour=6,  minute=0,  timezone="America/New_York")
+    scheduler.add_job(job_snapshot_business_overview, "cron", hour=7, minute=0, timezone="America/New_York")
     scheduler.add_job(job_quarterly_earnings_digest, "cron", month="1,4,7,10", day=5, hour=9, minute=0, timezone="America/New_York")
 
     # ── Specials ──────────────────────────────────────────────────────────────
