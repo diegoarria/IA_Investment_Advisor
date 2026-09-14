@@ -42,7 +42,98 @@ type ScenarioKey = "bear" | "base" | "bull";
 // the app's own green brand accent doesn't appear in this card at all.
 const _GOLD = "#D4A24C";
 
-export function CompanyDiagnosticHero({ data }: { data: CompanyDiagnosticData }) {
+// Reemplaza las 2-3 barras apiladas de un solo valor (que solo mostraban el
+// escenario activo) por una única banda bear<->bull con los 3 escenarios
+// SIEMPRE visibles a la vez, más el precio de hoy marcado como un punto
+// dentro (o fuera) de esa banda — mismo patrón visual que
+// shared.tsx's `_PriceVsScenariosBar` (Diego ya lo validó ahí), reescrito
+// acá porque ese componente no está exportado y su forma de datos
+// (NuvosScenario) no es la de CompanyDiagnosticData. La incertidumbre real
+// del modelo queda al mismo nivel de jerarquía que el precio en vez de
+// requerir tocar los botones de escenario para descubrirla.
+function _FairValueRangeBar({
+  conservative, baseFairValue, optimistic, currentPrice, wallStreet, activeScenario,
+}: {
+  conservative: number;
+  baseFairValue: number;
+  optimistic: number;
+  currentPrice: number;
+  wallStreet: number | null;
+  activeScenario: ScenarioKey;
+}) {
+  const { t } = useTranslation();
+  const rawMin = Math.min(conservative, baseFairValue, optimistic);
+  const rawMax = Math.max(conservative, baseFairValue, optimistic);
+  const pad = (rawMax - rawMin) * 0.15 || rawMax * 0.1 || 1;
+  const min = rawMin - pad;
+  const max = Math.max(rawMax + pad, currentPrice);
+  const span = max - min || 1;
+  const pctOf = (v: number) => Math.min(100, Math.max(0, ((v - min) / span) * 100));
+
+  const markers: { key: ScenarioKey; value: number }[] = [
+    { key: "bear", value: conservative },
+    { key: "base", value: baseFairValue },
+    { key: "bull", value: optimistic },
+  ];
+
+  return (
+    <div className="mb-6">
+      <p className="text-[10px] font-bold uppercase tracking-wide mb-3" style={{ color: "var(--muted)" }}>
+        {t("companyDiagnostic.hero.fairValueBar")}
+      </p>
+      <div className="relative mt-6 mb-11">
+        <div
+          className="h-2 rounded-full"
+          style={{ background: `linear-gradient(90deg, ${_SCENARIO_COLOR.bear}, ${_SCENARIO_COLOR.base}, ${_SCENARIO_COLOR.bull})` }}
+        />
+        {markers.map((m) => {
+          const isActive = activeScenario === m.key;
+          return (
+            <div
+              key={m.key}
+              className="absolute top-0 -translate-x-1/2 flex flex-col items-center transition-opacity"
+              style={{ left: `${pctOf(m.value)}%`, opacity: isActive ? 1 : 0.6 }}
+            >
+              <div className="rounded-full" style={{ width: isActive ? 3 : 2, height: isActive ? 12 : 8, background: isActive ? _SCENARIO_COLOR[m.key] : "rgba(0,0,0,0.3)" }} />
+              <p className="text-[9px] font-bold whitespace-nowrap mt-1" style={{ color: isActive ? _SCENARIO_COLOR[m.key] : "var(--muted)" }}>
+                {t(`companyDiagnostic.hero.scenario.${m.key}`)}
+              </p>
+              <p className="text-[10px] font-black tabular-nums whitespace-nowrap" style={{ color: "var(--text)" }}>{fmtPrice(m.value)}</p>
+            </div>
+          );
+        })}
+        {wallStreet != null && (
+          <div className="absolute -bottom-7 -translate-x-1/2 flex flex-col items-center" style={{ left: `${pctOf(wallStreet)}%` }}>
+            <div className="w-0.5 h-2" style={{ background: "var(--sub)" }} />
+            <p className="text-[8.5px] font-bold whitespace-nowrap mt-1 flex items-center gap-0.5" style={{ color: "var(--sub)" }}>
+              <ExternalLink className="w-2 h-2 shrink-0" /> {t("companyDiagnostic.hero.wallStreetBar")} {fmtPrice(wallStreet)}
+            </p>
+          </div>
+        )}
+        <div className="absolute -top-7 -translate-x-1/2 flex flex-col items-center" style={{ left: `${pctOf(currentPrice)}%` }}>
+          <span className="text-[10px] font-black tabular-nums rounded-full px-2 py-0.5 whitespace-nowrap" style={{ background: "var(--text)", color: "var(--card)" }}>
+            {t("companyDiagnostic.hero.priceTodayBar")} {fmtPrice(currentPrice)}
+          </span>
+          <div className="w-0.5 h-3" style={{ background: "var(--text)" }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function CompanyDiagnosticHero({
+  data, locked, onUnlock,
+}: {
+  data: CompanyDiagnosticData;
+  // Diego, 2026-09-14: solo controla el bloque "¿por qué llegamos a este
+  // número?" de más abajo — el resto del hero (veredicto, banda de rango,
+  // frase, escenarios) se muestra completo incluso a usuarios que agotaron
+  // su límite semanal gratis, para darles "un poco del dulce" en vez de
+  // bloquear todo el hero (eso lo sigue haciendo CompanyDiagnosticCard más
+  // abajo, con el resto del contenido).
+  locked?: boolean;
+  onUnlock?: () => void;
+}) {
   const { t } = useTranslation();
   const [scenario, setScenario] = useState<ScenarioKey>("base");
   const [whyOpen, setWhyOpen] = useState(false);
@@ -67,15 +158,6 @@ export function CompanyDiagnosticHero({ data }: { data: CompanyDiagnosticData })
   const wallStreet = wallStreetByScenario[scenario];
 
   const status = _valuationStatus(activeValue, currentPrice);
-  const maxVal = Math.max(activeValue, currentPrice, wallStreet ?? 0) || 1;
-
-  const bars: { label: string; value: number; color: string; external?: boolean }[] = [
-    { label: t("companyDiagnostic.hero.fairValueBar"), value: activeValue, color: _SCENARIO_COLOR[scenario] },
-    { label: t("companyDiagnostic.hero.priceTodayBar"), value: currentPrice, color: "var(--dim)" },
-  ];
-  if (wallStreet != null) {
-    bars.push({ label: t("companyDiagnostic.hero.wallStreetBar"), value: wallStreet, color: "var(--sub)", external: true });
-  }
 
   const _classificationLabel = data.valuation.classification?.category
     ? t(`companyDiagnostic.classification.category.${data.valuation.classification.category}`, {
@@ -185,32 +267,14 @@ export function CompanyDiagnosticHero({ data }: { data: CompanyDiagnosticData })
         </div>
       )}
 
-      <div className="flex flex-col gap-2.5 mb-4">
-        {bars.map((bar) => {
-          const pct = Math.min(100, (bar.value / maxVal) * 100);
-          return (
-            <div key={bar.label} className="flex items-center gap-2.5">
-              <span className="text-[11.5px] font-bold w-[100px] shrink-0 flex items-center gap-1" style={{ color: bar.color }}>
-                {bar.external && <ExternalLink className="w-2.5 h-2.5 shrink-0" style={{ color: "var(--dim)" }} />}
-                {bar.label}
-              </span>
-              <div className="flex-1 rounded-lg overflow-hidden" style={{ height: 30, background: "var(--card-2, var(--raised))", border: "1px solid var(--border)" }}>
-                <div
-                  className="h-full rounded-lg"
-                  style={{
-                    width: `${pct}%`,
-                    background: bar.external ? "var(--border-s, var(--dim))" : `linear-gradient(180deg, ${bar.color}dd, ${bar.color})`,
-                    boxShadow: bar.external ? "none" : `0 0 16px ${bar.color}80`,
-                  }}
-                />
-              </div>
-              <span className="text-[13.5px] font-black tabular-nums w-[82px] text-right shrink-0" style={{ color: "var(--text)" }}>
-                {fmtPrice(bar.value)}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+      <_FairValueRangeBar
+        conservative={conservative}
+        baseFairValue={baseFairValue}
+        optimistic={optimistic}
+        currentPrice={currentPrice}
+        wallStreet={wallStreet}
+        activeScenario={scenario}
+      />
 
       <div className="grid grid-cols-3 gap-2 mb-1.5">
         {(["bear", "base", "bull"] as ScenarioKey[]).map((key) => (
@@ -246,13 +310,13 @@ export function CompanyDiagnosticHero({ data }: { data: CompanyDiagnosticData })
         </p>
         <p className="text-[12.5px] leading-relaxed" style={{ color: "var(--sub)" }}>{whySummary}</p>
         <button
-          onClick={() => setWhyOpen((v) => !v)}
+          onClick={() => (locked ? onUnlock?.() : setWhyOpen((v) => !v))}
           className="text-[11px] font-bold mt-3 flex items-center gap-1"
           style={{ color: _GOLD }}
         >
-          {whyOpen ? t("companyDiagnostic.hero.whyHide") : t("companyDiagnostic.hero.whyShow")}
+          {locked ? t("companyDiagnostic.hero.whyFullDetail") : whyOpen ? t("companyDiagnostic.hero.whyHide") : t("companyDiagnostic.hero.whyShow")}
         </button>
-        {whyOpen && (
+        {whyOpen && !locked && (
           <div className="mt-3 space-y-3">
             {data.valuation.waccDetails?.wacc_pct != null && (
               <p className="text-[12px]" style={{ color: "var(--sub)" }}>
