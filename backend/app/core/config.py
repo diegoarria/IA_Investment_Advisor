@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     stripe_price_deep_research_free: str = ""     # $19.99
     stripe_price_deep_research_premium: str = ""  # $9.99
     stripe_price_broker_call: str = ""            # $20 flat — 1:1 broker onboarding call, after the 24h free window
+    # PostHog — read-only Personal API Key for the admin business-overview
+    # dashboard (DAU/WAU/top events). Distinct from the mobile/web client's
+    # project token (POSTHOG_PROJECT_TOKEN), which only ever WRITES events —
+    # querying them back requires this separate personal key + project id.
+    posthog_personal_api_key: str = ""
+    posthog_project_id: str = ""
+    posthog_host: str = "https://us.i.posthog.com"
     resend_api_key: str = ""
     perplexity_api_key: str = ""  # Perplexity sonar — real-time web search
     redis_url: str = ""  # e.g. redis://localhost:6379 — optional, falls back to in-memory

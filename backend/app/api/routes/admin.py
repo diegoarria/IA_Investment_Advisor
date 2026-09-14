@@ -314,6 +314,17 @@ async def get_user_snapshot(email: str, user: dict = Depends(get_current_user)):
     }
 
 
+@router.get("/business-overview")
+async def business_overview(force_refresh: bool = False, user: dict = Depends(get_current_user)):
+    """Diego, 2026-09-14: users/premium/churn/product-usage in one place
+    instead of tab-hopping between Supabase, Stripe, and PostHog. See
+    app/services/business_overview_service.py for the real logic — this
+    route is intentionally thin (auth only)."""
+    await _require_admin(user)
+    from app.services.business_overview_service import get_business_overview
+    return await get_business_overview(force_refresh=force_refresh)
+
+
 @router.get("/llm-usage")
 async def llm_usage_summary(
     user_id: str | None = None,
