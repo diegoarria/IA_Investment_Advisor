@@ -11,6 +11,11 @@ export interface WatchItem {
 
 interface WatchlistStore {
   items: WatchItem[];
+  pendingSync: boolean;
+  // When pendingSync was last set to true. Used to detect a flag stuck from
+  // a remove() call that never resolved, so loadFromServer() doesn't defer
+  // to it forever.
+  pendingSyncSetAt: number | null;
   add: (ticker: string, name: string) => void;
   remove: (ticker: string) => void;
   reorder: (from: number, to: number) => void;
@@ -22,6 +27,8 @@ export const useWatchlistStore = create<WatchlistStore>()(
   persist(
     (set, get) => ({
       items: [],
+      pendingSync: false,
+      pendingSyncSetAt: null,
 
       add: (ticker, name) => {
         const t = ticker.toUpperCase();
@@ -33,8 +40,18 @@ export const useWatchlistStore = create<WatchlistStore>()(
 
       remove: (ticker) => {
         const t = ticker.toUpperCase();
-        set((s) => ({ items: s.items.filter((i) => i.ticker !== t) }));
-        watchlistServerApi.remove(t).catch(() => {});
+        set((s) => ({
+          items: s.items.filter((i) => i.ticker !== t),
+          // Flag pendingSync so a loadFromServer() already in flight (e.g. an
+          // app-foreground resync) can't land mid-delete and resurrect this
+          // item from a response that was fetched before the delete landed.
+          pendingSync: true,
+          pendingSyncSetAt: Date.now(),
+        }));
+        watchlistServerApi
+          .remove(t)
+          .catch(() => {})
+          .finally(() => set({ pendingSync: false, pendingSyncSetAt: null }));
       },
 
       reorder: (from, to) => {
@@ -49,6 +66,14 @@ export const useWatchlistStore = create<WatchlistStore>()(
 
       loadFromServer: async () => {
         try {
+          const { pendingSync, pendingSyncSetAt } = get();
+          // Stuck flag (or none at all, persisted from before this field
+          // existed) means whatever remove() set it never resolved — don't
+          // defer to it forever.
+          const isStale = pendingSyncSetAt == null || Date.now() - pendingSyncSetAt > 2 * 60 * 1000;
+          if (pendingSync && !isStale) return;
+          if (pendingSync && isStale) set({ pendingSync: false, pendingSyncSetAt: null });
+
           const res = await watchlistServerApi.getAll();
           const serverItems: WatchItem[] = (
             res.data as Array<{ ticker: string; name: string; added_at?: string }>
@@ -57,15 +82,9 @@ export const useWatchlistStore = create<WatchlistStore>()(
             name: item.name || item.ticker,
             addedAt: item.added_at ? new Date(item.added_at).getTime() : Date.now(),
           }));
-          const localItems = get().items;
-          if (serverItems.length > 0) {
-            // Server has data — use it as source of truth
-            set({ items: serverItems });
-          } else if (localItems.length > 0) {
-            // Server returned empty but we have local items — push them up
-            localItems.forEach((i) => watchlistServerApi.add(i.ticker, i.name).catch(() => {}));
-          }
-          // If both are empty, do nothing
+          // Server is the source of truth — including an empty list, which
+          // may be exactly what another device just made true by deleting.
+          set({ items: serverItems });
         } catch {}
       },
     }),

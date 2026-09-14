@@ -1126,14 +1126,9 @@ export const useWatchlistStore = create<WatchlistState>()(
             name: i.name || i.ticker,
             addedAt: i.added_at ? new Date(i.added_at).getTime() : Date.now(),
           }));
-          const localItems = get().items;
-          if (serverItems.length > 0) {
-            set({ items: serverItems });
-          } else if (localItems.length > 0) {
-            // Server returned empty but local has data — push local up
-            const { watchlist: wl } = await import("./api");
-            localItems.forEach((i) => wl.add(i.ticker, i.name).catch(() => {}));
-          }
+          // Server is the source of truth — including an empty list, which
+          // may be exactly what another device just made true by deleting.
+          set({ items: serverItems });
         } catch {}
       },
     }),

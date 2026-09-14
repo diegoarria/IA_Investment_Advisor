@@ -533,7 +533,9 @@ export default function WatchlistPage() {
         syncApi.getAll().catch(() => null),
       ]);
       const data = res.data as WatchlistItem[];
-      if (data.length === 0 && readCache().length > 0) return;
+      // Server is the source of truth — including an empty list, which may
+      // be exactly what another device/tab just made true by deleting. Don't
+      // trust a stale local cache over a real 200 response.
       // Prefer server-persisted order; fall back to localStorage
       const serverOrder: string[] = syncRes?.data?.watchlist_order ?? [];
       const order = serverOrder.length ? serverOrder : readOrder();
