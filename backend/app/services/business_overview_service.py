@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from app.core.cache import cache_get, cache_set
+from app.core.cache import cache_get, cache_set, cache_delete
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
 
@@ -336,22 +336,36 @@ async def get_business_overview(force_refresh: bool = False) -> dict:
         if cached is not None:
             return cached
 
-    users, stripe_metrics, posthog_metrics, stripe_fees, llm_cost, fixed_costs = await asyncio.gather(
+    raw_results = await asyncio.gather(
         _get_user_metrics(), _get_stripe_metrics(), _get_posthog_metrics(),
         _get_stripe_fees_30d(), _get_llm_cost_30d(), _get_fixed_costs(),
         return_exceptions=True,
     )
+    users, stripe_metrics, posthog_metrics, stripe_fees, llm_cost, fixed_costs = raw_results
+    # A transient failure here (a single dropped Supabase connection, a
+    # cold-start race) must never get baked into the 5-minute cache below —
+    # that turned one blip into every viewer seeing "—" for up to 5 minutes
+    # (Diego, 2026-09-15: "necesito que siempre muestre números en tiempo
+    # real"), and worse, into a permanently corrupted zero/null row if
+    # snapshot_business_overview's daily cron happened to run during it.
+    had_failure = any(isinstance(r, Exception) for r in raw_results)
     if isinstance(users, Exception):
+        logger.warning("_get_user_metrics failed: %s", users)
         users = {"error": str(users)}
     if isinstance(stripe_metrics, Exception):
+        logger.warning("_get_stripe_metrics failed: %s", stripe_metrics)
         stripe_metrics = {"available": False, "reason": "error"}
     if isinstance(posthog_metrics, Exception):
+        logger.warning("_get_posthog_metrics failed: %s", posthog_metrics)
         posthog_metrics = {"available": False, "reason": "error"}
     if isinstance(stripe_fees, Exception):
+        logger.warning("_get_stripe_fees_30d failed: %s", stripe_fees)
         stripe_fees = {"available": False, "reason": "error"}
     if isinstance(llm_cost, Exception):
+        logger.warning("_get_llm_cost_30d failed: %s", llm_cost)
         llm_cost = {"cost_usd_30d": None}
     if isinstance(fixed_costs, Exception):
+        logger.warning("_get_fixed_costs failed: %s", fixed_costs)
         fixed_costs = {"items": [], "total_monthly_usd": 0.0}
 
     # Margin: MRR minus every real cost we can account for over the same
@@ -388,7 +402,10 @@ async def get_business_overview(force_refresh: bool = False) -> dict:
         "posthog": posthog_metrics,
         "costs":   costs,
     }
-    cache_set(_CACHE_KEY, result, _CACHE_TTL)
+    if had_failure:
+        cache_delete(_CACHE_KEY)
+    else:
+        cache_set(_CACHE_KEY, result, _CACHE_TTL)
     return result
 
 

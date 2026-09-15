@@ -10,13 +10,14 @@ import { Sparkline, type SparklinePoint } from "@/components/ui";
 const ADMIN_UID = "86961402-9072-4670-9f73-b2aa91930b04";
 
 interface UserMetrics {
-  total_users: number;
-  premium_count: number;
-  manual_comp_count: number;
-  trialing_count: number;
-  free_count: number;
-  signups_last_7d: number;
-  signups_last_30d: number;
+  total_users?: number;
+  premium_count?: number;
+  manual_comp_count?: number;
+  trialing_count?: number;
+  free_count?: number;
+  signups_last_7d?: number;
+  signups_last_30d?: number;
+  error?: string;
 }
 
 interface StripeMetrics {
@@ -224,6 +225,16 @@ export default function AdminBusinessOverviewPage() {
             {/* Usuarios */}
             <section className="space-y-3">
               <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Usuarios</p>
+              {data.users.error && (
+                <div className="rounded-xl border p-3 flex items-center justify-between gap-3" style={{ borderColor: "#f87171", background: "rgba(248,113,113,0.08)" }}>
+                  <p className="text-xs" style={{ color: "#f87171" }}>
+                    No se pudo leer de la base de datos ({data.users.error}) — por eso los números de abajo salen en blanco. Reintenta en unos segundos.
+                  </p>
+                  <button onClick={() => load(true)} className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: "#f87171", color: "#000" }}>
+                    Reintentar
+                  </button>
+                </div>
+              )}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <Card label="Total" value={fmtNum(data.users.total_users)} icon={<Users className="w-3.5 h-3.5" />} trend={usersTrend} />
                 <Card label="Premium" value={fmtNum(data.users.premium_count)}
