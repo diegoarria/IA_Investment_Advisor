@@ -3045,6 +3045,8 @@
     "paymentError": "No se pudo abrir el pago. Intenta de nuevo.",
     "processing": "Procesando...",
     "payCta": "Pagar y suscribirme",
+    "payCtaSession": "Pagar y agendar mi llamada",
+    "payCtaResearch": "Pagar y generar mi análisis",
     "securePaymentNote": "Pago seguro procesado por Stripe. Nuvos nunca ve ni guarda los datos de tu tarjeta.",
     "titleReturning": "Suscríbete a Nuvos AI Premium",
     "footerNoteReturning": "Se cobra {{price}}/mes{{billing}} de inmediato al confirmar tu pago. Cancela cuando quieras.",

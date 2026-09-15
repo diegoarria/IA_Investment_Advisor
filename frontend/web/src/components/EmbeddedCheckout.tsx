@@ -89,8 +89,8 @@ const APPEARANCE = {
 };
 
 function CheckoutForm({
-  onBack, onSuccess, returnUrl,
-}: { onBack: () => void; onSuccess: (paymentIntentId?: string) => void; returnUrl: string }) {
+  onBack, onSuccess, returnUrl, payCtaLabel,
+}: { onBack: () => void; onSuccess: (paymentIntentId?: string) => void; returnUrl: string; payCtaLabel?: string }) {
   const { t } = useTranslation();
   const stripe = useStripe();
   const elements = useElements();
@@ -143,7 +143,7 @@ function CheckoutForm({
         style={{ background: submitting ? "rgba(0,212,126,0.5)" : "#00d47e", color: "#000" }}
       >
         {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-        {submitting ? t("pricingModal.processing") : t("pricingModal.payCta")}
+        {submitting ? t("pricingModal.processing") : (payCtaLabel ?? t("pricingModal.payCta"))}
       </button>
 
       <p className="text-center text-[10px] mt-4" style={{ color: "var(--dim)" }}>
@@ -154,7 +154,7 @@ function CheckoutForm({
 }
 
 export default function EmbeddedCheckout({
-  createIntent, onBack, onSuccess, returnUrl, summary,
+  createIntent, onBack, onSuccess, returnUrl, summary, payCtaLabel,
 }: {
   /** Fetches this product's client_secret — e.g.
    * `() => billing.createEmbeddedSubscription(plan).then(r => r.data)`. */
@@ -171,6 +171,11 @@ export default function EmbeddedCheckout({
   /** Plan/price recap shown next to the form. Optional so any other
    * caller of this generic component can skip it. */
   summary?: CheckoutSummary;
+  /** Overrides the submit button's default "Pagar y suscribirme" — for a
+   * one-time, non-subscription purchase (e.g. a 1:1 session) that wording
+   * is simply wrong. Diego, 2026-09-15: "no debería ser 'Paga y
+   * suscribirme' debería ser 'Paga y agenda tu llamada'". */
+  payCtaLabel?: string;
 }) {
   const { t } = useTranslation();
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -204,7 +209,7 @@ export default function EmbeddedCheckout({
     const options: StripeElementsOptions = { clientSecret, appearance: APPEARANCE };
     body = (
       <Elements stripe={stripePromise} options={options}>
-        <CheckoutForm onBack={onBack} onSuccess={onSuccess} returnUrl={returnUrl} />
+        <CheckoutForm onBack={onBack} onSuccess={onSuccess} returnUrl={returnUrl} payCtaLabel={payCtaLabel} />
       </Elements>
     );
   }

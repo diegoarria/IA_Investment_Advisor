@@ -606,6 +606,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
                 returnUrl={`${window.location.origin}/upsell-success?offer=session`}
                 onBack={() => setSessionCheckoutOpen(false)}
                 onSuccess={handleSessionCheckoutSuccess}
+                payCtaLabel={t("pricingModal.payCtaSession")}
               />
             </div>
           </div>

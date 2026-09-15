@@ -300,6 +300,7 @@ function ResearchPageInner() {
                   returnUrl={`${window.location.origin}/research?job_id=${jobId}`}
                   onBack={() => setView("plan")}
                   onSuccess={handleCheckoutSuccess}
+                  payCtaLabel={t("pricingModal.payCtaResearch")}
                 />
               </div>
             )}

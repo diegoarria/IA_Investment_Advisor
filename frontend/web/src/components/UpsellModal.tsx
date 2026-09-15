@@ -112,6 +112,7 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
             returnUrl={`${window.location.origin}${offer === "family_plan" ? "/upsell-success?offer=family_plan" : "/upsell-success?offer=session"}`}
             onBack={() => setShowCheckout(false)}
             onSuccess={handleCheckoutSuccess}
+            payCtaLabel={offer === "session" ? t("pricingModal.payCtaSession") : undefined}
           />
         ) : (
         <>

@@ -3045,6 +3045,8 @@
     "paymentError": "Could not open payment. Please try again.",
     "processing": "Processing...",
     "payCta": "Pay and subscribe",
+    "payCtaSession": "Pay and book my call",
+    "payCtaResearch": "Pay and generate my analysis",
     "securePaymentNote": "Secure payment processed by Stripe. Nuvos never sees or stores your card details.",
     "titleReturning": "Subscribe to Nuvos AI Premium",
     "footerNoteReturning": "You'll be charged {{price}}/month{{billing}} immediately once you confirm payment. Cancel anytime.",

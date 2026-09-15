@@ -1532,6 +1532,7 @@ export default function HomePage() {
                 returnUrl={`${window.location.origin}/upsell-success?offer=broker_call`}
                 onBack={() => setBrokerCheckoutOpen(false)}
                 onSuccess={handleBrokerCheckoutSuccess}
+                payCtaLabel={t("pricingModal.payCtaSession")}
               />
             </div>
           </div>

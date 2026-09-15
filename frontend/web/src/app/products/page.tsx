@@ -297,6 +297,7 @@ export default function ProductsPage() {
                 returnUrl={`${window.location.origin}/upsell-success?offer=${checkoutOffer.offer}`}
                 onBack={() => setCheckoutOffer(null)}
                 onSuccess={handleCheckoutSuccess}
+                payCtaLabel={checkoutOffer.offer === "session" ? t("pricingModal.payCtaSession") : undefined}
               />
             </div>
           </div>
