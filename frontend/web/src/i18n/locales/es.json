@@ -3050,6 +3050,8 @@
     "footerNoteReturning": "Se cobra {{price}}/mes{{billing}} de inmediato al confirmar tu pago. Cancela cuando quieras.",
     "payWith": "Pagar con",
     "billingAddress": "Dirección de facturación",
+    "orderSummary": "Resumen del pedido",
+    "dueToday": "Total a pagar hoy",
     "freeFeatures": [
       "Hasta 15 mensajes/día con el mentor IA",
       "Portafolio con hasta 10 acciones",

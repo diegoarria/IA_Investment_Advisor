@@ -3050,6 +3050,8 @@
     "footerNoteReturning": "You'll be charged {{price}}/month{{billing}} immediately once you confirm payment. Cancel anytime.",
     "payWith": "Pay with",
     "billingAddress": "Billing address",
+    "orderSummary": "Order summary",
+    "dueToday": "Total due today",
     "freeFeatures": [
       "Up to 15 messages/day with the AI mentor",
       "Portfolio with up to 10 stocks",

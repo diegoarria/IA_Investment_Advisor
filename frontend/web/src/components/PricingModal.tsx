@@ -6,7 +6,7 @@ import { X, Check, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { billing, upsells } from "@/lib/api";
 import { useSubscriptionStore } from "@/lib/store";
-import EmbeddedCheckout from "./EmbeddedCheckout";
+import EmbeddedCheckout, { type CheckoutSummary } from "./EmbeddedCheckout";
 
 interface Props {
   visible: boolean;
@@ -66,6 +66,32 @@ export default function PricingModal({ visible, onClose }: Props) {
   // total as the headline number.
   const monthlyPrice = plan === "monthly" ? "$14.99" : "$12.08";
   const duoPrice     = plan === "monthly" ? "$23.99" : "$18.75";
+  const premiumAnnualTotal = "$144.99";
+  const duoAnnualTotal     = "$224.99";
+
+  // Recap shown next to the payment form in checkout — same price/features
+  // the plan cards below already show, just kept visible past the click
+  // into EmbeddedCheckout instead of disappearing.
+  const premiumSummary: CheckoutSummary = {
+    planName: t("pricingModal.premium"),
+    priceLabel: monthlyPrice,
+    priceSuffix: t("pricingModal.perMonthShort"),
+    billingNote: plan === "yearly" ? t("pricingModal.billedAnnuallyAmount", { amount: premiumAnnualTotal }) : undefined,
+    savingsNote: plan === "yearly" ? t("pricingModal.premiumSavings") : undefined,
+    dueTodayLabel: plan === "yearly" ? premiumAnnualTotal : monthlyPrice,
+    features: PREMIUM_FEATURES,
+    accentColor: "#00d47e",
+  };
+  const duoSummary: CheckoutSummary = {
+    planName: t("pricingModal.duoPlan"),
+    priceLabel: duoPrice,
+    priceSuffix: t("pricingModal.perMonthShort"),
+    billingNote: plan === "yearly" ? t("pricingModal.billedAnnuallyAmount", { amount: duoAnnualTotal }) : undefined,
+    savingsNote: plan === "yearly" ? t("pricingModal.duoSavings") : undefined,
+    dueTodayLabel: plan === "yearly" ? duoAnnualTotal : duoPrice,
+    features: DUO_FEATURES,
+    accentColor: "#818cf8",
+  };
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
@@ -95,6 +121,7 @@ export default function PricingModal({ visible, onClose }: Props) {
               returnUrl={`${window.location.origin}${checkoutMode === "duo" ? "/upsell-success?offer=family_plan" : "/premium-success"}`}
               onBack={() => setCheckoutMode(null)}
               onSuccess={handleCheckoutSuccess}
+              summary={checkoutMode === "duo" ? duoSummary : premiumSummary}
             />
           </div>
         ) : (

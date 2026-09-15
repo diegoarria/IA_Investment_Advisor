@@ -13,8 +13,62 @@
 import { useEffect, useState } from "react";
 import { loadStripe, type StripeElementsOptions } from "@stripe/stripe-js";
 import { Elements, PaymentElement, AddressElement, useStripe, useElements } from "@stripe/react-stripe-js";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
+
+// Plan/price recap shown alongside the payment form — same info the user
+// already saw on the plan-selection cards, kept visible here instead of
+// disappearing the moment they click through, so they aren't confirming a
+// card charge with no price on screen (mirrors ChatGPT's checkout).
+export interface CheckoutSummary {
+  planName: string;
+  /** Headline price (monthly-equivalent when billed yearly), e.g. "$14.99". */
+  priceLabel: string;
+  priceSuffix: string;
+  /** e.g. "$144.99 billed annually" — only set when plan is yearly. */
+  billingNote?: string;
+  savingsNote?: string;
+  /** What's actually charged today — the annual total on a yearly plan. */
+  dueTodayLabel: string;
+  features: string[];
+  accentColor: string;
+}
+
+function OrderSummary({ summary }: { summary: CheckoutSummary }) {
+  const { t } = useTranslation();
+  return (
+    <div className="order-first sm:order-last rounded-2xl border p-5 h-fit" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+      <p className="text-xs font-bold mb-3" style={{ color: "var(--sub)" }}>{t("pricingModal.orderSummary")}</p>
+      <p className="text-base font-black mb-3" style={{ color: "var(--text)" }}>{summary.planName}</p>
+
+      <div className="space-y-2 mb-4">
+        {summary.features.slice(0, 5).map((f, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: summary.accentColor }} />
+            <span className="text-xs" style={{ color: "var(--muted)" }}>{f}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="pt-3 border-t space-y-1.5" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center justify-between text-sm">
+          <span style={{ color: "var(--muted)" }}>{summary.planName}</span>
+          <span style={{ color: "var(--text)" }}>{summary.priceLabel}{summary.priceSuffix}</span>
+        </div>
+        {summary.billingNote && (
+          <p className="text-[11px]" style={{ color: "var(--dim)" }}>{summary.billingNote}</p>
+        )}
+        {summary.savingsNote && (
+          <p className="text-[11px]" style={{ color: summary.accentColor }}>{summary.savingsNote}</p>
+        )}
+        <div className="flex items-center justify-between text-sm font-black pt-2 mt-1 border-t" style={{ borderColor: "var(--border)" }}>
+          <span style={{ color: "var(--text)" }}>{t("pricingModal.dueToday")}</span>
+          <span style={{ color: "var(--text)" }}>{summary.dueTodayLabel}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -64,7 +118,7 @@ function CheckoutForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="px-6 pb-6">
+    <form onSubmit={handleSubmit}>
       <button
         type="button"
         onClick={onBack}
@@ -100,7 +154,7 @@ function CheckoutForm({
 }
 
 export default function EmbeddedCheckout({
-  createIntent, onBack, onSuccess, returnUrl,
+  createIntent, onBack, onSuccess, returnUrl, summary,
 }: {
   /** Fetches this product's client_secret — e.g.
    * `() => billing.createEmbeddedSubscription(plan).then(r => r.data)`. */
@@ -114,6 +168,9 @@ export default function EmbeddedCheckout({
    * Stripe appends its own `payment_intent`/`redirect_status` query params
    * to whatever URL is given here. */
   returnUrl: string;
+  /** Plan/price recap shown next to the form. Optional so any other
+   * caller of this generic component can skip it. */
+  summary?: CheckoutSummary;
 }) {
   const { t } = useTranslation();
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -132,27 +189,32 @@ export default function EmbeddedCheckout({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  let body: React.ReactNode;
   if (!stripePromise) {
-    return <p className="px-6 pb-6 text-sm" style={{ color: "#ef4444" }}>Stripe no está configurado (falta NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY).</p>;
-  }
-
-  if (error) {
-    return <p className="px-6 pb-6 text-sm" style={{ color: "#ef4444" }}>{error}</p>;
-  }
-
-  if (!clientSecret) {
-    return (
-      <div className="px-6 pb-10 flex justify-center">
+    body = <p className="text-sm" style={{ color: "#ef4444" }}>Stripe no está configurado (falta NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY).</p>;
+  } else if (error) {
+    body = <p className="text-sm" style={{ color: "#ef4444" }}>{error}</p>;
+  } else if (!clientSecret) {
+    body = (
+      <div className="flex justify-center py-4">
         <Loader2 className="w-6 h-6 animate-spin" style={{ color: "#00d47e" }} />
       </div>
     );
+  } else {
+    const options: StripeElementsOptions = { clientSecret, appearance: APPEARANCE };
+    body = (
+      <Elements stripe={stripePromise} options={options}>
+        <CheckoutForm onBack={onBack} onSuccess={onSuccess} returnUrl={returnUrl} />
+      </Elements>
+    );
   }
 
-  const options: StripeElementsOptions = { clientSecret, appearance: APPEARANCE };
+  if (!summary) return <div className="px-6 pb-6">{body}</div>;
 
   return (
-    <Elements stripe={stripePromise} options={options}>
-      <CheckoutForm onBack={onBack} onSuccess={onSuccess} returnUrl={returnUrl} />
-    </Elements>
+    <div className="px-6 pb-6 grid sm:grid-cols-[minmax(0,1fr)_260px] gap-5">
+      <div className="order-last sm:order-first">{body}</div>
+      <OrderSummary summary={summary} />
+    </div>
   );
 }
