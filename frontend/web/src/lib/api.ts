@@ -390,6 +390,7 @@ export const billing = {
     api.post("/api/billing/create-checkout", { plan }),
   createEmbeddedSubscription: (plan: "monthly" | "yearly" = "monthly") =>
     api.post("/api/billing/create-embedded-subscription", { plan }),
+  createPortalSession: () => api.post("/api/billing/create-portal-session"),
   brokerCallCheckout: () => api.post("/api/billing/broker-call-checkout"),
   createEmbeddedBrokerCall: () => api.post("/api/billing/create-embedded-broker-call"),
   brokerOfferSeen: () => api.post("/api/billing/broker-offer-seen"),

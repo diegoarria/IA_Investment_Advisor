@@ -683,6 +683,11 @@ interface SubscriptionState {
    * secondary to accept/decline, "accepted" = pairing is live. Consent
    * fix, Sep 2026 — distinct from duoSetupPending above. */
   duoInviteStatus: "pending" | "accepted" | null;
+  /** Whether this user has a real Stripe customer/subscription behind
+   * them — false for manual_comp grants and pure trial users, who have
+   * nothing for the Stripe Customer Portal ("Administrar suscripción") to
+   * manage. */
+  hasStripeCustomer: boolean;
   /** True once a fetchStatus() call has actually completed (success OR
    * failure) at least once this session. A trial/premium user's very
    * first paint before this flips true is the persisted (possibly stale
@@ -706,6 +711,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       duoSetupPending: false,
       duoSecondaryEmail: null,
       duoInviteStatus: null,
+      hasStripeCustomer: false,
       hasFetchedStatus: false,
       fetchStatus: async () => {
         const { billing } = await import("./api");
@@ -733,6 +739,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
               duoSetupPending:   res.data.duo_setup_pending ?? false,
               duoSecondaryEmail: res.data.duo_secondary_email ?? null,
               duoInviteStatus:   res.data.duo_invite_status ?? null,
+              hasStripeCustomer: res.data.has_stripe_customer ?? false,
               hasFetchedStatus:  true,
             });
             return;

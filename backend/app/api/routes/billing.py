@@ -128,6 +128,40 @@ async def create_embedded_subscription(body: CheckoutRequest, user: dict = Depen
     return {"client_secret": client_secret, "subscription_id": subscription.id}
 
 
+@router.post("/create-portal-session")
+async def create_portal_session(user_id: str = Depends(get_current_user_id)):
+    """Diego, 2026-09-15: there was previously NO way for a user to cancel
+    their subscription — not in-app, not via Stripe's hosted portal, not
+    anything. This is the fix: Stripe's Customer Portal, a hosted page
+    (brandable in the Stripe Dashboard) where a real Stripe subscriber can
+    cancel, change plans, update their card, or view invoices — all
+    without Nuvos having to build or own any of that lifecycle logic
+    itself. Returns a redirect URL; unlike the payment flows, this is
+    account MANAGEMENT, not a purchase, so leaving the app for it is the
+    normal, expected pattern (this is exactly what redirecting to
+    nuvosai.com already does for mobile's "Administrar suscripción")."""
+    s = _stripe()
+    db = get_supabase()
+    result = await run_query(
+        db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
+    )
+    customer_id = result.data.get("stripe_customer_id") if result.data else None
+    if not customer_id:
+        raise HTTPException(status_code=404, detail="No tienes una suscripción de Stripe que administrar.")
+
+    base = settings.frontend_url.rstrip("/") if settings.frontend_url not in ("*", "") else "https://nuvosai.com"
+    try:
+        session = await asyncio.to_thread(
+            s.billing_portal.Session.create,
+            customer=customer_id,
+            return_url=f"{base}/profile",
+        )
+    except Exception as e:
+        logger.error("Stripe portal session creation failed for user %s: %s", user_id, e)
+        raise HTTPException(status_code=503, detail="No se pudo abrir el portal de suscripción. Intenta de nuevo en unos minutos.")
+    return {"url": session.url}
+
+
 @router.post("/webhook")
 async def stripe_webhook(request: Request):
     payload = await request.body()
@@ -506,6 +540,11 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
         "msg_window_start":          data.get("msg_window_start"),
         "trial_started_at":          trial_started,
         "broker_offer_seen_at":      data.get("broker_offer_seen_at"),
+        # Diego, 2026-09-15: the frontend needs this to know whether
+        # "Administrar suscripción" (Stripe Customer Portal) makes sense to
+        # show at all — a manual_comp or trial-only user has no real Stripe
+        # subscription to manage, so there'd be nothing for the portal to do.
+        "has_stripe_customer":       has_stripe,
         "duo_setup_pending":         bool(duo_purchased and not duo_secondary),
         "duo_secondary_email":       duo_secondary,
         # Consent-flow fix, Sep 2026: distinguishes "invited, waiting on the

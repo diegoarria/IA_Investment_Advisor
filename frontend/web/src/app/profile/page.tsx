@@ -225,6 +225,29 @@ export default function ProfilePage() {
 
   const isPremium = subStore.tier === "premium" || subStore.isTrialPremium;
   const remaining = msgsRemaining(subStore);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalError, setPortalError] = useState("");
+  // Diego, 2026-09-15: "¿cómo puede un usuario cancelar su suscripción?" —
+  // there was previously no way at all. Stripe's Customer Portal handles
+  // cancel/change-plan/update-card/invoices without Nuvos owning any of
+  // that lifecycle logic — only shown to real Stripe subscribers
+  // (manual_comp grants and pure trial users have nothing to manage there).
+  async function handleManageSubscription() {
+    setPortalError("");
+    setPortalLoading(true);
+    try {
+      const res = await billing.createPortalSession();
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+      } else {
+        setPortalError(t("profile.portalError"));
+        setPortalLoading(false);
+      }
+    } catch {
+      setPortalError(t("profile.portalError"));
+      setPortalLoading(false);
+    }
+  }
   const mentor = getMentorInfo(profile?.mentor);
   const riskColor = profile ? (RISK_COLOR[profile.risk_tolerance] ?? "var(--accent)") : "var(--accent)";
   const riskCat = profile ? riskCategory(profile.risk_tolerance) : "moderate";
@@ -1026,6 +1049,19 @@ export default function ProfilePage() {
                           {t("profile.active")}
                         </div>
                       </div>
+                      {subStore.hasStripeCustomer && (
+                        <div className="px-4 pb-4">
+                          <button
+                            onClick={handleManageSubscription}
+                            disabled={portalLoading}
+                            className="w-full py-2.5 rounded-xl text-xs font-bold border transition-opacity disabled:opacity-60"
+                            style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+                          >
+                            {portalLoading ? t("profile.portalOpening") : t("profile.manageSubscription")}
+                          </button>
+                          {portalError && <p className="text-xs mt-2" style={{ color: "#ef4444" }}>{portalError}</p>}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
