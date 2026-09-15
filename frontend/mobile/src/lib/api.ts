@@ -6,7 +6,12 @@ import { router } from "expo-router";
 export const BASE_URL =
   process.env.EXPO_PUBLIC_API_URL || "https://iainvestmentadvisor-production.up.railway.app";
 
-const api = axios.create({ baseURL: BASE_URL });
+// A request with no timeout hangs forever on a dead/unreachable connection
+// — surfaced 2026-09-15 by UpsellModal's dismiss call leaving its paywall
+// stuck open with no way to close. Individual slow endpoints already pass
+// their own longer `timeout` per-call; this is just the floor everyone
+// else gets for free.
+const api = axios.create({ baseURL: BASE_URL, timeout: 20000 });
 
 api.interceptors.request.use(async (config) => {
   try {

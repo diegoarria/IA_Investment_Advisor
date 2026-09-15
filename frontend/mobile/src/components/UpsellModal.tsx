@@ -64,15 +64,19 @@ export default function UpsellModal({
       ? `$${variant === "bundle" ? (prices.bundle ?? 247) : (prices.premium ?? 0)}`
       : `$${prices.free ?? 0}`;
 
-  const handleDismiss = async () => {
-    try {
-      await api.post("/api/upsells/dismiss", {
-        offer_type: offer,
-        user_tier: userTier,
-        trigger_source: triggerSource,
-      });
-    } catch {}
+  // Diego, 2026-09-15: closing must never wait on the network — this used
+  // to `await` the dismiss-tracking call before calling onClose(), so a
+  // slow/unreachable backend (this call has no timeout) left the modal
+  // stuck open with no way out, since the CTA-removal for Apple IAP
+  // compliance made "Ahora no" / X / the backdrop the ONLY ways to leave
+  // this modal. Close immediately; track the dismissal in the background.
+  const handleDismiss = () => {
     onClose();
+    api.post("/api/upsells/dismiss", {
+      offer_type: offer,
+      user_tier: userTier,
+      trigger_source: triggerSource,
+    }).catch(() => {});
   };
 
   return (

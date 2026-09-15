@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import {
-  View, Text, ScrollView, TouchableOpacity, Alert,
+  View, Text, ScrollView, TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -88,13 +88,6 @@ export default function ProductsScreen() {
   const DUO_PLAN_FEATURES = getDuoPlanFeatures(t);
   const ONE_TIME = getOneTimeItems(t);
   const COMING_SOON = getComingSoonItems(t);
-
-  // Diego, 2026-09-15: "evitarme lo de Apple IAP... tal como lo hace
-  // Spotify" — no paid checkout inside the app. Buying a one-time product
-  // now happens on nuvosai.com.
-  function handleCheckout() {
-    Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.manageOnWeb"));
-  }
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -227,15 +220,35 @@ export default function ProductsScreen() {
                   </View>
                 )}
 
-                <TouchableOpacity
-                  onPress={() => p.offer === "deep_research" ? router.push("/research") : handleCheckout()}
-                  style={{ backgroundColor: "#00d47e", borderRadius: 12, paddingVertical: 10, alignItems: "center", marginBottom: 12 }}
-                  activeOpacity={0.85}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: "900", color: "#000" }}>
-                    {t("products.oneTime.buy")}
-                  </Text>
-                </TouchableOpacity>
+                {p.offer === "deep_research" ? (
+                  // Navigates to the Research screen itself, which is
+                  // free-credit-first and shows the same non-actionable
+                  // "manageOnWeb" copy for paying — this button never
+                  // implies a purchase, just "go look at this feature".
+                  <TouchableOpacity
+                    onPress={() => router.push("/research")}
+                    style={{ backgroundColor: "#00d47e", borderRadius: 12, paddingVertical: 10, alignItems: "center", marginBottom: 12 }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "900", color: "#000" }}>
+                      {t("products.oneTime.viewDetails")}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  // Diego, 2026-09-15: "evitarme lo de Apple IAP... tal
+                  // como lo hace Spotify" — a tappable "Comprar →" button
+                  // that pops an alert telling people to buy on the web is
+                  // still a call-to-action toward an external purchase
+                  // (Apple 3.1.1 bans the CTA itself, not just processing
+                  // the payment in-app). Same non-actionable info box as
+                  // PricingModal/PaywallModal/UpsellModal/Research, no
+                  // tappable element at all.
+                  <View style={{ borderRadius: 12, paddingVertical: 10, alignItems: "center", marginBottom: 12, backgroundColor: colors.bgRaised ?? colors.border }}>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textSub ?? colors.text, textAlign: "center" }}>
+                      {t("pricingModal.manageOnWeb")}
+                    </Text>
+                  </View>
+                )}
 
                 {p.features.map((f, fi) => (
                   <View key={fi} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 7 }}>
