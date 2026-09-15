@@ -42,17 +42,23 @@ const nextConfig: NextConfig = {
   async headers() {
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us-assets.i.posthog.com",
+      // https://js.stripe.com — the embedded Payment Element (EmbeddedCheckout.tsx,
+      // 2026-09-15) loads Stripe.js from here; blocked silently (console-only,
+      // no visible error) before this was added — confirmed live, the paywall
+      // rendered as an empty gap with no card form at all.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us-assets.i.posthog.com https://js.stripe.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com " + BACKEND_ORIGIN,
+      "connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://api.stripe.com " + BACKEND_ORIGIN,
+      // Stripe's Payment Element renders its actual card fields inside an
+      // iframe it injects itself (js.stripe.com) — needed alongside the
+      // script-src entry above, or the fields silently fail to render even
+      // once the script itself loads.
+      "frame-src https://js.stripe.com https://hooks.stripe.com",
       // NOTE: if/when the Belvo Connect Widget (an iframe Belvo serves —
       // see backend/app/api/routes/belvo.py's docstring) gets wired into
-      // this frontend, default-src 'self' will block that iframe from
-      // loading (no frame-src override yet, since it isn't in the web
-      // frontend as of this audit) — add "frame-src 'self' https://widget.belvo.com"
-      // (confirm the real widget host first) at that point.
+      // this frontend, add its host to frame-src above too.
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "object-src 'none'",
