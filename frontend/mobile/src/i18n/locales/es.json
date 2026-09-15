@@ -2879,6 +2879,7 @@
   "pricingModal": {
     "errorTitle": "Error",
     "paymentError": "No se pudo abrir el pago. Intenta de nuevo.",
+    "manageOnWeb": "Suscríbete o cambia de plan desde nuvosai.com",
     "freeFeatures": [
       "Hasta 20 mensajes/día con el mentor IA",
       "Portafolio de hasta 10 acciones",

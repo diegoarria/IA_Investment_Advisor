@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import {
-  View, Text, ScrollView, TouchableOpacity, Linking, Alert,
+  View, Text, ScrollView, TouchableOpacity, Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -8,7 +8,6 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
-import { upsellsApi } from "../../src/lib/api";
 import PricingModal from "../../src/components/PricingModal";
 
 function getFreeFeatures(t: TFunction): string[] {
@@ -83,7 +82,6 @@ export default function ProductsScreen() {
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
   const [showPricing, setShowPricing] = useState(false);
-  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
 
   const FREE_FEATURES = getFreeFeatures(t);
   const PREMIUM_FEATURES = getPremiumFeatures(t);
@@ -91,21 +89,11 @@ export default function ProductsScreen() {
   const ONE_TIME = getOneTimeItems(t);
   const COMING_SOON = getComingSoonItems(t);
 
-  async function handleCheckout(offer: string, variant: string) {
-    const key = offer + variant;
-    setCheckoutLoading(key);
-    try {
-      const res = await upsellsApi.checkout(offer, variant, "products_page");
-      const url = res?.data?.url;
-      if (url) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
-      }
-    } catch {
-      Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
-    }
-    setCheckoutLoading(null);
+  // Diego, 2026-09-15: "evitarme lo de Apple IAP... tal como lo hace
+  // Spotify" — no paid checkout inside the app. Buying a one-time product
+  // now happens on nuvosai.com.
+  function handleCheckout() {
+    Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.manageOnWeb"));
   }
 
   return (
@@ -240,13 +228,12 @@ export default function ProductsScreen() {
                 )}
 
                 <TouchableOpacity
-                  onPress={() => p.offer === "deep_research" ? router.push("/research") : handleCheckout(p.offer, p.variant)}
-                  disabled={checkoutLoading === p.offer + p.variant}
-                  style={{ backgroundColor: "#00d47e", borderRadius: 12, paddingVertical: 10, alignItems: "center", marginBottom: 12, opacity: checkoutLoading === p.offer + p.variant ? 0.6 : 1 }}
+                  onPress={() => p.offer === "deep_research" ? router.push("/research") : handleCheckout()}
+                  style={{ backgroundColor: "#00d47e", borderRadius: 12, paddingVertical: 10, alignItems: "center", marginBottom: 12 }}
                   activeOpacity={0.85}
                 >
                   <Text style={{ fontSize: 12, fontWeight: "900", color: "#000" }}>
-                    {checkoutLoading === p.offer + p.variant ? t("products.oneTime.opening") : t("products.oneTime.buy")}
+                    {t("products.oneTime.buy")}
                   </Text>
                 </TouchableOpacity>
 

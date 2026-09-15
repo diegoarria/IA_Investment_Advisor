@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, SafeAreaView, ActivityIndicator, Linking, AppState,
+  StyleSheet, SafeAreaView, ActivityIndicator, AppState,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
-import { researchApi, upsellsApi, referralApi } from "../../src/lib/api";
+import { researchApi, referralApi } from "../../src/lib/api";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 
 type ViewState = "compose" | "plan" | "awaiting_checkout" | "progress" | "error";
@@ -103,23 +103,6 @@ export default function ResearchScreen() {
       setView("plan");
     } catch {
       setError(t("research.compose.planError"));
-    }
-    setLoading(false);
-  };
-
-  const handleConfirmAndPay = async () => {
-    if (!jobId) return;
-    setLoading(true); setError(null);
-    try {
-      const res = await upsellsApi.checkout("deep_research", isPremium ? "premium" : "free", "research_screen", { job_id: jobId });
-      if (res.data?.url) {
-        Linking.openURL(res.data.url);
-        setView("awaiting_checkout");
-      } else {
-        setError(res.data?.error || t("research.plan.checkoutError"));
-      }
-    } catch {
-      setError(t("research.plan.checkoutError"));
     }
     setLoading(false);
   };
@@ -231,11 +214,14 @@ export default function ResearchScreen() {
                 <Text style={s.primaryBtnText}>{t("research.plan.useFreeCredit", { count: freeCredits })}</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={handleConfirmAndPay} disabled={loading}
-                              style={[s.primaryBtn, { backgroundColor: colors.accent, opacity: loading ? 0.5 : 1 }]}>
-              {loading ? <ActivityIndicator color="#000" /> : <Ionicons name="arrow-forward" size={16} color="#000" />}
-              <Text style={s.primaryBtnText}>{t("research.plan.confirm")}</Text>
-            </TouchableOpacity>
+            {/* Diego, 2026-09-15: "evitarme lo de Apple IAP... tal como lo
+                hace Spotify" — no paid checkout inside the app. Paying for
+                Deep Research now happens on nuvosai.com. */}
+            <View style={[s.card, { alignItems: "center", padding: 14, backgroundColor: colors.bgRaised ?? colors.card, borderColor: colors.border }]}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textSub ?? colors.text, textAlign: "center" }}>
+                {t("pricingModal.manageOnWeb")}
+              </Text>
+            </View>
             <TouchableOpacity onPress={() => setView("compose")} style={{ paddingVertical: 10, alignItems: "center" }}>
               <Text style={{ fontSize: 12, color: colors.textMuted }}>{t("research.plan.back")}</Text>
             </TouchableOpacity>

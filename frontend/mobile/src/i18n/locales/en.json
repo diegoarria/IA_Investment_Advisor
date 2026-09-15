@@ -2879,6 +2879,7 @@
   "pricingModal": {
     "errorTitle": "Error",
     "paymentError": "Could not open payment. Please try again.",
+    "manageOnWeb": "Subscribe or change your plan at nuvosai.com",
     "freeFeatures": [
       "Up to 20 messages/day with the AI mentor",
       "Portfolio of up to 10 stocks",

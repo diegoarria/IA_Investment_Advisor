@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, Modal,
-  ActivityIndicator, Linking, StyleSheet, Pressable, Alert,
+  StyleSheet, Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -47,7 +47,6 @@ export default function UpsellModal({
 }: UpsellModalProps) {
   const { colors } = useTheme();
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(false);
   const [variant, setVariant] = useState<"default" | "bundle">("default");
   const [duoVariant, setDuoVariant] = useState<"monthly" | "yearly">("monthly");
 
@@ -64,25 +63,6 @@ export default function UpsellModal({
       : isPremium
       ? `$${variant === "bundle" ? (prices.bundle ?? 247) : (prices.premium ?? 0)}`
       : `$${prices.free ?? 0}`;
-
-  const handlePurchase = async () => {
-    setLoading(true);
-    try {
-      const res = await api.post("/api/upsells/checkout", {
-        offer,
-        variant: offer === "family_plan" ? duoVariant : variant === "bundle" ? "bundle" : userTier,
-        trigger_source: triggerSource,
-      });
-      if (res.data?.url) {
-        Linking.openURL(res.data.url);
-      } else {
-        Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
-      }
-    } catch {
-      Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
-    }
-    setLoading(false);
-  };
 
   const handleDismiss = async () => {
     try {
@@ -228,21 +208,9 @@ export default function UpsellModal({
 
           {/* ── CTA footer ─────────────────────────────────── */}
           <View style={[s.footer, { borderTopColor: c + "15" }]}>
-            <TouchableOpacity
-              onPress={handlePurchase}
-              disabled={loading}
-              activeOpacity={0.85}
-              style={[s.ctaBtn, { backgroundColor: c, shadowColor: c, opacity: loading ? 0.6 : 1 }]}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <Text style={s.ctaText}>{meta.ctaLabel}</Text>
-                  <Ionicons name="arrow-forward" size={16} color="#fff" />
-                </>
-              )}
-            </TouchableOpacity>
+            <View style={[s.ctaInfo, { borderColor: c + "35" }]}>
+              <Text style={[s.ctaInfoText, { color: colors.textSub }]}>{t("pricingModal.manageOnWeb")}</Text>
+            </View>
             <TouchableOpacity onPress={handleDismiss} style={s.laterBtn}>
               <Text style={[s.laterText, { color: colors.textDim }]}>{t("upsellModal.maybeLater")}</Text>
             </TouchableOpacity>
@@ -299,6 +267,8 @@ const s = StyleSheet.create({
   footer:         { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32, borderTopWidth: 1, gap: 8 },
   ctaBtn:         { borderRadius: 18, paddingVertical: 15, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
   ctaText:        { color: "#fff", fontSize: 15, fontWeight: "900" },
+  ctaInfo:        { borderRadius: 18, borderWidth: 1, paddingVertical: 13, paddingHorizontal: 12, alignItems: "center" },
+  ctaInfoText:    { fontSize: 13, fontWeight: "700", textAlign: "center" },
   laterBtn:       { alignItems: "center", paddingVertical: 6 },
   laterText:      { fontSize: 13 },
 });

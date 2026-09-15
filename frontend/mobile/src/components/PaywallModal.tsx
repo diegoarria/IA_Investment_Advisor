@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from "react";
 import {
   View, Text, TouchableOpacity, Modal, StyleSheet,
-  ActivityIndicator, Linking, ScrollView, Alert,
+  Linking, ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { billingApi, upsellsApi } from "../lib/api";
 import { posthog } from "../config/posthog";
-import { useSubscriptionStore } from "../lib/subscriptionStore";
 import { useTheme } from "../lib/ThemeContext";
 
 const getHeroFeatures = (t: TFunction): string[] => [
@@ -37,10 +35,7 @@ interface Props { visible: boolean; onClose: () => void; reason?: string }
 export default function PaywallModal({ visible, onClose, reason }: Props) {
   const { colors } = useTheme();
   const { t } = useTranslation();
-  const fetchStatus = useSubscriptionStore((s) => s.fetchStatus);
   const [plan, setPlan] = useState<"monthly" | "yearly">("monthly");
-  const [loading, setLoading] = useState(false);
-  const [duoLoading, setDuoLoading] = useState(false);
 
   const HERO_FEATURES = getHeroFeatures(t);
   const DUO_FEATURES = getDuoFeatures(t);
@@ -51,41 +46,6 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
 
   const regularPrice = plan === "monthly" ? "$14.99" : "$12.08";
   const duoPrice = plan === "monthly" ? "$23.99" : "$18.75";
-
-  async function handleUpgrade() {
-    posthog.capture("premium_upgrade_initiated", { plan, price: regularPrice });
-    setLoading(true);
-    try {
-      const res = await billingApi.createCheckout(plan);
-      const url = res?.data?.url;
-      if (url) {
-        await Linking.openURL(url);
-        setTimeout(fetchStatus, 3000);
-      } else {
-        Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
-      }
-    } catch {
-      Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
-    }
-    setLoading(false);
-  }
-
-  async function handleDuoCheckout() {
-    posthog.capture("premium_upgrade_initiated", { plan: "duo", price: duoPrice });
-    setDuoLoading(true);
-    try {
-      const res = await upsellsApi.checkout("family_plan", plan, "paywall_modal");
-      const url = res?.data?.url;
-      if (url) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
-      }
-    } catch {
-      Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
-    }
-    setDuoLoading(false);
-  }
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -144,16 +104,9 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
                 </>
               ) : <View style={{ marginBottom: 14 }} />}
 
-              <TouchableOpacity
-                onPress={handleUpgrade}
-                disabled={loading}
-                style={[s.ctaSolid, { backgroundColor: loading ? "rgba(0,212,126,0.5)" : "#00d47e" }]}
-                activeOpacity={0.85}
-              >
-                {loading
-                  ? <ActivityIndicator color="#000" size="small" />
-                  : <Text style={s.ctaSolidText}>{t("paywallModal.startNow")}</Text>}
-              </TouchableOpacity>
+              <View style={s.ctaInfo}>
+                <Text style={s.ctaInfoText}>{t("pricingModal.manageOnWeb")}</Text>
+              </View>
 
               {HERO_FEATURES.map((f) => (
                 <View key={f} style={s.featRow}>
@@ -186,16 +139,9 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
                 <Text style={[s.savingsLine, { color: "rgba(255,255,255,0.4)" }]}>{t("pricingModal.billedMonthly")}</Text>
               )}
 
-              <TouchableOpacity
-                onPress={handleDuoCheckout}
-                disabled={duoLoading}
-                style={[s.ctaOutline, duoLoading && { backgroundColor: "rgba(99,102,241,0.4)" }]}
-                activeOpacity={0.85}
-              >
-                {duoLoading
-                  ? <ActivityIndicator color="#818cf8" size="small" />
-                  : <Text style={s.ctaOutlineText}>{t("pricingModal.hireDuoPlan")}</Text>}
-              </TouchableOpacity>
+              <View style={s.ctaInfo}>
+                <Text style={s.ctaInfoText}>{t("pricingModal.manageOnWeb")}</Text>
+              </View>
 
               {DUO_FEATURES.map((f, i) => (
                 <View key={i} style={s.featRow}>
@@ -262,6 +208,8 @@ const s = StyleSheet.create({
   ctaSolidText: { fontSize: 14, fontWeight: "900", color: "#000" },
   ctaOutline: { borderRadius: 14, paddingVertical: 12, alignItems: "center", marginBottom: 14, backgroundColor: "rgba(99,102,241,0.2)", borderWidth: 1, borderColor: "rgba(99,102,241,0.4)" },
   ctaOutlineText: { fontSize: 14, fontWeight: "900", color: "#818cf8" },
+  ctaInfo: { borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, alignItems: "center", marginBottom: 14, backgroundColor: "rgba(255,255,255,0.06)" },
+  ctaInfoText: { fontSize: 12, fontWeight: "700", color: "rgba(255,255,255,0.75)", textAlign: "center" },
 
   featRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 },
   featTextLight: { fontSize: 12, color: "rgba(255,255,255,0.8)", flex: 1 },

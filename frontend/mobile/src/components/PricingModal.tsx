@@ -1,12 +1,12 @@
-import React, { useState } from "react";
+import React from "react";
 import {
-  View, Text, TouchableOpacity, Modal, ScrollView, Linking, Alert,
+  View, Text, TouchableOpacity, Modal, ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
-import { billingApi, upsellsApi } from "../lib/api";
+import { useSubscriptionStore, hasPremiumAccess } from "../lib/subscriptionStore";
 
 function getFreeFeatures(t: TFunction): string[] {
   return t("pricingModal.freeFeatures", { returnObjects: true }) as string[];
@@ -28,45 +28,22 @@ interface Props {
 export default function PricingModal({ visible, onClose }: Props) {
   const { colors } = useTheme();
   const { t } = useTranslation();
-  const [plan, setPlan] = useState<"monthly" | "yearly">("monthly");
-  const [loading, setLoading] = useState(false);
-  const [duoLoading, setDuoLoading] = useState(false);
+  const [plan, setPlan] = React.useState<"monthly" | "yearly">("monthly");
+  // Diego, 2026-09-15: "evitarme lo de Apple IAP... tal como lo hace
+  // Spotify" — Apple's App Store rules (3.1.1) ban unlocking a digital
+  // subscription through any payment mechanism other than Apple's own IAP
+  // inside the app, Stripe included, regardless of whether it's an embedded
+  // form or a browser opened via Linking.openURL. Same pattern Spotify's
+  // iOS app uses (see the "No se puede cambiar tu plan desde la
+  // aplicación" screens): this screen is now informational only — no
+  // purchase call, no outbound link. Subscribing/changing plans happens on
+  // nuvosai.com, outside the app.
+  const subStore = useSubscriptionStore();
+  const isPremium = hasPremiumAccess(subStore);
 
   const FREE_FEATURES = getFreeFeatures(t);
   const PREMIUM_FEATURES = getPremiumFeatures(t);
   const DUO_FEATURES = getDuoFeatures(t);
-
-  async function handleUpgrade() {
-    setLoading(true);
-    try {
-      const res = await billingApi.createCheckout(plan);
-      const url = res?.data?.url;
-      if (url) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
-      }
-    } catch {
-      Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
-    }
-    setLoading(false);
-  }
-
-  async function handleDuoCheckout() {
-    setDuoLoading(true);
-    try {
-      const res = await upsellsApi.checkout("family_plan", plan, "pricing_modal");
-      const url = res?.data?.url;
-      if (url) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
-      }
-    } catch {
-      Alert.alert(t("pricingModal.errorTitle"), t("pricingModal.paymentError"));
-    }
-    setDuoLoading(false);
-  }
 
   // Yearly billing is always shown as its monthly-equivalent price up top
   // (what the user actually compares against the monthly plan), with the
@@ -128,9 +105,11 @@ export default function PricingModal({ visible, onClose }: Props) {
                   <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>$0</Text>
                   <Text style={{ fontSize: 12, color: colors.textMuted }}>{t("pricingModal.perMonth")}</Text>
                 </View>
+                {!isPremium && (
                 <View style={{ borderRadius: 12, paddingVertical: 8, alignItems: "center", marginBottom: 14, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border }}>
                   <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>{t("pricingModal.currentPlan")}</Text>
                 </View>
+                )}
                 {FREE_FEATURES.map((f, i) => (
                   <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
                     <Ionicons name="checkmark" size={14} color={colors.textMuted} style={{ marginTop: 1 }} />
@@ -160,16 +139,17 @@ export default function PricingModal({ visible, onClose }: Props) {
                   </Text>
                 )}
 
-                <TouchableOpacity
-                  onPress={handleUpgrade}
-                  disabled={loading}
-                  style={{ backgroundColor: loading ? "rgba(0,212,126,0.5)" : "#00d47e", borderRadius: 14, paddingVertical: 12, alignItems: "center", marginBottom: 14 }}
-                  activeOpacity={0.85}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>
-                    {loading ? t("pricingModal.opening") : t("pricingModal.subscribeCta")}
-                  </Text>
-                </TouchableOpacity>
+                {isPremium ? (
+                  <View style={{ borderRadius: 14, paddingVertical: 12, alignItems: "center", marginBottom: 14, backgroundColor: "rgba(0,212,126,0.12)", borderWidth: 1, borderColor: "rgba(0,212,126,0.35)" }}>
+                    <Text style={{ fontSize: 14, fontWeight: "900", color: "#00d47e" }}>{t("pricingModal.currentPlan")}</Text>
+                  </View>
+                ) : (
+                  <View style={{ borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, alignItems: "center", marginBottom: 14, backgroundColor: "rgba(255,255,255,0.06)" }}>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "rgba(255,255,255,0.75)", textAlign: "center" }}>
+                      {t("pricingModal.manageOnWeb")}
+                    </Text>
+                  </View>
+                )}
 
                 {PREMIUM_FEATURES.map((f, i) => (
                   <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
@@ -206,16 +186,11 @@ export default function PricingModal({ visible, onClose }: Props) {
                   </Text>
                 )}
 
-                <TouchableOpacity
-                  onPress={handleDuoCheckout}
-                  disabled={duoLoading}
-                  style={{ backgroundColor: duoLoading ? "rgba(99,102,241,0.4)" : "rgba(99,102,241,0.2)", borderWidth: 1, borderColor: "rgba(99,102,241,0.4)", borderRadius: 14, paddingVertical: 12, alignItems: "center", marginBottom: 14 }}
-                  activeOpacity={0.85}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: "900", color: "#818cf8" }}>
-                    {duoLoading ? t("pricingModal.opening") : t("pricingModal.hireDuoPlan")}
+                <View style={{ borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, alignItems: "center", marginBottom: 14, backgroundColor: "rgba(255,255,255,0.06)" }}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "rgba(255,255,255,0.75)", textAlign: "center" }}>
+                    {t("pricingModal.manageOnWeb")}
                   </Text>
-                </TouchableOpacity>
+                </View>
 
                 {DUO_FEATURES.map((f, i) => (
                   <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>

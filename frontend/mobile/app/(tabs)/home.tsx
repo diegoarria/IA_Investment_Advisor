@@ -448,25 +448,22 @@ export default function HomeScreen() {
   const BROKER_FREE_WINDOW_MS = 24 * 60 * 60 * 1000;
   const BROKER_CALENDLY_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai";
 
+  // Diego, 2026-09-15: "evitarme lo de Apple IAP... tal como lo hace
+  // Spotify" — no paid checkout of any kind happens inside the app anymore
+  // (Apple 3.1.1 bans it regardless of payment vendor or whether it opens
+  // via Linking.openURL vs an embedded form). Once the 24h free window
+  // expires, this just tells the user to book on the web instead of
+  // opening a Stripe checkout.
   const handleBrokerCheckout = async () => {
-    try {
-      const res: any = await billingApi.brokerCallCheckout();
-      const url = res?.data?.url ?? res?.url;
-      if (url) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert(t("common.error"), t("home.broker.noUrl", { details: JSON.stringify(res?.data ?? res) }));
-      }
-    } catch (e: any) {
-      Alert.alert(t("home.broker.checkoutError"), e?.message ?? JSON.stringify(e));
-    }
+    Alert.alert(t("home.broker.checkoutError"), t("pricingModal.manageOnWeb"));
   };
 
   // Shared entry point for the "book the broker call" checklist item: free
-  // during the 24h window (straight to Calendly, no Stripe involved), $20
-  // checkout after. Treat "not loaded yet" as still-free — a slow network
-  // read should never accidentally charge someone who was actually still
-  // inside the window.
+  // during the 24h window (straight to Calendly, no payment involved). Once
+  // that window expires, booking now happens on nuvosai.com instead of a
+  // paid checkout inside the app. Treat "not loaded yet" as still-free — a
+  // slow network read should never accidentally block a user who was
+  // actually still inside the window.
   const handleBookBrokerCall = async () => {
     const stillFree = freeWindowMsLeft === null || freeWindowMsLeft > 0;
     if (stillFree) {
