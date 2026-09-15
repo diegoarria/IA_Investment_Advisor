@@ -110,6 +110,7 @@ from app.services.email_service import (
     generate_and_send_weekly_summary,
     build_enhanced_weekly_html, build_earnings_results_html,
     build_birthday_html, build_reengagement_html, send_email,
+    build_trial_lifecycle_email_subject, build_trial_lifecycle_email_html,
 )
 from app.services.paper_service import notify_rank_changes
 
@@ -6443,7 +6444,14 @@ async def job_trial_ending_reminder():
     window matching this job's own daily cadence, so it's structurally a
     one-time send per user (trial_started_at never changes) — no separate
     "already notified" table needed, only the usual can_send_push dedup as
-    a backstop against a same-day re-run."""
+    a backstop against a same-day re-run.
+
+    Diego, 2026-09-15: "tanto en notificaciones push como en emails" — now
+    also emails everyone in this same window, alongside the push, so
+    someone without a push token (or notifications off) still gets warned.
+    Same category/day-match already computed above is the only gate; no
+    separate email dedup needed since this only ever fires once per user
+    (trial_started_at doesn't change)."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     from app.core.subscription import TRIAL_DAYS
@@ -6466,10 +6474,13 @@ async def job_trial_ending_reminder():
         if not rows:
             return
 
+        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
+
         sent = 0
         for row in rows:
             uid = row["user_id"]
-            is_en = (row.get("preferred_language") or "es") == "en"
+            lang = row.get("preferred_language") or "es"
+            is_en = lang == "en"
             if is_en:
                 title = "⏳ Your Premium trial ends in 3 days"
                 body = "Your free Premium trial ends in 3 days. Subscribe now to keep your Arthur, your alerts, and everything you've used this month."
@@ -6481,6 +6492,13 @@ async def job_trial_ending_reminder():
                 sent += 1
             except Exception as exc:
                 logger.warning("job_trial_ending_reminder: push failed for %s: %s", uid, exc)
+            email = auth_users.get(uid)
+            if email:
+                try:
+                    await send_email(email, build_trial_lifecycle_email_subject("trial_ending_soon", lang),
+                                      build_trial_lifecycle_email_html("trial_ending_soon", lang))
+                except Exception as exc:
+                    logger.warning("job_trial_ending_reminder: email failed for %s: %s", uid, exc)
             await asyncio.sleep(random.uniform(0, 0.1))
         if sent:
             logger.info("job_trial_ending_reminder: %d reminders sent", sent)
@@ -6494,7 +6512,11 @@ async def job_trial_ending_tomorrow_reminder():
     free 30-day trial expires — i.e. trial_started_at exactly 29 days in
     the past. Separate category ("trial_ending_tomorrow" vs
     "trial_ending_soon") so this is a real second, more urgent touch
-    instead of being silently deduped as a repeat of the 3-day one."""
+    instead of being silently deduped as a repeat of the 3-day one.
+
+    Diego, 2026-09-15: also emails this same window (see
+    job_trial_ending_reminder's docstring — same reasoning, same
+    once-per-user guarantee from trial_started_at never changing)."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     from app.core.subscription import TRIAL_DAYS
@@ -6517,10 +6539,13 @@ async def job_trial_ending_tomorrow_reminder():
         if not rows:
             return
 
+        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
+
         sent = 0
         for row in rows:
             uid = row["user_id"]
-            is_en = (row.get("preferred_language") or "es") == "en"
+            lang = row.get("preferred_language") or "es"
+            is_en = lang == "en"
             if is_en:
                 title = "⏰ Your Premium trial ends tomorrow"
                 body = "Last day of your free Premium trial. Subscribe today to keep your Arthur, your alerts, and everything you've used this month."
@@ -6532,6 +6557,13 @@ async def job_trial_ending_tomorrow_reminder():
                 sent += 1
             except Exception as exc:
                 logger.warning("job_trial_ending_tomorrow_reminder: push failed for %s: %s", uid, exc)
+            email = auth_users.get(uid)
+            if email:
+                try:
+                    await send_email(email, build_trial_lifecycle_email_subject("trial_ending_tomorrow", lang),
+                                      build_trial_lifecycle_email_html("trial_ending_tomorrow", lang))
+                except Exception as exc:
+                    logger.warning("job_trial_ending_tomorrow_reminder: email failed for %s: %s", uid, exc)
             await asyncio.sleep(random.uniform(0, 0.1))
         if sent:
             logger.info("job_trial_ending_tomorrow_reminder: %d reminders sent", sent)
@@ -6552,7 +6584,10 @@ async def job_trial_ended_reminder():
     (streak_bonus_premium_until in the future) — is_premium_active()
     would still say they're premium via that bonus even though their
     trial specifically ended, so "your trial just ended, subscribe" would
-    be factually wrong for them today."""
+    be factually wrong for them today.
+
+    Diego, 2026-09-15: also emails this same window (see
+    job_trial_ending_reminder's docstring)."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     from app.core.subscription import TRIAL_DAYS
@@ -6574,6 +6609,8 @@ async def job_trial_ended_reminder():
         if not rows:
             return
 
+        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
+
         sent = 0
         for row in rows:
             bonus_until = row.get("streak_bonus_premium_until")
@@ -6585,7 +6622,8 @@ async def job_trial_ended_reminder():
                     pass
 
             uid = row["user_id"]
-            is_en = (row.get("preferred_language") or "es") == "en"
+            lang = row.get("preferred_language") or "es"
+            is_en = lang == "en"
             if is_en:
                 title = "😔 Your Premium trial just ended"
                 body = "You're back on the free plan, but everything you built with Arthur is still there. Subscribe now and get your personal mentor, smart alerts, and deep analysis back — it takes less than a minute."
@@ -6597,6 +6635,13 @@ async def job_trial_ended_reminder():
                 sent += 1
             except Exception as exc:
                 logger.warning("job_trial_ended_reminder: push failed for %s: %s", uid, exc)
+            email = auth_users.get(uid)
+            if email:
+                try:
+                    await send_email(email, build_trial_lifecycle_email_subject("trial_ended", lang),
+                                      build_trial_lifecycle_email_html("trial_ended", lang))
+                except Exception as exc:
+                    logger.warning("job_trial_ended_reminder: email failed for %s: %s", uid, exc)
             await asyncio.sleep(random.uniform(0, 0.1))
         if sent:
             logger.info("job_trial_ended_reminder: %d reminders sent", sent)
@@ -6624,7 +6669,12 @@ async def job_premium_winback_reminder():
 
     Skips anyone currently covered by an active streak/referral premium
     bonus — is_premium_active() would still call them premium via that
-    bonus even though their original trial ended."""
+    bonus even though their original trial ended.
+
+    Diego, 2026-09-15: also emails on the same 14-day cadence (see
+    job_trial_ending_reminder's docstring) — stops the moment
+    subscription_tier flips to premium/pro, same as the push, since both
+    read from the same query above."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     from app.core.subscription import TRIAL_DAYS
@@ -6643,6 +6693,8 @@ async def job_premium_winback_reminder():
         rows = prof_res.data or []
         if not rows:
             return
+
+        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
 
         sent = 0
         for row in rows:
@@ -6663,7 +6715,8 @@ async def job_premium_winback_reminder():
                     pass
 
             uid = row["user_id"]
-            is_en = (row.get("preferred_language") or "es") == "en"
+            lang = row.get("preferred_language") or "es"
+            is_en = lang == "en"
             if is_en:
                 title = "💎 Ready to go Premium again?"
                 body = "You're still on Nuvos's free plan. Premium gives you Arthur as your personal mentor, smart alerts on your stocks, and deep analysis on every company. Subscribe whenever you're ready — it takes less than a minute."
@@ -6675,6 +6728,13 @@ async def job_premium_winback_reminder():
                 sent += 1
             except Exception as exc:
                 logger.warning("job_premium_winback_reminder: push failed for %s: %s", uid, exc)
+            email = auth_users.get(uid)
+            if email:
+                try:
+                    await send_email(email, build_trial_lifecycle_email_subject("premium_winback", lang),
+                                      build_trial_lifecycle_email_html("premium_winback", lang))
+                except Exception as exc:
+                    logger.warning("job_premium_winback_reminder: email failed for %s: %s", uid, exc)
             await asyncio.sleep(random.uniform(0, 0.1))
         if sent:
             logger.info("job_premium_winback_reminder: %d reminders sent", sent)

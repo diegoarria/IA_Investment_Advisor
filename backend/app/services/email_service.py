@@ -864,3 +864,139 @@ def build_welcome_html(name: str, language: str | None = None) -> str:
 </div>
 </body>
 </html>"""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Trial lifecycle emails (3-days-out / 1-day-out / expired / 14-day winback)
+# ─────────────────────────────────────────────────────────────────────────────
+# Diego, 2026-09-15: worker.py already runs the push side of this exact
+# lifecycle (job_trial_ending_reminder, job_trial_ending_tomorrow_reminder,
+# job_trial_ended_reminder, job_premium_winback_reminder — all shipped
+# 2026-08-30 and scheduled daily). Mirrors that same push copy for email so
+# a user without a push token (or who just doesn't have notifications on)
+# still gets the warning — same stage-per-category names, same day-count
+# math already computed in worker.py, no separate dedup needed here since
+# the email always fires alongside whichever push already matched that day.
+
+_TRIAL_LIFECYCLE_COPY = {
+    "trial_ending_soon": {
+        "es": {
+            "subject": "⏳ Tu prueba Premium termina en 3 días",
+            "tagline": "Tu prueba Premium termina pronto",
+            "emoji": "⏳",
+            "heading": "Tu prueba Premium termina en 3 días",
+            "body": "Sigue disfrutando de tu mentor Arthur sin límites, alertas inteligentes y análisis profundo de tus acciones. Suscríbete antes de que termine para no perder el acceso.",
+            "cta": "Ver mi cuenta →",
+        },
+        "en": {
+            "subject": "⏳ Your Premium trial ends in 3 days",
+            "tagline": "Your Premium trial ends soon",
+            "emoji": "⏳",
+            "heading": "Your Premium trial ends in 3 days",
+            "body": "Keep enjoying unlimited access to your mentor Arthur, smart alerts, and deep analysis on your stocks. Subscribe before it ends so you don't lose access.",
+            "cta": "View my account →",
+        },
+    },
+    "trial_ending_tomorrow": {
+        "es": {
+            "subject": "⏰ Tu prueba Premium termina mañana",
+            "tagline": "Último día de tu prueba Premium",
+            "emoji": "⏰",
+            "heading": "Tu prueba Premium termina mañana",
+            "body": "Es tu último día de acceso completo. Suscríbete hoy para no perder a Arthur, tus alertas y todo lo que has usado este mes.",
+            "cta": "Ver mi cuenta →",
+        },
+        "en": {
+            "subject": "⏰ Your Premium trial ends tomorrow",
+            "tagline": "Last day of your Premium trial",
+            "emoji": "⏰",
+            "heading": "Your Premium trial ends tomorrow",
+            "body": "This is your last day of full access. Subscribe today to keep Arthur, your alerts, and everything you've used this month.",
+            "cta": "View my account →",
+        },
+    },
+    "trial_ended": {
+        "es": {
+            "subject": "😔 Tu prueba Premium terminó",
+            "tagline": "Tu prueba Premium terminó",
+            "emoji": "😔",
+            "heading": "Tu prueba Premium terminó",
+            "body": "Volviste al plan gratis, pero todo lo que construiste con Arthur sigue ahí guardado. Suscríbete cuando quieras y recupera tu mentor personal, tus alertas inteligentes y el análisis profundo.",
+            "cta": "Ver mi cuenta →",
+        },
+        "en": {
+            "subject": "😔 Your Premium trial just ended",
+            "tagline": "Your Premium trial ended",
+            "emoji": "😔",
+            "heading": "Your Premium trial just ended",
+            "body": "You're back on the free plan, but everything you built with Arthur is still there. Subscribe whenever you're ready and get your personal mentor, smart alerts, and deep analysis back.",
+            "cta": "View my account →",
+        },
+    },
+    "premium_winback": {
+        "es": {
+            "subject": "💎 ¿Listo para volver a Premium?",
+            "tagline": "Te seguimos esperando",
+            "emoji": "💎",
+            "heading": "¿Listo para volver a Premium?",
+            "body": "Sigues en el plan gratis de Nuvos. Con Premium tienes a Arthur como tu mentor personal, alertas inteligentes de tus acciones y análisis profundo de cada empresa. Suscríbete cuando quieras.",
+            "cta": "Ver mi cuenta →",
+        },
+        "en": {
+            "subject": "💎 Ready to go Premium again?",
+            "tagline": "We're still here when you're ready",
+            "emoji": "💎",
+            "heading": "Ready to go Premium again?",
+            "body": "You're still on Nuvos's free plan. Premium gives you Arthur as your personal mentor, smart alerts on your stocks, and deep analysis on every company. Subscribe whenever you're ready.",
+            "cta": "View my account →",
+        },
+    },
+}
+
+
+def build_trial_lifecycle_email_subject(stage: str, language: str | None = None) -> str:
+    copy = _TRIAL_LIFECYCLE_COPY[stage].get(language or "es", _TRIAL_LIFECYCLE_COPY[stage]["es"])
+    return copy["subject"]
+
+
+def build_trial_lifecycle_email_html(stage: str, language: str | None = None) -> str:
+    """`stage` matches the push categories already sent for this same event
+    in worker.py: trial_ending_soon / trial_ending_tomorrow / trial_ended /
+    premium_winback. Links to /profile — same in-app destination the push
+    notifications for this lifecycle already deep-link to (there's no
+    dedicated pricing URL; the plan/price info lives in a modal opened from
+    profile), and per the Apple 3.1.1 cleanup this only ever shows
+    non-actionable "manage on nuvosai.com" copy in-app — never a purchase
+    button — so this link is safe to include even for iOS users."""
+    copy = _TRIAL_LIFECYCLE_COPY[stage].get(language or "es", _TRIAL_LIFECYCLE_COPY[stage]["es"])
+    header = _nuvos_email_header(copy["tagline"])
+    cta_url = "https://nuvosai.com/profile"
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a0c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:32px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+
+    {header}
+
+    <div style="background:#1a1d27;padding:32px">
+      <div style="text-align:center;margin-bottom:22px">
+        <div style="font-size:44px;line-height:1;margin-bottom:12px">{copy['emoji']}</div>
+        <h1 style="color:#fff;font-size:21px;font-weight:900;margin:0 0 10px;line-height:1.3">{copy['heading']}</h1>
+        <p style="color:#9ca3af;font-size:14px;margin:0;line-height:1.7">{copy['body']}</p>
+      </div>
+
+      <div style="text-align:center;margin-bottom:20px">
+        <a href="{cta_url}" style="display:inline-block;background:#00a85e;color:#000;font-weight:800;font-size:15px;padding:14px 32px;border-radius:12px;text-decoration:none">{copy['cta']}</a>
+      </div>
+
+      <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, invierte sin miedo.</p>
+        <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>"""
