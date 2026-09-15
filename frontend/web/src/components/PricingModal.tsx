@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { X, Check, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { billing, upsells } from "@/lib/api";
+import { useSubscriptionStore } from "@/lib/store";
 import EmbeddedCheckout from "./EmbeddedCheckout";
 
 interface Props {
@@ -21,6 +22,14 @@ export default function PricingModal({ visible, onClose }: Props) {
   // the individual Premium plan and the Duo plan — this just swaps the
   // plan grid below for EmbeddedCheckout, same modal shell.
   const [checkoutMode, setCheckoutMode] = useState<"premium" | "duo" | null>(null);
+  // Diego, 2026-09-15: "si una persona ya tuvo su premium trial... no
+  // darles otro mes premium, ya se paga de una" — trialStartedAt is set
+  // the moment a user's FIRST 30-day trial began (app-level, separate from
+  // this checkout, which never applies a Stripe trial_period_days either
+  // way — clicking "Pagar y suscribirme" always charges immediately). A
+  // non-null value means they've already had their one trial, so this
+  // modal must not promise a free month again.
+  const alreadyHadTrial = !!useSubscriptionStore((s) => s.trialStartedAt);
 
   const FREE_FEATURES = t("pricingModal.freeFeatures", { returnObjects: true }) as string[];
   const PREMIUM_FEATURES = t("pricingModal.premiumFeatures", { returnObjects: true }) as string[];
@@ -58,7 +67,7 @@ export default function PricingModal({ visible, onClose }: Props) {
         {/* Header — sticky, always visible */}
         <div className="relative flex items-center justify-center py-5 px-6 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
           <h1 className="text-xl font-black" style={{ color: "var(--text)" }}>
-            {t("pricingModal.title")}
+            {t(alreadyHadTrial ? "pricingModal.titleReturning" : "pricingModal.title")}
           </h1>
           <button onClick={onClose} aria-label={t("common.close")} className="absolute right-5 top-1/2 -translate-y-1/2 p-2 rounded-xl hover:bg-white/5 transition-colors" style={{ color: "var(--muted)" }}>
             <X className="w-5 h-5" />
@@ -218,7 +227,7 @@ export default function PricingModal({ visible, onClose }: Props) {
 
         {/* Footer note */}
         <p className="text-center text-[10px] pb-5 px-8" style={{ color: "var(--dim)" }}>
-          {t("pricingModal.footerNote", { price: monthlyPrice, billing: plan === "yearly" ? t("pricingModal.billedAnnuallySuffix") : "" })}
+          {t(alreadyHadTrial ? "pricingModal.footerNoteReturning" : "pricingModal.footerNote", { price: monthlyPrice, billing: plan === "yearly" ? t("pricingModal.billedAnnuallySuffix") : "" })}
         </p>
         </>
         )}

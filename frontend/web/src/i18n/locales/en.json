@@ -3030,6 +3030,8 @@
     "processing": "Processing...",
     "payCta": "Pay and subscribe",
     "securePaymentNote": "Secure payment processed by Stripe. Nuvos never sees or stores your card details.",
+    "titleReturning": "Subscribe to Nuvos AI Premium",
+    "footerNoteReturning": "You'll be charged {{price}}/month{{billing}} immediately once you confirm payment. Cancel anytime.",
     "freeFeatures": [
       "Up to 15 messages/day with the AI mentor",
       "Portfolio with up to 10 stocks",
@@ -3308,6 +3310,7 @@
     "cancelAnytime": "Cancel anytime",
     "securePayment": "Secure payment with Stripe",
     "freeTrial": "30-day free trial",
+    "chargesImmediately": "Charged immediately",
     "oneOnOneCta": "Prefer a 1:1 guide with an expert from our team?"
   },
   "themeProvider": {

@@ -6,6 +6,7 @@ import { X, Check } from "lucide-react";
 import posthog from "posthog-js";
 import { billing, upsells } from "@/lib/api";
 import { useTranslation } from "react-i18next";
+import { useSubscriptionStore } from "@/lib/store";
 import EmbeddedCheckout from "./EmbeddedCheckout";
 
 interface PaywallModalProps {
@@ -32,6 +33,10 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
   // Elements) instead of redirecting to a Stripe-hosted page — same
   // pattern as PricingModal.
   const [checkoutMode, setCheckoutMode] = useState<"premium" | "duo" | null>(null);
+  // Diego, 2026-09-15: "si una persona ya tuvo su premium trial... no
+  // darles otro mes premium, ya se paga de una" — see PricingModal's same
+  // check for the full reasoning.
+  const alreadyHadTrial = !!useSubscriptionStore((s) => s.trialStartedAt);
 
   // Diego's Aug 16 Free/Premium spec, §17 — reuse the analytics infra that
   // already exists (PostHog is wired but had zero custom events on web)
@@ -249,7 +254,7 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
 
           {/* Trust row */}
           <div className="flex items-center justify-center gap-4 px-6 py-5">
-            {[t("paywallModal.cancelAnytime"), t("paywallModal.securePayment"), t("paywallModal.freeTrial")].map((item) => (
+            {[t("paywallModal.cancelAnytime"), t("paywallModal.securePayment"), t(alreadyHadTrial ? "paywallModal.chargesImmediately" : "paywallModal.freeTrial")].map((item) => (
               <span key={item} className="flex items-center gap-1 text-[10px]" style={{ color: "var(--dim)" }}>
                 <Check className="w-2.5 h-2.5" style={{ color: "#00d47e" }} />
                 {item}
