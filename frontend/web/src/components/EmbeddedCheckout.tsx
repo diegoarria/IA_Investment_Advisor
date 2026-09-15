@@ -17,29 +17,17 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
 
-// Matches globals.css's dark palette (--card-2, --text, --sub, --muted,
-// --border, and the premium card's #00d47e accent) — Stripe's Appearance
-// API needs literal values at mount time, not CSS var() references.
+// Stripe's stock "night" theme already looks right on a dark background —
+// minimal overrides only (brand green + Nuvos's font), rather than
+// re-deriving every color rule by hand, which risks a field/tab ending up
+// unreadable (same color as its own background) if one override doesn't
+// match another.
 const APPEARANCE = {
   theme: "night" as const,
   variables: {
     colorPrimary: "#00d47e",
-    colorBackground: "#0d1526",
-    colorText: "#eef2ff",
-    colorTextSecondary: "#8fa3c0",
-    colorTextPlaceholder: "#546b85",
-    colorDanger: "#ef4444",
     fontFamily: "DM Sans, -apple-system, BlinkMacSystemFont, sans-serif",
     borderRadius: "12px",
-    spacingUnit: "4px",
-  },
-  rules: {
-    ".Input":            { border: "1px solid #162035", backgroundColor: "#090f1f", boxShadow: "none" },
-    ".Input:focus":       { border: "1px solid #00d47e", boxShadow: "0 0 0 1px #00d47e" },
-    ".Label":             { fontSize: "12px", fontWeight: "600" },
-    ".Tab":               { border: "1px solid #162035", backgroundColor: "#090f1f" },
-    ".Tab:hover":         { backgroundColor: "#0d1526" },
-    ".Tab--selected":     { border: "1px solid #00d47e", backgroundColor: "#0a1a10" },
   },
 };
 
