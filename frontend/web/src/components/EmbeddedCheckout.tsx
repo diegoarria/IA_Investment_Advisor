@@ -1,17 +1,20 @@
 "use client";
 
-// Diego, 2026-09-15: "que se vea como un paywall personalizado de Nuvos" —
-// Stripe Elements' Payment Element mounted inside Nuvos's own PricingModal,
-// styled to match its dark/green theme, instead of redirecting to a
-// Stripe-hosted Checkout page. Stripe still does 100% of the actual card
-// handling (PCI compliance, tokenization) via its own iframe — only the
-// surrounding UI is Nuvos's.
+// Diego, 2026-09-15: "que se vea como un paywall personalizado de Nuvos...
+// lo quiero para todos los productos de Nuvos" — Stripe Elements' Payment
+// Element mounted inside Nuvos's own modals/pages, styled to match its
+// dark/green theme, instead of redirecting to a Stripe-hosted Checkout
+// page. Stripe still does 100% of the actual card handling (PCI
+// compliance, tokenization) via its own iframe — only the surrounding UI
+// is Nuvos's. Generic over WHICH product it's paying for — the caller
+// supplies `createIntent` (however that product creates its client_secret)
+// and `returnUrl` (where a 3D Secure redirect, if one is required, comes
+// back to).
 import { useEffect, useState } from "react";
 import { loadStripe, type StripeElementsOptions } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { billing } from "@/lib/api";
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -31,7 +34,9 @@ const APPEARANCE = {
   },
 };
 
-function CheckoutForm({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => void }) {
+function CheckoutForm({
+  onBack, onSuccess, returnUrl,
+}: { onBack: () => void; onSuccess: (paymentIntentId?: string) => void; returnUrl: string }) {
   const { t } = useTranslation();
   const stripe = useStripe();
   const elements = useElements();
@@ -44,11 +49,9 @@ function CheckoutForm({ onBack, onSuccess }: { onBack: () => void; onSuccess: ()
     setSubmitting(true);
     setError(null);
 
-    const { error: confirmError } = await stripe.confirmPayment({
+    const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
       elements,
-      confirmParams: {
-        return_url: `${window.location.origin}/premium-success`,
-      },
+      confirmParams: { return_url: returnUrl },
       redirect: "if_required",
     });
 
@@ -57,7 +60,7 @@ function CheckoutForm({ onBack, onSuccess }: { onBack: () => void; onSuccess: ()
       setSubmitting(false);
       return;
     }
-    onSuccess();
+    onSuccess(paymentIntent?.id);
   };
 
   return (
@@ -93,11 +96,20 @@ function CheckoutForm({ onBack, onSuccess }: { onBack: () => void; onSuccess: ()
 }
 
 export default function EmbeddedCheckout({
-  plan, onBack, onSuccess,
+  createIntent, onBack, onSuccess, returnUrl,
 }: {
-  plan: "monthly" | "yearly";
+  /** Fetches this product's client_secret — e.g.
+   * `() => billing.createEmbeddedSubscription(plan).then(r => r.data)`. */
+  createIntent: () => Promise<{ client_secret?: string; error?: string }>;
   onBack: () => void;
-  onSuccess: () => void;
+  /** Called once payment succeeds without needing a redirect (the common
+   * case). Receives the PaymentIntent id so the caller can verify/redeem
+   * immediately, in-page, instead of waiting on a round-trip. */
+  onSuccess: (paymentIntentId?: string) => void;
+  /** Where a 3D Secure challenge (if one is required) redirects back to —
+   * Stripe appends its own `payment_intent`/`redirect_status` query params
+   * to whatever URL is given here. */
+  returnUrl: string;
 }) {
   const { t } = useTranslation();
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -105,11 +117,16 @@ export default function EmbeddedCheckout({
 
   useEffect(() => {
     let cancelled = false;
-    billing.createEmbeddedSubscription(plan)
-      .then((res) => { if (!cancelled) setClientSecret(res.data?.client_secret ?? null); })
+    createIntent()
+      .then((res) => {
+        if (cancelled) return;
+        if (res.client_secret) setClientSecret(res.client_secret);
+        else setError(res.error || t("pricingModal.paymentError"));
+      })
       .catch(() => { if (!cancelled) setError(t("pricingModal.paymentError")); });
     return () => { cancelled = true; };
-  }, [plan, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!stripePromise) {
     return <p className="px-6 pb-6 text-sm" style={{ color: "#ef4444" }}>Stripe no está configurado (falta NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY).</p>;
@@ -131,7 +148,7 @@ export default function EmbeddedCheckout({
 
   return (
     <Elements stripe={stripePromise} options={options}>
-      <CheckoutForm onBack={onBack} onSuccess={onSuccess} />
+      <CheckoutForm onBack={onBack} onSuccess={onSuccess} returnUrl={returnUrl} />
     </Elements>
   );
 }

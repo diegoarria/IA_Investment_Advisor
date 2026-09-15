@@ -17,6 +17,7 @@ import MorningBriefCard from "@/components/MorningBriefCard";
 import ExplainButton from "@/components/ExplainButton";
 import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, billing, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
 import PricingModal from "@/components/PricingModal";
+import EmbeddedCheckout from "@/components/EmbeddedCheckout";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore, useBalanceVisibilityStore } from "@/lib/store";
 import OnboardingChecklist, { type OnboardingStep } from "@/components/OnboardingChecklist";
 import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenPickerModal";
@@ -189,12 +190,13 @@ export default function HomePage() {
 
   // ── Broker call (checklist item only) ───────────────────────────────────
   const BROKER_CALENDLY_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai";
-  const handleBrokerCheckout = async () => {
-    try {
-      const res: any = await billing.brokerCallCheckout();
-      const url = res?.data?.url ?? res?.url;
-      if (url) window.location.href = url;
-    } catch { /* silently fail */ }
+  // Diego, 2026-09-15: card entry happens INSIDE a modal (Stripe Elements)
+  // instead of redirecting to a Stripe-hosted page.
+  const [brokerCheckoutOpen, setBrokerCheckoutOpen] = useState(false);
+
+  const handleBrokerCheckoutSuccess = (paymentIntentId?: string) => {
+    setBrokerCheckoutOpen(false);
+    router.push(`/upsell-success?offer=broker_call${paymentIntentId ? `&payment_intent=${paymentIntentId}` : ""}`);
   };
 
   // Shared entry point for the "book the broker call" checklist item: free
@@ -202,13 +204,13 @@ export default function HomePage() {
   // checkout after. Treat "not loaded yet" as still-free — a slow network
   // read should never accidentally charge someone who was actually still
   // inside the window.
-  const handleBookBrokerCall = async () => {
+  const handleBookBrokerCall = () => {
     const stillFree = freeWindowMsLeft === null || freeWindowMsLeft > 0;
     if (stillFree) {
       window.open(BROKER_CALENDLY_URL, "_blank");
       return;
     }
-    await handleBrokerCheckout();
+    setBrokerCheckoutOpen(true);
   };
 
   // Free-call window: 24h from broker_offer_seen_at (server-anchored so it's
@@ -1513,6 +1515,21 @@ export default function HomePage() {
         />
       )}
       <PricingModal visible={showPricing} onClose={() => setShowPricing(false)} />
+
+      {brokerCheckoutOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
+          <div className="w-full max-w-md rounded-2xl shadow-2xl" style={{ background: "var(--bg)", border: "1px solid var(--border)" }}>
+            <div className="pt-5">
+              <EmbeddedCheckout
+                createIntent={() => billing.createEmbeddedBrokerCall().then((r) => r.data)}
+                returnUrl={`${window.location.origin}/upsell-success?offer=broker_call`}
+                onBack={() => setBrokerCheckoutOpen(false)}
+                onSuccess={handleBrokerCheckoutSuccess}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

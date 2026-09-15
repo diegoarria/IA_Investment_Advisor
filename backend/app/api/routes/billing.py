@@ -233,6 +233,22 @@ async def stripe_webhook(request: Request):
             update = {"subscription_tier": "premium"}
             if billing_reason == "subscription_create":
                 update["subscription_started_at"] = datetime.now(timezone.utc).isoformat()
+                # The embedded Duo (family_plan) subscription created by
+                # /upsells/checkout-embedded has no Checkout Session either
+                # (same gap as the individual plan above) — the ONLY place
+                # that flow's offer is recorded is the Subscription's own
+                # metadata, so a brand-new subscription's first invoice
+                # needs one extra retrieve to check it and set
+                # duo_plan_purchased_at the same way checkout.session.
+                # completed already does for the hosted-redirect flow.
+                subscription_id = event["data"]["object"].get("subscription")
+                if subscription_id:
+                    try:
+                        sub = await asyncio.to_thread(stripe.Subscription.retrieve, subscription_id)
+                        if (sub.get("metadata") or {}).get("offer") == "family_plan":
+                            update["duo_plan_purchased_at"] = update["subscription_started_at"]
+                    except Exception as e:
+                        logger.warning("webhook: could not check subscription %s metadata for family_plan: %s", subscription_id, e)
             await run_query(
                 db.table("user_profiles").update(update).eq("stripe_customer_id", customer_id)
             )
@@ -351,6 +367,48 @@ async def broker_call_checkout(user_id: str = Depends(get_current_user_id)):
         logger.error("Stripe broker-call checkout failed for user %s: %s", user_id, e)
         raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
     return {"url": session.url}
+
+
+@router.post("/create-embedded-broker-call")
+async def create_embedded_broker_call(user_id: str = Depends(get_current_user_id)):
+    """Embedded-Elements counterpart to /broker-call-checkout — same $20
+    flat one-time payment, but returns a PaymentIntent client_secret
+    instead of a Stripe-hosted redirect URL."""
+    s = _stripe()
+    if not settings.stripe_price_broker_call:
+        raise HTTPException(status_code=503, detail="Precio no configurado")
+
+    db = get_supabase()
+    result = await run_query(
+        db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
+    )
+    customer_id = result.data.get("stripe_customer_id") if result.data else None
+
+    if not customer_id:
+        try:
+            customer = await asyncio.to_thread(s.Customer.create, metadata={"user_id": user_id})
+        except Exception as e:
+            logger.error("Stripe customer creation failed for user %s: %s", user_id, e)
+            raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
+        customer_id = customer.id
+        await run_query(
+            db.table("user_profiles").update({"stripe_customer_id": customer_id}).eq("user_id", user_id)
+        )
+
+    try:
+        price = await asyncio.to_thread(s.Price.retrieve, settings.stripe_price_broker_call)
+        intent = await asyncio.to_thread(
+            s.PaymentIntent.create,
+            amount=price.unit_amount,
+            currency=price.currency,
+            customer=customer_id,
+            metadata={"offer": "broker_call", "user_id": user_id},
+            automatic_payment_methods={"enabled": True},
+        )
+    except Exception as e:
+        logger.error("Stripe embedded broker-call checkout failed for user %s: %s", user_id, e)
+        raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
+    return {"client_secret": intent.client_secret}
 
 
 from app.core.subscription import TRIAL_DAYS as _PROMO_DAYS

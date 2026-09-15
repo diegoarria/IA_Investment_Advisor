@@ -36,7 +36,8 @@ function getAge(birthDate: string | null | undefined): number | null {
   return age > 0 ? age : null;
 }
 import PaywallModal from "@/components/PaywallModal";
-import api from "@/lib/api";
+import EmbeddedCheckout from "@/components/EmbeddedCheckout";
+import { upsells } from "@/lib/api";
 
 type NavItem = { href: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; labelKey: string; minLevel: UserLevel; children?: { href: string; labelKey: string }[] };
 
@@ -125,29 +126,18 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const [sessionLoading, setSessionLoading] = useState(false);
+  // Diego, 2026-09-15: card entry happens INSIDE a modal (Stripe Elements)
+  // instead of redirecting to a Stripe-hosted page.
+  const [sessionCheckoutOpen, setSessionCheckoutOpen] = useState(false);
 
-  const handleSessionClick = async () => {
-    setSessionLoading(true);
-    try {
-      const res = await api.post("/api/upsells/checkout", {
-        offer: "session",
-        variant: "default",
-        trigger_source: "sidebar",
-      });
-      if (res.data?.url) {
-        localStorage.setItem("nuvos_pending_session", "1");
-        window.location.href = res.data.url;
-      } else {
-        window.alert(t("pricingModal.paymentError"));
-      }
-    } catch {
-      // This is a real paid checkout (1:1 session) — silently reverting the
-      // button with no explanation is exactly the failure mode already
-      // fixed for the main premium upgrade CTA in PaywallModal.
-      window.alert(t("pricingModal.paymentError"));
-    }
-    setSessionLoading(false);
+  const handleSessionClick = () => {
+    localStorage.setItem("nuvos_pending_session", "1");
+    setSessionCheckoutOpen(true);
+  };
+
+  const handleSessionCheckoutSuccess = (paymentIntentId?: string) => {
+    setSessionCheckoutOpen(false);
+    router.push(`/upsell-success?offer=session${paymentIntentId ? `&payment_intent=${paymentIntentId}` : ""}`);
   };
   const [desktopCollapsed, setDesktopCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -578,7 +568,6 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
         <div className="px-3 py-3 shrink-0 space-y-1.5">
           <button
             onClick={handleSessionClick}
-            disabled={sessionLoading}
             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all hover:opacity-90 cursor-pointer disabled:opacity-60"
             style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
             <div className="w-6 h-6 rounded flex items-center justify-center shrink-0"
@@ -587,7 +576,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[11px] font-semibold leading-tight" style={{ color: "var(--text)" }}>
-                {sessionLoading ? t("common.loading") : t("common.session1on1")}
+                {t("common.session1on1")}
               </p>
               <p className="text-[10px] leading-tight" style={{ color: "var(--dim)" }}>{t("common.personalizedGuide")}</p>
             </div>
@@ -607,6 +596,21 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
       </aside>
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
+
+      {sessionCheckoutOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
+          <div className="w-full max-w-md rounded-2xl shadow-2xl" style={{ background: "var(--bg)", border: "1px solid var(--border)" }}>
+            <div className="pt-5">
+              <EmbeddedCheckout
+                createIntent={() => upsells.checkoutEmbedded("session", "default", "sidebar").then((r) => r.data)}
+                returnUrl={`${window.location.origin}/upsell-success?offer=session`}
+                onBack={() => setSessionCheckoutOpen(false)}
+                onSuccess={handleSessionCheckoutSuccess}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

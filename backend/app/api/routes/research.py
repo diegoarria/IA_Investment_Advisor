@@ -55,17 +55,25 @@ async def create_plan(request: Request, body: dict, user_id: str = Depends(get_c
 @router.post("/start")
 @limiter.limit("10/minute")
 async def start_research(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
-    """Verifies the Stripe checkout session paid for this exact job, then
-    marks it eligible for pickup. Does NOT run the pipeline itself —
-    execution is owned entirely by worker.py's job_deep_research_worker(),
-    which claims pending jobs atomically (see claim_research_job() in
+    """Verifies the Stripe payment for this exact job, then marks it
+    eligible for pickup. Does NOT run the pipeline itself — execution is
+    owned entirely by worker.py's job_deep_research_worker(), which claims
+    pending jobs atomically (see claim_research_job() in
     migrations/034_research_job_queue.sql). This is what makes the job
     survive a web-process restart: nothing about running the pipeline lives
-    in this request's process anymore, only the durable job row does."""
+    in this request's process anymore, only the durable job row does.
+
+    Accepts EITHER `stripe_session_id` (the original Stripe-hosted redirect
+    flow) OR `stripe_payment_intent_id` (the embedded Elements flow,
+    2026-09-15 — no Checkout Session exists there). Either identifier is
+    stored in the same `stripe_session_id` column — it's just "the Stripe
+    id this payment is keyed by," which _maybe_refund already knows how to
+    tell apart by prefix (cs_ vs pi_)."""
     job_id = body.get("job_id")
     stripe_session_id = body.get("stripe_session_id")
-    if not job_id or not stripe_session_id:
-        raise HTTPException(status_code=400, detail="job_id y stripe_session_id son requeridos")
+    payment_intent_id = body.get("stripe_payment_intent_id")
+    if not job_id or (not stripe_session_id and not payment_intent_id):
+        raise HTTPException(status_code=400, detail="job_id y stripe_session_id (o stripe_payment_intent_id) son requeridos")
 
     db = get_supabase()
     job_res = await run_query(
@@ -80,26 +88,42 @@ async def start_research(request: Request, body: dict, user_id: str = Depends(ge
     if not settings.stripe_secret_key:
         raise HTTPException(status_code=503, detail="Pagos no configurados")
     stripe.api_key = settings.stripe_secret_key
-    try:
-        session = await asyncio.to_thread(stripe.checkout.Session.retrieve, stripe_session_id)
-    except Exception:
-        raise HTTPException(status_code=400, detail="No se pudo verificar el pago — intenta de nuevo en unos segundos")
 
-    metadata = session.get("metadata") or {}
-    if (
-        session.get("payment_status") != "paid"
-        or metadata.get("offer") != "deep_research"
-        or metadata.get("job_id") != job_id
-    ):
-        raise HTTPException(status_code=402, detail="Pago no confirmado para esta investigación")
+    if payment_intent_id:
+        try:
+            intent = await asyncio.to_thread(stripe.PaymentIntent.retrieve, payment_intent_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="No se pudo verificar el pago — intenta de nuevo en unos segundos")
+        metadata = intent.get("metadata") or {}
+        if (
+            intent.get("status") != "succeeded"
+            or metadata.get("offer") != "deep_research"
+            or metadata.get("job_id") != job_id
+            or metadata.get("user_id") != user_id
+        ):
+            raise HTTPException(status_code=402, detail="Pago no confirmado para esta investigación")
+        stored_id = payment_intent_id
+    else:
+        try:
+            session = await asyncio.to_thread(stripe.checkout.Session.retrieve, stripe_session_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="No se pudo verificar el pago — intenta de nuevo en unos segundos")
+        metadata = session.get("metadata") or {}
+        if (
+            session.get("payment_status") != "paid"
+            or metadata.get("offer") != "deep_research"
+            or metadata.get("job_id") != job_id
+        ):
+            raise HTTPException(status_code=402, detail="Pago no confirmado para esta investigación")
+        stored_id = stripe_session_id
 
     # Left as 'pending' deliberately — the worker's atomic claim is what
-    # transitions it to 'researching'. Recording stripe_session_id here is
-    # what lets a later failure/cancellation issue a refund against this
-    # specific payment (see research_service._maybe_refund).
+    # transitions it to 'researching'. Recording this id here is what lets
+    # a later failure/cancellation issue a refund against this specific
+    # payment (see research_service._maybe_refund).
     await run_query(
         db.table("research_jobs").update({
-            "stripe_session_id": stripe_session_id,
+            "stripe_session_id": stored_id,
         }).eq("id", job_id)
     )
     return {"job_id": job_id, "status": "pending"}

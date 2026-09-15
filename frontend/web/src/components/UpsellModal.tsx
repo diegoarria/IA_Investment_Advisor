@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { X, Users, Video, Star, ArrowRight, Check } from "lucide-react";
-import api from "@/lib/api";
+import api, { upsells } from "@/lib/api";
 import { useSubscriptionStore } from "@/lib/store";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import EmbeddedCheckout from "./EmbeddedCheckout";
 
 export type UpsellOffer = "family_plan" | "session";
 
@@ -42,10 +44,13 @@ function getOfferMeta(t: TFunction) {
 
 export default function UpsellModal({ offer, prices, triggerSource, onClose }: UpsellModalProps) {
   const { t } = useTranslation();
+  const router = useRouter();
   const { tier, isTrialPremium } = useSubscriptionStore();
-  const [loading, setLoading] = useState(false);
   const [variant, setVariant] = useState<"default" | "bundle">("default");
   const [duoVariant, setDuoVariant] = useState<"monthly" | "yearly">("monthly");
+  // Diego, 2026-09-15: card entry happens INSIDE this modal (Stripe
+  // Elements) instead of redirecting to a Stripe-hosted page.
+  const [showCheckout, setShowCheckout] = useState(false);
 
   if (!offer) return null;
   const OFFER_META = getOfferMeta(t);
@@ -62,24 +67,15 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
     ? `$${variant === "bundle" ? (prices.bundle ?? 247) : (prices.premium ?? 0)}`
     : `$${prices.free ?? 0}`;
 
-  const handlePurchase = async () => {
-    setLoading(true);
-    try {
-      const res = await api.post("/api/upsells/checkout", {
-        offer,
-        variant: offer === "family_plan" ? duoVariant : variant === "bundle" ? "bundle" : tier,
-        trigger_source: triggerSource,
-      });
-      if (res.data?.url) {
-        window.location.href = res.data.url;
-      } else {
-        window.alert(t("pricingModal.paymentError"));
-        setLoading(false);
-      }
-    } catch {
-      window.alert(t("pricingModal.paymentError"));
-      setLoading(false);
-    }
+  const purchaseVariant = offer === "family_plan" ? duoVariant : variant === "bundle" ? "bundle" : tier;
+
+  const handleCheckoutSuccess = (paymentIntentId?: string) => {
+    onClose();
+    setShowCheckout(false);
+    const target = offer === "family_plan"
+      ? "/upsell-success?offer=family_plan"
+      : `/upsell-success?offer=session${paymentIntentId ? `&payment_intent=${paymentIntentId}` : ""}`;
+    router.push(target);
   };
 
   const handleDismiss = async () => {
@@ -110,6 +106,15 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
         {/* Top accent bar */}
         <div className="h-1 shrink-0" style={{ background: `linear-gradient(90deg, ${meta.color}99, ${meta.color})` }} />
 
+        {showCheckout ? (
+          <EmbeddedCheckout
+            createIntent={() => upsells.checkoutEmbedded(offer, purchaseVariant, triggerSource ?? "").then((r) => r.data)}
+            returnUrl={`${window.location.origin}${offer === "family_plan" ? "/upsell-success?offer=family_plan" : "/upsell-success?offer=session"}`}
+            onBack={() => setShowCheckout(false)}
+            onSuccess={handleCheckoutSuccess}
+          />
+        ) : (
+        <>
         <div className="overflow-y-auto flex-1 px-6 pt-5 pb-4 space-y-4">
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
@@ -234,27 +239,24 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
         {/* CTA footer */}
         <div className="px-6 pb-6 pt-2 shrink-0 space-y-2 border-t" style={{ borderColor: `${meta.color}15` }}>
           <button
-            onClick={handlePurchase}
-            disabled={loading}
-            className="w-full py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60 active:scale-95"
+            onClick={() => setShowCheckout(true)}
+            className="w-full py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-95"
             style={{
               background: `linear-gradient(135deg,${meta.color}cc,${meta.color})`,
               color: "#fff",
               boxShadow: `0 4px 20px ${meta.color}44`,
             }}
           >
-            {loading ? t("upsellModal.redirecting") : (
-              <>
-                {offer === "session" ? t("upsellModal.bookSession") : offer === "family_plan" ? t("upsellModal.activateDuoPlan") : t("upsellModal.getMyReport")}
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
+            {offer === "session" ? t("upsellModal.bookSession") : offer === "family_plan" ? t("upsellModal.activateDuoPlan") : t("upsellModal.getMyReport")}
+            <ArrowRight className="w-4 h-4" />
           </button>
           <button onClick={handleDismiss} className="w-full py-2 text-xs text-center hover:opacity-70 transition-opacity"
                   style={{ color: "var(--dim)" }}>
             {t("upsellModal.maybeLater")}
           </button>
         </div>
+        </>
+        )}
       </div>
     </div>
   );

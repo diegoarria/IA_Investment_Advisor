@@ -8,8 +8,9 @@ import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import { researchApi, upsells, referral as referralApi } from "@/lib/api";
 import { useSubscriptionStore } from "@/lib/store";
+import EmbeddedCheckout from "@/components/EmbeddedCheckout";
 
-type View = "compose" | "plan" | "checking" | "progress" | "error";
+type View = "compose" | "plan" | "checkout" | "checking" | "progress" | "error";
 
 interface Plan {
   companies: string[];
@@ -83,14 +84,19 @@ function ResearchPageInner() {
     }, 2500);
   }, [router, stopPolling, t]);
 
-  // Resume after returning from Stripe checkout: ?job_id=...&session_id=...
+  // Resume after returning from Stripe: ?job_id=...&session_id=... (the
+  // original hosted-Checkout redirect flow) OR ?job_id=...&payment_intent=...
+  // (embedded Elements, 2026-09-15 — Stripe appends `payment_intent` itself
+  // when a 3D Secure challenge redirects back here; the no-redirect-needed
+  // happy path is handled directly in handleCheckoutSuccess below instead).
   useEffect(() => {
     const resumeJobId = searchParams.get("job_id");
     const sessionId = searchParams.get("session_id");
-    if (resumeJobId && sessionId && !startedResumeRef.current) {
+    const paymentIntentId = searchParams.get("payment_intent");
+    if (resumeJobId && (sessionId || paymentIntentId) && !startedResumeRef.current) {
       startedResumeRef.current = true;
       setView("checking");
-      researchApi.start(resumeJobId, sessionId)
+      researchApi.start(resumeJobId, sessionId ? sessionId : { paymentIntentId: paymentIntentId! })
         .then(() => pollJob(resumeJobId))
         .catch((err) => {
           setError(err?.response?.data?.detail || t("research.progress.genericError"));
@@ -123,20 +129,23 @@ function ResearchPageInner() {
     setLoading(false);
   };
 
-  const handleConfirmAndPay = async () => {
+  // Diego, 2026-09-15: card entry happens INSIDE this page (Stripe
+  // Elements) instead of redirecting to a Stripe-hosted page.
+  const handleConfirmAndPay = () => {
     if (!jobId) return;
-    setLoading(true); setError(null);
+    setError(null);
+    setView("checkout");
+  };
+
+  const handleCheckoutSuccess = async (paymentIntentId?: string) => {
+    if (!jobId || !paymentIntentId) return;
+    setView("checking");
     try {
-      const res = await upsells.checkout("deep_research", isPremium ? "premium" : "free", "research_page", { job_id: jobId });
-      if (res.data?.url) {
-        window.location.href = res.data.url;
-      } else {
-        setError(res.data?.error || t("research.plan.checkoutError"));
-        setLoading(false);
-      }
-    } catch {
-      setError(t("research.plan.checkoutError"));
-      setLoading(false);
+      await researchApi.start(jobId, { paymentIntentId });
+      pollJob(jobId);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || t("research.progress.genericError"));
+      setView("error");
     }
   };
 
@@ -279,6 +288,19 @@ function ResearchPageInner() {
                 <button onClick={() => setView("compose")} className="w-full text-xs py-2" style={{ color: "var(--muted)" }}>
                   {t("research.plan.back")}
                 </button>
+              </div>
+            )}
+
+            {view === "checkout" && (
+              <div className="rounded-2xl border pt-4" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                <EmbeddedCheckout
+                  createIntent={() =>
+                    upsells.checkoutEmbedded("deep_research", isPremium ? "premium" : "free", "research_page", { job_id: jobId }).then((r) => r.data)
+                  }
+                  returnUrl={`${window.location.origin}/research?job_id=${jobId}`}
+                  onBack={() => setView("plan")}
+                  onSuccess={handleCheckoutSuccess}
+                />
               </div>
             )}
 

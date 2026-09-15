@@ -75,12 +75,16 @@ function UpsellSuccessContent() {
   useEffect(() => {
     if (!PAID_1ON1_OFFERS.includes(offer)) return;
     const sessionId = params.get("session_id");
-    if (!sessionId) {
+    // `payment_intent` — either appended by us directly after a no-redirect
+    // embedded Elements success (EmbeddedCheckout's onSuccess), or by
+    // Stripe itself when a 3D Secure challenge redirects back here.
+    const paymentIntentId = params.get("payment_intent");
+    if (!sessionId && !paymentIntentId) {
       setPayState("error");
       return;
     }
     setPayState("verifying");
-    upsells.verify1on1Payment(sessionId)
+    upsells.verify1on1Payment(sessionId ? sessionId : { paymentIntentId: paymentIntentId! })
       .then(() => upsells.redeem1on1Session())
       .then(() => setPayState("ready"))
       .catch(() => setPayState("error"));

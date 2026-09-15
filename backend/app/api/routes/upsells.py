@@ -232,6 +232,99 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
     return {"url": session.url}
 
 
+@router.post("/checkout-embedded")
+async def upsell_checkout_embedded(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Diego, 2026-09-15: "lo quiero para todos los productos de Nuvos" —
+    the embedded-Elements counterpart to /upsells/checkout for all three
+    offers: "session" (1:1, one-time payment), "family_plan" (Duo,
+    subscription), and "deep_research" (one-time payment, tied to a
+    job_id). Returns a client_secret to mount Stripe's Payment Element
+    instead of a Stripe-hosted redirect URL."""
+    offer = body.get("offer")
+    variant = body.get("variant", "default")
+
+    if offer not in ("session", "family_plan", "deep_research"):
+        return {"error": "Invalid offer"}
+    if not settings.stripe_secret_key:
+        return {"error": "Pagos no configurados"}
+
+    stripe.api_key = settings.stripe_secret_key
+    db = get_supabase()
+
+    profile_res = await run_query(
+        db.table("user_profiles")
+        .select("stripe_customer_id, subscription_tier, trial_started_at, streak_bonus_premium_until")
+        .eq("user_id", user_id)
+        .single()
+    )
+    profile = profile_res.data or {}
+    tier = _effective_tier(profile.get("subscription_tier", "free"), profile.get("trial_started_at"), profile.get("streak_bonus_premium_until"))
+    customer_id = profile.get("stripe_customer_id")
+
+    if offer == "family_plan":
+        key = variant if variant in ("monthly", "yearly") else "monthly"
+    elif variant == "bundle":
+        key = "bundle"
+    else:
+        key = tier
+    price_id = _price_id_for(offer, tier, key)
+    if not price_id:
+        return {"error": "Precio no configurado en Stripe"}
+
+    # Same synchronous stripe_customer_id linkage as
+    # /billing/create-embedded-subscription — must be saved before the
+    # card is entered so the webhook can attribute the payment.
+    if not customer_id:
+        try:
+            customer = await asyncio.to_thread(stripe.Customer.create, metadata={"user_id": user_id})
+        except Exception as e:
+            logger.error("Stripe customer creation failed for user %s: %s", user_id, e)
+            return {"error": "Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos."}
+        customer_id = customer.id
+        await run_query(
+            db.table("user_profiles").update({"stripe_customer_id": customer_id}).eq("user_id", user_id)
+        )
+
+    metadata = {"offer": offer, "variant": key, "user_tier": tier, "user_id": user_id}
+    if offer == "deep_research":
+        metadata["job_id"] = body.get("job_id", "")
+
+    try:
+        if offer == "family_plan":
+            subscription = await asyncio.to_thread(
+                stripe.Subscription.create,
+                customer=customer_id,
+                items=[{"price": price_id}],
+                payment_behavior="default_incomplete",
+                payment_settings={"save_default_payment_method": "on_subscription"},
+                expand=["latest_invoice.payment_intent"],
+                metadata=metadata,
+            )
+            client_secret = subscription.latest_invoice.payment_intent.client_secret
+        else:
+            # session / deep_research — one-time payment. The PaymentIntent
+            # needs an explicit amount+currency (unlike Checkout Sessions,
+            # which take a price id directly) — retrieved from the Price
+            # object so Stripe stays the single source of truth for amounts,
+            # never hardcoded here.
+            price = await asyncio.to_thread(stripe.Price.retrieve, price_id)
+            intent = await asyncio.to_thread(
+                stripe.PaymentIntent.create,
+                amount=price.unit_amount,
+                currency=price.currency,
+                customer=customer_id,
+                metadata=metadata,
+                automatic_payment_methods={"enabled": True},
+            )
+            client_secret = intent.client_secret
+    except Exception as e:
+        logger.error("Stripe embedded upsell checkout failed for user %s (offer=%s): %s", user_id, offer, e)
+        return {"error": "Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos."}
+
+    await _track(db, user_id, "upsell_converted", offer, tier, body.get("trigger_source"), {"variant": key})
+    return {"client_secret": client_secret}
+
+
 # ── 1:1 session payment verification (migration 081) ───────────────────────
 # Paying for a 1:1 session ("session" offer here, or billing.py's flat-$20
 # "broker_call") used to hand the user the exact same PUBLIC Calendly link
@@ -247,39 +340,61 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
 
 @router.post("/verify-1on1-payment")
 async def verify_1on1_payment(body: dict, user_id: str = Depends(get_current_user_id)):
-    """Verifies a completed Stripe checkout for a 1:1 session offer and
+    """Verifies a completed Stripe payment for a 1:1 session offer and
     grants the corresponding credit(s) to paid_1on1_sessions. Idempotent
-    per stripe_session_id — redeemed_1on1_checkouts' primary key means
-    re-verifying the same checkout (page reload, double call) never
-    double-grants, it just reports the existing balance back."""
+    per Stripe identifier — redeemed_1on1_checkouts' primary key means
+    re-verifying the same checkout/payment (page reload, double call) never
+    double-grants, it just reports the existing balance back.
+
+    Accepts EITHER `stripe_session_id` (the original Stripe-hosted
+    Checkout Session redirect flow) OR `payment_intent_id` (the embedded
+    Elements flow, 2026-09-15 — no Checkout Session exists there, so the
+    PaymentIntent itself carries the metadata this function checks)."""
     stripe_session_id = body.get("stripe_session_id")
-    if not stripe_session_id:
-        raise HTTPException(status_code=400, detail="stripe_session_id es requerido")
+    payment_intent_id = body.get("payment_intent_id")
+    if not stripe_session_id and not payment_intent_id:
+        raise HTTPException(status_code=400, detail="stripe_session_id o payment_intent_id es requerido")
     if not settings.stripe_secret_key:
         raise HTTPException(status_code=503, detail="Pagos no configurados")
 
     db = get_supabase()
     stripe.api_key = settings.stripe_secret_key
-    try:
-        session = await asyncio.to_thread(stripe.checkout.Session.retrieve, stripe_session_id)
-    except Exception:
-        raise HTTPException(status_code=400, detail="No se pudo verificar el pago — intenta de nuevo en unos segundos")
 
-    metadata = session.get("metadata") or {}
-    offer = metadata.get("offer")
-    if (
-        session.get("payment_status") != "paid"
-        or session.get("client_reference_id") != user_id
-        or offer not in ("session", "broker_call")
-    ):
-        raise HTTPException(status_code=402, detail="Pago no confirmado para esta sesión")
+    if payment_intent_id:
+        try:
+            intent = await asyncio.to_thread(stripe.PaymentIntent.retrieve, payment_intent_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="No se pudo verificar el pago — intenta de nuevo en unos segundos")
+        metadata = intent.get("metadata") or {}
+        offer = metadata.get("offer")
+        if (
+            intent.get("status") != "succeeded"
+            or metadata.get("user_id") != user_id
+            or offer not in ("session", "broker_call")
+        ):
+            raise HTTPException(status_code=402, detail="Pago no confirmado para esta sesión")
+        redeem_key = payment_intent_id
+    else:
+        try:
+            session = await asyncio.to_thread(stripe.checkout.Session.retrieve, stripe_session_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="No se pudo verificar el pago — intenta de nuevo en unos segundos")
+        metadata = session.get("metadata") or {}
+        offer = metadata.get("offer")
+        if (
+            session.get("payment_status") != "paid"
+            or session.get("client_reference_id") != user_id
+            or offer not in ("session", "broker_call")
+        ):
+            raise HTTPException(status_code=402, detail="Pago no confirmado para esta sesión")
+        redeem_key = stripe_session_id
 
     credits = 3 if metadata.get("variant") == "bundle" else 1
 
     try:
         await run_query(
             db.table("redeemed_1on1_checkouts").insert({
-                "stripe_session_id": stripe_session_id,
+                "stripe_session_id": redeem_key,
                 "user_id": user_id,
                 "offer": offer,
                 "credits_granted": credits,

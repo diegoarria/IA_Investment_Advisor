@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { X, Check } from "lucide-react";
 import posthog from "posthog-js";
 import { billing, upsells } from "@/lib/api";
 import { useTranslation } from "react-i18next";
+import EmbeddedCheckout from "./EmbeddedCheckout";
 
 interface PaywallModalProps {
   visible: boolean;
@@ -24,9 +26,12 @@ interface PaywallModalProps {
 // stays PricingModal's job, unchanged).
 export default function PaywallModal({ visible, onClose, reason }: PaywallModalProps) {
   const { t } = useTranslation();
+  const router = useRouter();
   const [plan, setPlan] = useState<"monthly" | "yearly">("monthly");
-  const [loading, setLoading] = useState(false);
-  const [duoLoading, setDuoLoading] = useState(false);
+  // Diego, 2026-09-15: card entry happens INSIDE this modal (Stripe
+  // Elements) instead of redirecting to a Stripe-hosted page — same
+  // pattern as PricingModal.
+  const [checkoutMode, setCheckoutMode] = useState<"premium" | "duo" | null>(null);
 
   // Diego's Aug 16 Free/Premium spec, §17 — reuse the analytics infra that
   // already exists (PostHog is wired but had zero custom events on web)
@@ -54,38 +59,20 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
   const monthlyPrice = plan === "monthly" ? "$14.99" : "$12.08";
   const duoPrice = plan === "monthly" ? "$23.99" : "$18.75";
 
-  async function handleUpgrade() {
+  function handleUpgrade() {
     posthog.capture("premium_paywall_clicked", { reason: reason ?? null, plan });
-    setLoading(true);
-    try {
-      const res = await billing.createCheckout(plan);
-      if (res.data?.url) {
-        window.location.href = res.data.url;
-      } else {
-        window.alert(t("pricingModal.paymentError"));
-        setLoading(false);
-      }
-    } catch {
-      window.alert(t("pricingModal.paymentError"));
-      setLoading(false);
-    }
+    setCheckoutMode("premium");
   }
 
-  async function handleDuoCheckout() {
+  function handleDuoCheckout() {
     posthog.capture("premium_paywall_clicked", { reason: reason ?? null, plan: "duo" });
-    setDuoLoading(true);
-    try {
-      const res = await upsells.checkout("family_plan", plan, "paywall_modal");
-      if (res.data?.url) {
-        window.location.href = res.data.url;
-      } else {
-        window.alert(t("pricingModal.paymentError"));
-        setDuoLoading(false);
-      }
-    } catch {
-      window.alert(t("pricingModal.paymentError"));
-      setDuoLoading(false);
-    }
+    setCheckoutMode("duo");
+  }
+
+  function handleCheckoutSuccess() {
+    onClose();
+    setCheckoutMode(null);
+    router.push(checkoutMode === "duo" ? "/upsell-success?offer=family_plan" : "/premium-success");
   }
 
   return (
@@ -111,6 +98,21 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
         </div>
 
         <div className="overflow-y-auto flex-1">
+          {checkoutMode ? (
+            <div className="pt-4">
+              <EmbeddedCheckout
+                createIntent={() =>
+                  checkoutMode === "duo"
+                    ? upsells.checkoutEmbedded("family_plan", plan, "paywall_modal").then((r) => r.data)
+                    : billing.createEmbeddedSubscription(plan).then((r) => r.data)
+                }
+                returnUrl={`${window.location.origin}${checkoutMode === "duo" ? "/upsell-success?offer=family_plan" : "/premium-success"}`}
+                onBack={() => setCheckoutMode(null)}
+                onSuccess={handleCheckoutSuccess}
+              />
+            </div>
+          ) : (
+          <>
           {/* Contextual reason — the one thing PricingModal doesn't need,
               since it's never opened from a locked feature */}
           {reason && (
@@ -174,11 +176,10 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
 
               <button
                 onClick={handleUpgrade}
-                disabled={loading}
                 className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
-                style={{ background: loading ? "rgba(0,212,126,0.5)" : "#00d47e", color: "#000" }}
+                style={{ background: "#00d47e", color: "#000" }}
               >
-                {loading ? t("pricingModal.redirecting") : t("paywallModal.startNow")}
+                {t("paywallModal.startNow")}
               </button>
 
               <div className="relative space-y-2.5 flex-1">
@@ -229,11 +230,10 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
 
               <button
                 onClick={handleDuoCheckout}
-                disabled={duoLoading}
                 className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
-                style={{ background: duoLoading ? "rgba(99,102,241,0.4)" : "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8" }}
+                style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8" }}
               >
-                {duoLoading ? t("pricingModal.redirecting") : t("pricingModal.hireDuoPlan")}
+                {t("pricingModal.hireDuoPlan")}
               </button>
 
               <div className="relative space-y-2.5 flex-1">
@@ -270,6 +270,8 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
               <span className="text-xs font-semibold" style={{ color: "var(--accent-l)" }}>{t("paywallModal.oneOnOneCta")}</span>
             </a>
           </div>
+          </>
+          )}
         </div>
       </div>
     </div>

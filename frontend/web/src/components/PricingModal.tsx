@@ -16,11 +16,11 @@ export default function PricingModal({ visible, onClose }: Props) {
   const { t } = useTranslation();
   const router = useRouter();
   const [plan, setPlan] = useState<"monthly" | "yearly">("monthly");
-  const [duoLoading, setDuoLoading] = useState(false);
   // Diego, 2026-09-15: card entry happens INSIDE this modal (Stripe
-  // Elements) instead of redirecting to a Stripe-hosted page — this just
-  // swaps the plan grid below for EmbeddedCheckout, same modal shell.
-  const [showCheckout, setShowCheckout] = useState(false);
+  // Elements) instead of redirecting to a Stripe-hosted page, for BOTH
+  // the individual Premium plan and the Duo plan — this just swaps the
+  // plan grid below for EmbeddedCheckout, same modal shell.
+  const [checkoutMode, setCheckoutMode] = useState<"premium" | "duo" | null>(null);
 
   const FREE_FEATURES = t("pricingModal.freeFeatures", { returnObjects: true }) as string[];
   const PREMIUM_FEATURES = t("pricingModal.premiumFeatures", { returnObjects: true }) as string[];
@@ -28,32 +28,19 @@ export default function PricingModal({ visible, onClose }: Props) {
 
   if (!visible) return null;
 
-  function handleUpgrade() {
-    setShowCheckout(true);
-  }
-
   function handleCheckoutSuccess() {
     onClose();
-    setShowCheckout(false);
-    // Same post-payment polling (fetchStatus until tier flips to premium)
-    // that the Stripe-hosted redirect flow already uses — reused as-is
-    // instead of duplicating that wait-for-webhook logic here.
-    router.push("/premium-success");
-  }
-
-  async function handleDuoCheckout() {
-    setDuoLoading(true);
-    try {
-      const res = await upsells.checkout("family_plan", plan, "pricing_modal");
-      if (res.data?.url) {
-        window.location.href = res.data.url;
-      } else {
-        window.alert(t("pricingModal.paymentError"));
-        setDuoLoading(false);
-      }
-    } catch {
-      window.alert(t("pricingModal.paymentError"));
-      setDuoLoading(false);
+    setCheckoutMode(null);
+    if (checkoutMode === "duo") {
+      // Duo's success page shows the secondary-account email setup form —
+      // no payment verification needed there (unlike the 1:1 session
+      // flow), it's driven purely by ?offer=family_plan.
+      router.push("/upsell-success?offer=family_plan");
+    } else {
+      // Same post-payment polling (fetchStatus until tier flips to
+      // premium) that the Stripe-hosted redirect flow already used —
+      // reused as-is instead of duplicating that wait-for-webhook logic.
+      router.push("/premium-success");
     }
   }
 
@@ -81,11 +68,16 @@ export default function PricingModal({ visible, onClose }: Props) {
         {/* Scrollable body */}
         <div className="overflow-y-auto flex-1">
 
-        {showCheckout ? (
+        {checkoutMode ? (
           <div className="pt-4">
             <EmbeddedCheckout
-              plan={plan}
-              onBack={() => setShowCheckout(false)}
+              createIntent={() =>
+                checkoutMode === "duo"
+                  ? upsells.checkoutEmbedded("family_plan", plan, "pricing_modal").then((r) => r.data)
+                  : billing.createEmbeddedSubscription(plan).then((r) => r.data)
+              }
+              returnUrl={`${window.location.origin}${checkoutMode === "duo" ? "/upsell-success?offer=family_plan" : "/premium-success"}`}
+              onBack={() => setCheckoutMode(null)}
               onSuccess={handleCheckoutSuccess}
             />
           </div>
@@ -161,7 +153,7 @@ export default function PricingModal({ visible, onClose }: Props) {
             )}
 
             <button
-              onClick={handleUpgrade}
+              onClick={() => setCheckoutMode("premium")}
               className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
               style={{ background: "#00d47e", color: "#000" }}
             >
@@ -206,12 +198,11 @@ export default function PricingModal({ visible, onClose }: Props) {
             )}
 
             <button
-              onClick={handleDuoCheckout}
-              disabled={duoLoading}
+              onClick={() => setCheckoutMode("duo")}
               className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
-              style={{ background: duoLoading ? "rgba(99,102,241,0.4)" : "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8" }}
+              style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8" }}
             >
-              {duoLoading ? t("pricingModal.redirecting") : t("pricingModal.hireDuoPlan")}
+              {t("pricingModal.hireDuoPlan")}
             </button>
 
             <div className="relative space-y-2.5 flex-1">

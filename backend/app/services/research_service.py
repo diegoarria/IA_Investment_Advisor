@@ -515,10 +515,18 @@ async def _maybe_refund(job: dict) -> None:
         if not settings.stripe_secret_key:
             return
         stripe.api_key = settings.stripe_secret_key
-        session = await asyncio.to_thread(stripe.checkout.Session.retrieve, job["stripe_session_id"])
-        payment_intent = session.get("payment_intent")
-        if not payment_intent:
-            return
+        stored_id = job["stripe_session_id"]
+        # The embedded Elements flow (2026-09-15) stores a PaymentIntent id
+        # directly here (no Checkout Session exists for it) — Stripe's own
+        # id prefixes ("pi_" vs "cs_") tell the two apart, no separate
+        # column needed.
+        if stored_id.startswith("pi_"):
+            payment_intent = stored_id
+        else:
+            session = await asyncio.to_thread(stripe.checkout.Session.retrieve, stored_id)
+            payment_intent = session.get("payment_intent")
+            if not payment_intent:
+                return
         await asyncio.to_thread(stripe.Refund.create, payment_intent=payment_intent)
         await run_query(db.table("research_jobs").update({"refunded": True}).eq("id", job["id"]))
         _log.info("Refunded Stripe payment for failed/cancelled research job %s", job["id"])

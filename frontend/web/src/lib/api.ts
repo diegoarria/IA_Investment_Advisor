@@ -391,6 +391,7 @@ export const billing = {
   createEmbeddedSubscription: (plan: "monthly" | "yearly" = "monthly") =>
     api.post("/api/billing/create-embedded-subscription", { plan }),
   brokerCallCheckout: () => api.post("/api/billing/broker-call-checkout"),
+  createEmbeddedBrokerCall: () => api.post("/api/billing/create-embedded-broker-call"),
   brokerOfferSeen: () => api.post("/api/billing/broker-offer-seen"),
   duoSetup: (secondary_email: string) => api.post("/api/billing/duo-setup", { secondary_email }),
   getDuoPartner: () => api.get("/api/billing/duo-partner"),
@@ -402,16 +403,25 @@ export const billing = {
 export const upsells = {
   checkout: (offer: string, variant: string, trigger_source: string, extra?: Record<string, unknown>) =>
     api.post("/api/upsells/checkout", { offer, variant, trigger_source, ...extra }),
-  verify1on1Payment: (stripeSessionId: string) =>
-    api.post("/api/upsells/verify-1on1-payment", { stripe_session_id: stripeSessionId }),
+  checkoutEmbedded: (offer: string, variant: string, trigger_source: string, extra?: Record<string, unknown>) =>
+    api.post("/api/upsells/checkout-embedded", { offer, variant, trigger_source, ...extra }),
+  verify1on1Payment: (idOrParams: string | { stripeSessionId?: string; paymentIntentId?: string }) =>
+    api.post("/api/upsells/verify-1on1-payment", typeof idOrParams === "string"
+      ? { stripe_session_id: idOrParams }
+      : { stripe_session_id: idOrParams.stripeSessionId, payment_intent_id: idOrParams.paymentIntentId }),
   redeem1on1Session: () => api.post("/api/upsells/redeem-1on1-session"),
 };
 
 export const researchApi = {
   createPlan: (requestText: string) =>
     api.post("/api/research/plan", { request_text: requestText }),
-  start: (jobId: string, stripeSessionId: string) =>
-    api.post("/api/research/start", { job_id: jobId, stripe_session_id: stripeSessionId }),
+  start: (jobId: string, idOrParams: string | { stripeSessionId?: string; paymentIntentId?: string }) =>
+    api.post("/api/research/start", {
+      job_id: jobId,
+      ...(typeof idOrParams === "string"
+        ? { stripe_session_id: idOrParams }
+        : { stripe_session_id: idOrParams.stripeSessionId, stripe_payment_intent_id: idOrParams.paymentIntentId }),
+    }),
   startFree: (jobId: string) => api.post("/api/research/start-free", { job_id: jobId }),
   getJob: (jobId: string) => api.get(`/api/research/jobs/${jobId}`),
   getActiveJob: () => api.get("/api/research/jobs/active"),

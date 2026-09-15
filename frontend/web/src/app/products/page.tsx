@@ -10,9 +10,8 @@ const PricingModal = dynamic(() => import("@/components/PricingModal"), { ssr: f
 import { useSubscriptionStore, useAuthStore } from "@/lib/store";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { apiBase } from "@/lib/apiBase";
-
-const API = apiBase();
+import { upsells } from "@/lib/api";
+import EmbeddedCheckout from "@/components/EmbeddedCheckout";
 import {
   Brain, BarChart2, TrendingUp, Shield, Zap, BookOpen,
   GraduationCap, Bell, Calendar, RefreshCw, Target, Search,
@@ -78,23 +77,23 @@ export default function ProductsPage() {
   const isPremium = subTier === "premium" || isTrialPremium;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
-  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  // Diego, 2026-09-15: card entry happens INSIDE a modal (Stripe Elements)
+  // instead of redirecting to a Stripe-hosted page.
+  const [checkoutOffer, setCheckoutOffer] = useState<{ offer: string; variant: string } | null>(null);
 
-  async function handleCheckout(offer: string, variant: string) {
+  function handleCheckout(offer: string, variant: string) {
     if (!isAuthenticated) { router.push("/login"); return; }
-    setCheckoutLoading(offer + variant);
-    try {
-      const res = await fetch(`${API}/api/upsells/checkout`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ offer, variant, trigger_source: "products_page" }),
-      });
-      const data = await res.json();
-      if (data.url) window.location.href = data.url;
-    } finally {
-      setCheckoutLoading(null);
-    }
+    setCheckoutOffer({ offer, variant });
+  }
+
+  function handleCheckoutSuccess(paymentIntentId?: string) {
+    if (!checkoutOffer) return;
+    const { offer } = checkoutOffer;
+    setCheckoutOffer(null);
+    const target = offer === "family_plan"
+      ? "/upsell-success?offer=family_plan"
+      : `/upsell-success?offer=${offer}${paymentIntentId ? `&payment_intent=${paymentIntentId}` : ""}`;
+    router.push(target);
   }
 
   return (
@@ -242,11 +241,10 @@ export default function ProductsPage() {
 
                     <button
                       onClick={() => p.offer === "deep_research" ? router.push("/research") : handleCheckout(p.offer, p.variant ?? "default")}
-                      disabled={checkoutLoading === p.offer + (p.variant ?? "default")}
                       className={`w-full py-2 rounded-xl text-xs font-black transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-1 ${p.note ? "" : "mb-4"}`}
                       style={{ background: "#00d47e", color: "#000" }}
                     >
-                      {checkoutLoading === p.offer + (p.variant ?? "default") ? "..." : <>{t("products.viewDetails")} <ArrowRight className="w-3 h-3" /></>}
+                      {t("products.viewDetails")} <ArrowRight className="w-3 h-3" />
                     </button>
                     {p.note && <div className="mb-4" />}
 
@@ -289,6 +287,21 @@ export default function ProductsPage() {
       </div>
 
       <PricingModal visible={showPricing} onClose={() => setShowPricing(false)} />
+
+      {checkoutOffer && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
+          <div className="w-full max-w-md rounded-2xl shadow-2xl" style={{ background: "var(--bg)", border: "1px solid var(--border)" }}>
+            <div className="pt-5">
+              <EmbeddedCheckout
+                createIntent={() => upsells.checkoutEmbedded(checkoutOffer.offer, checkoutOffer.variant, "products_page").then((r) => r.data)}
+                returnUrl={`${window.location.origin}/upsell-success?offer=${checkoutOffer.offer}`}
+                onBack={() => setCheckoutOffer(null)}
+                onSuccess={handleCheckoutSuccess}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
