@@ -265,7 +265,7 @@ export default function OnboardingPage() {
       ),
     },
 
-    // 1 — Teléfono (opcional)
+    // 2 — Teléfono (opcional)
     {
       subtitle: t("onboarding.stepPhone.subtitle"),
       title: firstName ? t("onboarding.stepPhone.titleNamed", { name: firstName }) : t("onboarding.stepPhone.title"),
@@ -302,7 +302,7 @@ export default function OnboardingPage() {
       ),
     },
 
-    // 2 — Meta financiera al invertir (opcional)
+    // 3 — Meta financiera al invertir (opcional)
     {
       subtitle: t("onboarding.step3.subtitle"),
       title: t("onboarding.step3.title"),
@@ -341,7 +341,7 @@ export default function OnboardingPage() {
       ),
     },
 
-    // 3 — ¿Qué has escuchado de la bolsa? (opcional, selección múltiple)
+    // 4 — ¿Qué has escuchado de la bolsa? (opcional, selección múltiple)
     {
       subtitle: t("onboarding.marketPerception.subtitle"),
       title: firstName ? t("onboarding.marketPerception.titleNamed", { name: firstName }) : t("onboarding.marketPerception.title"),
@@ -398,7 +398,7 @@ export default function OnboardingPage() {
       ),
     },
 
-    // 4 — Disclaimer legal (obligatorio)
+    // 5 — Disclaimer legal (obligatorio)
     {
       subtitle: t("onboarding.legal.subtitle"),
       title: t("onboarding.legal.title"),

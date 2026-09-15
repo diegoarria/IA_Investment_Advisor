@@ -235,10 +235,17 @@ function HomeContent() {
         // global, un-namespaced "nuvos_ob" localStorage flag that stayed set
         // from whichever account last finished onboarding on this device —
         // so creating a second account on the same browser would silently
-        // skip onboarding for it too.) Any other error (network, 5xx, token
+        // skip onboarding for it too.) Any OTHER error (network, 5xx, token
         // timing) sends to home to avoid showing onboarding to users who
-        // already completed it but hit a transient failure.
-        window.location.href = err?.response?.status === 404 ? "/onboarding" : "/home";
+        // already completed it but hit a transient failure — EXCEPT right
+        // after a brand-new registration, where there is no "already
+        // completed it" case to protect: the account is seconds old, so any
+        // error here still means "no profile yet," just like a 404. Bug fix,
+        // 2026-09-15: a transient error straight after register() used to
+        // send a fresh signup to a profile-less /home with no way back into
+        // onboarding from the UI.
+        const noProfileYet = err?.response?.status === 404 || mode === "register";
+        window.location.href = noProfileYet ? "/onboarding" : "/home";
       }
     } catch (err: unknown) {
       setError(extractErrorMsg(err) || t("landing.checkCredentials"));

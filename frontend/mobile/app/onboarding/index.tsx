@@ -74,8 +74,17 @@ export default function OnboardingScreen() {
   const { language } = useLanguage();
 
   useEffect(() => {
-    if (existingProfile?.name) { router.replace("/(tabs)/home"); return; }
-    profileApi.get().then(() => router.replace("/(tabs)/home")).catch(() => {});
+    // Bug fix, 2026-09-15: neither branch used to clear this user's draft —
+    // if a profile already exists (created via some other path, e.g. the
+    // Google-OAuth account-migration branch on the backend), the
+    // onboarding_draft__<uid> row from an earlier abandoned attempt was
+    // never purged and just sat there unused forever.
+    const clearDraft = async () => {
+      const uid = (await SecureStore.getItemAsync("user_id").catch(() => null)) ?? "guest";
+      AsyncStorage.removeItem(`onboarding_draft__${uid}`).catch(() => {});
+    };
+    if (existingProfile?.name) { clearDraft(); router.replace("/(tabs)/home"); return; }
+    profileApi.get().then(() => { clearDraft(); router.replace("/(tabs)/home"); }).catch(() => {});
   }, []);
 
   const [step, setStep]       = useState(0);
@@ -101,7 +110,20 @@ export default function OnboardingScreen() {
 
   useEffect(() => {
     (async () => {
-      const uid = (await SecureStore.getItemAsync("user_id").catch(() => null)) ?? "guest";
+      // Bug fix, 2026-09-15: the pre-login fallback used to be the literal
+      // string "guest" — any two not-yet-authenticated onboarding attempts
+      // on the same device (before user_id is written to SecureStore)
+      // collided on the exact same draft key and could silently overwrite
+      // or restore each other's in-progress answers. Fall back to a random
+      // per-install id instead, generated once and reused.
+      let uid = await SecureStore.getItemAsync("user_id").catch(() => null);
+      if (!uid) {
+        uid = await AsyncStorage.getItem("onboarding_anon_id").catch(() => null);
+        if (!uid) {
+          uid = `anon_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+          await AsyncStorage.setItem("onboarding_anon_id", uid).catch(() => {});
+        }
+      }
       draftKeyRef.current = `onboarding_draft__${uid}`;
       try {
         const raw = await AsyncStorage.getItem(draftKeyRef.current);
@@ -417,12 +439,23 @@ export default function OnboardingScreen() {
   const totalSteps = STEPS.length;
 
   // ── Submit ────────────────────────────────────────────────────────────────────
+  // Bug fix, 2026-09-15: `loading`'s disabled-prop guard alone relies on
+  // React re-rendering before a second rapid tap lands — a same-tick
+  // double-fire (both handleNext calls queued before either state update
+  // flushes) would still slip through. This ref updates synchronously, so
+  // the very next call sees it immediately regardless of render timing.
+  // The backend's own idempotent upsert already makes a real duplicate POST
+  // harmless — this is defense-in-depth, not the only safeguard.
+  const submittingRef = useRef(false);
+
   const handleNext = async () => {
     if (!isLastStep) {
       posthog.capture("onboarding_step_advanced", { step_index: step, step_total: STEPS.length });
       setStep(step + 1);
       return;
     }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setLoading(true); setError("");
 
     const profileData: Record<string, unknown> = {
@@ -505,6 +538,7 @@ export default function OnboardingScreen() {
       setError(msg || t("onboarding.saveProfileError"));
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 
@@ -524,7 +558,20 @@ export default function OnboardingScreen() {
         <View style={S.topNav}>
           <TouchableOpacity
             style={S.backBtn}
-            onPress={() => step === 0 ? router.replace("/") : setStep(step - 1)}
+            onPress={async () => {
+              if (step !== 0) { setStep(step - 1); return; }
+              // Bug fix, 2026-09-15: this used to always router.replace("/")
+              // — for an already-authenticated user (the normal case: you
+              // only reach onboarding once logged in with no profile yet),
+              // "/" can render straight to the login form instead of
+              // re-running its own auth check, stranding a valid session on
+              // a login screen with no way back into onboarding. There's no
+              // real "back" destination for an authenticated, profile-less
+              // user, so only navigate away when there's genuinely no
+              // session to protect.
+              const token = await SecureStore.getItemAsync("access_token").catch(() => null);
+              if (!token) router.replace("/");
+            }}
           >
             <Ionicons name="arrow-back" size={20} color="#9ca3af" />
           </TouchableOpacity>
