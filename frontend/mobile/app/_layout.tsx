@@ -258,6 +258,7 @@ function AppStack() {
       <Stack.Screen name="morning-brief" options={{ headerShown: false }} />
       <Stack.Screen name="journal" options={{ headerShown: false }} />
       <Stack.Screen name="wrapped" options={{ headerShown: false }} />
+      <Stack.Screen name="monthly-report" options={{ headerShown: false }} />
       <Stack.Screen
         name="profile/edit"
         options={{
