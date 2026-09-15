@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity,
 } from "react-native";
@@ -8,6 +8,7 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
+import OneTimeProductModal, { type OneTimeProduct } from "../../src/components/OneTimeProductModal";
 
 function getFreeFeatures(t: TFunction): string[] {
   return t("products.free.features", { returnObjects: true }) as string[];
@@ -80,6 +81,7 @@ export default function ProductsScreen() {
   const { t } = useTranslation();
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
+  const [selectedProduct, setSelectedProduct] = useState<OneTimeProduct | null>(null);
 
   const FREE_FEATURES = getFreeFeatures(t);
   const PREMIUM_FEATURES = getPremiumFeatures(t);
@@ -199,13 +201,16 @@ export default function ProductsScreen() {
           <Text style={{ fontSize: 13, fontWeight: "900", color: colors.text, marginBottom: 12 }}>{t("products.oneTime.title")}</Text>
           <View style={{ gap: 10 }}>
             {ONE_TIME.map((p, i) => (
-              <View
+              <TouchableOpacity
                 key={i}
+                activeOpacity={0.85}
+                onPress={() => p.offer === "deep_research" ? router.push("/research") : setSelectedProduct(p)}
                 style={{ borderRadius: 18, borderWidth: 1, padding: 14, backgroundColor: colors.card, borderColor: colors.border }}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
                   <Text style={{ fontSize: 20 }}>{p.emoji}</Text>
-                  <Text style={{ fontSize: 14, fontWeight: "900", color: colors.text }}>{p.title}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "900", color: colors.text, flex: 1 }}>{p.title}</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textDim ?? colors.textMuted} />
                 </View>
 
                 <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: p.note ? 2 : 4 }}>
@@ -217,48 +222,20 @@ export default function ProductsScreen() {
                   )}
                 </View>
                 {p.note && (
-                  <View style={{ alignSelf: "flex-start", backgroundColor: "rgba(0,212,126,0.08)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 12 }}>
+                  <View style={{ alignSelf: "flex-start", backgroundColor: "rgba(0,212,126,0.08)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 4 }}>
                     <Text style={{ fontSize: 9, fontWeight: "800", color: "#00d47e" }}>{p.note}</Text>
                   </View>
                 )}
 
-                {p.offer === "deep_research" ? (
-                  // Navigates to the Research screen itself, which is
-                  // free-credit-first and shows the same non-actionable
-                  // "manageOnWeb" copy for paying — this button never
-                  // implies a purchase, just "go look at this feature".
-                  <TouchableOpacity
-                    onPress={() => router.push("/research")}
-                    style={{ backgroundColor: "#00d47e", borderRadius: 12, paddingVertical: 10, alignItems: "center", marginBottom: 12 }}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: "900", color: "#000" }}>
-                      {t("products.oneTime.viewDetails")}
-                    </Text>
-                  </TouchableOpacity>
-                ) : (
-                  // Diego, 2026-09-15: "evitarme lo de Apple IAP... tal
-                  // como lo hace Spotify" — a tappable "Comprar →" button
-                  // that pops an alert telling people to buy on the web is
-                  // still a call-to-action toward an external purchase
-                  // (Apple 3.1.1 bans the CTA itself, not just processing
-                  // the payment in-app). Same non-actionable info box as
-                  // PricingModal/PaywallModal/UpsellModal/Research, no
-                  // tappable element at all.
-                  <View style={{ borderRadius: 12, paddingVertical: 10, alignItems: "center", marginBottom: 12, backgroundColor: colors.bgRaised ?? colors.border }}>
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textSub ?? colors.text, textAlign: "center" }}>
-                      {t("pricingModal.manageOnWeb")}
-                    </Text>
-                  </View>
-                )}
-
-                {p.features.map((f, fi) => (
-                  <View key={fi} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 7 }}>
-                    <Ionicons name="checkmark" size={13} color="#00d47e" style={{ marginTop: 1 }} />
-                    <Text style={{ fontSize: 12, color: colors.textMuted, flex: 1 }}>{f}</Text>
-                  </View>
-                ))}
-              </View>
+                {/* First feature as a teaser — full list + the paywall
+                    (price recap, "pay on web" info, Calendly-after-pay
+                    note for sessions) lives in OneTimeProductModal, tapped
+                    open from anywhere on this card. Deep Research skips
+                    the modal and goes straight to its own screen. */}
+                <Text style={{ fontSize: 11.5, color: colors.textMuted, marginTop: 4 }} numberOfLines={1}>
+                  {p.features[0]}
+                </Text>
+              </TouchableOpacity>
             ))}
           </View>
         </View>
@@ -287,6 +264,12 @@ export default function ProductsScreen() {
         </View>
 
       </ScrollView>
+
+      <OneTimeProductModal
+        visible={!!selectedProduct}
+        onClose={() => setSelectedProduct(null)}
+        product={selectedProduct}
+      />
     </View>
   );
 }
