@@ -124,6 +124,60 @@ async def send_email(to: str, subject: str, html: str) -> bool:
         return False
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Admin purchase notifications
+# ─────────────────────────────────────────────────────────────────────────────
+
+ADMIN_NOTIFY_EMAIL = "diegoarria@nuvosai.com"
+
+
+async def notify_admin_purchase(user_id: str, product: str, detail: str = "") -> None:
+    """Diego, 2026-09-15: "puedo crear una notificación de cuando un
+    usuario compra el premium... y que me llegue a mi correo" — fire-and-
+    forget email to Diego himself on every real purchase: Premium/Duo
+    subscription (which plan) or a one-time product (session, session
+    pack, Deep Research, paid broker call). Mirrors support.py's
+    ADMIN_EMAIL notification (same fire-and-forget shape) — never raises,
+    never blocks the webhook/route that calls it. Call this ONLY from a
+    code path that already guarantees "this is a genuinely new purchase,
+    not a retry/duplicate" (each call site has its own idempotency check
+    already, for its own reasons — see the call sites)."""
+    from datetime import datetime, timezone
+    from app.core.database import get_supabase
+    try:
+        user_email = ""
+        try:
+            db = get_supabase()
+            user_res = db.auth.admin.get_user_by_id(user_id)
+            user_email = user_res.user.email or ""
+        except Exception:
+            pass
+
+        detail_row = (
+            f"""<tr><td style="padding:8px 12px;background:#f3f4f6;font-weight:600">Detalle</td>"""
+            f"""<td style="padding:8px 12px;background:#f9fafb">{detail}</td></tr>"""
+        ) if detail else ""
+        html = f"""
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+  <h2 style="color:#00a85e;margin-bottom:4px">💰 Nueva compra: {product}</h2>
+  <table style="width:100%;border-collapse:collapse;margin:16px 0">
+    <tr>
+      <td style="padding:8px 12px;background:#f3f4f6;font-weight:600;width:120px;border-radius:4px 0 0 4px">Usuario</td>
+      <td style="padding:8px 12px;background:#f9fafb;border-radius:0 4px 4px 0">{user_email or user_id}</td>
+    </tr>
+    {detail_row}
+  </table>
+  <p style="color:#9ca3af;font-size:12px;margin-top:20px">
+    Nuvos AI · {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
+  </p>
+</div>"""
+        sent = await send_email(ADMIN_NOTIFY_EMAIL, f"💰 Compra: {product}", html)
+        if not sent:
+            _log.error("notify_admin_purchase: send_email returned False for %s / user %s", product, user_id)
+    except Exception as exc:
+        _log.error("notify_admin_purchase failed for %s / user %s: %s", product, user_id, exc)
+
+
 def build_weekly_summary_html(name: str, summary: str, risk: str) -> str:
     first = name.split()[0] if name else "Inversor"
     risk_color = {"conservative": "#3b82f6", "moderate": "#22c55e", "aggressive": "#f59e0b"}.get(

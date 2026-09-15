@@ -121,11 +121,19 @@ async def start_research(request: Request, body: dict, user_id: str = Depends(ge
     # transitions it to 'researching'. Recording this id here is what lets
     # a later failure/cancellation issue a refund against this specific
     # payment (see research_service._maybe_refund).
+    already_recorded = bool(job.get("stripe_session_id"))
     await run_query(
         db.table("research_jobs").update({
             "stripe_session_id": stored_id,
         }).eq("id", job_id)
     )
+    if not already_recorded:
+        # Admin purchase notification — Diego, 2026-09-15. Guarded on
+        # stripe_session_id having been unset BEFORE this update, since a
+        # client retry of this same call (before the worker claims the
+        # job) would otherwise re-verify successfully and double-notify.
+        from app.services.email_service import notify_admin_purchase
+        asyncio.create_task(notify_admin_purchase(user_id, "Nuvos Deep Research", f"job_id {job_id}"))
     return {"job_id": job_id, "status": "pending"}
 
 

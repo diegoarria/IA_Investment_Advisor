@@ -295,18 +295,39 @@ async def stripe_webhook(request: Request):
 
         if user_id and session.get("mode") == "subscription":
             from datetime import datetime, timezone
+            is_duo = metadata.get("offer") == "family_plan"
             update = {
                 "subscription_tier": "premium",
                 "stripe_customer_id": customer_id,
                 "subscription_started_at": datetime.now(timezone.utc).isoformat(),
             }
-            if metadata.get("offer") == "family_plan":
+            if is_duo:
                 update["duo_plan_purchased_at"] = datetime.now(timezone.utc).isoformat()
             await run_query(
                 db.table("user_profiles").update(update).eq("user_id", user_id)
             )
             cache_delete(f"profile:{user_id}")
             cache_delete(f"sync:all:{user_id}")
+
+            # Admin purchase notification — Diego, 2026-09-15. Best-effort
+            # interval lookup (monthly/yearly) via the subscription Stripe
+            # already created for this checkout; never blocks the webhook
+            # if it fails.
+            interval_label = "?"
+            subscription_id = session.get("subscription")
+            if subscription_id:
+                try:
+                    sub = await asyncio.to_thread(stripe.Subscription.retrieve, subscription_id)
+                    interval = ((sub["items"]["data"][0]["price"].get("recurring") or {}).get("interval"))
+                    interval_label = {"month": "Mensual", "year": "Anual"}.get(interval, interval or "?")
+                except Exception as e:
+                    logger.warning("webhook: could not read subscription %s interval for admin notify: %s", subscription_id, e)
+            from app.services.email_service import notify_admin_purchase
+            asyncio.create_task(notify_admin_purchase(
+                user_id,
+                "Plan Duo" if is_duo else "Premium Individual",
+                f"{interval_label} · checkout.session.completed",
+            ))
 
     elif event["type"] in ("customer.subscription.deleted", "customer.subscription.paused"):
         customer_id = event["data"]["object"].get("customer")
@@ -374,6 +395,8 @@ async def stripe_webhook(request: Request):
         if customer_id and billing_reason in ("subscription_cycle", "subscription_update", "subscription_create"):
             from datetime import datetime, timezone
             update = {"subscription_tier": "premium"}
+            is_duo = False
+            interval_label = "?"
             if billing_reason == "subscription_create":
                 update["subscription_started_at"] = datetime.now(timezone.utc).isoformat()
                 # The embedded Duo (family_plan) subscription created by
@@ -388,14 +411,38 @@ async def stripe_webhook(request: Request):
                 if subscription_id:
                     try:
                         sub = await asyncio.to_thread(stripe.Subscription.retrieve, subscription_id)
-                        if (sub.get("metadata") or {}).get("offer") == "family_plan":
+                        is_duo = (sub.get("metadata") or {}).get("offer") == "family_plan"
+                        if is_duo:
                             update["duo_plan_purchased_at"] = update["subscription_started_at"]
+                        interval = ((sub["items"]["data"][0]["price"].get("recurring") or {}).get("interval"))
+                        interval_label = {"month": "Mensual", "year": "Anual"}.get(interval, interval or "?")
                     except Exception as e:
                         logger.warning("webhook: could not check subscription %s metadata for family_plan: %s", subscription_id, e)
             await run_query(
                 db.table("user_profiles").update(update).eq("stripe_customer_id", customer_id)
             )
             await _invalidate_profile_cache_by_customer(customer_id, db)
+
+            if billing_reason == "subscription_create":
+                # Admin purchase notification — Diego, 2026-09-15. This
+                # branch only ever fires once per subscription (Stripe
+                # sends "subscription_create" exactly once, on the first
+                # invoice), so no extra idempotency guard is needed here.
+                try:
+                    user_row = await run_query(
+                        db.table("user_profiles").select("user_id").eq("stripe_customer_id", customer_id).limit(1)
+                    )
+                    notify_user_id = user_row.data[0]["user_id"] if user_row.data else None
+                except Exception as e:
+                    logger.warning("webhook: could not resolve user_id for customer %s admin notify: %s", customer_id, e)
+                    notify_user_id = None
+                if notify_user_id:
+                    from app.services.email_service import notify_admin_purchase
+                    asyncio.create_task(notify_admin_purchase(
+                        notify_user_id,
+                        "Plan Duo" if is_duo else "Premium Individual",
+                        f"{interval_label} · invoice.payment_succeeded (embedded)",
+                    ))
 
     return {"received": True}
 

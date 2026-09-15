@@ -410,6 +410,18 @@ async def verify_1on1_payment(body: dict, user_id: str = Depends(get_current_use
         balance = int(((row.data if row else None) or {}).get("paid_1on1_sessions") or 0)
         return {"ok": True, "granted": 0, "balance": balance}
 
+    # Admin purchase notification — Diego, 2026-09-15. Only reached once
+    # per checkout (the insert above is the idempotency gate — a retry
+    # hits the except branch instead and never re-enters here).
+    if offer == "broker_call":
+        product_name = "Llamada con broker (pagada)"
+    elif credits == 3:
+        product_name = "Pack de 3 sesiones"
+    else:
+        product_name = "Sesión 1:1"
+    from app.services.email_service import notify_admin_purchase
+    asyncio.create_task(notify_admin_purchase(user_id, product_name))
+
     row = await run_query(
         db.table("user_profiles").select("paid_1on1_sessions").eq("user_id", user_id).maybe_single()
     )
