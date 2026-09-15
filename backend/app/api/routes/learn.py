@@ -31,28 +31,35 @@ FREE_DEBATE_MAX_ROUNDS = 5
 FREE_DIFFICULTIES     = {"principiante", "intermedio"}
 
 async def _get_profile_raw(user_id: str) -> dict | None:
-    try:
-        db = get_supabase()
-        result = await run_query(
-            db.table("user_profiles").select("subscription_tier, trial_started_at, streak_bonus_premium_until").eq("user_id", user_id)
-        )
-        return result.data[0] if result.data else None
-    except Exception as exc:
-        # Feeds _is_premium() below, which gates every Learn endpoint
-        # (simulations, debates, streak sync) — a transient DB error here
-        # silently denied premium access, indistinguishable from "not
-        # premium" (2026-08-26 full-sweep audit).
-        logger.error("_get_profile_raw(%s) failed: %s", user_id, exc)
-        return None
+    """Returns None only when the user genuinely has no user_profiles row.
+    Does NOT swallow a DB/read failure into None anymore — raises instead,
+    so _is_premium below can tell "no profile" apart from "couldn't read
+    it" and fail open on the latter (Nuvos CARE, 2026-09-15)."""
+    db = get_supabase()
+    result = await run_query(
+        db.table("user_profiles").select("subscription_tier, trial_started_at, streak_bonus_premium_until").eq("user_id", user_id)
+    )
+    return result.data[0] if result.data else None
 
 async def _is_premium(user_id: str) -> bool:
     """Delegates to app.core.subscription.is_premium_active — the single
     canonical trial-window check shared across the whole app. This used to
     only check subscription_tier == "premium" and never consulted
     trial_started_at at all, so any user in an active trial was silently
-    treated as free on every Learn endpoint."""
+    treated as free on every Learn endpoint.
+
+    Nuvos CARE, 2026-09-15: a transient DB read failure here used to be
+    indistinguishable from "not premium" — feeds every Learn endpoint
+    gate (simulations, debates, streak sync), so that silently downgraded
+    real Premium/trial/comp/Duo users to free. Now fails OPEN (assumes
+    premium) on a genuine read error; only an actually-missing profile row
+    (no exception, just no row) is treated as free."""
     from app.core.subscription import is_premium_active
-    p = await _get_profile_raw(user_id)
+    try:
+        p = await _get_profile_raw(user_id)
+    except Exception as exc:
+        logger.error("_is_premium(%s): profile read failed, failing OPEN (assuming premium): %s", user_id, exc)
+        return True
     if not p:
         return False
     return is_premium_active(p.get("subscription_tier"), p.get("trial_started_at"), p.get("streak_bonus_premium_until"))

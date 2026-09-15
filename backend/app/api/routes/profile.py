@@ -329,21 +329,17 @@ async def get_ai_insights(lang: str | None = None, user_id: str = Depends(get_cu
     now, same "generate once, reuse on every view" pattern as
     /mentor-letter just above (monthly instead of daily there since a
     letter is meant to feel like a monthly ritual)."""
-    cache_key = f"profile_insights:{user_id}:{lang or 'auto'}:{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
-    cached = cache_get(cache_key)
-    if cached is not None:
-        return cached
     try:
         db = get_supabase()
-        result = await run_query(
-            db.table("chat_history")
-            .select("content")
-            .eq("user_id", user_id)
-            .eq("role", "user")
-            .order("created_at", desc=True)
-            .limit(40)
-        )
-        msgs = result.data
+        # Nuvos CARE, 2026-09-15: is_premium must be resolved BEFORE the
+        # cache key is built and checked — the cache key used to be
+        # tier-agnostic (just user_id/lang/date), so a free-tier result
+        # cached in the morning kept being served for the rest of the
+        # calendar day even after a mid-day trial start / purchase /
+        # manual comp. This one extra indexed read on every call (even a
+        # cache hit) is the same tradeoff fetch_fresh_subscription_fields
+        # already makes elsewhere — cheap next to the Claude call this
+        # cache exists to avoid repeating.
         profile_row_res = await run_query(
             db.table("user_profiles").select("risk_tolerance,mentor,subscription_tier,preferred_language,trial_started_at,streak_bonus_premium_until").eq("user_id", user_id)
         )
@@ -353,6 +349,21 @@ async def get_ai_insights(lang: str | None = None, user_id: str = Depends(get_cu
         is_premium = is_premium_active(profile_data.get("subscription_tier"), profile_data.get("trial_started_at"), profile_data.get("streak_bonus_premium_until"))
         if lang not in ("es", "en"):
             lang = profile_data.get("preferred_language") or "es"
+
+        cache_key = f"profile_insights:{user_id}:{lang or 'auto'}:{'premium' if is_premium else 'free'}:{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+        cached = cache_get(cache_key)
+        if cached is not None:
+            return cached
+
+        result = await run_query(
+            db.table("chat_history")
+            .select("content")
+            .eq("user_id", user_id)
+            .eq("role", "user")
+            .order("created_at", desc=True)
+            .limit(40)
+        )
+        msgs = result.data
 
         # Premium: 50 msgs, deeper analysis; Free: 20 msgs, basic analysis
         min_msgs = 5 if is_premium else 8

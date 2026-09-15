@@ -1613,7 +1613,7 @@ async def job_daily_email():
         disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("email_daily_summary") is False}
 
         profiles_res = await run_query(
-            db.table("user_profiles").select("user_id,name,subscription_tier,preferred_language")
+            db.table("user_profiles").select("user_id,name,subscription_tier,trial_started_at,streak_bonus_premium_until,preferred_language")
         )
         all_profile_data = [r for r in (profiles_res.data or []) if r["user_id"] not in disabled]
         opted_ids = [r["user_id"] for r in all_profile_data]
@@ -1621,11 +1621,14 @@ async def job_daily_email():
             return
 
         name_map = {r["user_id"]: r.get("name") or "Inversor" for r in all_profile_data}
-        tier_map = {r["user_id"]: (r.get("subscription_tier") or "free") for r in all_profile_data}
+        # Nuvos CARE, 2026-09-15: was a raw tier=="premium" map — trial and
+        # streak-bonus-premium users got the free-tier email body and were
+        # miscounted in the send-log stats below.
+        tier_map = {r["user_id"]: _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at"), r.get("streak_bonus_premium_until")) for r in all_profile_data}
         lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in all_profile_data}
 
         # ── 4. Portfolios — premium users only ────────────────────────────────
-        premium_uids = {uid for uid in opted_ids if tier_map.get(uid) == "premium"}
+        premium_uids = {uid for uid in opted_ids if tier_map.get(uid)}
         # Each value is a list of (portfolio_name, positions) groups — one
         # group per portfolio when the user has 2+ portfolios with positions,
         # so a separate email can be sent per portfolio instead of blending
@@ -1752,7 +1755,7 @@ async def job_daily_email():
             await asyncio.sleep(random.uniform(0, 0.1))
 
             first      = name_map.get(uid, "Inversor").split()[0]
-            is_premium = tier_map.get(uid) == "premium"
+            is_premium = tier_map.get(uid, False)
             groups     = portfolio_map.get(uid) or [(None, [])]
             watchlist  = watch_by_uid.get(uid, set())
             lang       = lang_map.get(uid, "es")
@@ -1774,8 +1777,8 @@ async def job_daily_email():
 
         logger.info(
             "Friday email: %d sent (%d premium, %d free) | S&P %s | NQ %s",
-            sent, len([u for u in opted_ids if tier_map.get(u) == "premium"]),
-            len([u for u in opted_ids if tier_map.get(u) != "premium"]),
+            sent, len([u for u in opted_ids if tier_map.get(u)]),
+            len([u for u in opted_ids if not tier_map.get(u)]),
             sp_pct, nq_pct,
         )
     except Exception as e:
@@ -2116,11 +2119,13 @@ async def job_monthly_report_email():
         disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("email_daily_summary") is False}
 
         profiles_res = await run_query(
-            db.table("user_profiles").select("user_id,name,subscription_tier,preferred_language")
+            db.table("user_profiles").select("user_id,name,subscription_tier,trial_started_at,streak_bonus_premium_until,preferred_language")
         )
+        # Nuvos CARE, 2026-09-15: was a raw tier=="premium" filter — silently
+        # dropped trial/streak-bonus-premium users from the monthly report.
         premium_profiles = [
             r for r in (profiles_res.data or [])
-            if r["user_id"] not in disabled and (r.get("subscription_tier") or "free") == "premium"
+            if r["user_id"] not in disabled and _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at"), r.get("streak_bonus_premium_until"))
         ]
         if not premium_profiles:
             return
@@ -4042,9 +4047,11 @@ async def job_events_alerts():
 
         # Load tiers once
         tier_res = await run_query(
-            db.table("user_profiles").select("user_id,subscription_tier,preferred_language").in_("user_id", list(prefs_by_uid.keys()))
+            db.table("user_profiles").select("user_id,subscription_tier,trial_started_at,streak_bonus_premium_until,preferred_language").in_("user_id", list(prefs_by_uid.keys()))
         )
-        tier_map = {r["user_id"]: (r.get("subscription_tier") or "free") for r in (tier_res.data or [])}
+        # Nuvos CARE, 2026-09-15: was a raw tier=="premium" map — trial and
+        # streak-bonus-premium users got free-tier push copy/limits below.
+        tier_map = {r["user_id"]: _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at"), r.get("streak_bonus_premium_until")) for r in (tier_res.data or [])}
         lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (tier_res.data or [])}
 
         processed = notified = 0
@@ -4076,7 +4083,7 @@ async def job_events_alerts():
                 processed += 1
                 continue
 
-            is_premium = tier_map.get(uid) == "premium"
+            is_premium = tier_map.get(uid, False)
             is_en      = lang_map.get(uid, "es") == "en"
 
             for ticker in all_tickers:
@@ -4206,11 +4213,15 @@ async def job_reengagement_push():
         if not inactive_uids:
             return
 
-        # Only send personalized portfolio movers to premium users
+        # Only send personalized portfolio movers to premium users. Nuvos
+        # CARE, 2026-09-15: was filtered at the DB level on
+        # subscription_tier=="premium" directly, excluding trial/streak-
+        # bonus-premium users before any Python logic ran — fetch the
+        # extra fields and use the canonical check instead.
         tier_res = await run_query(
-            db.table("user_profiles").select("user_id,preferred_language").eq("subscription_tier", "premium").in_("user_id", inactive_uids)
+            db.table("user_profiles").select("user_id,preferred_language,subscription_tier,trial_started_at,streak_bonus_premium_until").in_("user_id", inactive_uids)
         )
-        premium_set = {r["user_id"] for r in (tier_res.data or [])}
+        premium_set = {r["user_id"] for r in (tier_res.data or []) if _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at"), r.get("streak_bonus_premium_until"))}
         lang_map = {r["user_id"]: (r.get("preferred_language") or "es") for r in (tier_res.data or [])}
         inactive_uids = [uid for uid in inactive_uids if uid in premium_set]
         if not inactive_uids:

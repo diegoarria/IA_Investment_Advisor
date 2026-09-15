@@ -69,9 +69,20 @@ async def _check_daily_cost_cap(user_id: str) -> None:
 def _is_premium(profile) -> bool:
     """True for premium/pro subscribers and users within their trial.
     Delegates to app.core.subscription.is_premium_active — the single
-    canonical trial-window check shared across the whole app."""
+    canonical trial-window check shared across the whole app.
+
+    Nuvos CARE, 2026-09-15: `profile is None` used to mean "treat as free"
+    — but _get_user_profile returns None both when there's genuinely no
+    row AND when a row exists but failed to parse (a real DB/schema
+    hiccup, see that function's docstring). Conflating those meant a
+    transient read error could silently downgrade a real Premium/trial/
+    comp/Duo user to free-tier chat behavior. Failing open here (assume
+    premium when we can't tell) is the correct default — the cost of an
+    actual free/not-yet-onboarded user occasionally getting premium
+    treatment during a rare error is nothing next to ever showing a real
+    Premium user the Free wall."""
     if profile is None:
-        return False
+        return True
     from app.core.subscription import is_premium_active
     return is_premium_active(
         getattr(profile, "subscription_tier", None),

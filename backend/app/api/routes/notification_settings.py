@@ -356,13 +356,16 @@ async def trigger_price_alerts(
     all_uids = list(user_tickers.keys())
     prof_res = await run_query(
         db.table("user_profiles")
-        .select("user_id,name,subscription_tier,trial_started_at")
+        .select("user_id,name,subscription_tier,trial_started_at,streak_bonus_premium_until")
         .in_("user_id", all_uids)
     )
     user_meta = {
         r["user_id"]: {
             "first":      (r.get("name") or "Inversor").split()[0],
-            "is_premium": _check_premium(r.get("subscription_tier", "free"), r.get("trial_started_at")),
+            # Nuvos CARE, 2026-09-15: was missing streak_bonus_premium_until
+            # (both the select above and this call) — a streak/referral-bonus
+            # premium user was reported is_premium=False here.
+            "is_premium": _check_premium(r.get("subscription_tier", "free"), r.get("trial_started_at"), r.get("streak_bonus_premium_until")),
         }
         for r in (prof_res.data or [])
     }

@@ -204,11 +204,15 @@ async def trigger_weekly_summary(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
 
     prof_res = await run_query(
-        db.table("user_profiles").select("name,subscription_tier,preferred_language").eq("user_id", user_id).maybe_single()
+        db.table("user_profiles").select("name,subscription_tier,trial_started_at,streak_bonus_premium_until,preferred_language").eq("user_id", user_id).maybe_single()
     )
     prof = prof_res.data or {}
     first = (prof.get("name") or "Inversor").split()[0]
-    is_premium = (prof.get("subscription_tier") or "free") == "premium"
+    # Nuvos CARE, 2026-09-15: was a bare tier=="premium" check — a trial or
+    # streak-bonus-premium user hitting this endpoint got the free-tier
+    # email body.
+    from app.core.subscription import is_premium_active
+    is_premium = is_premium_active(prof.get("subscription_tier"), prof.get("trial_started_at"), prof.get("streak_bonus_premium_until"))
     lang = prof.get("preferred_language") or "es"
 
     port_res = await run_query(db.table("user_portfolio").select("portfolio_name,positions").eq("user_id", user_id))

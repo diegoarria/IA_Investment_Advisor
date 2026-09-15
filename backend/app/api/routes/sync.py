@@ -539,7 +539,7 @@ async def start_trial(user_id: str = Depends(get_current_user_id)):
     if not result.data:
         return {"ok": False, "reason": "profile_not_found"}
     row = result.data[0]
-    if row.get("subscription_tier") == "premium":
+    if row.get("subscription_tier") in ("premium", "pro"):
         return {"ok": False, "reason": "already_premium"}
     if row.get("trial_started_at"):
         return {"ok": True, "trial_started_at": row["trial_started_at"], "already_started": True}
