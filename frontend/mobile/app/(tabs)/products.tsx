@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   View, Text, ScrollView, TouchableOpacity,
 } from "react-native";
@@ -8,7 +8,6 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
-import PricingModal from "../../src/components/PricingModal";
 
 function getFreeFeatures(t: TFunction): string[] {
   return t("products.free.features", { returnObjects: true }) as string[];
@@ -81,7 +80,6 @@ export default function ProductsScreen() {
   const { t } = useTranslation();
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
-  const [showPricing, setShowPricing] = useState(false);
 
   const FREE_FEATURES = getFreeFeatures(t);
   const PREMIUM_FEATURES = getPremiumFeatures(t);
@@ -135,13 +133,16 @@ export default function ProductsScreen() {
               <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>{t("products.premium.thenPrice")}</Text>
 
               {!isPremium ? (
-                <TouchableOpacity
-                  onPress={() => setShowPricing(true)}
-                  style={{ backgroundColor: "#00d47e", borderRadius: 14, paddingVertical: 12, alignItems: "center", marginBottom: 14 }}
-                  activeOpacity={0.85}
-                >
-                  <Text style={{ fontSize: 13, fontWeight: "900", color: "#000" }}>{t("products.premium.claimFree")}</Text>
-                </TouchableOpacity>
+                // Diego, 2026-09-15: "evitarme lo de Apple IAP... tal como
+                // lo hace Spotify" — "Hazte Premium →" read as a subscribe
+                // CTA even though it only opened PricingModal (which itself
+                // has no purchase path). Same non-actionable info box used
+                // everywhere else, no wording that implies a purchase flow.
+                <View style={{ borderRadius: 12, paddingVertical: 10, alignItems: "center", marginBottom: 14, backgroundColor: "rgba(255,255,255,0.06)" }}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "rgba(255,255,255,0.75)", textAlign: "center" }}>
+                    {t("pricingModal.manageOnWeb")}
+                  </Text>
+                </View>
               ) : (
                 <View style={{ borderRadius: 12, paddingVertical: 8, alignItems: "center", marginBottom: 14, backgroundColor: "rgba(0,212,126,0.1)", borderWidth: 1, borderColor: "rgba(0,212,126,0.3)" }}>
                   <Text style={{ fontSize: 11, fontWeight: "700", color: "#00d47e" }}>{t("products.premium.active")}</Text>
@@ -175,13 +176,14 @@ export default function ProductsScreen() {
             </View>
             <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>{t("products.duo.annual")}</Text>
 
-            <TouchableOpacity
-              onPress={() => setShowPricing(true)}
-              style={{ backgroundColor: "rgba(99,102,241,0.2)", borderWidth: 1, borderColor: "rgba(99,102,241,0.4)", borderRadius: 14, paddingVertical: 12, alignItems: "center", marginBottom: 14 }}
-              activeOpacity={0.85}
-            >
-              <Text style={{ fontSize: 13, fontWeight: "900", color: "#818cf8" }}>{t("products.duo.cta")}</Text>
-            </TouchableOpacity>
+            {/* Diego, 2026-09-15: "Contratar Duo Plan →" was the same kind
+                of subscribe CTA as the Premium button above — replaced
+                with the same non-actionable info box. */}
+            <View style={{ backgroundColor: "rgba(99,102,241,0.15)", borderWidth: 1, borderColor: "rgba(99,102,241,0.35)", borderRadius: 14, paddingVertical: 12, alignItems: "center", marginBottom: 14 }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#818cf8", textAlign: "center" }}>
+                {t("pricingModal.manageOnWeb")}
+              </Text>
+            </View>
 
             {DUO_PLAN_FEATURES.map((f, i) => (
               <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 7 }}>
@@ -285,8 +287,6 @@ export default function ProductsScreen() {
         </View>
 
       </ScrollView>
-
-      <PricingModal visible={showPricing} onClose={() => setShowPricing(false)} />
     </View>
   );
 }
