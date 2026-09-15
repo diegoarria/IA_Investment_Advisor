@@ -702,6 +702,10 @@ export const adminApi = {
     api.get("/api/admin/business-overview", { params: { force_refresh: forceRefresh } }),
   businessOverviewHistory: (days: number = 56) =>
     api.get("/api/admin/business-overview/history", { params: { days } }),
+  operatingCosts: () => api.get("/api/admin/operating-costs"),
+  upsertOperatingCost: (name: string, monthlyUsd: number, notes?: string) =>
+    api.put("/api/admin/operating-costs", { name, monthly_usd: monthlyUsd, notes }),
+  deleteOperatingCost: (id: string) => api.delete(`/api/admin/operating-costs/${id}`),
 };
 
 export default api;

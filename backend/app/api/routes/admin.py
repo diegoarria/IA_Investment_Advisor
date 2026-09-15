@@ -335,6 +335,52 @@ async def business_overview_history(days: int = 56, user: dict = Depends(get_cur
     return await get_business_overview_history(days=days)
 
 
+@router.get("/operating-costs")
+async def list_operating_costs(user: dict = Depends(get_current_user)):
+    """Flat-rate/usage platform costs (FMP, Finnhub, fiscal.ai, Railway,
+    Vercel, Twilio, etc.) Diego enters manually — see migration 097 and
+    business_overview_service._get_fixed_costs's docstring for why these
+    can't be pulled from a billing API like Stripe fees or LLM cost can."""
+    await _require_admin(user)
+    db = get_supabase()
+    res = await run_query(db.table("operating_costs").select("id,name,monthly_usd,notes,updated_at").order("name"))
+    return res.data or []
+
+
+@router.put("/operating-costs")
+async def upsert_operating_cost(body: dict, user: dict = Depends(get_current_user)):
+    await _require_admin(user)
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name requerido")
+    try:
+        monthly_usd = float(body.get("monthly_usd") or 0)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="monthly_usd inválido")
+    from datetime import datetime, timezone
+    db = get_supabase()
+    row = {
+        "name": name,
+        "monthly_usd": monthly_usd,
+        "notes": body.get("notes") or None,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    res = await run_query(db.table("operating_costs").upsert(row, on_conflict="name"))
+    from app.core.cache import cache_delete
+    cache_delete("admin:business_overview:v1")
+    return res.data[0] if res.data else row
+
+
+@router.delete("/operating-costs/{cost_id}")
+async def delete_operating_cost(cost_id: str, user: dict = Depends(get_current_user)):
+    await _require_admin(user)
+    db = get_supabase()
+    await run_query(db.table("operating_costs").delete().eq("id", cost_id))
+    from app.core.cache import cache_delete
+    cache_delete("admin:business_overview:v1")
+    return {"ok": True}
+
+
 @router.get("/llm-usage")
 async def llm_usage_summary(
     user_id: str | None = None,

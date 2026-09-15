@@ -180,6 +180,67 @@ async def _get_stripe_metrics() -> dict:
     }
 
 
+async def _get_stripe_fees_30d() -> dict:
+    """Real Stripe processing fees over the last 30 days, straight from
+    Stripe's balance transactions (the `fee` field is Stripe's own real
+    cut, not an estimate) — one of the 3 cost inputs (LLM, Stripe fees,
+    fixed platform costs) that make up the margin section below."""
+    if not settings.stripe_secret_key:
+        return {"available": False, "reason": "not_configured"}
+
+    import stripe
+    stripe.api_key = settings.stripe_secret_key
+    since = int((datetime.now(timezone.utc) - timedelta(days=30)).timestamp())
+
+    try:
+        def _list_fees():
+            txns = stripe.BalanceTransaction.list(created={"gte": since}, limit=100).auto_paging_iter()
+            return sum((t.get("fee") or 0) for t in txns)
+        fee_cents = await asyncio.to_thread(_list_fees)
+    except Exception as e:
+        logger.warning("_get_stripe_fees_30d failed: %s", e)
+        return {"available": False, "reason": "stripe_error"}
+
+    return {"available": True, "fees_usd_30d": round(fee_cents / 100, 2)}
+
+
+async def _get_llm_cost_30d() -> dict:
+    """Real LLM/token spend over the last 30 days, aggregated straight from
+    llm_usage_log (the same table /admin/llm-usage reads) — the single
+    biggest variable cost besides Stripe fees."""
+    db = get_supabase()
+    since = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    total = 0.0
+    offset = 0
+    page_size = 1000
+    while True:
+        res = await run_query(
+            db.table("llm_usage_log").select("cost_usd").gte("created_at", since)
+            .range(offset, offset + page_size - 1)
+        )
+        page = res.data or []
+        total += sum(float(r.get("cost_usd") or 0) for r in page)
+        if len(page) < page_size:
+            break
+        offset += page_size
+    return {"cost_usd_30d": round(total, 2)}
+
+
+async def _get_fixed_costs() -> dict:
+    """Platform/API costs with no per-call billing API to query (FMP,
+    Finnhub, fiscal.ai, Railway, Vercel, Twilio, etc. — flat-rate or
+    usage-tier plans) — Diego enters these once via /admin/overview and
+    edits them whenever a plan changes (see operating_costs table,
+    migration 097)."""
+    db = get_supabase()
+    res = await run_query(db.table("operating_costs").select("id,name,monthly_usd,notes").order("name"))
+    rows = res.data or []
+    return {
+        "items": rows,
+        "total_monthly_usd": round(sum(float(r.get("monthly_usd") or 0) for r in rows), 2),
+    }
+
+
 async def _posthog_hogql(client: httpx.AsyncClient, query: str) -> list[list] | None:
     try:
         res = await client.post(
@@ -254,8 +315,9 @@ async def get_business_overview(force_refresh: bool = False) -> dict:
         if cached is not None:
             return cached
 
-    users, stripe_metrics, posthog_metrics = await asyncio.gather(
+    users, stripe_metrics, posthog_metrics, stripe_fees, llm_cost, fixed_costs = await asyncio.gather(
         _get_user_metrics(), _get_stripe_metrics(), _get_posthog_metrics(),
+        _get_stripe_fees_30d(), _get_llm_cost_30d(), _get_fixed_costs(),
         return_exceptions=True,
     )
     if isinstance(users, Exception):
@@ -264,6 +326,30 @@ async def get_business_overview(force_refresh: bool = False) -> dict:
         stripe_metrics = {"available": False, "reason": "error"}
     if isinstance(posthog_metrics, Exception):
         posthog_metrics = {"available": False, "reason": "error"}
+    if isinstance(stripe_fees, Exception):
+        stripe_fees = {"available": False, "reason": "error"}
+    if isinstance(llm_cost, Exception):
+        llm_cost = {"cost_usd_30d": None}
+    if isinstance(fixed_costs, Exception):
+        fixed_costs = {"items": [], "total_monthly_usd": 0.0}
+
+    # Margin: MRR minus every real cost we can account for over the same
+    # ~30-day window (LLM/token spend, Stripe's own processing fees, and
+    # the flat-rate platform bills Diego entered manually) — only computed
+    # when MRR is actually available, never guessed.
+    costs = {
+        "llm_usd_30d":          llm_cost.get("cost_usd_30d"),
+        "stripe_fees_usd_30d":  stripe_fees.get("fees_usd_30d") if stripe_fees.get("available") else None,
+        "fixed_costs":          fixed_costs,
+    }
+    mrr = stripe_metrics.get("mrr_usd") if stripe_metrics.get("available") else None
+    known_costs = [c for c in (costs["llm_usd_30d"], costs["stripe_fees_usd_30d"], fixed_costs["total_monthly_usd"]) if c is not None]
+    total_cost_30d = round(sum(known_costs), 2) if known_costs else None
+    margin_usd = round(mrr - total_cost_30d, 2) if mrr is not None and total_cost_30d is not None else None
+    margin_pct = round(margin_usd / mrr * 100, 1) if margin_usd is not None and mrr else None
+    costs["total_cost_usd_30d"] = total_cost_30d
+    costs["margin_usd"] = margin_usd
+    costs["margin_pct"] = margin_pct
 
     # Diego, 2026-09-14: "30%+ de usuarios activos semanalmente" is the real
     # Fase 0 target — a bare WAU count doesn't say whether that goal is
@@ -279,6 +365,7 @@ async def get_business_overview(force_refresh: bool = False) -> dict:
         "users":   users,
         "stripe":  stripe_metrics,
         "posthog": posthog_metrics,
+        "costs":   costs,
     }
     cache_set(_CACHE_KEY, result, _CACHE_TTL)
     return result
@@ -296,6 +383,7 @@ async def snapshot_business_overview() -> None:
     users = overview["users"]
     stripe_metrics = overview["stripe"]
     posthog_metrics = overview["posthog"]
+    costs = overview["costs"]
 
     today_et = datetime.now(pytz.timezone("America/New_York")).date().isoformat()
     row = {
@@ -315,6 +403,11 @@ async def snapshot_business_overview() -> None:
         "dau":                    posthog_metrics.get("dau") if posthog_metrics.get("available") else None,
         "wau":                    posthog_metrics.get("wau") if posthog_metrics.get("available") else None,
         "mau":                    posthog_metrics.get("mau") if posthog_metrics.get("available") else None,
+        "llm_cost_usd_30d":       costs.get("llm_usd_30d"),
+        "stripe_fees_usd_30d":    costs.get("stripe_fees_usd_30d"),
+        "fixed_costs_usd":        costs.get("fixed_costs", {}).get("total_monthly_usd"),
+        "margin_usd":             costs.get("margin_usd"),
+        "margin_pct":             costs.get("margin_pct"),
     }
     db = get_supabase()
     await run_query(db.table("business_overview_snapshots").upsert(row, on_conflict="snapshot_date"))

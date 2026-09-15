@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, RefreshCw, Users, Crown, TrendingDown, Activity, Lock } from "lucide-react";
+import { Loader2, RefreshCw, Users, Crown, TrendingDown, Activity, Lock, DollarSign, Trash2, Plus } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 import { adminApi } from "@/lib/api";
 import { Sparkline, type SparklinePoint } from "@/components/ui";
@@ -41,11 +41,28 @@ interface PosthogMetrics {
   automatic_events_last_7d?: number | null;
 }
 
+interface OperatingCost {
+  id: string;
+  name: string;
+  monthly_usd: number;
+  notes?: string | null;
+}
+
+interface CostsMetrics {
+  llm_usd_30d: number | null;
+  stripe_fees_usd_30d: number | null;
+  fixed_costs: { items: OperatingCost[]; total_monthly_usd: number };
+  total_cost_usd_30d: number | null;
+  margin_usd: number | null;
+  margin_pct: number | null;
+}
+
 interface Overview {
   generated_at: string;
   users: UserMetrics;
   stripe: StripeMetrics;
   posthog: PosthogMetrics;
+  costs: CostsMetrics;
 }
 
 interface HistoryRow {
@@ -54,6 +71,8 @@ interface HistoryRow {
   premium_count: number;
   mrr_usd: number | null;
   wau: number | null;
+  margin_usd: number | null;
+  margin_pct: number | null;
 }
 
 const fmtNum = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("en-US"));
@@ -107,6 +126,9 @@ export default function AdminBusinessOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [newCostName, setNewCostName] = useState("");
+  const [newCostAmount, setNewCostAmount] = useState("");
+  const [savingCost, setSavingCost] = useState(false);
 
   useEffect(() => {
     if (!userId || !isAuthenticated) return;
@@ -134,6 +156,29 @@ export default function AdminBusinessOverviewPage() {
   useEffect(() => {
     if (userId === ADMIN_UID) load(false);
   }, [userId, load]);
+
+  const addCost = async () => {
+    if (!newCostName.trim() || !newCostAmount.trim() || isNaN(Number(newCostAmount))) return;
+    setSavingCost(true);
+    try {
+      await adminApi.upsertOperatingCost(newCostName.trim(), Number(newCostAmount));
+      setNewCostName(""); setNewCostAmount("");
+      await load(true);
+    } catch {
+      setError("No se pudo guardar el costo. Inténtalo de nuevo.");
+    } finally {
+      setSavingCost(false);
+    }
+  };
+
+  const removeCost = async (id: string) => {
+    try {
+      await adminApi.deleteOperatingCost(id);
+      await load(true);
+    } catch {
+      setError("No se pudo eliminar el costo. Inténtalo de nuevo.");
+    }
+  };
 
   if (userId && userId !== ADMIN_UID) return null;
 
@@ -224,6 +269,77 @@ export default function AdminBusinessOverviewPage() {
                   )}
                 </>
               ) : <NotConfigured what="Stripe" />}
+            </section>
+
+            {/* Costos y márgenes */}
+            <section className="space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Costos y márgenes (30 días)</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card label="Costo LLM (tokens)" value={fmtUSD(data.costs.llm_usd_30d)} icon={<DollarSign className="w-3.5 h-3.5" />} />
+                <Card label="Comisiones Stripe" value={fmtUSD(data.costs.stripe_fees_usd_30d)} />
+                <Card label="Costos fijos (mensual)" value={fmtUSD(data.costs.fixed_costs.total_monthly_usd)} />
+                <Card label="Costo total" value={fmtUSD(data.costs.total_cost_usd_30d)} />
+                <Card
+                  label="Margen"
+                  value={fmtUSD(data.costs.margin_usd)}
+                  sub={data.costs.margin_pct != null ? `${data.costs.margin_pct}% del MRR` : undefined}
+                  trend={series(history, "margin_usd")}
+                  formatTrend={(v) => fmtUSD(v)}
+                />
+              </div>
+              {data.costs.margin_usd == null && (
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                  El margen aparece en cuanto Stripe (MRR) esté disponible — sin MRR no hay contra qué restar los costos.
+                </p>
+              )}
+
+              <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                <p className="text-xs font-bold mb-3" style={{ color: "var(--muted)" }}>
+                  Plataformas/APIs con plan fijo (FMP, Finnhub, fiscal.ai, Railway, Vercel, Twilio, etc.)
+                </p>
+                <div className="space-y-1.5 mb-3">
+                  {data.costs.fixed_costs.items.length === 0 && (
+                    <p className="text-xs" style={{ color: "var(--muted)" }}>Todavía no cargaste ningún costo fijo.</p>
+                  )}
+                  {data.costs.fixed_costs.items.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between text-sm">
+                      <span style={{ color: "var(--text)" }}>{c.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span style={{ color: "var(--muted)" }}>{fmtUSD(c.monthly_usd)}/mes</span>
+                        <button onClick={() => removeCost(c.id)} title="Eliminar">
+                          <Trash2 className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    placeholder="Nombre (ej: FMP)"
+                    value={newCostName}
+                    onChange={(e) => setNewCostName(e.target.value)}
+                    className="flex-1 text-xs rounded-lg px-2.5 py-1.5 outline-none border"
+                    style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
+                  />
+                  <input
+                    placeholder="$/mes"
+                    value={newCostAmount}
+                    onChange={(e) => setNewCostAmount(e.target.value)}
+                    inputMode="decimal"
+                    className="w-24 text-xs rounded-lg px-2.5 py-1.5 outline-none border"
+                    style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
+                  />
+                  <button
+                    onClick={addCost}
+                    disabled={savingCost || !newCostName.trim() || !newCostAmount.trim()}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-40"
+                    style={{ background: "var(--accent)", color: "#fff" }}
+                  >
+                    {savingCost ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                    Agregar
+                  </button>
+                </div>
+              </div>
             </section>
 
             {/* PostHog */}
