@@ -8,7 +8,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { researchApi, referralApi } from "../../src/lib/api";
-import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
+import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 
 type ViewState = "compose" | "plan" | "awaiting_checkout" | "progress" | "error";
 
@@ -30,7 +30,7 @@ export default function ResearchScreen() {
   const { t } = useTranslation();
   const { ticker } = useLocalSearchParams<{ ticker?: string }>();
   const sub = useSubscriptionStore();
-  const isPremium = sub.tier === "premium" || sub.isTrialPremium;
+  const isPremium = hasPremiumAccess(sub);
   const price = isPremium ? 9.99 : 19.99;
 
   const [view, setView] = useState<ViewState>("compose");

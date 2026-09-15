@@ -162,7 +162,19 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
 // with the backend's _PROMO_DAYS before and caused the premium/free badge
 // to disagree with the server).
 
-export function hasPremiumAccess(store: { tier: SubscriptionTier }): boolean {
+// Diego, 2026-09-15 (Nuvos CARE): "NUNCA jamás vuelvas a mostrar la vista de
+// un free user" a alguien que es Premium por cualquier vía (trial, comp,
+// compra individual, Duo) — ni por bug, ni por race, ni por sesión, nunca.
+// Every one of this app's ~20 call sites already passes the whole store
+// object, so this one function is the single point that closes the entire
+// class of bug: while `!hasFetchedStatus` (cold launch, a missed
+// app-resume refetch, any race before the server has answered even once
+// this session), assume premium instead of the previous default of free.
+// The only cost is a genuinely-free user occasionally seeing Premium UI for
+// the brief window before real status loads — the correct tradeoff versus
+// ever showing a real Premium user the Free wall.
+export function hasPremiumAccess(store: { tier: SubscriptionTier; hasFetchedStatus: boolean }): boolean {
+  if (!store.hasFetchedStatus) return true;
   return store.tier === "premium";
 }
 

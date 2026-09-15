@@ -12,7 +12,7 @@ import type { TFunction } from "i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
 import { useNavOrderStore } from "../../src/lib/navOrderStore";
-import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
+import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import MarketTicker from "../../src/components/MarketTicker";
 
@@ -179,7 +179,7 @@ function MobileHeader({ title }: { title: string }) {
   const openSidebar = useAppStore((s) => s.openSidebar);
   const profile = useAppStore((s) => s.profile);
   const subStore = useSubscriptionStore();
-  const isPremium = subStore.tier === "premium";
+  const isPremium = hasPremiumAccess(subStore);
   const isTrialPremium = subStore.isTrialPremium;
   const trialDaysLeft = subStore.trialDaysLeftServer;
   const riskColor = profile?.risk_tolerance === "conservative"
