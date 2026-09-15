@@ -12,7 +12,7 @@
 // back to).
 import { useEffect, useState } from "react";
 import { loadStripe, type StripeElementsOptions } from "@stripe/stripe-js";
-import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import { Elements, PaymentElement, AddressElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -74,7 +74,11 @@ function CheckoutForm({
         <ArrowLeft className="w-3.5 h-3.5" /> {t("common.back")}
       </button>
 
+      <p className="text-xs font-bold mb-2" style={{ color: "var(--sub)" }}>{t("pricingModal.payWith")}</p>
       <PaymentElement />
+
+      <p className="text-xs font-bold mt-5 mb-2" style={{ color: "var(--sub)" }}>{t("pricingModal.billingAddress")}</p>
+      <AddressElement options={{ mode: "billing" }} />
 
       {error && <p className="text-xs mt-3" style={{ color: "#ef4444" }}>{error}</p>}
 

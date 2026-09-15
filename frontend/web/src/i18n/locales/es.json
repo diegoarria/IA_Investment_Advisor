@@ -3032,6 +3032,8 @@
     "securePaymentNote": "Pago seguro procesado por Stripe. Nuvos nunca ve ni guarda los datos de tu tarjeta.",
     "titleReturning": "Suscríbete a Nuvos AI Premium",
     "footerNoteReturning": "Se cobra {{price}}/mes{{billing}} de inmediato al confirmar tu pago. Cancela cuando quieras.",
+    "payWith": "Pagar con",
+    "billingAddress": "Dirección de facturación",
     "freeFeatures": [
       "Hasta 15 mensajes/día con el mentor IA",
       "Portafolio con hasta 10 acciones",

@@ -3032,6 +3032,8 @@
     "securePaymentNote": "Secure payment processed by Stripe. Nuvos never sees or stores your card details.",
     "titleReturning": "Subscribe to Nuvos AI Premium",
     "footerNoteReturning": "You'll be charged {{price}}/month{{billing}} immediately once you confirm payment. Cancel anytime.",
+    "payWith": "Pay with",
+    "billingAddress": "Billing address",
     "freeFeatures": [
       "Up to 15 messages/day with the AI mentor",
       "Portfolio with up to 10 stocks",
