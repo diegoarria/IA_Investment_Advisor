@@ -228,10 +228,24 @@ export default function ProfilePage() {
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState("");
   // Diego, 2026-09-15: "¿cómo puede un usuario cancelar su suscripción?" —
-  // there was previously no way at all. Stripe's Customer Portal handles
-  // cancel/change-plan/update-card/invoices without Nuvos owning any of
-  // that lifecycle logic — only shown to real Stripe subscribers
-  // (manual_comp grants and pure trial users have nothing to manage there).
+  // there was previously no way at all. The Customer Portal (below) covers
+  // change-plan/update-card/invoices, but Diego found the cancel button
+  // buried/confusing inside Stripe's own UI — cancel/resume now has its
+  // own real in-app action instead of sending the user off to find it.
+  interface SubDetails {
+    status: string;
+    cancel_at_period_end: boolean;
+    current_period_end: number | null;
+    cancel_at: number | null;
+    plan_interval: "month" | "year" | null;
+    amount: number | null;
+    currency: string | null;
+  }
+  const [subDetails, setSubDetails] = useState<SubDetails | null>(null);
+  const [subDetailsError, setSubDetailsError] = useState(false);
+  const [cancelStep, setCancelStep] = useState<"idle" | "confirm" | "working">("idle");
+  const [cancelError, setCancelError] = useState("");
+
   async function handleManageSubscription() {
     setPortalError("");
     setPortalLoading(true);
@@ -246,6 +260,32 @@ export default function ProfilePage() {
     } catch {
       setPortalError(t("profile.portalError"));
       setPortalLoading(false);
+    }
+  }
+
+  async function handleConfirmCancel() {
+    setCancelError("");
+    setCancelStep("working");
+    try {
+      const res = await billing.cancelSubscription();
+      setSubDetails((prev) => prev && ({ ...prev, cancel_at_period_end: true, current_period_end: res.data?.current_period_end ?? prev.current_period_end }));
+      setCancelStep("idle");
+    } catch (err: any) {
+      setCancelError(err?.response?.data?.detail ?? t("profile.cancelError"));
+      setCancelStep("idle");
+    }
+  }
+
+  async function handleResumeSubscription() {
+    setCancelError("");
+    setCancelStep("working");
+    try {
+      await billing.resumeSubscription();
+      setSubDetails((prev) => prev && ({ ...prev, cancel_at_period_end: false }));
+      setCancelStep("idle");
+    } catch (err: any) {
+      setCancelError(err?.response?.data?.detail ?? t("profile.cancelError"));
+      setCancelStep("idle");
     }
   }
   const mentor = getMentorInfo(profile?.mentor);
@@ -284,6 +324,16 @@ export default function ProfilePage() {
     if (!subStore.duoSecondaryEmail || subStore.duoInviteStatus !== "accepted") return;
     billing.getDuoPartner().then((r) => setDuoPartner(r.data)).catch(() => {});
   }, [subStore.duoSecondaryEmail, subStore.duoInviteStatus]);
+
+  // Real cancel/renewal date for the subscription card — only fetched for
+  // an actual Stripe subscriber (manual_comp/trial-only users have nothing
+  // to fetch here, per hasStripeCustomer from /billing/status).
+  useEffect(() => {
+    if (!isPremium || !subStore.hasStripeCustomer) return;
+    billing.getSubscriptionDetails()
+      .then((r) => setSubDetails(r.data))
+      .catch(() => setSubDetailsError(true));
+  }, [isPremium, subStore.hasStripeCustomer]);
 
   // Persisted "already opted in" state — so the flashcard shows "Listo — te
   // avisamos apenas esté disponible" forever once clicked, not just for the
@@ -1043,14 +1093,73 @@ export default function ProfilePage() {
                           <div className="font-bold" style={{ color: "var(--text)" }}>Nuvos AI Premium</div>
                           <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{t("profile.premiumFullAccess")}</div>
                         </div>
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold"
-                             style={{ background: "rgba(34,197,94,0.15)", borderColor: "rgba(34,197,94,0.4)", color: "#22c55e" }}>
-                          <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                          {t("profile.active")}
-                        </div>
+                        {subDetails?.cancel_at_period_end ? (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold"
+                               style={{ background: "rgba(239,68,68,0.12)", borderColor: "rgba(239,68,68,0.35)", color: "#ef4444" }}>
+                            <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                            {t("profile.cancelling")}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold"
+                               style={{ background: "rgba(34,197,94,0.15)", borderColor: "rgba(34,197,94,0.4)", color: "#22c55e" }}>
+                            <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                            {t("profile.active")}
+                          </div>
+                        )}
                       </div>
+
+                      {subDetails && (
+                        <div className="px-4 pb-3 -mt-1">
+                          <p className="text-xs" style={{ color: subDetails.cancel_at_period_end ? "#ef4444" : "var(--muted)" }}>
+                            {subDetails.cancel_at_period_end
+                              ? t("profile.cancelsOn", { date: subDetails.current_period_end ? new Date(subDetails.current_period_end * 1000).toLocaleDateString() : "" })
+                              : t("profile.renewsOn", { date: subDetails.current_period_end ? new Date(subDetails.current_period_end * 1000).toLocaleDateString() : "" })}
+                          </p>
+                        </div>
+                      )}
+
                       {subStore.hasStripeCustomer && (
-                        <div className="px-4 pb-4">
+                        <div className="px-4 pb-4 space-y-2">
+                          {subDetails?.cancel_at_period_end ? (
+                            <button
+                              onClick={handleResumeSubscription}
+                              disabled={cancelStep === "working"}
+                              className="w-full py-2.5 rounded-xl text-xs font-bold transition-opacity disabled:opacity-60"
+                              style={{ background: "#00d47e", color: "#000" }}
+                            >
+                              {cancelStep === "working" ? t("profile.portalOpening") : t("profile.resumeSubscription")}
+                            </button>
+                          ) : cancelStep === "confirm" ? (
+                            <div className="rounded-xl border p-3" style={{ borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.06)" }}>
+                              <p className="text-xs mb-2.5" style={{ color: "var(--text)" }}>{t("profile.cancelConfirm")}</p>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={handleConfirmCancel}
+                                  className="flex-1 py-2 rounded-lg text-xs font-bold"
+                                  style={{ background: "#ef4444", color: "#fff" }}
+                                >
+                                  {t("profile.cancelConfirmYes")}
+                                </button>
+                                <button
+                                  onClick={() => setCancelStep("idle")}
+                                  className="flex-1 py-2 rounded-lg text-xs font-bold border"
+                                  style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                                >
+                                  {t("profile.cancelConfirmNo")}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setCancelStep("confirm")}
+                              className="w-full py-2.5 rounded-xl text-xs font-bold border transition-opacity"
+                              style={{ background: "transparent", borderColor: "rgba(239,68,68,0.35)", color: "#ef4444" }}
+                            >
+                              {t("profile.cancelSubscription")}
+                            </button>
+                          )}
+                          {cancelError && <p className="text-xs" style={{ color: "#ef4444" }}>{cancelError}</p>}
+
                           <button
                             onClick={handleManageSubscription}
                             disabled={portalLoading}
@@ -1059,7 +1168,7 @@ export default function ProfilePage() {
                           >
                             {portalLoading ? t("profile.portalOpening") : t("profile.manageSubscription")}
                           </button>
-                          {portalError && <p className="text-xs mt-2" style={{ color: "#ef4444" }}>{portalError}</p>}
+                          {portalError && <p className="text-xs" style={{ color: "#ef4444" }}>{portalError}</p>}
                         </div>
                       )}
                     </div>

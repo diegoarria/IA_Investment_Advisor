@@ -391,6 +391,9 @@ export const billing = {
   createEmbeddedSubscription: (plan: "monthly" | "yearly" = "monthly") =>
     api.post("/api/billing/create-embedded-subscription", { plan }),
   createPortalSession: () => api.post("/api/billing/create-portal-session"),
+  getSubscriptionDetails: () => api.get("/api/billing/subscription-details"),
+  cancelSubscription: () => api.post("/api/billing/cancel-subscription"),
+  resumeSubscription: () => api.post("/api/billing/resume-subscription"),
   brokerCallCheckout: () => api.post("/api/billing/broker-call-checkout"),
   createEmbeddedBrokerCall: () => api.post("/api/billing/create-embedded-broker-call"),
   brokerOfferSeen: () => api.post("/api/billing/broker-offer-seen"),

@@ -162,6 +162,115 @@ async def create_portal_session(user_id: str = Depends(get_current_user_id)):
     return {"url": session.url}
 
 
+async def _get_customer_id_or_404(user_id: str, db) -> str:
+    result = await run_query(
+        db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
+    )
+    customer_id = result.data.get("stripe_customer_id") if result.data else None
+    if not customer_id:
+        raise HTTPException(status_code=404, detail="No tienes una suscripción de Stripe que administrar.")
+    return customer_id
+
+
+def _current_subscription(s, customer_id: str):
+    """The one subscription that actually matters for the account —
+    active/trialing/past_due (still has access), preferring the most
+    recently created if there's somehow more than one. No stripe_
+    subscription_id is stored anywhere in Supabase (only stripe_customer_id
+    is), so every cancel/resume/details call looks this up live rather than
+    needing a schema change to track it."""
+    subs = s.Subscription.list(customer=customer_id, status="all", limit=10)
+    live = [sub for sub in subs.data if sub.status in ("active", "trialing", "past_due")]
+    if not live:
+        return None
+    live.sort(key=lambda sub: sub.created, reverse=True)
+    return live[0]
+
+
+@router.get("/subscription-details")
+async def get_subscription_details(user_id: str = Depends(get_current_user_id)):
+    """Diego, 2026-09-15: "no se puede cancelar dentro de la web app?" —
+    real numbers (renewal/cancellation date, plan interval, amount) so the
+    Profile page can show its own cancel/resume UI instead of sending the
+    user to Stripe's portal and hoping they find the right button there."""
+    s = _stripe()
+    db = get_supabase()
+    customer_id = await _get_customer_id_or_404(user_id, db)
+
+    try:
+        sub = await asyncio.to_thread(_current_subscription, s, customer_id)
+    except Exception as e:
+        logger.error("Stripe subscription lookup failed for user %s: %s", user_id, e)
+        raise HTTPException(status_code=503, detail="No se pudo consultar tu suscripción. Intenta de nuevo en unos minutos.")
+    if not sub:
+        raise HTTPException(status_code=404, detail="No se encontró una suscripción activa.")
+
+    item = sub["items"]["data"][0] if sub["items"]["data"] else None
+    price = item["price"] if item else None
+    return {
+        "status": sub.status,
+        "cancel_at_period_end": bool(sub.get("cancel_at_period_end")),
+        "current_period_end": sub.get("current_period_end"),
+        "cancel_at": sub.get("cancel_at"),
+        "plan_interval": (price.get("recurring") or {}).get("interval") if price else None,
+        "amount": (price.get("unit_amount") or 0) / 100 if price else None,
+        "currency": price.get("currency") if price else None,
+    }
+
+
+@router.post("/cancel-subscription")
+async def cancel_subscription(user_id: str = Depends(get_current_user_id)):
+    """Cancels AT PERIOD END, not immediately — same "keep access until the
+    period you already paid for ends, no refund needed" behavior as
+    ChatGPT/Spotify, and consistent with the checkout's own "cancela cuando
+    quieras" copy. subscription_tier itself isn't touched here — the
+    webhook's customer.subscription.updated/deleted handling (unchanged)
+    is still the only thing allowed to downgrade access, once Stripe
+    actually ends the subscription at the period boundary."""
+    s = _stripe()
+    db = get_supabase()
+    customer_id = await _get_customer_id_or_404(user_id, db)
+
+    try:
+        sub = await asyncio.to_thread(_current_subscription, s, customer_id)
+        if not sub:
+            raise HTTPException(status_code=404, detail="No se encontró una suscripción activa.")
+        updated = await asyncio.to_thread(
+            s.Subscription.modify, sub.id, cancel_at_period_end=True,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Stripe subscription cancellation failed for user %s: %s", user_id, e)
+        raise HTTPException(status_code=503, detail="No se pudo cancelar tu suscripción. Intenta de nuevo en unos minutos.")
+    return {"ok": True, "cancel_at_period_end": True, "current_period_end": updated.get("current_period_end")}
+
+
+@router.post("/resume-subscription")
+async def resume_subscription(user_id: str = Depends(get_current_user_id)):
+    """Undoes a pending cancel_at_period_end — "me arrepentí" before the
+    period actually ends. Once Stripe has genuinely ended a subscription
+    there's nothing left to resume; the user would need to re-subscribe
+    through the normal checkout instead."""
+    s = _stripe()
+    db = get_supabase()
+    customer_id = await _get_customer_id_or_404(user_id, db)
+
+    try:
+        sub = await asyncio.to_thread(_current_subscription, s, customer_id)
+        if not sub:
+            raise HTTPException(status_code=404, detail="No se encontró una suscripción activa.")
+        await asyncio.to_thread(
+            s.Subscription.modify, sub.id, cancel_at_period_end=False,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Stripe subscription resume failed for user %s: %s", user_id, e)
+        raise HTTPException(status_code=503, detail="No se pudo reactivar tu suscripción. Intenta de nuevo en unos minutos.")
+    return {"ok": True, "cancel_at_period_end": False}
+
+
 @router.post("/webhook")
 async def stripe_webhook(request: Request):
     payload = await request.body()
