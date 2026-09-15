@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { X, Check, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { billing, upsells } from "@/lib/api";
+import EmbeddedCheckout from "./EmbeddedCheckout";
 
 interface Props {
   visible: boolean;
@@ -12,9 +14,13 @@ interface Props {
 
 export default function PricingModal({ visible, onClose }: Props) {
   const { t } = useTranslation();
+  const router = useRouter();
   const [plan, setPlan] = useState<"monthly" | "yearly">("monthly");
-  const [loading, setLoading] = useState(false);
   const [duoLoading, setDuoLoading] = useState(false);
+  // Diego, 2026-09-15: card entry happens INSIDE this modal (Stripe
+  // Elements) instead of redirecting to a Stripe-hosted page — this just
+  // swaps the plan grid below for EmbeddedCheckout, same modal shell.
+  const [showCheckout, setShowCheckout] = useState(false);
 
   const FREE_FEATURES = t("pricingModal.freeFeatures", { returnObjects: true }) as string[];
   const PREMIUM_FEATURES = t("pricingModal.premiumFeatures", { returnObjects: true }) as string[];
@@ -22,20 +28,17 @@ export default function PricingModal({ visible, onClose }: Props) {
 
   if (!visible) return null;
 
-  async function handleUpgrade() {
-    setLoading(true);
-    try {
-      const res = await billing.createCheckout(plan);
-      if (res.data?.url) {
-        window.location.href = res.data.url;
-      } else {
-        window.alert(t("pricingModal.paymentError"));
-        setLoading(false);
-      }
-    } catch {
-      window.alert(t("pricingModal.paymentError"));
-      setLoading(false);
-    }
+  function handleUpgrade() {
+    setShowCheckout(true);
+  }
+
+  function handleCheckoutSuccess() {
+    onClose();
+    setShowCheckout(false);
+    // Same post-payment polling (fetchStatus until tier flips to premium)
+    // that the Stripe-hosted redirect flow already uses — reused as-is
+    // instead of duplicating that wait-for-webhook logic here.
+    router.push("/premium-success");
   }
 
   async function handleDuoCheckout() {
@@ -78,6 +81,16 @@ export default function PricingModal({ visible, onClose }: Props) {
         {/* Scrollable body */}
         <div className="overflow-y-auto flex-1">
 
+        {showCheckout ? (
+          <div className="pt-4">
+            <EmbeddedCheckout
+              plan={plan}
+              onBack={() => setShowCheckout(false)}
+              onSuccess={handleCheckoutSuccess}
+            />
+          </div>
+        ) : (
+        <>
         {/* Plan toggle */}
         <div className="flex justify-center gap-2 py-4 px-6">
           {(["monthly", "yearly"] as const).map((p) => (
@@ -149,11 +162,10 @@ export default function PricingModal({ visible, onClose }: Props) {
 
             <button
               onClick={handleUpgrade}
-              disabled={loading}
               className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
-              style={{ background: loading ? "rgba(0,212,126,0.5)" : "#00d47e", color: "#000" }}
+              style={{ background: "#00d47e", color: "#000" }}
             >
-              {loading ? t("pricingModal.redirecting") : t("pricingModal.subscribeCta")}
+              {t("pricingModal.subscribeCta")}
             </button>
 
             <div className="relative space-y-2.5 flex-1">
@@ -217,6 +229,8 @@ export default function PricingModal({ visible, onClose }: Props) {
         <p className="text-center text-[10px] pb-5 px-8" style={{ color: "var(--dim)" }}>
           {t("pricingModal.footerNote", { price: monthlyPrice, billing: plan === "yearly" ? t("pricingModal.billedAnnuallySuffix") : "" })}
         </p>
+        </>
+        )}
 
         </div>{/* end scrollable body */}
       </div>

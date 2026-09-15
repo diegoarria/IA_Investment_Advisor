@@ -3026,6 +3026,9 @@
   "pricingModal": {
     "errorTitle": "Error",
     "paymentError": "No se pudo abrir el pago. Intenta de nuevo.",
+    "processing": "Procesando...",
+    "payCta": "Pagar y suscribirme",
+    "securePaymentNote": "Pago seguro procesado por Stripe. Nuvos nunca ve ni guarda los datos de tu tarjeta.",
     "freeFeatures": [
       "Hasta 15 mensajes/día con el mentor IA",
       "Portafolio con hasta 10 acciones",

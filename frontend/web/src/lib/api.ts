@@ -388,6 +388,8 @@ export const billing = {
   getStatus: () => api.get("/api/billing/status"),
   createCheckout: (plan: "monthly" | "yearly" = "monthly") =>
     api.post("/api/billing/create-checkout", { plan }),
+  createEmbeddedSubscription: (plan: "monthly" | "yearly" = "monthly") =>
+    api.post("/api/billing/create-embedded-subscription", { plan }),
   brokerCallCheckout: () => api.post("/api/billing/broker-call-checkout"),
   brokerOfferSeen: () => api.post("/api/billing/broker-offer-seen"),
   duoSetup: (secondary_email: string) => api.post("/api/billing/duo-setup", { secondary_email }),

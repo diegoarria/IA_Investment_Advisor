@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Request, HTTPException
 from pydantic import BaseModel
 from typing import Literal
-from app.api.deps import get_current_user_id
+from app.api.deps import get_current_user_id, get_current_user
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
 from app.core.cache import cache_delete
@@ -70,6 +70,62 @@ async def create_checkout(body: CheckoutRequest, user_id: str = Depends(get_curr
         logger.error("Stripe checkout session creation failed for user %s: %s", user_id, e)
         raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
     return {"url": session.url}
+
+
+@router.post("/create-embedded-subscription")
+async def create_embedded_subscription(body: CheckoutRequest, user: dict = Depends(get_current_user)):
+    """Diego, 2026-09-15: "que se vea como un paywall personalizado de
+    Nuvos" — the embedded-Elements counterpart to /create-checkout, which
+    redirects to a Stripe-hosted page. Instead of a Checkout Session, this
+    creates the Subscription directly (payment_behavior=default_incomplete)
+    and hands the frontend a PaymentIntent client_secret to mount Stripe's
+    Payment Element inside Nuvos's own PricingModal — the user never leaves
+    nuvosai.com. Stripe still does 100% of the actual card handling/PCI
+    compliance via its Elements iframe; only the checkout UI around it is
+    Nuvos's.
+
+    stripe_customer_id is saved HERE, synchronously, before the user even
+    enters a card — the webhook's invoice.payment_succeeded (billing_reason
+    == "subscription_create") grants premium by looking up this same
+    customer_id, so it must already be linked by the time that event
+    arrives."""
+    s = _stripe()
+    db = get_supabase()
+    user_id = user["id"]
+
+    result = await run_query(
+        db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
+    )
+    customer_id = result.data.get("stripe_customer_id") if result.data else None
+
+    if not customer_id:
+        try:
+            customer = await asyncio.to_thread(
+                s.Customer.create, email=user.get("email"), metadata={"user_id": user_id},
+            )
+        except Exception as e:
+            logger.error("Stripe customer creation failed for user %s: %s", user_id, e)
+            raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
+        customer_id = customer.id
+        await run_query(
+            db.table("user_profiles").update({"stripe_customer_id": customer_id}).eq("user_id", user_id)
+        )
+
+    try:
+        subscription = await asyncio.to_thread(
+            s.Subscription.create,
+            customer=customer_id,
+            items=[{"price": _price_id(body.plan)}],
+            payment_behavior="default_incomplete",
+            payment_settings={"save_default_payment_method": "on_subscription"},
+            expand=["latest_invoice.payment_intent"],
+        )
+    except Exception as e:
+        logger.error("Stripe embedded subscription creation failed for user %s: %s", user_id, e)
+        raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
+
+    client_secret = subscription.latest_invoice.payment_intent.client_secret
+    return {"client_secret": client_secret, "subscription_id": subscription.id}
 
 
 @router.post("/webhook")
@@ -160,14 +216,25 @@ async def stripe_webhook(request: Request):
         pass
 
     elif event["type"] == "invoice.payment_succeeded":
-        # Restore premium if a previously failed payment recovered
+        # Restore premium if a previously failed payment recovered, OR (as
+        # of the embedded Payment Element checkout, 2026-09-15) grant it
+        # for the very first time — "subscription_create" is this event's
+        # billing_reason on a brand-new subscription's first invoice.
+        # /billing/create-embedded-subscription has no Checkout Session
+        # (that flow's premium grant is checkout.session.completed, above),
+        # so this is the only place premium ever gets granted for it.
+        # stripe_customer_id is already linked (saved synchronously by that
+        # endpoint before the card was even entered), so the same
+        # eq("stripe_customer_id", ...) lookup works for all three reasons.
         customer_id = event["data"]["object"].get("customer")
         billing_reason = event["data"]["object"].get("billing_reason", "")
-        if customer_id and billing_reason in ("subscription_cycle", "subscription_update"):
+        if customer_id and billing_reason in ("subscription_cycle", "subscription_update", "subscription_create"):
+            from datetime import datetime, timezone
+            update = {"subscription_tier": "premium"}
+            if billing_reason == "subscription_create":
+                update["subscription_started_at"] = datetime.now(timezone.utc).isoformat()
             await run_query(
-                db.table("user_profiles").update({
-                    "subscription_tier": "premium",
-                }).eq("stripe_customer_id", customer_id)
+                db.table("user_profiles").update(update).eq("stripe_customer_id", customer_id)
             )
             await _invalidate_profile_cache_by_customer(customer_id, db)
 
