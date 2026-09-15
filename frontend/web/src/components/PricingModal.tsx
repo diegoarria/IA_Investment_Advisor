@@ -22,14 +22,21 @@ export default function PricingModal({ visible, onClose }: Props) {
   // the individual Premium plan and the Duo plan — this just swaps the
   // plan grid below for EmbeddedCheckout, same modal shell.
   const [checkoutMode, setCheckoutMode] = useState<"premium" | "duo" | null>(null);
+  const { tier, isTrialPremium, trialStartedAt, duoSetupPending, duoSecondaryEmail } = useSubscriptionStore();
+  const isPremium = tier === "premium" || isTrialPremium;
+  // Best signal available client-side for "this account is the Duo owner"
+  // — duo_plan_purchased_at itself isn't exposed to the frontend, but both
+  // of these fields only ever get set as a side effect of it having been
+  // purchased (see billing.py's /status).
+  const isDuoOwner = !!duoSetupPending || !!duoSecondaryEmail;
   // Diego, 2026-09-15: "si una persona ya tuvo su premium trial... no
-  // darles otro mes premium, ya se paga de una" — trialStartedAt is set
-  // the moment a user's FIRST 30-day trial began (app-level, separate from
-  // this checkout, which never applies a Stripe trial_period_days either
-  // way — clicking "Pagar y suscribirme" always charges immediately). A
-  // non-null value means they've already had their one trial, so this
-  // modal must not promise a free month again.
-  const alreadyHadTrial = !!useSubscriptionStore((s) => s.trialStartedAt);
+  // darles otro mes premium, ya se paga de una" (and: don't offer a trial
+  // to someone who's ALREADY premium — manually comp'd accounts like
+  // Diego's never go through the trial_started_at auto-start at all, so
+  // that alone isn't enough). Checkout never actually applies a Stripe
+  // trial_period_days either way — clicking "Pagar y suscribirme" always
+  // charges immediately.
+  const alreadyHadTrial = isPremium || !!trialStartedAt;
 
   const FREE_FEATURES = t("pricingModal.freeFeatures", { returnObjects: true }) as string[];
   const PREMIUM_FEATURES = t("pricingModal.premiumFeatures", { returnObjects: true }) as string[];
@@ -123,9 +130,11 @@ export default function PricingModal({ visible, onClose }: Props) {
             </div>
             <p className="text-xs mb-4" style={{ color: "var(--muted)" }}>{t("pricingModal.freeTagline")}</p>
 
-            <div className="rounded-xl py-2 px-4 text-center text-sm font-bold mb-5" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--muted)" }}>
-              {t("pricingModal.currentPlan")}
-            </div>
+            {!isPremium && (
+              <div className="rounded-xl py-2 px-4 text-center text-sm font-bold mb-5" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--muted)" }}>
+                {t("pricingModal.currentPlan")}
+              </div>
+            )}
 
             <div className="space-y-2.5 flex-1">
               {FREE_FEATURES.map((f, i) => (
@@ -161,13 +170,19 @@ export default function PricingModal({ visible, onClose }: Props) {
               <div className="mb-3" />
             )}
 
-            <button
-              onClick={() => setCheckoutMode("premium")}
-              className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
-              style={{ background: "#00d47e", color: "#000" }}
-            >
-              {t("pricingModal.subscribeCta")}
-            </button>
+            {isPremium && !isDuoOwner ? (
+              <div className="relative rounded-xl py-2.5 px-4 text-center text-sm font-bold mb-5" style={{ background: "rgba(0,212,126,0.12)", border: "1px solid rgba(0,212,126,0.35)", color: "#00d47e" }}>
+                {t("pricingModal.currentPlan")}
+              </div>
+            ) : (
+              <button
+                onClick={() => setCheckoutMode("premium")}
+                className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
+                style={{ background: "#00d47e", color: "#000" }}
+              >
+                {t("pricingModal.subscribeCta")}
+              </button>
+            )}
 
             <div className="relative space-y-2.5 flex-1">
               {PREMIUM_FEATURES.map((f, i) => (
@@ -206,13 +221,19 @@ export default function PricingModal({ visible, onClose }: Props) {
               </p>
             )}
 
-            <button
-              onClick={() => setCheckoutMode("duo")}
-              className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
-              style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8" }}
-            >
-              {t("pricingModal.hireDuoPlan")}
-            </button>
+            {isDuoOwner ? (
+              <div className="relative rounded-xl py-2.5 px-4 text-center text-sm font-bold mb-5" style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8" }}>
+                {t("pricingModal.currentPlan")}
+              </div>
+            ) : (
+              <button
+                onClick={() => setCheckoutMode("duo")}
+                className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
+                style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8" }}
+              >
+                {t("pricingModal.hireDuoPlan")}
+              </button>
+            )}
 
             <div className="relative space-y-2.5 flex-1">
               {DUO_FEATURES.map((f, i) => (

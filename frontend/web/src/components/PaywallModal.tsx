@@ -35,8 +35,10 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
   const [checkoutMode, setCheckoutMode] = useState<"premium" | "duo" | null>(null);
   // Diego, 2026-09-15: "si una persona ya tuvo su premium trial... no
   // darles otro mes premium, ya se paga de una" — see PricingModal's same
-  // check for the full reasoning.
-  const alreadyHadTrial = !!useSubscriptionStore((s) => s.trialStartedAt);
+  // check for the full reasoning (also covers already-premium accounts,
+  // which never go through the trial_started_at auto-start at all).
+  const { tier: pwTier, isTrialPremium: pwIsTrialPremium, trialStartedAt } = useSubscriptionStore();
+  const alreadyHadTrial = pwTier === "premium" || pwIsTrialPremium || !!trialStartedAt;
 
   // Diego's Aug 16 Free/Premium spec, §17 — reuse the analytics infra that
   // already exists (PostHog is wired but had zero custom events on web)
