@@ -787,6 +787,27 @@ export const useSubscriptionStore = create<SubscriptionState>()(
   )
 );
 
+// Diego, 2026-09-15 (Nuvos CARE): the ONE function every premium gate on web
+// must call — never reimplement `tier === "premium" || isTrialPremium`
+// inline. Before this existed, ~20 files each did their own version of that
+// check directly against the store, with nothing stopping a fresh page load
+// (new device, cleared storage, or simply faster than the network) from
+// painting free-tier UI/paywalls using the persisted-or-default "free" value
+// while fetchStatus() was still in flight. Treating "haven't heard from the
+// server yet" (`!hasFetchedStatus`) as premium — not free — means that race
+// can no longer ever show a real Premium/trial/comp/Duo user the Free wall;
+// the only cost is a genuinely-free user occasionally seeing Premium UI for
+// the brief window before the real status loads, which is the correct
+// tradeoff to make.
+export function hasPremiumAccess(sub: {
+  tier: SubscriptionTier;
+  isTrialPremium?: boolean;
+  hasFetchedStatus: boolean;
+}): boolean {
+  if (!sub.hasFetchedStatus) return true;
+  return sub.tier === "premium" || !!sub.isTrialPremium;
+}
+
 export function msgsRemaining(store: { tier: SubscriptionTier; isTrialPremium?: boolean; msgCount: number; msgWindowStart: string | null }): number {
   if (store.tier === "premium" || store.isTrialPremium) return Infinity;
   const { msgCount, msgWindowStart } = store;

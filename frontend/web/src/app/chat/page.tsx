@@ -9,7 +9,7 @@ import { chat as chatApi, decisionsApi } from "@/lib/api";
 import {
   useAuthStore, useProfileStore, useChatStore,
   useLanguageStore, useSubscriptionStore, useGuestGateStore, msgsRemaining, FREE_MSG_LIMIT,
-  isGuestUser, getGuestId,
+  isGuestUser, getGuestId, hasPremiumAccess,
 } from "@/lib/store";
 import { getMentorInfo } from "@/lib/mentorData";
 import { usePortfolioStore, useCombinedPositions } from "@/lib/portfolioStore";
@@ -255,7 +255,7 @@ export default function ChatPage() {
     setShowScrollBtn(false);
   };
 
-  const isPremium = subStore.tier === "premium" || subStore.isTrialPremium;
+  const isPremium = hasPremiumAccess(subStore);
   const remaining = msgsRemaining(subStore);
 
   const handleStop = () => {

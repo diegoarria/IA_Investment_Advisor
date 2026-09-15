@@ -7,7 +7,7 @@ import { Sparkles, Loader2, ArrowRight, AlertTriangle } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import { researchApi, upsells, referral as referralApi } from "@/lib/api";
-import { useSubscriptionStore } from "@/lib/store";
+import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 import EmbeddedCheckout from "@/components/EmbeddedCheckout";
 
 type View = "compose" | "plan" | "checkout" | "checking" | "progress" | "error";
@@ -34,7 +34,7 @@ function ResearchPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sub = useSubscriptionStore();
-  const isPremium = sub.tier === "premium" || sub.isTrialPremium;
+  const isPremium = hasPremiumAccess(sub);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [view, setView] = useState<View>("compose");

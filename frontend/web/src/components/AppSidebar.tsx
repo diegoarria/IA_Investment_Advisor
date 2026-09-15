@@ -20,7 +20,7 @@ const GOAL_MAP: Record<string, { key: string; emoji: string }> = {
   long_term_wealth:  { key: "longTermWealth",     emoji: "🏛️" },
 };
 import {
-  useProfileStore, useSubscriptionStore,
+  useProfileStore, useSubscriptionStore, hasPremiumAccess,
   useChatStore, useAuthStore, behavioralRiskColor, behavioralRiskLabel,
 } from "@/lib/store";
 import { getUserLevel, isAtLeast, getLevelLabel, LEVEL_COLOR, type UserLevel } from "@/lib/userLevel";
@@ -191,7 +191,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
 
   const orderedNav = navOrder.map((href) => MAIN_NAV.find((n) => n.href === href)!).filter(Boolean);
   const userLevel  = getUserLevel(profile);
-  const isPremium      = subStore.tier === "premium" || subStore.isTrialPremium;
+  const isPremium      = hasPremiumAccess(subStore);
 
   const navigate = (href: string) => { router.push(href); onClose(); };
 

@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import {
   useAuthStore, useProfileStore, useSubscriptionStore, useNotificationStore,
-  useThemeStore, useLanguageStore, useGuestGateStore, isGuestUser, msgsRemaining, FREE_MSG_LIMIT, maturityLabel, maturitySignalI18nKey,
+  useThemeStore, useLanguageStore, useGuestGateStore, isGuestUser, msgsRemaining, FREE_MSG_LIMIT, maturityLabel, maturitySignalI18nKey, hasPremiumAccess,
 } from "@/lib/store";
 import { auth as authApi, billing, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi, voiceCallsApi, wrapped as wrappedApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
@@ -225,7 +225,7 @@ export default function ProfilePage() {
   const [expandedCallId, setExpandedCallId] = useState<string | null>(null);
   const [callDetail, setCallDetail] = useState<Record<string, { role: string; text: string }[]>>({});
 
-  const isPremium = subStore.tier === "premium" || subStore.isTrialPremium;
+  const isPremium = hasPremiumAccess(subStore);
   const remaining = msgsRemaining(subStore);
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState("");

@@ -9,7 +9,7 @@ import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
 import { EarningsAnalysisCard, type EarningsAnalysisResponse } from "@/components/EarningsAnalysisCard";
 import { earningsApi } from "@/lib/api";
-import { useSubscriptionStore } from "@/lib/store";
+import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 import { useCombinedPositions } from "@/lib/portfolioStore";
 
 export default function EarningsTickerPage() {
@@ -18,7 +18,7 @@ export default function EarningsTickerPage() {
   const params = useParams<{ ticker: string }>();
   const ticker = (params?.ticker || "").toString().toUpperCase();
   const sub = useSubscriptionStore();
-  const isPremium = sub.tier === "premium" || sub.isTrialPremium;
+  const isPremium = hasPremiumAccess(sub);
   // Combined across every portfolio, not just the active one (2026-08-21
   // multi-portfolio audit) — a position held in a non-active broker
   // portfolio was invisible here before.

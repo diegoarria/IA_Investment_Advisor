@@ -16,7 +16,7 @@ import BalanceSheetTab from "@/components/BalanceSheetTab";
 import CashFlowTab from "@/components/CashFlowTab";
 import PremiumToolLocked from "@/components/PremiumToolLocked";
 import PaywallModal from "@/components/PaywallModal";
-import { useSubscriptionStore } from "@/lib/store";
+import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -737,8 +737,8 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
     return () => document.documentElement.removeAttribute("data-stock-modal");
   }, []);
 
-  const { tier: subTier, isTrialPremium } = useSubscriptionStore();
-  const isPremium = subTier === "premium" || isTrialPremium;
+  const { tier: subTier, isTrialPremium, hasFetchedStatus } = useSubscriptionStore();
+  const isPremium = hasPremiumAccess({ tier: subTier, isTrialPremium, hasFetchedStatus });
   const [paywallOpen, setPaywallOpen] = useState(false);
 
   const [tab, setTab] = useState<Tab>("chart");

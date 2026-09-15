@@ -7,7 +7,7 @@ import MarketTickerBar from "@/components/MarketTickerBar";
 import dynamic from "next/dynamic";
 // Fase 4, Incremento 13 (Cierre, Parte M) — modal-gated, safe to split out.
 const PricingModal = dynamic(() => import("@/components/PricingModal"), { ssr: false });
-import { useSubscriptionStore, useAuthStore } from "@/lib/store";
+import { useSubscriptionStore, useAuthStore, hasPremiumAccess } from "@/lib/store";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { upsells } from "@/lib/api";
@@ -68,13 +68,13 @@ export default function ProductsPage() {
   const DUO_PLAN_FEATURES = getDuoPlanFeatures(t);
   const ONE_TIME_PRODUCTS = getOneTimeProducts(t);
   const COMING_SOON = getComingSoon(t);
-  const { tier: subTier, isTrialPremium } = useSubscriptionStore();
+  const { tier: subTier, isTrialPremium, hasFetchedStatus } = useSubscriptionStore();
   const { isAuthenticated } = useAuthStore();
   // Bug fix (2026-08-12): missing isTrialPremium meant a user inside their
   // 30-day trial showed as not-premium on this exact page — same class of
   // bug found across ~8 places before this app consolidated onto
   // is_premium_active() server-side; this one frontend spot slipped through.
-  const isPremium = subTier === "premium" || isTrialPremium;
+  const isPremium = hasPremiumAccess({ tier: subTier, isTrialPremium, hasFetchedStatus });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
   // Diego, 2026-09-15: card entry happens INSIDE a modal (Stripe Elements)

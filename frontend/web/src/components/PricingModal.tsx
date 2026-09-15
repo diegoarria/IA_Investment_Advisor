@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { X, Check, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { billing, upsells } from "@/lib/api";
-import { useSubscriptionStore } from "@/lib/store";
+import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 import EmbeddedCheckout, { type CheckoutSummary } from "./EmbeddedCheckout";
 
 interface Props {
@@ -22,8 +22,8 @@ export default function PricingModal({ visible, onClose }: Props) {
   // the individual Premium plan and the Duo plan — this just swaps the
   // plan grid below for EmbeddedCheckout, same modal shell.
   const [checkoutMode, setCheckoutMode] = useState<"premium" | "duo" | null>(null);
-  const { tier, isTrialPremium, trialStartedAt, duoSetupPending, duoSecondaryEmail } = useSubscriptionStore();
-  const isPremium = tier === "premium" || isTrialPremium;
+  const { tier, isTrialPremium, trialStartedAt, duoSetupPending, duoSecondaryEmail, hasFetchedStatus } = useSubscriptionStore();
+  const isPremium = hasPremiumAccess({ tier, isTrialPremium, hasFetchedStatus });
   // Best signal available client-side for "this account is the Duo owner"
   // — duo_plan_purchased_at itself isn't exposed to the frontend, but both
   // of these fields only ever get set as a side effect of it having been

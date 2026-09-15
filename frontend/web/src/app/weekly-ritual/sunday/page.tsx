@@ -8,7 +8,7 @@ import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
 import StockAvatar from "@/components/StockAvatar";
 import { weeklyRitualsApi } from "@/lib/api";
-import { useSubscriptionStore } from "@/lib/store";
+import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 
 interface PortfolioEvent { ticker: string; event_type: string; event_date: string; }
 interface SundayPrepData {
@@ -25,7 +25,7 @@ export default function WeeklyRitualSundayPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const sub = useSubscriptionStore();
-  const isPremium = sub.tier === "premium" || sub.isTrialPremium;
+  const isPremium = hasPremiumAccess(sub);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);

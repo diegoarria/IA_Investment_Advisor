@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Users, Video, Star, ArrowRight, Check } from "lucide-react";
 import api, { upsells } from "@/lib/api";
-import { useSubscriptionStore } from "@/lib/store";
+import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import EmbeddedCheckout from "./EmbeddedCheckout";
@@ -45,7 +45,7 @@ function getOfferMeta(t: TFunction) {
 export default function UpsellModal({ offer, prices, triggerSource, onClose }: UpsellModalProps) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { tier, isTrialPremium } = useSubscriptionStore();
+  const { tier, isTrialPremium, hasFetchedStatus } = useSubscriptionStore();
   const [variant, setVariant] = useState<"default" | "bundle">("default");
   const [duoVariant, setDuoVariant] = useState<"monthly" | "yearly">("monthly");
   // Diego, 2026-09-15: card entry happens INSIDE this modal (Stripe
@@ -59,7 +59,7 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
   // shown free-tier pricing here instead of their actual premium pricing —
   // same class of bug found across ~8 places before this app consolidated
   // onto is_premium_active() server-side; this frontend spot slipped through.
-  const isPremium = tier === "premium" || isTrialPremium;
+  const isPremium = hasPremiumAccess({ tier, isTrialPremium, hasFetchedStatus });
 
   const displayPrice = offer === "family_plan"
     ? duoVariant === "monthly" ? `$${prices.monthly ?? 23.99}${t("upsellModal.perMonth")}` : `$${prices.yearly ?? 224.99}${t("upsellModal.perYear")}`

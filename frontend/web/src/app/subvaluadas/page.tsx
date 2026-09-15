@@ -27,7 +27,7 @@ import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 import { Card } from "@/components/ui/Card";
 import { resolveValuationPanelMode } from "@/lib/valuationPanelMode";
 import { screenerApi, watchlist } from "@/lib/api";
-import { useSubscriptionStore, useThemeStore, useAuthStore, isGuestUser, getGuestId } from "@/lib/store";
+import { useSubscriptionStore, useThemeStore, useAuthStore, isGuestUser, getGuestId, hasPremiumAccess } from "@/lib/store";
 
 // Whether to call the no-auth /public routes instead of the authenticated
 // ones. isGuestUser() alone isn't enough — that flag is only ever set by
@@ -224,7 +224,7 @@ function SubvaluadasPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sub = useSubscriptionStore();
-  const isPremium = sub.tier === "premium" || sub.isTrialPremium;
+  const isPremium = hasPremiumAccess(sub);
   const viTheme = useViTheme();
   // useAuthStore is a persist()-wrapped Zustand store — it rehydrates from
   // localStorage ASYNCHRONOUSLY after mount. shouldUsePublicApi() reads

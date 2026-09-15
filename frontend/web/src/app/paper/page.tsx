@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { market as marketApi, paperApi } from "@/lib/api";
-import { useAuthStore, useSubscriptionStore } from "@/lib/store";
+import { useAuthStore, useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
 import PaywallModal from "@/components/PaywallModal";
 import { Search, Menu, X, RefreshCw, Loader2, TrendingUp, TrendingDown, Plus, RotateCcw, Clock, Wallet, Sparkles, Lock, ArrowUpRight, ArrowDownRight, ChevronDown, ChevronUp } from "lucide-react";
@@ -40,7 +40,7 @@ export default function PaperPage() {
   const router   = useRouter();
   const { isAuthenticated }  = useAuthStore();
   const subStore = useSubscriptionStore();
-  const isPremium = subStore.tier === "premium" || subStore.isTrialPremium;
+  const isPremium = hasPremiumAccess(subStore);
   const { cash, positions, trades, buy, sell, topUp, reset } = usePaperStore();
 
   const [paywallOpen, setPaywallOpen]       = useState(false);

@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { notifications as notifApi, market as marketApi } from "@/lib/api";
-import { useAuthStore, useNotificationStore, useThemeStore, useSubscriptionStore } from "@/lib/store";
+import { useAuthStore, useNotificationStore, useThemeStore, useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 import { useCombinedPositions, type Position } from "@/lib/portfolioStore";
 import PaywallModal from "@/components/PaywallModal";
 import { Bell, X, Sun, Moon, Newspaper, RefreshCw, Loader2, Settings } from "lucide-react";
@@ -41,7 +41,7 @@ export default function NotificationsPage() {
   // happened to be selected (2026-08-21 multi-portfolio audit).
   const positions = useCombinedPositions();
   const subStore = useSubscriptionStore();
-  const isPremium = subStore.tier === "premium" || subStore.isTrialPremium;
+  const isPremium = hasPremiumAccess(subStore);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);

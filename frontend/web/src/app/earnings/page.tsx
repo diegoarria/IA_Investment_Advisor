@@ -10,7 +10,7 @@ import PaywallModal from "@/components/PaywallModal";
 import StockAvatar from "@/components/StockAvatar";
 import { BeatMissBadge, fmtMoney, type RecentReporter } from "@/components/EarningsAnalysisCard";
 import { earningsApi } from "@/lib/api";
-import { useSubscriptionStore } from "@/lib/store";
+import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 import { useCombinedPositions } from "@/lib/portfolioStore";
 import { useWatchlistStore } from "@/lib/store";
 
@@ -44,7 +44,7 @@ export default function EarningsPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const sub = useSubscriptionStore();
-  const isPremium = sub.tier === "premium" || sub.isTrialPremium;
+  const isPremium = hasPremiumAccess(sub);
   // Combined across every portfolio, not just the active one — a ticker
   // "you own" for earnings-alert purposes shouldn't depend on which
   // portfolio tab happens to be selected (2026-08-21 multi-portfolio audit).

@@ -6,7 +6,7 @@ import { Loader2, Lock } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
 import { weeklyRitualsApi } from "@/lib/api";
-import { useSubscriptionStore } from "@/lib/store";
+import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 
 // Same visual language as QuizModal.tsx (the "Academy" flashcard pattern
 // Diego asked this to look like) — centered card, A/B option buttons that
@@ -31,7 +31,7 @@ interface QuestionData {
 export default function WeeklyRitualQuestionPage() {
   const { t, i18n } = useTranslation();
   const sub = useSubscriptionStore();
-  const isPremium = sub.tier === "premium" || sub.isTrialPremium;
+  const isPremium = hasPremiumAccess(sub);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);

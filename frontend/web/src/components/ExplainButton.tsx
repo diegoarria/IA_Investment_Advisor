@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Square, Loader2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { explain as explainApi } from "@/lib/api";
-import { useProfileStore, useSubscriptionStore } from "@/lib/store";
+import { useProfileStore, useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 import { getMentorInfo } from "@/lib/mentorData";
 import { unlockAudioPlayback, getUnlockedAudioElement } from "@/lib/audioUnlock";
 import PaywallModal from "@/components/PaywallModal";
@@ -53,7 +53,7 @@ export default function ExplainButton({
   const { t, i18n } = useTranslation();
   const { profile } = useProfileStore();
   const sub = useSubscriptionStore();
-  const isPremium = sub.tier === "premium" || sub.isTrialPremium;
+  const isPremium = hasPremiumAccess(sub);
   const mentor = getMentorInfo(profile?.mentor);
 
   const [state, setState] = useState<"idle" | "loading" | "playing">("idle");

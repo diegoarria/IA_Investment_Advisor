@@ -18,7 +18,7 @@ import ExplainButton from "@/components/ExplainButton";
 import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, billing, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
 import PricingModal from "@/components/PricingModal";
 import EmbeddedCheckout from "@/components/EmbeddedCheckout";
-import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore, useBalanceVisibilityStore } from "@/lib/store";
+import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore, useBalanceVisibilityStore, hasPremiumAccess } from "@/lib/store";
 import OnboardingChecklist, { type OnboardingStep } from "@/components/OnboardingChecklist";
 import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenPickerModal";
 import { useCombinedPositions, useCombinedCurrency, useCombinedClosedPositions, useCombinedInceptionDate } from "@/lib/portfolioStore";
@@ -155,8 +155,8 @@ export default function HomePage() {
 
   const streak = useLearnStore((s) => s.streak);
   const completedToday = useLearnStore((s) => s.completedToday);
-  const { tier: subTier, isTrialPremium: subTrialPremium } = useSubscriptionStore();
-  const isPremium = subTier === "premium" || subTrialPremium;
+  const { tier: subTier, isTrialPremium: subTrialPremium, hasFetchedStatus: subHasFetchedStatus } = useSubscriptionStore();
+  const isPremium = hasPremiumAccess({ tier: subTier, isTrialPremium: subTrialPremium, hasFetchedStatus: subHasFetchedStatus });
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showScreenPicker, setShowScreenPicker] = useState(false);
@@ -651,12 +651,19 @@ export default function HomePage() {
     persistChecklistDone();
     const saved = localStorage.getItem(HOME_SCREEN_KEY);
     if (!saved) setShowScreenPicker(true);
-    // Show pricing modal once after checklist completion (free users only)
+    // Show pricing modal once after checklist completion (free users only).
+    // Diego, 2026-09-15 (Nuvos CARE): re-runs once `isPremium` itself
+    // changes (not just loading/allOnboardingDone) so a user who is
+    // ACTUALLY premium never has this decided by the brief window before
+    // hasFetchedStatus resolves (hasPremiumAccess defaults to premium
+    // during that window, so `!isPremium` is false then regardless) — and
+    // a genuinely free user whose status resolves a moment later still
+    // gets the prompt instead of silently missing it forever.
     if (!isPremium && !localStorage.getItem("nuvos_pricing_shown")) {
       localStorage.setItem("nuvos_pricing_shown", "1");
       setTimeout(() => setShowPricing(true), 1200);
     }
-  }, [loading, allOnboardingDone]);
+  }, [loading, allOnboardingDone, isPremium]);
 
   const handleOnboardingStep = (index: number) => {
     if (index === 1) { handleBookBrokerCall(); return; }

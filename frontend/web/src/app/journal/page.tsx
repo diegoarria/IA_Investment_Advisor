@@ -18,7 +18,7 @@ import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
 import DiarioDecisionesCard from "@/components/DiarioDecisionesCard";
 import InvestmentGraphSection from "@/components/InvestmentGraphSection";
-import { useAuthStore, useSubscriptionStore } from "@/lib/store";
+import { useAuthStore, useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 import { researchEngineApi } from "@/lib/api";
 import { Card, SectionHeader } from "@/components/ui";
 
@@ -215,7 +215,7 @@ export default function JournalPage() {
   const router = useRouter();
   const { isAuthenticated, authRestoring } = useAuthStore();
   const subStore = useSubscriptionStore();
-  const isPremium = subStore.tier === "premium" || subStore.isTrialPremium;
+  const isPremium = hasPremiumAccess(subStore);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);

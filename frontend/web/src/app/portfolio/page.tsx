@@ -12,7 +12,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { market as marketApi, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
 import { fetchWithRetry } from "@/lib/fetchWithRetry";
-import { useAuthStore, useSubscriptionStore, useProfileStore, useBalanceVisibilityStore } from "@/lib/store";
+import { useAuthStore, useSubscriptionStore, useProfileStore, useBalanceVisibilityStore, hasPremiumAccess } from "@/lib/store";
 import { getUserLevel, isAtLeast } from "@/lib/userLevel";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
@@ -881,7 +881,7 @@ export default function PortfolioPage() {
   const { profile } = useProfileStore();
   const userLevel = getUserLevel(profile);
   const sub = useSubscriptionStore();
-  const isPremium = sub.tier === "premium" || sub.isTrialPremium;
+  const isPremium = hasPremiumAccess(sub);
   const { hidden: balanceHidden } = useBalanceVisibilityStore();
   const mask = (s: string) => (balanceHidden ? "••••••" : s);
   const upsellTrigger = useUpsellStore((s) => s.trigger);

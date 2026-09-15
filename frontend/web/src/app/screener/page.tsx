@@ -6,7 +6,7 @@ import posthog from "posthog-js";
 import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
 import { screenerApi } from "@/lib/api";
-import { useSubscriptionStore, useProfileStore } from "@/lib/store";
+import { useSubscriptionStore, useProfileStore, hasPremiumAccess } from "@/lib/store";
 import { getUserLevel, isAtLeast } from "@/lib/userLevel";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -71,7 +71,7 @@ export default function ScreenerPage() {
   const { t } = useTranslation();
   const ETF_BY_RISK = getEtfByRisk(t);
   const sub          = useSubscriptionStore();
-  const isPremium = sub.tier === "premium" || sub.isTrialPremium;
+  const isPremium = hasPremiumAccess(sub);
   const { profile }  = useProfileStore();
   const userLevel    = getUserLevel(profile);
   const [weekly, setWeekly]         = useState<WeeklyData | null>(null);

@@ -11,7 +11,7 @@ import {
   TrendingUp, TrendingDown, Lock, Plus, GripVertical, Bell, BellOff,
 } from "lucide-react";
 import { watchlist as watchlistApi, market as marketApi, sync as syncApi, priceAlerts as priceAlertsApi } from "@/lib/api";
-import { useAuthStore, useSubscriptionStore, useProfileStore, usePersonalizationStore } from "@/lib/store";
+import { useAuthStore, useSubscriptionStore, useProfileStore, usePersonalizationStore, hasPremiumAccess } from "@/lib/store";
 import { getUserLevel } from "@/lib/userLevel";
 import { usePortfolioStore, useCombinedPositions } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
@@ -381,9 +381,9 @@ export default function WatchlistPage() {
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile } = useProfileStore();
   const userLevel = getUserLevel(profile);
-  const { tier, isTrialPremium } = useSubscriptionStore();
+  const { tier, isTrialPremium, hasFetchedStatus } = useSubscriptionStore();
   const { minMarginOfSafetyPct } = usePersonalizationStore();
-  const isPremium = tier === "premium" || isTrialPremium;
+  const isPremium = hasPremiumAccess({ tier, isTrialPremium, hasFetchedStatus });
   const { portfolioCurrency } = usePortfolioStore();
   // "Already in your portfolio" must check every one of the user's
   // portfolios, not just the active one — see portfolioStore's

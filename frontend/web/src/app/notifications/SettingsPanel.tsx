@@ -5,7 +5,7 @@ import { X, Loader2, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { apiBase } from "@/lib/apiBase";
-import { useSubscriptionStore } from "@/lib/store";
+import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 import PaywallModal from "@/components/PaywallModal";
 
 const API = apiBase();
@@ -64,7 +64,7 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
 export default function NotificationSettingsPanel({ onClose }: Props) {
   const { t } = useTranslation();
   const sub = useSubscriptionStore();
-  const isPremium = sub.tier === "premium" || sub.isTrialPremium;
+  const isPremium = hasPremiumAccess(sub);
   const PUSH_TOGGLES = getPushToggles(t);
   const SMART_ALERT_TOGGLES = getSmartAlertToggles(t);
   const EMAIL_TOGGLES = getEmailToggles(t);

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { useSubscriptionStore, useAuthStore } from "@/lib/store";
+import { useSubscriptionStore, useAuthStore, hasPremiumAccess } from "@/lib/store";
 import PaywallModal from "@/components/PaywallModal";
 
 export default function PremiumBadge() {
@@ -12,7 +12,13 @@ export default function PremiumBadge() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const sub = useSubscriptionStore();
-  const isPremium      = sub.tier === "premium";
+  // Diego, 2026-09-15 (Nuvos CARE): was `sub.tier === "premium"` alone —
+  // missing the isTrialPremium OR meant a trial-active user whose `tier`
+  // ever disagreed with is_trial (or before hasFetchedStatus resolves)
+  // would fall into the `!isPremium` branch below and see the "Activar
+  // Premium" badge while actually premium. hasPremiumAccess is the one
+  // shared check every gate in the app must use.
+  const isPremium      = hasPremiumAccess(sub);
   const isTrialPremium = sub.isTrialPremium;
   const trialDaysLeft  = sub.trialDaysLeft;
 
