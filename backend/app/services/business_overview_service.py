@@ -241,12 +241,13 @@ async def _get_fixed_costs() -> dict:
     }
 
 
-async def _posthog_hogql(client: httpx.AsyncClient, query: str) -> list[list] | None:
+async def _posthog_hogql(client: httpx.AsyncClient, query: str, timeout: float | None = None) -> list[list] | None:
     try:
         res = await client.post(
             f"{settings.posthog_host}/api/projects/{settings.posthog_project_id}/query/",
             headers={"Authorization": f"Bearer {settings.posthog_personal_api_key}"},
             json={"query": {"kind": "HogQLQuery", "query": query}},
+            **({"timeout": timeout} if timeout is not None else {}),
         )
         res.raise_for_status()
         return res.json().get("results") or []
@@ -285,27 +286,47 @@ async def _get_posthog_metrics() -> dict:
             "SELECT count() FROM events "
             "WHERE timestamp > now() - INTERVAL 7 DAY AND event LIKE '$%'"
         )
-        dau_res, wau_res, mau_res, top_custom_res, automatic_res = await asyncio.gather(
+        top_pages_q = (
+            "SELECT properties.$pathname AS path, count() AS c FROM events "
+            "WHERE event = '$pageview' AND timestamp > now() - INTERVAL 7 DAY "
+            "AND properties.$pathname IS NOT NULL "
+            "GROUP BY path ORDER BY c DESC LIMIT 8"
+        )
+        dau_res, wau_res, mau_res, top_custom_res, automatic_res, top_pages_res = await asyncio.gather(
             _posthog_hogql(client, dau_q),
             _posthog_hogql(client, wau_q),
-            _posthog_hogql(client, mau_q),
+            # A 30-day full scan is heavier than the 1d/7d queries — Diego,
+            # 2026-09-14: this used to time out under the shared 15s budget
+            # and silently render as "—", indistinguishable from a real
+            # zero. Give it its own longer per-request timeout instead.
+            _posthog_hogql(client, mau_q, timeout=45),
             _posthog_hogql(client, top_custom_events_q),
             _posthog_hogql(client, automatic_events_q),
+            _posthog_hogql(client, top_pages_q),
         )
 
-    if all(r is None for r in (dau_res, wau_res, mau_res, top_custom_res, automatic_res)):
+    if all(r is None for r in (dau_res, wau_res, mau_res, top_custom_res, automatic_res, top_pages_res)):
         return {"available": False, "reason": "posthog_error"}
 
     def _first_count(rows: list[list] | None) -> int | None:
         return rows[0][0] if rows else None
 
+    dau = _first_count(dau_res)
+    mau = _first_count(mau_res)
+    # Stickiness (DAU/MAU) — the standard "how often do active users come
+    # back" ratio; a higher % means people who try the product keep using
+    # it, not just sign up once and vanish.
+    stickiness_pct = round(dau / mau * 100, 1) if dau is not None and mau else None
+
     return {
         "available": True,
-        "dau": _first_count(dau_res),
+        "dau": dau,
         "wau": _first_count(wau_res),
-        "mau": _first_count(mau_res),
+        "mau": mau,
+        "stickiness_pct": stickiness_pct,
         "top_custom_events_last_7d": [{"event": r[0], "count": r[1]} for r in (top_custom_res or [])],
         "automatic_events_last_7d": _first_count(automatic_res),
+        "top_pages_last_7d": [{"path": r[0], "count": r[1]} for r in (top_pages_res or [])],
     }
 
 

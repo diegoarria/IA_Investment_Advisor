@@ -37,8 +37,10 @@ interface PosthogMetrics {
   wau?: number | null;
   mau?: number | null;
   wau_pct_of_total?: number;
+  stickiness_pct?: number | null;
   top_custom_events_last_7d?: { event: string; count: number }[];
   automatic_events_last_7d?: number | null;
+  top_pages_last_7d?: { path: string; count: number }[];
 }
 
 interface OperatingCost {
@@ -347,7 +349,7 @@ export default function AdminBusinessOverviewPage() {
               <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Uso del producto (PostHog)</p>
               {data.posthog.available ? (
                 <>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                     <Card label="Activos hoy (DAU)" value={fmtNum(data.posthog.dau)} icon={<Activity className="w-3.5 h-3.5" />} />
                     <Card label="Activos 7 días (WAU)" value={fmtNum(data.posthog.wau)} />
                     <Card label="Activos 30 días (MAU)" value={fmtNum(data.posthog.mau)} />
@@ -358,9 +360,14 @@ export default function AdminBusinessOverviewPage() {
                       trend={wauPctTrend}
                       formatTrend={(v) => `${v}%`}
                     />
+                    <Card
+                      label="Stickiness (DAU/MAU)"
+                      value={data.posthog.stickiness_pct != null ? `${data.posthog.stickiness_pct}%` : "—"}
+                      sub="Qué tan seguido vuelven los activos"
+                    />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {!!data.posthog.top_custom_events_last_7d?.length && (
                       <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
                         <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>Qué hace la gente (7 días)</p>
@@ -369,6 +376,19 @@ export default function AdminBusinessOverviewPage() {
                             <div key={i} className="flex items-center justify-between text-sm">
                               <span style={{ color: "var(--text)" }}>{e.event}</span>
                               <span style={{ color: "var(--muted)" }}>{fmtNum(e.count)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {!!data.posthog.top_pages_last_7d?.length && (
+                      <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                        <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>Páginas más vistas (7 días)</p>
+                        <div className="space-y-1.5">
+                          {data.posthog.top_pages_last_7d.map((p, i) => (
+                            <div key={i} className="flex items-center justify-between text-sm gap-2">
+                              <span className="truncate" style={{ color: "var(--text)" }}>{p.path}</span>
+                              <span className="shrink-0" style={{ color: "var(--muted)" }}>{fmtNum(p.count)}</span>
                             </div>
                           ))}
                         </div>
