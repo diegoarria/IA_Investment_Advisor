@@ -427,8 +427,8 @@ async def sync_paper(body: dict, user_id: str = Depends(get_current_user_id)):
     freeTradeMonth/Count are only updated when explicitly included in the body,
     so web-only pushes (which omit them) don't clear mobile-specific state.
 
-    Soft lock: free/expired-trial users can VIEW their paper portfolio but
-    cannot execute new trades (i.e., increase the trades list).
+    Paper trading itself is free for all tiers — only the AI analysis of the
+    simulated portfolio is Premium-gated (see profile.py's /paper-analysis).
     """
     db = get_supabase()
     new_trades = body.get("trades", [])
@@ -437,30 +437,6 @@ async def sync_paper(body: dict, user_id: str = Depends(get_current_user_id)):
     # which _validate_position_numbers would otherwise reject.
     if body.get("positions"):
         _validate_position_numbers(body["positions"])
-
-    # Soft lock — check if user is trying to add new trades without premium
-    if new_trades:
-        pr_res = await run_query(
-            db.table("user_profiles")
-            .select("subscription_tier, trial_started_at, streak_bonus_premium_until")
-            .eq("user_id", user_id)
-        )
-        pr = pr_res.data[0] if pr_res.data else {}
-        from app.core.subscription import is_premium_active
-        _is_prem = is_premium_active(pr.get("subscription_tier"), pr.get("trial_started_at"), pr.get("streak_bonus_premium_until"))
-        if not _is_prem:
-            existing_paper = await run_query(
-                db.table("user_paper_trading").select("trades").eq("user_id", user_id)
-            )
-            current_trade_count = 0
-            if existing_paper.data:
-                current_trade_count = len(existing_paper.data[0].get("trades") or [])
-            if len(new_trades) > current_trade_count:
-                raise HTTPException(
-                    status_code=403,
-                    detail={"code": "limit_reached",
-                            "message": "El paper trading es exclusivo de Premium. Activa tu plan para seguir operando."}
-                )
 
     update_data: dict = {
         "user_id":   user_id,

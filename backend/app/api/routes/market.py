@@ -2007,6 +2007,9 @@ def _compute_portfolio_returns(
     return results, inferred_dates
 
 
+_PREMIUM_RETURN_PERIODS = {"3mo", "6mo", "ytd", "1y", "3y", "5y", "max"}
+
+
 @router.post("/portfolio-returns")
 @limiter.limit("20/minute")
 async def get_portfolio_returns(
@@ -2017,6 +2020,13 @@ async def get_portfolio_returns(
     data, inferred_dates = await asyncio.to_thread(
         _compute_portfolio_returns, body.positions, body.closed_positions, body.inception_date
     )
+    from app.api.routes.chat import _is_premium
+    # The UI only locks 3mo/6mo/ytd/1y/3y/5y/max behind Premium on the
+    # frontend — this endpoint used to compute and return every period
+    # regardless of tier, so a free user could see the "locked" numbers
+    # straight from the API response before ever clicking a period tab.
+    if not _is_premium(_get_user_profile(user_id)):
+        data = {k: v for k, v in data.items() if k not in _PREMIUM_RETURN_PERIODS}
     return {"returns": data, "inferred_dates": inferred_dates}
 
 
@@ -2282,6 +2292,13 @@ async def get_portfolio_chart(
     body: _PortfolioChartRequest,
     user_id: str = Depends(get_current_user_id),
 ):
+    if body.period in _PREMIUM_RETURN_PERIODS:
+        from app.api.routes.chat import _is_premium
+        if not _is_premium(_get_user_profile(user_id)):
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "limit_reached", "message": "Este rango de fechas es exclusivo de Premium."}
+            )
     data = await asyncio.to_thread(_compute_portfolio_chart, body.positions, body.period)
     return data
 

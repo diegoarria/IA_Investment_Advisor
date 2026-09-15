@@ -23,10 +23,15 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const screen = event.notification.data?.screen || "portfolio";
   const eventId = event.notification.data?.event_id;
+  const msg = event.notification.data?.msg || event.notification.data?.prefill;
   // job_macro_event_watch's CPI/NFP/FOMC/etc. push carries an event_id so
   // the watchlist page can auto-open that day's impact panel — see
-  // WatchlistEarningsCalendar's initialEventId prop.
-  const url = self.location.origin + "/" + screen + (screen === "watchlist" && eventId ? `?macroEventId=${encodeURIComponent(eventId)}` : "");
+  // WatchlistEarningsCalendar's initialEventId prop. Several worker.py jobs
+  // instead carry a msg/prefill so chat/page.tsx opens Arthur with that
+  // question pre-filled (never auto-sent — see chat page's own ?msg= effect).
+  let url = self.location.origin + "/" + screen;
+  if (screen === "watchlist" && eventId) url += `?macroEventId=${encodeURIComponent(eventId)}`;
+  else if (screen === "chat" && msg) url += `?msg=${encodeURIComponent(msg)}`;
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((cs) => {
       const existing = cs.find((c) => c.url.startsWith(self.location.origin) && "focus" in c);

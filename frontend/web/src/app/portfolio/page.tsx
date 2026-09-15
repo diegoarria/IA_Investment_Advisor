@@ -2021,8 +2021,8 @@ export default function PortfolioPage() {
                       autoFocus
                       value={renameValue}
                       onChange={e => setRenameValue(e.target.value)}
-                      onBlur={() => { if (renameValue.trim()) renamePortfolio(p.id, renameValue.trim()); setRenamingId(null); }}
-                      onKeyDown={e => { if (e.key === "Enter") { if (renameValue.trim()) renamePortfolio(p.id, renameValue.trim()); setRenamingId(null); } if (e.key === "Escape") setRenamingId(null); }}
+                      onBlur={() => { if (renameValue.trim()) { renamePortfolio(p.id, renameValue.trim()).catch(() => showToast("No se pudo renombrar el portafolio. Inténtalo de nuevo.")); } setRenamingId(null); }}
+                      onKeyDown={e => { if (e.key === "Enter") { if (renameValue.trim()) { renamePortfolio(p.id, renameValue.trim()).catch(() => showToast("No se pudo renombrar el portafolio. Inténtalo de nuevo.")); } setRenamingId(null); } if (e.key === "Escape") setRenamingId(null); }}
                       onClick={e => e.stopPropagation()}
                       style={{ background: "transparent", border: "none", outline: "none", width: 110, color: "var(--accent-l)", fontWeight: 700, fontSize: 12 }}
                     />
@@ -2040,7 +2040,7 @@ export default function PortfolioPage() {
                   )}
                   {isPremium && p.id !== "default" && renamingId !== p.id && (
                     <span
-                      onClick={e => { e.stopPropagation(); setConfirmModal({ msg: `¿Eliminar "${p.name}"?`, onConfirm: () => deletePortfolio(p.id) }); }}
+                      onClick={e => { e.stopPropagation(); setConfirmModal({ msg: `¿Eliminar "${p.name}"?`, onConfirm: () => { deletePortfolio(p.id).catch(() => showToast("No se pudo eliminar el portafolio. Inténtalo de nuevo.")); } }); }}
                       style={{ fontSize: 10, opacity: 0.5, cursor: "pointer", marginLeft: 2 }}
                       title="Eliminar portafolio"
                     >✕</span>

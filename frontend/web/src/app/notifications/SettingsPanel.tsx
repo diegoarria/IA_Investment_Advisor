@@ -72,6 +72,7 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   const [saved,  setSaved]    = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [smartAlertsTeaser, setSmartAlertsTeaser] = useState<number | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
 
@@ -109,16 +110,21 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
   const save = async () => {
     if (!prefs) return;
     setSaving(true);
+    setSaveError(false);
     try {
-      await fetch(`${API}/api/notification-settings`, {
+      const res = await fetch(`${API}/api/notification-settings`, {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(prefs),
       });
+      if (!res.ok) throw new Error();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch {}
+    } catch {
+      setSaveError(true);
+      setTimeout(() => setSaveError(false), 3000);
+    }
     setSaving(false);
   };
 
@@ -297,6 +303,9 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
 
         {/* Save */}
         <div className="px-5 py-4 shrink-0" style={{ borderTop: "1px solid var(--border)" }}>
+          {saveError && (
+            <p className="text-xs mb-2 text-center" style={{ color: "#ef4444" }}>{t("notificationSettings.saveError")}</p>
+          )}
           <button
             onClick={save}
             disabled={saving || !prefs}

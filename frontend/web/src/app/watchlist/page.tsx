@@ -453,7 +453,16 @@ export default function WatchlistPage() {
       setAlerts((prev) => ({ ...prev, [alertModal.ticker]: res.data }));
       showToast(t("watchlist.toast.alertCreated", { ticker: alertModal.ticker }));
       setAlertModal(null);
-    } catch { showToast(t("watchlist.toast.alertSaveError")); }
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      const code = (err as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail?.code;
+      if (status === 403 && code === "limit_reached") {
+        setAlertModal(null);
+        setPaywallOpen(true);
+      } else {
+        showToast(t("watchlist.toast.alertSaveError"));
+      }
+    }
     finally { setSavingAlert(false); }
   };
 

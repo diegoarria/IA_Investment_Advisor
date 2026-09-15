@@ -428,6 +428,9 @@
     "cancelConfirmYes": "Sí, cancelar",
     "cancelConfirmNo": "No, mantener",
     "cancelError": "No se pudo procesar el cambio. Intenta de nuevo.",
+    "subDetailsError": "No se pudieron cargar los detalles de tu suscripción.",
+    "avatarError": "No se pudo subir la foto. Intenta de nuevo.",
+    "mentorLetterError": "No se pudo cargar la carta. Intenta de nuevo.",
     "duoPlan": "Plan Dúo",
     "secondaryAccount": "Cuenta secundaria",
     "sharingWith": "Compartiendo con {{email}}",
@@ -2265,6 +2268,7 @@
     "ticketSentTitle": "Ticket enviado",
     "ticketSentDesc": "El equipo de Nuvos AI revisará tu caso y te contactará pronto.",
     "sendAnother": "Enviar otro",
+    "ticketError": "No se pudo enviar el ticket. Intenta de nuevo.",
     "ticketIntro": "Si el chatbot no pudo resolver tu problema, crea un ticket y el equipo te responderá en menos de 24 h.",
     "createTicket": "Crear ticket de soporte",
     "subjectPlaceholder": "Asunto (ej: Error al cargar portafolio)",
@@ -3998,6 +4002,7 @@
     "from": "Desde",
     "to": "Hasta",
     "saved": "Guardado ✓",
+    "saveError": "No se pudo guardar. Intenta de nuevo.",
     "saveChanges": "Guardar cambios",
     "push": {
       "marketOpen": {

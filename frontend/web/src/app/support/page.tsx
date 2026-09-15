@@ -39,6 +39,7 @@ export default function SupportPage() {
   const [ticketMessage, setTicketMessage] = useState("");
   const [ticketSending, setTicketSending] = useState(false);
   const [ticketSent, setTicketSent] = useState(false);
+  const [ticketError, setTicketError] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -74,11 +75,14 @@ export default function SupportPage() {
   const sendTicket = async () => {
     if (!ticketSubject.trim() || !ticketMessage.trim()) return;
     setTicketSending(true);
+    setTicketError(false);
     try {
       await supportApi.createTicket(ticketSubject.trim(), ticketMessage.trim());
       setTicketSent(true);
       setTicketSubject(""); setTicketMessage("");
-    } catch {}
+    } catch {
+      setTicketError(true);
+    }
     setTicketSending(false);
   };
 
@@ -215,6 +219,9 @@ export default function SupportPage() {
                       onChange={(e) => setTicketMessage(e.target.value)}
                       maxLength={2000}
                     />
+                    {ticketError && (
+                      <p className="text-xs text-center" style={{ color: "#ef4444" }}>{t("support.ticketError")}</p>
+                    )}
                     <div className="flex gap-2">
                       <button onClick={() => setTicketMode(false)} className="flex-1 py-2 rounded-xl text-xs font-semibold border"
                               style={{ borderColor: "var(--border)", color: "var(--muted)" }}>

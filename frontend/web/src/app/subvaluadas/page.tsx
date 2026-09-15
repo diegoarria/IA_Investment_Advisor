@@ -522,7 +522,15 @@ function SubvaluadasPageInner() {
 
   const handleFollow = async () => {
     if (!data || watchlisted) return;
-    try { await watchlist.add(data.ticker, data.company_name || undefined); setWatchlisted(true); } catch { /* idempotent */ }
+    try {
+      await watchlist.add(data.ticker, data.company_name || undefined);
+      setWatchlisted(true);
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      const code = (err as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail?.code;
+      if (status === 409) { setWatchlisted(true); return; } // already following — idempotent
+      if (status === 403 && code === "limit_reached") setPaywallOpen(true);
+    }
   };
   const handleAnalyze = () => router.push(`/chat?msg=${encodeURIComponent(t("subvaluadas.analyze.prompt", { ticker }))}&autosend=1`);
 

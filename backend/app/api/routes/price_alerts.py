@@ -74,7 +74,11 @@ async def create_alert(
             db.table("price_alerts").select("id").eq("user_id", user_id).is_("triggered_at", "null")
         )
         if not existing.data and len(all_alerts.data or []) >= FREE_LIMIT:
-            raise HTTPException(status_code=403, detail=f"Límite de {FREE_LIMIT} alertas alcanzado. Activa Premium para alertas ilimitadas.")
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "limit_reached",
+                        "message": f"Límite de {FREE_LIMIT} alertas alcanzado. Activa Premium para alertas ilimitadas."}
+            )
 
     now = datetime.now(timezone.utc).isoformat()
     record = {

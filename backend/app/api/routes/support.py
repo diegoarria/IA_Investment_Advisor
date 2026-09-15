@@ -154,7 +154,9 @@ async def create_ticket(
         ticket_id = result.data[0]["id"] if result.data else None
     except Exception:
         logger.exception("support ticket insert failed for user_id=%s", user_id)
-        ticket_id = None
+        raise HTTPException(status_code=500, detail="No se pudo guardar el ticket. Intenta de nuevo.")
+    if not ticket_id:
+        raise HTTPException(status_code=500, detail="No se pudo guardar el ticket. Intenta de nuevo.")
 
     # Notify admin by email — fire-and-forget, never blocks the response
     try:

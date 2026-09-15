@@ -428,6 +428,9 @@
     "cancelConfirmYes": "Yes, cancel",
     "cancelConfirmNo": "No, keep it",
     "cancelError": "Could not process that change. Please try again.",
+    "subDetailsError": "Could not load your subscription details.",
+    "avatarError": "Couldn't upload the photo. Please try again.",
+    "mentorLetterError": "Couldn't load the letter. Please try again.",
     "duoPlan": "Duo Plan",
     "secondaryAccount": "Secondary account",
     "sharingWith": "Sharing with {{email}}",
@@ -2265,6 +2268,7 @@
     "ticketSentTitle": "Ticket sent",
     "ticketSentDesc": "The Nuvos AI team will review your case and get back to you soon.",
     "sendAnother": "Send another",
+    "ticketError": "Couldn't send the ticket. Please try again.",
     "ticketIntro": "If the chatbot couldn't solve your problem, open a ticket and our team will reply within 24 hours.",
     "createTicket": "Create support ticket",
     "subjectPlaceholder": "Subject (e.g. Error loading portfolio)",
@@ -3998,6 +4002,7 @@
     "from": "From",
     "to": "To",
     "saved": "Saved ✓",
+    "saveError": "Couldn't save. Please try again.",
     "saveChanges": "Save changes",
     "push": {
       "marketOpen": {

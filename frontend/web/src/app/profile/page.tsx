@@ -179,10 +179,12 @@ export default function ProfilePage() {
   const [letterOpen, setLetterOpen] = useState(false);
   const [letter, setLetter] = useState<string | null>(null);
   const [letterLoading, setLetterLoading] = useState(false);
+  const [letterError, setLetterError] = useState("");
   const [wrappedLockedOpen, setWrappedLockedOpen] = useState(false);
   const [wrappedNotifyRequested, setWrappedNotifyRequested] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState("");
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [referralStats, setReferralStats] = useState<{
     referred_count: number;
@@ -397,13 +399,17 @@ export default function ProfilePage() {
       const localUrl = `data:image/jpeg;base64,${base64}`;
       setAvatarUrl(localUrl);
       setAvatarUploading(true);
+      setAvatarError("");
       try {
         const res = await profileApi.uploadAvatar(base64);
         const url = res.data.avatar_url;
         setAvatarUrl(url);
         // Persist to store so sidebar and other pages see it immediately
         if (profile) setProfile({ ...profile, avatar_url: url });
-      } catch {}
+      } catch {
+        setAvatarError(t("profile.avatarError"));
+        setAvatarUrl(profile?.avatar_url ?? null);
+      }
       setAvatarUploading(false);
     };
     reader.readAsDataURL(file);
@@ -412,11 +418,14 @@ export default function ProfilePage() {
   const openMentorLetter = async () => {
     if (letter) { setLetterOpen(true); return; }
     setLetterLoading(true);
+    setLetterError("");
     try {
       const r = await mentorLetterApi.get();
       setLetter(r.data.letter ?? null);
       setLetterOpen(true);
-    } catch {}
+    } catch {
+      setLetterError(t("profile.mentorLetterError"));
+    }
     setLetterLoading(false);
   };
 
@@ -584,6 +593,7 @@ export default function ProfilePage() {
                       </div>
                       <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} disabled={avatarUploading} />
                     </label>
+                    {avatarError && <p className="mt-1 text-xs" style={{ color: "#ef4444" }}>{avatarError}</p>}
                     <div className="mt-2 text-center space-y-2">
                       <div className="text-lg font-extrabold" style={{ color: "var(--text)" }}>{profile.name}</div>
                       <div className="flex flex-wrap justify-center gap-2">
@@ -905,6 +915,7 @@ export default function ProfilePage() {
                       </div>
                       <ChevronDown className="w-4 h-4 shrink-0" style={{ color: mentor.color }} />
                     </button>
+                    {letterError && <p className="mt-1 text-xs" style={{ color: "#ef4444" }}>{letterError}</p>}
                   </div>
                 )}
 
@@ -1115,6 +1126,11 @@ export default function ProfilePage() {
                               ? t("profile.cancelsOn", { date: subDetails.current_period_end ? new Date(subDetails.current_period_end * 1000).toLocaleDateString() : "" })
                               : t("profile.renewsOn", { date: subDetails.current_period_end ? new Date(subDetails.current_period_end * 1000).toLocaleDateString() : "" })}
                           </p>
+                        </div>
+                      )}
+                      {subDetailsError && (
+                        <div className="px-4 pb-3 -mt-1">
+                          <p className="text-xs" style={{ color: "#ef4444" }}>{t("profile.subDetailsError")}</p>
                         </div>
                       )}
 
