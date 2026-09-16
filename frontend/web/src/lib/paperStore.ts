@@ -33,6 +33,8 @@ interface PaperStore {
   trades: PaperTrade[];
   freeTradeMonth: string | null;
   freeTradeCount: number;
+  pendingSync: boolean;
+  pendingSyncSetAt: number | null;
   buy: (ticker: string, name: string, shares: number, price: number) => string | null;
   sell: (ticker: string, shares: number, price: number) => string | null;
   topUp: (amount: number) => void;
@@ -43,6 +45,17 @@ interface PaperStore {
 export const usePaperStore = create<PaperStore>()(
   persist(
     (set, get) => {
+      // Same pattern as portfolioStore.ts's pushChain: chain every push onto
+      // the previous one instead of firing overlapping requests. A trade used
+      // to POST the *entire* cash/positions/trades snapshot with a bare
+      // `.catch(() => {})` and no ordering guarantee — a rapid buy-then-sell
+      // (or a slow request completing after a faster later one) raced on the
+      // server, and whichever request finished last silently clobbered the
+      // other trade. Confirmed 2026-09-15: this, combined with
+      // restoreFromServer() overwriting local state on every /paper remount,
+      // is what made a real user's trade vanish today.
+      let pushChain: Promise<void> = Promise.resolve();
+
       const _push = (
         cash: number,
         positions: PaperPosition[],
@@ -50,9 +63,21 @@ export const usePaperStore = create<PaperStore>()(
         freeTradeMonth: string | null,
         freeTradeCount: number,
       ) => {
-        import("./api").then(({ paperApi }) => {
-          paperApi.syncState(cash, positions, trades.slice(0, 50), freeTradeMonth, freeTradeCount).catch(() => {});
-        });
+        set({ pendingSync: true, pendingSyncSetAt: Date.now() });
+        const doPush = async () => {
+          const { paperApi } = await import("./api");
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              await paperApi.syncState(cash, positions, trades.slice(0, 50), freeTradeMonth, freeTradeCount);
+              return;
+            } catch {
+              if (attempt < 2) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+            }
+          }
+        };
+        const result = pushChain.then(doPush, doPush);
+        pushChain = result.catch(() => {}); // keep the chain alive after a failed push
+        result.finally(() => set({ pendingSync: false, pendingSyncSetAt: null }));
       };
 
       return {
@@ -61,6 +86,8 @@ export const usePaperStore = create<PaperStore>()(
         trades: [],
         freeTradeMonth: null,
         freeTradeCount: 0,
+        pendingSync: false,
+        pendingSyncSetAt: null,
 
         buy: (ticker, name, shares, price) => {
           if (shares <= 0 || price <= 0) return "Cantidad o precio inválido";
@@ -124,6 +151,18 @@ export const usePaperStore = create<PaperStore>()(
 
         restoreFromServer: async () => {
           try {
+            // paper/page.tsx calls this on every mount (tab switch, back-nav),
+            // not just first login — if a trade's push is still in flight (or
+            // failed and is mid-retry above), this used to unconditionally
+            // overwrite local state with the server's PRE-trade snapshot,
+            // silently discarding the just-made trade the instant the user
+            // navigated away and back. Same guard/staleness escape hatch as
+            // portfolioStore.ts's loadFromServer().
+            const { pendingSync, pendingSyncSetAt } = get();
+            const isStale = pendingSyncSetAt == null || Date.now() - pendingSyncSetAt > 2 * 60 * 1000;
+            if (pendingSync && !isStale) return;
+            if (pendingSync && isStale) set({ pendingSync: false, pendingSyncSetAt: null });
+
             const { sync } = await import("./api");
             const res = await sync.getAll();
             const d = res.data?.paper;

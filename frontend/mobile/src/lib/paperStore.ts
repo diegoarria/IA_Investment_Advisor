@@ -57,18 +57,44 @@ interface PaperStore {
   incrementFreeTrade: () => void;
   freeTradesThisMonth: () => number;
   restoreFromServer: (state: { cash: number; positions: PaperPosition[]; trades: PaperTrade[]; freeTradeMonth: string | null; freeTradeCount: number }) => void;
+  pendingSync: boolean;
+  pendingSyncSetAt: number | null;
 }
 
-function _push(s: { cash: number; positions: PaperPosition[]; trades: PaperTrade[]; freeTradeMonth: string | null; freeTradeCount: number }) {
-  import("./api").then(({ syncApi }) => {
-    syncApi.pushPaper({
-      cash: s.cash,
-      positions: s.positions,
-      trades: s.trades.slice(0, 50),
-      freeTradeMonth: s.freeTradeMonth,
-      freeTradeCount: s.freeTradeCount,
-    }).catch(() => {});
-  });
+// Chained onto the previous push instead of fired independently — a bare
+// fire-and-forget push with no ordering guarantee let a rapid buy-then-sell
+// (or a slow request finishing after a faster later one) race on the
+// server, and whichever request landed last silently clobbered the other
+// trade. Combined with restoreFromServer() being called unconditionally on
+// every app-foreground resume (app/(tabs)/_layout.tsx), a trade whose push
+// hadn't landed (or failed) yet was wiped by the next resync — confirmed
+// 2026-09-15, a real user's trade vanished this way. Same fix pattern as
+// portfolioStore.ts/watchlistStore.ts: retry with backoff + a pendingSync
+// guard that restoreFromServer respects.
+let pushChain: Promise<void> = Promise.resolve();
+
+function _push(s: { cash: number; positions: PaperPosition[]; trades: PaperTrade[]; freeTradeMonth: string | null; freeTradeCount: number }, set: (partial: Partial<PaperStore>) => void) {
+  set({ pendingSync: true, pendingSyncSetAt: Date.now() });
+  const doPush = async () => {
+    const { syncApi } = await import("./api");
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await syncApi.pushPaper({
+          cash: s.cash,
+          positions: s.positions,
+          trades: s.trades.slice(0, 50),
+          freeTradeMonth: s.freeTradeMonth,
+          freeTradeCount: s.freeTradeCount,
+        });
+        return;
+      } catch {
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+      }
+    }
+  };
+  const result = pushChain.then(doPush, doPush);
+  pushChain = result.catch(() => {});
+  result.finally(() => set({ pendingSync: false, pendingSyncSetAt: null }));
 }
 
 export const usePaperStore = create<PaperStore>()(
@@ -79,6 +105,8 @@ export const usePaperStore = create<PaperStore>()(
       trades: [],
       freeTradeMonth: null,
       freeTradeCount: 0,
+      pendingSync: false,
+      pendingSyncSetAt: null,
 
       freeTradesThisMonth: () => {
         const { freeTradeMonth, freeTradeCount } = get();
@@ -92,7 +120,7 @@ export const usePaperStore = create<PaperStore>()(
           freeTradeMonth: month,
           freeTradeCount: freeTradeMonth === month ? freeTradeCount + 1 : 1,
         });
-        _push(get());
+        _push(get(), set);
       },
 
       buy: (ticker, name, shares, price) => {
@@ -128,7 +156,7 @@ export const usePaperStore = create<PaperStore>()(
             trades: [trade, ...s.trades.slice(0, 49)],
           }));
         }
-        _push(get());
+        _push(get(), set);
         return null;
       },
 
@@ -153,7 +181,7 @@ export const usePaperStore = create<PaperStore>()(
             : s.positions.map((p) => p.ticker === t ? { ...p, shares: remaining } : p),
           trades: [trade, ...s.trades.slice(0, 49)],
         }));
-        _push(get());
+        _push(get(), set);
         return null;
       },
 
@@ -163,16 +191,25 @@ export const usePaperStore = create<PaperStore>()(
           type: "topup", ticker: "CASH", shares: 0, price: 0, total: amount, timestamp: Date.now(),
         };
         set((s) => ({ cash: s.cash + amount, trades: [trade, ...s.trades.slice(0, 49)] }));
-        _push(get());
+        _push(get(), set);
       },
 
       reset: () => {
         const next = { cash: PAPER_INITIAL_CASH, positions: [] as PaperPosition[], trades: [] as PaperTrade[], freeTradeMonth: null as string | null, freeTradeCount: 0 };
         set(next);
-        _push(next);
+        _push(next, set);
       },
 
-      restoreFromServer: (state) => set(state),
+      restoreFromServer: (state) => {
+        // Called unconditionally on every app-foreground resume
+        // (app/(tabs)/_layout.tsx) — must never stomp a trade whose push is
+        // still in flight or mid-retry above.
+        const { pendingSync, pendingSyncSetAt } = get();
+        const isStale = pendingSyncSetAt == null || Date.now() - pendingSyncSetAt > 2 * 60 * 1000;
+        if (pendingSync && !isStale) return;
+        if (pendingSync && isStale) set({ pendingSync: false, pendingSyncSetAt: null });
+        set(state);
+      },
     }),
     {
       name: "paper-trading",
