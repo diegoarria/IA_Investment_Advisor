@@ -35,6 +35,28 @@ PRICES = {
 
 DISMISS_COOLDOWN_DAYS = 14
 
+# Logged once at process start (module import) instead of only discovered
+# reactively when a real user's checkout fails — confirmed 2026-09-16:
+# STRIPE_PRICE_SESSION_BUNDLE being blank silently broke "Pack 3 Sesiones"
+# ($247) checkout for every user, with nothing surfacing it until someone
+# actually tried to buy it and hit a raw, undiagnosable payment error.
+_UPSELL_PRICE_ENV_VARS = {
+    "STRIPE_PRICE_SESSION_FREE": settings.stripe_price_session_free,
+    "STRIPE_PRICE_SESSION_PREMIUM": settings.stripe_price_session_premium,
+    "STRIPE_PRICE_SESSION_BUNDLE": settings.stripe_price_session_bundle,
+    "STRIPE_PRICE_FAMILY_MONTHLY": settings.stripe_price_family_monthly,
+    "STRIPE_PRICE_FAMILY_YEARLY": settings.stripe_price_family_yearly,
+    "STRIPE_PRICE_DEEP_RESEARCH_FREE": settings.stripe_price_deep_research_free,
+    "STRIPE_PRICE_DEEP_RESEARCH_PREMIUM": settings.stripe_price_deep_research_premium,
+}
+_missing_upsell_prices = [k for k, v in _UPSELL_PRICE_ENV_VARS.items() if not v]
+if _missing_upsell_prices and settings.stripe_secret_key:
+    logging.getLogger(__name__).error(
+        "upsells.py startup check: Stripe is configured but these price env vars are blank, "
+        "so their checkout will fail for every user until set: %s",
+        ", ".join(_missing_upsell_prices),
+    )
+
 
 def _price_id_for(offer: str, tier: str, variant: str = "default") -> str:
     mapping = {
@@ -177,12 +199,23 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
     stripe.api_key = settings.stripe_secret_key
     db = get_supabase()
 
-    profile_res = await run_query(
-        db.table("user_profiles")
-        .select("stripe_customer_id, subscription_tier, trial_started_at, streak_bonus_premium_until")
-        .eq("user_id", user_id)
-        .single()
-    )
+    try:
+        profile_res = await run_query(
+            db.table("user_profiles")
+            .select("stripe_customer_id, subscription_tier, trial_started_at, streak_bonus_premium_until")
+            .eq("user_id", user_id)
+            .single()
+        )
+    except Exception as e:
+        # Was unguarded — a real Postgrest error here (or `.single()`
+        # raising on a missing profile row) escaped as a raw, unlogged 500,
+        # which the frontend's EmbeddedCheckout.tsx surfaces as the generic
+        # "No se pudo abrir el pago" with zero diagnostic info anywhere.
+        # Confirmed 2026-09-16 chasing exactly that report. Log the real
+        # error and degrade gracefully like every other checkout failure
+        # path here already does.
+        logger.error("upsell_checkout: profile lookup failed for user %s: %s", user_id, e)
+        return {"error": "No se pudo procesar el pago. Intenta de nuevo en unos segundos."}
     profile = profile_res.data or {}
     tier = _effective_tier(profile.get("subscription_tier", "free"), profile.get("trial_started_at"), profile.get("streak_bonus_premium_until"))
     customer_id = profile.get("stripe_customer_id")
@@ -195,7 +228,15 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
         key = tier
     price_id = _price_id_for(offer, tier, key)
     if not price_id:
-        return {"error": "Precio no configurado en Stripe"}
+        # Was silent — a blank Stripe price env var for this specific
+        # offer/variant combo (e.g. STRIPE_PRICE_SESSION_BUNDLE) meant this
+        # ONE product's checkout was broken for every user while every
+        # other product kept working fine, with nothing in the logs to
+        # find it by. Confirmed 2026-09-16: this is exactly what broke
+        # "Pack 3 Sesiones" ($247) while the regular session/Duo/Premium
+        # checkouts were unaffected.
+        logger.error("upsell_checkout: no Stripe price configured for offer=%s tier=%s variant=%s (key=%s) — check the matching STRIPE_PRICE_* env var", offer, tier, variant, key)
+        return {"error": "Este producto no está disponible en este momento. Ya le avisamos a nuestro equipo."}
 
     base = settings.frontend_url.rstrip("/") if settings.frontend_url not in ("*", "") else "https://nuvosai.com"
     mode = "subscription" if offer == "family_plan" else "payment"
@@ -251,12 +292,21 @@ async def upsell_checkout_embedded(body: dict, user_id: str = Depends(get_curren
     stripe.api_key = settings.stripe_secret_key
     db = get_supabase()
 
-    profile_res = await run_query(
-        db.table("user_profiles")
-        .select("stripe_customer_id, subscription_tier, trial_started_at, streak_bonus_premium_until")
-        .eq("user_id", user_id)
-        .single()
-    )
+    try:
+        profile_res = await run_query(
+            db.table("user_profiles")
+            .select("stripe_customer_id, subscription_tier, trial_started_at, streak_bonus_premium_until")
+            .eq("user_id", user_id)
+            .single()
+        )
+    except Exception as e:
+        # Was unguarded — see the identical fix + comment in upsell_checkout
+        # above. Confirmed 2026-09-16: this is the endpoint behind the
+        # embedded-Elements checkout modal (EmbeddedCheckout.tsx), where an
+        # unhandled exception here surfaces to the user as the generic,
+        # undiagnosable "No se pudo abrir el pago."
+        logger.error("upsell_checkout_embedded: profile lookup failed for user %s: %s", user_id, e)
+        return {"error": "No se pudo procesar el pago. Intenta de nuevo en unos segundos."}
     profile = profile_res.data or {}
     tier = _effective_tier(profile.get("subscription_tier", "free"), profile.get("trial_started_at"), profile.get("streak_bonus_premium_until"))
     customer_id = profile.get("stripe_customer_id")
@@ -269,7 +319,12 @@ async def upsell_checkout_embedded(body: dict, user_id: str = Depends(get_curren
         key = tier
     price_id = _price_id_for(offer, tier, key)
     if not price_id:
-        return {"error": "Precio no configurado en Stripe"}
+        # Was silent — see the identical fix + comment in upsell_checkout
+        # above. This exact gap (STRIPE_PRICE_SESSION_BUNDLE unset) is what
+        # broke "Pack 3 Sesiones" ($247) specifically while every other
+        # product's checkout kept working — confirmed 2026-09-16.
+        logger.error("upsell_checkout_embedded: no Stripe price configured for offer=%s tier=%s variant=%s (key=%s) — check the matching STRIPE_PRICE_* env var", offer, tier, variant, key)
+        return {"error": "Este producto no está disponible en este momento. Ya le avisamos a nuestro equipo."}
 
     # Same synchronous stripe_customer_id linkage as
     # /billing/create-embedded-subscription — must be saved before the
