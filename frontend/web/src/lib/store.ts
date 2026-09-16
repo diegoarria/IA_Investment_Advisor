@@ -704,6 +704,21 @@ interface SubscriptionState {
   markWelcomeCardSeen: () => void;
 }
 
+// fetchStatus() is called from ~8 places (AppSidebar mounts on every page
+// navigation, ThemeProvider's 30s resync, per-page effects) with no
+// coordination between them — two calls can genuinely be in flight at
+// once. Without this guard, whichever response happened to arrive LAST
+// wins the `set()` regardless of which request was actually more recent:
+// a call that started before a navigation but is still resolving after it
+// (a slow network, a Safari tab backgrounded mid-request) could land AFTER
+// a fresh call's correct response and stomp it right back — a real,
+// reproducible "navigate to a screen and Premium flips to Free" bug,
+// confirmed 2026-09-16, same race class already fixed today for watchlist
+// and paper trading. A monotonic generation counter fixes it: only the
+// response from the MOST RECENTLY STARTED call is ever allowed to update
+// state.
+let _fetchStatusGeneration = 0;
+
 export const useSubscriptionStore = create<SubscriptionState>()(
   persist(
     (set, get) => ({
@@ -720,6 +735,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       hasFetchedStatus: false,
       hasSeenWelcomeCard: false,
       fetchStatus: async () => {
+        const myGeneration = ++_fetchStatusGeneration;
         const { billing } = await import("./api");
         // A single transient blip (cold API start, a dropped request, a
         // flaky mobile network) must never be the reason a real trial/
@@ -735,6 +751,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
           try {
             const res = await billing.getStatus();
+            // A newer fetchStatus() call started (and, since generations
+            // only increment, may already have resolved) while this one
+            // was in flight — applying this stale response now would
+            // silently undo the newer, more-correct one.
+            if (myGeneration !== _fetchStatusGeneration) return;
             set({
               tier:              res.data.tier ?? "free",
               trialStartedAt:    res.data.trial_started_at ?? get().trialStartedAt ?? null,
@@ -751,6 +772,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             });
             return;
           } catch (err) {
+            if (myGeneration !== _fetchStatusGeneration) return;
             const status = (err as { response?: { status?: number } })?.response?.status;
             const authFailure = status === 401 || status === 403;
             if (attempt === ATTEMPTS || authFailure) {

@@ -34,6 +34,19 @@ interface SubscriptionStore {
 export const FREE_MSG_LIMIT = 20;
 export const FREE_MSG_WINDOW_HOURS = 24;
 
+// fetchStatus() is called from several places with no coordination
+// (app/index.tsx on launch, (tabs)/_layout.tsx on foreground resume,
+// onboarding) — two calls can be in flight at once. Without this guard,
+// whichever response arrives LAST wins the `set()` regardless of which
+// request actually started more recently: a slow call still resolving
+// after a fresh one already landed could stomp the correct, newer state
+// right back to stale data — confirmed 2026-09-16 as the real mechanism
+// behind a reproducible "navigate to a screen and Premium flips to Free"
+// report, same race class already fixed today for watchlist/paper
+// trading. A monotonic generation counter fixes it: only the most
+// recently STARTED call's response is ever allowed to update state.
+let _fetchStatusGeneration = 0;
+
 export const useSubscriptionStore = create<SubscriptionStore>()(
   persist(
     (set, get) => ({
@@ -47,6 +60,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       hasSeenWelcomeCard: false,
 
       fetchStatus: async () => {
+        const myGeneration = ++_fetchStatusGeneration;
         // A single transient failure (cold API start, a flaky mobile
         // network) must never be the reason a real trial/premium user gets
         // stuck looking free for the rest of the session — retry a few
@@ -60,6 +74,10 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
           try {
             const res = await billingApi.getStatus();
+            // A newer fetchStatus() call started (and may already have
+            // resolved) while this one was in flight — applying this stale
+            // response now would silently undo the newer, correct one.
+            if (myGeneration !== _fetchStatusGeneration) return;
             const prevTier = get().tier;
             const newTier = res.data.tier ?? "free";
             if (prevTier !== "premium" && newTier === "premium") {
@@ -79,6 +97,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
             });
             return;
           } catch (err) {
+            if (myGeneration !== _fetchStatusGeneration) return;
             const status = (err as { response?: { status?: number } })?.response?.status;
             const authFailure = status === 401 || status === 403;
             if (attempt === ATTEMPTS || authFailure) {
