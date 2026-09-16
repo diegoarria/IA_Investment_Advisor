@@ -1119,6 +1119,11 @@ export interface WatchItem {
 
 interface WatchlistState {
   items: WatchItem[];
+  // When pendingSync was last set to true. Used to detect a flag stuck from
+  // an add()/remove() whose retry loop never resolved, so loadFromServer()
+  // doesn't defer to it forever — mirrors mobile's watchlistStore.ts.
+  pendingSync: boolean;
+  pendingSyncSetAt: number | null;
   add: (ticker: string, name: string) => void;
   remove: (ticker: string) => void;
   has: (ticker: string) => boolean;
@@ -1129,24 +1134,77 @@ export const useWatchlistStore = create<WatchlistState>()(
   persist(
     (set, get) => ({
       items: [],
+      pendingSync: false,
+      pendingSyncSetAt: null,
       add: (ticker, name) => {
         const t = ticker.toUpperCase();
         if (get().items.find((i) => i.ticker === t)) return;
-        set((s) => ({ items: [...s.items, { ticker: t, name, addedAt: Date.now() }] }));
-        import("./api").then(({ watchlist }) => {
-          watchlist.add(t, name).catch(() => {});
-        });
+        set((s) => ({
+          items: [...s.items, { ticker: t, name, addedAt: Date.now() }],
+          // Used only by patrimonio/earnings' quick-add star — unlike
+          // watchlist/page.tsx's own add flow, this used to fire-and-forget
+          // the POST with a bare .catch(() => {}): a single transient 5xx
+          // silently dropped the add server-side while the optimistic item
+          // stayed shown right up until the next hard refresh's
+          // loadFromServer() wiped it back out — exactly the "I add it,
+          // refresh, and it's gone" report (2026-09-15). Retry with backoff
+          // before giving up, and guard against loadFromServer() stomping
+          // the optimistic item while a retry is still in flight.
+          pendingSync: true,
+          pendingSyncSetAt: Date.now(),
+        }));
+        (async () => {
+          const { watchlist } = await import("./api");
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              await watchlist.add(t, name);
+              return;
+            } catch (err: unknown) {
+              const status = (err as { response?: { status?: number } })?.response?.status;
+              if (status === 409) return; // already in list server-side — not a failure
+              if (attempt === 2) {
+                // Genuinely failed after 3 tries — undo the optimistic add so
+                // local state matches reality instead of drifting until the
+                // next loadFromServer() silently corrects it.
+                set((s) => ({ items: s.items.filter((i) => i.ticker !== t) }));
+                return;
+              }
+              await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+            }
+          }
+        })().finally(() => set({ pendingSync: false, pendingSyncSetAt: null }));
       },
       remove: (ticker) => {
         const t = ticker.toUpperCase();
-        set((s) => ({ items: s.items.filter((i) => i.ticker !== t) }));
-        import("./api").then(({ watchlist }) => {
-          watchlist.remove(t).catch(() => {});
-        });
+        set((s) => ({
+          items: s.items.filter((i) => i.ticker !== t),
+          // Same guard as add() — a concurrent loadFromServer() (e.g. the
+          // app-wide 30s resync in ThemeProvider) must never land mid-delete
+          // and resurrect this item from a response fetched before the
+          // delete committed server-side.
+          pendingSync: true,
+          pendingSyncSetAt: Date.now(),
+        }));
+        (async () => {
+          const { watchlist } = await import("./api");
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              await watchlist.remove(t);
+              return;
+            } catch {
+              if (attempt < 2) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+            }
+          }
+        })().finally(() => set({ pendingSync: false, pendingSyncSetAt: null }));
       },
       has: (ticker) => !!get().items.find((i) => i.ticker === ticker.toUpperCase()),
       loadFromServer: async () => {
         try {
+          const { pendingSync, pendingSyncSetAt } = get();
+          const isStale = pendingSyncSetAt == null || Date.now() - pendingSyncSetAt > 2 * 60 * 1000;
+          if (pendingSync && !isStale) return;
+          if (pendingSync && isStale) set({ pendingSync: false, pendingSyncSetAt: null });
+
           const { watchlist } = await import("./api");
           const res = await watchlist.get();
           const serverItems: WatchItem[] = (res.data ?? []).map((i: any) => ({

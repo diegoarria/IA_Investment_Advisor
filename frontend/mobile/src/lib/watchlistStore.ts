@@ -33,9 +33,34 @@ export const useWatchlistStore = create<WatchlistStore>()(
       add: (ticker, name) => {
         const t = ticker.toUpperCase();
         if (get().items.find((i) => i.ticker === t)) return;
-        set((s) => ({ items: [...s.items, { ticker: t, name, addedAt: Date.now() }] }));
-        // Optimistic — sync to server in background
-        watchlistServerApi.add(t, name).catch(() => {});
+        set((s) => ({
+          items: [...s.items, { ticker: t, name, addedAt: Date.now() }],
+          // remove() already guarded loadFromServer() with this flag; add()
+          // didn't, and fired the POST with a bare .catch(() => {}) — a
+          // single transient failure silently dropped the add server-side
+          // while the optimistic item stayed shown until the next
+          // loadFromServer() (app foreground resume) wiped it back out.
+          // Same fix as web's store.ts (2026-09-15): retry with backoff,
+          // and guard against a concurrent resync stomping the optimistic
+          // item mid-retry.
+          pendingSync: true,
+          pendingSyncSetAt: Date.now(),
+        }));
+        (async () => {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              await watchlistServerApi.add(t, name);
+              return;
+            } catch (err: any) {
+              if (err?.response?.status === 409) return; // already in list server-side
+              if (attempt === 2) {
+                set((s) => ({ items: s.items.filter((i) => i.ticker !== t) }));
+                return;
+              }
+              await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+            }
+          }
+        })().finally(() => set({ pendingSync: false, pendingSyncSetAt: null }));
       },
 
       remove: (ticker) => {
