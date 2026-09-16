@@ -116,7 +116,10 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
           />
         ) : (
         <>
-        <div className="overflow-y-auto flex-1 px-6 pt-5 pb-4 space-y-4">
+        <div
+          className="overflow-y-auto flex-1 px-6 pt-5 pb-4 space-y-4"
+          style={{ minHeight: 0, WebkitOverflowScrolling: "touch" }}
+        >
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">

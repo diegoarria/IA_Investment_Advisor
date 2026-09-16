@@ -59,7 +59,13 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
             <Ionicons name="close" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
-          <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+          {/* `sheet` below caps height at maxHeight + overflow:"hidden" — without
+              style={{ flex: 1 }} here, this ScrollView renders at its full
+              content height instead of the sheet's available space, so
+              `sheet` just clips the overflow with no way to scroll to it.
+              Confirmed 2026-09-15: this is why users couldn't scroll a
+              paywall taller than the visible sheet. */}
+          <ScrollView style={s.scrollFlex} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
             <Text style={[s.title, { color: colors.text }]}>{t("paywallModal.premiumBadge")}</Text>
 
             {reason ? (
@@ -184,6 +190,7 @@ const s = StyleSheet.create({
   handleRow: { alignItems: "center", paddingTop: 12, paddingBottom: 4 },
   handle: { width: 36, height: 4, borderRadius: 2 },
   closeBtn: { position: "absolute", top: 14, right: 16, padding: 6, zIndex: 10 },
+  scrollFlex: { flex: 1 },
   scroll: { paddingHorizontal: 20, paddingBottom: 36 },
 
   title: { fontSize: 19, fontWeight: "900", textAlign: "center", marginBottom: 12 },

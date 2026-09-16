@@ -65,7 +65,11 @@ export default function PricingModal({ visible, onClose }: Props) {
             <Ionicons name="close" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
-          <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+          {/* Same fix as PaywallModal.tsx (2026-09-15): `sheet` caps height
+              with maxHeight + overflow:"hidden", but without
+              style={{ flex: 1 }} here the ScrollView renders at full
+              content height and never becomes scrollable. */}
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
 
             <Text style={{ fontSize: 20, fontWeight: "900", textAlign: "center", marginBottom: 4, color: colors.text }}>
               {t("pricingModal.title")}

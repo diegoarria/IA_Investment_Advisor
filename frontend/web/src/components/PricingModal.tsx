@@ -108,7 +108,10 @@ export default function PricingModal({ visible, onClose }: Props) {
         </div>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1">
+        <div
+          className="overflow-y-auto flex-1"
+          style={{ minHeight: 0, WebkitOverflowScrolling: "touch" }}
+        >
 
         {checkoutMode ? (
           <div className="pt-4">

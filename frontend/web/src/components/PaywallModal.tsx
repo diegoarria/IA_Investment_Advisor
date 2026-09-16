@@ -104,7 +104,17 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
           </button>
         </div>
 
-        <div className="overflow-y-auto flex-1">
+        <div
+          className="overflow-y-auto flex-1"
+          // min-h-0 override: a flex child sizing to its own content instead
+          // of the flex container's bounded height is the classic Safari/
+          // flexbox gotcha that silently breaks overflow-y-auto — the mobile
+          // RN version of this same modal had the equivalent bug (missing
+          // ScrollView flex:1), fixed 2026-09-15. WebkitOverflowScrolling
+          // gives iOS Safari real momentum scrolling instead of a janky
+          // step-scroll.
+          style={{ minHeight: 0, WebkitOverflowScrolling: "touch" }}
+        >
           {checkoutMode ? (
             <div className="pt-4">
               <EmbeddedCheckout

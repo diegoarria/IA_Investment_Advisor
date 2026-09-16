@@ -55,7 +55,11 @@ export default function OneTimeProductModal({ visible, onClose, product }: Props
             <Ionicons name="close" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
-          <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+          {/* Same fix as PaywallModal.tsx (2026-09-15): `sheet` caps height with
+              maxHeight + overflow:"hidden", but without style={{ flex: 1 }}
+              here the ScrollView renders at full content height and never
+              becomes scrollable — `sheet` just clips it. */}
+          <ScrollView style={s.scrollFlex} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
             <Text style={s.emoji}>{product.emoji}</Text>
             <Text style={[s.title, { color: colors.text }]}>{product.title}</Text>
 
@@ -109,6 +113,7 @@ const s = StyleSheet.create({
   handleRow: { alignItems: "center", paddingTop: 12, paddingBottom: 4 },
   handle: { width: 36, height: 4, borderRadius: 2 },
   closeBtn: { position: "absolute", top: 14, right: 16, padding: 6, zIndex: 10 },
+  scrollFlex: { flex: 1 },
   scroll: { paddingHorizontal: 20, paddingBottom: 36, alignItems: "center" },
 
   emoji: { fontSize: 44, marginTop: 8, marginBottom: 10 },

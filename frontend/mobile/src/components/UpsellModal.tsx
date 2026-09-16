@@ -88,7 +88,12 @@ export default function UpsellModal({
           {/* Top accent bar — gradient simulated with solid */}
           <View style={[s.accentBar, { backgroundColor: c }]} />
 
+          {/* Same fix as PaywallModal.tsx (2026-09-15): `sheet` caps height
+              with maxHeight + overflow:"hidden", but without
+              style={{ flex: 1 }} here the ScrollView renders at full
+              content height and never becomes scrollable. */}
           <ScrollView
+            style={s.scrollFlex}
             contentContainerStyle={s.scrollContent}
             showsVerticalScrollIndicator={false}
           >
@@ -231,6 +236,7 @@ const s = StyleSheet.create({
   sheet:          { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, maxHeight: "92%", overflow: "hidden", width: "100%" },
   accentBar:      { height: 4 },
 
+  scrollFlex:     { flex: 1 },
   scrollContent:  { padding: 20, paddingBottom: 8, gap: 16 },
 
   // Header
