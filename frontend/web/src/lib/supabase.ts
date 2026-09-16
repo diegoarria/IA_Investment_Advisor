@@ -22,6 +22,20 @@ export function getSupabaseClient(): SupabaseClient {
         storage: typeof window !== "undefined" ? window.sessionStorage : undefined,
         persistSession: true,
         autoRefreshToken: true,
+        // supabase-js v2 defaults detectSessionInUrl to true, which makes the
+        // SDK itself silently start exchanging the one-time PKCE `?code=`
+        // param the instant this client is constructed on /auth/callback —
+        // racing app/auth/callback/page.tsx's own explicit
+        // exchangeCodeForSession(code) call for the SAME single-use code.
+        // Whichever call loses gets "invalid grant," and since nothing in
+        // the app listens for the SDK's own SIGNED_IN event when ITS
+        // exchange wins instead, the session is silently dropped and the
+        // user bounces back to "/" with no auth state — then retries,
+        // repeating the same race. Confirmed 2026-09-15: this was the
+        // Google-OAuth guest<->login<->Google loop reported for new
+        // signups. Disabling this makes the callback page's own explicit
+        // exchange the only consumer of the code.
+        detectSessionInUrl: false,
       },
     });
   }
