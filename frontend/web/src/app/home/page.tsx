@@ -17,7 +17,7 @@ import MorningBriefCard from "@/components/MorningBriefCard";
 import ExplainButton from "@/components/ExplainButton";
 import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, billing, cashHoldings as cashHoldingsApi, dividends as dividendsApi } from "@/lib/api";
 import PricingModal from "@/components/PricingModal";
-import EmbeddedCheckout from "@/components/EmbeddedCheckout";
+import EmbeddedCheckout, { type CheckoutSummary } from "@/components/EmbeddedCheckout";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore, useBalanceVisibilityStore, hasPremiumAccess } from "@/lib/store";
 import OnboardingChecklist, { type OnboardingStep } from "@/components/OnboardingChecklist";
 import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenPickerModal";
@@ -193,6 +193,18 @@ export default function HomePage() {
   // Diego, 2026-09-15: card entry happens INSIDE a modal (Stripe Elements)
   // instead of redirecting to a Stripe-hosted page.
   const [brokerCheckoutOpen, setBrokerCheckoutOpen] = useState(false);
+
+  // Diego, 2026-09-15: "quiero agregarle este resumen del pedido similar a
+  // los productos con sus respectivos productos" — same order-summary card
+  // PricingModal's checkout already shows.
+  const brokerCallSummary: CheckoutSummary = {
+    planName: t("home.onboarding.bookCall.title"),
+    priceLabel: "$20",
+    priceSuffix: " USD",
+    dueTodayLabel: "$20 USD",
+    features: [t("home.onboarding.bookCall.sessionFeature")],
+    accentColor: "#00d47e",
+  };
 
   const handleBrokerCheckoutSuccess = (paymentIntentId?: string) => {
     setBrokerCheckoutOpen(false);
@@ -1529,7 +1541,7 @@ export default function HomePage() {
               no maxHeight/scroll here clipped a tall checkout form with no
               way to reach the rest of it. */}
           <div
-            className="w-full max-w-md rounded-2xl shadow-2xl overflow-y-auto"
+            className="w-full max-w-2xl rounded-2xl shadow-2xl overflow-y-auto"
             style={{ background: "var(--bg)", border: "1px solid var(--border)", maxHeight: "90vh", minHeight: 0, WebkitOverflowScrolling: "touch" }}
           >
             <div className="pt-5">
@@ -1539,6 +1551,7 @@ export default function HomePage() {
                 onBack={() => setBrokerCheckoutOpen(false)}
                 onSuccess={handleBrokerCheckoutSuccess}
                 payCtaLabel={t("pricingModal.payCtaSession")}
+                summary={brokerCallSummary}
               />
             </div>
           </div>

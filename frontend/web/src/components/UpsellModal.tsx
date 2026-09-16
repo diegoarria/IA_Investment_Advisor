@@ -7,7 +7,7 @@ import api, { upsells } from "@/lib/api";
 import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import EmbeddedCheckout from "./EmbeddedCheckout";
+import EmbeddedCheckout, { type CheckoutSummary } from "./EmbeddedCheckout";
 
 export type UpsellOffer = "family_plan" | "session";
 
@@ -69,6 +69,25 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
 
   const purchaseVariant = offer === "family_plan" ? duoVariant : variant === "bundle" ? "bundle" : tier;
 
+  // Diego, 2026-09-15: "quiero agregarle este resumen del pedido similar a
+  // los productos con sus respectivos productos" — PricingModal's checkout
+  // already shows an order-summary card (plan, features, price, total)
+  // next to the payment form; this modal's own checkout (session/Duo
+  // bought straight from an upsell prompt, not from the pricing page) was
+  // missing the same recap. Built from the same `meta`/`displayPrice`
+  // already used to render the pre-checkout card above, so it always
+  // matches what the user just saw.
+  const checkoutSummary: CheckoutSummary = {
+    planName: offer === "session"
+      ? `${meta.title} — ${variant === "bundle" ? t("upsellModal.pack3Sessions") : t("upsellModal.oneSession")}`
+      : meta.title,
+    priceLabel: displayPrice,
+    priceSuffix: "",
+    dueTodayLabel: displayPrice,
+    features: meta.features,
+    accentColor: meta.color,
+  };
+
   const handleCheckoutSuccess = (paymentIntentId?: string) => {
     onClose();
     setShowCheckout(false);
@@ -95,7 +114,12 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
       style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
     >
       <div
-        className="w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl overflow-hidden flex flex-col"
+        // Widen for checkout: EmbeddedCheckout's order-summary layout puts
+        // a 260px recap column beside the payment form (same as
+        // PricingModal's own checkout, which uses max-w-4xl) — cramming
+        // that into this modal's normal max-w-md would squeeze both
+        // columns illegibly.
+        className={`w-full rounded-t-3xl sm:rounded-2xl overflow-hidden flex flex-col ${showCheckout ? "sm:max-w-2xl" : "sm:max-w-md"}`}
         style={{
           background: "var(--card)",
           border: `1px solid ${meta.color}35`,
@@ -123,6 +147,7 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
               onBack={() => setShowCheckout(false)}
               onSuccess={handleCheckoutSuccess}
               payCtaLabel={offer === "session" ? t("pricingModal.payCtaSession") : undefined}
+              summary={checkoutSummary}
             />
           </div>
         ) : (

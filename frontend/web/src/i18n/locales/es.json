@@ -308,6 +308,7 @@
         "title": "Agenda una llamada y crea tu cuenta en un broker gratis",
         "descFree": "Gratis por {{time}} más — una sesión 1-a-1 para abrir tu cuenta con confianza",
         "descExpired": "El período gratis venció — $20 USD por la sesión 1-a-1",
+        "sessionFeature": "Sesión 1-a-1 para abrir tu cuenta con un broker con confianza",
         "alreadyHaveBroker": "Ya tengo cuenta en broker"
       },
       "skip": "Omitir",

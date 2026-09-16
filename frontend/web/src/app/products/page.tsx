@@ -11,7 +11,7 @@ import { useSubscriptionStore, useAuthStore, hasPremiumAccess } from "@/lib/stor
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { upsells } from "@/lib/api";
-import EmbeddedCheckout from "@/components/EmbeddedCheckout";
+import EmbeddedCheckout, { type CheckoutSummary } from "@/components/EmbeddedCheckout";
 import {
   Brain, BarChart2, TrendingUp, Shield, Zap, BookOpen,
   GraduationCap, Bell, Calendar, RefreshCw, Target, Search,
@@ -85,6 +85,24 @@ export default function ProductsPage() {
     if (!isAuthenticated) { router.push("/login"); return; }
     setCheckoutOffer({ offer, variant });
   }
+
+  // Diego, 2026-09-15: "quiero agregarle este resumen del pedido similar a
+  // los productos con sus respectivos productos" — same order-summary card
+  // PricingModal's checkout already shows, built from this exact product's
+  // own listing entry so it always matches what the user just clicked.
+  const checkoutProduct = checkoutOffer
+    ? ONE_TIME_PRODUCTS.find((p) => p.offer === checkoutOffer.offer && p.variant === checkoutOffer.variant)
+    : null;
+  const checkoutSummary: CheckoutSummary | undefined = checkoutProduct
+    ? {
+        planName: checkoutProduct.title,
+        priceLabel: (isPremium ? checkoutProduct.price_premium : checkoutProduct.price_free) ?? checkoutProduct.price_premium ?? "",
+        priceSuffix: "",
+        dueTodayLabel: (isPremium ? checkoutProduct.price_premium : checkoutProduct.price_free) ?? checkoutProduct.price_premium ?? "",
+        features: checkoutProduct.features,
+        accentColor: "#00d47e",
+      }
+    : undefined;
 
   function handleCheckoutSuccess(paymentIntentId?: string) {
     if (!checkoutOffer) return;
@@ -296,7 +314,7 @@ export default function ProductsPage() {
               2026-09-15 from a real screenshot of this exact flow. Same
               fix as UpsellModal/PricingModal's checkout branches. */}
           <div
-            className="w-full max-w-md rounded-2xl shadow-2xl overflow-y-auto"
+            className={`w-full rounded-2xl shadow-2xl overflow-y-auto ${checkoutSummary ? "max-w-2xl" : "max-w-md"}`}
             style={{ background: "var(--bg)", border: "1px solid var(--border)", maxHeight: "90vh", minHeight: 0, WebkitOverflowScrolling: "touch" }}
           >
             <div className="pt-5">
@@ -305,6 +323,7 @@ export default function ProductsPage() {
                 returnUrl={`${window.location.origin}/upsell-success?offer=${checkoutOffer.offer}`}
                 onBack={() => setCheckoutOffer(null)}
                 onSuccess={handleCheckoutSuccess}
+                summary={checkoutSummary}
                 payCtaLabel={checkoutOffer.offer === "session" ? t("pricingModal.payCtaSession") : undefined}
               />
             </div>

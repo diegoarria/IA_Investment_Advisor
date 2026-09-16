@@ -308,6 +308,7 @@
         "title": "Book a call and open a free broker account",
         "descFree": "Free for {{time}} more — a 1-on-1 session to open your account with confidence",
         "descExpired": "The free window expired — $20 USD for the 1-on-1 session",
+        "sessionFeature": "1-on-1 session to open your broker account with confidence",
         "alreadyHaveBroker": "I already have a broker account"
       },
       "skip": "Skip",
