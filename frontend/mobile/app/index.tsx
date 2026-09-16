@@ -159,7 +159,15 @@ export default function AuthScreen() {
             if (d.maturity.score >= local)
               useAppStore.setState({ maturityScore: d.maturity.score, maturityHistory: d.maturity.history });
           }
-          if (d.trial?.trial_started_at)
+          // Purely a fast-path courtesy for the brief window before the
+          // fetchStatus() fired above resolves — once it has, IT is
+          // authoritative (same underlying trial_started_at column, but no
+          // reason for a second writer to keep clobbering it after the
+          // fact). Deferring like this, rather than a generation-claim
+          // check, avoids a subtler bug: fetchStatus() always fires just
+          // above, so a claim-ordering check here would end up skipping
+          // this write on literally every run.
+          if (d.trial?.trial_started_at && !useSubscriptionStore.getState().hasFetchedStatus)
             useSubscriptionStore.setState({ trialStartDate: d.trial.trial_started_at });
           if (d.avatar_url && !useAppStore.getState().profile?.avatarUri) {
             useAppStore.setState((s) => ({
@@ -275,7 +283,8 @@ export default function AuthScreen() {
           if (d.maturity.score >= local)
             useAppStore.setState({ maturityScore: d.maturity.score, maturityHistory: d.maturity.history });
         }
-        if (d.trial?.trial_started_at)
+        // Same fast-path-only deferral as the other call site in this file.
+        if (d.trial?.trial_started_at && !useSubscriptionStore.getState().hasFetchedStatus)
           useSubscriptionStore.setState({ trialStartDate: d.trial.trial_started_at });
       }
       // Portfolio uses its own store method — see comment at the other call site
