@@ -11,6 +11,7 @@ import logging
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
 from app.core.config import settings
+from app.core.stripe_retry import stripe_call as _stripe_call
 
 router = APIRouter(prefix="/upsells", tags=["upsells"])
 logger = logging.getLogger(__name__)
@@ -264,7 +265,7 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
         params["customer"] = customer_id
 
     try:
-        session = await asyncio.to_thread(stripe.checkout.Session.create, **params)
+        session = await _stripe_call(stripe.checkout.Session.create, **params)
     except Exception as e:
         logger.error("Stripe upsell checkout failed for user %s (offer=%s): %s", user_id, offer, e)
         return {"error": "Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos."}
@@ -331,7 +332,7 @@ async def upsell_checkout_embedded(body: dict, user_id: str = Depends(get_curren
     # card is entered so the webhook can attribute the payment.
     if not customer_id:
         try:
-            customer = await asyncio.to_thread(stripe.Customer.create, metadata={"user_id": user_id})
+            customer = await _stripe_call(stripe.Customer.create, metadata={"user_id": user_id})
         except Exception as e:
             logger.error("Stripe customer creation failed for user %s: %s", user_id, e)
             return {"error": "Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos."}
@@ -346,7 +347,7 @@ async def upsell_checkout_embedded(body: dict, user_id: str = Depends(get_curren
 
     try:
         if offer == "family_plan":
-            subscription = await asyncio.to_thread(
+            subscription = await _stripe_call(
                 stripe.Subscription.create,
                 customer=customer_id,
                 items=[{"price": price_id}],
@@ -362,8 +363,8 @@ async def upsell_checkout_embedded(body: dict, user_id: str = Depends(get_curren
             # which take a price id directly) — retrieved from the Price
             # object so Stripe stays the single source of truth for amounts,
             # never hardcoded here.
-            price = await asyncio.to_thread(stripe.Price.retrieve, price_id)
-            intent = await asyncio.to_thread(
+            price = await _stripe_call(stripe.Price.retrieve, price_id)
+            intent = await _stripe_call(
                 stripe.PaymentIntent.create,
                 amount=price.unit_amount,
                 currency=price.currency,
@@ -417,7 +418,7 @@ async def verify_1on1_payment(body: dict, user_id: str = Depends(get_current_use
 
     if payment_intent_id:
         try:
-            intent = await asyncio.to_thread(stripe.PaymentIntent.retrieve, payment_intent_id)
+            intent = await _stripe_call(stripe.PaymentIntent.retrieve, payment_intent_id)
         except Exception:
             raise HTTPException(status_code=400, detail="No se pudo verificar el pago — intenta de nuevo en unos segundos")
         metadata = intent.get("metadata") or {}
@@ -431,7 +432,7 @@ async def verify_1on1_payment(body: dict, user_id: str = Depends(get_current_use
         redeem_key = payment_intent_id
     else:
         try:
-            session = await asyncio.to_thread(stripe.checkout.Session.retrieve, stripe_session_id)
+            session = await _stripe_call(stripe.checkout.Session.retrieve, stripe_session_id)
         except Exception:
             raise HTTPException(status_code=400, detail="No se pudo verificar el pago — intenta de nuevo en unos segundos")
         metadata = session.get("metadata") or {}

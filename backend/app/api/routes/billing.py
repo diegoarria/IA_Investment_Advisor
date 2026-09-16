@@ -9,6 +9,7 @@ from app.api.deps import get_current_user_id, get_current_user
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
 from app.core.cache import cache_delete
+from app.core.stripe_retry import stripe_call as _stripe_call
 from app.services import investor_progress_service
 
 logger = logging.getLogger(__name__)
@@ -65,7 +66,7 @@ async def create_checkout(body: CheckoutRequest, user_id: str = Depends(get_curr
         params["customer"] = customer_id
 
     try:
-        session = await asyncio.to_thread(s.checkout.Session.create, **params)
+        session = await _stripe_call(s.checkout.Session.create, **params)
     except Exception as e:
         logger.error("Stripe checkout session creation failed for user %s: %s", user_id, e)
         raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
@@ -100,7 +101,7 @@ async def create_embedded_subscription(body: CheckoutRequest, user: dict = Depen
 
     if not customer_id:
         try:
-            customer = await asyncio.to_thread(
+            customer = await _stripe_call(
                 s.Customer.create, email=user.get("email"), metadata={"user_id": user_id},
             )
         except Exception as e:
@@ -112,7 +113,7 @@ async def create_embedded_subscription(body: CheckoutRequest, user: dict = Depen
         )
 
     try:
-        subscription = await asyncio.to_thread(
+        subscription = await _stripe_call(
             s.Subscription.create,
             customer=customer_id,
             items=[{"price": _price_id(body.plan)}],
@@ -546,7 +547,7 @@ async def broker_call_checkout(user_id: str = Depends(get_current_user_id)):
 
     base = settings.frontend_url if settings.frontend_url not in ("*", "", None) else "https://nuvosai.com"
     try:
-        session = await asyncio.to_thread(
+        session = await _stripe_call(
             s.checkout.Session.create,
             mode="payment",
             payment_method_types=["card"],
@@ -585,7 +586,7 @@ async def create_embedded_broker_call(user_id: str = Depends(get_current_user_id
 
     if not customer_id:
         try:
-            customer = await asyncio.to_thread(s.Customer.create, metadata={"user_id": user_id})
+            customer = await _stripe_call(s.Customer.create, metadata={"user_id": user_id})
         except Exception as e:
             logger.error("Stripe customer creation failed for user %s: %s", user_id, e)
             raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
@@ -595,8 +596,8 @@ async def create_embedded_broker_call(user_id: str = Depends(get_current_user_id
         )
 
     try:
-        price = await asyncio.to_thread(s.Price.retrieve, settings.stripe_price_broker_call)
-        intent = await asyncio.to_thread(
+        price = await _stripe_call(s.Price.retrieve, settings.stripe_price_broker_call)
+        intent = await _stripe_call(
             s.PaymentIntent.create,
             amount=price.unit_amount,
             currency=price.currency,
