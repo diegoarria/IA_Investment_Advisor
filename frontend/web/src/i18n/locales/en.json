@@ -3336,6 +3336,15 @@
     "chargesImmediately": "Charged immediately",
     "oneOnOneCta": "Prefer a 1:1 guide with an expert from our team?"
   },
+  "welcomePremiumCard": {
+    "title": "Welcome to Nuvos, {{name}}!",
+    "subtitle": "We activated your Premium trial — no card, no commitment.",
+    "trialLabel": "30 days of Premium, free",
+    "trialEndsPrefix": "Your trial ends on",
+    "featuresLabel": "With Premium you get",
+    "continue": "Continue",
+    "noCardRequired": "No card required to start"
+  },
   "themeProvider": {
     "newVersionAvailable": "A new version is available",
     "reload": "Reload",

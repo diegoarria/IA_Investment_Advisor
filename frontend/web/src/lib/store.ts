@@ -694,9 +694,14 @@ interface SubscriptionState {
    * "free") value — components that gate premium content can check this
    * to tell "genuinely free" apart from "haven't heard back yet". */
   hasFetchedStatus: boolean;
+  /** Once-ever welcome/trial card (2026-09-16, migration 098) — server-
+   * persisted, not local, so it genuinely never shows again on another
+   * device/browser after the user taps "Continuar". */
+  hasSeenWelcomeCard: boolean;
   fetchStatus: () => Promise<void>;
   setTier: (tier: SubscriptionTier) => void;
   incrementMsgCount: () => void;
+  markWelcomeCardSeen: () => void;
 }
 
 export const useSubscriptionStore = create<SubscriptionState>()(
@@ -713,6 +718,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       duoInviteStatus: null,
       hasStripeCustomer: false,
       hasFetchedStatus: false,
+      hasSeenWelcomeCard: false,
       fetchStatus: async () => {
         const { billing } = await import("./api");
         // A single transient blip (cold API start, a dropped request, a
@@ -740,6 +746,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
               duoSecondaryEmail: res.data.duo_secondary_email ?? null,
               duoInviteStatus:   res.data.duo_invite_status ?? null,
               hasStripeCustomer: res.data.has_stripe_customer ?? false,
+              hasSeenWelcomeCard: res.data.has_seen_welcome_card ?? get().hasSeenWelcomeCard,
               hasFetchedStatus:  true,
             });
             return;
@@ -770,6 +777,26 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         } else {
           set({ msgCount: msgCount + 1 });
         }
+      },
+      markWelcomeCardSeen: () => {
+        // Flip local state FIRST and unconditionally — tapping "Continuar"
+        // must close the card and let the user into the app instantly,
+        // never wait on a network round-trip. The server write below is
+        // best-effort with its own retries; if it genuinely never lands,
+        // the card shows once more on a future session at worst, which is
+        // far better than blocking entry into the app on a network call.
+        set({ hasSeenWelcomeCard: true });
+        (async () => {
+          const { profile } = await import("./api");
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              await profile.markWelcomeCardSeen();
+              return;
+            } catch {
+              if (attempt < 2) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+            }
+          }
+        })();
       },
     }),
     {

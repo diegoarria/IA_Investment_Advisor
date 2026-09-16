@@ -620,7 +620,7 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
 
     def _query():
         return db.table("user_profiles").select(
-            "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id, broker_offer_seen_at, duo_plan_purchased_at, duo_secondary_email, duo_invite_status, streak_bonus_premium_until, claimed_streak_milestones"
+            "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id, broker_offer_seen_at, duo_plan_purchased_at, duo_secondary_email, duo_invite_status, streak_bonus_premium_until, claimed_streak_milestones, has_seen_welcome_card"
         ).eq("user_id", user_id).maybe_single()
 
     result = await run_query(_query())
@@ -721,6 +721,11 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
         "streak_bonus_premium_until": streak_bonus_until,
         "streak_bonus_active":       streak_bonus_active,
         "claimed_streak_milestones": list(data.get("claimed_streak_milestones") or []),
+        # Once-ever welcome/trial card (migration 098) — this endpoint is
+        # already fetched reliably on cold start/foreground-resume on both
+        # platforms, so it's the single source of truth for this instead of
+        # a second round-trip the card would have to wait on.
+        "has_seen_welcome_card":     bool(data.get("has_seen_welcome_card")),
     }
 
 

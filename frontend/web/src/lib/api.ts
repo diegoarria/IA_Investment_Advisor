@@ -138,6 +138,7 @@ export const profile = {
   uploadAvatar: (imageBase64: string) =>
     api.post("/api/profile/avatar", { image_base64: imageBase64 }),
   deleteAvatar: () => api.delete("/api/profile/avatar"),
+  markWelcomeCardSeen: () => api.post("/api/profile/welcome-card-seen"),
 };
 
 export const chat = {

@@ -19,11 +19,16 @@ interface SubscriptionStore {
   // startTrialIfNeeded below) while `tier` is still its stale/default "free"
   // value, and briefly get told their trial already ended.
   hasFetchedStatus: boolean;
+  /** Once-ever welcome/trial card (2026-09-16, migration 098) — server-
+   * persisted, not AsyncStorage, so it genuinely never shows again on
+   * another device/reinstall after the user taps "Continuar". */
+  hasSeenWelcomeCard: boolean;
   // Actions
   fetchStatus: () => Promise<void>;
   setTier: (tier: SubscriptionTier) => void;
   incrementMsgCount: () => void;
   startTrialIfNeeded: () => void;
+  markWelcomeCardSeen: () => void;
 }
 
 export const FREE_MSG_LIMIT = 20;
@@ -39,6 +44,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       isTrialPremium: false,
       trialDaysLeftServer: 0,
       hasFetchedStatus: false,
+      hasSeenWelcomeCard: false,
 
       fetchStatus: async () => {
         // A single transient failure (cold API start, a flaky mobile
@@ -65,6 +71,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
               msgWindowStart:      res.data.msg_window_start ?? null,
               isTrialPremium:      res.data.is_trial ?? false,
               trialDaysLeftServer: res.data.trial_days_left ?? 0,
+              hasSeenWelcomeCard:  res.data.has_seen_welcome_card ?? get().hasSeenWelcomeCard,
               hasFetchedStatus:    true,
               ...(res.data.trial_started_at
                 ? { trialStartDate: res.data.trial_started_at }
@@ -136,6 +143,26 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
               if (get().trialStartDate === optimisticDate) set({ trialStartDate: null });
             });
         });
+      },
+
+      markWelcomeCardSeen: () => {
+        // Flip local state FIRST and unconditionally — tapping "Continuar"
+        // must close the card and let the user into the app instantly,
+        // never wait on a network round-trip. Best-effort server write
+        // with its own retries below; if it never lands, the card shows
+        // once more on a future session at worst.
+        set({ hasSeenWelcomeCard: true });
+        (async () => {
+          const { profileApi } = await import("./api");
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              await profileApi.markWelcomeCardSeen();
+              return;
+            } catch {
+              if (attempt < 2) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+            }
+          }
+        })();
       },
     }),
     {

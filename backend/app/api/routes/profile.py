@@ -344,6 +344,32 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
     return _to_user_profile(data)
 
 
+@router.post("/welcome-card-seen")
+async def mark_welcome_card_seen(user_id: str = Depends(get_current_user_id)):
+    """Diego, 2026-09-16: the once-ever welcome/trial card must never show
+    twice — not on a refresh, not on another device or browser, not after
+    a reinstall. Persisted server-side (has_seen_welcome_card, migration
+    098) rather than localStorage/AsyncStorage, which is exactly what
+    would fail that requirement. Idempotent and fire-and-forget-safe: the
+    client calls this once when "Continuar" is tapped and never needs to
+    check the result to proceed — see web/mobile's WelcomeCard for the
+    "never let this block entering the app" handling on the other end."""
+    db = get_supabase()
+    try:
+        await run_query(
+            db.table("user_profiles").update({"has_seen_welcome_card": True}).eq("user_id", user_id)
+        )
+    except Exception as e:
+        # A failure here must never be visible to the user or block them
+        # from entering the app — worst case the card shows once more on
+        # their next session, never a hard failure of "Continuar" itself.
+        logger.error("mark_welcome_card_seen failed for user %s: %s", user_id, e)
+        return {"ok": False}
+    cache_delete(f"profile:{user_id}")
+    cache_delete(f"sync:all:{user_id}")
+    return {"ok": True}
+
+
 @router.get("/insights")
 async def get_ai_insights(lang: str | None = None, user_id: str = Depends(get_current_user_id), _ai_gate: None = Depends(require_ai_enabled)):
     """Analyze chat history to detect behavioral patterns and suggest profile updates.

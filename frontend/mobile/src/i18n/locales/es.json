@@ -3461,6 +3461,15 @@
     "startNow": "Comenzar ahora",
     "coachingCta": "¿Prefieres una guía 1:1 con experto de nuestro equipo?"
   },
+  "welcomePremiumCard": {
+    "title": "¡Bienvenido a Nuvos, {{name}}!",
+    "subtitle": "Activamos tu prueba Premium — sin tarjeta, sin compromiso.",
+    "trialLabel": "30 días de Premium gratis",
+    "trialEndsPrefix": "Tu prueba termina el",
+    "featuresLabel": "Con Premium tienes acceso a",
+    "continue": "Continuar",
+    "noCardRequired": "Sin tarjeta requerida para empezar"
+  },
   "quizModal": {
     "passed": "¡Quiz aprobado!",
     "almostThere": "Casi lo logras",

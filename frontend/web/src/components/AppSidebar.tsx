@@ -36,6 +36,7 @@ function getAge(birthDate: string | null | undefined): number | null {
   return age > 0 ? age : null;
 }
 import PaywallModal from "@/components/PaywallModal";
+import WelcomeCard from "@/components/WelcomeCard";
 import EmbeddedCheckout from "@/components/EmbeddedCheckout";
 import { upsells } from "@/lib/api";
 
@@ -596,6 +597,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
       </aside>
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
+      {isAuthenticated && <WelcomeCard />}
 
       {sessionCheckoutOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
