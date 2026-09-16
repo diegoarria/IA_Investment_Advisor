@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 import httpx
 from supabase import create_client, Client, ClientOptions
 from app.core.config import settings
@@ -7,6 +8,18 @@ from app.core.config import settings
 log = logging.getLogger(__name__)
 
 _client: Client | None = None
+_client_created_at: float = 0.0
+# A process that runs for hours/days on one long-lived Supabase client can
+# end up with its underlying HTTP connection pinned to a stale backend node
+# (e.g. a lagging PostgREST instance) — confirmed live 2026-09-16: a brand
+# new signup's profile row, verified to exist via a fresh, independently-
+# created client, was invisible to every query this running process made
+# for that same user for several minutes straight (SELECT silently
+# returning empty, not an error — the retry logic below can't catch a
+# query that "succeeds" with wrong data). Recycling the singleton
+# periodically bounds how long any one connection can stay stale, without
+# needing every single call site to detect and recover from this itself.
+_CLIENT_MAX_AGE_SECONDS = 5 * 60
 
 # auto_refresh_token/persist_session default to True, which assumes ONE
 # client per logged-in user — gotrue then caches whatever session was most
@@ -30,9 +43,11 @@ _TRANSIENT_ERRORS = (httpx.RemoteProtocolError, httpx.ConnectError, httpx.ReadEr
 
 
 def get_supabase() -> Client:
-    global _client
-    if _client is None:
+    global _client, _client_created_at
+    now = time.monotonic()
+    if _client is None or (now - _client_created_at) > _CLIENT_MAX_AGE_SECONDS:
         _client = create_client(settings.supabase_url, settings.supabase_service_key, options=_AUTH_OPTIONS)
+        _client_created_at = now
     return _client
 
 
