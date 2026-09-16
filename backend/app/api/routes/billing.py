@@ -654,21 +654,37 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
     result = await run_query(_query())
 
     # A transient PostgREST/replica hiccup can return an empty result for a
-    # user whose profile row genuinely exists — this used to fall straight
-    # through to "tier": "free" below, which is exactly how a real trial/
-    # premium user (and, under load, many users at once) would suddenly get
-    # downgraded to free for no real reason. Retry a couple of times before
-    # concluding the profile truly doesn't exist.
+    # user whose profile row genuinely exists — retry a few times (bumped
+    # from 2 to 4 and the gap widened, 2026-09-16: confirmed LIVE against
+    # production that 2 retries at 0.3s wasn't enough — 3 of 10 rapid,
+    # back-to-back calls for the SAME real trial account still came back
+    # empty) before concluding anything.
     if not result or not result.data:
-        for _ in range(2):
-            await asyncio.sleep(0.3)
+        for attempt in range(4):
+            await asyncio.sleep(0.3 * (attempt + 1))
             result = await run_query(_query())
             if result and result.data:
                 break
 
     if not result or not result.data:
-        logger.warning("billing.get_status: no user_profiles row for user %s after retries — returning free", user_id)
-        return {"tier": "free", "msg_count": 0, "msg_window_start": None}
+        # THIS is the actual fix, not just the extra retries above: this
+        # used to `return {"tier": "free", ...}` here — answering with
+        # total confidence that the user is free when what actually
+        # happened is "we couldn't confirm anything." Confirmed live
+        # 2026-09-16: this is exactly what was still causing a real trial
+        # user to intermittently see Free after all of today's earlier
+        # fixes (connection recycling, the client-side generation guard) —
+        # none of those help when the SERVER itself fails closed instead of
+        # failing open. A 503 makes the client's own fetchStatus() retry
+        # loop (already built for exactly this) try again on a fresh
+        # connection instead of the server confidently lying. The one
+        # legitimate case this also covers — a user who genuinely hasn't
+        # finished onboarding yet, so this row truly doesn't exist — behaves
+        # identically from the client's point of view either way: retries
+        # exhaust, hasFetchedStatus flips true, tier stays at its default
+        # ("free"), which is correct for that case too.
+        logger.error("billing.get_status: no user_profiles row for user %s after retries — degrading to a retryable error instead of asserting free", user_id)
+        raise HTTPException(status_code=503, detail="No se pudo verificar tu estado de suscripción. Intenta de nuevo en unos segundos.")
 
     data            = result.data
     tier            = data.get("subscription_tier", "free")
