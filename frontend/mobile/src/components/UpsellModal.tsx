@@ -9,6 +9,7 @@ import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 import api from "../lib/api";
 import type { UpsellOffer } from "../lib/upsellStore";
+import { hasPremiumAccess } from "../lib/subscriptionStore";
 
 interface UpsellModalProps {
   visible: boolean;
@@ -52,7 +53,14 @@ export default function UpsellModal({
 
   const OFFER_META = getOfferMeta(t);
   const meta = OFFER_META[offer];
-  const isPremium = userTier === "premium";
+  // Was a raw `userTier === "premium"` comparison — not exploitable today
+  // (userTier traces back to the server's already-trial-aware effective
+  // tier via /api/upsells/check), but it bypassed the one canonical
+  // premium check every other call site in the app uses, so a future
+  // refactor wiring this from local store state instead could silently
+  // reintroduce the premium-shows-free bug class. Flagged and fixed in the
+  // 2026-09-16 full-sweep audit for defense-in-depth.
+  const isPremium = hasPremiumAccess({ tier: userTier, hasFetchedStatus: true });
   const c = meta.color;
 
   const displayPrice =

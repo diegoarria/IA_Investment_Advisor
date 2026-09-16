@@ -499,7 +499,7 @@ async def claim_streak_milestone(body: dict, user_id: str = Depends(get_current_
     db = get_supabase()
     result = await run_query(
         db.table("user_profiles")
-        .select("subscription_tier, streak_count, claimed_streak_milestones, streak_bonus_premium_until, msg_count")
+        .select("subscription_tier, trial_started_at, streak_count, claimed_streak_milestones, streak_bonus_premium_until, msg_count")
         .eq("user_id", user_id)
         .single()
     )
@@ -509,7 +509,14 @@ async def claim_streak_milestone(body: dict, user_id: str = Depends(get_current_
     data = result.data
     streak = int(data.get("streak_count") or 0)
     claimed = list(data.get("claimed_streak_milestones") or [])
-    tier = data.get("subscription_tier", "free")
+    # Was a raw `subscription_tier` read — the exact "bare tier check"
+    # anti-pattern this file's own _is_premium() docstring warns against,
+    # one function below it. Direction was harmless (a trial-active user
+    # would incorrectly qualify for bonus days on top of their trial — more
+    # premium, not less) but flagged and fixed in the 2026-09-16 full-sweep
+    # audit for consistency with every other tier check in this file.
+    from app.core.subscription import is_premium_active
+    is_premium = is_premium_active(data.get("subscription_tier"), data.get("trial_started_at"), data.get("streak_bonus_premium_until"))
 
     # Must have reached the milestone
     if streak < milestone_days:
@@ -522,7 +529,7 @@ async def claim_streak_milestone(body: dict, user_id: str = Depends(get_current_
     update: dict = {"claimed_streak_milestones": claimed + [milestone_days]}
 
     # Free users: grant premium bonus days
-    if tier != "premium" and milestone_days in _PREMIUM_BONUS_DAYS:
+    if not is_premium and milestone_days in _PREMIUM_BONUS_DAYS:
         bonus = _PREMIUM_BONUS_DAYS[milestone_days]
         # Extend from existing bonus if still active, else from now
         current_bonus = data.get("streak_bonus_premium_until")

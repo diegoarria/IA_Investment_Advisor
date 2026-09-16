@@ -14,6 +14,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
+from app.core.cache import cache_delete
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,15 @@ async def _extend_premium(user_id: str, days: int, db) -> None:
     await run_query(
         db.table("user_profiles").update({"streak_bonus_premium_until": new_until}).eq("user_id", user_id)
     )
+    # Every other write path that can change a user's effective premium
+    # status (Stripe webhooks, Duo grant/revoke, trial auto-start) already
+    # invalidates these two keys immediately — this one didn't, so a user
+    # crossing into bonus-premium via a referral reward could see a stale
+    # "Free" /profile or /sync/all response for up to the cache's own TTL
+    # (up to 120s) instead of their new status immediately. Confirmed in a
+    # 2026-09-16 full-sweep audit of every subscription_tier-adjacent write.
+    cache_delete(f"profile:{user_id}")
+    cache_delete(f"sync:all:{user_id}")
 
 
 async def _grant_tier_rewards(referrer_id: str, new_count: int, db) -> list[tuple[int, int, bool, bool]]:
