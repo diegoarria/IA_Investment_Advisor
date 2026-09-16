@@ -15,6 +15,7 @@ import { loadStripe, type StripeElementsOptions } from "@stripe/stripe-js";
 import { Elements, PaymentElement, AddressElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { Loader2, ArrowLeft, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useThemeStore } from "@/lib/store";
 
 // Plan/price recap shown alongside the payment form — same info the user
 // already saw on the plan-selection cards, kept visible here instead of
@@ -74,19 +75,43 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
 
-// Stripe's stock "night" theme already looks right on a dark background —
-// minimal overrides only (brand green + Nuvos's font), rather than
-// re-deriving every color rule by hand, which risks a field/tab ending up
-// unreadable (same color as its own background) if one override doesn't
-// match another.
-const APPEARANCE = {
-  theme: "night" as const,
-  variables: {
-    colorPrimary: "#00d47e",
-    fontFamily: "DM Sans, -apple-system, BlinkMacSystemFont, sans-serif",
-    borderRadius: "12px",
-  },
-};
+// Stripe's stock "night"/"stripe" themes already look right on a dark/light
+// background respectively — minimal overrides only (brand green + Nuvos's
+// font + exact card/border/text tokens), rather than re-deriving every
+// color rule by hand, which risks a field/tab ending up unreadable (same
+// color as its own background) if one override doesn't match another.
+// This used to be hardcoded to "night" regardless of the app's own theme —
+// a user on light mode got a dark Stripe form floating on a light page,
+// exactly the mismatch Diego reported 2026-09-15 from a screenshot.
+const FONT_FAMILY = "DM Sans, -apple-system, BlinkMacSystemFont, sans-serif";
+
+function getAppearance(theme: "dark" | "light") {
+  return theme === "light"
+    ? {
+        theme: "stripe" as const,
+        variables: {
+          colorPrimary: "#009958",
+          colorBackground: "#ffffff",
+          colorText: "#0a1628",
+          colorTextSecondary: "#5b7a96",
+          colorBorder: "#dce5f0",
+          fontFamily: FONT_FAMILY,
+          borderRadius: "12px",
+        },
+      }
+    : {
+        theme: "night" as const,
+        variables: {
+          colorPrimary: "#00d47e",
+          colorBackground: "#090f1f",
+          colorText: "#eef2ff",
+          colorTextSecondary: "#546b85",
+          colorBorder: "#162035",
+          fontFamily: FONT_FAMILY,
+          borderRadius: "12px",
+        },
+      };
+}
 
 function CheckoutForm({
   onBack, onSuccess, returnUrl, payCtaLabel,
@@ -178,6 +203,7 @@ export default function EmbeddedCheckout({
   payCtaLabel?: string;
 }) {
   const { t } = useTranslation();
+  const theme = useThemeStore((s) => s.theme);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -206,7 +232,7 @@ export default function EmbeddedCheckout({
       </div>
     );
   } else {
-    const options: StripeElementsOptions = { clientSecret, appearance: APPEARANCE };
+    const options: StripeElementsOptions = { clientSecret, appearance: getAppearance(theme) };
     body = (
       <Elements stripe={stripePromise} options={options}>
         <CheckoutForm onBack={onBack} onSuccess={onSuccess} returnUrl={returnUrl} payCtaLabel={payCtaLabel} />
