@@ -42,6 +42,23 @@ _COOKIE_KW = {
     "secure": _IS_PROD,
     "samesite": "none" if _IS_PROD else "lax",
     "path": "/",
+    # Without an explicit Domain, a cookie is "host-only" — valid on the
+    # EXACT host that set it, not its subdomains. next.config.ts's rewrite
+    # proxy (see apiBase.ts) treats both nuvosai.com and www.nuvosai.com as
+    # equally valid first-party origins, but Vercel 307-redirects the apex
+    # to www site-wide — and Safari is well known for dropping/not-storing
+    # Set-Cookie headers that arrive on a redirected fetch/XHR response. A
+    # user whose session cookie ended up host-only on one of these two
+    # hosts (e.g. a request that happened to resolve against the apex
+    # before/without following that redirect) would silently 401 on every
+    # API call made from the other — looking exactly like "I'm Premium but
+    # navigating flips me to Free" (fetchStatus's 401 path leaves `tier`
+    # stuck at its cold-start default instead of ever refreshing it).
+    # Confirmed 2026-09-16 via a live redirect-chain check against
+    # production. Domain=.nuvosai.com makes the cookie valid on the apex
+    # AND every subdomain, so it no longer matters which one any given
+    # request/redirect actually lands on.
+    **({"domain": ".nuvosai.com"} if _IS_PROD else {}),
 }
 
 
@@ -64,8 +81,14 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str 
 
 
 def _clear_auth_cookies(response: Response) -> None:
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
+    # Must match set_cookie's domain exactly, or the browser treats this as
+    # a delete for a DIFFERENT (host-only) cookie and leaves the real,
+    # domain-scoped session cookie (set with Domain=.nuvosai.com in prod)
+    # in place — logout would look successful while the old session
+    # remained valid.
+    domain_kw = {"domain": ".nuvosai.com"} if _IS_PROD else {}
+    response.delete_cookie("access_token", path="/", **domain_kw)
+    response.delete_cookie("refresh_token", path="/", **domain_kw)
 
 # Holds strong references to fire-and-forget tasks so the GC can't collect them
 # before they finish. Tasks remove themselves when done.
