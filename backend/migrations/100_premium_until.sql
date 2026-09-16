@@ -1,0 +1,23 @@
+-- Migration 100: premium_until — an explicit expiration date for Premium,
+-- instead of recomputing it live from 3 different fields on every check.
+--
+-- Scope (Diego, 2026-09-16, after validating the current Stripe/webhook
+-- flow): this is used ONLY for the two cases where no expiration is
+-- stored anywhere today — a real paid Stripe subscription (set to the
+-- period end on checkout/renewal, cleared implicitly since cancellation
+-- already flips subscription_tier='free' via webhook) and a permanent
+-- manual grant (explicitly NULL = never expires). The 30-day trial is
+-- deliberately left untouched — it keeps using the existing, already-
+-- audited-today trial_started_at + TRIAL_DAYS live calculation in
+-- is_premium_active(), since that function is called from ~25 places and
+-- flipping the trial's stored tier to "premium" would require every one
+-- of them to also read/pass premium_until or risk treating an expired
+-- trial as permanently premium.
+--
+-- NULL is the safe default for every existing row: a currently-paying
+-- Stripe subscriber simply has no enforced expiration until their next
+-- webhook event (renewal or cancellation) sets a real value — strictly
+-- more permissive than today, never less, so this migration cannot
+-- downgrade anyone on its own.
+ALTER TABLE user_profiles
+  ADD COLUMN IF NOT EXISTS premium_until TIMESTAMPTZ;

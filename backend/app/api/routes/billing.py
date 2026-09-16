@@ -299,6 +299,15 @@ async def stripe_webhook(request: Request):
             is_duo = metadata.get("offer") == "family_plan"
             update = {
                 "subscription_tier": "premium",
+                # migration 100, 2026-09-16: distinguishes a real Stripe
+                # subscriber from a manual_comp grant (subscription_source
+                # was previously only ever written for manual_comp, leaving
+                # every real subscriber's row NULL and indistinguishable
+                # from "unknown"). premium_until itself isn't set here —
+                # invoice.payment_succeeded fires moments later for this
+                # same new subscription (billing_reason="subscription_create")
+                # and sets it from the real period end there.
+                "subscription_source": "stripe",
                 "stripe_customer_id": customer_id,
                 "subscription_started_at": datetime.now(timezone.utc).isoformat(),
             }
@@ -362,10 +371,16 @@ async def stripe_webhook(request: Request):
             # way invoice.payment_succeeded does below — otherwise a user
             # downgraded by a prior past_due window stays stuck on free
             # until their next billing cycle's invoice.payment_succeeded.
+            update = {"subscription_tier": "premium", "subscription_source": "stripe"}
+            # migration 100: this event already carries the full
+            # subscription object (unlike invoice.payment_succeeded, which
+            # only has the invoice) — current_period_end is right here, no
+            # extra Stripe API call needed.
+            period_end = sub.get("current_period_end")
+            if period_end:
+                update["premium_until"] = datetime.fromtimestamp(period_end, tz=timezone.utc).isoformat()
             await run_query(
-                db.table("user_profiles").update({
-                    "subscription_tier": "premium",
-                }).eq("stripe_customer_id", customer_id)
+                db.table("user_profiles").update(update).eq("stripe_customer_id", customer_id)
             )
             await _invalidate_profile_cache_by_customer(customer_id, db)
 
@@ -395,7 +410,20 @@ async def stripe_webhook(request: Request):
         billing_reason = event["data"]["object"].get("billing_reason", "")
         if customer_id and billing_reason in ("subscription_cycle", "subscription_update", "subscription_create"):
             from datetime import datetime, timezone
-            update = {"subscription_tier": "premium"}
+            update = {"subscription_tier": "premium", "subscription_source": "stripe"}
+            # migration 100: the invoice's own line item already carries the
+            # period this payment covers — no extra Stripe API call needed.
+            # This is what makes premium_until correct for BOTH a renewal
+            # (subscription_cycle) and this subscription's very first
+            # invoice (subscription_create, which checkout.session.completed
+            # deliberately left unset, expecting this event to fill it in
+            # moments later).
+            try:
+                period_end = event["data"]["object"]["lines"]["data"][0]["period"]["end"]
+                if period_end:
+                    update["premium_until"] = datetime.fromtimestamp(period_end, tz=timezone.utc).isoformat()
+            except (KeyError, IndexError, TypeError) as e:
+                logger.warning("webhook: could not read invoice line period for premium_until (customer=%s): %s", customer_id, e)
             is_duo = False
             interval_label = "?"
             if billing_reason == "subscription_create":
@@ -620,7 +648,7 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
 
     def _query():
         return db.table("user_profiles").select(
-            "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id, broker_offer_seen_at, duo_plan_purchased_at, duo_secondary_email, duo_invite_status, streak_bonus_premium_until, claimed_streak_milestones, has_seen_welcome_card"
+            "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id, broker_offer_seen_at, duo_plan_purchased_at, duo_secondary_email, duo_invite_status, streak_bonus_premium_until, claimed_streak_milestones, has_seen_welcome_card, premium_until, subscription_source"
         ).eq("user_id", user_id).maybe_single()
 
     result = await run_query(_query())
@@ -667,7 +695,19 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
     effective_tier = tier
     is_trial       = False
     days_left      = 0
-    if tier != "premium" and trial_started and is_premium_active(tier, trial_started):
+    premium_until  = data.get("premium_until")
+
+    # migration 100, 2026-09-16: a stored expiration on a real paid
+    # subscription (set by the webhook on checkout/renewal) is the safety
+    # net for a missed or delayed webhook — cancellation/expiry already
+    # flips subscription_tier='free' directly via the webhook, so this
+    # only ever matters in that gap. NULL premium_until (a permanent
+    # manual_comp grant, or a paid row from before this migration that
+    # hasn't hit its next renewal event yet) means "no expiration," never
+    # "already expired" — see is_premium_active's own docstring.
+    if tier == "premium" and not is_premium_active(tier, trial_started, data.get("streak_bonus_premium_until"), premium_until):
+        effective_tier = "free"
+    elif tier != "premium" and trial_started and is_premium_active(tier, trial_started):
         effective_tier = "premium"
         is_trial       = True
         try:
@@ -726,6 +766,14 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
         # platforms, so it's the single source of truth for this instead of
         # a second round-trip the card would have to wait on.
         "has_seen_welcome_card":     bool(data.get("has_seen_welcome_card")),
+        # migration 100, 2026-09-16: NULL for a permanent grant or a trial
+        # (trial's own expiration is trial_started_at + trial_days_left
+        # above, not this field) — only set for a real paid subscription.
+        # Exposed so a future UI can show "se renueva/vence el ..." without
+        # a second round-trip; not required for the tier decision itself,
+        # which is already resolved into `tier` above.
+        "premium_until":             premium_until,
+        "subscription_source":       data.get("subscription_source"),
     }
 
 

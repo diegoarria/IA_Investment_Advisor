@@ -103,6 +103,53 @@ class TestIsPremiumActive:
     def test_malformed_streak_bonus_does_not_crash_and_is_not_premium(self):
         assert is_premium_active("free", None, "not-a-real-date") is False
 
+    # ── premium_until (migration 100, 2026-09-16) ──────────────────────
+    # Scoped to the paid-subscription and permanent-grant cases only — the
+    # 30-day trial deliberately keeps using trial_started_at above, not
+    # this field. See migration 100's docstring for why.
+
+    def test_paid_with_no_premium_until_is_permanent(self):
+        # NULL premium_until means "no stored expiration" (a manual_comp
+        # grant, or a paid row from before this migration / not yet hit its
+        # first renewal webhook) — must never be treated as already expired.
+        assert is_premium_active("premium", None, None, None) is True
+
+    def test_paid_with_future_premium_until_is_active(self):
+        assert is_premium_active("premium", None, None, _iso_days_ago(-10)) is True
+
+    def test_paid_with_past_premium_until_is_expired(self):
+        # The safety net for a missed/delayed cancellation webhook — the
+        # stored date, not just the tier column, is what actually gates.
+        assert is_premium_active("premium", None, None, _iso_days_ago(1)) is False
+
+    def test_paid_with_expired_premium_until_is_authoritative_over_leftover_trial_data(self):
+        # Once tier is premium/pro, premium_until (when present) is the
+        # single, final answer for that branch — it does not fall through
+        # to check trial_started_at too. This keeps the check a true single
+        # comparison per the redesign's whole point, instead of stacking
+        # multiple conditions for what is supposed to be one entitlement.
+        assert is_premium_active("premium", _iso_days_ago(15), None, _iso_days_ago(1)) is False
+
+    def test_malformed_premium_until_does_not_crash_and_fails_open_to_permanent(self):
+        # Same fail-open philosophy as the rest of this function: a
+        # corrupted date must never be the reason a real premium user gets
+        # silently downgraded.
+        assert is_premium_active("premium", None, None, "not-a-real-date") is True
+
+    def test_premium_until_ignored_when_omitted(self):
+        # Backward compatibility: every one of the ~25 existing call sites
+        # that doesn't pass this new 4th argument must behave EXACTLY as
+        # before — this is what makes adding premium_until a zero-risk
+        # change for every call site except the one that opts in.
+        assert is_premium_active("premium", None) is True
+        assert is_premium_active("premium", _iso_days_ago(9999)) is True
+
+    def test_premium_until_never_applies_to_free_tier(self):
+        # premium_until only means anything once tier is already premium/pro
+        # — a free-tier row with a leftover premium_until (e.g. from a
+        # subscription that already lapsed) must not grant premium by itself.
+        assert is_premium_active("free", None, None, _iso_days_ago(-10)) is False
+
 
 class TestRouteWrappersAgreeWithCanonical:
     """Each of these route modules keeps its own thin wrapper around
@@ -119,7 +166,13 @@ class TestRouteWrappersAgreeWithCanonical:
         expired_profile = SimpleNamespace(subscription_tier="free", trial_started_at=_iso_days_ago(45))
         assert _is_premium(expired_profile) is False
 
-        assert _is_premium(None) is False
+        # Nuvos CARE, 2026-09-15: profile=None (a genuinely-missing row vs.
+        # a transient parse/DB error are indistinguishable here) fails OPEN
+        # to premium, deliberately — see _is_premium's own docstring. This
+        # test used to assert the opposite (pre-dating that decision); it
+        # was updated to match the intentional design instead of the
+        # design being reverted to match a stale assertion.
+        assert _is_premium(None) is True
 
     def test_voice_call_is_premium(self):
         from app.api.routes.voice_call import _is_premium
@@ -304,7 +357,11 @@ class TestNoReimplementedTrialMath:
         offenders = [
             f"worker.py:{i}: {line.strip()}"
             for i, line in enumerate(text.splitlines(), start=1)
-            if self._TIER_ONLY_PATTERN.search(line)
+            # Skip comment-only lines — a comment DESCRIBING the old bug
+            # (e.g. "was filtered on subscription_tier==\"premium\" before
+            # this fix") legitimately contains the same text as the real
+            # offending code once did, without being a live occurrence of it.
+            if not line.strip().startswith("#") and self._TIER_ONLY_PATTERN.search(line)
         ]
         assert not offenders, (
             "Found a tier-only premium check in worker.py (ignores trial/streak-bonus users) — "

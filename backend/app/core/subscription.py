@@ -52,6 +52,7 @@ def is_premium_active(
     tier: str | None,
     trial_started_at: str | None,
     streak_bonus_premium_until: str | None = None,
+    premium_until: str | None = None,
 ) -> bool:
     """True for paid premium/pro subscribers, users within their
     TRIAL_DAYS-day trial, AND users currently covered by a streak/referral
@@ -67,8 +68,30 @@ def is_premium_active(
     a user whose only premium entitlement is a streak/referral bonus ends
     up seeing "Premium" in the UI (billing/status knows about the bonus)
     while every other gate — chat, watchlist, price alerts, learn, voice
-    calls — silently rejects them."""
+    calls — silently rejects them.
+
+    `premium_until` (migration 100, 2026-09-16) is likewise optional and
+    additive: NULL/omitted means "no stored expiration" and preserves the
+    exact old behavior (tier == premium/pro is unconditionally True) — so
+    every one of the ~25 existing call sites that doesn't pass it keeps
+    working identically, zero regression risk. Only a caller that HAS this
+    column (currently just GET /billing/status) should pass it, and only
+    for the two cases that previously had no expiration stored anywhere:
+    a real paid Stripe subscription (set to the current period end,
+    refreshed on each renewal/cancellation webhook) and an explicit
+    permanent grant (stored as NULL — see the None-check below, which
+    matches migration 100's intent exactly: no date means never expires,
+    not already expired). Deliberately NOT used for the 30-day trial —
+    see migration 100's docstring for why introducing it there would need
+    every other call site updated too, or an expired trial would read as
+    permanently premium anywhere that update was missed."""
     if (tier or "") in ("premium", "pro"):
+        if premium_until:
+            try:
+                until = datetime.fromisoformat(premium_until.replace("Z", "+00:00"))
+                return until > datetime.now(timezone.utc)
+            except Exception:
+                logger.warning("is_premium_active: unparseable premium_until=%r — treating as no expiration", premium_until)
         return True
     if trial_started_at:
         try:
