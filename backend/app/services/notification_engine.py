@@ -282,8 +282,9 @@ async def send_email_notification(user_id: str, category: str, subject: str, htm
     from app.services.email_service import send_email
 
     try:
-        users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
-        email = next((u.email for u in users if u.id == user_id), None)
+        from app.core.database import find_auth_user
+        u = await find_auth_user(db, user_id=user_id)
+        email = u.email if u else None
     except Exception:
         email = None
     if not email:

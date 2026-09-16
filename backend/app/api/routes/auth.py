@@ -324,8 +324,8 @@ async def forgot_password(request: Request, body: dict):
     log_security_event("password_reset_requested", email=email, ip=client_ip(request), **_ua_lang(request))
     db = get_supabase()
     try:
-        users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
-        user = next((u for u in users if u.email and u.email.lower() == email), None)
+        from app.core.database import find_auth_user
+        user = await find_auth_user(db, email=email)
         if user:
             code = f"{secrets.randbelow(1000000):06d}"
             _set_reset_code(f"reset_code:email:{email}", {"code": code})
@@ -385,8 +385,8 @@ async def forgot_password_sms(request: Request, body: dict):
     log_security_event("password_reset_sms_requested", email=email, ip=client_ip(request), detail=phone, **_ua_lang(request))
     db = get_supabase()
     try:
-        users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
-        user = next((u for u in users if u.email and u.email.lower() == email), None)
+        from app.core.database import find_auth_user
+        user = await find_auth_user(db, email=email)
         if user:
             code = f"{secrets.randbelow(1000000):06d}"
             _set_reset_code(f"reset_code:phone:{phone}", {"code": code, "email": email})
@@ -450,8 +450,8 @@ async def reset_password(request: Request, body: dict):
     log_security_event("password_reset_completed", email=email, ip=client_ip(request), **_ua_lang(request))
 
     db = get_supabase()
-    users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
-    user = next((u for u in users if u.email and u.email.lower() == email), None)
+    from app.core.database import find_auth_user
+    user = await find_auth_user(db, email=email)
     if not user:
         raise HTTPException(status_code=400, detail="Usuario no encontrado")
     # Diego, 2026-09-08 (pre-launch audit, P1): a password reset used to

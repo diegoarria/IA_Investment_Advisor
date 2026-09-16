@@ -32,10 +32,9 @@ async def _require_admin(user: dict) -> None:
 
 async def _find_user_by_email(email: str, db) -> dict | None:
     try:
-        users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
-        for u in users:
-            if (u.email or "").lower() == email.lower():
-                return {"id": u.id, "email": u.email}
+        from app.core.database import find_auth_user
+        u = await find_auth_user(db, email=email)
+        return {"id": u.id, "email": u.email} if u else None
     except Exception as e:
         logger.warning("_find_user_by_email failed: %s", e)
     return None

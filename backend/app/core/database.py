@@ -59,3 +59,35 @@ async def run_query(query_builder, _max_attempts: int = 3):
 async def run_auth(fn, *args, **kwargs):
     """Execute a synchronous Supabase auth call without blocking the event loop."""
     return await asyncio.to_thread(lambda: fn(*args, **kwargs))
+
+
+async def find_auth_user(db, *, email: str | None = None, user_id: str | None = None):
+    """Look up a Supabase Auth user by email or id, scanning every page.
+
+    `db.auth.admin.list_users()` called with no arguments does NOT return
+    every user — GoTrue's admin API defaults to page=1/per_page=50, so a
+    bare `list_users()` silently returns only the first 50 accounts ever
+    created. Eight call sites across this codebase (password reset by
+    email/SMS, notification dispatch, Duo/admin email lookups, the Google
+    OAuth account-migration path) used to call it that way and then filter
+    the result in Python — meaning every one of them silently failed to
+    find any user created after the app's first ~50 signups, while still
+    returning the generic "if that email exists..." success response.
+    Confirmed live (2026-09-15): this is why "olvidé mi contraseña" email/
+    SMS worked for early accounts but not others. Use this helper instead
+    of calling list_users() directly anywhere a specific user needs to be
+    found by email or id."""
+    email_norm = email.lower() if email else None
+    page, per_page = 1, 200
+    while True:
+        batch = await asyncio.to_thread(lambda p=page: db.auth.admin.list_users(page=p, per_page=per_page))
+        if not batch:
+            return None
+        for u in batch:
+            if user_id is not None and u.id == user_id:
+                return u
+            if email_norm is not None and (u.email or "").lower() == email_norm:
+                return u
+        if len(batch) < per_page:
+            return None
+        page += 1

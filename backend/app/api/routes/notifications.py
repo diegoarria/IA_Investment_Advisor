@@ -48,8 +48,9 @@ async def send_test_notification(user_id: str = Depends(get_current_user_id)):
     # Test email
     if settings.resend_api_key:
         try:
-            users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
-            email = next((u.email for u in users if u.id == user_id), None)
+            from app.core.database import find_auth_user
+            u = await find_auth_user(db, user_id=user_id)
+            email = u.email if u else None
             if email:
                 ok = await send_email(
                     email,

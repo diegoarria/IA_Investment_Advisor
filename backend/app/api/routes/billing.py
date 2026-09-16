@@ -484,19 +484,28 @@ async def _safe_to_downgrade_duo_secondary(secondary_id: str, db) -> bool:
     the secondary by user_id alone — with no awareness that this exact
     account could independently be: (a) manually comp'd permanent premium
     (subscription_source='manual_comp', same class of bug fixed for the
-    primary-customer-id downgrade path in commit bd722446), or (b) a real,
+    primary-customer-id downgrade path in commit bd722446), (b) a real,
     separate paying subscriber under their OWN stripe_customer_id (e.g.
     they bought their own individual plan, or lead their own duo pairing,
-    independent of being someone else's secondary). Neither case has
-    anything to do with the duo plan being cancelled/reassigned, so
-    neither should ever be touched by that event."""
+    independent of being someone else's secondary), or (c) in the middle
+    of their own 30-day trial (trial_started_at set, no Stripe customer
+    yet) — a trial has nothing to do with a duo plan either, so writing
+    subscription_tier='free' here stomps it, leaving the row's tier out
+    of sync with is_premium_active() for the rest of the trial window.
+    None of these cases has anything to do with the duo plan being
+    cancelled/reassigned, so none should ever be touched by that event."""
     res = await run_query(
-        db.table("user_profiles").select("subscription_source, stripe_customer_id").eq("user_id", secondary_id).maybe_single()
+        db.table("user_profiles").select(
+            "subscription_source, stripe_customer_id, subscription_tier, trial_started_at, streak_bonus_premium_until"
+        ).eq("user_id", secondary_id).maybe_single()
     )
     row = res.data or {}
     if row.get("subscription_source") == "manual_comp":
         return False
     if row.get("stripe_customer_id"):
+        return False
+    from app.core.subscription import is_premium_active
+    if is_premium_active(row.get("subscription_tier", "free"), row.get("trial_started_at"), row.get("streak_bonus_premium_until")):
         return False
     return True
 
@@ -740,10 +749,9 @@ async def broker_offer_seen(user_id: str = Depends(get_current_user_id)):
 async def _find_user_id_by_email(email: str, db) -> str | None:
     """Return Supabase user_id for a given email, or None if not found."""
     try:
-        users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
-        for u in users:
-            if (u.email or "").lower() == email.lower():
-                return u.id
+        from app.core.database import find_auth_user
+        u = await find_auth_user(db, email=email)
+        return u.id if u else None
     except Exception as e:
         logger.warning("_find_user_id_by_email failed: %s", e)
     return None

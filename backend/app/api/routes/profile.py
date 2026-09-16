@@ -74,11 +74,9 @@ async def _migrate_profile_by_email(db, new_user_id: str, email: str) -> dict | 
     Find the original account's profile and migrate all user data to the new id.
     """
     try:
-        all_users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
-        old_ids = [
-            u.id for u in all_users
-            if getattr(u, "email", None) == email and u.id != new_user_id
-        ]
+        from app.core.database import find_auth_user
+        old_user = await find_auth_user(db, email=email)
+        old_ids = [old_user.id] if old_user and old_user.id != new_user_id else []
         if not old_ids:
             return None
         existing = await run_query(
@@ -148,9 +146,21 @@ async def create_profile(
         existing_row = existing.data[0]
         if existing_row.get("subscription_tier") != "premium" and not existing_row.get("trial_started_at"):
             db_data["trial_started_at"] = now
-        result = await run_query(
-            db.table("user_profiles").update({**db_data, "updated_at": now}).eq("user_id", user_id)
-        )
+        try:
+            result = await run_query(
+                db.table("user_profiles").update({**db_data, "updated_at": now}).eq("user_id", user_id)
+            )
+        except Exception as exc:
+            # run_query only retries transient network drops (see database.py) —
+            # a real Postgrest/Postgres error (bad value, constraint violation)
+            # propagates straight out of the route and hits FastAPI's default
+            # handler, surfacing as a bare, un-actionable "Internal Server
+            # Error" to the user with no detail and nothing useful in our own
+            # logs either. Log the real error and degrade to the same
+            # retryable 503 every other failure path in this handler already
+            # returns.
+            logger.error("create_profile: update failed for user_id=%s: %s", user_id, exc)
+            raise HTTPException(status_code=503, detail="No se pudo guardar tu perfil. Intenta de nuevo en unos segundos.")
         if not result.data:
             # Same class of bug the insert branch below is already hardened
             # against: an update() that actually succeeds but returns no
@@ -188,9 +198,20 @@ async def create_profile(
         # ignore_duplicates, the losing request just gets an empty result
         # here and re-fetches the row the winner already created below,
         # instead of surfacing a scary error for a signup that actually worked.
-        result = await run_query(
-            db.table("user_profiles").upsert(record, on_conflict="user_id", ignore_duplicates=True)
-        )
+        try:
+            result = await run_query(
+                db.table("user_profiles").upsert(record, on_conflict="user_id", ignore_duplicates=True)
+            )
+        except Exception as exc:
+            # Same gap as the update branch above: run_query only retries
+            # transient network drops, so a real constraint/value error on
+            # this INSERT (which every brand-new signup hits, unlike the
+            # update branch Diego's own long-lived account always takes)
+            # propagated as a raw, undiagnosable "Internal Server Error" —
+            # exactly the onboarding failure reported for fresh accounts.
+            # Log the real Postgrest error and degrade gracefully instead.
+            logger.error("create_profile: insert failed for user_id=%s: %s", user_id, exc)
+            raise HTTPException(status_code=503, detail="No se pudo crear tu perfil. Intenta de nuevo en unos segundos.")
         if not result.data:
             # The losing side of a concurrent double-submit (or a request that
             # raced a not-yet-committed insert from the winner) lands here —
