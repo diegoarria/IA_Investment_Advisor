@@ -1525,7 +1525,13 @@ export default function HomePage() {
 
       {brokerCheckoutOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
-          <div className="w-full max-w-md rounded-2xl shadow-2xl" style={{ background: "var(--bg)", border: "1px solid var(--border)" }}>
+          {/* Same fix as products/page.tsx's checkout modal (2026-09-15):
+              no maxHeight/scroll here clipped a tall checkout form with no
+              way to reach the rest of it. */}
+          <div
+            className="w-full max-w-md rounded-2xl shadow-2xl overflow-y-auto"
+            style={{ background: "var(--bg)", border: "1px solid var(--border)", maxHeight: "90vh", minHeight: 0, WebkitOverflowScrolling: "touch" }}
+          >
             <div className="pt-5">
               <EmbeddedCheckout
                 createIntent={() => billing.createEmbeddedBrokerCall().then((r) => r.data)}

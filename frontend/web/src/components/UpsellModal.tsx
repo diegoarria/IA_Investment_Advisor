@@ -107,13 +107,24 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
         <div className="h-1 shrink-0" style={{ background: `linear-gradient(90deg, ${meta.color}99, ${meta.color})` }} />
 
         {showCheckout ? (
-          <EmbeddedCheckout
-            createIntent={() => upsells.checkoutEmbedded(offer, purchaseVariant, triggerSource ?? "").then((r) => r.data)}
-            returnUrl={`${window.location.origin}${offer === "family_plan" ? "/upsell-success?offer=family_plan" : "/upsell-success?offer=session"}`}
-            onBack={() => setShowCheckout(false)}
-            onSuccess={handleCheckoutSuccess}
-            payCtaLabel={offer === "session" ? t("pricingModal.payCtaSession") : undefined}
-          />
+          // Same overflow-y-auto/minHeight:0 wrapper as the non-checkout
+          // branch below — without it, EmbeddedCheckout (card fields +
+          // billing address + submit button) renders as a direct child of
+          // this panel's overflow-hidden container and gets clipped with no
+          // way to scroll to the rest of the form. Confirmed 2026-09-15
+          // from a real screenshot of the session-purchase checkout.
+          <div
+            className="overflow-y-auto flex-1 pt-4"
+            style={{ minHeight: 0, WebkitOverflowScrolling: "touch" }}
+          >
+            <EmbeddedCheckout
+              createIntent={() => upsells.checkoutEmbedded(offer, purchaseVariant, triggerSource ?? "").then((r) => r.data)}
+              returnUrl={`${window.location.origin}${offer === "family_plan" ? "/upsell-success?offer=family_plan" : "/upsell-success?offer=session"}`}
+              onBack={() => setShowCheckout(false)}
+              onSuccess={handleCheckoutSuccess}
+              payCtaLabel={offer === "session" ? t("pricingModal.payCtaSession") : undefined}
+            />
+          </div>
         ) : (
         <>
         <div

@@ -599,7 +599,15 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
 
       {sessionCheckoutOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
-          <div className="w-full max-w-md rounded-2xl shadow-2xl" style={{ background: "var(--bg)", border: "1px solid var(--border)" }}>
+          {/* Same fix as products/page.tsx and home/page.tsx's checkout
+              modals (2026-09-15) — this is the sidebar's own "sesión 1:1"
+              checkout, the exact flow shown in the reported screenshot: no
+              maxHeight/scroll here clipped the card + billing-address form
+              with no way to reach "Pagar y agendar mi llamada" below. */}
+          <div
+            className="w-full max-w-md rounded-2xl shadow-2xl overflow-y-auto"
+            style={{ background: "var(--bg)", border: "1px solid var(--border)", maxHeight: "90vh", minHeight: 0, WebkitOverflowScrolling: "touch" }}
+          >
             <div className="pt-5">
               <EmbeddedCheckout
                 createIntent={() => upsells.checkoutEmbedded("session", "default", "sidebar").then((r) => r.data)}
