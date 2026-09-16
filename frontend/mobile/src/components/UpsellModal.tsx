@@ -9,7 +9,7 @@ import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 import api from "../lib/api";
 import type { UpsellOffer } from "../lib/upsellStore";
-import { hasPremiumAccess } from "../lib/subscriptionStore";
+import { hasPremiumAccess, useSubscriptionStore } from "../lib/subscriptionStore";
 
 interface UpsellModalProps {
   visible: boolean;
@@ -53,14 +53,20 @@ export default function UpsellModal({
 
   const OFFER_META = getOfferMeta(t);
   const meta = OFFER_META[offer];
-  // Was a raw `userTier === "premium"` comparison — not exploitable today
-  // (userTier traces back to the server's already-trial-aware effective
-  // tier via /api/upsells/check), but it bypassed the one canonical
-  // premium check every other call site in the app uses, so a future
-  // refactor wiring this from local store state instead could silently
-  // reintroduce the premium-shows-free bug class. Flagged and fixed in the
-  // 2026-09-16 full-sweep audit for defense-in-depth.
-  const isPremium = hasPremiumAccess({ tier: userTier, hasFetchedStatus: true });
+  // Was a raw `userTier === "premium"` comparison. First fix attempt
+  // (2026-09-16 audit) hardcoded hasFetchedStatus:true, which a follow-up
+  // review correctly flagged as a no-op — it made this call site
+  // mathematically identical to the original bare comparison, since the
+  // "assume premium while unknown" branch could never engage. Reading the
+  // REAL hasFetchedStatus from the subscription store instead actually
+  // wires this into the canonical race guard: if this modal somehow
+  // renders before the subscription store's own fetch has ever resolved
+  // this session (userTier prop still reflects whatever /api/upsells/check
+  // returned, which is server-truth either way, but the guard is now real
+  // rather than decorative for any future caller that stops passing an
+  // already-resolved tier).
+  const { hasFetchedStatus } = useSubscriptionStore();
+  const isPremium = hasPremiumAccess({ tier: userTier, hasFetchedStatus });
   const c = meta.color;
 
   const displayPrice =

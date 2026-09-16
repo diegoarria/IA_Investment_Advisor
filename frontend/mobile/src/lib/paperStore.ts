@@ -72,8 +72,18 @@ interface PaperStore {
 // portfolioStore.ts/watchlistStore.ts: retry with backoff + a pendingSync
 // guard that restoreFromServer respects.
 let pushChain: Promise<void> = Promise.resolve();
+// A plain boolean here (2026-09-15's first version of this fix) had its own
+// race: two overlapping pushes (a rapid buy-then-sell, one mid-retry) each
+// ran their own `.finally` on their own link of the chain — the first to
+// settle cleared the shared flag even while the second was still in
+// flight, so restoreFromServer() landing in that window could still wipe
+// the second trade. A depth counter fixes it: only clear pendingSync once
+// every in-flight push has settled. Confirmed via adversarial code review,
+// 2026-09-16.
+let pendingCount = 0;
 
 function _push(s: { cash: number; positions: PaperPosition[]; trades: PaperTrade[]; freeTradeMonth: string | null; freeTradeCount: number }, set: (partial: Partial<PaperStore>) => void) {
+  pendingCount++;
   set({ pendingSync: true, pendingSyncSetAt: Date.now() });
   const doPush = async () => {
     const { syncApi } = await import("./api");
@@ -94,7 +104,10 @@ function _push(s: { cash: number; positions: PaperPosition[]; trades: PaperTrade
   };
   const result = pushChain.then(doPush, doPush);
   pushChain = result.catch(() => {});
-  result.finally(() => set({ pendingSync: false, pendingSyncSetAt: null }));
+  result.finally(() => {
+    pendingCount = Math.max(0, pendingCount - 1);
+    if (pendingCount === 0) set({ pendingSync: false, pendingSyncSetAt: null });
+  });
 }
 
 export const usePaperStore = create<PaperStore>()(

@@ -55,6 +55,16 @@ export const usePaperStore = create<PaperStore>()(
       // restoreFromServer() overwriting local state on every /paper remount,
       // is what made a real user's trade vanish today.
       let pushChain: Promise<void> = Promise.resolve();
+      // A plain boolean here (2026-09-15's first version of this fix) had its
+      // own race: two overlapping pushes (a rapid buy-then-sell, one of them
+      // mid-retry) each ran their OWN `.finally` on their OWN link of the
+      // chain — the first one to settle cleared the shared flag even while
+      // the second was still in flight, so restoreFromServer() landing in
+      // that window could still wipe the second trade. A depth counter fixes
+      // it: only clear pendingSync once every in-flight push has settled,
+      // not just the one that happened to finish first. Confirmed via
+      // adversarial code review, 2026-09-16.
+      let pendingCount = 0;
 
       const _push = (
         cash: number,
@@ -63,6 +73,7 @@ export const usePaperStore = create<PaperStore>()(
         freeTradeMonth: string | null,
         freeTradeCount: number,
       ) => {
+        pendingCount++;
         set({ pendingSync: true, pendingSyncSetAt: Date.now() });
         const doPush = async () => {
           const { paperApi } = await import("./api");
@@ -77,7 +88,10 @@ export const usePaperStore = create<PaperStore>()(
         };
         const result = pushChain.then(doPush, doPush);
         pushChain = result.catch(() => {}); // keep the chain alive after a failed push
-        result.finally(() => set({ pendingSync: false, pendingSyncSetAt: null }));
+        result.finally(() => {
+          pendingCount = Math.max(0, pendingCount - 1);
+          if (pendingCount === 0) set({ pendingSync: false, pendingSyncSetAt: null });
+        });
       };
 
       return {

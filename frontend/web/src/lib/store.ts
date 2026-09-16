@@ -1132,27 +1132,43 @@ interface WatchlistState {
 
 export const useWatchlistStore = create<WatchlistState>()(
   persist(
-    (set, get) => ({
+    (set, get) => {
+      // A plain boolean pendingSync flag has its own race when add()/
+      // remove() overlap (e.g. two rapid watchlist edits, one mid-retry):
+      // each op's own .finally() cleared the SHARED flag as soon as ITS
+      // OWN retry loop settled, even while another op was still in flight —
+      // so loadFromServer() landing in that window could still wipe the
+      // still-unconfirmed one. A depth counter fixes it: only clear
+      // pendingSync once every in-flight add/remove has settled. Confirmed
+      // via adversarial code review, 2026-09-16 (same fix applied to
+      // paperStore.ts).
+      let pendingCount = 0;
+      const beginPending = () => {
+        pendingCount++;
+        set({ pendingSync: true, pendingSyncSetAt: Date.now() });
+      };
+      const endPending = () => {
+        pendingCount = Math.max(0, pendingCount - 1);
+        if (pendingCount === 0) set({ pendingSync: false, pendingSyncSetAt: null });
+      };
+      return {
       items: [],
       pendingSync: false,
       pendingSyncSetAt: null,
       add: (ticker, name) => {
         const t = ticker.toUpperCase();
         if (get().items.find((i) => i.ticker === t)) return;
-        set((s) => ({
-          items: [...s.items, { ticker: t, name, addedAt: Date.now() }],
-          // Used only by patrimonio/earnings' quick-add star — unlike
-          // watchlist/page.tsx's own add flow, this used to fire-and-forget
-          // the POST with a bare .catch(() => {}): a single transient 5xx
-          // silently dropped the add server-side while the optimistic item
-          // stayed shown right up until the next hard refresh's
-          // loadFromServer() wiped it back out — exactly the "I add it,
-          // refresh, and it's gone" report (2026-09-15). Retry with backoff
-          // before giving up, and guard against loadFromServer() stomping
-          // the optimistic item while a retry is still in flight.
-          pendingSync: true,
-          pendingSyncSetAt: Date.now(),
-        }));
+        // Used only by patrimonio/earnings' quick-add star — unlike
+        // watchlist/page.tsx's own add flow, this used to fire-and-forget
+        // the POST with a bare .catch(() => {}): a single transient 5xx
+        // silently dropped the add server-side while the optimistic item
+        // stayed shown right up until the next hard refresh's
+        // loadFromServer() wiped it back out — exactly the "I add it,
+        // refresh, and it's gone" report (2026-09-15). Retry with backoff
+        // before giving up, and guard against loadFromServer() stomping
+        // the optimistic item while a retry is still in flight.
+        set((s) => ({ items: [...s.items, { ticker: t, name, addedAt: Date.now() }] }));
+        beginPending();
         (async () => {
           const { watchlist } = await import("./api");
           for (let attempt = 0; attempt < 3; attempt++) {
@@ -1172,19 +1188,16 @@ export const useWatchlistStore = create<WatchlistState>()(
               await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
             }
           }
-        })().finally(() => set({ pendingSync: false, pendingSyncSetAt: null }));
+        })().finally(endPending);
       },
       remove: (ticker) => {
         const t = ticker.toUpperCase();
-        set((s) => ({
-          items: s.items.filter((i) => i.ticker !== t),
-          // Same guard as add() — a concurrent loadFromServer() (e.g. the
-          // app-wide 30s resync in ThemeProvider) must never land mid-delete
-          // and resurrect this item from a response fetched before the
-          // delete committed server-side.
-          pendingSync: true,
-          pendingSyncSetAt: Date.now(),
-        }));
+        // Same guard as add() — a concurrent loadFromServer() (e.g. the
+        // app-wide 30s resync in ThemeProvider) must never land mid-delete
+        // and resurrect this item from a response fetched before the
+        // delete committed server-side.
+        set((s) => ({ items: s.items.filter((i) => i.ticker !== t) }));
+        beginPending();
         (async () => {
           const { watchlist } = await import("./api");
           for (let attempt = 0; attempt < 3; attempt++) {
@@ -1195,7 +1208,7 @@ export const useWatchlistStore = create<WatchlistState>()(
               if (attempt < 2) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
             }
           }
-        })().finally(() => set({ pendingSync: false, pendingSyncSetAt: null }));
+        })().finally(endPending);
       },
       has: (ticker) => !!get().items.find((i) => i.ticker === ticker.toUpperCase()),
       loadFromServer: async () => {
@@ -1203,7 +1216,7 @@ export const useWatchlistStore = create<WatchlistState>()(
           const { pendingSync, pendingSyncSetAt } = get();
           const isStale = pendingSyncSetAt == null || Date.now() - pendingSyncSetAt > 2 * 60 * 1000;
           if (pendingSync && !isStale) return;
-          if (pendingSync && isStale) set({ pendingSync: false, pendingSyncSetAt: null });
+          if (pendingSync && isStale) { pendingCount = 0; set({ pendingSync: false, pendingSyncSetAt: null }); }
 
           const { watchlist } = await import("./api");
           const res = await watchlist.get();
@@ -1217,7 +1230,8 @@ export const useWatchlistStore = create<WatchlistState>()(
           set({ items: serverItems });
         } catch {}
       },
-    }),
+      };
+    },
     {
       name: "watchlist",
       storage: userStorage,

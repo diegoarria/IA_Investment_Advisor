@@ -74,9 +74,19 @@ async def _migrate_profile_by_email(db, new_user_id: str, email: str) -> dict | 
     Find the original account's profile and migrate all user data to the new id.
     """
     try:
-        from app.core.database import find_auth_user
-        old_user = await find_auth_user(db, email=email)
-        old_ids = [old_user.id] if old_user and old_user.id != new_user_id else []
+        # Was find_auth_user(db, email=email) — that returns only the FIRST
+        # match by page order, whereas Auth accounts sharing an email is a
+        # real (if rare — Supabase normally enforces uniqueness for
+        # confirmed users) edge case the original code explicitly defended
+        # against by collecting every match and letting the `user_profiles`
+        # existence check below pick the one that's actually a real
+        # account. Restored via fetch_all_auth_users after a 2026-09-16
+        # review flagged the narrowed single-match version as a silent
+        # regression for that edge case.
+        from app.core.database import fetch_all_auth_users
+        all_users = await fetch_all_auth_users(db)
+        email_norm = email.lower()
+        old_ids = [u.id for u in all_users if (u.email or "").lower() == email_norm and u.id != new_user_id]
         if not old_ids:
             return None
         existing = await run_query(

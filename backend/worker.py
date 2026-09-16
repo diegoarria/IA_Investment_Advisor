@@ -353,14 +353,14 @@ async def send_weekly_emails():
     if not settings.resend_api_key:
         logger.info("RESEND_API_KEY not set — skipping weekly emails")
         return
-    from app.core.database import get_supabase, run_query
+    from app.core.database import get_supabase, run_query, fetch_all_auth_users
     db = get_supabase()
     try:
         users_res = await run_query(
             db.table("user_profiles").select("user_id,name,risk_tolerance,subscription_tier,trial_started_at,streak_bonus_premium_until")
         )
         users = users_res.data
-        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
+        auth_users = {u.id: u.email for u in await fetch_all_auth_users(db)}
 
         # Fetch all portfolios at once (multiple rows per user for multi-broker)
         port_res = await run_query(db.table("user_portfolio").select("user_id,positions"))
@@ -2782,7 +2782,7 @@ async def job_weekly_screener_generate():
     Screener Semanal engine (deep profile/mentor/quiz context, a hard
     per-risk-tier exclude-list, and a rolling "don't repeat last 3 weeks'
     picks" history, see generate_weekly_picks in ai_service.py)."""
-    from app.core.database import get_supabase, run_query
+    from app.core.database import get_supabase, run_query, fetch_all_auth_users
     from app.core.cache import cache_get, cache_set
     from app.services import ai_service
     from app.api.routes.screener import (
@@ -2824,7 +2824,7 @@ async def job_weekly_screener_generate():
             return
 
         lang_map   = {r["user_id"]: (r.get("preferred_language") or "es") for r in (profiles_res.data or [])}
-        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
+        auth_users = {u.id: u.email for u in await fetch_all_auth_users(db)}
 
         # Fetch the whole universe once (cached ~4h per-ticker inside _fetch_one) — reused across every user below.
         stocks = await asyncio.to_thread(_fetch_batch, UNIVERSE)
@@ -5300,14 +5300,14 @@ async def send_birthday_emails():
     """Daily at 8:00 AM ET — send birthday email + 7-day Premium trial to users with birthday today."""
     if not settings.resend_api_key:
         return
-    from app.core.database import get_supabase, run_query
+    from app.core.database import get_supabase, run_query, fetch_all_auth_users
     db = get_supabase()
     today = datetime.now(timezone.utc).date()
     try:
         users_res = await run_query(
             db.table("user_profiles").select("user_id,name,birth_date,preferred_language")
         )
-        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
+        auth_users = {u.id: u.email for u in await fetch_all_auth_users(db)}
         sent = 0
         for u in (users_res.data or []):
             bd_str = u.get("birth_date")
@@ -5342,7 +5342,7 @@ async def send_reengagement_emails():
     Diego actually asked to turn on."""
     if not settings.resend_api_key:
         return
-    from app.core.database import get_supabase, run_query
+    from app.core.database import get_supabase, run_query, fetch_all_auth_users
     db = get_supabase()
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
     try:
@@ -5355,7 +5355,7 @@ async def send_reengagement_emails():
         # misses them while they're using it right now (2026-08-21, found
         # while wiring this job up — it was never scheduled before, so this
         # bug had never actually fired on a real user).
-        auth_users_list = await asyncio.to_thread(lambda: db.auth.admin.list_users())
+        auth_users_list = await fetch_all_auth_users(db)
         auth_users = {u.id: u.email for u in auth_users_list}
         inactive_ids_from_auth = {
             u.id for u in auth_users_list
@@ -5462,7 +5462,7 @@ async def send_educational_emails():
     """Biweekly (1st and 15th of month) — rotating educational concept email to all users."""
     if not settings.resend_api_key:
         return
-    from app.core.database import get_supabase, run_query
+    from app.core.database import get_supabase, run_query, fetch_all_auth_users
     from app.services.email_service import build_educational_email_html
     db = get_supabase()
     today = datetime.now(timezone.utc).date()
@@ -5475,7 +5475,7 @@ async def send_educational_emails():
     concept_data = _EDUCATIONAL_CONCEPTS[idx]
     try:
         users_res  = await run_query(db.table("user_profiles").select("user_id,name"))
-        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
+        auth_users = {u.id: u.email for u in await fetch_all_auth_users(db)}
         sent = 0
         for u in (users_res.data or []):
             email = auth_users.get(u["user_id"])
@@ -6463,7 +6463,7 @@ async def job_trial_ending_reminder():
     Same category/day-match already computed above is the only gate; no
     separate email dedup needed since this only ever fires once per user
     (trial_started_at doesn't change)."""
-    from app.core.database import get_supabase, run_query
+    from app.core.database import get_supabase, run_query, fetch_all_auth_users
     from app.services.notification_engine import send_push
     from app.core.subscription import TRIAL_DAYS
     db = get_supabase()
@@ -6485,7 +6485,7 @@ async def job_trial_ending_reminder():
         if not rows:
             return
 
-        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
+        auth_users = {u.id: u.email for u in await fetch_all_auth_users(db)}
 
         sent = 0
         for row in rows:
@@ -6528,7 +6528,7 @@ async def job_trial_ending_tomorrow_reminder():
     Diego, 2026-09-15: also emails this same window (see
     job_trial_ending_reminder's docstring — same reasoning, same
     once-per-user guarantee from trial_started_at never changing)."""
-    from app.core.database import get_supabase, run_query
+    from app.core.database import get_supabase, run_query, fetch_all_auth_users
     from app.services.notification_engine import send_push
     from app.core.subscription import TRIAL_DAYS
     db = get_supabase()
@@ -6550,7 +6550,7 @@ async def job_trial_ending_tomorrow_reminder():
         if not rows:
             return
 
-        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
+        auth_users = {u.id: u.email for u in await fetch_all_auth_users(db)}
 
         sent = 0
         for row in rows:
@@ -6599,7 +6599,7 @@ async def job_trial_ended_reminder():
 
     Diego, 2026-09-15: also emails this same window (see
     job_trial_ending_reminder's docstring)."""
-    from app.core.database import get_supabase, run_query
+    from app.core.database import get_supabase, run_query, fetch_all_auth_users
     from app.services.notification_engine import send_push
     from app.core.subscription import TRIAL_DAYS
     db = get_supabase()
@@ -6620,7 +6620,7 @@ async def job_trial_ended_reminder():
         if not rows:
             return
 
-        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
+        auth_users = {u.id: u.email for u in await fetch_all_auth_users(db)}
 
         sent = 0
         for row in rows:
@@ -6686,7 +6686,7 @@ async def job_premium_winback_reminder():
     job_trial_ending_reminder's docstring) — stops the moment
     subscription_tier flips to premium/pro, same as the push, since both
     read from the same query above."""
-    from app.core.database import get_supabase, run_query
+    from app.core.database import get_supabase, run_query, fetch_all_auth_users
     from app.services.notification_engine import send_push
     from app.core.subscription import TRIAL_DAYS
     db = get_supabase()
@@ -6705,7 +6705,7 @@ async def job_premium_winback_reminder():
         if not rows:
             return
 
-        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
+        auth_users = {u.id: u.email for u in await fetch_all_auth_users(db)}
 
         sent = 0
         for row in rows:

@@ -36,7 +36,7 @@ function getAge(birthDate: string | null | undefined): number | null {
   return age > 0 ? age : null;
 }
 import PaywallModal from "@/components/PaywallModal";
-import EmbeddedCheckout, { type CheckoutSummary } from "@/components/EmbeddedCheckout";
+import EmbeddedCheckout from "@/components/EmbeddedCheckout";
 import { upsells } from "@/lib/api";
 
 type NavItem = { href: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; labelKey: string; minLevel: UserLevel; children?: { href: string; labelKey: string }[] };
@@ -622,7 +622,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
                   dueTodayLabel: isPremium ? "$99 USD" : "$149 USD",
                   features: t("upsellModal.session.features", { returnObjects: true }) as string[],
                   accentColor: "#00d47e",
-                } as CheckoutSummary}
+                }}
               />
             </div>
           </div>

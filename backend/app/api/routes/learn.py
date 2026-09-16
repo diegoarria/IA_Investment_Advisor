@@ -554,7 +554,7 @@ async def claim_streak_milestone(body: dict, user_id: str = Depends(get_current_
         "ok": True,
         "already_claimed": False,
         "milestone_days": milestone_days,
-        "premium_bonus_days": _PREMIUM_BONUS_DAYS.get(milestone_days) if tier != "premium" else None,
+        "premium_bonus_days": _PREMIUM_BONUS_DAYS.get(milestone_days) if not is_premium else None,
         "msg_reset": milestone_days in _MSG_RESET_DAYS,
     }
 

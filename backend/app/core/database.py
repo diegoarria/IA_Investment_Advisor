@@ -76,7 +76,21 @@ async def find_auth_user(db, *, email: str | None = None, user_id: str | None = 
     Confirmed live (2026-09-15): this is why "olvidé mi contraseña" email/
     SMS worked for early accounts but not others. Use this helper instead
     of calling list_users() directly anywhere a specific user needs to be
-    found by email or id."""
+    found by email or id.
+
+    A lookup by user_id alone doesn't need to page through anyone —
+    GoTrue's admin API has a direct, indexed get_user_by_id. Without this
+    fast path, send_email_notification() (called once per recipient in
+    worker.py's weekly/monthly/annual bulk email jobs, potentially
+    thousands of times per run) turned into a paginated full-user-list
+    scan on every single email — a real perf/reliability regression caught
+    in a 2026-09-16 follow-up review of the original pagination fix."""
+    if user_id is not None and email is None:
+        try:
+            res = await asyncio.to_thread(lambda: db.auth.admin.get_user_by_id(user_id))
+            return getattr(res, "user", None)
+        except Exception:
+            return None
     email_norm = email.lower() if email else None
     page, per_page = 1, 200
     while True:
@@ -91,3 +105,27 @@ async def find_auth_user(db, *, email: str | None = None, user_id: str | None = 
         if len(batch) < per_page:
             return None
         page += 1
+
+
+async def fetch_all_auth_users(db) -> list:
+    """Return every Supabase Auth user, paginated. worker.py has several
+    bulk email jobs that build a `{user.id: user.email}` lookup dict via a
+    bare `db.auth.admin.list_users()` — same default page=1/per_page=50
+    limit as find_auth_user's docstring explains, meaning every one of
+    these jobs (weekly summary, monthly report, annual scoreboard, and
+    others) silently only ever emailed users among the first 50 ever
+    created. Confirmed 2026-09-16, the same day as (but a separate gap
+    from) the find_auth_user fix — these call sites build a bulk dict
+    upfront rather than looking up one user, so they need every page
+    fetched once, not find_auth_user's per-user short-circuit search."""
+    page, per_page = 1, 200
+    users: list = []
+    while True:
+        batch = await asyncio.to_thread(lambda p=page: db.auth.admin.list_users(page=p, per_page=per_page))
+        if not batch:
+            break
+        users.extend(batch)
+        if len(batch) < per_page:
+            break
+        page += 1
+    return users
