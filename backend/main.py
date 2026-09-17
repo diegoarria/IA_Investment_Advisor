@@ -21,6 +21,33 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
+
+@app.on_event("startup")
+async def _widen_thread_pool():
+    """Every Supabase query in this app runs via `asyncio.to_thread(...)`
+    (see app/core/database.py's run_query) — the supabase-py client used
+    throughout is synchronous, so this is how it's called from async route
+    handlers without blocking the event loop. `asyncio.to_thread` submits
+    to Python's DEFAULT executor, which defaults to only
+    `min(32, os.cpu_count() + 4)` worker threads — on a small Railway
+    instance (1-2 vCPUs) that's as few as 5-6 threads shared by EVERY
+    concurrent request this whole gunicorn worker process is handling.
+    Confirmed live 2026-09-16: 2 genuinely concurrent requests for the
+    SAME user's subscription status intermittently failed to find a row
+    that unquestionably existed (verified independently), while the exact
+    same concurrent queries against fresh, unrelated Supabase clients
+    outside this app's thread pool succeeded every time — isolating the
+    contention to this process's thread pool, not Supabase/Postgres
+    itself. Widening it doesn't eliminate every possible contention
+    scenario (the real fix is migrating to supabase-py's native async
+    client, `create_async_client`, which needs no thread-pool hop at all —
+    a larger change deliberately not attempted here), but it directly
+    relieves the bottleneck actually observed, immediately, at effectively
+    zero cost (idle threads block on I/O, not CPU)."""
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+    asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=64))
+
 _dev_origins = [
     "http://localhost:3000", "http://localhost:8081",
     "http://localhost:19006", "http://127.0.0.1:8081",
