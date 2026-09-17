@@ -15,7 +15,7 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
-from app.core.database import get_supabase, run_query
+from app.core.database import get_supabase, run_query, run_query_verified_nonempty
 from app.core.cache import cache_get, cache_set, cache_delete
 from app.services import fmg_service
 
@@ -462,9 +462,14 @@ async def get_paper(user_id: str = Depends(get_current_user_id)):
     cached = cache_get(ck)
     if cached is not None:
         return cached
-    db = get_supabase()
-    result = await run_query(
-        db.table("user_paper_trading")
+    # Verified against a fresh client on empty, not just get_supabase()'s singleton
+    # directly — an empty result here is indistinguishable from the singleton's
+    # stale-pinned-connection issue (see get_fresh_supabase's docstring), and this
+    # endpoint's 30s cache (below) would otherwise let a false-empty read wipe a
+    # user's paper portfolio for the full TTL window (confirmed live 2026-09-16,
+    # same bug class as GET /watchlist's fix).
+    result = await run_query_verified_nonempty(
+        lambda db: db.table("user_paper_trading")
         .select("cash, positions, trades, free_trade_month, free_trade_count, updated_at")
         .eq("user_id", user_id)
     )
@@ -614,8 +619,10 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         .eq("user_id", user_id)
         .order("updated_at")
     )
-    paper_res = await run_query(
-        db.table("user_paper_trading")
+    # Same false-empty exposure as GET /sync/paper — verify against a fresh
+    # client before trusting an empty paper-trading read here too.
+    paper_res = await run_query_verified_nonempty(
+        lambda db: db.table("user_paper_trading")
         .select("cash, positions, trades, free_trade_month, free_trade_count")
         .eq("user_id", user_id)
     )

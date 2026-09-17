@@ -51,6 +51,23 @@ def get_supabase() -> Client:
     return _client
 
 
+async def run_query_verified_nonempty(query_builder_factory, _max_attempts: int = 3):
+    """Run a query; if it comes back empty, re-run once against an independent,
+    freshly created client before trusting it (see get_fresh_supabase's docstring —
+    an empty result through the singleton can be a real empty result OR a stale-
+    pinned connection silently returning wrong data, and the two are indistinguishable
+    without a second, independent read). Callers whose "genuinely empty" and "false
+    empty" cases both fall back to a default (e.g. a fresh paper-trading account vs.
+    a stale read of an existing one) should use this instead of run_query directly.
+
+    query_builder_factory takes a Client and returns a query builder, so it can be
+    invoked again against a different client instance on the fallback path."""
+    res = await run_query(query_builder_factory(get_supabase()), _max_attempts)
+    if res.data:
+        return res
+    return await run_query(query_builder_factory(get_fresh_supabase()), _max_attempts)
+
+
 def get_fresh_supabase() -> Client:
     """Create a brand-new Supabase client, bypassing the process-wide singleton
     entirely. A read through the singleton that comes back suspiciously empty
