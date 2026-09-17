@@ -613,8 +613,10 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         return cached
     db = get_supabase()
 
-    portfolio_res = await run_query(
-        db.table("user_portfolio")
+    # Verified against a fresh client on empty — same false-empty exposure
+    # as GET /watchlist and GET /sync/paper, but for the REAL portfolio.
+    portfolio_res = await run_query_verified_nonempty(
+        lambda db: db.table("user_portfolio")
         .select("portfolio_id, portfolio_name, positions, updated_at")
         .eq("user_id", user_id)
         .order("updated_at")
@@ -638,8 +640,11 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
             .select("maturity_score, maturity_history, trial_started_at, subscription_tier, streak_bonus_premium_until, nav_order, investment_goal, investment_goal_amount")
             .eq("user_id", user_id)
         )
-    watchlist_res = await run_query(
-        db.table("watchlist")
+    # Same false-empty exposure — this is a separate read of the same table
+    # GET /watchlist already guards; guard it here too since /sync/all is an
+    # independent code path some clients call instead of /watchlist directly.
+    watchlist_res = await run_query_verified_nonempty(
+        lambda db: db.table("watchlist")
         .select("ticker, name, added_at")
         .eq("user_id", user_id)
         .order("added_at")
