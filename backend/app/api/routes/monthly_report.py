@@ -2,11 +2,15 @@
 Nuvos Monthly Report — GET /api/monthly-report
 Monthly, Spotify-Wrapped-style personal report. See
 app/services/monthly_report_service.py for the full computation (this
-route is intentionally thin — auth, premium gate, param validation, and
-picking private vs. public shape, nothing else).
+route is intentionally thin — auth, tier check, param validation, and
+picking full/free-summary shape, nothing else).
 
-Premium-gated (unlike Wrapped, which is free for everyone by design) —
-this is an ongoing monthly feature, not a once-a-year universal moment.
+2026-09-17: Free no longer gets a flat 403 — it gets a real 3-line
+executive summary (this month's return + best/worst position) carved out
+of the same computed report; the full attribution/habits/research/wealth
+breakdown stays Premium-only. Unlike Wrapped (free for everyone by
+design), this is an ongoing monthly feature, so the depth — not the
+report's existence — is what's gated.
 """
 import logging
 from datetime import date
@@ -42,11 +46,6 @@ async def get_monthly_report_route(
     is_premium = is_premium_active(
         profile.get("subscription_tier"), profile.get("trial_started_at"), profile.get("streak_bonus_premium_until"),
     )
-    if not is_premium:
-        raise HTTPException(status_code=403, detail={
-            "code": "premium_required",
-            "message": "Tu Nuvos Monthly Report es exclusivo para Premium.",
-        })
 
     if lang not in ("es", "en"):
         lang = profile.get("preferred_language") or "es"
@@ -62,4 +61,23 @@ async def get_monthly_report_route(
         logger.error("get_monthly_report_route(%s, %s-%s) failed", user_id, year, month, exc_info=True)
         raise HTTPException(status_code=503, detail="No pudimos generar tu Monthly Report en este momento. Intenta de nuevo en unos segundos.")
 
-    return report
+    if is_premium or not report.get("available"):
+        return {"is_premium": is_premium, **report}
+
+    # 2026-09-17: Free no longer gets a flat 403 — a 3-line executive
+    # summary (how the month went, best/worst position), same real numbers
+    # a Premium user sees on the overview, with the full attribution/
+    # benchmark/habits/research/wealth breakdown gated instead of the
+    # report's existence itself.
+    portfolio = report.get("portfolio") or {}
+    return {
+        "is_premium": False,
+        "available": True,
+        "overview": report.get("overview"),
+        "summary": {
+            "return_pct": portfolio.get("return_pct"),
+            "benchmark_pct": portfolio.get("benchmark_pct"),
+            "best_position": portfolio.get("best_position"),
+            "worst_position": portfolio.get("worst_position"),
+        },
+    }

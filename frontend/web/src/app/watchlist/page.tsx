@@ -513,18 +513,20 @@ export default function WatchlistPage() {
   const effectiveViewMode: "basic" | "advanced" = getEffectiveViewMode();
 
   // Fase 4, Incremento 9 — only fetched when the advanced table with real
-  // tickers is actually visible, and only for Premium (matches the backend
-  // gate) — never fires for the basic card view.
+  // tickers is actually visible; never fires for the basic card view.
+  // 2026-09-17: also fetched for Free now — the backend no longer 403s,
+  // it returns one real featured ticker's score plus {locked: true} for
+  // the rest, so Free needs this call too to see that teaser.
   const tickerKey = items.map((i) => i.ticker).join(",");
   useEffect(() => {
-    if (!isPremium || effectiveViewMode !== "advanced" || items.length === 0) return;
+    if (effectiveViewMode !== "advanced" || items.length === 0) return;
     let cancelled = false;
     watchlistApi.getBatchScores(items.map((i) => i.ticker), i18n.language)
       .then((res) => { if (!cancelled) setScores(res.data ?? {}); })
       .catch(() => { if (!cancelled) setScores({}); });
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tickerKey, isPremium, effectiveViewMode, i18n.language]);
+  }, [tickerKey, effectiveViewMode, i18n.language]);
 
   const searchRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -34,12 +34,20 @@ async def get_morning_brief_route(user_id: str = Depends(get_current_user_id)):
         raise HTTPException(status_code=404, detail="No hay Morning Brief disponible todavía hoy")
 
     if not _is_premium(profile):
+        news = result.get("news") or []
+        top = news[0] if news else None
         return {
             "is_premium": False,
             "portfolio_value": result.get("portfolio_value"),
             "change_usd": result.get("change_usd"),
             "change_pct": result.get("change_pct"),
-            "news_count": len(result.get("news") or []),
+            "news_count": len(news),
             "events_count": len(result.get("events") or []),
+            # 2026-09-17: give Free one real, unlocked finding (headline +
+            # ticker, no analysis) instead of counts alone — same teaser
+            # principle as the Opportunities screener (real number of
+            # results, not which ones), applied to give a taste of content
+            # too, not just quantity.
+            "top_headline": {"ticker": top.get("ticker"), "headline": top.get("headline")} if top else None,
         }
     return {"is_premium": True, **result}

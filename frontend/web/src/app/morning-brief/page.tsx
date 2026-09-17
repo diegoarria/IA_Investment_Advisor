@@ -29,6 +29,7 @@ interface MorningBriefTeaser {
   change_pct: number | null;
   news_count: number;
   events_count: number;
+  top_headline: { ticker: string; headline: string } | null;
 }
 
 const fmtUsd = (n: number) =>
@@ -154,7 +155,9 @@ export default function MorningBriefPage() {
                   </>
                 ) : (
                   <>
-                    {/* Free: real counts, no content — Diego's Aug 16 §6 */}
+                    {/* Free: real counts, plus one unlocked finding (2026-09-17) —
+                        counts alone say "you're missing something," a real
+                        headline proves the brief actually has substance. */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="rounded-2xl border p-3 flex items-center gap-2.5" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
                         <Newspaper className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
@@ -171,6 +174,17 @@ export default function MorningBriefPage() {
                         </div>
                       </div>
                     </div>
+                    {data.top_headline && (
+                      <div>
+                        <p className="text-[11px] font-bold mb-1.5 flex items-center gap-1.5" style={{ color: "var(--text)" }}>
+                          <Newspaper className="w-3.5 h-3.5" /> {t("morningBrief.newsLabel")}
+                        </p>
+                        <div className="rounded-2xl border overflow-hidden px-3 py-2.5 flex gap-2.5" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                          <span className="text-[10px] font-black shrink-0 mt-0.5" style={{ color: "var(--accent-l)" }}>{data.top_headline.ticker}</span>
+                          <p className="text-[12px] leading-snug" style={{ color: "var(--text)" }}>{data.top_headline.headline}</p>
+                        </div>
+                      </div>
+                    )}
                     <button
                       onClick={() => setPaywallOpen(true)}
                       className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm"

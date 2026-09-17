@@ -2,10 +2,10 @@
 
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2, Lock, TrendingUp, TrendingDown } from "lucide-react";
 import api from "@/lib/api";
 import MonthlyReportFlow from "@/components/monthly-report/MonthlyReportFlow";
-import { MonthlyReportResponse, WT } from "@/components/monthly-report/types";
+import { MonthlyReportResponse, fmtPct, WT } from "@/components/monthly-report/types";
 
 function currentYearMonth(): { year: number; month: number } {
   const now = new Date();
@@ -38,25 +38,15 @@ function MonthlyReportPageInner() {
   });
   const [data, setData] = useState<MonthlyReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [premiumLocked, setPremiumLocked] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(false);
-    setPremiumLocked(null);
     api.get("/api/monthly-report", { params: { year, month }, timeout: 30000 })
       .then((res) => { if (!cancelled) setData(res.data); })
-      .catch((err) => {
-        if (cancelled) return;
-        const detail = err?.response?.data?.detail;
-        if (err?.response?.status === 403 && detail?.code === "premium_required") {
-          setPremiumLocked(detail.message);
-        } else {
-          setError(true);
-        }
-      })
+      .catch(() => { if (!cancelled) setError(true); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [year, month]);
@@ -84,13 +74,58 @@ function MonthlyReportPageInner() {
     <div style={{ position: "fixed", inset: 0, background: WT.bg, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
       {loading && <Loader2 className="animate-spin" size={28} color={WT.accentL} />}
 
-      {!loading && premiumLocked && (
+      {/* Free: 3-line executive summary instead of a flat paywall — real
+          numbers (return, best/worst position), full attribution/habits/
+          research breakdown stays behind Premium. 2026-09-17. */}
+      {!loading && data && data.available && data.is_premium === false && (
         <div style={{ maxWidth: 360, textAlign: "center", padding: 32 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 18, background: "rgba(212,162,76,0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-            <Lock size={26} color={WT.gold} />
+          <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: WT.accentL, marginBottom: 6 }}>
+            {data.overview.month_label}
+          </p>
+          <h1 style={{ fontWeight: 800, fontSize: 20, color: WT.text, marginBottom: 20 }}>Tu resumen del mes</h1>
+
+          {data.summary.return_pct !== null ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
+              {data.summary.return_pct >= 0 ? <TrendingUp size={20} color={WT.accentL} /> : <TrendingDown size={20} color="#ef4444" />}
+              <span style={{ fontSize: 30, fontWeight: 800, color: data.summary.return_pct >= 0 ? WT.accentL : "#ef4444" }}>
+                {fmtPct(data.summary.return_pct)}
+              </span>
+            </div>
+          ) : (
+            <p style={{ fontSize: 14, color: WT.sub, marginBottom: 8 }}>Sin suficiente actividad de portafolio este mes.</p>
+          )}
+          {data.summary.benchmark_pct !== null && (
+            <p style={{ fontSize: 13, color: WT.sub, marginBottom: 20 }}>
+              S&amp;P 500: <span style={{ fontWeight: 700 }}>{fmtPct(data.summary.benchmark_pct)}</span>
+            </p>
+          )}
+
+          {(data.summary.best_position || data.summary.worst_position) && (
+            <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
+              {data.summary.best_position && (
+                <div style={{ flex: 1, borderRadius: 14, border: `1px solid ${WT.border}`, background: WT.card2, padding: 14 }}>
+                  <p style={{ fontSize: 11, color: WT.sub, marginBottom: 4 }}>Mejor posición</p>
+                  <p style={{ fontSize: 14, fontWeight: 800, color: WT.text }}>{data.summary.best_position.ticker}</p>
+                  <p style={{ fontSize: 12, color: WT.accentL, fontWeight: 700 }}>{fmtPct(data.summary.best_position.move_pct)}</p>
+                </div>
+              )}
+              {data.summary.worst_position && (
+                <div style={{ flex: 1, borderRadius: 14, border: `1px solid ${WT.border}`, background: WT.card2, padding: 14 }}>
+                  <p style={{ fontSize: 11, color: WT.sub, marginBottom: 4 }}>Peor posición</p>
+                  <p style={{ fontSize: 14, fontWeight: 800, color: WT.text }}>{data.summary.worst_position.ticker}</p>
+                  <p style={{ fontSize: 12, color: "#ef4444", fontWeight: 700 }}>{fmtPct(data.summary.worst_position.move_pct)}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div style={{ borderRadius: 14, border: `1px solid ${WT.border}`, background: "rgba(212,162,76,0.08)", padding: 16, marginBottom: 20, display: "flex", gap: 10, alignItems: "flex-start", textAlign: "left" }}>
+            <Lock size={18} color={WT.gold} style={{ flexShrink: 0, marginTop: 2 }} />
+            <p style={{ fontSize: 13, color: WT.sub, lineHeight: 1.5 }}>
+              Premium desbloquea la atribución completa, tus hábitos de inversión, investigación del mes y tu evolución como inversor.
+            </p>
           </div>
-          <h1 style={{ fontWeight: 800, fontSize: 20, color: WT.text, marginBottom: 10 }}>Monthly Report es Premium</h1>
-          <p style={{ fontFamily: "var(--font-ui)", fontSize: 14, color: WT.sub, lineHeight: 1.5, marginBottom: 24 }}>{premiumLocked}</p>
+
           <button onClick={close} style={{ padding: "12px 28px", borderRadius: 100, background: WT.gradGreen, border: "none", color: "#062a1a", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
             Volver
           </button>
@@ -125,7 +160,7 @@ function MonthlyReportPageInner() {
         </div>
       )}
 
-      {!loading && data && data.available && (
+      {!loading && data && data.available && data.is_premium !== false && (
         <MonthlyReportFlow data={data} year={year} month={month} onClose={close} onNavigateMonth={navigateMonth} canGoPrev={canGoPrev} canGoNext={canGoNext} />
       )}
     </div>

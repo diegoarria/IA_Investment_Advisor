@@ -142,6 +142,7 @@ export interface MonthlyReportOverview {
 
 export interface MonthlyReportData {
   available: true;
+  is_premium: true;
   overview: MonthlyReportOverview;
   portfolio: MonthlyReportPortfolio;
   decisions: MonthlyReportDecisions;
@@ -159,7 +160,23 @@ export interface MonthlyReportUnavailable {
   reason?: "future_month" | "before_account_inception" | string;
 }
 
-export type MonthlyReportResponse = MonthlyReportData | MonthlyReportUnavailable;
+// 2026-09-17: Free's 3-line executive summary (real month performance +
+// best/worst position) instead of a flat 403 — same overview shape as the
+// Premium report, just without the full attribution/habits/research/
+// wealth breakdown behind it.
+export interface MonthlyReportFreeSummary {
+  available: true;
+  is_premium: false;
+  overview: MonthlyReportOverview;
+  summary: {
+    return_pct: number | null;
+    benchmark_pct: number | null;
+    best_position: MonthlyReportPositionMove | null;
+    worst_position: MonthlyReportPositionMove | null;
+  };
+}
+
+export type MonthlyReportResponse = MonthlyReportData | MonthlyReportFreeSummary | MonthlyReportUnavailable;
 
 // Composition bucket display labels (Spanish) — kept here, not derived
 // from the raw GQV category strings, since the backend already collapses

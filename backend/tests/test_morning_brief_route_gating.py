@@ -13,7 +13,7 @@ from app.api.routes.morning_brief import get_morning_brief_route
 
 FULL_RESULT = {
     "portfolio_value": 15000.0, "change_usd": 250.0, "change_pct": 1.7,
-    "news": [{"headline": "Apple beats earnings"}, {"headline": "Fed holds rates"}],
+    "news": [{"ticker": "AAPL", "headline": "Apple beats earnings"}, {"ticker": "AAPL", "headline": "Fed holds rates"}],
     "events": [{"title": "AAPL earnings call"}],
     "top_mover": {"ticker": "AAPL", "change_pct": 3.2},
 }
@@ -31,6 +31,8 @@ class TestMorningBriefRouteGating:
         assert result["news_count"] == 2
         assert result["events_count"] == 1
         assert result["portfolio_value"] == 15000.0
+        # 2026-09-17: one real, unlocked finding — not the full list
+        assert result["top_headline"] == {"ticker": "AAPL", "headline": "Apple beats earnings"}
         assert "news" not in result
         assert "events" not in result
         assert "top_mover" not in result

@@ -224,6 +224,19 @@ async def get_batch_prices(request: Request, body: dict, user_id: str = Depends(
     return prices
 
 
+def _select_featured_ticker(user_id: str, tickers: list[str]) -> str:
+    """Which ticker Free's one real Smart Score row shows this week. Hashed
+    from user_id + ISO week number so it's deterministic within a week,
+    rotates automatically the next week, and isn't gameable by reordering
+    the watchlist (position in `tickers` never affects which slot rotates
+    in, only which ticker occupies it). 2026-09-17 — see get_batch_scores."""
+    import hashlib
+    from datetime import date
+    iso_week = date.today().isocalendar()[1]
+    idx = int(hashlib.sha256(f"{user_id}:{iso_week}".encode()).hexdigest(), 16) % len(tickers)
+    return tickers[idx]
+
+
 def _extract_ticker_scores(nif_cached: dict | None, quick_cached: dict | None) -> dict:
     """Assembles one ticker's Watchlist Inteligente row purely from whatever
     is ALREADY cached (nif-dashboard/quick-analysis) — never recomputes,
@@ -296,19 +309,21 @@ async def get_batch_scores(request: Request, body: dict, lang: str = "es", user_
     (screener.py's `nif_dashboard:v1:*` / `quick_analysis:v2:*` keys) and
     returns null fields for tickers with no cached analysis — it NEVER
     triggers a fresh engine run, so opening the watchlist is always cheap
-    regardless of how many tickers are on it. Premium-only, same gate as
-    /nif-dashboard itself (the scores this surfaces are a premium feature)."""
+    regardless of how many tickers are on it.
+
+    2026-09-17: Free no longer gets a flat 403 — same teaser principle as
+    the Opportunities screener (real data, not just a locked wall). Free
+    gets ONE full, real score row per week — the rest come back {"locked":
+    True}. Which ticker is "featured" rotates automatically via ISO week
+    number, hashed with user_id so it isn't gameable by reordering the
+    watchlist, and needs no extra DB state."""
     from app.api.routes.chat import _is_premium
     from app.api.routes.screener import _nif_dashboard_cache_key, _quick_analysis_cache_key, _get_user_profile_safe
 
     profile = await _get_user_profile_safe(user_id)
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
-    if not _is_premium(profile):
-        raise HTTPException(status_code=403, detail={
-            "code": "premium_required",
-            "message": "Los scores de Watchlist Inteligente son exclusivos para Premium.",
-        })
+    is_premium = _is_premium(profile)
 
     tickers = [t.strip().upper() for t in body.get("tickers", []) if t][:50]
     if not tickers:
@@ -316,14 +331,21 @@ async def get_batch_scores(request: Request, body: dict, lang: str = "es", user_
     if lang not in ("es", "en"):
         lang = "es"
 
+    featured_ticker = None if is_premium else _select_featured_ticker(user_id, tickers)
+
     thesis_status = await _fetch_thesis_status_batch(user_id, tickers)
 
     result = {}
     for ticker in tickers:
+        if not is_premium and ticker != featured_ticker:
+            result[ticker] = {"locked": True}
+            continue
         nif_cached = cache_get(_nif_dashboard_cache_key(ticker, lang))
         quick_cached = cache_get(_quick_analysis_cache_key(ticker, lang))
         row = _extract_ticker_scores(nif_cached, quick_cached)
         row.update(thesis_status.get(ticker, {"thesis_status": "no_thesis", "top_risks": []}))
+        if not is_premium:
+            row["is_free_preview"] = True
         result[ticker] = row
     return result
 

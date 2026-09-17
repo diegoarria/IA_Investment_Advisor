@@ -225,3 +225,82 @@ class TestShareCardPrivacy:
                   "decisions_count": 12, "companies_researched": 8,
                   "archetype_name": "THE COMPOUNDER", "achievement": None}
         _assert_no_forbidden_fields(clean)  # must not raise
+
+
+class TestMonthlyReportRouteFreeSummary:
+    """2026-09-17: Free no longer gets a flat 403 on GET /api/monthly-report
+    — it gets a real 3-line executive summary carved out of the same
+    computed report, never the full attribution/habits/research/wealth
+    breakdown. Mirrors test_morning_brief_route_gating.py's pattern
+    (mock the tier check + the underlying compute, call the route
+    function directly — no Supabase/TestClient plumbing needed)."""
+
+    FULL_REPORT = {
+        "available": True,
+        "overview": {"month_label": "SEPTIEMBRE 2026", "year": 2026, "month": 9,
+                     "is_current_month": True, "decisions_count": 4,
+                     "companies_researched": 2, "active_days": 10},
+        "portfolio": {"available": True, "return_pct": 8.4, "benchmark_pct": 6.1, "diff_pp": 2.3,
+                      "best_position": {"ticker": "NVDA", "company_name": "NVIDIA", "move_pct": 15.2},
+                      "worst_position": {"ticker": "INTC", "company_name": "Intel", "move_pct": -4.1},
+                      "composition": {"growth": 60.0}, "insight": "Texto premium"},
+        "decisions": {"total": 4, "highlight": "Texto premium"},
+        "research": {"companies_researched": 2, "insight": "Texto premium"},
+        "wealth": {"available": True, "portfolio_value": 15000.0},
+        "habits": {"active_days": 10},
+    }
+
+    @pytest.mark.asyncio
+    async def test_free_gets_summary_never_the_full_breakdown(self):
+        from unittest.mock import AsyncMock, patch
+        from app.api.routes.monthly_report import get_monthly_report_route
+
+        profile = {"subscription_tier": "free", "trial_started_at": None,
+                   "streak_bonus_premium_until": None, "preferred_language": "es"}
+        with patch("app.api.routes.monthly_report._get_profile_safe", new_callable=AsyncMock, return_value=profile), \
+             patch("app.services.monthly_report_service.get_monthly_report", new_callable=AsyncMock, return_value=self.FULL_REPORT):
+            result = await get_monthly_report_route(year=2026, month=9, user_id="free_user")
+
+        assert result["is_premium"] is False
+        assert result["available"] is True
+        assert result["overview"]["month_label"] == "SEPTIEMBRE 2026"
+        assert result["summary"]["return_pct"] == 8.4
+        assert result["summary"]["best_position"]["ticker"] == "NVDA"
+        assert result["summary"]["worst_position"]["ticker"] == "INTC"
+        # the real gate: no full breakdown leaks into the free response
+        assert "decisions" not in result
+        assert "research" not in result
+        assert "wealth" not in result
+        assert "habits" not in result
+        assert "insight" not in result["summary"]
+        assert "composition" not in result["summary"]
+
+    @pytest.mark.asyncio
+    async def test_premium_gets_the_full_report(self):
+        from unittest.mock import AsyncMock, patch
+        from app.api.routes.monthly_report import get_monthly_report_route
+
+        profile = {"subscription_tier": "premium", "trial_started_at": None,
+                   "streak_bonus_premium_until": None, "preferred_language": "es"}
+        with patch("app.api.routes.monthly_report._get_profile_safe", new_callable=AsyncMock, return_value=profile), \
+             patch("app.services.monthly_report_service.get_monthly_report", new_callable=AsyncMock, return_value=self.FULL_REPORT):
+            result = await get_monthly_report_route(year=2026, month=9, user_id="premium_user")
+
+        assert result["is_premium"] is True
+        assert result["decisions"]["highlight"] == "Texto premium"
+        assert result["wealth"]["portfolio_value"] == 15000.0
+
+    @pytest.mark.asyncio
+    async def test_free_still_gets_the_honest_unavailable_shape(self):
+        from unittest.mock import AsyncMock, patch
+        from app.api.routes.monthly_report import get_monthly_report_route
+
+        profile = {"subscription_tier": "free", "trial_started_at": None,
+                   "streak_bonus_premium_until": None, "preferred_language": "es"}
+        unavailable = {"available": False, "reason": "before_account_inception"}
+        with patch("app.api.routes.monthly_report._get_profile_safe", new_callable=AsyncMock, return_value=profile), \
+             patch("app.services.monthly_report_service.get_monthly_report", new_callable=AsyncMock, return_value=unavailable):
+            result = await get_monthly_report_route(year=2026, month=9, user_id="free_user")
+
+        assert result["available"] is False
+        assert result["reason"] == "before_account_inception"

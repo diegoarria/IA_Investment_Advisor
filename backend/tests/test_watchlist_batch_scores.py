@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.api.routes.watchlist import _extract_ticker_scores, _fetch_thesis_status_batch
+from app.api.routes.watchlist import _extract_ticker_scores, _fetch_thesis_status_batch, _select_featured_ticker
 
 
 class TestExtractTickerScores:
@@ -73,6 +73,28 @@ class TestExtractTickerScores:
         nif_cached = {"catalysts": {"catalysts": [{"type": "producto"}, {"catalyst": "Real one"}]}}
         row = _extract_ticker_scores(nif_cached, None)
         assert row["top_catalysts"] == ["Real one"]
+
+
+class TestSelectFeaturedTicker:
+    """Free's one real Smart Score per week (2026-09-17) — no flat 403
+    anymore, one ticker gets a full real row, rotating weekly."""
+
+    def test_deterministic_within_the_same_week(self):
+        tickers = ["AAPL", "MSFT", "GOOG", "TSLA"]
+        first = _select_featured_ticker("user1", tickers)
+        second = _select_featured_ticker("user1", tickers)
+        assert first == second
+        assert first in tickers
+
+    def test_different_users_can_get_different_featured_tickers(self):
+        tickers = ["AAPL", "MSFT", "GOOG", "TSLA", "NFLX", "AMZN"]
+        picks = {_select_featured_ticker(f"user{i}", tickers) for i in range(20)}
+        # not a hard guarantee for any single hash, but 20 distinct users
+        # over 6 slots should not all collapse onto the same one ticker
+        assert len(picks) > 1
+
+    def test_single_ticker_watchlist_always_returns_it(self):
+        assert _select_featured_ticker("user1", ["AAPL"]) == "AAPL"
 
 
 class TestFetchThesisStatusBatch:
