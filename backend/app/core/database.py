@@ -51,6 +51,17 @@ def get_supabase() -> Client:
     return _client
 
 
+def get_fresh_supabase() -> Client:
+    """Create a brand-new Supabase client, bypassing the process-wide singleton
+    entirely. A read through the singleton that comes back suspiciously empty
+    (e.g. a user who should have rows) is indistinguishable, from the caller's
+    side, from the stale-pinned-connection issue described in get_supabase's
+    docstring — recycling only bounds how long that can persist, it doesn't
+    prevent it recurring. Call sites that need to double-check an empty result
+    before treating it as real should re-query with this instead of _client."""
+    return create_client(settings.supabase_url, settings.supabase_service_key, options=_AUTH_OPTIONS)
+
+
 async def run_query(query_builder, _max_attempts: int = 3):
     """Execute a synchronous Supabase query builder without blocking the event loop.
     Retries transient connection drops (server disconnected mid-request) — almost
