@@ -1718,13 +1718,14 @@
       "priceUnit": "USD / mes",
       "currentPlan": "Tu plan actual",
       "features": [
-        "Hasta 15 mensajes al día con tu mentor de inversión IA",
-        "Registra hasta 10 acciones en tu portafolio",
+        "Hasta 15 mensajes al día con Arthur, tu mentor de inversión",
+        "Portafolio de hasta 10 acciones",
+        "Mira cómo se mueve tu dinero día a día",
+        "Notificaciones generales del mercado y tus acciones",
         "Sigue hasta 25 acciones que te interesen",
-        "Academia completa con lecciones y quizzes",
-        "Ve cómo va tu dinero en el corto plazo",
-        "Noticias generales del mercado",
-        "3 búsquedas gratis por semana: descubre si una acción está barata o cara"
+        "Lecciones y pruebas cortas para aprender a invertir",
+        "Arthur recuerda tu última conversación",
+        "3 búsquedas gratis por semana: conoce el valor real de una acción antes de decidir si invertir"
       ]
     },
     "premium": {
@@ -1735,19 +1736,19 @@
       "claimFree": "Hazte Premium →",
       "active": "Activo ✓",
       "features": [
-        "Chatea con tu mentor IA sin las limitaciones del plan Free",
-        "Agrega todas las acciones que quieras, sin límite",
-        "Sube una foto o PDF de tu estado de cuenta y la IA arma tu portafolio",
-        "Te avisamos antes de que tus empresas reporten resultados",
+        "Habla con Arthur sin límites",
+        "Sé el primero en saber cuándo tus empresas van a reportar resultados",
         "Descubre si tu dinero resistiría otra crisis como la del 2008 o el COVID",
-        "La IA revisa tu portafolio y te dice honestamente qué mejorar",
-        "Cada lunes, 5 ideas de inversión pensadas para ti",
-        "Noticias de tus acciones, resumidas por IA en segundos",
+        "Arthur te dice honestamente qué le falta a tu portafolio",
+        "Sube una foto o PDF de tu estado de cuenta y Arthur arma todo por ti",
+        "Cada semana, 5 ideas de inversión pensadas para ti",
+        "Te explicamos por qué sube o baja tu dinero, para que no te agarre de sorpresa",
         "Cada mes te decimos si le ganaste al mercado o no",
-        "Lecciones pensadas para las acciones que ya tienes",
-        "Te avisamos cuando pasa algo importante con tu dinero",
-        "Descubre tu estilo como inversor y cómo mejorar",
-        "Búsquedas ilimitadas: descubre si cualquier acción está barata o cara"
+        "Aprende sobre las empresas que ya tienes en tu portafolio",
+        "Compara tu portafolio con el mercado en tiempo real",
+        "Agrega todas las acciones que quieras, sin límite",
+        "Arthur recuerda cada conversación para darte mejores consejos con el tiempo",
+        "Búsquedas ilimitadas: conoce el valor real de cualquier acción antes de decidir"
       ]
     },
     "duo": {
@@ -2883,26 +2884,29 @@
     "paymentError": "No se pudo abrir el pago. Intenta de nuevo.",
     "manageOnWeb": "Suscríbete o cambia de plan desde nuvosai.com",
     "freeFeatures": [
-      "Hasta 20 mensajes/día con el mentor IA",
+      "Hasta 15 mensajes al día con Arthur, tu mentor de inversión",
       "Portafolio de hasta 10 acciones",
-      "Watchlist de hasta 25 acciones",
-      "Academia completa + quizzes",
-      "Gráfico básico (5D y 1M)",
-      "Noticias generales del mercado"
+      "Mira cómo se mueve tu dinero día a día",
+      "Notificaciones generales del mercado y tus acciones",
+      "Sigue hasta 25 acciones que te interesen",
+      "Lecciones y pruebas cortas para aprender a invertir",
+      "Arthur recuerda tu última conversación",
+      "3 búsquedas gratis por semana: conoce el valor real de una acción antes de decidir si invertir"
     ],
     "premiumFeatures": [
-      "Chatea sin límites con tu mentor de IA, a cualquier hora",
-      "Agrega todas las acciones que quieras, sin límite",
-      "Sube una foto o PDF de tu cuenta y la IA arma tu portafolio",
-      "Te avisamos antes de que tus empresas reporten ganancias",
-      "Mira cómo le hubiera ido a tu dinero en crisis pasadas (2008, COVID...)",
-      "La IA revisa tu portafolio y te dice qué mejorar",
-      "Cada lunes, 5 ideas de inversión seleccionadas para ti",
-      "Noticias de tus acciones, resumidas por IA en segundos",
+      "Habla con Arthur sin límites",
+      "Sé el primero en saber cuándo tus empresas van a reportar resultados",
+      "Descubre si tu dinero resistiría otra crisis como la del 2008 o el COVID",
+      "Arthur te dice honestamente qué le falta a tu portafolio",
+      "Sube una foto o PDF de tu estado de cuenta y Arthur arma todo por ti",
+      "Cada semana, 5 ideas de inversión pensadas para ti",
+      "Te explicamos por qué sube o baja tu dinero, para que no te agarre de sorpresa",
       "Cada mes te decimos si le ganaste al mercado o no",
-      "Lecciones pensadas para las acciones que ya tienes",
-      "Te avisamos cuando pasa algo importante con tu dinero",
-      "Descubre tu estilo como inversor y cómo mejorar"
+      "Aprende sobre las empresas que ya tienes en tu portafolio",
+      "Compara tu portafolio con el mercado en tiempo real",
+      "Agrega todas las acciones que quieras, sin límite",
+      "Arthur recuerda cada conversación para darte mejores consejos con el tiempo",
+      "Búsquedas ilimitadas: conoce el valor real de cualquier acción antes de decidir"
     ],
     "duoFeatures": [
       "Todo lo de Premium, para ambos",
@@ -3447,11 +3451,11 @@
     }
   },
   "paywallModal": {
-    "heroFeature1": "Chatea sin límites con tu mentor, a cualquier hora",
-    "heroFeature2": "Alertas inteligentes: te avisamos antes de que una noticia mueva tu dinero",
-    "heroFeature3": "Sabe exactamente cuánto ganaste o perdiste este mes, y por qué",
-    "heroFeature4": "5 oportunidades de inversión nuevas cada semana, con la razón y el riesgo",
-    "heroFeature5": "Sube tu estado de cuenta y la IA arma tu portafolio sola",
+    "heroFeature1": "Habla con Arthur sin límites",
+    "heroFeature2": "Te explicamos por qué sube o baja tu dinero, para que no te agarre de sorpresa",
+    "heroFeature3": "Cada mes te decimos si le ganaste al mercado o no",
+    "heroFeature4": "Cada semana, 5 ideas de inversión pensadas para ti",
+    "heroFeature5": "Sube una foto o PDF de tu estado de cuenta y Arthur arma todo por ti",
     "moreFeatures": "+ muchas funcionalidades más",
     "planYearlyBadge": "MÁS POPULAR",
     "trust1": "Cancela cuando quieras",

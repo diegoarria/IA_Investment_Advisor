@@ -1718,13 +1718,14 @@
       "priceUnit": "USD / mo",
       "currentPlan": "Your current plan",
       "features": [
-        "Up to 15 messages a day with your AI investing mentor",
-        "Track up to 10 stocks in your portfolio",
+        "Up to 15 messages a day with Arthur, your investing mentor",
+        "Portfolio of up to 10 stocks",
+        "See how your money moves day to day",
+        "General notifications about the market and your stocks",
         "Follow up to 25 stocks you're interested in",
-        "Full academy with lessons and quizzes",
-        "See how your money is doing in the short term",
-        "General market news",
-        "3 free searches a week: find out if a stock is cheap or expensive"
+        "Short lessons and quizzes to learn how to invest",
+        "Arthur remembers your last conversation",
+        "3 free searches a week: know a stock's real value before deciding whether to invest"
       ]
     },
     "premium": {
@@ -1735,19 +1736,19 @@
       "claimFree": "Get Premium →",
       "active": "Active ✓",
       "features": [
-        "Chat with your AI mentor beyond the Free plan's limits",
-        "Add as many stocks as you want, no limit",
-        "Upload a photo or PDF of your statement and AI builds your portfolio",
-        "We alert you before your companies report earnings",
+        "Chat with Arthur with no limits",
+        "Be the first to know when your companies are about to report earnings",
         "Find out if your money would survive another crisis like 2008 or COVID",
-        "AI reviews your portfolio and honestly tells you what to improve",
-        "5 investment ideas picked for you every Sunday",
-        "News about your stocks, summarized by AI in seconds",
+        "Arthur honestly tells you what's missing from your portfolio",
+        "Upload a photo or PDF of your statement and Arthur builds everything for you",
+        "5 investment ideas picked for you every week",
+        "We explain why your money is moving, so it never catches you off guard",
         "Every month we tell you if you beat the market or not",
-        "Lessons built around the stocks you already own",
-        "We alert you when something important happens with your money",
-        "Discover your investor style and how to improve",
-        "Unlimited searches: find out if any stock is cheap or expensive"
+        "Learn about the companies you already own",
+        "Compare your portfolio to the market in real time",
+        "Add as many stocks as you want, no limit",
+        "Arthur remembers every conversation to give you better advice over time",
+        "Unlimited searches: know any stock's real value before deciding"
       ]
     },
     "duo": {
@@ -2883,26 +2884,29 @@
     "paymentError": "Could not open payment. Please try again.",
     "manageOnWeb": "Subscribe or change your plan at nuvosai.com",
     "freeFeatures": [
-      "Up to 20 messages/day with the AI mentor",
+      "Up to 15 messages a day with Arthur, your investing mentor",
       "Portfolio of up to 10 stocks",
-      "Watchlist of up to 25 stocks",
-      "Full academy + quizzes",
-      "Basic chart (5D and 1M)",
-      "General market news"
+      "See how your money moves day to day",
+      "General notifications about the market and your stocks",
+      "Follow up to 25 stocks you're interested in",
+      "Short lessons and quizzes to learn how to invest",
+      "Arthur remembers your last conversation",
+      "3 free searches a week: know a stock's real value before deciding whether to invest"
     ],
     "premiumFeatures": [
-      "Chat without limits with your AI mentor, any time",
-      "Add as many stocks as you want, no limit",
-      "Upload a photo or PDF of your account and the AI builds your portfolio",
-      "We notify you before your companies report earnings",
-      "See how your money would have done in past crises (2008, COVID...)",
-      "The AI reviews your portfolio and tells you what to improve",
-      "Every Monday, 5 investment ideas selected for you",
-      "News about your stocks, summarized by AI in seconds",
+      "Chat with Arthur with no limits",
+      "Be the first to know when your companies are about to report earnings",
+      "Find out if your money would survive another crisis like 2008 or COVID",
+      "Arthur honestly tells you what's missing from your portfolio",
+      "Upload a photo or PDF of your statement and Arthur builds everything for you",
+      "5 investment ideas picked for you every week",
+      "We explain why your money is moving, so it never catches you off guard",
       "Every month we tell you if you beat the market or not",
-      "Lessons tailored to the stocks you already own",
-      "We notify you when something important happens with your money",
-      "Discover your investor style and how to improve"
+      "Learn about the companies you already own",
+      "Compare your portfolio to the market in real time",
+      "Add as many stocks as you want, no limit",
+      "Arthur remembers every conversation to give you better advice over time",
+      "Unlimited searches: know any stock's real value before deciding"
     ],
     "duoFeatures": [
       "Everything in Premium, for both of you",
@@ -3447,11 +3451,11 @@
     }
   },
   "paywallModal": {
-    "heroFeature1": "Chat with your mentor with no limits, any time",
-    "heroFeature2": "Smart alerts: we warn you before news moves your money",
-    "heroFeature3": "Know exactly how much you gained or lost this month, and why",
-    "heroFeature4": "5 new investment opportunities every week, with the reason and the risk",
-    "heroFeature5": "Upload your account statement and the AI builds your portfolio for you",
+    "heroFeature1": "Chat with Arthur with no limits",
+    "heroFeature2": "We explain why your money is moving, so it never catches you off guard",
+    "heroFeature3": "Every month we tell you if you beat the market or not",
+    "heroFeature4": "5 investment ideas picked for you every week",
+    "heroFeature5": "Upload a photo or PDF of your statement and Arthur builds everything for you",
     "moreFeatures": "+ many more features",
     "planYearlyBadge": "MOST POPULAR",
     "trust1": "Cancel anytime",
