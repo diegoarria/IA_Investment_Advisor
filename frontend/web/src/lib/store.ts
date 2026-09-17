@@ -1268,14 +1268,23 @@ export const useWatchlistStore = create<WatchlistState>()(
           if (pendingSync && isStale) { pendingCount = 0; set({ pendingSync: false, pendingSyncSetAt: null }); }
 
           const { watchlist } = await import("./api");
-          const res = await watchlist.get();
-          const serverItems: WatchItem[] = (res.data ?? []).map((i: any) => ({
-            ticker: i.ticker,
-            name: i.name || i.ticker,
-            addedAt: i.added_at ? new Date(i.added_at).getTime() : Date.now(),
-          }));
-          // Server is the source of truth — including an empty list, which
-          // may be exactly what another device just made true by deleting.
+          const toItems = (res: any): WatchItem[] =>
+            (res.data ?? []).map((i: any) => ({
+              ticker: i.ticker,
+              name: i.name || i.ticker,
+              addedAt: i.added_at ? new Date(i.added_at).getTime() : Date.now(),
+            }));
+          let serverItems = toItems(await watchlist.get());
+          // A 200 with an empty body is ambiguous: it may be a real empty
+          // watchlist (e.g. another device just deleted the last item), or a
+          // transient blip between browser and backend returning a false
+          // empty despite the backend's own double-check (see GET /watchlist's
+          // fresh-client re-verify, 2026-09-16 — that guards the DB read, not
+          // this HTTP round-trip). Never let a single empty response wipe a
+          // non-empty local cache outright — re-confirm once before trusting it.
+          if (serverItems.length === 0 && get().items.length > 0) {
+            serverItems = toItems(await watchlist.get());
+          }
           set({ items: serverItems });
         } catch {}
       },
