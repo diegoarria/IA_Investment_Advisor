@@ -170,3 +170,41 @@ class TestPortalAndSubscriptionLookupFailClean:
             with pytest.raises(HTTPException) as exc_info:
                 await _get_customer_id_or_404("user1", mock_db)
         assert exc_info.value.status_code == 503
+
+
+class TestGetStatusUsesFreshClientForMsgCount:
+    """2026-09-17: Diego reported that after hitting the Free 15/24h chat
+    limit, a page refresh (or opening a new chat, which re-reads the same
+    subscription-status endpoint) showed "1 message left" instead of 0 —
+    letting the client-side send gate re-open even though the server's
+    atomic RPC (chat.py's increment_msg_count_if_allowed) had already
+    correctly recorded msg_count=15. Root cause: GET /billing/status read
+    through the process-wide Supabase singleton, which can stay pinned to
+    a lagging connection for a few minutes after a write (see
+    get_supabase's own docstring) — msg_count changes on every single chat
+    message, far more often than any other field this endpoint reads, so
+    it's the field most likely to be read moments after a write. Fixed by
+    reading through get_fresh_supabase() instead, bypassing that risk
+    entirely for this per-page-load endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_get_status_reads_through_a_fresh_client_not_the_singleton(self):
+        from app.api.routes.billing import get_status
+
+        mock_db = MagicMock()
+        profile_row = {
+            "subscription_tier": "free", "msg_count": 15, "msg_window_start": "2026-09-17T12:00:00+00:00",
+            "trial_started_at": "2026-08-01T00:00:00+00:00", "stripe_customer_id": None,
+            "broker_offer_seen_at": None, "duo_plan_purchased_at": None, "duo_secondary_email": None,
+            "duo_invite_status": None, "streak_bonus_premium_until": None, "claimed_streak_milestones": [],
+            "has_seen_welcome_card": True, "premium_until": None, "subscription_source": None,
+        }
+
+        with patch("app.api.routes.billing.get_fresh_supabase", return_value=mock_db) as mock_fresh, \
+             patch("app.api.routes.billing.get_supabase") as mock_singleton, \
+             patch("app.api.routes.billing.run_query", new_callable=AsyncMock, return_value=SimpleNamespace(data=profile_row)):
+            result = await get_status(user_id="user1")
+
+        mock_fresh.assert_called_once()
+        mock_singleton.assert_not_called()
+        assert result["msg_count"] == 15

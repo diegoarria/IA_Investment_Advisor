@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from typing import Literal
 from app.api.deps import get_current_user_id, get_current_user
 from app.core.config import settings
-from app.core.database import get_supabase, run_query
+from app.core.database import get_supabase, get_fresh_supabase, run_query
 from app.core.cache import cache_delete
 from app.core.stripe_retry import stripe_call as _stripe_call
 from app.services import investor_progress_service
@@ -705,7 +705,24 @@ from app.core.subscription import TRIAL_DAYS as _PROMO_DAYS
 
 @router.get("/status")
 async def get_status(user_id: str = Depends(get_current_user_id)):
-    db = get_supabase()
+    # 2026-09-17: was get_supabase() (the process-wide singleton) — Diego
+    # reported msg_count under-counting right after hitting the free
+    # 15/24h chat limit (refresh, or opening a new chat, showed "1 message
+    # left" instead of 0). msg_count changes on every single chat message,
+    # far more often than tier/trial fields, so it's the field most likely
+    # to be read moments after a write — exactly the stale-pinned-
+    # connection window get_supabase()'s own docstring describes (a write
+    # that's already committed on the primary but not yet visible through
+    # a connection still pinned to a lagging replica). This endpoint is
+    # "the single endpoint every client trusts for its subscription
+    # state" (see below) AND the one both platforms use to decide whether
+    # the chat input is still enabled — a stale read here doesn't just
+    # show a wrong badge, it lets a Free user who already hit their limit
+    # send another message client-side (server-side enforcement in
+    # chat.py's atomic RPC still blocks it, but the UX is exactly the
+    # "gives me one more" bug reported). A fresh, non-singleton client per
+    # call avoids that entirely for a per-page-load endpoint like this one.
+    db = get_fresh_supabase()
 
     def _query():
         return db.table("user_profiles").select(
