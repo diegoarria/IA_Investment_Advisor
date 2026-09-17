@@ -43,10 +43,22 @@ async def create_checkout(body: CheckoutRequest, user_id: str = Depends(get_curr
     s = _stripe()
     db = get_supabase()
 
-    result = await run_query(
-        db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
-    )
-    customer_id = result.data.get("stripe_customer_id") if result.data else None
+    try:
+        result = await run_query(
+            db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
+        )
+    except Exception as e:
+        # Was unguarded — a real Postgrest error here (or `.single()`
+        # raising on a missing/duplicate profile row) escaped as a raw,
+        # unlogged 500. Same bug class Diego confirmed 2026-09-16 in
+        # upsells.py's checkout endpoints — fixed there but missed here,
+        # the endpoint behind the MAIN Premium paywall's "No se pudo abrir
+        # el pago." Degrade gracefully instead: proceed as if there's no
+        # linked Stripe customer yet (Stripe.Customer.create below still
+        # runs), same as a genuinely new customer.
+        logger.error("create_checkout: profile lookup failed for user %s: %s", user_id, e)
+        result = None
+    customer_id = result.data.get("stripe_customer_id") if result and result.data else None
 
     success_url = "https://nuvo.app/premium-success"
     cancel_url  = "https://nuvo.app/premium-cancel"
@@ -94,10 +106,25 @@ async def create_embedded_subscription(body: CheckoutRequest, user: dict = Depen
     db = get_supabase()
     user_id = user["id"]
 
-    result = await run_query(
-        db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
-    )
-    customer_id = result.data.get("stripe_customer_id") if result.data else None
+    try:
+        result = await run_query(
+            db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
+        )
+    except Exception as e:
+        # Was unguarded — a real Postgrest error here (or `.single()`
+        # raising on a missing/duplicate profile row) escaped as a raw,
+        # unlogged 500, which EmbeddedCheckout.tsx (this IS the endpoint
+        # behind the main "Nuvos AI Premium" paywall) surfaces as the
+        # generic, undiagnosable "No se pudo abrir el pago." Confirmed
+        # 2026-09-17 from a live screenshot of exactly this. Same bug class
+        # already fixed in upsells.py's checkout endpoints 2026-09-16 —
+        # missed here. Degrade gracefully: proceed as if there's no linked
+        # Stripe customer yet, so the block below creates one fresh —
+        # worst case is one duplicate Stripe customer, never a blocked
+        # payment.
+        logger.error("create_embedded_subscription: profile lookup failed for user %s: %s", user_id, e)
+        result = None
+    customer_id = result.data.get("stripe_customer_id") if result and result.data else None
 
     if not customer_id:
         try:
@@ -108,9 +135,20 @@ async def create_embedded_subscription(body: CheckoutRequest, user: dict = Depen
             logger.error("Stripe customer creation failed for user %s: %s", user_id, e)
             raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
         customer_id = customer.id
-        await run_query(
-            db.table("user_profiles").update({"stripe_customer_id": customer_id}).eq("user_id", user_id)
-        )
+        try:
+            await run_query(
+                db.table("user_profiles").update({"stripe_customer_id": customer_id}).eq("user_id", user_id)
+            )
+        except Exception as e:
+            # Best-effort — the webhook's premium grant re-derives
+            # customer_id from Stripe's own event payload by this same
+            # eq("stripe_customer_id", ...) lookup, so a failed write here
+            # would (rarely) delay that grant, not block it forever the
+            # next time this profile is read/written. Blocking the payment
+            # FORM from ever opening over a non-critical persistence write
+            # is strictly worse — the user is already mid-checkout with a
+            # real Stripe customer created.
+            logger.error("create_embedded_subscription: failed to persist stripe_customer_id for user %s: %s", user_id, e)
 
     try:
         subscription = await _stripe_call(
@@ -121,11 +159,11 @@ async def create_embedded_subscription(body: CheckoutRequest, user: dict = Depen
             payment_settings={"save_default_payment_method": "on_subscription"},
             expand=["latest_invoice.payment_intent"],
         )
+        client_secret = subscription.latest_invoice.payment_intent.client_secret
     except Exception as e:
         logger.error("Stripe embedded subscription creation failed for user %s: %s", user_id, e)
         raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
 
-    client_secret = subscription.latest_invoice.payment_intent.client_secret
     return {"client_secret": client_secret, "subscription_id": subscription.id}
 
 
@@ -143,9 +181,17 @@ async def create_portal_session(user_id: str = Depends(get_current_user_id)):
     nuvosai.com already does for mobile's "Administrar suscripción")."""
     s = _stripe()
     db = get_supabase()
-    result = await run_query(
-        db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
-    )
+    try:
+        result = await run_query(
+            db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
+        )
+    except Exception as e:
+        # Was unguarded — same bug class as create_embedded_subscription
+        # above: a transient Postgrest/`.single()` error here escaped as an
+        # uncaught 500 instead of the honest "try again" message every
+        # other failure path in this file already gives.
+        logger.error("create_portal_session: profile lookup failed for user %s: %s", user_id, e)
+        raise HTTPException(status_code=503, detail="No se pudo abrir el portal de suscripción. Intenta de nuevo en unos segundos.")
     customer_id = result.data.get("stripe_customer_id") if result.data else None
     if not customer_id:
         raise HTTPException(status_code=404, detail="No tienes una suscripción de Stripe que administrar.")
@@ -164,9 +210,17 @@ async def create_portal_session(user_id: str = Depends(get_current_user_id)):
 
 
 async def _get_customer_id_or_404(user_id: str, db) -> str:
-    result = await run_query(
-        db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
-    )
+    try:
+        result = await run_query(
+            db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
+        )
+    except Exception as e:
+        # Was unguarded — same bug class as create_embedded_subscription
+        # above (see its comment). This helper backs subscription-details/
+        # cancel/resume, so an uncaught error here read as "no subscription
+        # to manage" would have been actively misleading, not just a crash.
+        logger.error("_get_customer_id_or_404: profile lookup failed for user %s: %s", user_id, e)
+        raise HTTPException(status_code=503, detail="No pudimos verificar tu suscripción. Intenta de nuevo en unos segundos.")
     customer_id = result.data.get("stripe_customer_id") if result.data else None
     if not customer_id:
         raise HTTPException(status_code=404, detail="No tienes una suscripción de Stripe que administrar.")
@@ -607,10 +661,17 @@ async def create_embedded_broker_call(user_id: str = Depends(get_current_user_id
         raise HTTPException(status_code=503, detail="Precio no configurado")
 
     db = get_supabase()
-    result = await run_query(
-        db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
-    )
-    customer_id = result.data.get("stripe_customer_id") if result.data else None
+    try:
+        result = await run_query(
+            db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
+        )
+    except Exception as e:
+        # Was unguarded — same bug class as create_embedded_subscription
+        # above. Degrade gracefully instead of an uncaught 500: proceed as
+        # if there's no linked Stripe customer yet.
+        logger.error("create_embedded_broker_call: profile lookup failed for user %s: %s", user_id, e)
+        result = None
+    customer_id = result.data.get("stripe_customer_id") if result and result.data else None
 
     if not customer_id:
         try:
