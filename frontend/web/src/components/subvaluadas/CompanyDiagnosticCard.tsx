@@ -54,12 +54,15 @@ export function CompanyDiagnosticCard({
 
   const methodologyParagraphs = t("companyDiagnostic.methodology.paragraphs", { returnObjects: true }) as string[];
 
-  // Capa 1 — Hero, SIEMPRE visible sin blur, locked o no (Diego, 2026-09-14:
-  // "dales a los free/guests un poquito del dulce, pero no todo") — ticker,
-  // veredicto, banda de rango bear/base/bull y la frase "por qué" en una
-  // línea. Lo único que `locked` le quita al hero es el detalle profundo
-  // (WACC, fair P/E, blend dual-track) detrás de "Ver el razonamiento
-  // completo", manejado dentro de CompanyDiagnosticHero.tsx.
+  // Capa 1 — Hero. Blurreaba solo el detalle profundo debajo de "Ver el
+  // razonamiento completo" cuando `locked` (Diego, 2026-09-14: "dales a los
+  // free/guests un poquito del dulce, pero no todo" — dejaba visibles
+  // ticker/veredicto/banda/frase "por qué" como muestra). Diego, 2026-09-18:
+  // revierte esa excepción — después de las 3 vistas gratis semanales, todo
+  // el diagnóstico se blurrea, hero incluido; ya no hay "taste" del hero.
+  // El header de identificación (nombre/logo/precio) sobre esta tarjeta
+  // vive en app/subvaluadas/page.tsx, fuera de este componente, y sigue
+  // visible — es lo mínimo para saber qué empresa buscaste.
   const hero = (
     <Card
       padding="p-6 sm:p-7"
@@ -149,16 +152,16 @@ export function CompanyDiagnosticCard({
 
   return (
     <div>
-      {hero}
-      <div className="relative mt-4">
+      <div className="relative">
         <div
           className="pointer-events-none select-none"
           style={{ filter: "blur(7px)", opacity: 0.55 }}
           aria-hidden="true"
         >
+          {hero}
           {content}
         </div>
-        <div className="absolute inset-0 flex items-start justify-center pt-16 px-5">
+        <div className="absolute inset-0 flex items-start justify-center pt-10 px-5">
           <div
             className="w-full max-w-[340px] rounded-2xl p-5 text-center"
             style={{ background: "var(--card)", border: "1px solid rgba(212,162,76,0.4)", boxShadow: "0 20px 50px -15px rgba(0,0,0,0.6)" }}

@@ -171,7 +171,13 @@ export function CompanyDiagnosticCard({
 
   return (
     <View>
-      <View style={{ opacity: 0.35 }} pointerEvents="none">
+      {/* Diego, 2026-09-18: strengthened from 0.35 — past the 3 free weekly
+          views, the whole card (hero included, same as web's fix) should
+          read as genuinely locked, not just faded. True blur still isn't
+          available here (see the constraint noted on `locked` above); a
+          real BlurView (expo-blur) would need a new native dependency —
+          flagged for Diego, not silently added. */}
+      <View style={{ opacity: 0.18 }} pointerEvents="none">
         {content}
       </View>
       <View style={{ position: "absolute", top: 50, left: 0, right: 0, alignItems: "center", paddingHorizontal: 20 }}>
