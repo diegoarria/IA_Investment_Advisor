@@ -702,7 +702,19 @@ export default function ChatPage() {
         null,
         imagesToSend.length > 0 ? imagesToSend.map((i) => ({ data: i.data, type: i.type })) : null,
         ctxToSend,
-        (actions) => { setPendingActions(actions); setCommittedActions(new Set()); },
+        (actions) => {
+          // "portfolio_refresh" is a silent signal from Arthur (emitted right
+          // after he applies a natural-language BUY/SELL) — not a user-facing
+          // chip. Without this, a Portfolio tab already open in this same
+          // browser tab/window wouldn't pick up the change until the user
+          // navigated away and back or the tab regained focus.
+          if (actions?.some((a) => a.type === "portfolio_refresh")) {
+            loadPortfolio();
+          }
+          const visible = actions?.filter((a) => a.type !== "portfolio_refresh") ?? actions;
+          setPendingActions(visible && visible.length > 0 ? visible : null);
+          setCommittedActions(new Set());
+        },
         isGuestUser(),
         getGuestId(),
       );
