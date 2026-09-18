@@ -48,6 +48,12 @@ async def _log_decision(user_id: str, decision: dict) -> dict:
         # [{"question": "...", "answer": "..."}, ...]. None for every other
         # entry type (chat action chips, etc.), which never sets this key.
         "quiz_answers":   decision.get("quiz_answers"),
+        # Optional reasoned thesis behind the decision — {"motivo":...,
+        # "expectativa":..., "horizonte":..., "conviccion":...,
+        # "invalidaria_la_tesis":...}. Only set when the user (or Arthur,
+        # echoing what the user just said) actually states a reason —
+        # never inferred/guessed. None for entries logged without one.
+        "thesis":         decision.get("thesis"),
         "created_at":     datetime.utcnow().isoformat(),
     }
     result = await run_query(db.table("investment_decisions").insert(row))

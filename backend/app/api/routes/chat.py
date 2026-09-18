@@ -348,11 +348,11 @@ async def _get_mentor_deep_context(user_id: str) -> tuple[str | None, str | None
     $0.03-0.09/msg on a cache write vs $0.004-0.015/msg on a cache read."""
     try:
         db = get_supabase()
-        portfolio_res, decisions_res, watchlist_res, extended_res, reflections_res = await asyncio.gather(
+        portfolio_res, decisions_res, watchlist_res, extended_res, reflections_res, pending_res = await asyncio.gather(
             run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id)),
             run_query(
                 db.table("investment_decisions")
-                .select("action, ticker, trigger, notes, created_at")
+                .select("action, ticker, trigger, notes, thesis, created_at")
                 .eq("user_id", user_id)
                 .order("created_at", desc=True)
                 .limit(20)
@@ -369,6 +369,18 @@ async def _get_mentor_deep_context(user_id: str) -> tuple[str | None, str | None
                 .eq("user_id", user_id)
                 .order("week_start_date", desc=True)
                 .limit(4)
+            ),
+            # Decisiones/temas que el usuario dijo que quería revisar después
+            # de algo ("lo pienso después del reporte") — guardadas vía el
+            # tool save_pending_decision (ai_service.py) en la misma tabla
+            # que ya alimenta el push de action_followup (worker.py).
+            run_query(
+                db.table("pending_actions")
+                .select("id, action_label, due_at")
+                .eq("user_id", user_id)
+                .eq("status", "committed")
+                .order("due_at")
+                .limit(5)
             ),
             return_exceptions=True,
         )
@@ -392,6 +404,7 @@ async def _get_mentor_deep_context(user_id: str) -> tuple[str | None, str | None
         extended: dict = {}
         if not isinstance(extended_res, Exception) and extended_res.data:
             extended = extended_res.data[0]
+        pending_decisions: list[dict] = [] if isinstance(pending_res, Exception) else (pending_res.data or [])
 
         # Fetch a live quote for every position + watchlist ticker in parallel so the
         # mentor always reasons over current market value/P&L, not just cost basis.
@@ -411,7 +424,7 @@ async def _get_mentor_deep_context(user_id: str) -> tuple[str | None, str | None
                 if not isinstance(q, Exception) and q:
                     quotes[t] = q
 
-        deep_ctx = ai_service.build_deep_user_context(extended, positions, decisions, watchlist, reflections)
+        deep_ctx = ai_service.build_deep_user_context(extended, positions, decisions, watchlist, reflections, pending_decisions)
         live_ctx = ai_service.build_live_market_snapshot(positions, watchlist, quotes)
         # Also returning the raw positions/quotes (not just the rendered
         # text blocks) so callers can pass them into chat_stream's Decision

@@ -16,7 +16,8 @@ GOAL_TYPES = ("retirement", "house", "freedom_number", "education", "emergency_f
 
 _FIELDS = (
     "net_worth_usd, monthly_expenses_usd, currency, preferred_language, "
-    "investing_style, time_horizon_years, financial_freedom_target_usd"
+    "investing_style, time_horizon_years, financial_freedom_target_usd, "
+    "has_debt, debt_amount_usd"
 )
 
 
@@ -36,6 +37,8 @@ async def get_financial_profile(user_id: str = Depends(get_current_user_id)):
         "investing_style":             row.get("investing_style") or "not_set",
         "time_horizon_years":          row.get("time_horizon_years"),
         "financial_freedom_target_usd": row.get("financial_freedom_target_usd"),
+        "has_debt":                    row.get("has_debt"),
+        "debt_amount_usd":             row.get("debt_amount_usd"),
     }
 
 
@@ -48,6 +51,8 @@ class FinancialProfileUpdate(BaseModel):
     investing_style: Optional[Literal[*INVESTING_STYLES]] = None
     time_horizon_years: Optional[int] = Field(None, ge=0, le=80)
     financial_freedom_target_usd: Optional[float] = Field(None, ge=0)
+    has_debt: Optional[bool] = None
+    debt_amount_usd: Optional[float] = Field(None, ge=0)
 
 
 @router.patch("")

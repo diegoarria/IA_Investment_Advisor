@@ -119,6 +119,8 @@ class UserProfile(BaseModel):
     investing_style: Optional[str] = None
     time_horizon_years: Optional[int] = None
     financial_freedom_target_usd: Optional[float] = None
+    has_debt: Optional[bool] = None
+    debt_amount_usd: Optional[float] = None
     trial_started_at: Optional[str] = None
     streak_bonus_premium_until: Optional[str] = None
     has_seen_welcome_card: bool = False

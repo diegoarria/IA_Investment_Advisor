@@ -4,7 +4,7 @@ import json
 import logging
 import re
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from app.core.config import settings
 from app.core.finnhub import fh_quote, fh_candles
@@ -1277,6 +1277,17 @@ def build_profile_context(profile: UserProfile) -> str:
     freedom_target_val = getattr(profile, "financial_freedom_target_usd", None)
     freedom_str = f"${freedom_target_val:,.0f}" if freedom_target_val else "No especificado"
 
+    has_debt_val = getattr(profile, "has_debt", None)
+    debt_amount_val = getattr(profile, "debt_amount_usd", None)
+    if has_debt_val is False:
+        debt_str = "No tiene deuda"
+    elif has_debt_val and debt_amount_val:
+        debt_str = f"Sí — ${debt_amount_val:,.0f}"
+    elif has_debt_val:
+        debt_str = "Sí (monto no especificado)"
+    else:
+        debt_str = "No especificado"
+
     return f"""
 ## PERFIL DEL USUARIO ACTUAL:
 - Nombre: {profile.name or 'No especificado'}
@@ -1291,6 +1302,7 @@ def build_profile_context(profile: UserProfile) -> str:
 - Estilo de inversión declarado: {style_str}
 - Horizonte de tiempo: {horizon_str}
 - Meta de libertad financiera: {freedom_str}
+- Deuda: {debt_str}
 - Broker: {broker_str}
 - Inversiones previas: {inv_str}{quiz_extra}
 
@@ -1300,7 +1312,7 @@ ADAPTA TODO tu análisis a este perfil específico, incluyendo su estilo de inve
 El onboarding inicial es corto a propósito — los campos marcados "No especificado" arriba
 todavía no se han preguntado. Tu trabajo es ir conociendo al usuario con el tiempo, como lo
 haría un asesor humano: cuando el usuario mencione naturalmente algo sobre su broker, si ya
-invierte, su meta, capital, ingresos, horizonte o tolerancia al riesgo, llama a la herramienta
+invierte, su meta, capital, ingresos, deuda, horizonte o tolerancia al riesgo, llama a la herramienta
 update_profile de inmediato para guardarlo — nunca lo preguntes como cuestionario ni lo repitas
 si ya te lo dijo. Como mucho, desliza UNA pregunta suave por conversación sobre algo que sigue
 sin especificar, y solo si viene a cuento con lo que el usuario ya está platicando."""
@@ -1312,6 +1324,7 @@ def build_deep_user_context(
     decisions: list[dict],
     watchlist: list[dict],
     reflections: list[dict] | None = None,
+    pending_decisions: list[dict] | None = None,
 ) -> str:
     """Build a rich mentor context from all available user data — STRUCTURAL
     data only (tickers, shares, cost basis, decisions, watchlist names,
@@ -1417,11 +1430,16 @@ def build_deep_user_context(
             ticker  = d.get("ticker", "")
             trigger = trigger_map.get(d.get("trigger") or "", d.get("trigger") or "")
             notes   = (d.get("notes") or "")[:80]
+            thesis  = d.get("thesis") or {}
             line    = f"  - [{date}] {action} {ticker}"
             if trigger:
                 line += f" — {trigger}"
             if notes:
                 line += f": {notes}"
+            if thesis.get("expectativa"):
+                line += f" | esperaba: {thesis['expectativa']}"
+            if thesis.get("invalidaria_la_tesis"):
+                line += f" | lo invalidaría: {thesis['invalidaria_la_tesis']}"
             parts.append(line)
 
         behavioral = []
@@ -1431,8 +1449,32 @@ def build_deep_user_context(
             behavioral.append(f"compró por FOMO {fomo_count} veces → susceptible al hype y a seguir manadas")
         if behavioral:
             parts.append(f"  🔍 PATRÓN CONDUCTUAL DETECTADO: {' | '.join(behavioral)}")
+
+        parts.append(
+            "  (Cuando el usuario te diga que compró/vendió/mantiene algo Y por qué, "
+            "llama a log_decision_thesis para que la próxima vez aparezca aquí con su "
+            "razón real, no solo la transacción.)"
+        )
     else:
         parts.append("\n### 📓 DIARIO DE DECISIONES: Sin decisiones registradas aún")
+
+    # ── Decisiones abiertas / seguimiento pendiente ─────────────────────────────
+    # El usuario dijo que quería revisar algo después de un evento/fecha
+    # ("lo pienso después del reporte") y Arthur lo guardó vía
+    # save_pending_decision — esto le permite retomarlo él mismo en la
+    # conversación en vez de depender solo del push de recordatorio.
+    if pending_decisions:
+        parts.append("\n### ⏳ DECISIONES ABIERTAS QUE EL USUARIO TE PIDIÓ RETOMAR:")
+        for pd in pending_decisions:
+            label = pd.get("action_label") or ""
+            due   = (pd.get("due_at") or "")[:10]
+            parts.append(f"  - {label} (a revisar desde: {due})")
+        parts.append(
+            "  Si el momento de la conversación viene a cuento, retómalo tú de forma "
+            "natural y sin presionar — nunca lo conviertas en un pendiente burocrático. "
+            "Si el usuario ya te dice que lo resolvió o ya no aplica, no hace falta nada "
+            "más de tu parte (se limpia solo del recordatorio automático)."
+        )
 
     # ── Reflexiones semanales (ritual de sábado) ────────────────────────────────
     if reflections:
@@ -2113,7 +2155,57 @@ MENTOR_TOOLS = [
                 "monthly_income": {"type": "string", "description": "Monthly income, plain number string in USD."},
                 "monthly_contribution": {"type": "string", "description": "Amount the user can invest monthly, plain number string in USD."},
                 "investment_horizon": {"type": "string", "description": "Investing time horizon in years, as a plain number string."},
+                "has_debt": {"type": "boolean", "description": "User has outstanding debt (credit card, loan, mortgage, etc.) — not counting a normal mortgage they consider fully manageable if they say so explicitly."},
+                "debt_amount_usd": {"type": "string", "description": "Total outstanding debt, plain number string in USD."},
             },
+        },
+    },
+    {
+        "name": "log_decision_thesis",
+        "description": (
+            "Save the REASONING behind an investment decision the user just told you about "
+            "— not a price alert or something you inferred, only when the user explicitly "
+            "says they bought/sold/are holding something and WHY. Call this once, right "
+            "after they state it, so it shows up in their Decision Diary with the actual "
+            "thesis attached instead of just the raw transaction. Never call this to log a "
+            "decision you're merely discussing hypothetically ('what if I sold X') — only "
+            "for a decision the user says they actually made."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string", "description": "The stock/ETF ticker."},
+                "action": {"type": "string", "enum": ["buy", "sell", "hold"]},
+                "motivo": {"type": "string", "description": "Why, in the user's own logic — e.g. 'espera que crezca con la demanda de IA'."},
+                "expectativa": {"type": "string", "description": "What they expect to happen, if they said it."},
+                "horizonte": {"type": "string", "description": "Their stated time horizon for this specific decision, if mentioned."},
+                "conviccion": {"type": "string", "enum": ["baja", "media", "alta"], "description": "How confident they sound, only if reasonably clear — omit if unclear."},
+                "invalidaria_la_tesis": {"type": "string", "description": "What the user said would make them change their mind, if they said it."},
+            },
+            "required": ["ticker", "action", "motivo"],
+        },
+    },
+    {
+        "name": "save_pending_decision",
+        "description": (
+            "Save a decision the user explicitly wants to revisit later, after something "
+            "happens — e.g. 'lo pienso después del reporte', 'lo decido a fin de año', "
+            "'quiero ver cómo cierro el mes antes de comprar el carro'. Call this ONCE right "
+            "when they say it, so Arthur brings it back up on its own instead of the user "
+            "having to remember. Never call this for something the user already decided — "
+            "only for an open question they're deliberately deferring. If they gave a "
+            "specific date, use it. If they only named an event with no exact date you're "
+            "confident about (e.g. 'after the earnings report' with no known date), use a "
+            "reasonable default of 30 days — better to check in and be told 'not yet' than "
+            "to never resurface it at all."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "label": {"type": "string", "description": "Short description of the deferred decision and its condition, in the user's language — e.g. 'Revisar si comprar más NVDA después del reporte de Q4'."},
+                "follow_up_in_days": {"type": "integer", "minimum": 1, "maximum": 365, "description": "Days from now to bring this back up."},
+            },
+            "required": ["label", "follow_up_in_days"],
         },
         # Tool definitions are identical on every single chat call — caching
         # them (breakpoint on the last tool) means every call after the first
@@ -2130,6 +2222,7 @@ _UPDATE_PROFILE_FIELDS = {
     "has_broker", "broker_name", "has_investments", "investment_goal",
     "investment_goal_amount", "risk_tolerance", "knowledge_level", "country",
     "initial_capital", "monthly_income", "monthly_contribution", "investment_horizon",
+    "has_debt", "debt_amount_usd",
 }
 
 _MAX_TOOL_ROUNDS = 2  # hard cap on worst-case Sonnet calls per user message — each round is a full new call
@@ -2150,6 +2243,55 @@ async def _exec_mentor_tool(name: str, tool_input: dict, user_id: str | None = N
             )
             cache_delete(f"profile:{user_id}")
             return f"Guardado en el perfil: {', '.join(updates.keys())}."
+
+        if name == "log_decision_thesis":
+            if not user_id:
+                return "No se pudo guardar: sesión sin usuario."
+            ticker = (tool_input.get("ticker") or "").upper().strip()
+            action = tool_input.get("action") or ""
+            motivo = tool_input.get("motivo") or ""
+            if not ticker or not action or not motivo:
+                return "Nada que guardar: falta ticker, acción o motivo."
+            thesis = {
+                k: tool_input.get(k)
+                for k in ("motivo", "expectativa", "horizonte", "conviccion", "invalidaria_la_tesis")
+                if tool_input.get(k)
+            }
+            db = get_supabase()
+            await run_query(
+                db.table("investment_decisions").insert({
+                    "user_id": user_id,
+                    "action": action,
+                    "ticker": ticker,
+                    "trigger": "mentor",
+                    "notes": motivo[:80],
+                    "thesis": thesis,
+                    "created_at": datetime.utcnow().isoformat(),
+                })
+            )
+            cache_delete(f"biases:{user_id}")
+            return f"Guardado en tu Diario de Decisiones: {action} {ticker} — {motivo[:60]}."
+
+        if name == "save_pending_decision":
+            if not user_id:
+                return "No se pudo guardar: sesión sin usuario."
+            label = (tool_input.get("label") or "").strip()
+            if not label:
+                return "Nada que guardar: falta la descripción."
+            days = max(1, min(365, int(tool_input.get("follow_up_in_days") or 30)))
+            due_at = datetime.now(timezone.utc) + timedelta(days=days)
+            db = get_supabase()
+            await run_query(
+                db.table("pending_actions").insert({
+                    "user_id": user_id,
+                    "action_type": "decision_deferral",
+                    "action_label": label,
+                    "action_data": {},
+                    "status": "committed",
+                    "due_at": due_at.isoformat(),
+                })
+            )
+            return f"Guardado — lo retomamos en {days} días: {label}"
 
         if name == "get_stock_quote":
             ticker = (tool_input.get("ticker") or "").upper().strip()

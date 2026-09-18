@@ -2678,6 +2678,18 @@ async def job_portfolio_alerts():
                     # user reads tickers faster than full names once already looking
                     # at a specific stock's alert. Always 2 decimals for precision.
                     prefix = f"{emoji} {ticker} {verb} {pct:+.2f}%"
+
+                    # Dollar impact on the user's actual position — matches the
+                    # already-agreed push format (WHY + dollar impact for
+                    # portfolio/paper positions). Watchlist tickers have no
+                    # shares data, so they never get this appended.
+                    if source in ("port", "paper"):
+                        pos_map = port_map if source == "port" else paper_map
+                        shares = (pos_map.get(ticker) or {}).get("shares") or 0
+                        if shares > 0:
+                            delta = shares * (price - prices[ticker]["prev"])
+                            sign = "+" if delta >= 0 else "-"
+                            prefix += f" ({sign}${abs(delta):,.0f})"
                     # Paper trading gets its own dedup key and category so it never
                     # shares — or steals — the same-day budget from a real holding
                     # of the same ticker; it also never displaces a real-portfolio
@@ -4253,22 +4265,23 @@ async def job_reengagement_push():
                     if px["prev"] > 0:
                         pct = (px["curr"] - px["prev"]) / px["prev"] * 100
                         movers.append((ticker, abs(pct), pct))
+            # Only a real move justifies this push — same 3.70% bar as
+            # job_portfolio_alerts. Arthur nunca debe empujar reapertura de
+            # la app por pura inactividad sin una razón concreta detrás
+            # (ARTHUR spec §35/§36 — "no optimiza por actividad" / "sabe
+            # cuándo callarse"); si no hay un mover real, no se envía nada.
+            movers = [m for m in movers if m[1] >= 3.70]
             movers.sort(key=lambda x: x[1], reverse=True)
             top = movers[:3]
+            if not top:
+                continue
             is_en = lang_map.get(uid, "es") == "en"
-            if top:
-                names = ", ".join(t[0] for t in top)
-                body = (
-                    f"3 of your favorite assets had interesting moves: {names}. Have you checked them yet?"
-                    if is_en else
-                    f"3 de tus activos favoritos tuvieron movimientos interesantes: {names}. ¿Ya los revisaste?"
-                )
-            else:
-                body = (
-                    "You've missed some moves in your assets. Come check your portfolio."
-                    if is_en else
-                    "Te has perdido algunos movimientos en tus activos. Entra a revisar tu portafolio."
-                )
+            names = ", ".join(t[0] for t in top)
+            body = (
+                f"3 of your favorite assets had interesting moves: {names}. Have you checked them yet?"
+                if is_en else
+                f"3 de tus activos favoritos tuvieron movimientos interesantes: {names}. ¿Ya los revisaste?"
+            )
             await send_push(
                 uid, "reengagement",
                 "📱 Your portfolio is waiting for you" if is_en else "📱 Tu portafolio te está esperando",
@@ -6336,7 +6349,7 @@ async def job_action_followup_reminders():
     try:
         now_iso = datetime.now(timezone.utc).isoformat()
         due_res = await run_query(
-            db.table("pending_actions").select("id,user_id,action_label")
+            db.table("pending_actions").select("id,user_id,action_label,action_type")
             .eq("status", "committed")
             .is_("notified_at", "null")
             .lte("due_at", now_iso)
@@ -6355,12 +6368,19 @@ async def job_action_followup_reminders():
             uid = row["user_id"]
             is_en = lang_map.get(uid, "es") == "en"
             label = row.get("action_label") or ""
+            is_deferral = row.get("action_type") == "decision_deferral"
             if is_en:
-                title = "🔔 Follow-up reminder"
-                body = f"A while ago you committed to: {label}. Did you follow through?" if label else "Did you follow through on the action you committed to?"
+                title = "🔔 You asked to revisit this" if is_deferral else "🔔 Follow-up reminder"
+                if is_deferral:
+                    body = f"You said you'd come back to this: {label}." if label else "You said you'd come back to something — want to pick it up?"
+                else:
+                    body = f"A while ago you committed to: {label}. Did you follow through?" if label else "Did you follow through on the action you committed to?"
             else:
-                title = "🔔 Recordatorio de seguimiento"
-                body = f"Hace un tiempo te comprometiste a: {label}. ¿Ya lo hiciste?" if label else "¿Ya hiciste la acción a la que te comprometiste?"
+                title = "🔔 Pediste que retomáramos esto" if is_deferral else "🔔 Recordatorio de seguimiento"
+                if is_deferral:
+                    body = f"Dijiste que querías retomar esto: {label}." if label else "Dijiste que querías retomar algo — ¿lo vemos?"
+                else:
+                    body = f"Hace un tiempo te comprometiste a: {label}. ¿Ya lo hiciste?" if label else "¿Ya hiciste la acción a la que te comprometiste?"
             try:
                 await send_push(uid, "action_followup", title, body, {"screen": "chat"}, db)
                 sent += 1
