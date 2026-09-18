@@ -347,6 +347,19 @@ async def detect_new_milestones(user_id: str) -> list[dict]:
     if real_ath_candidate and real_ath_candidate["key"] not in existing_keys:
         newly_achieved.append(real_ath_candidate)
 
+    # "Antes vs ahora" behavior evolution (sector concentration, decision
+    # style) — same treatment as any other milestone: computed once, logged
+    # permanently under its own key so it's never re-detected or re-pushed,
+    # and it rides _notify_milestones' existing push pipeline for free.
+    # Diego, 2026-09-18: this signal already existed (detect_behavior_evolution)
+    # and even had a whole "decisions that helped" reframing of it
+    # (get_decisions_that_helped) — but nothing ever surfaced it to the user
+    # unprompted. This is that wiring.
+    for e in await detect_behavior_evolution(user_id, ctx=ctx):
+        candidate = _evolution_to_milestone(e)
+        if candidate["key"] not in existing_keys:
+            newly_achieved.append(candidate)
+
     for m in newly_achieved:
         await fmg_service.log_event(
             user_id,
@@ -397,6 +410,28 @@ async def _notify_milestones(user_id: str, milestones: list[dict]) -> None:
 
 
 # ── Behavior evolution ("antes vs ahora") ────────────────────────────────────
+
+# Titles for the milestone/push framing of each detect_behavior_evolution
+# key — the function itself only produces the factual before/after pair.
+_EVOLUTION_MILESTONE_TITLES = {
+    "decision_style": "Tomas decisiones con más calma",
+    "sector_concentration": "Te has vuelto más disciplinado",
+}
+
+
+def _evolution_to_milestone(e: dict) -> dict:
+    """Reshapes a detect_behavior_evolution() statement into the same
+    {key, event_type, title, description} shape the milestone checks
+    produce, so it can ride detect_new_milestones' existing log+push
+    pipeline unmodified. Prefixed so it can never collide with a real
+    milestone key, and so chat context (below) can recognize it by prefix."""
+    return {
+        "key": f"evolution_{e['key']}",
+        "event_type": "pattern_detected",
+        "title": _EVOLUTION_MILESTONE_TITLES.get(e["key"], "Evolucionaste como inversionista"),
+        "description": f"{e['before']} {e['after']}",
+    }
+
 
 def _decision_style_ratio(decisions: list[dict]) -> float | None:
     """Fraction of decisions triggered by fomo/panic vs the total that have a
@@ -958,6 +993,50 @@ async def compute_investor_score(user_id: str, ctx: dict | None = None) -> dict 
 _MENTOR_CONTEXT_TTL = 3600  # 1h — since_purchase computation is network-bound
 
 
+async def _get_and_reveal_new_evolution_insight(user_id: str, existing_keys: set[str]) -> dict | None:
+    """
+    Finds the most recent evolution_* milestone (logged by
+    detect_new_milestones, which already pushed it once) that Arthur hasn't
+    opened a conversation with yet, and marks it revealed — so this only
+    ever fires once per insight, across every future chat/voice turn.
+
+    Marking it revealed here (before we actually know Arthur said it) is a
+    best-effort tradeoff, same class as this file's other fire-and-forget
+    notification sends: worst case a request errors after this call and the
+    reveal is "spent" with nothing shown, which is far better than the
+    alternative (Arthur re-opening with the same "discovery" every hour once
+    the mentor-context cache expires).
+    """
+    unrevealed = [
+        k for k in existing_keys
+        if k.startswith("evolution_") and f"chat_revealed:{k}" not in existing_keys
+    ]
+    if not unrevealed:
+        return None
+
+    db = get_supabase()
+    res = await run_query(
+        db.table("fmg_events")
+        .select("milestone_key, description")
+        .eq("user_id", user_id)
+        .in_("milestone_key", unrevealed)
+        .order("occurred_at", desc=True)
+        .limit(1)
+    )
+    if not res.data:
+        return None
+    row = res.data[0]
+
+    await fmg_service.log_event(
+        user_id,
+        event_type="learning",
+        title="Revelado en chat",
+        description=row["milestone_key"],
+        milestone_key=f"chat_revealed:{row['milestone_key']}",
+    )
+    return row
+
+
 async def build_progress_context_for_mentor(user_id: str) -> str | None:
     """
     Short paragraph summarizing the user's real progress, injected into the
@@ -983,6 +1062,20 @@ async def _build_progress_context_for_mentor_uncached(user_id: str) -> str | Non
         return None
 
     parts: list[str] = []
+    sections: list[str] = []
+
+    existing_keys = await _get_existing_milestone_keys(user_id)
+    reveal = await _get_and_reveal_new_evolution_insight(user_id, existing_keys)
+    if reveal:
+        sections.append(
+            "## 🎉 ACABAS DE DESCUBRIR ALGO NUEVO SOBRE EL USUARIO\n\n"
+            f"{reveal['description']}\n\n"
+            "Es la primera vez que hablas con él desde que Nuvos detectó esto. "
+            "Ábrelo TÚ, de forma espontánea y cálida, antes de responder lo que "
+            "te haya preguntado — como una observación genuina que se te ocurrió "
+            "al verlo, no como si leyeras una notificación. No lo vuelvas a "
+            "mencionar en mensajes futuros una vez que lo hayas dicho aquí."
+        )
 
     if "days_since_first_investment" in summary:
         parts.append(f"Lleva {summary['days_since_first_investment']} días invirtiendo desde su primera posición.")
@@ -996,10 +1089,16 @@ async def _build_progress_context_for_mentor_uncached(user_id: str) -> str | Non
         parts.append(f"Lleva {summary['consecutive_months_contributing']} meses consecutivos aportando capital.")
 
     evolution = await detect_behavior_evolution(user_id, ctx=ctx)
+    just_revealed_key = reveal["milestone_key"] if reveal else None
     for e in evolution:
+        if f"evolution_{e['key']}" == just_revealed_key:
+            continue  # already stated above with the stronger "lead with it" framing
         parts.append(f"{e['before']} {e['after']}")
 
-    if not parts:
+    if parts:
+        sections.append("## 📈 EVOLUCIÓN DEL USUARIO COMO INVERSIONISTA\n\n" + " ".join(parts))
+
+    if not sections:
         return None
 
-    return "## 📈 EVOLUCIÓN DEL USUARIO COMO INVERSIONISTA\n\n" + " ".join(parts)
+    return "\n\n".join(sections)
