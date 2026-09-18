@@ -1107,21 +1107,33 @@ export default function ChatPage() {
                             } else if (action.type === "learn") {
                               const d = action.data as Record<string, string>;
                               router.push(`/learn?topic=${d.topic}`);
+                            } else if (action.type === "add_position") {
+                              // Prefills the manual add form on the portfolio page and
+                              // opens it there for a final review — same "AI pre-fill +
+                              // mandatory human confirm" pattern as the screenshot import,
+                              // never writes straight to the store from chat.
+                              const d = action.data as Record<string, string | number>;
+                              const params = new URLSearchParams({
+                                add: String(d.ticker ?? ""),
+                                shares: String(d.shares ?? ""),
+                                price: String(d.price ?? ""),
+                              });
+                              router.push(`/portfolio?${params.toString()}`);
                             }
                           }}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all hover:opacity-80 active:scale-95"
                           style={{
-                            background: action.type === "decision" ? "rgba(0,185,109,0.10)" : "var(--raised)",
-                            borderColor: action.type === "decision" ? "rgba(0,185,109,0.35)" : "var(--border)",
-                            color: action.type === "decision" ? "var(--accent-l)" : "var(--sub)",
+                            background: action.type === "decision" || action.type === "add_position" ? "rgba(0,185,109,0.10)" : "var(--raised)",
+                            borderColor: action.type === "decision" || action.type === "add_position" ? "rgba(0,185,109,0.35)" : "var(--border)",
+                            color: action.type === "decision" || action.type === "add_position" ? "var(--accent-l)" : "var(--sub)",
                           }}
                         >
                           <span>
-                            {action.type === "decision" ? "📝" : action.type === "watchlist" ? "👁" : action.type === "alert" ? "🔔" : action.type === "learn" ? "📚" : "→"}
+                            {action.type === "decision" ? "📝" : action.type === "add_position" ? "💼" : action.type === "watchlist" ? "👁" : action.type === "alert" ? "🔔" : action.type === "learn" ? "📚" : "→"}
                           </span>
                           {action.label}
                         </button>
-                        {action.type !== "chat" && (
+                        {action.type !== "chat" && action.type !== "add_position" && (
                           <button
                             onClick={async () => {
                               if (committedActions.has(ai)) return;

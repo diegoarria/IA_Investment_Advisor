@@ -860,6 +860,27 @@ export default function PortfolioPage() {
   const [isTour, setIsTour] = useState(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setIsTour(new URLSearchParams(window.location.search).get("tour") === "1"); }, []);
+  // Prefills + opens the manual add form when arriving from Arthur's
+  // "add_position" chat action chip (?add=TICKER&shares=N&price=N) — the
+  // user still reviews and confirms here before it's actually saved, same
+  // "AI pre-fill + mandatory human confirm" pattern as the screenshot
+  // import, never a direct write from chat straight into the store.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const addTicker = params.get("add");
+    if (!addTicker) return;
+    const shares = parseFloat(params.get("shares") ?? "");
+    const price = parseFloat(params.get("price") ?? "");
+    setForm((f) => ({
+      ...f,
+      ticker: addTicker.toUpperCase(),
+      avgPrice: Number.isFinite(price) ? String(price) : f.avgPrice,
+      amount: Number.isFinite(shares) && Number.isFinite(price) ? String(shares * price) : f.amount,
+    }));
+    setShowForm(true);
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
   const [demoMode, setDemoMode] = useState(false);
   const [serverLoading, setServerLoading] = useState(true);
   useEffect(() => {
@@ -2256,29 +2277,15 @@ export default function PortfolioPage() {
               ))}
             </div>
 
-            {/* Botones principales: Agregar posición + Importar captura */}
+            {/* Botones principales: Importar captura + Agregar posición.
+                Foto primero y con el peso visual primario — una captura ya
+                trae ticker/shares/precio leídos por IA con solo una revisión
+                rápida, mientras que el formulario manual pide teclear todo
+                a mano; empujar hacia la opción de menor fricción por defecto
+                (Diego, 2026-09-18) sin quitarle la opción a quien prefiera
+                escribir. */}
             <div className="grid grid-cols-2 gap-2 mb-3">
-              {/* Agregar posición — acción primaria */}
-              <button
-                id="tour-add-position"
-                onClick={() => { setShowForm(!showForm); setScreenshotPreview(null); }}
-                className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-all"
-                style={{
-                  background: showForm ? "var(--accent-glow)" : "var(--grad-green)",
-                  color: "white",
-                  border: showForm ? "2px solid var(--accent-l)" : "none",
-                  boxShadow: showForm ? "none" : "var(--shadow-accent-sm)",
-                }}>
-                <Plus className="w-4 h-4" />
-                {t("portfolio.actions.addPosition")}
-                {!isPremium && (
-                  <span className="ml-1 text-xs font-black opacity-80">
-                    {positions.length}/{FREE_POSITION_LIMIT}
-                  </span>
-                )}
-              </button>
-
-              {/* Importar captura — con drag-drop integrado */}
+              {/* Importar captura — con drag-drop integrado, ahora la acción primaria */}
               <div
                 onClick={() => !screenshotAnalyzing && screenshotInputRef.current?.click()}
                 onDragOver={(e) => { e.preventDefault(); if (!screenshotAnalyzing) setIsDragOver(true); }}
@@ -2295,9 +2302,10 @@ export default function PortfolioPage() {
                 }}
                 className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-all cursor-pointer select-none"
                 style={{
-                  background: isDragOver ? "rgba(0,168,94,0.08)" : "var(--raised)",
-                  border: `2px ${isDragOver ? "dashed" : "solid"} ${isDragOver ? "var(--accent)" : "var(--border)"}`,
-                  color: "var(--sub)",
+                  background: isDragOver ? "rgba(0,168,94,0.08)" : "var(--grad-green)",
+                  border: isDragOver ? "2px dashed var(--accent)" : "none",
+                  color: isDragOver ? "var(--accent-l)" : "white",
+                  boxShadow: isDragOver ? "none" : "var(--shadow-accent-sm)",
                   opacity: screenshotAnalyzing ? 0.7 : 1,
                 }}>
                 {screenshotAnalyzing ? (
@@ -2308,6 +2316,25 @@ export default function PortfolioPage() {
                   <><Upload className="w-4 h-4" /><span>{t("portfolio.actions.importScreenshotOrPdf")}</span></>
                 )}
               </div>
+
+              {/* Agregar posición — ahora la acción secundaria */}
+              <button
+                id="tour-add-position"
+                onClick={() => { setShowForm(!showForm); setScreenshotPreview(null); }}
+                className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-all"
+                style={{
+                  background: showForm ? "var(--accent-glow)" : "var(--raised)",
+                  color: showForm ? "var(--accent-l)" : "var(--sub)",
+                  border: showForm ? "2px solid var(--accent-l)" : "2px solid var(--border)",
+                }}>
+                <Plus className="w-4 h-4" />
+                {t("portfolio.actions.addPosition")}
+                {!isPremium && (
+                  <span className="ml-1 text-xs font-black opacity-80">
+                    {positions.length}/{FREE_POSITION_LIMIT}
+                  </span>
+                )}
+              </button>
             </div>
 
             <input ref={screenshotInputRef} type="file" accept="image/*,.pdf" multiple className="hidden" onChange={handleScreenshotChange} />
