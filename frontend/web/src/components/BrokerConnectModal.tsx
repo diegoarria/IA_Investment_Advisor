@@ -521,15 +521,17 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                     (c) => c.institution_name === broker.name || (broker.id === "iol" && c.provider === "iol")
                   );
                   const isBelvo = broker.provider === "belvo";
+                  const isPlaid = broker.provider === "plaid";
+                  const isLive = isBelvo || isPlaid;
                   return (
                     <button
                       key={broker.id}
-                      onClick={() =>
-                        isBelvo
-                          ? handleBelvoConnect(broker.name)
-                          : setError(`🚀 ${t("brokerConnectModal.comingSoonMessage", { broker: broker.name })}`)
-                      }
-                      disabled={isConnected || (isBelvo && loading)}
+                      onClick={() => {
+                        if (isBelvo) return handleBelvoConnect(broker.name);
+                        if (isPlaid) return handlePlaidBroker();
+                        return setError(`🚀 ${t("brokerConnectModal.comingSoonMessage", { broker: broker.name })}`);
+                      }}
+                      disabled={isConnected || (isLive && loading)}
                       className="flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all hover:scale-[1.01] disabled:opacity-50"
                       style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
                     >
@@ -540,7 +542,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                       </div>
                       {isConnected ? (
                         <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: "#22c55e" }} />
-                      ) : isBelvo ? (
+                      ) : isLive ? (
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-full border"
                               style={{ color: "var(--accent-l)", borderColor: "rgba(0,168,94,0.3)", background: "rgba(0,168,94,0.08)", fontSize: 10 }}>
                           {t("brokerConnectModal.connect")}

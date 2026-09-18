@@ -55,7 +55,12 @@ const nextConfig: NextConfig = {
       // silently blocked (console-only CSP violation, no visible error) and
       // `belvoReady` never flips true, surfacing as "El widget de conexión
       // no está listo" on every click regardless of bank.
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us-assets.i.posthog.com https://js.stripe.com https://cdn.belvo.io https://cdn.mxpnl.com https://hcaptcha.com",
+      // https://cdn.plaid.com — Plaid Link's script (BrokerConnectModal.tsx's
+      // handlePlaidBroker, wired to the IBKR/Schwab/Robinhood buttons); same
+      // silent-CSP-block failure mode as Belvo below, confirmed by
+      // inspecting the shipped link-initialize.js bundle directly (Plaid's
+      // own CSP docs recommend the same host).
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us-assets.i.posthog.com https://js.stripe.com https://cdn.belvo.io https://cdn.mxpnl.com https://hcaptcha.com https://cdn.plaid.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data: https://fonts.gstatic.com",
@@ -63,13 +68,18 @@ const nextConfig: NextConfig = {
       // API calls (institution data, step config) made directly from the
       // browser, not proxied through our backend. api-js.mixpanel.com and
       // the configcat hosts are the same widget-bundle dependencies as above.
-      "connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://api.stripe.com https://widget-api.belvo.com https://widget-customization.belvo.com https://api-js.mixpanel.com https://app.configcat.com https://cdn-eu.configcat.com https://cdn-global.configcat.com https://hcaptcha.com " + BACKEND_ORIGIN,
+      // https://*.plaid.com — Link talks to whichever of
+      // sandbox/development/production.plaid.com matches the link_token's
+      // env (set server-side via PLAID_ENV), plus secure.plaid.com for
+      // identity-verification steps some institutions require.
+      "connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://api.stripe.com https://widget-api.belvo.com https://widget-customization.belvo.com https://api-js.mixpanel.com https://app.configcat.com https://cdn-eu.configcat.com https://cdn-global.configcat.com https://hcaptcha.com https://*.plaid.com " + BACKEND_ORIGIN,
       // Stripe's Payment Element renders its actual card fields inside an
       // iframe it injects itself (js.stripe.com) — needed alongside the
       // script-src entry above, or the fields silently fail to render even
       // once the script itself loads. hcaptcha.com — the widget's captcha
-      // challenge renders in its own iframe the same way.
-      "frame-src https://js.stripe.com https://hooks.stripe.com https://hcaptcha.com",
+      // challenge renders in its own iframe the same way. cdn.plaid.com —
+      // Plaid Link's OAuth step (some banks) renders in its own iframe too.
+      "frame-src https://js.stripe.com https://hooks.stripe.com https://hcaptcha.com https://cdn.plaid.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "object-src 'none'",
