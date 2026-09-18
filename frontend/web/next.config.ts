@@ -46,19 +46,30 @@ const nextConfig: NextConfig = {
       // 2026-09-15) loads Stripe.js from here; blocked silently (console-only,
       // no visible error) before this was added — confirmed live, the paywall
       // rendered as an empty gap with no card form at all.
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us-assets.i.posthog.com https://js.stripe.com",
-      "style-src 'self' 'unsafe-inline'",
+      // https://cdn.belvo.io — loads the Belvo Connect Widget's loader +
+      // module script (BrokerConnectModal.tsx); https://cdn.mxpnl.com and
+      // https://hcaptcha.com are dependencies the widget's own bundle pulls
+      // in (Mixpanel analytics, hCaptcha challenge) — confirmed by
+      // inspecting the widget's shipped JS, since Belvo doesn't document a
+      // CSP allowlist. Without cdn.belvo.io here the widget script is
+      // silently blocked (console-only CSP violation, no visible error) and
+      // `belvoReady` never flips true, surfacing as "El widget de conexión
+      // no está listo" on every click regardless of bank.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us-assets.i.posthog.com https://js.stripe.com https://cdn.belvo.io https://cdn.mxpnl.com https://hcaptcha.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
-      "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://api.stripe.com " + BACKEND_ORIGIN,
+      "font-src 'self' data: https://fonts.gstatic.com",
+      // widget-api/widget-customization.belvo.com — the widget's own runtime
+      // API calls (institution data, step config) made directly from the
+      // browser, not proxied through our backend. api-js.mixpanel.com and
+      // the configcat hosts are the same widget-bundle dependencies as above.
+      "connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://api.stripe.com https://widget-api.belvo.com https://widget-customization.belvo.com https://api-js.mixpanel.com https://app.configcat.com https://cdn-eu.configcat.com https://cdn-global.configcat.com https://hcaptcha.com " + BACKEND_ORIGIN,
       // Stripe's Payment Element renders its actual card fields inside an
       // iframe it injects itself (js.stripe.com) — needed alongside the
       // script-src entry above, or the fields silently fail to render even
-      // once the script itself loads.
-      "frame-src https://js.stripe.com https://hooks.stripe.com",
-      // NOTE: if/when the Belvo Connect Widget (an iframe Belvo serves —
-      // see backend/app/api/routes/belvo.py's docstring) gets wired into
-      // this frontend, add its host to frame-src above too.
+      // once the script itself loads. hcaptcha.com — the widget's captcha
+      // challenge renders in its own iframe the same way.
+      "frame-src https://js.stripe.com https://hooks.stripe.com https://hcaptcha.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "object-src 'none'",
