@@ -769,6 +769,8 @@ Puedes actualizar el portafolio del usuario cuando te diga, en lenguaje natural,
 
 Si falta algo de lo anterior, no llames al tool todavía — pregunta solo lo que falta, en una sola frase natural, nunca un formulario. Si el usuario ya te dio todo en un solo mensaje (ticker, monto/cantidad, precio, y opcionalmente fecha/portafolio/motivo), no le preguntes de nuevo nada que ya te dio — ve directo a proponer.
 
+**La fecha es distinta a lo anterior — nunca la bloquees.** Igual que en la edición manual de una posición (donde el campo de fecha existe pero no es obligatorio), pásala si el usuario la dio o si es resolvible de una expresión relativa ("ayer", "el lunes"); si no la dio, no la preguntes por separado ni bloquees la propuesta por eso — simplemente omite `transaction_date` en el tool y este asume hoy automáticamente. El resumen que te regresa el tool ya te dice si asumió la fecha — cuando sea así, menciónaselo al usuario de forma breve dentro del mismo resumen ("asumí que fue hoy"), nunca como una pregunta aparte que lo obligue a responder antes de confirmar. Si el usuario corrige la fecha después, vuelve a llamar al tool con la fecha correcta.
+
 **Flujo:** llamas a `propose_portfolio_transaction` → el tool te devuelve un resumen con los números YA CALCULADOS (nunca hagas tú la aritmética de acciones/costo promedio, usa exactamente los números que te regresa el tool) → le muestras ese resumen al usuario con tu propio tono y le pides que confirme → cuando confirme o cancele en su siguiente mensaje, llamas a `confirm_pending_financial_action` con el PENDING_ID exacto que recibiste → recién ahí queda aplicado, y solo entonces le dices al usuario que su portafolio se actualizó. Nunca digas "listo" o "ya quedó actualizado" antes de que `confirm_pending_financial_action` te confirme el resultado real.
 
 Si el usuario menciona una razón para la operación ("porque creo que está barata"), pásala en `notes` — si no dio ninguna razón, no la inventes.
@@ -2341,6 +2343,7 @@ async def _propose_portfolio_transaction(tool_input: dict, user_id: str | None) 
     if amount is None and quantity is None:
         return "Falta el monto o la cantidad de acciones de la operación — pregúntale al usuario cuál de los dos te puede dar."
 
+    date_given = bool(tool_input.get("transaction_date"))
     date_str = tool_input.get("transaction_date") or datetime.now(timezone.utc).date().isoformat()
     notes = (tool_input.get("notes") or "").strip() or None
     raw_message = tool_input.get("raw_message") or ""
@@ -2447,26 +2450,34 @@ async def _propose_portfolio_transaction(tool_input: dict, user_id: str | None) 
             return "No pude preparar la propuesta — intenta de nuevo en un momento. No se modificó el portafolio."
         pending_id = ins.data[0]["id"]
 
+    date_note = (
+        f"el {date_str}" if date_given
+        else f"el {date_str} (asumí que fue HOY porque no dijiste una fecha — la fecha es opcional, "
+             "si en realidad fue otro día menciónalo antes de confirmar, y si no la recuerdas no hay problema, se queda así)"
+    )
+
     if action_type == "BUY_ASSET":
         return (
             f"PENDING_ID: {pending_id}\n"
             f"Propuesta: comprar {quantity:.4f} acciones de {ticker} a ${price:,.2f} {currency} "
-            f"(${amount_computed:,.2f} invertidos) en \"{portfolio_name}\" el {date_str}.\n"
+            f"(${amount_computed:,.2f} invertidos) en \"{portfolio_name}\", {date_note}.\n"
             f"Si se confirma: {preview['new_shares']:.4f} acciones totales, costo promedio "
             f"${preview['new_avg_cost']:,.2f}.\n"
             "Muéstrale este resumen al usuario en tu propio estilo y pídele que confirme antes de "
-            "aplicarlo — no digas que ya se actualizó. Cuando confirme o cancele, llama a "
-            "confirm_pending_financial_action con este PENDING_ID exacto."
+            "aplicarlo — no digas que ya se actualizó. Si la fecha fue asumida, menciónalo de forma "
+            "breve y natural (nunca como una pregunta que bloquee la confirmación). Cuando confirme "
+            "o cancele, llama a confirm_pending_financial_action con este PENDING_ID exacto."
         )
     return (
         f"PENDING_ID: {pending_id}\n"
         f"Propuesta: vender {quantity:.4f} acciones de {ticker} a ${price:,.2f} {currency} "
-        f"(${amount_computed:,.2f}) en \"{portfolio_name}\" el {date_str}.\n"
+        f"(${amount_computed:,.2f}) en \"{portfolio_name}\", {date_note}.\n"
         f"Si se confirma: quedarían {preview['remaining_shares']:.4f} acciones, con una "
         f"ganancia/pérdida realizada de ${preview['realized_pl']:,.2f}.\n"
         "Muéstrale este resumen al usuario en tu propio estilo y pídele que confirme antes de "
-        "aplicarlo — no digas que ya se actualizó. Cuando confirme o cancele, llama a "
-        "confirm_pending_financial_action con este PENDING_ID exacto."
+        "aplicarlo — no digas que ya se actualizó. Si la fecha fue asumida, menciónalo de forma "
+        "breve y natural (nunca como una pregunta que bloquee la confirmación). Cuando confirme "
+        "o cancele, llama a confirm_pending_financial_action con este PENDING_ID exacto."
     )
 
 

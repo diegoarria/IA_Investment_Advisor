@@ -175,6 +175,27 @@ async def test_buy_confirm_applies_and_matches_math(fake_db):
     assert pending_row["status"] == "applied"
 
 
+async def test_missing_date_defaults_to_today_and_flags_the_assumption(fake_db):
+    """Date is optional and never blocks the proposal — but when it was
+    defaulted (not given), the summary must say so explicitly so Arthur
+    can mention it, rather than silently guessing without telling anyone."""
+    result = await ai_service._exec_mentor_tool("propose_portfolio_transaction", {
+        "action_type": "BUY_ASSET", "ticker": "GOOGL", "amount": 200, "execution_price": 340,
+        "raw_message": "Compré $200 más de Google a $340.",
+    }, user_id="u1")
+    assert "PENDING_ID" in result
+    assert "asumí que fue HOY" in result
+
+
+async def test_explicit_date_is_used_without_any_assumption_note(fake_db):
+    result = await ai_service._exec_mentor_tool("propose_portfolio_transaction", {
+        "action_type": "BUY_ASSET", "ticker": "GOOGL", "amount": 200, "execution_price": 340,
+        "transaction_date": "2026-09-10", "raw_message": "Ayer compré $200 más de Google a $340.",
+    }, user_id="u1")
+    assert "2026-09-10" in result
+    assert "asumí" not in result
+
+
 async def test_sell_more_than_held_is_refused_before_creating_pending(fake_db):
     """§23: never silently clamp or create a negative position."""
     result = await ai_service._exec_mentor_tool("propose_portfolio_transaction", {
