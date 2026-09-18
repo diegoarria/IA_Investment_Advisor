@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import StockAvatar from "../../src/components/StockAvatar";
-import { useFocusEffect, router } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, router } from "expo-router";
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
   StyleSheet, ActivityIndicator, SafeAreaView, Alert,
@@ -960,6 +960,10 @@ const PORTFOLIO_TUTORIAL_VIDEO_URL = "";
 export default function PortfolioScreen() {
   const { t, i18n } = useTranslation();
   const { colors } = useTheme();
+  // Arrives from Arthur's "add_position" chat action chip
+  // (?add=TICKER&shares=N&price=N) — read once below to prefill + open the
+  // manual form for the user to review and confirm, same as web.
+  const addParams = useLocalSearchParams<{ add?: string; shares?: string; price?: string }>();
   const s = portfolioStyles;
   const PORTFOLIO_LEVELS = useMemo(() => getPortfolioLevels(t), [t]);
   const STRESS_SCENARIOS = useMemo(() => getStressScenarios(t), [t]);
@@ -1256,6 +1260,24 @@ export default function PortfolioScreen() {
   // shares = amount / price, computed live, fractional or whole either way.
   const [form, setForm] = useState({ ticker: "", amount: "", avgPrice: "", purchaseDate: new Date().toISOString().split("T")[0] });
   const [addingLoading, setAddingLoading] = useState(false);
+
+  // Prefill from Arthur's "add_position" chip — see addParams above. Same
+  // "AI pre-fill + mandatory human confirm" pattern as the screenshot
+  // import: never writes straight to the store from chat.
+  useEffect(() => {
+    if (!addParams.add) return;
+    const shares = parseFloat(addParams.shares ?? "");
+    const price = parseFloat(addParams.price ?? "");
+    setForm((f) => ({
+      ...f,
+      ticker: addParams.add!.toUpperCase(),
+      avgPrice: Number.isFinite(price) ? String(price) : f.avgPrice,
+      amount: Number.isFinite(shares) && Number.isFinite(price) ? String(shares * price) : f.amount,
+    }));
+    setShowForm(true);
+    router.setParams({ add: undefined, shares: undefined, price: undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addParams.add]);
 
   // Portfolio Analyzer
   type PortfolioAnalysis = {
@@ -2313,27 +2335,32 @@ export default function PortfolioScreen() {
           )}
         </View>
 
-        {/* ── Botones principales: Agregar posición + Importar captura ── */}
+        {/* ── Botones principales: Importar captura + Agregar posición.
+            Foto primero y con el peso visual primario — el import por IA ya
+            lee ticker/shares/precio con solo una revisión rápida, mientras
+            que el formulario manual pide teclear todo a mano; empujar hacia
+            la opción de menor fricción por defecto (Diego, 2026-09-18),
+            mismo cambio que en web. ── */}
         <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
-          {/* Agregar posición — acción primaria */}
+          {/* Importar captura — ahora la acción primaria */}
           <TouchableOpacity
-            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 16, backgroundColor: "#00a85e" }}
-            onPress={() => { setShowForm(!showForm); setScreenshotPreview(null); }}
-            activeOpacity={0.8}>
-            <Ionicons name="add-circle-outline" size={18} color="white" />
-            <Text style={{ fontSize: 13, fontWeight: "800", color: "white" }}>{t("portfolio.buttons.addPosition")}</Text>
-          </TouchableOpacity>
-
-          {/* Importar captura — acción secundaria */}
-          <TouchableOpacity
-            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 16, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, opacity: screenshotAnalyzing ? 0.7 : 1 }}
+            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 16, backgroundColor: "#00a85e", opacity: screenshotAnalyzing ? 0.7 : 1 }}
             onPress={handleScreenshotImport}
             disabled={screenshotAnalyzing}
             activeOpacity={0.8}>
             {screenshotAnalyzing
-              ? <><ActivityIndicator size="small" color={colors.textMuted} /><Text style={{ fontSize: 13, fontWeight: "700", color: colors.textMuted }}>{screenshotProgress || t("portfolio.buttons.analyzing")}</Text></>
-              : <><Ionicons name="images-outline" size={18} color={colors.textMuted} /><Text style={{ fontSize: 13, fontWeight: "700", color: colors.textMuted }}>{t("portfolio.buttons.importScreenshot")}</Text></>
+              ? <><ActivityIndicator size="small" color="white" /><Text style={{ fontSize: 13, fontWeight: "800", color: "white" }}>{screenshotProgress || t("portfolio.buttons.analyzing")}</Text></>
+              : <><Ionicons name="images-outline" size={18} color="white" /><Text style={{ fontSize: 13, fontWeight: "800", color: "white" }}>{t("portfolio.buttons.importScreenshot")}</Text></>
             }
+          </TouchableOpacity>
+
+          {/* Agregar posición — ahora la acción secundaria */}
+          <TouchableOpacity
+            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 16, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}
+            onPress={() => { setShowForm(!showForm); setScreenshotPreview(null); }}
+            activeOpacity={0.8}>
+            <Ionicons name="add-circle-outline" size={18} color={colors.textMuted} />
+            <Text style={{ fontSize: 13, fontWeight: "700", color: colors.textMuted }}>{t("portfolio.buttons.addPosition")}</Text>
           </TouchableOpacity>
         </View>
 

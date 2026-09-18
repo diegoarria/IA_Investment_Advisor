@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import {
   useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync,
@@ -736,6 +736,16 @@ Instrucciones críticas:
                     } else if (action.type === "chat") {
                       const d = action.data as Record<string, string>;
                       sendMessage(d.message);
+                    } else if (action.type === "add_position") {
+                      // Prefills the manual add form on the portfolio tab and
+                      // opens it there for a final review — same "AI pre-fill +
+                      // mandatory human confirm" pattern as the screenshot
+                      // import, never writes straight to the store from chat.
+                      const d = action.data as Record<string, string | number>;
+                      router.push({
+                        pathname: "/(tabs)/portfolio",
+                        params: { add: String(d.ticker ?? ""), shares: String(d.shares ?? ""), price: String(d.price ?? "") },
+                      });
                     }
                   }}
                   style={{
@@ -746,18 +756,18 @@ Instrucciones críticas:
                     paddingVertical: 7,
                     borderRadius: 20,
                     borderWidth: 1,
-                    borderColor: action.type === "decision" ? "rgba(0,185,109,0.4)" : colors.border,
-                    backgroundColor: action.type === "decision" ? "rgba(0,185,109,0.10)" : colors.bgRaised,
+                    borderColor: action.type === "decision" || action.type === "add_position" ? "rgba(0,185,109,0.4)" : colors.border,
+                    backgroundColor: action.type === "decision" || action.type === "add_position" ? "rgba(0,185,109,0.10)" : colors.bgRaised,
                   }}
                 >
                   <Text style={{ fontSize: 12 }}>
-                    {action.type === "decision" ? "📝" : action.type === "watchlist" ? "👁" : action.type === "alert" ? "🔔" : "→"}
+                    {action.type === "decision" ? "📝" : action.type === "add_position" ? "💼" : action.type === "watchlist" ? "👁" : action.type === "alert" ? "🔔" : "→"}
                   </Text>
-                  <Text style={{ fontSize: 12, fontWeight: "600", color: action.type === "decision" ? colors.accentLight : colors.textSub }}>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: action.type === "decision" || action.type === "add_position" ? colors.accentLight : colors.textSub }}>
                     {action.label}
                   </Text>
                 </TouchableOpacity>
-                {action.type !== "chat" && (
+                {action.type !== "chat" && action.type !== "add_position" && (
                   <TouchableOpacity
                     onPress={async () => {
                       if (committedActions.has(ai)) return;
