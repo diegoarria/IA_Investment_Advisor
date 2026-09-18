@@ -44,7 +44,7 @@
         "earnings": "Análisis de Ganancias"
       },
       "academy": "Aprendizaje",
-      "undervalued": "Oportunidades",
+      "undervalued": "Nuvos Radar",
       "notifications": "Notificaciones",
       "profile": "Perfil",
       "products": "Productos",
@@ -725,7 +725,7 @@
     }
   },
   "subvaluadas": {
-    "title": "Mejores Oportunidades",
+    "title": "Nuvos Radar",
     "nif": {
       "overallScoreLabel": "Nuvos Investment Framework",
       "weakestPillar": "Pilar más débil: {{pillar}} ({{score}}/100)",
@@ -3006,7 +3006,7 @@
       "learning": {
         "title": "Aprendizaje & Herramientas",
         "subtitle": "Todo lo que necesitas para invertir mejor",
-        "desc": "Biblioteca de conceptos financieros con IA adaptada a tu nivel: ETFs, análisis fundamental, P/E ratio, DCA, Value Investing y psicología del inversor. En Oportunidades, el Nuvos AI Fair Value Engine calcula el valor justo real de cualquier empresa (modelo DCF) y te dice si está barata o cara. El Screener Semanal (Premium) selecciona 5 ideas personalizadas cada domingo.",
+        "desc": "Biblioteca de conceptos financieros con IA adaptada a tu nivel: ETFs, análisis fundamental, P/E ratio, DCA, Value Investing y psicología del inversor. En Nuvos Radar, el Nuvos AI Fair Value Engine calcula el valor justo real de cualquier empresa (modelo DCF) y te dice si está barata o cara. El Screener Semanal (Premium) selecciona 5 ideas personalizadas cada domingo.",
         "tip": "💡 La sección Inversores te muestra cómo invierten los grandes fondos — útil para identificar tendencias y validar tus ideas."
       },
       "profile": {
@@ -3589,7 +3589,7 @@
       "investors": "Inversores",
       "learn": "Aprendizaje",
       "notifications": "Notificaciones",
-      "oportunidades": "Oportunidades",
+      "oportunidades": "Nuvos Radar",
       "paper": "Paper",
       "patrimonio": "Patrimonio",
       "portfolio": "Portafolio",

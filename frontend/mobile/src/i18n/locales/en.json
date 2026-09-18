@@ -44,7 +44,7 @@
         "earnings": "Earnings Analysis"
       },
       "academy": "Learning",
-      "undervalued": "Opportunities",
+      "undervalued": "Nuvos Radar",
       "notifications": "Notifications",
       "profile": "Profile",
       "products": "Products",
@@ -725,7 +725,7 @@
     }
   },
   "subvaluadas": {
-    "title": "Top Opportunities",
+    "title": "Nuvos Radar",
     "nif": {
       "overallScoreLabel": "Nuvos Investment Framework",
       "weakestPillar": "Weakest pillar: {{pillar}} ({{score}}/100)",
@@ -3006,7 +3006,7 @@
       "learning": {
         "title": "Learning & Tools",
         "subtitle": "Everything you need to invest better",
-        "desc": "A library of financial concepts with AI tailored to your level: ETFs, fundamental analysis, P/E ratio, DCA, Value Investing, and investor psychology. In Opportunities, the Nuvos AI Fair Value Engine computes any company's real fair value (a DCF model) and tells you if it's cheap or expensive. The Weekly Screener (Premium) picks 5 personalized ideas every Sunday.",
+        "desc": "A library of financial concepts with AI tailored to your level: ETFs, fundamental analysis, P/E ratio, DCA, Value Investing, and investor psychology. In Nuvos Radar, the Nuvos AI Fair Value Engine computes any company's real fair value (a DCF model) and tells you if it's cheap or expensive. The Weekly Screener (Premium) picks 5 personalized ideas every Sunday.",
         "tip": "💡 The Investors section shows you how the big funds invest — useful for spotting trends and validating your ideas."
       },
       "profile": {
@@ -3589,7 +3589,7 @@
       "investors": "Investors",
       "learn": "Learn",
       "notifications": "Notifications",
-      "oportunidades": "Opportunities",
+      "oportunidades": "Nuvos Radar",
       "paper": "Paper",
       "patrimonio": "Net Worth",
       "portfolio": "Portfolio",

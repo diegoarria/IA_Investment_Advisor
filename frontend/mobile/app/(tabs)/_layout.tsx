@@ -29,7 +29,7 @@ function getTabConfig(t: TFunction): Record<string, { icon: IoniconName; iconFil
     home:          { icon: "home-outline",            iconFilled: "home",            label: t("tabsLayout.tabs.home") },
     chat:          { icon: "sparkles-outline",        iconFilled: "sparkles",        label: t("tabsLayout.tabs.chat") },
     patrimonio:    { icon: "wallet-outline",          iconFilled: "wallet",          label: t("tabsLayout.tabs.patrimonio") },
-    oportunidades: { icon: "bookmark-outline",        iconFilled: "bookmark",        label: t("tabsLayout.tabs.oportunidades") },
+    oportunidades: { icon: "radio-outline",           iconFilled: "radio",           label: t("tabsLayout.tabs.oportunidades") },
     academy:       { icon: "school-outline",          iconFilled: "school",          label: t("tabsLayout.tabs.academy") },
     // ── Secondary screens (accessible from hub screens) ──
     portfolio:     { icon: "pie-chart-outline",       iconFilled: "pie-chart",       label: t("tabsLayout.tabs.portfolio") },

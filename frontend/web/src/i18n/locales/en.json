@@ -17,7 +17,7 @@
       "journal": "Journal",
       "products": "Products",
       "support": "Support",
-      "undervalued": "Opportunities"
+      "undervalued": "Nuvos Radar"
     },
     "login": "Log in",
     "createAccount": "Create account",
@@ -685,7 +685,7 @@
     }
   },
   "subvaluadas": {
-    "title": "Top Opportunities",
+    "title": "Nuvos Radar",
     "valuationUnavailable": {
       "title": "Valuation unavailable right now",
       "subtitle": "We couldn't compute a reliable value for this company at the moment — it could be insufficient data or an external source failing temporarily. Try again in a few minutes.",
@@ -3015,7 +3015,7 @@
       "7": {
         "title": "Learning & Tools",
         "subtitle": "Everything you need to invest better",
-        "desc": "A library of financial concepts explained by AI, adapted to your level: ETFs, fundamental analysis, P/E ratio, DCA, Value Investing, and investor psychology. In Opportunities, the Nuvos AI Fair Value Engine computes any company's real fair value (a DCF model) and tells you if it's cheap or expensive. The Weekly Screener (Premium) picks 5 personalized ideas every Sunday.",
+        "desc": "A library of financial concepts explained by AI, adapted to your level: ETFs, fundamental analysis, P/E ratio, DCA, Value Investing, and investor psychology. In Nuvos Radar, the Nuvos AI Fair Value Engine computes any company's real fair value (a DCF model) and tells you if it's cheap or expensive. The Weekly Screener (Premium) picks 5 personalized ideas every Sunday.",
         "tip": "💡 The Investors section shows you how the big funds invest — useful for spotting trends and validating your ideas."
       },
       "8": {

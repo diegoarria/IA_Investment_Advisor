@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import Image from "next/image";
 import {
   BrainCircuit, Wallet, User, GraduationCap,
-  MessageSquare, ChevronLeft, ChevronRight, Plus, X, GripVertical, ArrowRight, Lock, LogOut, Home, ShoppingBag, Menu, BookMarked,
+  MessageSquare, ChevronLeft, ChevronRight, Plus, X, GripVertical, ArrowRight, Lock, LogOut, Home, ShoppingBag, Menu, Radar,
 } from "lucide-react";
 
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
@@ -61,7 +61,7 @@ const MAIN_NAV: NavItem[] = [
   { href: "/home",        icon: Home,          labelKey: "common.nav.home",       minLevel: "basico" },
   { href: "/chat",        icon: BrainCircuit,  labelKey: "common.nav.mentor",     minLevel: "basico" },
   { href: "/patrimonio",  icon: Wallet,        labelKey: "common.nav.patrimonio", minLevel: "basico", children: PATRIMONIO_CHILDREN },
-  { href: "/subvaluadas", icon: BookMarked,    labelKey: "common.nav.undervalued", minLevel: "basico" },
+  { href: "/subvaluadas", icon: Radar,         labelKey: "common.nav.undervalued", minLevel: "basico" },
 ];
 
 // Bitácora ("/journal") is deliberately NOT a sidebar item — it only lives

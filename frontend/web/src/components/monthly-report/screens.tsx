@@ -234,7 +234,7 @@ export function ScreenInvestigacion({ data, total, page, nextLabel }: ScreenProp
       <Reveal delay={100}><h1 style={{ ...H1, fontSize: 22, marginBottom: 20 }}>Empresas que investigaste</h1></Reveal>
 
       {r.companies_researched === 0 ? (
-        <EmptyState emoji="🔍" text="Todavía no registramos empresas investigadas este mes — buscar y analizar tickers en Oportunidades cuenta." />
+        <EmptyState emoji="🔍" text="Todavía no registramos empresas investigadas este mes — buscar y analizar tickers en Nuvos Radar cuenta." />
       ) : (
         <>
           <Reveal delay={200} anim="animate-fade-in-up-glow" style={{ ...heroStatCard(WT.teal), textAlign: "center", marginBottom: 14 }}>

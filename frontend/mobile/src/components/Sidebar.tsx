@@ -160,7 +160,7 @@ const MAIN_NAV = [
   { icon: "home-outline",     labelKey: "common.nav.home",        path: "/home",       minLevel: "basico" as const },
   { icon: "sparkles-outline", labelKey: "common.nav.mentor",      path: "/chat",       minLevel: "basico" as const },
   { icon: "wallet-outline",   labelKey: "common.nav.patrimonio",  path: "/patrimonio", minLevel: "basico" as const, children: PATRIMONIO_CHILDREN },
-  { icon: "bookmark-outline", labelKey: "common.nav.undervalued", path: "/subvaluadas", minLevel: "basico" as const },
+  { icon: "radio-outline", labelKey: "common.nav.undervalued", path: "/subvaluadas", minLevel: "basico" as const },
 ];
 
 const SECONDARY_NAV = [

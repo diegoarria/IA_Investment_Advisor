@@ -17,7 +17,7 @@
       "journal": "Bitácora",
       "products": "Productos",
       "support": "Soporte",
-      "undervalued": "Oportunidades"
+      "undervalued": "Nuvos Radar"
     },
     "login": "Iniciar sesión",
     "createAccount": "Crear cuenta",
@@ -685,7 +685,7 @@
     }
   },
   "subvaluadas": {
-    "title": "Mejores Oportunidades",
+    "title": "Nuvos Radar",
     "valuationUnavailable": {
       "title": "Valoración no disponible por ahora",
       "subtitle": "No pudimos calcular un valor confiable para esta empresa en este momento — puede ser por datos insuficientes o una fuente externa fallando temporalmente. Intenta de nuevo en unos minutos.",
@@ -3015,7 +3015,7 @@
       "7": {
         "title": "Aprendizaje & Herramientas",
         "subtitle": "Todo lo que necesitas para invertir mejor",
-        "desc": "Biblioteca de conceptos financieros explicados con IA adaptada a tu nivel: ETFs, análisis fundamental, P/E ratio, DCA, Value Investing y psicología del inversor. En Oportunidades, el Nuvos AI Fair Value Engine calcula el valor justo real de cualquier empresa (modelo DCF) y te dice si está barata o cara. El Screener Semanal (Premium) selecciona 5 ideas personalizadas cada domingo.",
+        "desc": "Biblioteca de conceptos financieros explicados con IA adaptada a tu nivel: ETFs, análisis fundamental, P/E ratio, DCA, Value Investing y psicología del inversor. En Nuvos Radar, el Nuvos AI Fair Value Engine calcula el valor justo real de cualquier empresa (modelo DCF) y te dice si está barata o cara. El Screener Semanal (Premium) selecciona 5 ideas personalizadas cada domingo.",
         "tip": "💡 La sección Inversores te muestra cómo invierten los grandes fondos — útil para identificar tendencias y validar tus ideas."
       },
       "8": {
