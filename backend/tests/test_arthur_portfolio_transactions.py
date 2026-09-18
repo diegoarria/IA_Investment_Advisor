@@ -207,6 +207,57 @@ async def test_sell_more_than_held_is_refused_before_creating_pending(fake_db):
     assert fake_db["pending_financial_actions"] == {}
 
 
+async def test_sell_fifo_handles_snake_case_avg_price_from_screenshot_import(fake_db):
+    """Bug found in audit: the screenshot-import feature (market.py) writes
+    cost basis as snake_case "avg_price", not "avgPrice". Selling that lot
+    must use its REAL cost, not silently treat it as a $0 cost basis (which
+    would fabricate a huge fake gain and corrupt closed_positions forever)."""
+    fake_db["user_portfolio"][("u1", "default")]["positions"]["positions"] = [
+        {"ticker": "GOOGL", "shares": 2.0, "avg_price": 250.0, "purchaseDate": "2026-02-01"},
+    ]
+    propose = await ai_service._exec_mentor_tool("propose_portfolio_transaction", {
+        "action_type": "SELL_ASSET", "ticker": "GOOGL", "quantity": 2.0, "execution_price": 300,
+        "raw_message": "Vendí 2 acciones de GOOGL a $300",
+    }, user_id="u1")
+    pending_id = _pending_id(propose)
+
+    confirm = await ai_service._exec_mentor_tool("confirm_pending_financial_action", {
+        "pending_id": pending_id, "confirmed": True,
+    }, user_id="u1")
+    assert "Aplicado" in confirm
+    # Real gain: 2 * (300 - 250) = 100 — NOT 2*300=600 (which is what a $0
+    # cost-basis bug would have produced).
+    assert "100.00" in confirm
+
+    closed = fake_db["user_portfolio"][("u1", "default")]["positions"]["closed_positions"]
+    assert closed[0]["avgPrice"] == 250.0
+
+
+async def test_abandoned_expired_proposal_does_not_block_a_fresh_one(fake_db):
+    """Bug found in audit: dedup only checked status='pending', so an
+    abandoned proposal past its TTL kept being handed back as if it were
+    still valid, instead of transparently starting a fresh one."""
+    args = {
+        "action_type": "BUY_ASSET", "ticker": "GOOGL", "amount": 100, "execution_price": 300,
+        "raw_message": "Compré $100 más de GOOGL a $300",
+    }
+    first = await ai_service._exec_mentor_tool("propose_portfolio_transaction", args, user_id="u1")
+    first_id = _pending_id(first)
+    # Simulate the proposal going stale (abandoned past its TTL) without
+    # anyone ever confirming or cancelling it.
+    from datetime import datetime, timedelta, timezone
+    fake_db["pending_financial_actions"][first_id]["expires_at"] = (
+        datetime.now(timezone.utc) - timedelta(minutes=1)
+    ).isoformat()
+
+    second = await ai_service._exec_mentor_tool("propose_portfolio_transaction", args, user_id="u1")
+    second_id = _pending_id(second)
+
+    assert second_id != first_id
+    assert fake_db["pending_financial_actions"][first_id]["status"] == "expired"
+    assert fake_db["pending_financial_actions"][second_id]["status"] == "pending"
+
+
 async def test_sell_fifo_realized_pl_and_remaining_shares(fake_db):
     # Add a second, cheaper lot so FIFO has two lots to work through.
     fake_db["user_portfolio"][("u1", "default")]["positions"]["positions"].append(
@@ -218,10 +269,18 @@ async def test_sell_fifo_realized_pl_and_remaining_shares(fake_db):
     }, user_id="u1")
     pending_id = _pending_id(propose)
 
+    # Bug found in audit: the propose preview used a blended weighted-average
+    # cost while apply used real per-lot FIFO cost, so they could disagree
+    # whenever a ticker holds lots at different prices. Both must now match
+    # exactly (real FIFO result: 0.5147@272 fully consumed + 0.4853@300
+    # partially consumed -> 0.5147*(350-272) + 0.4853*(350-300) = 64.41).
+    assert "64.41" in propose
+
     confirm = await ai_service._exec_mentor_tool("confirm_pending_financial_action", {
         "pending_id": pending_id, "confirmed": True,
     }, user_id="u1")
     assert "Aplicado" in confirm
+    assert "64.41" in confirm
 
     parsed = fake_db["user_portfolio"][("u1", "default")]["positions"]
     # FIFO: consumes the whole 0.5147 oldest lot, then 0.4853 of the newer one.
@@ -230,6 +289,52 @@ async def test_sell_fifo_realized_pl_and_remaining_shares(fake_db):
     assert remaining[0]["avgPrice"] == 300.0
     assert pytest.approx(remaining[0]["shares"], abs=1e-4) == 0.5147
     assert len(parsed["closed_positions"]) == 2
+
+
+async def test_sell_entire_single_lot_position_closes_it_completely(fake_db):
+    """A 100% sell of a single-lot position must remove the ticker from
+    positions entirely — not leave a dangling zero-share lot."""
+    propose = await ai_service._exec_mentor_tool("propose_portfolio_transaction", {
+        "action_type": "SELL_ASSET", "ticker": "GOOGL", "quantity": 0.5147, "execution_price": 350,
+        "raw_message": "Vendí toda mi posición de GOOGL a $350",
+    }, user_id="u1")
+    pending_id = _pending_id(propose)
+
+    confirm = await ai_service._exec_mentor_tool("confirm_pending_financial_action", {
+        "pending_id": pending_id, "confirmed": True,
+    }, user_id="u1")
+    assert "Aplicado" in confirm
+
+    parsed = fake_db["user_portfolio"][("u1", "default")]["positions"]
+    assert [p for p in parsed["positions"] if p["ticker"] == "GOOGL"] == []
+    assert len(parsed["closed_positions"]) == 1
+    assert parsed["closed_positions"][0]["shares"] == pytest.approx(0.5147, abs=1e-4)
+
+
+async def test_sell_entire_multi_lot_position_closes_all_lots(fake_db):
+    """A 100% sell spanning multiple lots must consume and close every one
+    of them, not just the first lot FIFO reaches."""
+    fake_db["user_portfolio"][("u1", "default")]["positions"]["positions"].append(
+        {"ticker": "GOOGL", "shares": 1.0, "avgPrice": 300.0, "purchaseDate": "2026-06-01"}
+    )
+    total_shares = 0.5147 + 1.0
+    propose = await ai_service._exec_mentor_tool("propose_portfolio_transaction", {
+        "action_type": "SELL_ASSET", "ticker": "GOOGL", "quantity": total_shares, "execution_price": 350,
+        "raw_message": "Vendí todas mis acciones de GOOGL a $350",
+    }, user_id="u1")
+    pending_id = _pending_id(propose)
+    assert "PENDING_ID" in propose  # exactly the total held, must not be refused
+
+    confirm = await ai_service._exec_mentor_tool("confirm_pending_financial_action", {
+        "pending_id": pending_id, "confirmed": True,
+    }, user_id="u1")
+    assert "Aplicado" in confirm
+
+    parsed = fake_db["user_portfolio"][("u1", "default")]["positions"]
+    assert [p for p in parsed["positions"] if p["ticker"] == "GOOGL"] == []
+    assert len(parsed["closed_positions"]) == 2
+    closed_total = sum(c["shares"] for c in parsed["closed_positions"])
+    assert closed_total == pytest.approx(total_shares, abs=1e-4)
 
 
 async def test_duplicate_propose_before_confirm_reuses_same_pending_id(fake_db):

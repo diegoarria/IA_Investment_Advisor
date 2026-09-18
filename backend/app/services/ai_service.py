@@ -771,6 +771,13 @@ Si falta algo de lo anterior, no llames al tool todavía — pregunta solo lo qu
 
 **La fecha es distinta a lo anterior — nunca la bloquees.** Igual que en la edición manual de una posición (donde el campo de fecha existe pero no es obligatorio), pásala si el usuario la dio o si es resolvible de una expresión relativa ("ayer", "el lunes"); si no la dio, no la preguntes por separado ni bloquees la propuesta por eso — simplemente omite `transaction_date` en el tool y este asume hoy automáticamente. El resumen que te regresa el tool ya te dice si asumió la fecha — cuando sea así, menciónaselo al usuario de forma breve dentro del mismo resumen ("asumí que fue hoy"), nunca como una pregunta aparte que lo obligue a responder antes de confirmar. Si el usuario corrige la fecha después, vuelve a llamar al tool con la fecha correcta.
 
+**Frases relativas en ventas — resuélvelas tú con los datos reales que ya tienes, nunca le pidas al usuario que haga la cuenta.** Ya conoces su posición real de [PORTAFOLIO REAL]/[LO QUE SABES DE ESTE USUARIO] antes de llamar al tool, así que:
+- "Vendí **toda** mi posición de X" / "vendí **todas** mis acciones de X" → `quantity` = las acciones que ya sabes que tiene de X.
+- "Vendí **la mitad** de X" → `quantity` = la mitad de lo que ya sabes que tiene.
+- "Vendí un **20%** de mi posición de X" → `quantity` = 20% de lo que ya sabes que tiene.
+- Si no tienes cargada su posición real de ese ticker (o el número que calculaste no te da confianza), no adivines — pregúntale cuántas acciones tiene o confírmale el número antes de llamar al tool. El tool además vuelve a validar esto contra los datos reales del servidor, así que nunca vas a poder registrar una venta mayor a lo que el usuario realmente tiene, pase lo que pase.
+Una venta que deja la posición en 0 (venta completa) es perfectamente válida — el tool la maneja bien, cierra la posición del todo, no la deja en un estado raro.
+
 **Flujo:** llamas a `propose_portfolio_transaction` → el tool te devuelve un resumen con los números YA CALCULADOS (nunca hagas tú la aritmética de acciones/costo promedio, usa exactamente los números que te regresa el tool) → le muestras ese resumen al usuario con tu propio tono y le pides que confirme → cuando confirme o cancele en su siguiente mensaje, llamas a `confirm_pending_financial_action` con el PENDING_ID exacto que recibiste → recién ahí queda aplicado, y solo entonces le dices al usuario que su portafolio se actualizó. Nunca digas "listo" o "ya quedó actualizado" antes de que `confirm_pending_financial_action` te confirme el resultado real. Cuando sí te confirme que quedó aplicado, incluye la acción `"portfolio_refresh"` (ver ACCIONES SUGERIDAS más abajo) en el bloque `<!-- ACTION -->` de esa misma respuesta, para que la pantalla de Portafolio se actualice sola si el usuario la tiene abierta — y en ese mismo caso, no emitas también `"add_position"` para la misma operación.
 
 Si el usuario menciona una razón para la operación ("porque creo que está barata"), pásala en `notes` — si no dio ninguna razón, no la inventes.
@@ -2321,7 +2328,7 @@ async def _propose_portfolio_transaction(tool_input: dict, user_id: str | None) 
     proposal for the user to confirm — never writes to the real portfolio.
     Returns a string for the model to relay to the user, never raises."""
     import hashlib
-    from app.api.routes.sync import _parse_portfolio
+    from app.api.routes.sync import _parse_portfolio, apply_sell_fifo
 
     if not user_id:
         return "No se pudo procesar: sesión sin usuario."
@@ -2382,7 +2389,7 @@ async def _propose_portfolio_transaction(tool_input: dict, user_id: str | None) 
     else:
         parsed = {"currency": "USD", "positions": [], "closed_positions": [], "inception_date": None}
         portfolio_name = "Mi portafolio"
-    portfolio_currency = parsed["currency"]
+    portfolio_currency = (parsed["currency"] or "USD").upper()
 
     if currency_hint and currency_hint != portfolio_currency:
         return (
@@ -2423,21 +2430,47 @@ async def _propose_portfolio_transaction(tool_input: dict, user_id: str | None) 
         new_avg_cost = (current["shares"] * current["avg_cost"] + quantity * price) / new_shares if new_shares > 0 else 0.0
         preview = {"new_shares": new_shares, "new_avg_cost": new_avg_cost, "invested_now": amount_computed}
     else:
+        # Run the EXACT same FIFO simulation apply will run at confirm time —
+        # a blended weighted-average estimate here would silently disagree
+        # with the real per-lot FIFO result whenever the ticker has lots at
+        # different costs (found in audit: showed a $59.51 preview for what
+        # FIFO actually applies as $64.41). Dry-run only, nothing persisted.
+        _sim_positions, _sim_closed, realized_pl = apply_sell_fifo(
+            parsed["positions"], parsed["closed_positions"], ticker, quantity, price, date_str
+        )
         preview = {
-            "remaining_shares": current["shares"] - quantity,
+            "remaining_shares": _ticker_position(_sim_positions, ticker)["shares"],
             "proceeds": amount_computed,
-            "realized_pl": quantity * (price - current["avg_cost"]),
+            "realized_pl": realized_pl,
         }
 
     dedup_raw = f"{user_id}|{portfolio_id}|{action_type}|{ticker}|{round(quantity, 6)}|{price}|{date_str}"
     dedup_key = hashlib.md5(dedup_raw.encode()).hexdigest()
 
     existing_pending = await run_query(
-        db.table("pending_financial_actions").select("id")
+        db.table("pending_financial_actions").select("id, expires_at")
         .eq("dedup_key", dedup_key).eq("status", "pending")
     )
+    reusable = None
     if existing_pending.data:
-        pending_id = existing_pending.data[0]["id"]
+        row = existing_pending.data[0]
+        row_expires_at = row.get("expires_at")
+        is_expired = False
+        if row_expires_at:
+            try:
+                is_expired = datetime.fromisoformat(row_expires_at.replace("Z", "+00:00")) < datetime.now(timezone.utc)
+            except ValueError:
+                is_expired = False
+        if is_expired:
+            # An abandoned proposal past its TTL — flip it so it stops
+            # blocking a fresh one via the partial unique index, instead of
+            # silently handing back a dead pending_id the user would only
+            # discover was stale when they tried to confirm it.
+            await run_query(db.table("pending_financial_actions").update({"status": "expired"}).eq("id", row["id"]))
+        else:
+            reusable = row["id"]
+    if reusable:
+        pending_id = reusable
     else:
         expires_at = (datetime.now(timezone.utc) + timedelta(minutes=_PENDING_ACTION_TTL_MINUTES)).isoformat()
         ins = await run_query(db.table("pending_financial_actions").insert({
@@ -2469,11 +2502,16 @@ async def _propose_portfolio_transaction(tool_input: dict, user_id: str | None) 
             "breve y natural (nunca como una pregunta que bloquee la confirmación). Cuando confirme "
             "o cancele, llama a confirm_pending_financial_action con este PENDING_ID exacto."
         )
+    remaining_note = (
+        "cerrarías la posición por completo (0 acciones restantes)"
+        if preview["remaining_shares"] <= 1e-6
+        else f"quedarían {preview['remaining_shares']:.4f} acciones"
+    )
     return (
         f"PENDING_ID: {pending_id}\n"
         f"Propuesta: vender {quantity:.4f} acciones de {ticker} a ${price:,.2f} {currency} "
         f"(${amount_computed:,.2f}) en \"{portfolio_name}\", {date_note}.\n"
-        f"Si se confirma: quedarían {preview['remaining_shares']:.4f} acciones, con una "
+        f"Si se confirma: {remaining_note}, con una "
         f"ganancia/pérdida realizada de ${preview['realized_pl']:,.2f}.\n"
         "Muéstrale este resumen al usuario en tu propio estilo y pídele que confirme antes de "
         "aplicarlo — no digas que ya se actualizó. Si la fecha fue asumida, menciónalo de forma "
@@ -2528,12 +2566,14 @@ async def _confirm_pending_financial_action(tool_input: dict, user_id: str | Non
     date_str = str(row["transaction_date"])
 
     port_res = await run_query(
-        db.table("user_portfolio").select("positions, portfolio_name")
+        db.table("user_portfolio").select("positions, portfolio_name, updated_at")
         .eq("user_id", user_id).eq("portfolio_id", row["portfolio_id"])
     )
+    base_updated_at = None
     if port_res.data:
         parsed = _parse_portfolio(port_res.data[0]["positions"])
         portfolio_name = port_res.data[0].get("portfolio_name") or "Mi portafolio"
+        base_updated_at = port_res.data[0].get("updated_at")
     else:
         parsed = {"currency": row["currency"], "positions": [], "closed_positions": [], "inception_date": None}
         portfolio_name = "Mi portafolio"
@@ -2561,6 +2601,11 @@ async def _confirm_pending_financial_action(tool_input: dict, user_id: str | Non
             user_id, row["portfolio_id"], new_positions,
             currency=parsed["currency"], portfolio_name=portfolio_name,
             closed_positions=new_closed, inception_date=parsed["inception_date"],
+            # Closes the (small but real) race between the fresh read just
+            # above and this write — if another write (a manual edit, or
+            # another confirm) landed in between, apply_portfolio_positions
+            # raises a 409 instead of silently clobbering it.
+            base_updated_at=base_updated_at,
         )
     except Exception as e:
         _log.error("confirm_pending_financial_action: apply failed for %s: %s", user_id, e)
@@ -2578,8 +2623,13 @@ async def _confirm_pending_financial_action(tool_input: dict, user_id: str | Non
             f"Aplicado. {ticker}: ahora {final['shares']:.4f} acciones, costo promedio "
             f"${final['avg_cost']:,.2f}, en \"{portfolio_name}\"."
         )
+    remaining_final_note = (
+        f"cerraste la posición por completo en \"{portfolio_name}\""
+        if final["shares"] <= 1e-6
+        else f"quedan {final['shares']:.4f} acciones en \"{portfolio_name}\""
+    )
     return (
-        f"Aplicado. {ticker}: quedan {final['shares']:.4f} acciones en \"{portfolio_name}\". "
+        f"Aplicado. {ticker}: {remaining_final_note}. "
         f"Ganancia/pérdida realizada de esta venta: ${realized_pl:,.2f}."
     )
 

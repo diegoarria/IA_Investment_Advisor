@@ -207,7 +207,13 @@ def apply_sell_fifo(
         take = min(lot_shares, remaining_to_sell)
         if take <= 0:
             continue
-        lot_avg = float(lot.get("avgPrice") or 0)
+        # Some lots (e.g. from the screenshot-import feature, market.py) store
+        # cost basis as snake_case "avg_price" instead of "avgPrice" — read
+        # both, matching the canonical aggregate_positions_by_ticker
+        # (decision_engine.py). Missing this reads a real lot's cost as $0,
+        # which both fabricates a huge fake realized gain AND permanently
+        # writes a corrupted $0-cost-basis row into closed_positions.
+        lot_avg = float(lot.get("avgPrice") or lot.get("avg_price") or 0)
         new_closed.append({
             "ticker": ticker_u,
             "shares": take,
