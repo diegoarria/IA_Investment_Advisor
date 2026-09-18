@@ -155,34 +155,118 @@ def _parse_portfolio(raw) -> dict:
     return {"currency": "USD", "positions": [], "closed_positions": [], "inception_date": None}
 
 
-@router.post("/portfolio")
-async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)):
-    """Upsert portfolio positions + currency.
-    body: { positions: [...], currency: 'USD', portfolio_id?: 'default', portfolio_name?: '...',
-            closed_positions?: [...], inception_date?: '...' | null }
+_UNSET = object()  # sentinel: "inception_date not provided", distinct from an explicit None
 
-    closed_positions/inception_date are the since-inception performance ledger.
-    An older client (e.g. mobile before it's rebuilt with this feature) won't
-    send them at all — in that case we must read-modify-write to preserve
-    whatever is already stored instead of silently erasing it.
+
+def add_buy_lot(positions: list[dict], ticker: str, shares: float, price: float, date: str) -> list[dict]:
+    """A BUY always appends a NEW lot rather than merging into an existing
+    one — matches the existing design (each purchase preserves its own cost
+    basis/date for later FIFO sells and realized P/L), not a new convention
+    invented for this feature."""
+    new_positions = [dict(p) for p in positions]
+    new_positions.append({
+        "ticker": ticker.upper(),
+        "shares": shares,
+        "avgPrice": price,
+        "purchaseDate": date,
+    })
+    return new_positions
+
+
+def apply_sell_fifo(
+    positions: list[dict], closed_positions: list[dict], ticker: str,
+    shares_to_sell: float, price: float, date: str,
+) -> tuple[list[dict], list[dict], float]:
+    """Reduces the oldest lots of `ticker` first (FIFO) until `shares_to_sell`
+    is covered, moving the sold portion of each lot into closed_positions
+    (preserving its own original avgPrice/purchaseDate for realized P/L) and
+    shrinking/removing the lot from positions. Raises ValueError if the
+    ticker doesn't hold enough shares — callers must check this BEFORE
+    ever telling the user the sale succeeded.
+
+    Returns (new_positions, new_closed_positions, realized_pl)."""
+    ticker_u = ticker.upper()
+    lots = sorted(
+        [p for p in positions if (p.get("ticker") or "").upper() == ticker_u],
+        key=lambda p: p.get("purchaseDate") or "",
+    )
+    held = sum(float(l.get("shares") or 0) for l in lots)
+    if shares_to_sell > held + 1e-6:
+        raise ValueError(f"insufficient_shares: held={held}, requested={shares_to_sell}")
+
+    remaining_to_sell = shares_to_sell
+    realized_pl = 0.0
+    new_closed = [dict(c) for c in closed_positions]
+    consumed_lot_ids = []  # index into `lots`, fully consumed
+    updated_lots: dict[int, float] = {}  # index into `lots` -> remaining shares
+
+    for i, lot in enumerate(lots):
+        if remaining_to_sell <= 1e-9:
+            break
+        lot_shares = float(lot.get("shares") or 0)
+        take = min(lot_shares, remaining_to_sell)
+        if take <= 0:
+            continue
+        lot_avg = float(lot.get("avgPrice") or 0)
+        new_closed.append({
+            "ticker": ticker_u,
+            "shares": take,
+            "avgPrice": lot_avg,
+            "closePrice": price,
+            "purchaseDate": lot.get("purchaseDate"),
+            "closeDate": date,
+        })
+        realized_pl += take * (price - lot_avg)
+        remaining_left = round(lot_shares - take, 8)
+        if remaining_left <= 1e-6:
+            consumed_lot_ids.append(id(lot))
+        else:
+            updated_lots[id(lot)] = remaining_left
+        remaining_to_sell = round(remaining_to_sell - take, 8)
+
+    new_positions = []
+    for p in positions:
+        if (p.get("ticker") or "").upper() != ticker_u:
+            new_positions.append(p)
+            continue
+        if id(p) in consumed_lot_ids:
+            continue
+        if id(p) in updated_lots:
+            updated = dict(p)
+            updated["shares"] = updated_lots[id(p)]
+            new_positions.append(updated)
+            continue
+        new_positions.append(p)
+
+    return new_positions, new_closed, realized_pl
+
+
+async def apply_portfolio_positions(
+    user_id: str,
+    portfolio_id: str,
+    positions: list[dict],
+    currency: str = "USD",
+    portfolio_name: str = "Mi portafolio",
+    closed_positions: list[dict] | None = None,
+    inception_date=_UNSET,
+    base_updated_at: str | None = None,
+) -> dict:
+    """Core of POST /sync/portfolio, extracted (2026-09) so other callers —
+    specifically Arthur's natural-language transaction tool in ai_service.py
+    — write through the EXACT same validation/limits/conflict-detection/
+    auto-decision-diffing path instead of a second parallel implementation.
+    Behavior is unchanged from the inline version this replaced; the route
+    below is now a thin wrapper around this function.
+
+    Raises HTTPException on validation/limit/conflict failures — callers
+    (including a chat tool) must let that propagate as a real, honest
+    failure rather than swallowing it into a false "listo" response.
     """
-    positions     = body.get("positions", [])
-    currency      = body.get("currency", "USD")
-    portfolio_id  = body.get("portfolio_id", "default") or "default"
     _validate_position_numbers(positions)
-    if body.get("closed_positions"):
-        _validate_position_numbers(body["closed_positions"])
-
-    # Reserved for Belvo-synced brokerage portfolios (belvo.py Phase 2,
-    # see /Users/diegoarria/.claude/plans/cosmic-munching-crown.md) — only
-    # the Belvo sync job/webhook handler may write to a "belvo:"-prefixed
-    # portfolio_id. Without this guard, a manual client edit (this
-    # endpoint always sends the FULL positions array, full-overwrite) could
-    # silently clobber synced broker data the next time the user saves
-    # their default portfolio from an unrelated screen.
+    if closed_positions:
+        _validate_position_numbers(closed_positions)
     if portfolio_id.startswith("belvo:"):
         raise HTTPException(status_code=403, detail="Este portafolio se sincroniza automáticamente y no se puede editar manualmente.")
-    portfolio_name = body.get("portfolio_name", "Mi portafolio") or "Mi portafolio"
 
     db = get_supabase()
 
@@ -199,7 +283,6 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
         from app.core.subscription import is_premium_active
         _is_prem = is_premium_active(pr.get("subscription_tier"), pr.get("trial_started_at"), pr.get("streak_bonus_premium_until"))
         if not _is_prem:
-            # Allow syncing existing positions; block only if count is INCREASING beyond limit
             existing_pos = await run_query(
                 db.table("user_portfolio").select("positions")
                 .eq("user_id", user_id).eq("portfolio_id", portfolio_id)
@@ -215,17 +298,7 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
                             "message": "Límite de 10 posiciones en portafolio. Activa Premium para agregar más."}
                 )
 
-    closed_positions = body.get("closed_positions")
-    has_inception_key = "inception_date" in body
-    inception_date = body.get("inception_date")
-    # base_updated_at: the server updated_at this client's edit was BASED on
-    # (i.e. what it last successfully read or synced). Optional for backward
-    # compatibility with older clients that don't send it yet — in that case
-    # this falls back to pure last-write-wins, same as before. When present,
-    # it's what turns "last write wins" into real optimistic concurrency: if
-    # another device has written a NEWER state since this client last saw the
-    # server, we reject instead of silently clobbering that other edit.
-    base_updated_at = body.get("base_updated_at")
+    has_inception_key = inception_date is not _UNSET
     existing = await run_query(
         db.table("user_portfolio").select("positions, updated_at")
         .eq("user_id", user_id).eq("portfolio_id", portfolio_id)
@@ -236,10 +309,6 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
         current_updated_at = existing.data[0]["updated_at"]
         prev_position_count = len(_parse_portfolio(existing.data[0]["positions"]).get("positions", []))
         if base_updated_at and current_updated_at and base_updated_at != current_updated_at:
-            # Someone else's write landed after this client last read the
-            # server state — surface a real conflict instead of overwriting
-            # it. The client is expected to re-fetch (GET /sync/portfolio),
-            # reconcile, and retry with the fresh base_updated_at.
             existing_parsed = _parse_portfolio(existing.data[0]["positions"])
             raise HTTPException(status_code=409, detail={
                 "code": "sync_conflict",
@@ -253,6 +322,8 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
         if not has_inception_key:
             inception_date = existing_parsed["inception_date"]
         old_positions_list = existing_parsed["positions"]
+    if inception_date is _UNSET:
+        inception_date = None
     closed_positions = closed_positions or []
 
     portfolio_state = {
@@ -271,26 +342,49 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
     cache_delete(f"sync:portfolios:{user_id}")
     cache_delete(f"sync:all:{user_id}")
     if prev_position_count == 0 and len(positions) > 0:
-        # First-ever position for this user (across any portfolio) — one-time
-        # milestone for the onboarding-to-first-investment funnel.
         asyncio.create_task(fmg_service.log_event(
             user_id, "milestone", "Primera inversión registrada",
             metadata={"portfolio_id": portfolio_id, "ticker": positions[0].get("ticker")},
             milestone_key="first_investment",
         ))
     if old_positions_list is not None:
-        # Auto-populate the decision journal from real portfolio activity —
-        # this is what feeds analyze_decision_biases (Personal Investment
-        # Memory) without depending on users manually logging every trade,
-        # which never happened in practice. Skipped on the very first sync
-        # (old_positions_list is None then) since a bulk import isn't a
-        # timestamped decision.
         for auto_event in _diff_positions_for_auto_decisions(old_positions_list, positions):
             asyncio.create_task(_log_auto_decision(user_id, auto_event))
+    return {"ok": True, "updated_at": now, "positions": positions, "closed_positions": closed_positions}
+
+
+@router.post("/portfolio")
+async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Upsert portfolio positions + currency.
+    body: { positions: [...], currency: 'USD', portfolio_id?: 'default', portfolio_name?: '...',
+            closed_positions?: [...], inception_date?: '...' | null }
+
+    closed_positions/inception_date are the since-inception performance ledger.
+    An older client (e.g. mobile before it's rebuilt with this feature) won't
+    send them at all — in that case we must read-modify-write to preserve
+    whatever is already stored instead of silently erasing it.
+    """
+    positions     = body.get("positions", [])
+    currency      = body.get("currency", "USD")
+    portfolio_id  = body.get("portfolio_id", "default") or "default"
+    portfolio_name = body.get("portfolio_name", "Mi portafolio") or "Mi portafolio"
+    # base_updated_at: the server updated_at this client's edit was BASED on
+    # (i.e. what it last successfully read or synced). Optional for backward
+    # compatibility with older clients that don't send it yet — in that case
+    # this falls back to pure last-write-wins, same as before. When present,
+    # it's what turns "last write wins" into real optimistic concurrency: if
+    # another device has written a NEWER state since this client last saw the
+    # server, we reject instead of silently clobbering that other edit.
+    result = await apply_portfolio_positions(
+        user_id, portfolio_id, positions, currency, portfolio_name,
+        closed_positions=body.get("closed_positions"),
+        inception_date=(body.get("inception_date") if "inception_date" in body else _UNSET),
+        base_updated_at=body.get("base_updated_at"),
+    )
     # Echo back the exact timestamp the write was committed with, so clients can
     # show a server-confirmed "saved at" time instead of just trusting their own
     # local clock/state.
-    return {"ok": True, "updated_at": now}
+    return {"ok": True, "updated_at": result["updated_at"]}
 
 
 @router.get("/portfolio")

@@ -753,6 +753,26 @@ Después del bloque pre-mortem, continúa con tu análisis normal. No conviertas
 
 **No actives el pre-mortem en preguntas hipotéticas** ("¿qué pasaría si…?", "¿debería considerar…?") — solo en intenciones declaradas y concretas.
 
+## 📝 REGISTRAR TRANSACCIONES QUE EL USUARIO YA HIZO (portafolio real)
+
+Puedes actualizar el portafolio del usuario cuando te diga, en lenguaje natural, que **ya realizó** una compra o venta — nunca ejecutas nada en un broker real, solo registras en Nuvos lo que el usuario afirma que ya pasó.
+
+**La distinción más importante de esta capacidad — tiempo verbal, no vocabulario:**
+- "**Compré** $200 de Google a $340" / "**Vendí** 10 acciones de Tesla" → ya ocurrió → puedes proponer el registro.
+- "**Compra** $200 de Google" / "**Vende** mi posición de Tesla" / "¿Debería comprar X?" → una orden futura o una pregunta, NUNCA una transacción ya hecha → NO llames a `propose_portfolio_transaction`. Responde normal (análisis, guardrails de siempre) — en esta versión Arthur nunca ejecuta órdenes, solo registra lo que ya sucedió.
+
+**Antes de llamar a `propose_portfolio_transaction`, asegúrate de tener:**
+1. Ticker inequívoco. Si el nombre coloquial es ambiguo entre dos tickers reales — el caso más claro es "Google"/"Alphabet", que puede ser GOOGL o GOOG (las dos clases de acción) — pregunta cuál, nunca asumas uno por default.
+2. Precio de ejecución. Si el usuario no lo dio, pregúntaselo — nunca uses el precio actual de mercado como sustituto de un precio histórico que no te dieron.
+3. Monto en dinero O cantidad de acciones (uno de los dos, no ambos son obligatorios).
+4. Si el usuario tiene más de un portafolio y no quedó claro en cuál registrar la operación, pregúntale — nunca elijas uno al azar.
+
+Si falta algo de lo anterior, no llames al tool todavía — pregunta solo lo que falta, en una sola frase natural, nunca un formulario. Si el usuario ya te dio todo en un solo mensaje (ticker, monto/cantidad, precio, y opcionalmente fecha/portafolio/motivo), no le preguntes de nuevo nada que ya te dio — ve directo a proponer.
+
+**Flujo:** llamas a `propose_portfolio_transaction` → el tool te devuelve un resumen con los números YA CALCULADOS (nunca hagas tú la aritmética de acciones/costo promedio, usa exactamente los números que te regresa el tool) → le muestras ese resumen al usuario con tu propio tono y le pides que confirme → cuando confirme o cancele en su siguiente mensaje, llamas a `confirm_pending_financial_action` con el PENDING_ID exacto que recibiste → recién ahí queda aplicado, y solo entonces le dices al usuario que su portafolio se actualizó. Nunca digas "listo" o "ya quedó actualizado" antes de que `confirm_pending_financial_action` te confirme el resultado real.
+
+Si el usuario menciona una razón para la operación ("porque creo que está barata"), pásala en `notes` — si no dio ninguna razón, no la inventes.
+
 ## LO QUE NUNCA DEBES HACER:
 - Dar predicciones de precio exactas ("va a llegar a $X")
 - **Hacer recomendaciones personalizadas** de ningún tipo — nunca "deberías comprar X", "te recomiendo Y", "invierte en Z". Solo sugerencias con fundamentos mostrados.
@@ -2207,6 +2227,57 @@ MENTOR_TOOLS = [
             },
             "required": ["label", "follow_up_in_days"],
         },
+    },
+    {
+        "name": "propose_portfolio_transaction",
+        "description": (
+            "Register that the user says they ALREADY bought or sold something — never for "
+            "a future/hypothetical order ('compra X' = don't call this; 'compré X' = do). "
+            "This does NOT touch the database yet — it prepares a proposal and returns a "
+            "summary you must show the user, asking them to confirm before anything is "
+            "written. Never invent a missing execution_price or amount/quantity — if either "
+            "is missing, don't call this tool at all, ask the user first. If the asset name "
+            "is genuinely ambiguous between two real tickers (the clearest case: 'Google' "
+            "could mean GOOGL or GOOG, Alphabet's two share classes), ask which one instead "
+            "of guessing. Resolve relative dates ('ayer', 'el lunes') to an actual date "
+            "yourself using today's date from context before calling this. Always pass the "
+            "user's own words in raw_message, unmodified, for the audit trail."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action_type": {"type": "string", "enum": ["BUY_ASSET", "SELL_ASSET"]},
+                "ticker": {"type": "string", "description": "Resolved ticker, e.g. GOOGL, AAPL, NVDA."},
+                "amount": {"type": "number", "description": "Monetary amount of the trade, if the user spoke in money terms ('$200 de Google'). Omit if they gave a share quantity instead."},
+                "quantity": {"type": "number", "description": "Number of shares, if the user gave a share count ('10 acciones'). Omit if they gave a dollar amount instead."},
+                "execution_price": {"type": "number", "description": "Price per share the trade happened at. Required — never omit or invent this; if the user didn't say it, don't call this tool, ask them first."},
+                "currency": {"type": "string", "description": "3-letter currency code if the user was explicit about it (e.g. MXN). Omit to use the portfolio's own currency."},
+                "transaction_date": {"type": "string", "description": "YYYY-MM-DD, already resolved from relative language. Omit to default to today."},
+                "portfolio_id": {"type": "string", "description": "Only if the user has multiple portfolios and you already know the exact id."},
+                "portfolio_name_hint": {"type": "string", "description": "The portfolio name the user said, if they named one by name rather than id (only relevant when they have more than one)."},
+                "notes": {"type": "string", "description": "The user's stated reason for the trade, only if they actually gave one — never invented."},
+                "raw_message": {"type": "string", "description": "The user's own message reporting this transaction, verbatim, for the audit log."},
+            },
+            "required": ["action_type", "ticker", "execution_price", "raw_message"],
+        },
+    },
+    {
+        "name": "confirm_pending_financial_action",
+        "description": (
+            "Apply (or cancel) a transaction previously proposed with propose_portfolio_transaction, "
+            "after the user explicitly confirms it in their next message ('sí', 'dale', 'actualízalo', "
+            "'confirmo'). This is the ONLY tool that actually writes to the portfolio. Pass the exact "
+            "PENDING_ID you got back from the propose call. If the user instead says no/cancela, call "
+            "this with confirmed=false — never just silently drop it, so it's properly marked cancelled."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "pending_id": {"type": "string", "description": "The PENDING_ID returned by propose_portfolio_transaction."},
+                "confirmed": {"type": "boolean", "description": "true to apply, false to cancel."},
+            },
+            "required": ["pending_id", "confirmed"],
+        },
         # Tool definitions are identical on every single chat call — caching
         # them (breakpoint on the last tool) means every call after the first
         # pays ~10% cache-read price for this block instead of full price.
@@ -2226,6 +2297,279 @@ _UPDATE_PROFILE_FIELDS = {
 }
 
 _MAX_TOOL_ROUNDS = 2  # hard cap on worst-case Sonnet calls per user message — each round is a full new call
+
+_PENDING_ACTION_TTL_MINUTES = 30
+
+
+def _ticker_position(positions: list[dict], ticker: str) -> dict:
+    """shares/avg_cost for one ticker, via the single canonical lot-aggregator
+    (aggregate_positions_by_ticker, imported from decision_engine.py) —
+    never a second copy of that math."""
+    ticker_u = ticker.upper()
+    for row in aggregate_positions_by_ticker(positions):
+        if row["ticker"] == ticker_u:
+            return {"shares": row["shares"], "avg_cost": row["avg_price"]}
+    return {"shares": 0.0, "avg_cost": 0.0}
+
+
+async def _propose_portfolio_transaction(tool_input: dict, user_id: str | None) -> str:
+    """Parses+validates a user-reported BUY/SELL, computes the exact math in
+    Python (never trusting the LLM to do arithmetic), and persists a pending
+    proposal for the user to confirm — never writes to the real portfolio.
+    Returns a string for the model to relay to the user, never raises."""
+    import hashlib
+    from app.api.routes.sync import _parse_portfolio
+
+    if not user_id:
+        return "No se pudo procesar: sesión sin usuario."
+
+    action_type = (tool_input.get("action_type") or "").upper()
+    ticker = (tool_input.get("ticker") or "").upper().strip()
+    if action_type not in ("BUY_ASSET", "SELL_ASSET") or not ticker:
+        return "Falta el tipo de operación (compra/venta) o el ticker — pídeselo al usuario, no lo asumas."
+
+    price = tool_input.get("execution_price")
+    try:
+        price = float(price)
+    except (TypeError, ValueError):
+        return "Falta un precio de ejecución válido — pregúntale al usuario a qué precio hizo la operación. Nunca uses el precio actual del mercado como sustituto."
+    if price <= 0:
+        return "El precio debe ser mayor que cero — confírmalo con el usuario."
+
+    amount = tool_input.get("amount")
+    quantity = tool_input.get("quantity")
+    if amount is None and quantity is None:
+        return "Falta el monto o la cantidad de acciones de la operación — pregúntale al usuario cuál de los dos te puede dar."
+
+    date_str = tool_input.get("transaction_date") or datetime.now(timezone.utc).date().isoformat()
+    notes = (tool_input.get("notes") or "").strip() or None
+    raw_message = tool_input.get("raw_message") or ""
+    portfolio_id_hint = tool_input.get("portfolio_id")
+    portfolio_name_hint = (tool_input.get("portfolio_name_hint") or "").strip()
+    currency_hint = (tool_input.get("currency") or "").upper().strip() or None
+
+    db = get_supabase()
+
+    port_res = await run_query(db.table("user_portfolio").select("portfolio_id, portfolio_name").eq("user_id", user_id))
+    portfolios = port_res.data or []
+    if len(portfolios) > 1:
+        portfolio_id = None
+        if portfolio_id_hint and any(p["portfolio_id"] == portfolio_id_hint for p in portfolios):
+            portfolio_id = portfolio_id_hint
+        elif portfolio_name_hint:
+            match = next((p for p in portfolios if portfolio_name_hint.lower() in (p.get("portfolio_name") or "").lower()), None)
+            if match:
+                portfolio_id = match["portfolio_id"]
+        if not portfolio_id:
+            names = ", ".join(p.get("portfolio_name") or p["portfolio_id"] for p in portfolios)
+            return f"El usuario tiene varios portafolios ({names}) y no quedó claro en cuál registrar esto — pregúntale en cuál, no elijas uno al azar."
+    elif portfolios:
+        portfolio_id = portfolios[0]["portfolio_id"]
+    else:
+        portfolio_id = "default"
+
+    row_res = await run_query(
+        db.table("user_portfolio").select("positions, portfolio_name")
+        .eq("user_id", user_id).eq("portfolio_id", portfolio_id)
+    )
+    if row_res.data:
+        parsed = _parse_portfolio(row_res.data[0]["positions"])
+        portfolio_name = row_res.data[0].get("portfolio_name") or "Mi portafolio"
+    else:
+        parsed = {"currency": "USD", "positions": [], "closed_positions": [], "inception_date": None}
+        portfolio_name = "Mi portafolio"
+    portfolio_currency = parsed["currency"]
+
+    if currency_hint and currency_hint != portfolio_currency:
+        return (
+            f"El usuario mencionó {currency_hint} pero este portafolio está registrado en "
+            f"{portfolio_currency} — nunca conviertas divisas automáticamente. Pregúntale cómo "
+            f"quiere registrarlo (en {portfolio_currency}, o si se refiere a otro portafolio)."
+        )
+    currency = portfolio_currency
+
+    current = _ticker_position(parsed["positions"], ticker)
+
+    if quantity is not None:
+        try:
+            quantity = float(quantity)
+        except (TypeError, ValueError):
+            return "La cantidad de acciones no es un número válido — pídesela de nuevo al usuario."
+        amount_computed = round(quantity * price, 2)
+    else:
+        try:
+            amount = float(amount)
+        except (TypeError, ValueError):
+            return "El monto no es un número válido — pídeselo de nuevo al usuario."
+        quantity = amount / price
+        amount_computed = amount
+    if quantity <= 0:
+        return "La cantidad resultante no es válida — confirma el monto/cantidad con el usuario."
+
+    if action_type == "SELL_ASSET" and quantity > current["shares"] + 1e-6:
+        return (
+            f"Tu posición actual muestra {current['shares']:.4f} acciones de {ticker}, pero se "
+            f"reportó una venta de {quantity:.4f}. Dile el número real al usuario y pregúntale si "
+            f"quiere vender lo que sí tiene, corregir la cantidad, o si se refería a otra posición "
+            f"— no registres nada todavía."
+        )
+
+    if action_type == "BUY_ASSET":
+        new_shares = current["shares"] + quantity
+        new_avg_cost = (current["shares"] * current["avg_cost"] + quantity * price) / new_shares if new_shares > 0 else 0.0
+        preview = {"new_shares": new_shares, "new_avg_cost": new_avg_cost, "invested_now": amount_computed}
+    else:
+        preview = {
+            "remaining_shares": current["shares"] - quantity,
+            "proceeds": amount_computed,
+            "realized_pl": quantity * (price - current["avg_cost"]),
+        }
+
+    dedup_raw = f"{user_id}|{portfolio_id}|{action_type}|{ticker}|{round(quantity, 6)}|{price}|{date_str}"
+    dedup_key = hashlib.md5(dedup_raw.encode()).hexdigest()
+
+    existing_pending = await run_query(
+        db.table("pending_financial_actions").select("id")
+        .eq("dedup_key", dedup_key).eq("status", "pending")
+    )
+    if existing_pending.data:
+        pending_id = existing_pending.data[0]["id"]
+    else:
+        expires_at = (datetime.now(timezone.utc) + timedelta(minutes=_PENDING_ACTION_TTL_MINUTES)).isoformat()
+        ins = await run_query(db.table("pending_financial_actions").insert({
+            "user_id": user_id, "action_type": action_type, "portfolio_id": portfolio_id,
+            "ticker": ticker, "quantity": quantity, "amount": amount_computed,
+            "execution_price": price, "currency": currency, "transaction_date": date_str,
+            "notes": notes, "raw_message": raw_message[:500], "preview": preview,
+            "dedup_key": dedup_key, "status": "pending", "expires_at": expires_at,
+        }))
+        if not ins.data:
+            return "No pude preparar la propuesta — intenta de nuevo en un momento. No se modificó el portafolio."
+        pending_id = ins.data[0]["id"]
+
+    if action_type == "BUY_ASSET":
+        return (
+            f"PENDING_ID: {pending_id}\n"
+            f"Propuesta: comprar {quantity:.4f} acciones de {ticker} a ${price:,.2f} {currency} "
+            f"(${amount_computed:,.2f} invertidos) en \"{portfolio_name}\" el {date_str}.\n"
+            f"Si se confirma: {preview['new_shares']:.4f} acciones totales, costo promedio "
+            f"${preview['new_avg_cost']:,.2f}.\n"
+            "Muéstrale este resumen al usuario en tu propio estilo y pídele que confirme antes de "
+            "aplicarlo — no digas que ya se actualizó. Cuando confirme o cancele, llama a "
+            "confirm_pending_financial_action con este PENDING_ID exacto."
+        )
+    return (
+        f"PENDING_ID: {pending_id}\n"
+        f"Propuesta: vender {quantity:.4f} acciones de {ticker} a ${price:,.2f} {currency} "
+        f"(${amount_computed:,.2f}) en \"{portfolio_name}\" el {date_str}.\n"
+        f"Si se confirma: quedarían {preview['remaining_shares']:.4f} acciones, con una "
+        f"ganancia/pérdida realizada de ${preview['realized_pl']:,.2f}.\n"
+        "Muéstrale este resumen al usuario en tu propio estilo y pídele que confirme antes de "
+        "aplicarlo — no digas que ya se actualizó. Cuando confirme o cancele, llama a "
+        "confirm_pending_financial_action con este PENDING_ID exacto."
+    )
+
+
+async def _confirm_pending_financial_action(tool_input: dict, user_id: str | None) -> str:
+    """Applies (or cancels) a previously proposed transaction. This is the
+    ONLY path that writes to the real portfolio — always through
+    apply_portfolio_positions (sync.py), never a second write path. Never
+    reports success unless the DB write actually confirmed."""
+    from app.api.routes.sync import (
+        _parse_portfolio, apply_portfolio_positions, add_buy_lot, apply_sell_fifo,
+    )
+
+    if not user_id:
+        return "No se pudo procesar: sesión sin usuario."
+
+    pending_id = tool_input.get("pending_id")
+    confirmed = bool(tool_input.get("confirmed", True))
+    db = get_supabase()
+
+    query = db.table("pending_financial_actions").select("*").eq("user_id", user_id).eq("status", "pending")
+    if pending_id:
+        query = query.eq("id", pending_id)
+    else:
+        query = query.order("created_at", desc=True).limit(1)
+    res = await run_query(query)
+    rows = res.data or []
+    if not rows:
+        return "No encontré ninguna propuesta pendiente para confirmar — pídele al usuario que repita la operación."
+    row = rows[0]
+
+    if not confirmed:
+        await run_query(db.table("pending_financial_actions").update({"status": "cancelled"}).eq("id", row["id"]))
+        return "Cancelado. No se modificó el portafolio."
+
+    expires_at = row.get("expires_at")
+    if expires_at:
+        try:
+            if datetime.fromisoformat(expires_at.replace("Z", "+00:00")) < datetime.now(timezone.utc):
+                await run_query(db.table("pending_financial_actions").update({"status": "expired"}).eq("id", row["id"]))
+                return "Esa propuesta ya expiró — pídele al usuario que la repita para recalcularla con datos frescos."
+        except ValueError:
+            pass
+
+    ticker = row["ticker"]
+    quantity = float(row["quantity"])
+    price = float(row["execution_price"])
+    date_str = str(row["transaction_date"])
+
+    port_res = await run_query(
+        db.table("user_portfolio").select("positions, portfolio_name")
+        .eq("user_id", user_id).eq("portfolio_id", row["portfolio_id"])
+    )
+    if port_res.data:
+        parsed = _parse_portfolio(port_res.data[0]["positions"])
+        portfolio_name = port_res.data[0].get("portfolio_name") or "Mi portafolio"
+    else:
+        parsed = {"currency": row["currency"], "positions": [], "closed_positions": [], "inception_date": None}
+        portfolio_name = "Mi portafolio"
+
+    realized_pl = None
+    try:
+        if row["action_type"] == "BUY_ASSET":
+            new_positions = add_buy_lot(parsed["positions"], ticker, quantity, price, date_str)
+            new_closed = parsed["closed_positions"]
+        else:
+            # Re-check against CURRENT holdings — time passed since the
+            # proposal, the position may have changed in the meantime.
+            new_positions, new_closed, realized_pl = apply_sell_fifo(
+                parsed["positions"], parsed["closed_positions"], ticker, quantity, price, date_str
+            )
+    except ValueError:
+        return (
+            f"No pude aplicar la venta: tu posición actual de {ticker} ya no tiene suficientes "
+            f"acciones para cubrir {quantity:.4f} (algo cambió desde que propuse esto). No se "
+            f"modificó el portafolio — pídele al usuario que confirme su posición actual."
+        )
+
+    try:
+        result = await apply_portfolio_positions(
+            user_id, row["portfolio_id"], new_positions,
+            currency=parsed["currency"], portfolio_name=portfolio_name,
+            closed_positions=new_closed, inception_date=parsed["inception_date"],
+        )
+    except Exception as e:
+        _log.error("confirm_pending_financial_action: apply failed for %s: %s", user_id, e)
+        return "No pude actualizar tu posición. Tu portafolio NO fue modificado. Intenta de nuevo en un momento."
+
+    await run_query(
+        db.table("pending_financial_actions")
+        .update({"status": "applied", "applied_at": datetime.now(timezone.utc).isoformat()})
+        .eq("id", row["id"])
+    )
+
+    final = _ticker_position(result["positions"], ticker)
+    if row["action_type"] == "BUY_ASSET":
+        return (
+            f"Aplicado. {ticker}: ahora {final['shares']:.4f} acciones, costo promedio "
+            f"${final['avg_cost']:,.2f}, en \"{portfolio_name}\"."
+        )
+    return (
+        f"Aplicado. {ticker}: quedan {final['shares']:.4f} acciones en \"{portfolio_name}\". "
+        f"Ganancia/pérdida realizada de esta venta: ${realized_pl:,.2f}."
+    )
 
 
 async def _exec_mentor_tool(name: str, tool_input: dict, user_id: str | None = None) -> str:
@@ -2292,6 +2636,12 @@ async def _exec_mentor_tool(name: str, tool_input: dict, user_id: str | None = N
                 })
             )
             return f"Guardado — lo retomamos en {days} días: {label}"
+
+        if name == "propose_portfolio_transaction":
+            return await _propose_portfolio_transaction(tool_input, user_id)
+
+        if name == "confirm_pending_financial_action":
+            return await _confirm_pending_financial_action(tool_input, user_id)
 
         if name == "get_stock_quote":
             ticker = (tool_input.get("ticker") or "").upper().strip()
