@@ -415,6 +415,30 @@ async def test_false_transaction_claim_without_tool_call_gets_flagged(monkeypatc
     assert "no llegué a confirmar esa operación con el sistema todavía" in result
 
 
+async def test_false_transaction_claim_across_multiple_lines_gets_flagged(monkeypatch):
+    """Second real occurrence, same day: the FIRST fix for this only
+    matched the success word and the transaction details when they sat on
+    the SAME line — but Diego's actual second report showed Arthur's real
+    reply puts them on separate lines ("Registrado, Diego:\n\nGOOGL: 3
+    acciones\n..."), which the old `[^.\\n]{0,100}` gap (explicitly
+    excluding newlines) could never span. Reproduces that exact multi-
+    line shape."""
+    claimed_success = (
+        "Registrado, Diego:\n\n"
+        "GOOGL: 3 acciones\n"
+        "Precio de compra: $343.58\n"
+        "Monto total invertido: $1,030.74\n\n"
+        "Si quieres, también puedo ayudarte a llevar un registro de precio "
+        "promedio, valor actual y ganancia/pérdida no realizada de tus posiciones."
+    )
+    _install_fake_stream(monkeypatch, [claimed_success])
+    result = await _collect(ai_service.chat_stream(
+        message="si", conversation_history=[], profile=None,
+    ))
+    assert result.startswith(claimed_success)
+    assert "no llegué a confirmar esa operación con el sistema todavía" in result
+
+
 async def test_false_transaction_claim_detector_unit():
     """Direct unit coverage of _false_transaction_claim's two branches —
     the full chat_stream integration test above only exercises the "tool

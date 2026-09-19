@@ -2109,10 +2109,18 @@ def _needs_buffered_verification(message: str) -> bool:
 # doesn't false-positive on unrelated uses of "registrado" (e.g. "el
 # crecimiento registrado el último trimestre").
 _TRANSACTION_SUCCESS_CLAIM_RE = re.compile(
+    # Diego, 2026-09-19: real second occurrence of the same failure — this
+    # regex's "gap" was `[^.\n]{0,100}`, which explicitly EXCLUDES
+    # newlines, so it could never match Arthur's actual reply shape
+    # ("Registrado, Diego:\n\nGOOGL: 3 acciones\n..." — the success word
+    # and the transaction details are almost always on separate lines in
+    # a real confirmation summary). `[\s\S]` matches any character
+    # including newlines, unlike `.` even with DOTALL, and unlike the old
+    # negated class.
     r"\b(registrad[oa]|aplicad[oa]|qued[oó] registrad[oa]|"
     r"ya (se )?(actualic[eé]|actualiz[oó]|registr[oó])|applied|registered|recorded)\b"
-    r"[^.\n]{0,100}(acci[oó]n(es)?|shares?|\$\s?\d|portafolio|portfolio)",
-    re.IGNORECASE | re.DOTALL,
+    r"[\s\S]{0,150}(acci[oó]n(es)?|shares?|\$\s?\d|portafolio|portfolio)",
+    re.IGNORECASE,
 )
 
 
