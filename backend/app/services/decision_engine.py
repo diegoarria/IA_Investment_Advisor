@@ -425,16 +425,30 @@ def _safe_float(value) -> Optional[float]:
 # false-positiving on ordinary descriptive analysis.
 _RECOMMENDATION_PATTERNS = [
     # Spanish — direct prescriptive verbs/phrases
-    r"deber[ií]as?\s+(comprar|vender|invertir|elegir|escoger|meter|poner)",
-    r"te recomiendo\b", r"mi recomendaci[oó]n\s+es\b", r"lo mejor (para ti|es)\b",
-    r"la mejor opci[oó]n\s+(es|para ti)\b", r"yo\s+(compr(ar[ií]a|o)|vender[ií]a|invertir[ií]a)\b",
+    r"deber[ií]as?\s+(comprar|vender|invertir|elegir|escoger|meter|poner|hacer|optar|quedarte|renunciar|lanzar)",
+    r"te recomiendo\b", r"mi recomendaci[oó]n\b", r"lo mejor (para ti|es)\b",
+    r"la mejor opci[oó]n\s+(es|para ti)\b",
+    r"yo\s+(compr(ar[ií]a|o)|vender[ií]a|invertir[ií]a|har[ií]a|elegir[ií]a|optar[ií]a|escoger[ií]a)\b",
+    r"si\s+(yo\s+)?fuera\s+t[uú],?\s+(elegir[ií]a|har[ií]a|optar[ií]a|compr(ar[ií]a)|vender[ií]a)\b",
     r"\bte aconsejo\b",
+    r"\bes una (buena )?compra\b", r"\bes una (buena )?venta\b",
+    # Personal context ("para tu perfil"/"para ti") turned directly into a
+    # concrete allocation — the specific pattern that crosses from
+    # education into individualized advice (Diego, 2026-09-19, CNBV
+    # framing). Scoped to the personalized-directive form specifically, so
+    # it doesn't false-positive on generic educational text like "una
+    # cartera balanceada asigna 60% a acciones y 40% a bonos".
+    r"(para tu perfil|para ti),?\s+asigna\w*\s+\d+%",
     # Spanish — bare imperative commands (tú-form), not the infinitive
     r"^\s*(compra|vende|invierte)\s+\S",
     r"\b(compra|vende|invierte)\s+(ahora|ya|en)\s+\w",
     # English — direct prescriptive phrasing
-    r"you should\s+(buy|sell|invest|choose|pick)", r"\bi recommend\b", r"my recommendation is\b",
-    r"the best option (is|for you)\b", r"\bi would\s+(buy|sell|invest)\b", r"\bi'd\s+(buy|sell|invest)\b",
+    r"you should\s+(buy|sell|invest|choose|pick|do)", r"\bi recommend\b", r"my recommendation\b",
+    r"the best option (is|for you)\b",
+    r"\bi would\s+(buy|sell|invest|do|choose|pick|go with)\b", r"\bi'd\s+(buy|sell|invest|do|choose|pick)\b",
+    r"if i were you\b",
+    r"\bis a (good )?buy\b", r"\bis a (good )?sell\b",
+    r"for your profile,?\s+allocate\s+\d+%",
     r"^\s*(buy|sell|invest in)\s+\S",
 ]
 _RECOMMENDATION_RE = re.compile("|".join(_RECOMMENDATION_PATTERNS), re.IGNORECASE | re.MULTILINE)

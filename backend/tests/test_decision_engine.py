@@ -159,6 +159,56 @@ def test_guard_clean_text_returns_empty_list():
     assert check_recommendation_guard("El P/E de la empresa es 25x.") == []
 
 
+def test_guard_catches_mi_recomendacion_without_trailing_es():
+    """Diego, 2026-09-19: 'mi recomendación'/'yo haría X' must be blocked
+    everywhere, not just for tickers — including the phrasing this used to
+    miss ('mi recomendación:' with no 'es' right after it)."""
+    assert check_recommendation_guard("Mi recomendación: espera a que baje un poco más.")
+    assert check_recommendation_guard("Mi recomendación es que compres VTI.")
+
+
+def test_guard_catches_generic_yo_haria_beyond_buy_sell_invest():
+    """Not just financial verbs — 'yo haría X' for any life/business
+    decision (e.g. a career/business choice) must also be caught."""
+    assert check_recommendation_guard("Yo haría 70% ETFs y 30% negocio con tu situación.")
+    assert check_recommendation_guard("Si fuera tú, elegiría quedarte empleado unos meses más.")
+    assert check_recommendation_guard("If I were you, I would choose the business.")
+
+
+def test_guard_allows_genuinely_descriptive_life_decision_text():
+    """Presenting scenarios/trade-offs without taking a side must stay clean."""
+    assert not check_recommendation_guard(
+        "Quedarte empleado te da estabilidad de ingreso; emprender depende de tu ejecución. "
+        "La decisión es tuya."
+    )
+
+
+def test_guard_catches_verdict_and_personalized_allocation_phrasing():
+    """Diego, 2026-09-19 (CNBV framing): a bare market-call verdict
+    ("X es una compra") and a personal-context-turned-concrete-allocation
+    ("para tu perfil, asigna N% a X") are both individualized-advice
+    patterns, distinct from — and more dangerous than — plain 'deberías
+    comprar' since they can read as more 'objective'."""
+    assert check_recommendation_guard("NU es una compra.")
+    assert check_recommendation_guard("NU es una buena compra en este momento.")
+    assert check_recommendation_guard("Para tu perfil, asigna 10% a NU.")
+    assert check_recommendation_guard("NU is a good buy right now.")
+    assert check_recommendation_guard("For your profile, allocate 10% to NU.")
+
+
+def test_guard_does_not_flag_the_standard_disclaimer_or_generic_allocation_education():
+    """The app's own standard non-advisory disclaimer, and generic
+    (non-personalized) educational text about asset allocation, must never
+    be swept up by the tightened patterns above."""
+    assert not check_recommendation_guard(
+        "Esto no es una recomendación de compra o venta — la decisión final siempre es tuya."
+    )
+    assert not check_recommendation_guard("This is not a recommendation to buy or sell.")
+    assert not check_recommendation_guard(
+        "Una cartera balanceada típica asigna 60% a acciones y 40% a bonos."
+    )
+
+
 def test_strip_prescriptive_sentences_removes_only_the_bad_sentence():
     text = (
         "NVDA tiene un margen bruto de 75%. Deberías comprar más ahora. "
