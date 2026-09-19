@@ -841,7 +841,7 @@ Si falta algo de lo anterior, no llames al tool todavía — pregunta solo lo qu
 - Si no tienes cargada su posición real de ese ticker (o el número que calculaste no te da confianza), no adivines — pregúntale cuántas acciones tiene o confírmale el número antes de llamar al tool. El tool además vuelve a validar esto contra los datos reales del servidor, así que nunca vas a poder registrar una venta mayor a lo que el usuario realmente tiene, pase lo que pase.
 Una venta que deja la posición en 0 (venta completa) es perfectamente válida — el tool la maneja bien, cierra la posición del todo, no la deja en un estado raro.
 
-**Flujo:** llamas a `propose_portfolio_transaction` → el tool te devuelve un resumen con los números YA CALCULADOS (nunca hagas tú la aritmética de acciones/costo promedio, usa exactamente los números que te regresa el tool) → le muestras ese resumen al usuario con tu propio tono y le pides que confirme → cuando confirme o cancele en su siguiente mensaje, llamas a `confirm_pending_financial_action` con el PENDING_ID exacto que recibiste → recién ahí queda aplicado, y solo entonces le dices al usuario que su portafolio se actualizó. Nunca digas "listo" o "ya quedó actualizado" antes de que `confirm_pending_financial_action` te confirme el resultado real. Cuando sí te confirme que quedó aplicado, incluye la acción `"portfolio_refresh"` (ver ACCIONES SUGERIDAS más abajo) en el bloque `<!-- ACTION -->` de esa misma respuesta, para que la pantalla de Portafolio se actualice sola si el usuario la tiene abierta — y en ese mismo caso, no emitas también `"add_position"` para la misma operación.
+**Flujo:** llamas a `propose_portfolio_transaction` → el tool te devuelve un resumen con los números YA CALCULADOS (nunca hagas tú la aritmética de acciones/costo promedio, usa exactamente los números que te regresa el tool) → le muestras ese resumen al usuario con tu propio tono y le pides que confirme → cuando confirme o cancele en su siguiente mensaje, llamas a `confirm_pending_financial_action` con el PENDING_ID exacto que recibiste → recién ahí queda aplicado, y solo entonces le dices al usuario que su portafolio se actualizó. **Diego, 2026-09-19 (falla real en producción): NUNCA digas "registrado"/"aplicado"/"listo"/"ya quedó actualizado" ni nada parecido si no acabas de recibir, en ESTE mismo turno, el texto real de éxito que te regresa `confirm_pending_financial_action` (empieza con "Aplicado. TICKER: ..."). Un usuario confirmó una compra, dijiste "Registrado" en tu respuesta, y la base de datos nunca se actualizó — porque nunca llamaste al tool de verdad, solo lo narraste. Si el usuario dice "sí"/confirma algo, tu ÚNICO camino válido es llamar a `confirm_pending_financial_action` en ese mismo turno — nunca asumas ni narres el resultado sin haberlo llamado.** Cuando sí te confirme que quedó aplicado, incluye la acción `"portfolio_refresh"` (ver ACCIONES SUGERIDAS más abajo) en el bloque `<!-- ACTION -->` de esa misma respuesta, para que la pantalla de Portafolio se actualice sola si el usuario la tiene abierta — y en ese mismo caso, no emitas también `"add_position"` para la misma operación.
 
 Si el usuario menciona una razón para la operación ("porque creo que está barata"), pásala en `notes` — si no dio ninguna razón, no la inventes.
 
@@ -2099,6 +2099,47 @@ def _needs_buffered_verification(message: str) -> bool:
     return bool(detect_tickers(message))
 
 
+# Diego, 2026-09-19: real production failure — Arthur told a user their
+# purchase was "Registrado" after they confirmed it, but
+# confirm_pending_financial_action was never actually called that turn
+# (verified in Supabase: the pending_financial_actions row was still
+# status='pending'). The model claimed a database write succeeded without
+# the tool call that would have made it true. Scoped to phrases that
+# sound like "it's done" AND mention shares/an amount/the portfolio, so it
+# doesn't false-positive on unrelated uses of "registrado" (e.g. "el
+# crecimiento registrado el último trimestre").
+_TRANSACTION_SUCCESS_CLAIM_RE = re.compile(
+    r"\b(registrad[oa]|aplicad[oa]|qued[oó] registrad[oa]|"
+    r"ya (se )?(actualic[eé]|actualiz[oó]|registr[oó])|applied|registered|recorded)\b"
+    r"[^.\n]{0,100}(acci[oó]n(es)?|shares?|\$\s?\d|portafolio|portfolio)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _false_transaction_claim(text: str, tools_called: set) -> bool:
+    """True when the response text claims a portfolio transaction was
+    applied/registered but confirm_pending_financial_action — the ONLY
+    tool that actually writes to the portfolio — was never called this
+    turn. A miss here just means the claim goes uncorrected, same
+    fail-open posture as the other guards; a false positive would only
+    ever add a harmless clarifying note, never hide real content."""
+    if "confirm_pending_financial_action" in tools_called:
+        return False
+    return bool(_TRANSACTION_SUCCESS_CLAIM_RE.search(text or ""))
+
+
+_TRANSACTION_CLAIM_WARNING_ES = (
+    "\n\n⚠️ Espera — no llegué a confirmar esa operación con el sistema todavía, así que "
+    "tu portafolio probablemente NO se actualizó de verdad. Dime otra vez que confirmas y "
+    "lo registro correctamente esta vez, o revisa tu Portafolio para confirmar."
+)
+_TRANSACTION_CLAIM_WARNING_EN = (
+    "\n\n⚠️ Wait — I didn't actually confirm that with the system yet, so your portfolio "
+    "probably wasn't really updated. Tell me you confirm again and I'll register it "
+    "properly this time, or check your Portfolio screen to verify."
+)
+
+
 ACTION_TAG_INSTRUCTIONS = """
 
 ## ACCIONES SUGERIDAS (OBLIGATORIO)
@@ -3148,6 +3189,16 @@ async def chat_stream(
     # display instead of corrected after. Every other message keeps
     # streaming live, unaffected.
     buffered_mode = _needs_buffered_verification(message)
+    # Real production failure, 2026-09-19: Arthur told a user "Registrado,
+    # Diego: 3 acciones de Google a $343.58..." after they confirmed a
+    # proposed purchase — but confirm_pending_financial_action was never
+    # actually called that turn (verified directly in Supabase: the
+    # pending_financial_actions row was still status='pending', never
+    # 'applied'). The model generated a plausible-sounding success message
+    # without the tool call that was supposed to back it up. Tracked here
+    # so the check after the loop can tell a REAL confirmation apart from
+    # a claimed one.
+    tools_called_this_turn: set[str] = set()
     for _round in range(_MAX_TOOL_ROUNDS):
         # Calls the client directly (not _claude()) since this streams —
         # check the breaker manually before each round (2026-08-21 audit:
@@ -3178,6 +3229,14 @@ async def chat_stream(
 
         if final.stop_reason != "tool_use":
             violations = check_recommendation_guard(full_response_text)
+            false_claim = _false_transaction_claim(full_response_text, tools_called_this_turn)
+            is_en_lang = getattr(profile, "preferred_language", None) == "en"
+            if false_claim:
+                _log.warning(
+                    "chat_stream: response claims a portfolio transaction was applied but "
+                    "confirm_pending_financial_action was never called this turn (user=%s) — flagging",
+                    user_id,
+                )
             if buffered_mode:
                 # Verified BEFORE display — nothing has reached the user
                 # yet (see buffered_mode/_needs_buffered_verification
@@ -3192,6 +3251,8 @@ async def chat_stream(
                         user_id, violations,
                     )
                     full_response_text = strip_prescriptive_sentences(full_response_text)
+                if false_claim:
+                    full_response_text += _TRANSACTION_CLAIM_WARNING_EN if is_en_lang else _TRANSACTION_CLAIM_WARNING_ES
                 yield full_response_text
                 return
 
@@ -3212,7 +3273,6 @@ async def chat_stream(
                     "(user=%s, matches=%s) — appending same-turn correction",
                     user_id, violations,
                 )
-                is_en_lang = getattr(profile, "preferred_language", None) == "en"
                 correction = (
                     "\n\n⚠️ "
                     + (
@@ -3229,12 +3289,17 @@ async def chat_stream(
                 )
                 full_response_text += correction
                 yield correction
+            if false_claim:
+                warning = _TRANSACTION_CLAIM_WARNING_EN if is_en_lang else _TRANSACTION_CLAIM_WARNING_ES
+                full_response_text += warning
+                yield warning
             return
 
         # Model asked to call one or more tools — execute them, feed the results
         # back, and let another streaming round produce the final answer.
         messages.append({"role": "assistant", "content": final.content})
         tool_blocks = [b for b in final.content if b.type == "tool_use"]
+        tools_called_this_turn.update(b.name for b in tool_blocks)
         results = await asyncio.gather(
             *(_exec_mentor_tool(b.name, b.input, user_id) for b in tool_blocks)
         )

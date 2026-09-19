@@ -393,6 +393,41 @@ async def test_detect_tickers_word_boundary_fix_no_longer_false_positives():
     assert detect_tickers("qué opinas de apple?") == ["AAPL"]
 
 
+async def test_false_transaction_claim_without_tool_call_gets_flagged(monkeypatch):
+    """Real production failure, 2026-09-19: Arthur told a user "Registrado,
+    Diego: 3 acciones de Google a $343.58..." after they confirmed a
+    proposed purchase — verified directly in Supabase that
+    confirm_pending_financial_action was never actually called that turn
+    (the pending_financial_actions row was still status='pending', never
+    'applied'). The model claimed success without the tool call that
+    would have made it true. Reproduces the exact reported text with NO
+    tool_use in the fake response (confirm_pending_financial_action never
+    called) and confirms a visible warning gets appended."""
+    claimed_success = (
+        "Registrado, Diego: 3 acciones de Google a $343.58 el 18 de septiembre de 2026.\n\n"
+        "Esto no es recomendación de compra o venta."
+    )
+    _install_fake_stream(monkeypatch, [claimed_success])
+    result = await _collect(ai_service.chat_stream(
+        message="sí, confírmalo", conversation_history=[], profile=None,
+    ))
+    assert result.startswith(claimed_success)
+    assert "no llegué a confirmar esa operación con el sistema todavía" in result
+
+
+async def test_false_transaction_claim_detector_unit():
+    """Direct unit coverage of _false_transaction_claim's two branches —
+    the full chat_stream integration test above only exercises the "tool
+    never called" path; this locks in that a genuine confirm.. call
+    correctly suppresses the warning, and that an unrelated use of
+    "registrado" never false-positives."""
+    from app.services.ai_service import _false_transaction_claim
+    claim_text = "Registrado, Diego: 3 acciones de Google a $343.58."
+    assert _false_transaction_claim(claim_text, set()) is True
+    assert _false_transaction_claim(claim_text, {"confirm_pending_financial_action"}) is False
+    assert _false_transaction_claim("El crecimiento registrado el último trimestre fue de 16.7%.", set()) is False
+
+
 async def test_conversation_history_still_forwarded_correctly(monkeypatch):
     _install_fake_stream(monkeypatch, ["ok"])
     history = [ChatMessage(role="user", content="hola"), ChatMessage(role="assistant", content="hola, ¿en qué ayudo?")]
