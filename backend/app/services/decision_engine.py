@@ -481,6 +481,20 @@ _RECOMMENDATION_PATTERNS = [
 ]
 _RECOMMENDATION_RE = re.compile("|".join(_RECOMMENDATION_PATTERNS), re.IGNORECASE | re.MULTILINE)
 
+# Diego, 2026-09-19: the one approved use of "recomendación" — the closing
+# disclaimer Arthur is now required to add after every analysis ("Esto no
+# es recomendación de compra o venta"). This is a NEGATION stating Arthur
+# is NOT recommending anything, the opposite of the banned usage ("mi
+# recomendación es X") — masked out of the text before matching so the
+# blanket word-stem ban above doesn't strip the very disclaimer it's
+# supposed to coexist with. Any OTHER use of the word (not matching this
+# exact negation shape) is still caught normally.
+_APPROVED_DISCLAIMER_RE = re.compile(
+    r"esto no es (una )?recomendaci[oó]n de compra(\s*(o|/)\s*venta)?|"
+    r"this is not a recommendation to buy(\s*(or|/)\s*sell)?",
+    re.IGNORECASE,
+)
+
 
 def check_recommendation_guard(text: str) -> list[str]:
     """Returns the list of matched prescriptive phrases found in `text`
@@ -499,7 +513,8 @@ def check_recommendation_guard(text: str) -> list[str]:
     recall."""
     if not text:
         return []
-    return [m.group(0) for m in _RECOMMENDATION_RE.finditer(text)]
+    working = _APPROVED_DISCLAIMER_RE.sub("", text)
+    return [m.group(0) for m in _RECOMMENDATION_RE.finditer(working)]
 
 
 def has_prescriptive_language(text: str) -> bool:

@@ -208,21 +208,39 @@ def test_guard_does_not_flag_generic_allocation_education_or_board_of_directors(
     assert not check_recommendation_guard("El consejo de administración aprobó el dividendo.")
 
 
-def test_guard_bans_the_word_recomendacion_even_in_a_disclaimer():
-    """Diego, 2026-09-19: 'recomendación'/'recomendaciones'/'recomiendo'/
-    synonyms are banned from Arthur's chat vocabulary in ANY context — even
-    the app's own former standard disclaimer phrasing, which used the word
-    to say it WASN'T giving one. That phrasing is retired in favor of not
-    using the word at all (e.g. 'la decisión final siempre es tuya' alone)."""
-    assert check_recommendation_guard(
+def test_guard_bans_the_word_recomendacion_outside_the_one_approved_disclaimer():
+    """Diego, 2026-09-19 (policy updated same day, later message): the
+    exact closing disclaimer ("Esto no es recomendación de compra o
+    venta" / "This is not a recommendation to buy or sell") is now
+    REQUIRED after every asset analysis — the one approved use of the
+    word, since it's a negation, not a recommendation. Any OTHER use of
+    "recomendación"/synonyms stays banned exactly as before."""
+    assert not check_recommendation_guard("Esto no es recomendación de compra o venta.")
+    assert not check_recommendation_guard(
         "Esto no es una recomendación de compra o venta — la decisión final siempre es tuya."
     )
-    assert check_recommendation_guard("This is not a recommendation to buy or sell.")
+    assert not check_recommendation_guard("This is not a recommendation to buy or sell.")
+    assert not check_recommendation_guard("This is not a recommendation to buy.")
+    # Any other phrasing that mentions the word is still banned.
     assert check_recommendation_guard("No suelo dar recomendaciones, pero en este caso...")
     assert check_recommendation_guard("I don't usually give recommendations, but...")
-    # The word-free alternative must stay clean.
+    assert check_recommendation_guard("Mi recomendación es que compres VTI.")
+    # The word-free alternative must also stay clean.
     assert not check_recommendation_guard("La decisión final siempre es tuya.")
     assert not check_recommendation_guard("No elijo por ti — la decisión es tuya.")
+
+
+def test_strip_prescriptive_sentences_keeps_the_approved_disclaimer():
+    """The approved disclaimer must survive strip_prescriptive_sentences
+    even in the same text as a real violation — only the violating
+    sentence is removed, the disclaimer sentence stays."""
+    text = (
+        "NVDA tiene un ROIC excelente. Deberías comprar NVDA ahora mismo. "
+        "Esto no es recomendación de compra o venta."
+    )
+    result = strip_prescriptive_sentences(text)
+    assert "Deberías comprar NVDA" not in result
+    assert "Esto no es recomendación de compra o venta." in result
 
 
 def test_guard_catches_favorite_pick_and_bet_phrasing_without_the_word_recommendation():
