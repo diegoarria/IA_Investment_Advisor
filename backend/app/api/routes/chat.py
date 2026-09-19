@@ -758,7 +758,31 @@ async def chat_message(
     # Falls back to the Claude tier below untouched if OpenAI isn't
     # configured, the call fails, or the question needs real analysis
     # ("analízame esta acción" → _needs_claude_analysis is True).
-    if not _needs_claude_analysis(body.message, has_images):
+    #
+    # Diego, 2026-09-19 (root cause of every "Registrado pero no aparece en
+    # el portafolio" report): a bare "sí"/"confirmo" reply to Arthur's own
+    # purchase proposal has no ticker and matches none of the trigger
+    # regexes above, so it was routed here to generate_generic_answer
+    # (GPT-mini) — which gets NO tools param at all and can never call
+    # confirm_pending_financial_action, the ONLY thing that writes to the
+    # real portfolio. It just pattern-completed a plausible "Registrado"
+    # reply from the conversation history instead. Verified directly in
+    # Supabase: the pending_financial_actions row stayed status='pending'
+    # forever because the confirmation never reached a model that could
+    # act on it. If this user has a real money-moving proposal waiting,
+    # the message MUST reach the tool-calling Claude tier no matter what
+    # it says — checked with one cheap indexed lookup, only when the text
+    # gate would otherwise have sent it to the toolless path.
+    needs_claude = _needs_claude_analysis(body.message, has_images)
+    if not needs_claude:
+        pending_check = await run_query(
+            get_supabase().table("pending_financial_actions").select("id")
+            .eq("user_id", user_id).eq("status", "pending").limit(1)
+        )
+        if pending_check.data:
+            needs_claude = True
+
+    if not needs_claude:
         generic_answer = await ai_service.generate_generic_answer(
             body.message, conversation_history=body.conversation_history,
         )
