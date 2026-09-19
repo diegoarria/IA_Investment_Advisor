@@ -340,6 +340,59 @@ async def test_pure_fundamentals_request_still_streams_live_not_buffered(monkeyp
     assert result == "TSLA tiene un P/E de 45x."
 
 
+async def test_stem_changing_recomendar_conjugations_are_intercepted(monkeypatch):
+    """Fifth real production failure, same day (2026-09-19): "me puedes
+    recomendar acciones?" reached the model untouched. Root cause:
+    "recomendar" is a Spanish stem-changing verb (recomEND-ar but
+    recomIEND-o/as/a/…) — a plain "recomend\\w*" stem regex NEVER matches
+    the present-tense/imperative conjugations actually used in casual
+    speech ("recomiendas", "recomiéndame"). Covers both stems now,
+    reproduced here with the exact reported phrase plus other
+    conjugations that were silently missed before."""
+    from app.services.ai_service import _blind_recommendation_reply
+    variants = [
+        "hola arthur, me puedes recomendar acciones?",
+        "dame una recomendacion de en que invertir",  # no accents, as actually typed
+        "podrías recomendarme algo",
+        "qué me recomendarías",
+        "recomiéndame algo para invertir",
+    ]
+    for text in variants:
+        assert _blind_recommendation_reply(text) is not None, f"should intercept: {text!r}"
+
+
+async def test_named_company_opinion_uses_conjugated_recomendar_too(monkeypatch):
+    """Same stem-changing-verb bug, but for the buffered/named-company
+    path (_needs_buffered_verification) — "me recomiendas comprar Tesla?"
+    must trigger buffered verification, not slip through untouched."""
+    assert ai_service._needs_buffered_verification("me recomiendas comprar Tesla?")
+
+
+async def test_code_level_guard_catches_conjugated_recomendar_forms():
+    """The same stem-changing-verb bug also affected decision_engine.py's
+    blanket word-ban (added earlier today) — "recomiendo"/"recomiendas"/
+    "recomienda" were never actually caught by a plain "recomend\\w*"
+    stem, silently defeating that whole guardrail for the most common
+    conversational forms of the verb."""
+    from app.services.decision_engine import check_recommendation_guard as g
+    for text in ["Recomiendo esto.", "Te recomiendas algo.", "Le recomienda comprar.", "Recomiéndame X."]:
+        assert g(text), f"should flag: {text!r}"
+
+
+async def test_detect_tickers_word_boundary_fix_no_longer_false_positives():
+    """Real bug found while fixing the above: detect_tickers's company-
+    name dict lookup used a raw substring check, so "arm" (Arm Holdings)
+    matched inside "recomend-ARM-e" ("recomendarme"), silently misrouting
+    an unrelated message as if the user had named that company. Fixed to
+    a word-boundary match; confirmed legitimate matches (including short
+    ones like "arm") still work."""
+    from app.services.market_data_service import detect_tickers
+    assert detect_tickers("podrías recomendarme algo") == []
+    assert detect_tickers("qué opinas de arm holdings?") == ["ARM"]
+    assert detect_tickers("me gusta comer pineapple") == []
+    assert detect_tickers("qué opinas de apple?") == ["AAPL"]
+
+
 async def test_conversation_history_still_forwarded_correctly(monkeypatch):
     _install_fake_stream(monkeypatch, ["ok"])
     history = [ChatMessage(role="user", content="hola"), ChatMessage(role="assistant", content="hola, ¿en qué ayudo?")]

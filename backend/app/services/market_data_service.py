@@ -621,7 +621,11 @@ def detect_tickers(message: str) -> list[str]:
     msg_lower = message.lower()
 
     for name, ticker in COMPANY_TICKERS.items():
-        if name in msg_lower:
+        # Word-boundary match, not a raw substring check — found in
+        # production 2026-09-19: "arm" (Arm Holdings) matched inside
+        # "recomendarme" ("...end-ARM-e"), silently misrouting an
+        # unrelated message as if the user had named that company.
+        if re.search(r"\b" + re.escape(name) + r"\b", msg_lower):
             found.add(ticker)
 
     # Direct uppercase tickers in the original message (e.g. "NVDA", "AAPL",

@@ -1962,8 +1962,17 @@ def is_blatant_injection_attempt(text: str | None) -> bool:
 # skip the model entirely and answer deterministically from code. Every
 # other kind of message still goes through the normal LLM flow untouched.
 _BLIND_RECOMMENDATION_RE = re.compile(
-    r"(me (das|puedes dar)\s+(una\s+)?recomendaci[oó]n|d[aá]me\s+(una\s+)?recomendaci[oó]n|"
-    r"recomi[eé]ndame(?!\s+(un\s+)?(libro|pel[ií]cula|restaurante|canci[oó]n|serie))|"
+    # Diego, 2026-09-19 (fifth real report, same day): "me puedes
+    # recomendar acciones?" reached the model untouched — every earlier
+    # pattern here only covered "recomendación" as a noun, or specific
+    # verb conjugations ("recomiendas", "recomiéndame"), never the bare
+    # infinitive after a modal ("puedes/podrías recomendar"). Enumerating
+    # every grammatical construction one at a time doesn't scale — this
+    # now matches the "recomend*" word stem directly (any conjugation,
+    # any construction), same blanket philosophy as decision_engine.py's
+    # code-level guard. The negative lookahead still excludes non-
+    # financial asks ("recomiéndame un libro").
+    r"(recom(?:end|i[eé]nd)\w*\b(?!\s+(un\s+)?(libro|pel[ií]cula|restaurante|canci[oó]n|serie))|"
     r"qu[eé]\s+me\s+recomiendas|recomiendas\s+(comprar|invertir)|"
     r"tienes?\s+(alguna\s+)?recomendaci(o|ó)n(es)?(\s+para\s+m[ií])?|"
     r"d[oó]nde\s+(invierto|pondr[ií]as)\s+mi\s+dinero|"
@@ -1971,9 +1980,8 @@ _BLIND_RECOMMENDATION_RE = re.compile(
     r"qu[eé]\s+(compro|comprar[ií]as|acci[oó]n\s+(compro|est[aá]\s+buena))|"
     r"dame\s+tu\s+top\s*\d*|h[aá]zme\s+un\s+portafolio|c[uú]al\s+elegir[ií]as|"
     r"qu[eé]\s+har[ií]as\s+con\s+\$?\d|"
-    r"what\s+(do\s+you\s+recommend|would\s+you\s+(buy|invest)|should\s+i\s+invest)|"
-    r"recommend\s+(me\s+)?(a\s+)?stock|give\s+me\s+your\s+top|"
-    r"(do\s+you\s+have\s+(any\s+)?|any\s+)recommendations?(\s+for\s+me)?|"
+    r"recommend\w*|what\s+(do\s+you\s+recommend|would\s+you\s+(buy|invest)|should\s+i\s+invest)|"
+    r"give\s+me\s+your\s+top|"
     r"build\s+me\s+a\s+portfolio|which\s+(one\s+)?would\s+you\s+choose)",
     re.IGNORECASE,
 )
@@ -2066,12 +2074,15 @@ def _blind_recommendation_reply(message: str, conversation_history: list | None 
 # sentences, already used as simulate_whatif's own last-resort) BEFORE
 # the user ever sees it, rather than correcting after the fact.
 _OPINION_SEEKING_RE = re.compile(
-    r"me lo recomiendas|me la recomiendas|deber[ií]a\s+(comprar|vender|invertir|entrar)|"
+    # Same "recomend*" word-stem philosophy as _BLIND_RECOMMENDATION_RE —
+    # "recomiéndame Tesla" / "me recomiendas comprar Tesla" must trigger
+    # buffered verification exactly like the no-company case triggers the
+    # deterministic bypass, not rely on enumerating every phrase.
+    r"recom(?:end|i[eé]nd)\w*|deber[ií]a\s+(comprar|vender|invertir|entrar)|"
     r"vale la pena\s+(comprarl[oa]|invertir)|es buena inversi[oó]n|es un buena compra|"
     r"qu[eé]\s+opinas|crees que deber[ií]a|"
-    r"tienes\s+(alguna\s+)?recomendaci[oó]n(es)?\s+(sobre|de|para)|"
     r"es momento de (comprar|vender)|me conviene (comprar|invertir)|"
-    r"should i\s+(buy|sell|invest)|is it a good\s+(investment|buy)|"
+    r"recommend\w*|should i\s+(buy|sell|invest)|is it a good\s+(investment|buy)|"
     r"what do you think (of|about)|do you think i should|worth\s+(buying|investing)",
     re.IGNORECASE,
 )

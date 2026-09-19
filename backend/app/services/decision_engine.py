@@ -434,7 +434,12 @@ _RECOMMENDATION_PATTERNS = [
     # unrelated financial vocabulary that would false-positive constantly;
     # "te aconsejo" (the verb form actually used to give advice) is
     # already covered below.
-    r"\brecomend\w*\b", r"\brecommend\w*\b",
+    # "recomendar" is a stem-changing Spanish verb (recomEND-ar but
+    # recomIEND-o/as/a) — a plain "recomend\w*" stem NEVER matches
+    # "recomiendo"/"recomiendas"/"recomienda"/"recomiéndame", found
+    # missing in production 2026-09-19 (fifth real report, same day).
+    # Covers both stems plus the accented/unaccented "é" imperative form.
+    r"\brecom(?:end|i[eé]nd)\w*\b", r"\brecommend\w*\b",
     # Spanish — direct prescriptive verbs/phrases
     r"deber[ií]as?\s+(comprar|vender|invertir|elegir|escoger|meter|poner|hacer|optar|quedarte|renunciar|lanzar)",
     r"te recomiendo\b", r"mi recomendaci[oó]n\b", r"lo mejor (para ti|es)\b",
