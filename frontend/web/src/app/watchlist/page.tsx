@@ -531,8 +531,26 @@ export default function WatchlistPage() {
   const searchRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // 2026-09-19: this page keeps its own local `items` state instead of
+  // useWatchlistStore (lib/store.ts), which is why it never got that store's
+  // 2026-09-16 race-condition guard — confirmed live as the reason a delete
+  // or a just-confirmed add could get silently reverted by the unconditional
+  // 60s auto-refresh below ("a veces aparece y a veces no" reports).
+  // fetchIdRef discards any fetchWatchlist() response that resolves after a
+  // NEWER call was already issued (e.g. the interval fired, then an add
+  // completed and triggered its own fetch, then the interval's older,
+  // now-stale response arrives last and would otherwise win).
+  const fetchIdRef = useRef(0);
+  // pendingDeletesRef holds tickers whose DELETE is still retrying in the
+  // background (handleConfirmDelete) — a fetch landing in that window must
+  // not resurrect them just because the server hasn't committed the delete
+  // yet; the optimistic local removal is authoritative until the retry
+  // loop itself gives up.
+  const pendingDeletesRef = useRef<Set<string>>(new Set());
+
   // ── Fetch watchlist ─────────────────────────────────────────────────────
   const fetchWatchlist = useCallback(async (isRefresh = false) => {
+    const myFetchId = ++fetchIdRef.current;
     if (isRefresh) setRefreshing(true);
     try {
       // Diego, 2026-09-09 (perf audit): these two reads are independent
@@ -543,6 +561,7 @@ export default function WatchlistPage() {
         watchlistApi.get(),
         syncApi.getAll().catch(() => null),
       ]);
+      if (myFetchId !== fetchIdRef.current) return; // superseded by a newer fetch — discard this stale response
       const data = res.data as WatchlistItem[];
       // Server is the source of truth — including an empty list, which may
       // be exactly what another device/tab just made true by deleting. Don't
@@ -550,7 +569,8 @@ export default function WatchlistPage() {
       // Prefer server-persisted order; fall back to localStorage
       const serverOrder: string[] = syncRes?.data?.watchlist_order ?? [];
       const order = serverOrder.length ? serverOrder : readOrder();
-      const ordered = applyOrder(data, order);
+      const ordered = applyOrder(data, order)
+        .filter((i) => !pendingDeletesRef.current.has(i.ticker));
       if (serverOrder.length) writeOrder(serverOrder);
       setItems(ordered);
       writeCache(ordered);
@@ -559,8 +579,10 @@ export default function WatchlistPage() {
     } catch {
       // On network/server error keep whatever items are already shown
     } finally {
-      if (isRefresh) setRefreshing(false);
-      setLoading(false);
+      if (myFetchId === fetchIdRef.current) {
+        if (isRefresh) setRefreshing(false);
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -699,6 +721,7 @@ export default function WatchlistPage() {
   // backend delete is idempotent (a ticker already gone is still "deleted"
   // from the user's point of view), so this effectively never fails visibly.
   const handleConfirmDelete = (ticker: string) => {
+    pendingDeletesRef.current.add(ticker);
     setItems((prev) => {
       const updated = prev.filter((i) => i.ticker !== ticker);
       writeCache(updated);
@@ -714,7 +737,7 @@ export default function WatchlistPage() {
           else await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
         }
       }
-    })();
+    })().finally(() => pendingDeletesRef.current.delete(ticker));
   };
 
   // ── Drag-and-drop reorder (basic view only) ──────────────────────────────
