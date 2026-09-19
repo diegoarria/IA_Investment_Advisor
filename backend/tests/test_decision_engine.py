@@ -243,6 +243,44 @@ def test_strip_prescriptive_sentences_keeps_the_approved_disclaimer():
     assert "Esto no es recomendación de compra o venta." in result
 
 
+def test_strip_prescriptive_sentences_preserves_markdown_structure():
+    """Real production bug, 2026-09-19: a full company analysis with a
+    scorecard, bullet points, and headers came back as a flattened wall
+    of text (tables/bullets destroyed) whenever chat_stream's buffered_
+    mode caught a violation anywhere in it. Root cause: the old
+    implementation split the WHOLE text into sentences (ignoring line
+    breaks) and rejoined survivors with a single space, so one violating
+    "sentence" that had merged across newlines with unrelated bullet
+    points took them down with it, and every newline was lost regardless.
+    Now operates line-by-line — headers, bullets, table rows, and blank
+    lines all survive untouched; only the specific violating sentence
+    within its own line is removed."""
+    text = (
+        "## 📊 Scorecard — Apple (AAPL)\n"
+        "🟢 Negocio          ████████░░  82/100\n"
+        "🟢 Crecimiento      ███████░░░  71/100\n"
+        "\n"
+        "**Valoración exigente:** P/E de 37.6x vs su crecimiento de ingresos de solo 5.9% YoY.\n"
+        "\n"
+        "- Ingresos en declive estructural: FY2025 cayó -2.8%\n"
+        "- Dependencia de iPhone: sigue siendo el motor\n"
+        "\n"
+        "Deberías comprar Apple ahora mismo.\n"
+        "\n"
+        "Esto no es recomendación de compra o venta."
+    )
+    result = strip_prescriptive_sentences(text)
+    # The violation is gone...
+    assert "Deberías comprar Apple" not in result
+    # ...but every other line survives byte-for-byte, in order.
+    assert "## 📊 Scorecard — Apple (AAPL)" in result
+    assert "🟢 Negocio          ████████░░  82/100" in result
+    assert "**Valoración exigente:** P/E de 37.6x vs su crecimiento de ingresos de solo 5.9% YoY." in result
+    assert "- Ingresos en declive estructural: FY2025 cayó -2.8%" in result
+    assert "- Dependencia de iPhone: sigue siendo el motor" in result
+    assert "Esto no es recomendación de compra o venta." in result
+
+
 def test_guard_catches_favorite_pick_and_bet_phrasing_without_the_word_recommendation():
     """Diego, 2026-09-19 (second spec): these never say 'recomendación' or
     'deberías' but still steer the user toward a concrete choice — 'mi

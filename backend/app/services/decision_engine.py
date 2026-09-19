@@ -529,13 +529,36 @@ def strip_prescriptive_sentences(text: str) -> str:
     response. Last-resort safety net, not the primary defense — the
     primary defenses are SYSTEM_PROMPT_BASE's NIVEL 1 instructions and,
     where a corrective regeneration is used (see simulate_whatif), the
-    model fixing its own output."""
+    model fixing its own output.
+
+    Diego, 2026-09-19: real production bug — this used to split the ENTIRE
+    text into sentences and rejoin the kept ones with a single space,
+    which silently destroyed every newline, markdown header, bullet list,
+    and table in a full company-analysis response the moment ANY sentence
+    anywhere in it tripped the guard (chat_stream's buffered_mode calls
+    this on full analyses, not just simulate_whatif's short prose fields).
+    Worse: because sentence-splitting ignores line breaks, a violation on
+    one line could merge with and delete legitimate bullet points on
+    unrelated following lines that never actually violated anything. Now
+    operates line-by-line (preserving all markdown structure/newlines) and
+    only strips the violating sentence(s) *within* an offending line,
+    keeping the rest of that line and every other line untouched."""
     if not check_recommendation_guard(text):
         return text
-    # Split on sentence boundaries conservatively (period/exclamation/
-    # question mark followed by whitespace) — good enough for a safety net,
-    # not meant to be a full NLP sentence splitter.
-    sentences = re.split(r"(?<=[.!?])\s+", text)
-    kept = [s for s in sentences if not check_recommendation_guard(s)]
-    result = " ".join(kept).strip()
+    kept_lines = []
+    for line in text.split("\n"):
+        if not line.strip() or not check_recommendation_guard(line):
+            kept_lines.append(line)  # blank/structural line or already clean — untouched
+            continue
+        # Split on sentence boundaries conservatively (period/exclamation/
+        # question mark followed by whitespace) — good enough for a safety
+        # net, not meant to be a full NLP sentence splitter.
+        sentences = re.split(r"(?<=[.!?])\s+", line)
+        kept_sentences = [s for s in sentences if not check_recommendation_guard(s)]
+        cleaned = " ".join(kept_sentences).strip()
+        if cleaned:
+            kept_lines.append(cleaned)
+        # else: this line was ONLY the violation — drop the line, not the
+        # ones around it.
+    result = "\n".join(kept_lines).strip()
     return result or "No voy a elegir por ti — la decisión final es tuya."
