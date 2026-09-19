@@ -2860,7 +2860,7 @@ export default function PortfolioPage() {
                       Todos empezamos desde cero
                     </p>
                     <p className="text-xs leading-relaxed max-w-xs" style={{ color:"var(--muted)" }}>
-                      Antes de invertir dinero real, practica con dinero virtual. Cuando te sientas listo, te recomendamos los mejores ETFs para empezar.
+                      Antes de invertir dinero real, practica con dinero virtual. Cuando te sientas listo, puedes explorar ETFs populares para conocerlos mejor.
                     </p>
                   </div>
                   <div className="w-full grid grid-cols-2 gap-2 mt-1">
@@ -2872,7 +2872,7 @@ export default function PortfolioPage() {
                     <button onClick={() => router.push("/screener")}
                             className="py-2.5 rounded-xl text-xs font-bold border transition-all hover:opacity-80"
                             style={{ borderColor:"rgba(0,212,126,0.35)", color:"var(--accent-l)", background:"rgba(0,212,126,0.06)" }}>
-                      🚀 Ver ETFs recomendados
+                      🚀 Explorar ETFs populares
                     </button>
                   </div>
                   <button onClick={() => router.push("/chat")}

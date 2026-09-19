@@ -3323,11 +3323,21 @@ async def job_weekly_opportunities_push():
             is_en = (r.get("preferred_language") or "es") == "en"
             names = [p.get("company_name") or p["ticker"] for p in picks]
             numbered = "\n".join(f"{idx + 1}. {name}" for idx, name in enumerate(names))
-            title = f"👀 We found {len(picks)} new investment opportunities for you" if is_en else f"👀 Tenemos {len(picks)} nuevas oportunidades de inversión para ti"
+            # Copy reframed (Diego, 2026-09-19, CNBV non-advisory review):
+            # was "N opportunities FOR YOU... see if they fit your
+            # portfolio and profile" — read as Nuvos having already judged
+            # the fit for this specific person, which is the exact signal
+            # that risks crossing into individualized advice. Now it's
+            # framed as a screener RESULT the user still has to evaluate
+            # themselves, with an explicit non-advisory line in the push
+            # body itself (not just on the destination screen).
+            title = f"📡 Nuvos Radar detected {len(picks)} possibly undervalued stocks this week" if is_en else f"📡 Nuvos Radar detectó {len(picks)} posibles subvaloradas esta semana"
             body = (
-                f"{numbered}\n\nCome see if they fit your portfolio and profile."
+                f"{numbered}\n\nReview the fundamentals of each one and decide if it makes sense "
+                "for you. This isn't a recommendation — it's information from your Nuvos Radar."
                 if is_en else
-                f"{numbered}\n\nEntra a ver si encajan con tu portafolio y tu perfil."
+                f"{numbered}\n\nRevisa los fundamentos de cada una y decide si tiene sentido para "
+                "ti. Esto no es una recomendación — es información de tu Nuvos Radar."
             )
             await send_push(uid, "weekly_opportunities", title, body, {"screen": "subvaluadas"}, db)
 

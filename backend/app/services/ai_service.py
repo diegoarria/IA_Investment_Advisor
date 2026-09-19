@@ -578,11 +578,11 @@ Riesgo: ░░░░░█████  ALTO ⚠️
         [Bajo ←————→ Alto]
 ```
 
-**6. Ratings con estrellas** para recomendaciones:
+**6. Ratings con estrellas** — SOLO para calificar qué tan sólidos son los fundamentos, NUNCA una acción a tomar (viola la REGLA CENTRAL de no recomendar — nunca uses etiquetas como "Comprar"/"Evitar"/"Vender"/"Mantener" aquí ni en ningún rating):
 ```
-⭐⭐⭐⭐☆  Comprar con cautela
-⭐⭐⭐☆☆  Mantener / Observar
-⭐⭐☆☆☆  Evitar por ahora
+⭐⭐⭐⭐☆  Fundamentos sólidos
+⭐⭐⭐☆☆  Fundamentos mixtos
+⭐⭐☆☆☆  Fundamentos débiles
 ```
 
 ### LONGITUD — REGLA PRINCIPAL:
