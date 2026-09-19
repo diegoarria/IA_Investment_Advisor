@@ -159,6 +159,47 @@ async def test_clean_response_logs_no_guard_warning(monkeypatch, caplog):
     assert "Corrección:" not in result and "Correction:" not in result
 
 
+async def test_guardrails_still_apply_on_a_later_turn_after_an_earlier_bad_one(monkeypatch):
+    """Diego, 2026-09-19: 'no importa si Arthur se buguea en el primer
+    mensaje — en el segundo, tercero, cuarto, etc. siguen aplicando las
+    mismas prohibiciones.' chat_stream has no turn-number branching — the
+    blind-recommendation intercept and the same-turn correction both run
+    on every single call regardless of what's already in
+    conversation_history. Simulates turn 1 already having a bad
+    recommendation baked into the history (as if it had slipped through),
+    then turn 2's own model response also violates the rule — confirms
+    turn 2 still gets caught and corrected on its own, independently."""
+    prior_bad_turn = [
+        ChatMessage(role="user", content="me das una recomendación de donde invertir?"),
+        ChatMessage(role="assistant", content="Yo priorizaría MSFT, GOOGL y NVDA para tu perfil."),
+    ]
+    _install_fake_stream(monkeypatch, ["Entre esas, mi top pick sería NVDA por el momentum de IA."])
+    result = await _collect(ai_service.chat_stream(
+        message="¿y de esas cuál eliges tú?",
+        conversation_history=prior_bad_turn, profile=None,
+    ))
+    assert result.startswith("Entre esas, mi top pick sería NVDA")
+    assert "Corrección:" in result  # turn 2 corrected on its own merits, not skipped
+
+
+async def test_blind_recommendation_intercept_also_fires_on_turn_three(monkeypatch):
+    """Same guarantee as above, but for the deterministic intercept
+    specifically (not just the same-turn correction) — it only looks at
+    the CURRENT message, never at conversation_history, so a trigger
+    phrase on turn 3 is caught exactly the same as on turn 1."""
+    long_history = [
+        ChatMessage(role="user", content="Hola Arthur"),
+        ChatMessage(role="assistant", content="¡Hola! ¿En qué te ayudo hoy?"),
+        ChatMessage(role="user", content="¿Cómo va mi portafolio?"),
+        ChatMessage(role="assistant", content="Tu portafolio subió 3% esta semana."),
+    ]
+    result = await _collect(ai_service.chat_stream(
+        message="ok, entonces dame tu top 5",
+        conversation_history=long_history, profile=None,
+    ))
+    assert "elegir por ti" in result.lower() or "picking for you" in result.lower()
+
+
 async def test_blind_recommendation_request_never_reaches_the_model(monkeypatch):
     """Second real production failure, same day (2026-09-19): Diego asked
     Arthur literally "me das una recomendación de donde invertir?" and got
