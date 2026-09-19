@@ -439,6 +439,86 @@ async def test_false_transaction_claim_across_multiple_lines_gets_flagged(monkey
     assert "no llegué a confirmar esa operación con el sistema todavía" in result
 
 
+class _FakeToolUseBlock:
+    type = "tool_use"
+
+    def __init__(self, name, input, id="tool_1"):
+        self.name = name
+        self.input = input
+        self.id = id
+
+
+def _install_fake_multi_round_stream(monkeypatch, rounds):
+    """Like _install_fake_stream but supports several tool-use rounds.
+    `rounds` is a list of (chunks, stop_reason, content_blocks) tuples,
+    one per round `chat_stream` will take."""
+    state = {"i": 0}
+
+    def fake_stream(**kwargs):
+        chunks, stop_reason, content = rounds[state["i"]]
+        state["i"] += 1
+
+        class _Stream:
+            @property
+            async def text_stream(self):
+                for c in chunks:
+                    yield c
+
+            async def get_final_message(self):
+                fm = _FakeFinalMessage(stop_reason=stop_reason)
+                fm.content = content
+                return fm
+
+        class _CM:
+            async def __aenter__(self):
+                return _Stream()
+
+            async def __aexit__(self, *exc):
+                return False
+
+        return _CM()
+
+    monkeypatch.setattr(ai_service.client.messages, "stream", fake_stream)
+    monkeypatch.setattr(ai_service, "check_daily_spend_cap", lambda: None)
+
+
+async def test_false_transaction_claim_when_tool_was_called_but_failed_gets_flagged(monkeypatch):
+    """Third real occurrence, same day: the SECOND fix only checked whether
+    confirm_pending_financial_action was CALLED, not whether it actually
+    SUCCEEDED. Diego's third report showed Arthur DID call the tool this
+    time, the tool found nothing to confirm and returned its real failure
+    string, and the model still told the user "Listo, Diego. Quedó
+    registrado..." — Supabase confirmed the row was still status='pending'.
+    Reproduces exactly that: a tool_use round whose tool result is a
+    failure string, followed by a round where the model claims success
+    anyway."""
+    tool_block = _FakeToolUseBlock(
+        "confirm_pending_financial_action", {"pending_id": "abc123"}
+    )
+    claimed_success = (
+        "Listo, Diego. Quedó registrado en tu portafolio:\n\n"
+        "GOOGL\n3 acciones\nPrecio de compra: $343.58 por acción\n"
+        "Total invertido: $1,030.74\n\n"
+        "Esto no es recomendación de compra o venta."
+    )
+    _install_fake_multi_round_stream(monkeypatch, [
+        ([], "tool_use", [tool_block]),
+        ([claimed_success], "end_turn", []),
+    ])
+
+    async def fake_exec_tool(name, tool_input, user_id=None):
+        assert name == "confirm_pending_financial_action"
+        return "No encontré ninguna propuesta pendiente para confirmar — pídele al usuario que repita la operación."
+
+    monkeypatch.setattr(ai_service, "_exec_mentor_tool", fake_exec_tool)
+
+    result = await _collect(ai_service.chat_stream(
+        message="si", conversation_history=[], profile=None,
+    ))
+    assert result.startswith(claimed_success)
+    assert "no llegué a confirmar esa operación con el sistema todavía" in result
+
+
 async def test_false_transaction_claim_detector_unit():
     """Direct unit coverage of _false_transaction_claim's two branches —
     the full chat_stream integration test above only exercises the "tool
@@ -447,9 +527,9 @@ async def test_false_transaction_claim_detector_unit():
     "registrado" never false-positives."""
     from app.services.ai_service import _false_transaction_claim
     claim_text = "Registrado, Diego: 3 acciones de Google a $343.58."
-    assert _false_transaction_claim(claim_text, set()) is True
-    assert _false_transaction_claim(claim_text, {"confirm_pending_financial_action"}) is False
-    assert _false_transaction_claim("El crecimiento registrado el último trimestre fue de 16.7%.", set()) is False
+    assert _false_transaction_claim(claim_text, False) is True
+    assert _false_transaction_claim(claim_text, True) is False
+    assert _false_transaction_claim("El crecimiento registrado el último trimestre fue de 16.7%.", False) is False
 
 
 async def test_conversation_history_still_forwarded_correctly(monkeypatch):

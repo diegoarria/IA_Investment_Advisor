@@ -2124,14 +2124,22 @@ _TRANSACTION_SUCCESS_CLAIM_RE = re.compile(
 )
 
 
-def _false_transaction_claim(text: str, tools_called: set) -> bool:
+def _false_transaction_claim(text: str, confirm_tool_applied: bool) -> bool:
     """True when the response text claims a portfolio transaction was
     applied/registered but confirm_pending_financial_action — the ONLY
-    tool that actually writes to the portfolio — was never called this
-    turn. A miss here just means the claim goes uncorrected, same
-    fail-open posture as the other guards; a false positive would only
-    ever add a harmless clarifying note, never hide real content."""
-    if "confirm_pending_financial_action" in tools_called:
+    tool that actually writes to the portfolio — never actually reported
+    success this turn. Diego, 2026-09-19 (third occurrence): the first fix
+    only checked whether the tool was CALLED, not whether it SUCCEEDED —
+    so a turn where the model called the tool, got back a failure string
+    ("No pude actualizar tu posición...", "No encontré ninguna propuesta
+    pendiente...") and then told the user it worked anyway still went
+    unflagged. Every real success path returns text starting with
+    "Aplicado." (see _confirm_pending_financial_action) — that's now the
+    only thing that counts as a genuine confirmation. A miss here just
+    means the claim goes uncorrected, same fail-open posture as the other
+    guards; a false positive would only ever add a harmless clarifying
+    note, never hide real content."""
+    if confirm_tool_applied:
         return False
     return bool(_TRANSACTION_SUCCESS_CLAIM_RE.search(text or ""))
 
@@ -3199,14 +3207,14 @@ async def chat_stream(
     buffered_mode = _needs_buffered_verification(message)
     # Real production failure, 2026-09-19: Arthur told a user "Registrado,
     # Diego: 3 acciones de Google a $343.58..." after they confirmed a
-    # proposed purchase — but confirm_pending_financial_action was never
-    # actually called that turn (verified directly in Supabase: the
-    # pending_financial_actions row was still status='pending', never
-    # 'applied'). The model generated a plausible-sounding success message
-    # without the tool call that was supposed to back it up. Tracked here
-    # so the check after the loop can tell a REAL confirmation apart from
-    # a claimed one.
-    tools_called_this_turn: set[str] = set()
+    # proposed purchase — but confirm_pending_financial_action either was
+    # never called that turn, or WAS called and failed/found nothing to
+    # confirm, and the model claimed success anyway (verified directly in
+    # Supabase: the pending_financial_actions row was still
+    # status='pending', never 'applied', in both cases). Tracked here so
+    # the check after the loop can tell a REAL "Aplicado." confirmation
+    # apart from a merely-claimed one.
+    confirm_tool_applied = False
     for _round in range(_MAX_TOOL_ROUNDS):
         # Calls the client directly (not _claude()) since this streams —
         # check the breaker manually before each round (2026-08-21 audit:
@@ -3237,7 +3245,7 @@ async def chat_stream(
 
         if final.stop_reason != "tool_use":
             violations = check_recommendation_guard(full_response_text)
-            false_claim = _false_transaction_claim(full_response_text, tools_called_this_turn)
+            false_claim = _false_transaction_claim(full_response_text, confirm_tool_applied)
             is_en_lang = getattr(profile, "preferred_language", None) == "en"
             if false_claim:
                 _log.warning(
@@ -3307,10 +3315,12 @@ async def chat_stream(
         # back, and let another streaming round produce the final answer.
         messages.append({"role": "assistant", "content": final.content})
         tool_blocks = [b for b in final.content if b.type == "tool_use"]
-        tools_called_this_turn.update(b.name for b in tool_blocks)
         results = await asyncio.gather(
             *(_exec_mentor_tool(b.name, b.input, user_id) for b in tool_blocks)
         )
+        for b, r in zip(tool_blocks, results):
+            if b.name == "confirm_pending_financial_action" and r.startswith("Aplicado."):
+                confirm_tool_applied = True
         messages.append({
             "role": "user",
             "content": [
