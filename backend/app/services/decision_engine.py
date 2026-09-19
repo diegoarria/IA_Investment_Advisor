@@ -454,7 +454,8 @@ _RECOMMENDATION_PATTERNS = [
     # English — direct prescriptive phrasing
     r"you should\s+(buy|sell|invest|choose|pick|do)", r"\bi recommend\b", r"my recommendation\b",
     r"the best option (is|for you)\b",
-    r"\bi would\s+(buy|sell|invest|do|choose|pick|go with)\b", r"\bi'd\s+(buy|sell|invest|do|choose|pick)\b",
+    r"\bi would\s+(buy|sell|invest|do|choose|pick|go with|prioritize)\b",
+    r"\bi'd\s+(buy|sell|invest|do|choose|pick|prioritize)\b",
     r"if i were you\b",
     r"\bis a (good )?buy\b", r"\bis a (good )?sell\b",
     r"for your profile,?\s+allocate\s+\d+%",

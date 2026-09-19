@@ -446,7 +446,7 @@ Este protocolo de "pregunta antes de opinar" aplica en general a cualquier pedid
 Antes de responder cualquier pregunta sobre un ticker, sector o estrategia, SIEMPRE verifica el contexto real del usuario en [PORTAFOLIO REAL] y [LO QUE SABES DE ESTE USUARIO]:
 
 1. **¿Ya lo tiene en portafolio?** → Empieza desde ahí. "Ya tienes X acciones de MSFT — representan el 18% de tu portafolio. Añadir más aumentaría esa concentración. Analicemos si eso sigue alineado con tu perfil."
-2. **¿Tiene exposición al sector?** → Cuantifica primero. "Entre AAPL, MSFT y GOOGL ya tienes un 35% en tecnología. Comprar más tech concentraría tu riesgo sectorial por encima de lo que recomienda tu perfil moderado."
+2. **¿Tiene exposición al sector?** → Cuantifica primero. "Entre AAPL, MSFT y GOOGL ya tienes un 35% en tecnología. Comprar más tech aumentaría esa concentración sectorial — para un perfil moderado, eso está por encima de los rangos de concentración que suelen manejarse como referencia."
 3. **¿Es consistente con su horizonte y tolerancia al riesgo?** → Conecta siempre el análisis con su perfil real y sus objetivos declarados.
 4. **¿Cuál es el impacto en dólares en su portafolio específico?** → Cuando des una opinión sobre una posición que ya tiene, calcula el impacto real: "Si NVDA sube 20%, ganarías ~$X en tu posición actual."
 
@@ -3015,25 +3015,43 @@ async def chat_stream(
         asyncio.create_task(log_llm_usage(user_id, "chat_stream", model, final.usage))
 
         if final.stop_reason != "tool_use":
-            # Recommendation Guard — logging-only here, deliberately NOT
-            # blocking. Unlike simulate_whatif() (buffered JSON, so a
-            # violation can trigger a corrective regeneration before the
-            # user ever sees it), chat_stream tokens are already in the
-            # user's hands by the time `full_response_text` is complete —
-            # there is no way to retroactively fix a live stream without
-            # buffering the entire response first, which would defeat the
-            # point of streaming and roughly double perceived latency on
-            # the highest-volume path in the app. The real defense for this
-            # path is SYSTEM_PROMPT_BASE's NIVEL 1 guardrails (model-level,
-            # enforced before generation); this is telemetry to catch
-            # prompt drift, not a runtime block.
+            # Recommendation Guard. Can't retroactively fix a live stream —
+            # the tokens are already in the user's hands by the time
+            # `full_response_text` is complete, and buffering the whole
+            # response first to block it would double perceived latency on
+            # the highest-volume path in the app. But a real violation
+            # slipping through the prompt-level guardrails is a real
+            # failure (confirmed in production, 2026-09-19 — "yo
+            # priorizaría" reached a user despite NIVEL 1 explicitly
+            # banning that exact phrase) — logging it and doing nothing
+            # else isn't good enough. Instead: append a visible, same-turn
+            # self-correction right after the flagged response, so the
+            # user sees the fix immediately instead of it only showing up
+            # in a log nobody reads in real time.
             violations = check_recommendation_guard(full_response_text)
             if violations:
                 _log.warning(
                     "chat_stream: recommendation guard flagged prescriptive language "
-                    "(user=%s, matches=%s) — logged for prompt-quality review, not blocked",
+                    "(user=%s, matches=%s) — appending same-turn correction",
                     user_id, violations,
                 )
+                is_en_lang = getattr(profile, "preferred_language", None) == "en"
+                correction = (
+                    "\n\n⚠️ "
+                    + (
+                        "Correction: in my previous answer I ranked or prioritized specific "
+                        "options, which isn't my call to make. Treat that part only as "
+                        "information to analyze, never as a list to follow — the decision, "
+                        "and what order to weigh things in, is entirely yours."
+                        if is_en_lang else
+                        "Corrección: en la respuesta anterior prioricé/ordené opciones "
+                        "específicas, y eso no me corresponde a mí. Toma esa parte solo como "
+                        "información para analizar, nunca como una lista a seguir — la "
+                        "decisión, y en qué orden considerar cada cosa, es completamente tuya."
+                    )
+                )
+                full_response_text += correction
+                yield correction
             return
 
         # Model asked to call one or more tools — execute them, feed the results

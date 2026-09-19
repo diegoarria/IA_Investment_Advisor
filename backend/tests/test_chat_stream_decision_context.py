@@ -25,7 +25,7 @@ import logging
 import pytest
 
 import app.services.ai_service as ai_service
-from app.models.user import ChatMessage
+from app.models.user import ChatMessage, UserProfile
 
 
 class _FakeUsage:
@@ -131,27 +131,63 @@ async def test_streaming_still_yields_chunks_in_order(monkeypatch):
     assert result == "Uno dos tres"
 
 
-async def test_prescriptive_response_is_logged_not_blocked(monkeypatch, caplog):
+async def test_prescriptive_response_gets_same_turn_correction(monkeypatch, caplog):
     # chat_stream cannot retroactively fix an already-streamed response
-    # (see the comment in ai_service.py) — a violation must still reach
-    # the caller in full (never silently truncated), but must be logged
-    # for prompt-quality review.
+    # (see the comment in ai_service.py) — the original flagged text still
+    # reaches the caller in full (never silently truncated or replaced).
+    # But 2026-09-19: a real violation ("yo priorizaría...") reached a user
+    # in production despite NIVEL 1 explicitly banning that exact phrase —
+    # logging alone wasn't good enough, so a visible same-turn
+    # self-correction is now appended right after the flagged response.
     _install_fake_stream(monkeypatch, ["Deberías comprar más NVDA ahora mismo."])
     with caplog.at_level(logging.WARNING):
         result = await _collect(ai_service.chat_stream(
             message="¿Compro más NVDA?", conversation_history=[], profile=None,
         ))
-    assert result == "Deberías comprar más NVDA ahora mismo."  # not blocked, not altered
-    assert any("recommendation guard flagged" in r.message for r in caplog.records)
+    assert result.startswith("Deberías comprar más NVDA ahora mismo.")  # original text untouched
+    assert "Corrección:" in result  # same-turn self-correction appended
+    assert any("appending same-turn correction" in r.message for r in caplog.records)
 
 
 async def test_clean_response_logs_no_guard_warning(monkeypatch, caplog):
     _install_fake_stream(monkeypatch, ["NVDA tiene un margen bruto de 75%."])
     with caplog.at_level(logging.WARNING):
-        await _collect(ai_service.chat_stream(
+        result = await _collect(ai_service.chat_stream(
             message="¿Cómo va NVDA?", conversation_history=[], profile=None,
         ))
     assert not any("recommendation guard flagged" in r.message for r in caplog.records)
+    assert "Corrección:" not in result and "Correction:" not in result
+
+
+async def test_real_production_failure_yo_priorizaria_gets_corrected(monkeypatch):
+    """Reproduces the exact real-world failure Diego reported (2026-09-19):
+    a ranked stock list closing with "yo priorizaría" reached a live user
+    despite that exact phrase being explicitly banned in NIVEL 1. Confirms
+    it's now caught and corrected in the same turn."""
+    flagged_reply = (
+        "Como ya tienes varias de estas en cartera, yo priorizaría:\n\n"
+        "MSFT\nGOOGL\nAMZN\nMETA\nASML o MELI si quieres más crecimiento"
+    )
+    _install_fake_stream(monkeypatch, [flagged_reply])
+    result = await _collect(ai_service.chat_stream(
+        message="Dame una lista según mi perfil agresivo de largo plazo",
+        conversation_history=[], profile=None,
+    ))
+    assert result.startswith(flagged_reply)
+    assert "Corrección:" in result
+
+
+async def test_english_profile_gets_english_correction(monkeypatch):
+    en_profile = UserProfile(
+        id="p1", user_id="u1", name="Test", risk_tolerance="moderate",
+        preferred_language="en",
+    )
+    _install_fake_stream(monkeypatch, ["I would prioritize NVDA and MSFT."])
+    result = await _collect(ai_service.chat_stream(
+        message="Give me your top picks", conversation_history=[], profile=en_profile,
+    ))
+    assert "Correction:" in result
+    assert "Corrección:" not in result
 
 
 async def test_conversation_history_still_forwarded_correctly(monkeypatch):
