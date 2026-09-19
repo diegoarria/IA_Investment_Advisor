@@ -1058,7 +1058,7 @@ Actúa como un analista financiero de clase mundial especializado en inversión 
 - Diferencia siempre, explícitamente, entre HECHOS verificables (datos reales inyectados), CONOCIMIENTO GENERAL tuyo (ej. quién es el CEO, segmentos aproximados, competidores — que puede estar desactualizado) y SUPUESTOS/estimaciones cualitativas tuyas. Nunca presentes conocimiento general o un supuesto como si fuera un dato en vivo verificado.
 - Si un dato no está disponible, dilo explícitamente — "no tengo ese dato disponible" es preferible a un número inventado.
 - Sé exhaustivo pero sin relleno: usa tablas y bullets compactos, evita párrafos largos innecesarios. Es un informe largo por naturaleza (20 secciones) — no lo hagas más largo de lo necesario, pero tampoco sacrifiques profundidad por brevedad.
-- **NUNCA digas "no tengo datos financieros actualizados", "no tengo acceso a información reciente" o cualquier variante de eso para justificar no hacer el análisis.** Nuvos AI tiene acceso a estados financieros reales vía FMP (Financial Modeling Prep) para prácticamente cualquier empresa que cotiza en EE.UU. — si el bloque **[ANÁLISIS FUNDAMENTAL CALCULADO]** está presente en el contexto, esos son datos reales y recientes: úsalos directamente, sin ninguna disculpa ni advertencia de que la información podría estar desactualizada. Solo si ese bloque genuinamente NO aparece en el contexto (la empresa no tiene suficiente historial financiero disponible, o no se detectó el ticker) puedes decir que no tienes esos datos específicos — nunca como excusa genérica.
+- **NUNCA digas "no tengo datos financieros actualizados", "no tengo acceso a información reciente", "no tengo los conocimientos", "no tengo el conocimiento suficiente" o cualquier variante de eso para justificar no hacer el análisis.** Diego, 2026-09-19: esto es tan grave como dar una recomendación — un usuario pidiendo los números de una empresa SIEMPRE debe poder obtenerlos de ti, sí o sí, mientras el dato exista en el contexto inyectado (que es prácticamente siempre para empresas que cotizan en EE.UU.). No confundas "no recomiendo" con "no respondo" — son cosas completamente distintas: no elegir por el usuario nunca es excusa para no mostrarle datos reales que sí tienes. Nuvos AI tiene acceso a estados financieros reales vía FMP (Financial Modeling Prep) para prácticamente cualquier empresa que cotiza en EE.UU. — si el bloque **[ANÁLISIS FUNDAMENTAL CALCULADO]** está presente en el contexto, esos son datos reales y recientes: úsalos directamente, sin ninguna disculpa ni advertencia de que la información podría estar desactualizada, y nunca digas que te falta "conocimiento" — el conocimiento financiero general (qué es un P/E, cómo leer un balance, etc.) lo tienes siempre, sin depender de ningún bloque de contexto. Solo si el bloque de datos genuinamente NO aparece en el contexto (la empresa no tiene suficiente historial financiero disponible, o no se detectó el ticker) puedes decir que no tienes esos datos específicos — nunca como excusa genérica, y nunca refiriéndote a falta de "conocimiento" en vez de falta de "datos para esta empresa en este momento".
 - El DCF y el valor intrínseco (secciones 14-16) son el diferenciador de Nuvos AI — cuando el bloque de datos reales incluya un DCF calculado, SIEMPRE preséntalo completo (no lo resumas en una frase, no lo omitas "para no hacerlo muy largo"). Es la parte más importante del análisis.
 - **Piensa en dos fases separadas, como lo haría Buffett — nunca las mezcles.** Fase 1 (secciones 1-13, "¿es un buen negocio?"): forma tu opinión sobre la calidad del negocio ANTES de mirar el precio — modelo de negocio, moat, financieros, management. Fase 2 (secciones 14-16, "¿a qué precio?"): solo ahí entra la valoración. Un error común es justificar cualquier precio porque el negocio es bueno ("es Apple, obvio vale la pena") — eso mezcla las dos fases. Una empresa puede ser un 9/10 en calidad y aun así no ser una buena oportunidad de compra si el precio ya descuenta demasiado optimismo; sé honesto con esa distinción en la Conclusión Final.
 
@@ -2049,6 +2049,39 @@ def _blind_recommendation_reply(message: str, conversation_history: list | None 
     )
     replies = _BLIND_RECOMMENDATION_REPLIES_EN if is_en else _BLIND_RECOMMENDATION_REPLIES_ES
     return random.choice(replies)
+
+
+# Diego, 2026-09-19 (fourth real-world report, same day): the blind-
+# recommendation intercept above deliberately steps aside the moment a
+# company IS named, on the assumption the normal analysis flow + the
+# same-turn correction (further down) would keep it honest — but the
+# same-turn correction only APPENDS a note after the violation was
+# already streamed live to the user, and regex coverage of every possible
+# recommendation phrasing is never complete. For messages that both name
+# a company AND ask for an opinion/verdict on it (not just "show me the
+# numbers"), that combination is exactly where a slipped-through
+# recommendation is most likely and most damaging — so for THIS narrower
+# case, chat_stream buffers the full response instead of live-streaming
+# it, and deterministically strips any violation (strip_prescriptive_
+# sentences, already used as simulate_whatif's own last-resort) BEFORE
+# the user ever sees it, rather than correcting after the fact.
+_OPINION_SEEKING_RE = re.compile(
+    r"me lo recomiendas|me la recomiendas|deber[ií]a\s+(comprar|vender|invertir|entrar)|"
+    r"vale la pena\s+(comprarl[oa]|invertir)|es buena inversi[oó]n|es un buena compra|"
+    r"qu[eé]\s+opinas|crees que deber[ií]a|"
+    r"tienes\s+(alguna\s+)?recomendaci[oó]n(es)?\s+(sobre|de|para)|"
+    r"es momento de (comprar|vender)|me conviene (comprar|invertir)|"
+    r"should i\s+(buy|sell|invest)|is it a good\s+(investment|buy)|"
+    r"what do you think (of|about)|do you think i should|worth\s+(buying|investing)",
+    re.IGNORECASE,
+)
+
+
+def _needs_buffered_verification(message: str) -> bool:
+    if not message or not _OPINION_SEEKING_RE.search(message):
+        return False
+    from app.services.market_data_service import detect_tickers
+    return bool(detect_tickers(message))
 
 
 ACTION_TAG_INSTRUCTIONS = """
@@ -3095,6 +3128,11 @@ async def chat_stream(
     user_id    = getattr(profile, "user_id", None) if profile else None
 
     full_response_text = ""
+    # See _needs_buffered_verification's comment — messages that both name
+    # a company AND ask for an opinion/verdict on it get verified BEFORE
+    # display instead of corrected after. Every other message keeps
+    # streaming live, unaffected.
+    buffered_mode = _needs_buffered_verification(message)
     for _round in range(_MAX_TOOL_ROUNDS):
         # Calls the client directly (not _claude()) since this streams —
         # check the breaker manually before each round (2026-08-21 audit:
@@ -3116,18 +3154,35 @@ async def chat_stream(
         ) as stream:
             async for text in stream.text_stream:
                 full_response_text += text
-                yield text
+                if not buffered_mode:
+                    yield text
             final = await stream.get_final_message()
 
         # Fire-and-forget — never blocks the stream, never raises into it.
         asyncio.create_task(log_llm_usage(user_id, "chat_stream", model, final.usage))
 
         if final.stop_reason != "tool_use":
-            # Recommendation Guard. Can't retroactively fix a live stream —
+            violations = check_recommendation_guard(full_response_text)
+            if buffered_mode:
+                # Verified BEFORE display — nothing has reached the user
+                # yet (see buffered_mode/_needs_buffered_verification
+                # above), so a violation here is stripped deterministically
+                # (strip_prescriptive_sentences — same last-resort already
+                # used by simulate_whatif) and the user only ever sees the
+                # clean version, never the original flagged text.
+                if violations:
+                    _log.warning(
+                        "chat_stream: recommendation guard flagged prescriptive language in "
+                        "buffered/opinion-seeking mode (user=%s, matches=%s) — stripped before display",
+                        user_id, violations,
+                    )
+                    full_response_text = strip_prescriptive_sentences(full_response_text)
+                yield full_response_text
+                return
+
+            # Non-buffered path: can't retroactively fix a live stream —
             # the tokens are already in the user's hands by the time
-            # `full_response_text` is complete, and buffering the whole
-            # response first to block it would double perceived latency on
-            # the highest-volume path in the app. But a real violation
+            # `full_response_text` is complete. But a real violation
             # slipping through the prompt-level guardrails is a real
             # failure (confirmed in production, 2026-09-19 — "yo
             # priorizaría" reached a user despite NIVEL 1 explicitly
@@ -3136,7 +3191,6 @@ async def chat_stream(
             # self-correction right after the flagged response, so the
             # user sees the fix immediately instead of it only showing up
             # in a log nobody reads in real time.
-            violations = check_recommendation_guard(full_response_text)
             if violations:
                 _log.warning(
                     "chat_stream: recommendation guard flagged prescriptive language "

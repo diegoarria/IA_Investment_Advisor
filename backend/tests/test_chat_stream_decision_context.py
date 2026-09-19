@@ -297,6 +297,49 @@ async def test_english_profile_gets_english_correction(monkeypatch):
     assert "Corrección:" not in result
 
 
+async def test_opinion_about_named_company_is_verified_before_display(monkeypatch):
+    """Fourth real production failure report, same day (2026-09-19): a
+    named-company opinion question ("¿me lo recomiendas?", "¿debería
+    comprar X?") relied only on the after-the-fact correction, which
+    still shows the original flagged text to the user before the note.
+    For this narrower, highest-risk combination (opinion-seeking language
+    + a named ticker), the response is now buffered and verified BEFORE
+    ever reaching the user — a violation is stripped, never just noted."""
+    flagged_reply = (
+        "NVDA tiene un ROIC excelente y un moat fuerte en chips de IA. "
+        "Deberías comprar NVDA ahora mismo. El resto del negocio también luce sólido."
+    )
+    _install_fake_stream(monkeypatch, [flagged_reply])
+    result = await _collect(ai_service.chat_stream(
+        message="¿Debería comprar NVDA?", conversation_history=[], profile=None,
+    ))
+    assert "Deberías comprar NVDA" not in result  # never reached the user
+    assert "ROIC excelente" in result  # legitimate analysis sentence preserved
+    assert "resto del negocio también luce sólido" in result
+
+
+async def test_opinion_about_named_company_streams_live_when_clean(monkeypatch):
+    """Buffered mode must not alter a genuinely clean response — it's
+    still yielded in full (just not token-by-token), never modified."""
+    clean_reply = "NVDA tiene un ROIC de 45% y margen operativo de 60%. Los datos hablan por sí solos."
+    _install_fake_stream(monkeypatch, [clean_reply])
+    result = await _collect(ai_service.chat_stream(
+        message="¿Debería comprar NVDA?", conversation_history=[], profile=None,
+    ))
+    assert result == clean_reply
+
+
+async def test_pure_fundamentals_request_still_streams_live_not_buffered(monkeypatch):
+    """A plain numbers/fundamentals request about a named company (no
+    opinion-seeking language) must NOT go through buffered verification —
+    it should stream normally like any other message."""
+    _install_fake_stream(monkeypatch, ["TSLA", " tiene", " un P/E de 45x."])
+    result = await _collect(ai_service.chat_stream(
+        message="dame los números de Tesla", conversation_history=[], profile=None,
+    ))
+    assert result == "TSLA tiene un P/E de 45x."
+
+
 async def test_conversation_history_still_forwarded_correctly(monkeypatch):
     _install_fake_stream(monkeypatch, ["ok"])
     history = [ChatMessage(role="user", content="hola"), ChatMessage(role="assistant", content="hola, ¿en qué ayudo?")]
