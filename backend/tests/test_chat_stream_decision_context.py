@@ -159,6 +159,54 @@ async def test_clean_response_logs_no_guard_warning(monkeypatch, caplog):
     assert "Corrección:" not in result and "Correction:" not in result
 
 
+async def test_blind_recommendation_request_never_reaches_the_model(monkeypatch):
+    """Second real production failure, same day (2026-09-19): Diego asked
+    Arthur literally "me das una recomendación de donde invertir?" and got
+    a ranked stock list with per-ticker rationale and an offer to propose
+    "una distribución exacta" — NIVEL 0's scripted redirect never fired.
+    For this exact, high-stakes, very common trigger, chat_stream now
+    answers deterministically from code without ever calling the model —
+    confirmed here by never installing a fake stream at all, so if the
+    code took the LLM path this test would error on a missing mock."""
+    result = await _collect(ai_service.chat_stream(
+        message="me das una recomendación de donde invertir?",
+        conversation_history=[], profile=None,
+    ))
+    assert result  # got the deterministic redirect, not an error
+    assert "MSFT" not in result and "GOOGL" not in result and "NVDA" not in result
+    assert "elegir por ti" in result.lower() or "picking for you" in result.lower()
+
+
+async def test_blind_recommendation_variants_all_intercepted(monkeypatch):
+    from app.services.ai_service import _blind_recommendation_reply
+    variants = [
+        "¿Qué me recomiendas comprar?", "Dame una recomendación",
+        "¿En qué debería invertir?", "Dame tu top 5", "Hazme un portafolio",
+        "¿Qué harías con $10,000?", "What do you recommend I buy?",
+        "Give me your top picks", "Recomiéndame un buen ETF para empezar",
+    ]
+    for text in variants:
+        assert _blind_recommendation_reply(text) is not None, f"should intercept: {text!r}"
+
+
+async def test_named_company_request_still_goes_to_the_model(monkeypatch):
+    """The NIVEL 0 'special case' (a specific company IS named) must keep
+    going through the normal deep-dive flow, not the blind-recommendation
+    redirect — confirmed here since a fake stream IS required for this one."""
+    _install_fake_stream(monkeypatch, ["Aquí está el análisis de Tesla..."])
+    result = await _collect(ai_service.chat_stream(
+        message="¿Me recomiendas Tesla?", conversation_history=[], profile=None,
+    ))
+    assert result == "Aquí está el análisis de Tesla..."
+
+
+async def test_unrelated_recomiendame_request_not_intercepted(monkeypatch):
+    """A non-financial 'recomiéndame' (e.g. a book) must not get the
+    investment redirect."""
+    from app.services.ai_service import _blind_recommendation_reply
+    assert _blind_recommendation_reply("Recomiéndame un libro de finanzas") is None
+
+
 async def test_real_production_failure_yo_priorizaria_gets_corrected(monkeypatch):
     """Reproduces the exact real-world failure Diego reported (2026-09-19):
     a ranked stock list closing with "yo priorizaría" reached a live user
@@ -184,7 +232,7 @@ async def test_english_profile_gets_english_correction(monkeypatch):
     )
     _install_fake_stream(monkeypatch, ["I would prioritize NVDA and MSFT."])
     result = await _collect(ai_service.chat_stream(
-        message="Give me your top picks", conversation_history=[], profile=en_profile,
+        message="How is NVDA doing this week?", conversation_history=[], profile=en_profile,
     ))
     assert "Correction:" in result
     assert "Corrección:" not in result

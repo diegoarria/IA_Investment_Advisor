@@ -1951,6 +1951,84 @@ def is_blatant_injection_attempt(text: str | None) -> bool:
     return bool(_INJECTION_RE.search(text))
 
 
+# Diego, 2026-09-19 — real production failures (twice, same day): a user
+# asked a blind "recomiéndame dónde invertir"-style question and the model
+# answered with a ranked stock list + "yo priorizaría..." despite NIVEL 0
+# explicitly scripting the required redirect behavior for exactly this
+# case. Prompt instructions alone proved insufficient for this specific,
+# extremely common, highest-stakes trigger — so for THIS narrow case only,
+# skip the model entirely and answer deterministically from code. Every
+# other kind of message still goes through the normal LLM flow untouched.
+_BLIND_RECOMMENDATION_RE = re.compile(
+    r"(me (das|puedes dar)\s+(una\s+)?recomendaci[oó]n|d[aá]me\s+(una\s+)?recomendaci[oó]n|"
+    r"recomi[eé]ndame(?!\s+(un\s+)?(libro|pel[ií]cula|restaurante|canci[oó]n|serie))|"
+    r"qu[eé]\s+me\s+recomiendas|recomiendas\s+(comprar|invertir)|"
+    r"d[oó]nde\s+(invierto|pondr[ií]as)\s+mi\s+dinero|"
+    r"en\s+qu[eé]\s+(deber[ií]a\s+)?invert(ir|ir[ií]a)\b|"
+    r"qu[eé]\s+(compro|comprar[ií]as|acci[oó]n\s+(compro|est[aá]\s+buena))|"
+    r"dame\s+tu\s+top\s*\d*|h[aá]zme\s+un\s+portafolio|c[uú]al\s+elegir[ií]as|"
+    r"qu[eé]\s+har[ií]as\s+con\s+\$?\d|"
+    r"what\s+(do\s+you\s+recommend|would\s+you\s+(buy|invest)|should\s+i\s+invest)|"
+    r"recommend\s+(me\s+)?(a\s+)?stock|give\s+me\s+your\s+top|"
+    r"build\s+me\s+a\s+portfolio|which\s+(one\s+)?would\s+you\s+choose)",
+    re.IGNORECASE,
+)
+
+_BLIND_RECOMMENDATION_REPLIES_ES = [
+    (
+        "No voy a elegir por ti — pero sí puedo ayudarte a construir y comparar un universo "
+        "de empresas con criterios objetivos: crecimiento, márgenes, ROIC, flujo de caja, "
+        "deuda, ventaja competitiva, calidad del management, valoración, y qué está "
+        "descontando el precio actual. Con eso vemos qué tendría que ser cierto para que la "
+        "tesis de cada una funcione, y qué la invalidaría.\n\n"
+        "¿Empezamos con algo que ya tengas en tu radar, o prefieres que armemos la lista desde cero?"
+    ),
+    (
+        "Elegir por ti no te ayuda tanto como que veas los mismos criterios que yo vería — "
+        "crecimiento, márgenes, ROIC, deuda, moat, valoración, riesgos. Puedo analizar varias "
+        "empresas bajo esos criterios y comparar qué tendría que pasar para que cada tesis "
+        "tenga sentido.\n\n"
+        "¿Tienes algún ticker en mente para arrancar, o vemos primero lo que ya tienes en tu portafolio/watchlist?"
+    ),
+]
+_BLIND_RECOMMENDATION_REPLIES_EN = [
+    (
+        "I'm not going to pick for you — but I can help you build and compare a universe of "
+        "companies using objective criteria: growth, margins, ROIC, free cash flow, debt, "
+        "competitive advantage, management quality, valuation, and what the current price is "
+        "already pricing in. From there we can see what would have to be true for each "
+        "thesis to hold up, and what would break it.\n\n"
+        "Want to start with something already on your radar, or should we build the list from scratch?"
+    ),
+    (
+        "Picking for you wouldn't serve you as well as seeing the same criteria I'd actually "
+        "look at — growth, margins, ROIC, debt, moat, valuation, risks. I can run several "
+        "companies through that and compare what each thesis depends on.\n\n"
+        "Got a ticker in mind to start, or should we look at what's already in your portfolio/watchlist first?"
+    ),
+]
+
+
+def _blind_recommendation_reply(message: str) -> str | None:
+    """Returns a deterministic redirect if `message` is an open request for
+    a pick with NO specific company named (NIVEL 0's primary case) — the
+    "special case" where a company IS named still goes through the normal
+    model flow (deep-dive analysis of that company), unaffected. Returns
+    None for anything else, so a miss here just falls through to the
+    model, same fail-open posture as is_blatant_injection_attempt."""
+    if not message or not _BLIND_RECOMMENDATION_RE.search(message):
+        return None
+    from app.services.market_data_service import detect_tickers
+    if detect_tickers(message):
+        return None  # a specific company was named — let the normal flow handle it
+    import random
+    is_en = bool(re.search(r"[a-zA-Z]", message)) and not re.search(r"[áéíóúñ¿¡]", message, re.IGNORECASE) and re.search(
+        r"\b(what|would|recommend|give|build|which)\b", message, re.IGNORECASE
+    )
+    replies = _BLIND_RECOMMENDATION_REPLIES_EN if is_en else _BLIND_RECOMMENDATION_REPLIES_ES
+    return random.choice(replies)
+
+
 ACTION_TAG_INSTRUCTIONS = """
 
 ## ACCIONES SUGERIDAS (OBLIGATORIO)
@@ -2864,6 +2942,14 @@ async def chat_stream(
 ):
     if is_blatant_injection_attempt(message):
         yield _REFUSAL_MESSAGE
+        return
+
+    blind_reco_reply = _blind_recommendation_reply(message)
+    if blind_reco_reply is not None:
+        # Deterministic — never reaches the model for this turn (see
+        # _blind_recommendation_reply's docstring for why). Also means
+        # zero LLM cost for this message.
+        yield blind_reco_reply
         return
 
     # Static part cached by Anthropic (base + profile + mentor + guardrails).
