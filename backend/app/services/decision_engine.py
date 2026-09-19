@@ -424,6 +424,17 @@ def _safe_float(value) -> Optional[float]:
 # infinitives (comprar, vender, invertir), which is what keeps this from
 # false-positiving on ordinary descriptive analysis.
 _RECOMMENDATION_PATTERNS = [
+    # Diego, 2026-09-19: blanket word-stem ban — "recomendación",
+    # "recomendaciones", "recomiendo", "recomendar", "recomendaría",
+    # "recomendado", etc. are banned from Arthur's chat vocabulary
+    # entirely, in ANY context (even a disclaimer like "esto no es una
+    # recomendación" — say it without that word instead). Deliberately
+    # NOT banning bare "consejo" the same way — "consejo de
+    # administración"/"consejo directivo" (board of directors) is common,
+    # unrelated financial vocabulary that would false-positive constantly;
+    # "te aconsejo" (the verb form actually used to give advice) is
+    # already covered below.
+    r"\brecomend\w*\b", r"\brecommend\w*\b",
     # Spanish — direct prescriptive verbs/phrases
     r"deber[ií]as?\s+(comprar|vender|invertir|elegir|escoger|meter|poner|hacer|optar|quedarte|renunciar|lanzar)",
     r"te recomiendo\b", r"mi recomendaci[oó]n\b", r"lo mejor (para ti|es)\b",
@@ -507,4 +518,4 @@ def strip_prescriptive_sentences(text: str) -> str:
     sentences = re.split(r"(?<=[.!?])\s+", text)
     kept = [s for s in sentences if not check_recommendation_guard(s)]
     result = " ".join(kept).strip()
-    return result or "No puedo convertir esto en una recomendación personalizada — la decisión final es tuya."
+    return result or "No voy a elegir por ti — la decisión final es tuya."

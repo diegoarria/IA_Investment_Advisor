@@ -196,17 +196,33 @@ def test_guard_catches_verdict_and_personalized_allocation_phrasing():
     assert check_recommendation_guard("For your profile, allocate 10% to NU.")
 
 
-def test_guard_does_not_flag_the_standard_disclaimer_or_generic_allocation_education():
-    """The app's own standard non-advisory disclaimer, and generic
-    (non-personalized) educational text about asset allocation, must never
-    be swept up by the tightened patterns above."""
-    assert not check_recommendation_guard(
-        "Esto no es una recomendación de compra o venta — la decisión final siempre es tuya."
-    )
-    assert not check_recommendation_guard("This is not a recommendation to buy or sell.")
+def test_guard_does_not_flag_generic_allocation_education_or_board_of_directors():
+    """Generic (non-personalized) educational text about asset allocation
+    must never be swept up by the tightened patterns above. Also confirms
+    "consejo" (board of directors — "consejo de administración"/"consejo
+    directivo") is deliberately NOT banned the same way "recomendación" is,
+    since that's common, unrelated financial vocabulary."""
     assert not check_recommendation_guard(
         "Una cartera balanceada típica asigna 60% a acciones y 40% a bonos."
     )
+    assert not check_recommendation_guard("El consejo de administración aprobó el dividendo.")
+
+
+def test_guard_bans_the_word_recomendacion_even_in_a_disclaimer():
+    """Diego, 2026-09-19: 'recomendación'/'recomendaciones'/'recomiendo'/
+    synonyms are banned from Arthur's chat vocabulary in ANY context — even
+    the app's own former standard disclaimer phrasing, which used the word
+    to say it WASN'T giving one. That phrasing is retired in favor of not
+    using the word at all (e.g. 'la decisión final siempre es tuya' alone)."""
+    assert check_recommendation_guard(
+        "Esto no es una recomendación de compra o venta — la decisión final siempre es tuya."
+    )
+    assert check_recommendation_guard("This is not a recommendation to buy or sell.")
+    assert check_recommendation_guard("No suelo dar recomendaciones, pero en este caso...")
+    assert check_recommendation_guard("I don't usually give recommendations, but...")
+    # The word-free alternative must stay clean.
+    assert not check_recommendation_guard("La decisión final siempre es tuya.")
+    assert not check_recommendation_guard("No elijo por ti — la decisión es tuya.")
 
 
 def test_guard_catches_favorite_pick_and_bet_phrasing_without_the_word_recommendation():
