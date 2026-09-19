@@ -413,3 +413,218 @@ async def test_db_write_failure_never_reports_false_success(fake_db, monkeypatch
     }, user_id="u1")
     assert "Aplicado" not in confirm
     assert "no fue modificad" in confirm.lower() or "no pude actualizar" in confirm.lower()
+
+
+# ──────────────────────────────────────────────────────────────
+# get_portfolio_transactions / update_portfolio_transaction /
+# delete_portfolio_transaction — the natural-language correction/deletion
+# capability layered on top of the BUY/SELL flow above. Same propose->confirm
+# pattern, same fake DB fixture, same "never fabricate success" discipline.
+# ──────────────────────────────────────────────────────────────
+
+async def test_get_portfolio_transactions_lists_lots_and_flags_uncorrectable_ones(fake_db):
+    """The seeded GOOGL lot predates this feature (no `id`) — it must still
+    show up so the user isn't confused about where it went, but flagged as
+    not correctable/deletable rather than silently given a fake id."""
+    result = await ai_service._exec_mentor_tool("get_portfolio_transactions", {}, user_id="u1")
+    assert "GOOGL" in result
+    assert "sin-id" in result  # the seeded lot has no id — must say so, never invent one
+
+
+async def test_get_portfolio_transactions_new_lot_has_a_real_correctable_id(fake_db):
+    propose = await ai_service._exec_mentor_tool("propose_portfolio_transaction", {
+        "action_type": "BUY_ASSET", "ticker": "NVDA", "quantity": 10, "execution_price": 178.50,
+        "raw_message": "Acabo de comprar 10 NVDA a 178.50",
+    }, user_id="u1")
+    pending_id = _pending_id(propose)
+    await ai_service._exec_mentor_tool("confirm_pending_financial_action", {
+        "pending_id": pending_id, "confirmed": True,
+    }, user_id="u1")
+
+    result = await ai_service._exec_mentor_tool("get_portfolio_transactions", {"ticker": "NVDA"}, user_id="u1")
+    assert "NVDA" in result
+    assert "sin-id" not in result
+    lot = fake_db["user_portfolio"][("u1", "default")]["positions"]["positions"][-1]
+    assert lot["id"] in result
+
+
+async def test_update_transaction_without_id_asks_instead_of_guessing(fake_db):
+    result = await ai_service._exec_mentor_tool("update_portfolio_transaction", {
+        "shares": 15,
+    }, user_id="u1")
+    assert "PENDING_ID" not in result
+    assert "id" in result.lower()
+
+
+async def test_update_transaction_unknown_id_never_fabricates_success(fake_db):
+    """§ security: a transaction_id that doesn't exist in this user's own
+    portfolio (typo'd, stale, or someone else's) must be refused, not
+    silently applied to whatever it happens to match."""
+    result = await ai_service._exec_mentor_tool("update_portfolio_transaction", {
+        "transaction_id": "does-not-exist", "shares": 15,
+    }, user_id="u1")
+    assert "PENDING_ID" not in result
+    assert "no encontré" in result.lower()
+
+
+async def test_update_transaction_corrects_shares_end_to_end(fake_db):
+    """Spec example: 'me equivoqué, compré 15 NVDA no 10'."""
+    propose_buy = await ai_service._exec_mentor_tool("propose_portfolio_transaction", {
+        "action_type": "BUY_ASSET", "ticker": "NVDA", "quantity": 10, "execution_price": 178.50,
+        "raw_message": "Acabo de comprar 10 NVDA a 178.50",
+    }, user_id="u1")
+    await ai_service._exec_mentor_tool("confirm_pending_financial_action", {
+        "pending_id": _pending_id(propose_buy), "confirmed": True,
+    }, user_id="u1")
+    lot_id = fake_db["user_portfolio"][("u1", "default")]["positions"]["positions"][-1]["id"]
+
+    propose_fix = await ai_service._exec_mentor_tool("update_portfolio_transaction", {
+        "transaction_id": lot_id, "shares": 15,
+        "raw_message": "Me equivoqué, compré 15 NVDA no 10.",
+    }, user_id="u1")
+    assert "PENDING_ID" in propose_fix
+    assert "15" in propose_fix
+
+    confirm_fix = await ai_service._exec_mentor_tool("confirm_pending_financial_action", {
+        "pending_id": _pending_id(propose_fix), "confirmed": True,
+    }, user_id="u1")
+    assert "Aplicado" in confirm_fix
+
+    lot = next(p for p in fake_db["user_portfolio"][("u1", "default")]["positions"]["positions"] if p.get("id") == lot_id)
+    assert lot["shares"] == 15
+    assert lot["avgPrice"] == 178.50  # unchanged — only shares was corrected
+
+
+async def test_update_transaction_price_only_leaves_shares_untouched(fake_db):
+    propose_buy = await ai_service._exec_mentor_tool("propose_portfolio_transaction", {
+        "action_type": "BUY_ASSET", "ticker": "AMZN", "quantity": 5, "execution_price": 225,
+        "raw_message": "Compré 5 AMZN a 225",
+    }, user_id="u1")
+    await ai_service._exec_mentor_tool("confirm_pending_financial_action", {
+        "pending_id": _pending_id(propose_buy), "confirmed": True,
+    }, user_id="u1")
+    lot_id = fake_db["user_portfolio"][("u1", "default")]["positions"]["positions"][-1]["id"]
+
+    propose_fix = await ai_service._exec_mentor_tool("update_portfolio_transaction", {
+        "transaction_id": lot_id, "price": 230,
+        "raw_message": "El precio correcto era 230.",
+    }, user_id="u1")
+    await ai_service._exec_mentor_tool("confirm_pending_financial_action", {
+        "pending_id": _pending_id(propose_fix), "confirmed": True,
+    }, user_id="u1")
+
+    lot = next(p for p in fake_db["user_portfolio"][("u1", "default")]["positions"]["positions"] if p.get("id") == lot_id)
+    assert lot["shares"] == 5
+    assert lot["avgPrice"] == 230
+
+
+async def test_update_transaction_rejects_zero_or_negative_shares(fake_db):
+    propose_buy = await ai_service._exec_mentor_tool("propose_portfolio_transaction", {
+        "action_type": "BUY_ASSET", "ticker": "AAPL", "quantity": 5, "execution_price": 220,
+        "raw_message": "Compré 5 AAPL a 220",
+    }, user_id="u1")
+    await ai_service._exec_mentor_tool("confirm_pending_financial_action", {
+        "pending_id": _pending_id(propose_buy), "confirmed": True,
+    }, user_id="u1")
+    lot_id = fake_db["user_portfolio"][("u1", "default")]["positions"]["positions"][-1]["id"]
+
+    result = await ai_service._exec_mentor_tool("update_portfolio_transaction", {
+        "transaction_id": lot_id, "shares": -5,
+    }, user_id="u1")
+    assert "PENDING_ID" not in result
+
+
+async def test_delete_transaction_without_id_asks_instead_of_guessing(fake_db):
+    result = await ai_service._exec_mentor_tool("delete_portfolio_transaction", {}, user_id="u1")
+    assert "PENDING_ID" not in result
+    assert "id" in result.lower()
+
+
+async def test_delete_transaction_end_to_end_removes_the_lot(fake_db):
+    """Spec example: 'borra la compra que acabo de registrar'."""
+    propose_buy = await ai_service._exec_mentor_tool("propose_portfolio_transaction", {
+        "action_type": "BUY_ASSET", "ticker": "COST", "quantity": 3, "execution_price": 900,
+        "raw_message": "Compré 3 COST a 900",
+    }, user_id="u1")
+    await ai_service._exec_mentor_tool("confirm_pending_financial_action", {
+        "pending_id": _pending_id(propose_buy), "confirmed": True,
+    }, user_id="u1")
+    lot_id = fake_db["user_portfolio"][("u1", "default")]["positions"]["positions"][-1]["id"]
+    count_before = len(fake_db["user_portfolio"][("u1", "default")]["positions"]["positions"])
+
+    propose_delete = await ai_service._exec_mentor_tool("delete_portfolio_transaction", {
+        "transaction_id": lot_id, "raw_message": "Borra la compra de COST que acabo de registrar.",
+    }, user_id="u1")
+    assert "PENDING_ID" in propose_delete
+    assert "COST" in propose_delete
+
+    confirm_delete = await ai_service._exec_mentor_tool("confirm_pending_financial_action", {
+        "pending_id": _pending_id(propose_delete), "confirmed": True,
+    }, user_id="u1")
+    assert "Aplicado" in confirm_delete
+
+    positions_after = fake_db["user_portfolio"][("u1", "default")]["positions"]["positions"]
+    assert len(positions_after) == count_before - 1
+    assert all(p.get("id") != lot_id for p in positions_after)
+
+
+async def test_delete_transaction_unknown_id_never_fabricates_success(fake_db):
+    result = await ai_service._exec_mentor_tool("delete_portfolio_transaction", {
+        "transaction_id": "does-not-exist",
+    }, user_id="u1")
+    assert "PENDING_ID" not in result
+    assert "no encontré" in result.lower()
+
+
+async def test_update_transaction_cannot_target_another_users_lot(fake_db):
+    """§ security/IDOR: a real lot id that belongs to a DIFFERENT user must
+    never be reachable through user u1's session, even if u1 somehow gets
+    hold of that id (e.g. guessed, leaked, or a stale client cache)."""
+    fake_db["user_portfolio"][("u2", "default")] = {
+        "user_id": "u2", "portfolio_id": "default", "portfolio_name": "Otro portafolio",
+        "positions": {
+            "_v": 3, "currency": "USD",
+            "positions": [{"id": "victim-lot", "ticker": "TSLA", "shares": 1.0, "avgPrice": 200.0, "purchaseDate": "2026-01-01"}],
+            "closed_positions": [], "inception_date": "2026-01-01",
+        },
+        "updated_at": "2026-09-18T00:00:00+00:00",
+    }
+
+    result = await ai_service._exec_mentor_tool("update_portfolio_transaction", {
+        "transaction_id": "victim-lot", "shares": 999,
+    }, user_id="u1")
+    assert "PENDING_ID" not in result
+    assert "no encontré" in result.lower()
+
+    victim_positions = fake_db["user_portfolio"][("u2", "default")]["positions"]["positions"]
+    assert victim_positions[0]["shares"] == 1.0  # untouched
+
+
+async def test_delete_transaction_double_confirm_is_idempotent(fake_db):
+    """§ double execution: confirming the same delete PENDING_ID twice must
+    not error out or double-delete — the second confirm just finds no more
+    pending row to apply."""
+    propose_buy = await ai_service._exec_mentor_tool("propose_portfolio_transaction", {
+        "action_type": "BUY_ASSET", "ticker": "MSFT", "quantity": 2, "execution_price": 400,
+        "raw_message": "Compré 2 MSFT a 400",
+    }, user_id="u1")
+    await ai_service._exec_mentor_tool("confirm_pending_financial_action", {
+        "pending_id": _pending_id(propose_buy), "confirmed": True,
+    }, user_id="u1")
+    lot_id = fake_db["user_portfolio"][("u1", "default")]["positions"]["positions"][-1]["id"]
+
+    propose_delete = await ai_service._exec_mentor_tool("delete_portfolio_transaction", {
+        "transaction_id": lot_id,
+    }, user_id="u1")
+    pending_id = _pending_id(propose_delete)
+
+    first = await ai_service._exec_mentor_tool("confirm_pending_financial_action", {
+        "pending_id": pending_id, "confirmed": True,
+    }, user_id="u1")
+    assert "Aplicado" in first
+
+    second = await ai_service._exec_mentor_tool("confirm_pending_financial_action", {
+        "pending_id": pending_id, "confirmed": True,
+    }, user_id="u1")
+    assert "Aplicado" not in second
+    assert "no encontré" in second.lower()

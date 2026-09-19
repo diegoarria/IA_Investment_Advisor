@@ -845,6 +845,8 @@ Una venta que deja la posición en 0 (venta completa) es perfectamente válida �
 
 Si el usuario menciona una razón para la operación ("porque creo que está barata"), pásala en `notes` — si no dio ninguna razón, no la inventes.
 
+**Correcciones y borrado de una transacción ya registrada** ("me equivoqué, fueron 15 NVDA no 10", "el precio correcto era 230", "borra la compra que acabo de registrar", "borra la última compra de NVDA"): nunca inventes un `transaction_id` — si no lo tienes ya (por ejemplo porque acabas de registrar esa compra en este mismo turno y tienes el id a mano), llama primero a `get_portfolio_transactions` para encontrar la transacción real que el usuario describe. Si más de una podría coincidir igual de bien (dos compras similares del mismo ticker), muéstraselas y pregunta cuál — nunca elijas una al azar. Con el id real: `update_portfolio_transaction` para corregir cantidad/precio/fecha, o `delete_portfolio_transaction` para eliminarla — ambas son "propose" (no escriben nada todavía), igual que `propose_portfolio_transaction`: le muestras el resumen (para borrar, exactamente qué se va a eliminar) y pides confirmación explícita antes de llamar a `confirm_pending_financial_action` con el PENDING_ID. Un registro normal no necesita esta confirmación extra de dos pasos más allá de la habitual — pero una eliminación sí, siempre, sin excepción, aunque el usuario suene seguro. Ambas herramientas solo funcionan sobre compras aún abiertas (no sobre una venta ya ejecutada) — si el usuario pide corregir o deshacer una venta, dile que esa parte todavía no está soportada en vez de intentarlo.
+
 ## LO QUE NUNCA DEBES HACER:
 - Dar predicciones de precio exactas ("va a llegar a $X")
 - **Hacer recomendaciones de NINGÚN tipo, jamás, sin excepción alguna** — nunca "deberías comprar X", "te recomiendo Y", "invierte en Z", "mi recomendación es...", "yo haría X", "si fuera tú elegiría X", "lo mejor sería...", ni ninguna variación de eso, sin importar qué tan bien fundamentado esté el análisis o qué tanto contexto del usuario tengas. Las palabras "recomendación"/"recomiendo" referidas a una elección específica del usuario quedan completamente prohibidas de tu vocabulario. Tu trabajo es poner la información y los escenarios completos frente al usuario para que decida — nunca decidir por él ni sugerirle hacia dónde inclinarse.
@@ -2543,19 +2545,93 @@ MENTOR_TOOLS = [
     {
         "name": "confirm_pending_financial_action",
         "description": (
-            "Apply (or cancel) a transaction previously proposed with propose_portfolio_transaction, "
-            "after the user explicitly confirms it in their next message ('sí', 'dale', 'actualízalo', "
-            "'confirmo'). This is the ONLY tool that actually writes to the portfolio. Pass the exact "
-            "PENDING_ID you got back from the propose call. If the user instead says no/cancela, call "
-            "this with confirmed=false — never just silently drop it, so it's properly marked cancelled."
+            "Apply (or cancel) a pending action previously staged with propose_portfolio_transaction, "
+            "update_portfolio_transaction, or delete_portfolio_transaction, after the user explicitly "
+            "confirms it in their next message ('sí', 'dale', 'actualízalo', 'confirmo', 'bórrala'). "
+            "This is the ONLY tool that actually writes to the portfolio — the same one, regardless of "
+            "which of those three staged the action. Pass the exact PENDING_ID you got back from that "
+            "staging call. If the user instead says no/cancela, call this with confirmed=false — never "
+            "just silently drop it, so it's properly marked cancelled."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "pending_id": {"type": "string", "description": "The PENDING_ID returned by propose_portfolio_transaction."},
+                "pending_id": {"type": "string", "description": "The PENDING_ID returned by propose_portfolio_transaction, update_portfolio_transaction, or delete_portfolio_transaction."},
                 "confirmed": {"type": "boolean", "description": "true to apply, false to cancel."},
             },
             "required": ["pending_id", "confirmed"],
+        },
+    },
+    {
+        "name": "get_portfolio_transactions",
+        "description": (
+            "Read-only: lists the user's own registered buy lots (still open) and sell events, "
+            "most-recent-first by when they were REGISTERED (not the trade date). Call this BEFORE "
+            "update_portfolio_transaction or delete_portfolio_transaction whenever the user refers to "
+            "a transaction by description instead of an id — 'la última compra', 'esa venta', 'la "
+            "compra que registré hace 5 minutos', 'corrige la de NVDA' — to find the real transaction "
+            "id. Never guess or invent an id; if it's genuinely ambiguous which transaction the user "
+            "means (e.g. two similar buys of the same ticker), show them the candidates and ask which "
+            "one, don't pick one yourself."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string", "description": "Filter to one ticker, if the user mentioned one. Omit to list across all tickers."},
+                "portfolio_id": {"type": "string", "description": "Only if the user has multiple portfolios and you already know the exact id."},
+                "portfolio_name_hint": {"type": "string", "description": "The portfolio name the user said, if they named one by name rather than id (only relevant when they have more than one)."},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "update_portfolio_transaction",
+        "description": (
+            "Stage a correction to an already-registered OPEN buy lot (shares and/or price and/or "
+            "date) — e.g. 'me equivoqué, compré 15 NVDA no 10' or 'el precio correcto era 230'. Like "
+            "propose_portfolio_transaction, this does NOT write to the database yet — it prepares a "
+            "before/after summary you must show the user and get confirmation on, then call "
+            "confirm_pending_financial_action with the PENDING_ID it returns. You MUST already have "
+            "the real transaction_id (from get_portfolio_transactions, or from a transaction you just "
+            "registered this same conversation) — never invent one. Only works on still-open buy lots, "
+            "not on a sale that already happened; if the user wants to correct a sale, tell them that "
+            "isn't supported yet."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "transaction_id": {"type": "string", "description": "The exact lot id from get_portfolio_transactions (its `id` field) or from a transaction just registered this conversation. Never invented."},
+                "shares": {"type": "number", "description": "The corrected share count, only if that's what's wrong. Omit if unchanged."},
+                "price": {"type": "number", "description": "The corrected price per share, only if that's what's wrong. Omit if unchanged."},
+                "transaction_date": {"type": "string", "description": "YYYY-MM-DD corrected date, only if that's what's wrong. Omit if unchanged."},
+                "portfolio_id": {"type": "string", "description": "Only if the user has multiple portfolios and you already know the exact id."},
+                "portfolio_name_hint": {"type": "string", "description": "The portfolio name the user said, if they named one by name (only relevant when they have more than one)."},
+                "raw_message": {"type": "string", "description": "The user's own message asking for this correction, verbatim, for the audit log."},
+            },
+            "required": ["transaction_id"],
+        },
+    },
+    {
+        "name": "delete_portfolio_transaction",
+        "description": (
+            "Stage the deletion of an already-registered OPEN buy lot — e.g. 'borra la compra de NVDA "
+            "que acabo de registrar'. This does NOT delete anything yet — it prepares a summary of "
+            "exactly what would be deleted and you must show it to the user and get EXPLICIT "
+            "confirmation before calling confirm_pending_financial_action (this is destructive — never "
+            "skip the confirmation step, even if the user sounds certain). You MUST already have the "
+            "real transaction_id (from get_portfolio_transactions) — never invent one, and never guess "
+            "which transaction they mean if more than one could match; show the candidates and ask. "
+            "Only works on still-open buy lots — deleting/undoing a past sale isn't supported yet."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "transaction_id": {"type": "string", "description": "The exact lot id from get_portfolio_transactions (its `id` field). Never invented."},
+                "portfolio_id": {"type": "string", "description": "Only if the user has multiple portfolios and you already know the exact id."},
+                "portfolio_name_hint": {"type": "string", "description": "The portfolio name the user said, if they named one by name (only relevant when they have more than one)."},
+                "raw_message": {"type": "string", "description": "The user's own message asking for this deletion, verbatim, for the audit log."},
+            },
+            "required": ["transaction_id"],
         },
         # Tool definitions are identical on every single chat call — caching
         # them (breakpoint on the last tool) means every call after the first
@@ -2589,6 +2665,34 @@ def _ticker_position(positions: list[dict], ticker: str) -> dict:
         if row["ticker"] == ticker_u:
             return {"shares": row["shares"], "avg_cost": row["avg_price"]}
     return {"shares": 0.0, "avg_cost": 0.0}
+
+
+async def _resolve_portfolio_id(
+    db, user_id: str, portfolio_id_hint: str | None, portfolio_name_hint: str | None,
+) -> tuple[str | None, str | None]:
+    """Shared multi-portfolio disambiguation — used by every tool that needs
+    to know WHICH of the user's portfolios an operation applies to
+    (propose/get-transactions/update/delete). Returns (portfolio_id, None)
+    on success, or (None, error_message_for_the_model) when it's genuinely
+    ambiguous. Never guesses when there's more than one portfolio and no
+    hint resolves it — silently picking one has already been the root
+    cause of a real production complaint about a different feature."""
+    port_res = await run_query(db.table("user_portfolio").select("portfolio_id, portfolio_name").eq("user_id", user_id))
+    portfolios = port_res.data or []
+    if len(portfolios) > 1:
+        portfolio_id_hint = (portfolio_id_hint or "").strip() or None
+        portfolio_name_hint = (portfolio_name_hint or "").strip() or None
+        if portfolio_id_hint and any(p["portfolio_id"] == portfolio_id_hint for p in portfolios):
+            return portfolio_id_hint, None
+        if portfolio_name_hint:
+            match = next((p for p in portfolios if portfolio_name_hint.lower() in (p.get("portfolio_name") or "").lower()), None)
+            if match:
+                return match["portfolio_id"], None
+        names = ", ".join(p.get("portfolio_name") or p["portfolio_id"] for p in portfolios)
+        return None, f"El usuario tiene varios portafolios ({names}) y no quedó claro en cuál — pregúntale en cuál, no elijas uno al azar."
+    if portfolios:
+        return portfolios[0]["portfolio_id"], None
+    return "default", None
 
 
 async def _propose_portfolio_transaction(tool_input: dict, user_id: str | None) -> str:
@@ -2630,23 +2734,9 @@ async def _propose_portfolio_transaction(tool_input: dict, user_id: str | None) 
 
     db = get_supabase()
 
-    port_res = await run_query(db.table("user_portfolio").select("portfolio_id, portfolio_name").eq("user_id", user_id))
-    portfolios = port_res.data or []
-    if len(portfolios) > 1:
-        portfolio_id = None
-        if portfolio_id_hint and any(p["portfolio_id"] == portfolio_id_hint for p in portfolios):
-            portfolio_id = portfolio_id_hint
-        elif portfolio_name_hint:
-            match = next((p for p in portfolios if portfolio_name_hint.lower() in (p.get("portfolio_name") or "").lower()), None)
-            if match:
-                portfolio_id = match["portfolio_id"]
-        if not portfolio_id:
-            names = ", ".join(p.get("portfolio_name") or p["portfolio_id"] for p in portfolios)
-            return f"El usuario tiene varios portafolios ({names}) y no quedó claro en cuál registrar esto — pregúntale en cuál, no elijas uno al azar."
-    elif portfolios:
-        portfolio_id = portfolios[0]["portfolio_id"]
-    else:
-        portfolio_id = "default"
+    portfolio_id, portfolio_error = await _resolve_portfolio_id(db, user_id, portfolio_id_hint, portfolio_name_hint)
+    if portfolio_error:
+        return portfolio_error
 
     row_res = await run_query(
         db.table("user_portfolio").select("positions, portfolio_name")
@@ -2796,6 +2886,7 @@ async def _confirm_pending_financial_action(tool_input: dict, user_id: str | Non
     reports success unless the DB write actually confirmed."""
     from app.api.routes.sync import (
         _parse_portfolio, apply_portfolio_positions, add_buy_lot, apply_sell_fifo,
+        update_open_lot, delete_open_lot,
     )
 
     if not user_id:
@@ -2847,18 +2938,35 @@ async def _confirm_pending_financial_action(tool_input: dict, user_id: str | Non
         parsed = {"currency": row["currency"], "positions": [], "closed_positions": [], "inception_date": None}
         portfolio_name = "Mi portafolio"
 
+    action = row["action_type"]
+    target_lot_id = row.get("target_lot_id")
     realized_pl = None
     try:
-        if row["action_type"] == "BUY_ASSET":
+        if action == "BUY_ASSET":
             new_positions = add_buy_lot(parsed["positions"], ticker, quantity, price, date_str)
             new_closed = parsed["closed_positions"]
-        else:
+        elif action == "SELL_ASSET":
             # Re-check against CURRENT holdings — time passed since the
             # proposal, the position may have changed in the meantime.
             new_positions, new_closed, realized_pl = apply_sell_fifo(
                 parsed["positions"], parsed["closed_positions"], ticker, quantity, price, date_str
             )
-    except ValueError:
+        elif action == "UPDATE_TRANSACTION":
+            new_positions = update_open_lot(parsed["positions"], target_lot_id, shares=quantity, price=price, date=date_str)
+            new_closed = parsed["closed_positions"]
+        elif action == "DELETE_TRANSACTION":
+            new_positions = delete_open_lot(parsed["positions"], target_lot_id)
+            new_closed = parsed["closed_positions"]
+        else:
+            return f"Tipo de operación pendiente no reconocido: {action}. No se modificó el portafolio."
+    except ValueError as e:
+        if str(e).startswith("lot_not_found"):
+            return (
+                f"No encontré esa compra en tu portafolio actual — puede que ya haya sido "
+                f"corregida, borrada, o que la posición cambió desde que la propuse. No se "
+                f"modificó nada. Usa get_portfolio_transactions para ver el estado real antes "
+                f"de intentar de nuevo."
+            )
         return (
             f"No pude aplicar la venta: tu posición actual de {ticker} ya no tiene suficientes "
             f"acciones para cubrir {quantity:.4f} (algo cambió desde que propuse esto). No se "
@@ -2887,19 +2995,268 @@ async def _confirm_pending_financial_action(tool_input: dict, user_id: str | Non
     )
 
     final = _ticker_position(result["positions"], ticker)
-    if row["action_type"] == "BUY_ASSET":
+    if action == "BUY_ASSET":
         return (
             f"Aplicado. {ticker}: ahora {final['shares']:.4f} acciones, costo promedio "
             f"${final['avg_cost']:,.2f}, en \"{portfolio_name}\"."
         )
-    remaining_final_note = (
-        f"cerraste la posición por completo en \"{portfolio_name}\""
-        if final["shares"] <= 1e-6
-        else f"quedan {final['shares']:.4f} acciones en \"{portfolio_name}\""
-    )
+    if action == "SELL_ASSET":
+        remaining_final_note = (
+            f"cerraste la posición por completo en \"{portfolio_name}\""
+            if final["shares"] <= 1e-6
+            else f"quedan {final['shares']:.4f} acciones en \"{portfolio_name}\""
+        )
+        return (
+            f"Aplicado. {ticker}: {remaining_final_note}. "
+            f"Ganancia/pérdida realizada de esta venta: ${realized_pl:,.2f}."
+        )
+    if action == "UPDATE_TRANSACTION":
+        return (
+            f"Aplicado. Corregí la compra de {ticker}: ahora tu portafolio muestra "
+            f"{final['shares']:.4f} acciones totales, costo promedio ${final['avg_cost']:,.2f}, "
+            f"en \"{portfolio_name}\"."
+        )
+    # DELETE_TRANSACTION
     return (
-        f"Aplicado. {ticker}: {remaining_final_note}. "
-        f"Ganancia/pérdida realizada de esta venta: ${realized_pl:,.2f}."
+        f"Aplicado. Borré esa compra de {ticker}. Ahora tienes {final['shares']:.4f} acciones "
+        f"totales en \"{portfolio_name}\"."
+    )
+
+
+_MAX_TRANSACTIONS_LISTED = 25  # caps prompt size; recent-first, plenty to resolve "la última compra"
+
+
+async def _get_portfolio_transactions(tool_input: dict, user_id: str | None) -> str:
+    """Read-only listing of the user's own registered buy lots (still open)
+    and sell/close events, most-recent-first by created_at (when it was
+    REGISTERED — not the trade date the user reported). This is how Arthur
+    resolves "la última compra"/"esa venta"/"borra la compra que registré
+    hace 5 minutos" into a real lot id, instead of guessing one. Never
+    invents an id — a lot written before this feature shipped has none and
+    is reported as not-correctable."""
+    from app.api.routes.sync import _parse_portfolio
+
+    if not user_id:
+        return "No se pudo procesar: sesión sin usuario."
+
+    db = get_supabase()
+    portfolio_id, portfolio_error = await _resolve_portfolio_id(
+        db, user_id, tool_input.get("portfolio_id"), tool_input.get("portfolio_name_hint")
+    )
+    if portfolio_error:
+        return portfolio_error
+
+    ticker_filter = (tool_input.get("ticker") or "").upper().strip() or None
+    row_res = await run_query(
+        db.table("user_portfolio").select("positions, portfolio_name")
+        .eq("user_id", user_id).eq("portfolio_id", portfolio_id)
+    )
+    if not row_res.data:
+        return "Este portafolio no tiene ninguna transacción registrada todavía."
+    parsed = _parse_portfolio(row_res.data[0]["positions"])
+    portfolio_name = row_res.data[0].get("portfolio_name") or "Mi portafolio"
+
+    events = []
+    for lot in parsed["positions"]:
+        if ticker_filter and (lot.get("ticker") or "").upper() != ticker_filter:
+            continue
+        events.append({
+            "id": lot.get("id"),
+            "type": "BUY",
+            "ticker": lot.get("ticker"),
+            "shares": lot.get("shares"),
+            "price": lot.get("avgPrice") or lot.get("avg_price"),
+            "date": lot.get("purchaseDate"),
+            "registered_at": lot.get("created_at"),
+            "correctable": lot.get("id") is not None,
+        })
+    for closed in parsed["closed_positions"]:
+        if ticker_filter and (closed.get("ticker") or "").upper() != ticker_filter:
+            continue
+        events.append({
+            "id": closed.get("id"),
+            "type": "SELL",
+            "ticker": closed.get("ticker"),
+            "shares": closed.get("shares"),
+            "price": closed.get("closePrice"),
+            "date": closed.get("closeDate"),
+            "registered_at": closed.get("created_at"),
+            "correctable": False,  # see delete_open_lot's docstring — undo-a-sale isn't supported yet
+        })
+    events.sort(key=lambda e: e.get("registered_at") or e.get("date") or "", reverse=True)
+    events = events[:_MAX_TRANSACTIONS_LISTED]
+
+    if not events:
+        scope = f" de {ticker_filter}" if ticker_filter else ""
+        return f"No encontré transacciones{scope} en \"{portfolio_name}\"."
+
+    lines = [f"Transacciones en \"{portfolio_name}\" (más reciente primero):"]
+    for e in events:
+        tag = e["id"] or "sin-id (no corregible/borrable, es de antes de esta función)"
+        lines.append(
+            f"- [{tag}] {e['type']} {e['shares']} {e['ticker']} a ${e['price']} "
+            f"el {e['date']} (registrado: {e.get('registered_at') or 'desconocido'})"
+        )
+    lines.append(
+        "Usa el id entre corchetes exacto (el campo `id`, no la posición en la lista) al llamar "
+        "update_portfolio_transaction o delete_portfolio_transaction — nunca inventes uno."
+    )
+    return "\n".join(lines)
+
+
+async def _propose_transaction_update(tool_input: dict, user_id: str | None) -> str:
+    """Stages a correction to an already-registered OPEN buy lot (shares
+    and/or price and/or date) — same propose-then-confirm pattern as a new
+    BUY/SELL, reusing pending_financial_actions and confirm_pending_
+    financial_action so there's exactly one apply path, not a second one.
+    Scoped to open lots only (see update_open_lot's docstring, sync.py)."""
+    import hashlib
+    from app.api.routes.sync import _parse_portfolio, find_open_lot
+
+    if not user_id:
+        return "No se pudo procesar: sesión sin usuario."
+
+    lot_id = (tool_input.get("transaction_id") or "").strip()
+    if not lot_id:
+        return "Falta el id exacto de la transacción a corregir — llama primero a get_portfolio_transactions para obtenerlo, nunca lo inventes."
+
+    new_shares = tool_input.get("shares")
+    new_price = tool_input.get("price")
+    new_date = tool_input.get("transaction_date")
+    if new_shares is None and new_price is None and new_date is None:
+        return "No se especificó qué corregir (cantidad, precio o fecha) — pregúntale al usuario qué dato estaba mal."
+
+    db = get_supabase()
+    portfolio_id, portfolio_error = await _resolve_portfolio_id(
+        db, user_id, tool_input.get("portfolio_id"), tool_input.get("portfolio_name_hint")
+    )
+    if portfolio_error:
+        return portfolio_error
+
+    row_res = await run_query(
+        db.table("user_portfolio").select("positions, portfolio_name")
+        .eq("user_id", user_id).eq("portfolio_id", portfolio_id)
+    )
+    if not row_res.data:
+        return "No encontré ese portafolio."
+    parsed = _parse_portfolio(row_res.data[0]["positions"])
+    lot = find_open_lot(parsed["positions"], lot_id)
+    if not lot:
+        return (
+            "No encontré esa transacción entre las compras abiertas de este portafolio — puede que "
+            "ya haya sido vendida, borrada, o el id no es correcto. Usa get_portfolio_transactions "
+            "para confirmar el id real antes de intentar de nuevo."
+        )
+
+    if new_shares is not None:
+        try:
+            new_shares = float(new_shares)
+        except (TypeError, ValueError):
+            return "La cantidad de acciones no es un número válido."
+        if new_shares <= 0:
+            return "La cantidad debe ser mayor que cero — si la intención es eliminarla, usa delete_portfolio_transaction en su lugar."
+    if new_price is not None:
+        try:
+            new_price = float(new_price)
+        except (TypeError, ValueError):
+            return "El precio no es un número válido."
+        if new_price <= 0:
+            return "El precio debe ser mayor que cero."
+    date_str = new_date or lot.get("purchaseDate")
+
+    final_shares = new_shares if new_shares is not None else lot.get("shares")
+    final_price = new_price if new_price is not None else (lot.get("avgPrice") or lot.get("avg_price"))
+    ticker = (lot.get("ticker") or "").upper()
+
+    dedup_raw = f"{user_id}|{portfolio_id}|UPDATE_TRANSACTION|{lot_id}|{round(float(final_shares), 6)}|{final_price}|{date_str}"
+    dedup_key = hashlib.md5(dedup_raw.encode()).hexdigest()
+    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=_PENDING_ACTION_TTL_MINUTES)).isoformat()
+    ins = await run_query(db.table("pending_financial_actions").insert({
+        "user_id": user_id, "action_type": "UPDATE_TRANSACTION", "portfolio_id": portfolio_id,
+        "ticker": ticker, "quantity": final_shares, "amount": None,
+        "execution_price": final_price, "currency": "USD", "transaction_date": date_str,
+        "notes": None, "raw_message": (tool_input.get("raw_message") or "")[:500],
+        "dedup_key": dedup_key, "status": "pending", "expires_at": expires_at,
+        "target_lot_id": lot_id,
+    }))
+    if not ins.data:
+        return "No pude preparar la corrección — intenta de nuevo en un momento. No se modificó el portafolio."
+    pending_id = ins.data[0]["id"]
+
+    old_shares = lot.get("shares")
+    old_price = lot.get("avgPrice") or lot.get("avg_price")
+    old_date = lot.get("purchaseDate")
+    return (
+        f"PENDING_ID: {pending_id}\n"
+        f"Propuesta de corrección: la compra de {ticker} ({old_shares} acciones a ${old_price} "
+        f"el {old_date}) pasaría a {final_shares} acciones a ${final_price} el {date_str}.\n"
+        "Muéstrale este cambio (antes → después) al usuario y pídele que confirme antes de "
+        "aplicarlo — no digas que ya se corrigió. Cuando confirme o cancele, llama a "
+        "confirm_pending_financial_action con este PENDING_ID exacto."
+    )
+
+
+async def _propose_transaction_delete(tool_input: dict, user_id: str | None) -> str:
+    """Stages the deletion of an already-registered OPEN buy lot — same
+    propose-then-confirm pattern, so delete is never a one-step
+    irreversible tool call. Scoped to open lots only (see
+    delete_open_lot's docstring, sync.py)."""
+    import hashlib
+    from app.api.routes.sync import _parse_portfolio, find_open_lot
+
+    if not user_id:
+        return "No se pudo procesar: sesión sin usuario."
+
+    lot_id = (tool_input.get("transaction_id") or "").strip()
+    if not lot_id:
+        return "Falta el id exacto de la transacción a borrar — llama primero a get_portfolio_transactions para obtenerlo, nunca lo inventes."
+
+    db = get_supabase()
+    portfolio_id, portfolio_error = await _resolve_portfolio_id(
+        db, user_id, tool_input.get("portfolio_id"), tool_input.get("portfolio_name_hint")
+    )
+    if portfolio_error:
+        return portfolio_error
+
+    row_res = await run_query(
+        db.table("user_portfolio").select("positions, portfolio_name")
+        .eq("user_id", user_id).eq("portfolio_id", portfolio_id)
+    )
+    if not row_res.data:
+        return "No encontré ese portafolio."
+    parsed = _parse_portfolio(row_res.data[0]["positions"])
+    lot = find_open_lot(parsed["positions"], lot_id)
+    if not lot:
+        return (
+            "No encontré esa transacción entre las compras abiertas de este portafolio — puede que "
+            "ya haya sido vendida, borrada, o el id no es correcto. Usa get_portfolio_transactions "
+            "para confirmar el id real antes de intentar de nuevo."
+        )
+    ticker = (lot.get("ticker") or "").upper()
+
+    dedup_raw = f"{user_id}|{portfolio_id}|DELETE_TRANSACTION|{lot_id}"
+    dedup_key = hashlib.md5(dedup_raw.encode()).hexdigest()
+    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=_PENDING_ACTION_TTL_MINUTES)).isoformat()
+    ins = await run_query(db.table("pending_financial_actions").insert({
+        "user_id": user_id, "action_type": "DELETE_TRANSACTION", "portfolio_id": portfolio_id,
+        "ticker": ticker, "quantity": lot.get("shares"), "amount": None,
+        "execution_price": lot.get("avgPrice") or lot.get("avg_price") or 0.01,
+        "currency": "USD", "transaction_date": lot.get("purchaseDate") or datetime.now(timezone.utc).date().isoformat(),
+        "notes": None, "raw_message": (tool_input.get("raw_message") or "")[:500],
+        "dedup_key": dedup_key, "status": "pending", "expires_at": expires_at,
+        "target_lot_id": lot_id,
+    }))
+    if not ins.data:
+        return "No pude preparar la eliminación — intenta de nuevo en un momento. No se modificó el portafolio."
+    pending_id = ins.data[0]["id"]
+
+    return (
+        f"PENDING_ID: {pending_id}\n"
+        f"Propuesta de eliminación: borrar la compra de {lot.get('shares')} {ticker} a "
+        f"${lot.get('avgPrice') or lot.get('avg_price')} el {lot.get('purchaseDate')}.\n"
+        "Muéstrale exactamente qué se va a borrar y pídele que confirme antes de eliminarlo — "
+        "esto es destructivo, nunca lo ejecutes sin confirmación explícita. Cuando confirme o "
+        "cancele, llama a confirm_pending_financial_action con este PENDING_ID exacto."
     )
 
 
@@ -2973,6 +3330,15 @@ async def _exec_mentor_tool(name: str, tool_input: dict, user_id: str | None = N
 
         if name == "confirm_pending_financial_action":
             return await _confirm_pending_financial_action(tool_input, user_id)
+
+        if name == "get_portfolio_transactions":
+            return await _get_portfolio_transactions(tool_input, user_id)
+
+        if name == "update_portfolio_transaction":
+            return await _propose_transaction_update(tool_input, user_id)
+
+        if name == "delete_portfolio_transaction":
+            return await _propose_transaction_delete(tool_input, user_id)
 
         if name == "get_stock_quote":
             ticker = (tool_input.get("ticker") or "").upper().strip()

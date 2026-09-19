@@ -12,6 +12,7 @@ Scalability notes:
   - updated_at is returned on all reads so clients can detect stale local state.
 """
 import asyncio
+import uuid
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
@@ -162,15 +163,79 @@ def add_buy_lot(positions: list[dict], ticker: str, shares: float, price: float,
     """A BUY always appends a NEW lot rather than merging into an existing
     one — matches the existing design (each purchase preserves its own cost
     basis/date for later FIFO sells and realized P/L), not a new convention
-    invented for this feature."""
+    invented for this feature.
+
+    Diego, 2026-09-19: gave each lot a stable `id` + `created_at` (when it
+    was registered — distinct from `purchaseDate`, the date the user says
+    the trade actually happened) so Arthur's update/delete-transaction
+    tools have something durable to reference ("corrige la última compra",
+    "borra esa venta"). Purely additive — every existing reader
+    (aggregate_positions_by_ticker, apply_sell_fifo, the frontend) already
+    ignores unknown keys on a lot, so old lots without these two fields
+    keep working exactly as before."""
     new_positions = [dict(p) for p in positions]
     new_positions.append({
+        "id": str(uuid.uuid4()),
         "ticker": ticker.upper(),
         "shares": shares,
         "avgPrice": price,
         "purchaseDate": date,
+        "created_at": datetime.now(timezone.utc).isoformat(),
     })
     return new_positions
+
+
+def find_open_lot(positions: list[dict], lot_id: str) -> dict | None:
+    """Look up a single open BUY lot by its stable id — the identity
+    update_portfolio_transaction/delete_portfolio_transaction key off of.
+    Lots written before the `id` field existed (see add_buy_lot above)
+    simply can't be targeted this way; callers must tell the user to use
+    get_portfolio_transactions to see which of their lots have one."""
+    for p in positions:
+        if p.get("id") == lot_id:
+            return p
+    return None
+
+
+def update_open_lot(
+    positions: list[dict], lot_id: str,
+    shares: float | None = None, price: float | None = None, date: str | None = None,
+) -> list[dict]:
+    """Corrects an existing OPEN buy lot in place (shares/price/date) —
+    scoped to still-open lots only. A lot that's been partially or fully
+    consumed by a sell is a closed_positions entry instead; correcting a
+    past sale would mean re-deriving realized P/L and re-running FIFO,
+    which this pass deliberately doesn't support (see delete_open_lot's
+    docstring for the same scoping decision). Raises ValueError if the id
+    isn't found among open lots."""
+    if not find_open_lot(positions, lot_id):
+        raise ValueError(f"lot_not_found: {lot_id}")
+    new_positions = []
+    for p in positions:
+        if p.get("id") != lot_id:
+            new_positions.append(p)
+            continue
+        updated = dict(p)
+        if shares is not None:
+            updated["shares"] = shares
+        if price is not None:
+            updated["avgPrice"] = price
+        if date is not None:
+            updated["purchaseDate"] = date
+        new_positions.append(updated)
+    return new_positions
+
+
+def delete_open_lot(positions: list[dict], lot_id: str) -> list[dict]:
+    """Removes one OPEN buy lot entirely. Deliberately scoped to open lots
+    only — deleting a closed_positions entry would mean "undoing a sale"
+    (giving the shares back as a new open lot, reversing its realized P/L
+    contribution), which is real but separate scope Diego hasn't asked for
+    yet; the tool description tells the model to say so rather than
+    attempt it. Raises ValueError if the id isn't found among open lots."""
+    if not find_open_lot(positions, lot_id):
+        raise ValueError(f"lot_not_found: {lot_id}")
+    return [p for p in positions if p.get("id") != lot_id]
 
 
 def apply_sell_fifo(
@@ -215,12 +280,15 @@ def apply_sell_fifo(
         # writes a corrupted $0-cost-basis row into closed_positions.
         lot_avg = float(lot.get("avgPrice") or lot.get("avg_price") or 0)
         new_closed.append({
+            "id": str(uuid.uuid4()),
             "ticker": ticker_u,
             "shares": take,
             "avgPrice": lot_avg,
             "closePrice": price,
             "purchaseDate": lot.get("purchaseDate"),
             "closeDate": date,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "source_lot_id": lot.get("id"),  # traceability only, not a lookup key
         })
         realized_pl += take * (price - lot_avg)
         remaining_left = round(lot_shares - take, 8)
