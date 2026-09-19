@@ -209,6 +209,36 @@ def test_guard_does_not_flag_the_standard_disclaimer_or_generic_allocation_educa
     )
 
 
+def test_guard_catches_favorite_pick_and_bet_phrasing_without_the_word_recommendation():
+    """Diego, 2026-09-19 (second spec): these never say 'recomendación' or
+    'deberías' but still steer the user toward a concrete choice — 'mi
+    top pick', 'la que más me gusta', 'esta sería mi apuesta', etc."""
+    bad = [
+        "Mi top pick sería NVDA.", "La que más me gusta es GOOGL.",
+        "Yo me inclinaría por MSFT.", "La opción más atractiva es AAPL.",
+        "Yo priorizaría NVDA sobre AMD.", "Esta sería mi apuesta: TSLA.",
+        "Le daría 15% del portafolio.", "La pondría como mi mayor posición.",
+        "My top pick would be NVDA.", "I would lean towards MSFT.",
+        "My bet would be TSLA.",
+    ]
+    for text in bad:
+        assert check_recommendation_guard(text), f"should have flagged: {text!r}"
+
+
+def test_guard_allows_legitimate_comparative_statements():
+    """A comparison or a general 'X is better than Y' fact about a metric
+    (not a ticker) must stay clean — only declaring a winner between
+    named assets, or a personal favorite/pick, is prohibited."""
+    clean = [
+        "Un ROIC más alto es mejor que uno bajo, en igualdad de condiciones.",
+        "GOOGL tiene mayor exposición a publicidad y cloud; MSFT a software empresarial.",
+        "Un margen operativo alto suele ser mejor indicador de eficiencia.",
+        "A higher FCF yield is generally better, all else equal.",
+    ]
+    for text in clean:
+        assert not check_recommendation_guard(text), f"should NOT have flagged: {text!r}"
+
+
 def test_strip_prescriptive_sentences_removes_only_the_bad_sentence():
     text = (
         "NVDA tiene un margen bruto de 75%. Deberías comprar más ahora. "

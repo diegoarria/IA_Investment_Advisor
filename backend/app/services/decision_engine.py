@@ -439,6 +439,15 @@ _RECOMMENDATION_PATTERNS = [
     # it doesn't false-positive on generic educational text like "una
     # cartera balanceada asigna 60% a acciones y 40% a bonos".
     r"(para tu perfil|para ti),?\s+asigna\w*\s+\d+%",
+    # Diego, 2026-09-19 — additional "favorite/pick/bet" phrasing that
+    # doesn't use "recomendación" or "deberías" but still directs the user
+    # toward a concrete choice. Kept to distinctive multi-word phrases
+    # (never bare "es mejor"/"gana", which are common in legitimate
+    # descriptive comparisons like "un ROIC más alto es mejor que uno bajo").
+    r"\bmi (top pick|favorita|selecci[oó]n)\b", r"\bla que m[aá]s me gusta\b",
+    r"\byo me inclinar[ií]a por\b", r"\bla opci[oó]n m[aá]s atractiva\b",
+    r"\byo priorizar[ií]a\b", r"\besta ser[ií]a mi apuesta\b",
+    r"\ble dar[ií]a\s+\d+%", r"\bla pondr[ií]a como (mi )?mayor posici[oó]n\b",
     # Spanish — bare imperative commands (tú-form), not the infinitive
     r"^\s*(compra|vende|invierte)\s+\S",
     r"\b(compra|vende|invierte)\s+(ahora|ya|en)\s+\w",
@@ -449,6 +458,8 @@ _RECOMMENDATION_PATTERNS = [
     r"if i were you\b",
     r"\bis a (good )?buy\b", r"\bis a (good )?sell\b",
     r"for your profile,?\s+allocate\s+\d+%",
+    r"\bmy (top pick|favorite|selection)\b",
+    r"\bi(?:'d| would)\s+lean\s+(towards|toward)\b", r"\bmy bet would be\b",
     r"^\s*(buy|sell|invest in)\s+\S",
 ]
 _RECOMMENDATION_RE = re.compile("|".join(_RECOMMENDATION_PATTERNS), re.IGNORECASE | re.MULTILINE)
