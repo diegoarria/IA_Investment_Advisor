@@ -519,6 +519,103 @@ async def test_false_transaction_claim_when_tool_was_called_but_failed_gets_flag
     assert "no llegué a confirmar esa operación con el sistema todavía" in result
 
 
+async def test_false_transaction_claim_plural_conjugation_gets_flagged(monkeypatch):
+    """Fourth real occurrence, same day: the detector only covered singular
+    "registrado"/"registrada" — a real reply claiming success for TWO
+    transactions at once said "Ambas compras quedan **registradas**"
+    (plural, "quedan" not "quedó"), which the old regex's `\\b...\\b`
+    boundaries couldn't match at all (a trailing "s" breaks the boundary
+    right after "registrada"). This one fooled the user with a full,
+    realistic-looking markdown portfolio table while Supabase confirmed
+    user_portfolio still had zero rows for that account."""
+    claimed_success = (
+        "✅ Excelente, Diego. Ambas compras quedan registradas en tu portafolio.\n\n"
+        "Aquí está tu situación actual:\n\n"
+        "| EMPRESA | TICKER | CANTIDAD |\n"
+        "| Alphabet | GOOGL | 1 |\n"
+        "| Apple | AAPL | 2 |\n"
+    )
+    _install_fake_stream(monkeypatch, [claimed_success])
+    result = await _collect(ai_service.chat_stream(
+        message="si, ambas", conversation_history=[], profile=None,
+    ))
+    assert result.startswith(claimed_success)
+    assert "no llegué a confirmar esa operación con el sistema todavía" in result
+
+
+async def test_success_narrative_with_no_trigger_word_still_caught_via_pending_row(monkeypatch):
+    """Fourth real occurrence, same day: this reply doesn't contain
+    "registrado"/"aplicado" or any conjugation of them at all — no
+    word-list regex could ever catch it. It's a checkmark + a full,
+    realistic-looking markdown portfolio table. The only way to catch this
+    is the ground-truth backstop: Supabase genuinely had a pending_financial_
+    actions row still sitting unconfirmed for this user, and the tool never
+    actually applied anything this turn."""
+    claimed_success = (
+        "✅ Excelente, Diego. Ambas compras quedan registradas en tu portafolio.\n\n"
+        "Aquí está tu situación actual:\n\n"
+        "Tu portafolio hoy (19 de septiembre)\n\n"
+        "| EMPRESA | TICKER | CANTIDAD | PRECIO DE COMPRA |\n"
+        "| Alphabet | GOOGL | 1 | $343.58 |\n"
+    )
+    _install_fake_stream(monkeypatch, [claimed_success])
+
+    class _FakePendingQuery:
+        def select(self, *_a, **_k): return self
+        def eq(self, *_a, **_k): return self
+        def limit(self, *_a, **_k): return self
+        async def execute(self):
+            class _R: data = [{"id": "pending-1"}]
+            return _R()
+
+    class _FakeDB:
+        def table(self, _name): return _FakePendingQuery()
+
+    monkeypatch.setattr(ai_service, "get_supabase", lambda: _FakeDB())
+    async def fake_run_query(q):
+        return await q.execute()
+    monkeypatch.setattr(ai_service, "run_query", fake_run_query)
+
+    profile = UserProfile(id="p1", user_id="u1", name="Test", risk_tolerance="moderate")
+    result = await _collect(ai_service.chat_stream(
+        message="si, ambas", conversation_history=[], profile=profile,
+    ))
+    assert result.startswith(claimed_success)
+    assert "no llegué a confirmar esa operación con el sistema todavía" in result
+
+
+async def test_success_narrative_without_a_real_pending_row_is_left_alone(monkeypatch):
+    """The backstop must not fire on ordinary success-sounding replies (e.g.
+    a checkmark on an unrelated task) when there's no real pending
+    transaction backing it — otherwise it would add a confusing, unrelated
+    warning to normal conversation."""
+    clean_reply = "✅ Listo, guardé esa nota en tu Diario de Decisiones."
+    _install_fake_stream(monkeypatch, [clean_reply])
+
+    class _FakePendingQuery:
+        def select(self, *_a, **_k): return self
+        def eq(self, *_a, **_k): return self
+        def limit(self, *_a, **_k): return self
+        async def execute(self):
+            class _R: data = []
+            return _R()
+
+    class _FakeDB:
+        def table(self, _name): return _FakePendingQuery()
+
+    monkeypatch.setattr(ai_service, "get_supabase", lambda: _FakeDB())
+    async def fake_run_query(q):
+        return await q.execute()
+    monkeypatch.setattr(ai_service, "run_query", fake_run_query)
+
+    profile = UserProfile(id="p1", user_id="u1", name="Test", risk_tolerance="moderate")
+    result = await _collect(ai_service.chat_stream(
+        message="ok", conversation_history=[], profile=profile,
+    ))
+    assert result == clean_reply
+    assert "no llegué a confirmar" not in result
+
+
 async def test_false_transaction_claim_detector_unit():
     """Direct unit coverage of _false_transaction_claim's two branches —
     the full chat_stream integration test above only exercises the "tool

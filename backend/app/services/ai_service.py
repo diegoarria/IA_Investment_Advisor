@@ -2111,16 +2111,20 @@ def _needs_buffered_verification(message: str) -> bool:
 # doesn't false-positive on unrelated uses of "registrado" (e.g. "el
 # crecimiento registrado el último trimestre").
 _TRANSACTION_SUCCESS_CLAIM_RE = re.compile(
-    # Diego, 2026-09-19: real second occurrence of the same failure — this
-    # regex's "gap" was `[^.\n]{0,100}`, which explicitly EXCLUDES
-    # newlines, so it could never match Arthur's actual reply shape
-    # ("Registrado, Diego:\n\nGOOGL: 3 acciones\n..." — the success word
-    # and the transaction details are almost always on separate lines in
-    # a real confirmation summary). `[\s\S]` matches any character
-    # including newlines, unlike `.` even with DOTALL, and unlike the old
-    # negated class.
-    r"\b(registrad[oa]|aplicad[oa]|qued[oó] registrad[oa]|"
-    r"ya (se )?(actualic[eé]|actualiz[oó]|registr[oó])|applied|registered|recorded)\b"
+    # Diego, 2026-09-19: real THIRD occurrence of the same failure — this
+    # regex only covered the singular masculine/feminine forms
+    # ("registrado"/"registrada"), so a real reply that said "Ambas compras
+    # quedan **registradas**" (plural, "quedan" not "quedó") slipped
+    # through untouched. `[oa]s?` below covers all four
+    # gender/number combinations for every "-ado/-ada" participle in this
+    # list, and `qued(?:[oó]|an|aron)` covers singular/plural/preterite for
+    # "quedar". [\s\S] (not `.`, even with DOTALL) matches any character
+    # including newlines, since the success word and the transaction
+    # details are almost always on separate lines in a real confirmation
+    # summary (e.g. "Registrado, Diego:\n\nGOOGL: 3 acciones\n...").
+    r"\b(registrad[oa]s?|aplicad[oa]s?|qued(?:[oó]|an|aron) registrad[oa]s?|"
+    r"ya (se )?(actualic[eé]|actualiz(?:[oó]|aron)|registr(?:[oó]|aron))|"
+    r"applied|registered|recorded)\b"
     r"[\s\S]{0,150}(acci[oó]n(es)?|shares?|\$\s?\d|portafolio|portfolio)",
     re.IGNORECASE,
 )
@@ -2144,6 +2148,46 @@ def _false_transaction_claim(text: str, confirm_tool_applied: bool) -> bool:
     if confirm_tool_applied:
         return False
     return bool(_TRANSACTION_SUCCESS_CLAIM_RE.search(text or ""))
+
+
+# Diego, 2026-09-19 (FOURTH occurrence, same day): every fix above patched
+# one specific phrasing the model used to falsely claim success — but each
+# retry produced yet another phrasing the literal word-list regex didn't
+# cover ("Ambas compras quedan registradas" broke the singular-only
+# pattern; the one that prompted this broader net was "✅ Excelente, Diego"
+# followed by a full, realistic-looking markdown portfolio table with NO
+# "registrado"/"aplicado"-family word in it at all — Supabase confirmed
+# zero real rows the whole time). Chasing every future phrasing one regex
+# at a time doesn't converge. This is the ground-truth backstop instead:
+# when we independently KNOW (from the database, not from parsing the
+# model's prose) that this user has a real transaction still sitting
+# unconfirmed, and confirm_pending_financial_action never actually
+# succeeded this turn, a much broader "this reads like a success
+# narrative" check is enough to catch it — the narrow, word-specific regex
+# above stays as the always-on fast path (no DB round trip) for the common
+# case.
+_SUCCESS_NARRATIVE_RE = re.compile(
+    r"✅|listo\b|excelente\b|perfecto\b|situaci[oó]n actual|tu portafolio hoy|"
+    r"ganancia/p[eé]rdida|precio de compra",
+    re.IGNORECASE,
+)
+
+
+async def _has_unconfirmed_pending_action(user_id: str | None) -> bool:
+    """True if this user has a real pending_financial_actions row still
+    sitting unconfirmed — the ground truth a false success claim can be
+    checked against, independent of however the model chose to phrase it."""
+    if not user_id:
+        return False
+    try:
+        db = get_supabase()
+        res = await run_query(
+            db.table("pending_financial_actions").select("id")
+            .eq("user_id", user_id).eq("status", "pending").limit(1)
+        )
+        return bool(res.data)
+    except Exception:
+        return False  # never let this safety net itself break the response
 
 
 _TRANSACTION_CLAIM_WARNING_ES = (
@@ -3612,6 +3656,13 @@ async def chat_stream(
         if final.stop_reason != "tool_use":
             violations = check_recommendation_guard(full_response_text)
             false_claim = _false_transaction_claim(full_response_text, confirm_tool_applied)
+            # Ground-truth backstop (see _has_unconfirmed_pending_action's
+            # docstring) — only hit when the fast word-list regex above
+            # already came back clean AND the tool never truly applied,
+            # so this DB round trip is rare, not on every turn.
+            if not false_claim and not confirm_tool_applied and user_id:
+                if _SUCCESS_NARRATIVE_RE.search(full_response_text) and await _has_unconfirmed_pending_action(user_id):
+                    false_claim = True
             is_en_lang = getattr(profile, "preferred_language", None) == "en"
             if false_claim:
                 _log.warning(
