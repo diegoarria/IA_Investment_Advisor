@@ -159,6 +159,24 @@ async def test_clean_response_logs_no_guard_warning(monkeypatch, caplog):
     assert "Corrección:" not in result and "Correction:" not in result
 
 
+async def test_unanswered_first_message_still_intercepted_on_short_followup(monkeypatch):
+    """Third real production failure, same day (2026-09-19): Diego's first
+    message ("Arthur tienes recomendaciones para mi?") got no response at
+    all, he sent a bare "?" as a follow-up, and THAT call answered with a
+    full recommendation. Two bugs: (a) "tienes recomendaciones para mi"
+    wasn't in the trigger regex at all, and (b) even once added, the
+    intercept only checked the CURRENT message ("?"), never the unanswered
+    trigger still sitting as the last entry in conversation_history.
+    Confirms both are fixed — the bare "?" follow-up is intercepted, using
+    never installing a fake stream to prove the model is never called."""
+    unanswered = [ChatMessage(role="user", content="Arthur tienes recomendaciones para mi?")]
+    result = await _collect(ai_service.chat_stream(
+        message="?", conversation_history=unanswered, profile=None,
+    ))
+    assert "MSFT" not in result and "GOOGL" not in result and "NVDA" not in result
+    assert "elegir por ti" in result.lower() or "picking for you" in result.lower()
+
+
 async def test_guardrails_still_apply_on_a_later_turn_after_an_earlier_bad_one(monkeypatch):
     """Diego, 2026-09-19: 'no importa si Arthur se buguea en el primer
     mensaje — en el segundo, tercero, cuarto, etc. siguen aplicando las

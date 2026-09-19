@@ -1963,6 +1963,7 @@ _BLIND_RECOMMENDATION_RE = re.compile(
     r"(me (das|puedes dar)\s+(una\s+)?recomendaci[oó]n|d[aá]me\s+(una\s+)?recomendaci[oó]n|"
     r"recomi[eé]ndame(?!\s+(un\s+)?(libro|pel[ií]cula|restaurante|canci[oó]n|serie))|"
     r"qu[eé]\s+me\s+recomiendas|recomiendas\s+(comprar|invertir)|"
+    r"tienes?\s+(alguna\s+)?recomendaci(o|ó)n(es)?(\s+para\s+m[ií])?|"
     r"d[oó]nde\s+(invierto|pondr[ií]as)\s+mi\s+dinero|"
     r"en\s+qu[eé]\s+(deber[ií]a\s+)?invert(ir|ir[ií]a)\b|"
     r"qu[eé]\s+(compro|comprar[ií]as|acci[oó]n\s+(compro|est[aá]\s+buena))|"
@@ -1970,6 +1971,7 @@ _BLIND_RECOMMENDATION_RE = re.compile(
     r"qu[eé]\s+har[ií]as\s+con\s+\$?\d|"
     r"what\s+(do\s+you\s+recommend|would\s+you\s+(buy|invest)|should\s+i\s+invest)|"
     r"recommend\s+(me\s+)?(a\s+)?stock|give\s+me\s+your\s+top|"
+    r"(do\s+you\s+have\s+(any\s+)?|any\s+)recommendations?(\s+for\s+me)?|"
     r"build\s+me\s+a\s+portfolio|which\s+(one\s+)?would\s+you\s+choose)",
     re.IGNORECASE,
 )
@@ -2009,21 +2011,39 @@ _BLIND_RECOMMENDATION_REPLIES_EN = [
 ]
 
 
-def _blind_recommendation_reply(message: str) -> str | None:
-    """Returns a deterministic redirect if `message` is an open request for
-    a pick with NO specific company named (NIVEL 0's primary case) — the
-    "special case" where a company IS named still goes through the normal
-    model flow (deep-dive analysis of that company), unaffected. Returns
-    None for anything else, so a miss here just falls through to the
-    model, same fail-open posture as is_blatant_injection_attempt."""
-    if not message or not _BLIND_RECOMMENDATION_RE.search(message):
+def _blind_recommendation_reply(message: str, conversation_history: list | None = None) -> str | None:
+    """Returns a deterministic redirect if `message` (or, see below, an
+    unanswered prior message still sitting in history) is an open request
+    for a pick with NO specific company named (NIVEL 0's primary case) —
+    the "special case" where a company IS named still goes through the
+    normal model flow (deep-dive analysis of that company), unaffected.
+    Returns None for anything else, so a miss here just falls through to
+    the model, same fail-open posture as is_blatant_injection_attempt.
+
+    Real production failure, 2026-09-19 (third one, same day): Diego's
+    first message ("Arthur tienes recomendaciones para mi?") got no
+    response at all (separate glitch), he sent a bare "?" as a follow-up,
+    and THAT call answered with a full recommendation — because this
+    check only ever looked at the current `message` ("?"), never at the
+    unanswered request still sitting as the last entry in
+    conversation_history. If the most recent history entry is a user
+    turn (i.e. never got an assistant reply), its content is checked
+    too — a short follow-up to an unanswered trigger must still be caught."""
+    combined = message or ""
+    if conversation_history:
+        last = conversation_history[-1]
+        last_role = getattr(last, "role", None)
+        last_content = getattr(last, "content", None)
+        if last_role == "user" and last_content:
+            combined = f"{last_content}\n{combined}"
+    if not combined or not _BLIND_RECOMMENDATION_RE.search(combined):
         return None
     from app.services.market_data_service import detect_tickers
-    if detect_tickers(message):
+    if detect_tickers(combined):
         return None  # a specific company was named — let the normal flow handle it
     import random
-    is_en = bool(re.search(r"[a-zA-Z]", message)) and not re.search(r"[áéíóúñ¿¡]", message, re.IGNORECASE) and re.search(
-        r"\b(what|would|recommend|give|build|which)\b", message, re.IGNORECASE
+    is_en = bool(re.search(r"[a-zA-Z]", combined)) and not re.search(r"[áéíóúñ¿¡]", combined, re.IGNORECASE) and re.search(
+        r"\b(what|would|recommend|give|build|which|any)\b", combined, re.IGNORECASE
     )
     replies = _BLIND_RECOMMENDATION_REPLIES_EN if is_en else _BLIND_RECOMMENDATION_REPLIES_ES
     return random.choice(replies)
@@ -2944,7 +2964,7 @@ async def chat_stream(
         yield _REFUSAL_MESSAGE
         return
 
-    blind_reco_reply = _blind_recommendation_reply(message)
+    blind_reco_reply = _blind_recommendation_reply(message, conversation_history)
     if blind_reco_reply is not None:
         # Deterministic — never reaches the model for this turn (see
         # _blind_recommendation_reply's docstring for why). Also means
