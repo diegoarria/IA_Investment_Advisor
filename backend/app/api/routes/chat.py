@@ -723,6 +723,21 @@ async def chat_message(
         await _check_daily_cost_cap(user_id)
     has_images = bool(body.images or body.image_data)
 
+    # Diego, 2026-09-19 (root cause of every "still recommends" report that
+    # day): this route's dual-routing gate below sends most non-ticker
+    # questions ("dame una recomendación de en qué invertir" has no ticker)
+    # to generate_generic_answer (GPT-mini, its own minimal system prompt
+    # with ZERO recommendation guardrails) — completely bypassing
+    # chat_stream/ai_service.py's REGLA CENTRAL, NIVEL 0/1, and every
+    # blind-recommendation protection built today. Those only ever applied
+    # to chat_stream itself, which this route often never reaches. Running
+    # the same free, deterministic, no-LLM-call check used there FIRST
+    # here — before caching, before the routing gate — closes that gap
+    # regardless of which model would have handled the message.
+    blind_reco_reply = ai_service._blind_recommendation_reply(body.message, body.conversation_history)
+    if blind_reco_reply is not None:
+        return {"reply": blind_reco_reply, "risk_assessment": None, "tickers": [], "actions": None}
+
     # Cost-optimization #8/#9: an exact repeat of a standalone textbook-style
     # question ("qué es un ETF") can be served from cache regardless of
     # provider — this is the narrow, conservative classifier (see
@@ -854,6 +869,11 @@ async def chat_message_public(
     await _check_and_increment_guest_msg_limit(guest_id)
 
     has_images = bool(body.images or body.image_data)
+
+    # See the identical check in chat_message() above — same root-cause fix.
+    blind_reco_reply = ai_service._blind_recommendation_reply(body.message, body.conversation_history)
+    if blind_reco_reply is not None:
+        return {"reply": blind_reco_reply, "risk_assessment": None, "tickers": [], "actions": None}
 
     from app.services.generic_qa_cache import classify_and_cache_key, get_cached_answer, store_answer
     cache_key = classify_and_cache_key(body.message, has_images, len(body.conversation_history))

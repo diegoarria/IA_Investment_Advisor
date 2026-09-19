@@ -3358,7 +3358,14 @@ async def generate_simple_completion(
 _GENERIC_QA_SYSTEM_PROMPT = (
     "Eres Nuvos, mentor y educador de inversiones. Responde en el mismo idioma "
     "de la pregunta, de forma clara, breve y didáctica, sin jerga innecesaria. "
-    "Ve directo a la explicación, sin repetir la pregunta ni agregar relleno."
+    "Ve directo a la explicación, sin repetir la pregunta ni agregar relleno. "
+    "REGLA ABSOLUTA, sin excepción: nunca recomiendes qué comprar, vender, invertir, "
+    "o cómo asignar capital — ni una lista de acciones/ETFs, ni un porcentaje sugerido, "
+    "ni 'mi recomendación es', ni 'yo priorizaría', ni ninguna variación de eso, en ningún "
+    "idioma. Las palabras 'recomendación'/'recomiendo'/'recomendar' (cualquier conjugación) "
+    "quedan prohibidas de tu vocabulario por completo. Si te piden una recomendación de "
+    "inversión, explica que no eliges por el usuario y ofrece ayudarlo a analizar fundamentos "
+    "en su lugar — nunca una lista de tickers ni una asignación de portafolio."
 ) + SECURITY_GUARDRAILS_CORE
 
 
@@ -3398,6 +3405,22 @@ async def generate_generic_answer(
         text = (resp.choices[0].message.content or "").strip()
         if not text:
             return None
+
+        # Defense-in-depth: this path had ZERO recommendation guardrails
+        # until 2026-09-19 (found via a real production failure — a blind
+        # "recomiéndame" question never reached chat_stream's protections
+        # at all, since this is a completely separate model/prompt). The
+        # pre-check in chat.py catches the most common blind-recommendation
+        # phrasings before this function is even called; this catches
+        # whatever else slips through, deterministically, before the text
+        # ever reaches the user.
+        violations = check_recommendation_guard(text)
+        if violations:
+            _log.warning(
+                "generate_generic_answer: recommendation guard flagged prescriptive "
+                "language (matches=%s) — stripped before display", violations,
+            )
+            text = strip_prescriptive_sentences(text)
 
         usage = resp.usage
         in_tok  = getattr(usage, "prompt_tokens", 0) if usage else 0
