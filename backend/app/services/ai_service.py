@@ -1,4 +1,5 @@
 import asyncio
+import contextvars
 import anthropic
 import json
 import logging
@@ -11,6 +12,7 @@ from app.core.finnhub import fh_quote, fh_candles
 from app.core.database import get_supabase, run_query
 from app.core.cache import cache_delete
 from app.services.llm_usage import log_llm_usage
+from app.services import portfolio_action_result as _pcr
 from app.models.user import UserProfile, ChatMessage
 from app.services.decision_engine import (
     aggregate_positions_by_ticker,
@@ -2487,6 +2489,68 @@ def _build_static_system_prompt(
     return core + ACTION_TAG_INSTRUCTIONS + SECURITY_GUARDRAILS
 
 
+def _build_static_system_blocks(
+    profile: UserProfile | None,
+    mentor: str | None,
+    is_voice: bool,
+    is_premium: bool,
+    raw_message: str | None = None,
+    history: list | None = None,
+    has_ticker: bool = False,
+    has_images: bool = False,
+) -> tuple[list[dict], frozenset[str]]:
+    """Cache-friendly split of what _build_static_system_prompt used to emit
+    as ONE block (Sep 2026 COGS work — see app/services/prompt_modules.py).
+
+    Same text, three separately-cached blocks ordered from most to least
+    shared, so a change in one never re-writes the ones before it:
+
+      1. language directive + CORE prompt   — identical for every user of the
+         same language; shared cache across users
+      2. mentor + profile                   — per user, changes rarely
+      3. situational MODULES for this turn + action-tag/security guardrails
+         (guardrails last, for recency)
+
+    The mutable portfolio/watchlist (`deep_context`) is deliberately NOT in
+    here anymore — it goes in the uncached dynamic tail (chat_stream), so a
+    confirmed transaction no longer invalidates the ~35K-token cached prefix.
+    Returns (blocks, selected_modules)."""
+    from datetime import datetime as _dt
+    from app.services.prompt_modules import split_prompt, select_modules
+
+    today = _dt.now().strftime("%A %d de %B de %Y")
+    base = SYSTEM_PROMPT_BASE.replace("{TODAY_DATE}", today)
+    if is_voice:
+        base = _strip_investment_scorecard_format(base)
+    elif not is_premium:
+        base = _strip_investment_scorecard_format(base, _FREE_TIER_ANALYSIS_REPLACEMENT)
+    core, modules = split_prompt(base)
+    selected = select_modules(raw_message, history, has_ticker=has_ticker, has_images=has_images)
+
+    mentor_section = build_mentor_context(mentor)
+    if profile:
+        profile_block = mentor_section + "\n\n" + build_profile_context(profile)
+    else:
+        profile_block = mentor_section + "\n\n## NOTA: Usuario aún no ha completado su perfil. Invítalo a hacerlo para personalizar el análisis."
+
+    blocks: list[dict] = [
+        {"type": "text", "text": _language_directive(profile) + "\n\n" + core, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": profile_block, "cache_control": {"type": "ephemeral"}},
+    ]
+    module_text = "".join(modules[m] for m in _MODULE_ORDER if m in selected and m in modules)
+    # Anthropic allows at most 4 cache_control breakpoints per request and the
+    # tools list already carries one, so modules + guardrails share the third
+    # (and last) static breakpoint. Guardrails stay after the modules so they
+    # keep their original last-in-prompt (recency) position.
+    blocks.append({"type": "text", "text": module_text + ACTION_TAG_INSTRUCTIONS + SECURITY_GUARDRAILS, "cache_control": {"type": "ephemeral"}})
+    return blocks, selected
+
+
+# Original order of the sections inside SYSTEM_PROMPT_BASE, so a module that's
+# sent reads the same as it did inline.
+_MODULE_ORDER = ("capital", "news", "analysis", "drawdown", "trade_intent", "transactions", "screener")
+
+
 def _build_dynamic_system_addendum(
     memory_context: str | None = None,
     notification_context: str | None = None,
@@ -2771,6 +2835,10 @@ _UPDATE_PROFILE_FIELDS = {
     "has_debt", "debt_amount_usd",
 }
 
+_PORTFOLIO_TOOL_NAMES = frozenset({
+    "propose_portfolio_transaction", "confirm_pending_financial_action",
+    "get_portfolio_transactions", "update_portfolio_transaction", "delete_portfolio_transaction",
+})
 _MAX_TOOL_ROUNDS = 2  # hard cap on worst-case Sonnet calls per user message — each round is a full new call
 
 _PENDING_ACTION_TTL_MINUTES = 30
@@ -2999,15 +3067,30 @@ async def _propose_portfolio_transaction(tool_input: dict, user_id: str | None) 
     )
 
 
-async def _confirm_pending_financial_action(tool_input: dict, user_id: str | None) -> str:
+# Carries chat_stream's per-round result holder into the tool task without
+# changing _exec_mentor_tool's signature (callers/tests monkeypatch it).
+_STRUCTURED_OUT: "contextvars.ContextVar[dict | None]" = contextvars.ContextVar("portfolio_structured_out", default=None)
+
+
+async def _confirm_pending_financial_action(
+    tool_input: dict, user_id: str | None, structured_out: dict | None = None,
+) -> str:
     """Applies (or cancels) a previously proposed transaction. This is the
     ONLY path that writes to the real portfolio — always through
     apply_portfolio_positions (sync.py), never a second write path. Never
-    reports success unless the DB write actually confirmed."""
+    reports success unless the DB write actually confirmed.
+
+    `structured_out` (Stage 4): when a dict is passed, the outcome is ALSO
+    recorded there as structured_out["result"] = PortfolioActionResult, built
+    only from what was really applied/returned by the DB write. The returned
+    string is unchanged either way."""
     from app.api.routes.sync import (
         _parse_portfolio, apply_portfolio_positions, add_buy_lot, apply_sell_fifo,
         update_open_lot, delete_open_lot,
     )
+    from app.services import portfolio_action_result as par
+    if structured_out is None:
+        structured_out = _STRUCTURED_OUT.get()
 
     if not user_id:
         return "No se pudo procesar: sesión sin usuario."
@@ -3061,6 +3144,7 @@ async def _confirm_pending_financial_action(tool_input: dict, user_id: str | Non
     action = row["action_type"]
     target_lot_id = row.get("target_lot_id")
     realized_pl = None
+    prev_shares = _ticker_position(parsed["positions"], ticker)["shares"]
     try:
         if action == "BUY_ASSET":
             new_positions = add_buy_lot(parsed["positions"], ticker, quantity, price, date_str)
@@ -3093,6 +3177,29 @@ async def _confirm_pending_financial_action(tool_input: dict, user_id: str | Non
             f"modificó el portafolio — pídele al usuario que confirme su posición actual."
         )
 
+    # Atomic claim (Sep 2026 idempotency fix): the status filter makes this
+    # UPDATE a compare-and-swap — of two concurrent confirms (double-tap, a
+    # client retry) only ONE flips pending -> applying and proceeds to the
+    # write; the other sees no row and stops. Before this, both had already
+    # read status='pending' and the second read a portfolio the first had
+    # just updated, so `base_updated_at` didn't catch it and the same
+    # transaction could be applied twice.
+    claim = await run_query(
+        db.table("pending_financial_actions")
+        .update({"status": "applying"})
+        .eq("id", row["id"]).eq("status", "pending")
+    )
+    if not claim.data:
+        if structured_out is not None:
+            structured_out["result"] = par.PortfolioActionResult(
+                status=par.STATUS_ALREADY_PROCESSED, action=par.action_from_row(row.get("action_type")),
+                ticker=ticker,
+            )
+        return (
+            "Esa operación ya fue procesada (o está en proceso) — no se duplicó nada. "
+            "Revisa tu portafolio antes de repetirla."
+        )
+
     try:
         result = await apply_portfolio_positions(
             user_id, row["portfolio_id"], new_positions,
@@ -3106,6 +3213,20 @@ async def _confirm_pending_financial_action(tool_input: dict, user_id: str | Non
         )
     except Exception as e:
         _log.error("confirm_pending_financial_action: apply failed for %s: %s", user_id, e)
+        # The write failed, so the proposal is still valid — hand it back to
+        # 'pending' so a retry can claim it again.
+        try:
+            await run_query(
+                db.table("pending_financial_actions")
+                .update({"status": "pending"})
+                .eq("id", row["id"]).eq("status", "applying")
+            )
+        except Exception as release_exc:
+            _log.error("confirm_pending_financial_action: could not release claim %s: %s", row["id"], release_exc)
+        if structured_out is not None:
+            structured_out["result"] = par.PortfolioActionResult(
+                status=par.STATUS_WRITE_FAILED, action=par.action_from_row(action), ticker=ticker,
+            )
         return "No pude actualizar tu posición. Tu portafolio NO fue modificado. Intenta de nuevo en un momento."
 
     await run_query(
@@ -3115,6 +3236,24 @@ async def _confirm_pending_financial_action(tool_input: dict, user_id: str | Non
     )
 
     final = _ticker_position(result["positions"], ticker)
+    if structured_out is not None:
+        from app.services.company_names import company_name as _company_name
+        structured_out["result"] = par.PortfolioActionResult(
+            status=par.STATUS_SUCCESS,
+            action=par.action_from_row(action),
+            ticker=ticker,
+            company_name=_company_name(ticker),
+            quantity=quantity,
+            price=price,
+            total_value=round(quantity * price, 2),
+            previous_position=prev_shares,
+            new_position=final["shares"],
+            avg_cost=final["avg_cost"],
+            realized_pl=realized_pl,
+            currency=parsed["currency"],
+            portfolio_name=portfolio_name,
+            portfolio_refresh=True,
+        )
     if action == "BUY_ASSET":
         return (
             f"Aplicado. {ticker}: ahora {final['shares']:.4f} acciones, costo promedio "
@@ -3552,6 +3691,7 @@ async def chat_stream(
     quotes: dict[str, dict] | None = None,
     cash_position: float | None = None,
     recent_decisions: list[dict] | None = None,
+    raw_message: str | None = None,
 ):
     if is_blatant_injection_attempt(message):
         yield _REFUSAL_MESSAGE
@@ -3570,10 +3710,30 @@ async def chat_stream(
     # uncached block so it doesn't bust the cache every message and inflate
     # input token costs — `deep_context` must already be quote-free (see
     # build_deep_user_context's docstring), live prices arrive here instead.
-    static_prompt  = _build_static_system_prompt(profile, mentor, deep_context, is_voice=is_voice, is_premium=is_premium)
+    #
+    # COGS work, Sep 2026: the ~40K-token base prompt is split into an always-
+    # sent core plus situational modules chosen from `raw_message`, in four
+    # separately-cached blocks (see _build_static_system_blocks). The mutable
+    # portfolio/watchlist (`deep_context`) rides in the uncached dynamic tail
+    # below instead of inside the cached prefix, so changing the portfolio
+    # never re-writes the cache. Callers that don't pass `raw_message`
+    # (voice, guest chat) keep the old send-everything behavior.
+    has_ticker = False
+    if raw_message:
+        try:
+            from app.services.market_data_service import detect_tickers
+            has_ticker = bool(detect_tickers(raw_message))
+        except Exception:
+            has_ticker = True  # can't tell — err on the side of sending the analysis module
+    system_blocks, _selected_modules = _build_static_system_blocks(
+        profile, mentor, is_voice=is_voice, is_premium=is_premium,
+        raw_message=raw_message, history=conversation_history,
+        has_ticker=has_ticker, has_images=bool(images or image_data),
+    )
+    _log.info("chat_stream prompt modules: %s", sorted(_selected_modules) or "core-only")
+    if deep_context:
+        system_blocks.append({"type": "text", "text": deep_context.lstrip("\n")})
     dynamic_addend = _build_dynamic_system_addendum(memory_context, notification_context, progress_context, style_instructions, live_market_context)
-
-    system_blocks: list[dict] = [{"type": "text", "text": static_prompt, "cache_control": {"type": "ephemeral"}}]
     if dynamic_addend:
         system_blocks.append({"type": "text", "text": dynamic_addend})
 
@@ -3711,6 +3871,8 @@ async def chat_stream(
     # garbled "confirmada... pero hay un error técnico" reply instead.
     # Tracked here the same way as confirm_tool_applied above.
     propose_pending_id_returned = False
+    _prev_round_portfolio = False
+    _shadow_pending = None  # (PortfolioActionResult, deterministic reply, len(full_response_text) at tool time)
     for _round in range(_MAX_TOOL_ROUNDS):
         # Calls the client directly (not _claude()) since this streams —
         # check the breaker manually before each round (2026-08-21 audit:
@@ -3737,9 +3899,26 @@ async def chat_stream(
             final = await stream.get_final_message()
 
         # Fire-and-forget — never blocks the stream, never raises into it.
-        asyncio.create_task(log_llm_usage(user_id, "chat_stream", model, final.usage))
+        # Feature tag for COGS-per-feature reporting: every model call that
+        # belongs to a portfolio-transaction turn (the tool_use round AND the
+        # follow-up round that narrates its result) is attributed to
+        # "chat_portfolio_action", not plain chat.
+        _round_tool_names = {b.name for b in final.content if b.type == "tool_use"}
+        _portfolio_round = bool(_round_tool_names & _PORTFOLIO_TOOL_NAMES) or _prev_round_portfolio
+        _prev_round_portfolio = _portfolio_round
+        asyncio.create_task(log_llm_usage(
+            user_id, "chat_portfolio_action" if _portfolio_round else "chat_stream", model, final.usage,
+        ))
 
         if final.stop_reason != "tool_use":
+            if _shadow_pending is not None:
+                _res, _det, _pre_len = _shadow_pending
+                _issues = _pcr.compare_with_llm_text(_res, full_response_text[_pre_len:])
+                _log.info(
+                    "portfolio_confirm_shadow result=%s issues=%s llm_reply_chars=%d deterministic_chars=%d",
+                    _res.to_log_dict(), _issues or "none", len(full_response_text) - _pre_len, len(_det),
+                )
+                _shadow_pending = None
             violations = check_recommendation_guard(full_response_text)
             false_claim = _false_transaction_claim(full_response_text, confirm_tool_applied)
             # Ground-truth backstop (see _has_unconfirmed_pending_action's
@@ -3842,9 +4021,41 @@ async def chat_stream(
         # back, and let another streaming round produce the final answer.
         messages.append({"role": "assistant", "content": final.content})
         tool_blocks = [b for b in final.content if b.type == "tool_use"]
+        # Stage 4: capture the STRUCTURED outcome of confirm (see
+        # portfolio_action_result.py) so the backend — not another model
+        # call — can report what it just did.
+        _confirm_out: dict = {}
+        _STRUCTURED_OUT.set(_confirm_out)  # read by _confirm_pending_financial_action (tool tasks copy this context)
         results = await asyncio.gather(
             *(_exec_mentor_tool(b.name, b.input, user_id) for b in tool_blocks)
         )
+        _action_result = _confirm_out.get("result")
+        _render_mode = settings.portfolio_confirm_render_mode
+        if (
+            _action_result is not None
+            and _render_mode in ("shadow", "on")
+            and len(tool_blocks) == 1
+            and _action_result.renderable
+            # Shadow needs a following round to compare against; "on" doesn't —
+            # and renders even when the confirm landed in the LAST allowed
+            # round, where the legacy flow used to end with no reply at all.
+            and (_render_mode == "on" or _round + 1 < _MAX_TOOL_ROUNDS)
+        ):
+            _lang = _detect_message_language(raw_message or message) or (
+                "en" if getattr(profile, "preferred_language", None) == "en" else "es"
+            )
+            _det_reply = _pcr.render_full(_action_result, _lang)
+            if _render_mode == "on":
+                # The narration call is skipped entirely. Only reached when the
+                # backend reported a fully-known outcome for a lone confirm.
+                _log.info(
+                    "portfolio_confirm_render mode=on status=%s action=%s llm_narration_skipped=true",
+                    _action_result.status, _action_result.action,
+                )
+                full_response_text += _det_reply
+                yield _det_reply
+                return
+            _shadow_pending = (_action_result, _det_reply, len(full_response_text))
         for b, r in zip(tool_blocks, results):
             if b.name == "confirm_pending_financial_action" and r.startswith("Aplicado."):
                 confirm_tool_applied = True

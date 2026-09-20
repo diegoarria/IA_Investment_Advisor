@@ -80,6 +80,10 @@ async def log_llm_usage(
             except Exception:
                 pass  # never block usage logging on this
 
+        # Per-user month/day counters for app.services.cost_guard.
+        from app.services.cost_guard import record_spend
+        record_spend(user_id, cost)
+
         from app.core.database import get_supabase, run_query
         db = get_supabase()
         await run_query(

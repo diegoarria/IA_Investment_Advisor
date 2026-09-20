@@ -628,3 +628,66 @@ async def test_delete_transaction_double_confirm_is_idempotent(fake_db):
     }, user_id="u1")
     assert "Aplicado" not in second
     assert "no encontré" in second.lower()
+
+
+async def test_concurrent_double_confirm_applies_exactly_once(fake_db, monkeypatch):
+    """Real race: two confirms of the SAME pending action (double-tap, client
+    retry) both read status='pending' before either writes. The atomic claim
+    (pending -> applying compare-and-swap) must let exactly one through."""
+    import asyncio
+
+    propose = await ai_service._exec_mentor_tool("propose_portfolio_transaction", {
+        "action_type": "BUY_ASSET", "ticker": "MSFT", "quantity": 2, "execution_price": 400,
+        "raw_message": "Compré 2 MSFT a 400",
+    }, user_id="u1")
+    pending_id = _pending_id(propose)
+
+    # Force interleaving: yield to the loop on every DB call so both confirms
+    # complete their reads before either one reaches its write.
+    original = ai_service.run_query
+
+    async def yielding_run_query(query):
+        await asyncio.sleep(0)
+        return await original(query)
+
+    monkeypatch.setattr(ai_service, "run_query", yielding_run_query)
+    monkeypatch.setattr(sync_module, "run_query", yielding_run_query)
+
+    results = await asyncio.gather(*(
+        ai_service._exec_mentor_tool(
+            "confirm_pending_financial_action", {"pending_id": pending_id, "confirmed": True}, user_id="u1",
+        )
+        for _ in range(3)
+    ))
+    applied = [r for r in results if r.startswith("Aplicado.")]
+    assert len(applied) == 1, results
+    msft_lots = [
+        p for p in fake_db["user_portfolio"][("u1", "default")]["positions"]["positions"]
+        if p["ticker"] == "MSFT"
+    ]
+    assert len(msft_lots) == 1
+
+
+async def test_failed_write_releases_the_claim_so_a_retry_can_succeed(fake_db, monkeypatch):
+    propose = await ai_service._exec_mentor_tool("propose_portfolio_transaction", {
+        "action_type": "BUY_ASSET", "ticker": "MSFT", "quantity": 2, "execution_price": 400,
+        "raw_message": "Compré 2 MSFT a 400",
+    }, user_id="u1")
+    pending_id = _pending_id(propose)
+
+    real_apply = sync_module.apply_portfolio_positions
+
+    async def failing(*a, **k):
+        raise RuntimeError("supabase blip")
+
+    monkeypatch.setattr(sync_module, "apply_portfolio_positions", failing)
+    first = await ai_service._exec_mentor_tool(
+        "confirm_pending_financial_action", {"pending_id": pending_id, "confirmed": True}, user_id="u1")
+    assert "NO fue modificado" in first
+    row = next(iter(fake_db["pending_financial_actions"].values()))
+    assert row["status"] == "pending"
+
+    monkeypatch.setattr(sync_module, "apply_portfolio_positions", real_apply)
+    second = await ai_service._exec_mentor_tool(
+        "confirm_pending_financial_action", {"pending_id": pending_id, "confirmed": True}, user_id="u1")
+    assert second.startswith("Aplicado.")

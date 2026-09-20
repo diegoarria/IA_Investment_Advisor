@@ -497,6 +497,20 @@ async def llm_usage_summary(
             tier["total_cost_usd"] = round(tier["total_cost_usd"], 4)
             tier["avg_cost_per_user_usd"] = round(tier["total_cost_usd"] / tier["user_count"], 4) if tier["user_count"] else 0.0
 
+        def _pct(sorted_vals: list[float], q: float) -> float:
+            if not sorted_vals:
+                return 0.0
+            idx = min(len(sorted_vals) - 1, max(0, int(round(q * (len(sorted_vals) - 1)))))
+            return round(sorted_vals[idx], 4)
+
+        premium_costs = sorted(
+            agg["cost_usd"] for uid, agg in by_user.items()
+            if tier_by_uid.get(uid)
+        ) if real_user_ids else []
+        from app.services import cost_guard as _cg
+        cache_write = sum(r.get("cache_creation_input_tokens") or 0 for r in rows)
+        cache_read = sum(r.get("cache_read_input_tokens") or 0 for r in rows)
+        cache_calls = sum(1 for r in rows if (r.get("cache_creation_input_tokens") or 0) or (r.get("cache_read_input_tokens") or 0))
         unit_economics = {
             "note": "LLM cost only — add data-provider (FMP/Finnhub/fiscal.ai) and hosting cost for full unit economics",
             "active_user_count": n,
@@ -505,6 +519,23 @@ async def llm_usage_summary(
             "automatic_cost_usd": round((automatic or {}).get("cost_usd", 0.0), 4),
             "automatic_cost_note": "cron jobs with no user_id (weekly screener refresh, NIF/quick-analysis prewarm) — a shared platform cost, not attributable to one user's margin",
             "by_tier": by_tier,
+            # Distribution, not just the mean — the mean hides the heavy tail
+            # that decides whether Premium is safe (Sep 2026 COGS work).
+            "premium_distribution_usd": {
+                "count": len(premium_costs),
+                "mean": round(sum(premium_costs) / len(premium_costs), 4) if premium_costs else 0.0,
+                "median": _pct(premium_costs, 0.5),
+                "p95": _pct(premium_costs, 0.95),
+                "p99": _pct(premium_costs, 0.99),
+                "max": round(premium_costs[-1], 4) if premium_costs else 0.0,
+            },
+            "cache": {
+                "calls_using_cache": cache_calls,
+                "avg_cache_write_tokens_per_cached_call": round(cache_write / cache_calls) if cache_calls else 0,
+                "avg_cache_read_tokens_per_cached_call": round(cache_read / cache_calls) if cache_calls else 0,
+            },
+            "cost_guard_thresholds_usd": _cg.thresholds_usd(),
+            "window_note": "distribution is over the requested window (days=), not necessarily a full calendar month",
         }
 
     return {

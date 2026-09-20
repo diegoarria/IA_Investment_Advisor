@@ -30,6 +30,39 @@ class Settings(BaseSettings):
     # repeat of the Aug 15 $10.51 spike structurally impossible, not to
     # throttle normal operation. Override via DAILY_LLM_SPEND_CAP_USD.
     daily_llm_spend_cap_usd: float = 5.0
+    # ── Unit economics / Cost Guard (Sep 2026 COGS work) ─────────────────
+    # ONE place for every number that decides how much a Premium user may
+    # cost. Thresholds are FRACTIONS of the subscription price, derived from
+    # the margin target (60-70% gross margin => variable COGS <= 30-40% of
+    # revenue => $4.50-$6.00 on $14.99), so re-pricing Premium re-scales
+    # every threshold automatically. Override any via env var.
+    premium_price_usd: float = 14.99
+    payment_fee_pct: float = 0.029        # Stripe standard — NOT verified against the live account
+    payment_fee_fixed_usd: float = 0.30
+    target_cogs_pct_max: float = 0.40     # upper edge of the 60-70% gross-margin target
+    # Premium per-user LLM spend, month-to-date, as a fraction of price:
+    guard_warning_pct: float = 0.20       # $3.00 — logged only
+    guard_high_usage_pct: float = 0.40    # $6.00 — logged + flagged in admin (== target ceiling)
+    guard_protection_pct: float = 0.60    # $9.00 — Arthur silently routes to the cheaper model
+    guard_hard_stop_pct: float = 0.90     # $13.49 — friendly "renews on the 1st" message
+    # Per-day Premium ceiling, as a fraction of price — stops a single-day
+    # blowup that a monthly budget would only notice after the fact.
+    guard_daily_cap_pct: float = 0.20     # $3.00/day
+    guard_enabled: bool = True
+    free_msg_limit: int = 15
+    premium_msg_limit: int = 80
+    msg_window_hours: int = 24
+    free_daily_cost_cap_usd: float = 0.20
+    # Model Arthur falls back to under COST_PROTECTION (never used otherwise).
+    cost_protection_model: str = "claude-haiku-4-5-20251001"
+    # Stage 4: what happens after confirm_pending_financial_action already
+    # applied (or failed to apply) a BUY/SELL. The backend knows the outcome
+    # exactly, so the follow-up narration LLM call is redundant.
+    #   "off"    — legacy: the LLM narrates (no comparison)
+    #   "shadow" — legacy reply is what the user sees; a deterministic reply is
+    #              built alongside and any discrepancy is logged (NO savings yet)
+    #   "on"     — the deterministic reply is sent and the narration call is skipped
+    portfolio_confirm_render_mode: str = "shadow"
     # OpenAI — routes standalone, non-personalized educational Q&A (see
     # app.services.generic_qa_cache) away from Claude. Optional: if unset,
     # that traffic just falls back to the existing Haiku path.

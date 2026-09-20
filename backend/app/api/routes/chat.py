@@ -26,9 +26,13 @@ from app.core.limiter import limiter
 from app.core.cache import cache_get, cache_set
 from app.core.feature_flags import require_ai_enabled
 
-FREE_MSG_LIMIT    = 15
-PREMIUM_MSG_LIMIT = 80
-MSG_WINDOW_HOURS  = 24
+from app.core.config import settings as _settings
+
+# Centralized in app.core.config (Sep 2026 COGS work) — change them there or
+# via env (FREE_MSG_LIMIT / PREMIUM_MSG_LIMIT / MSG_WINDOW_HOURS), not here.
+FREE_MSG_LIMIT    = _settings.free_msg_limit
+PREMIUM_MSG_LIMIT = _settings.premium_msg_limit
+MSG_WINDOW_HOURS  = _settings.msg_window_hours
 
 # Hard $ cap per day, FREE USERS ONLY — independent of the message-count
 # limiter above (a free user well under 15 messages can still blow past a
@@ -37,7 +41,7 @@ MSG_WINDOW_HOURS  = 24
 # customers and the message-count cap is the intended lever for them.
 # Enforced from llm_usage_log (added for cost-optimization rec #18), the only
 # source of truth for actual $ spent, not just message count.
-DAILY_COST_CAP_USD = 0.20
+DAILY_COST_CAP_USD = _settings.free_daily_cost_cap_usd
 
 
 async def _check_daily_cost_cap(user_id: str) -> None:
@@ -161,6 +165,54 @@ def _needs_claude_analysis(message: str, has_images: bool) -> bool:
     if _UNDERVALUED_SCREENER_RE.search(message):
         return True
     return bool(_LIVE_DATA_RE.search(message))
+
+
+_COST_PROTECTION_REPLY_ES = (
+    "Has usado a Arthur muchísimo este mes, y quiero seguir dándote respuestas de calidad. "
+    "Para mantener el servicio sostenible, hagamos una pausa en las conversaciones largas: "
+    "tu acceso completo se renueva el día 1 del próximo mes. Mientras tanto tu portafolio, "
+    "watchlist, alertas y análisis siguen funcionando normal."
+)
+_COST_PROTECTION_DAILY_ES = (
+    "Hoy ha sido un día muy intenso con Arthur y quiero seguir dándote respuestas de calidad. "
+    "Hagamos una pausa: tu acceso a las conversaciones se renueva mañana. Mientras tanto tu "
+    "portafolio, watchlist, alertas y análisis siguen funcionando normal."
+)
+_COST_PROTECTION_DAILY_EN = (
+    "Today has been a very busy day with Arthur and I want to keep giving you quality answers. "
+    "Let's pause: your access to conversations renews tomorrow. Meanwhile your portfolio, "
+    "watchlist, alerts and analyses keep working as usual."
+)
+_COST_PROTECTION_REPLY_EN = (
+    "You've used Arthur a lot this month, and I want to keep giving you quality answers. "
+    "To keep the service sustainable, let's pause long conversations for now: your full access "
+    "renews on the 1st of next month. Meanwhile your portfolio, watchlist, alerts and analyses "
+    "keep working as usual."
+)
+
+
+async def _cost_guard_check(user_id: str, profile, premium: bool):
+    """Premium economic protection (app.services.cost_guard). Returns
+    (blocked_reply | None, model_override | None). Deliberately answers a
+    blocked user with a normal 200 reply, NOT a 429 — the web client maps
+    every 429 to the paywall, and a Premium user must never see the Free
+    wall. Fails open on any error."""
+    if not premium:
+        return None, None
+    try:
+        from app.services import cost_guard
+        decision = await cost_guard.evaluate(user_id)
+    except Exception as exc:
+        logger.warning("_cost_guard_check failed open for %s: %s", user_id, exc)
+        return None, None
+    if decision.block:
+        en = getattr(profile, "preferred_language", None) == "en"
+        if decision.reason == "daily_cap":
+            return (_COST_PROTECTION_DAILY_EN if en else _COST_PROTECTION_DAILY_ES), None
+        return (_COST_PROTECTION_REPLY_EN if en else _COST_PROTECTION_REPLY_ES), None
+    if decision.degrade_model:
+        return None, _settings.cost_protection_model
+    return None, None
 
 
 async def _check_and_increment_msg_limit(user_id: str, profile: UserProfile) -> None:
@@ -629,6 +681,11 @@ async def chat_stream(
     premium = _is_premium(profile)
     if not premium:
         await _check_daily_cost_cap(user_id)
+    blocked_reply, guard_model = await _cost_guard_check(user_id, profile, premium)
+    if blocked_reply:
+        async def _blocked():
+            yield blocked_reply
+        return StreamingResponse(_blocked(), media_type="text/plain")
     enrich_timeout = 4.0 if premium else 2.5
 
     async def _safe_enrich():
@@ -695,7 +752,9 @@ async def chat_stream(
                 deep_context=deep_ctx,
                 progress_context=progress_ctx,
                 is_premium=premium,
+                model=guard_model,
                 live_market_context=live_ctx,
+                raw_message=body.message,
                 positions=positions,
                 quotes=quotes,
             ):
@@ -721,6 +780,9 @@ async def chat_message(
     premium = _is_premium(profile)
     if not premium:
         await _check_daily_cost_cap(user_id)
+    blocked_reply, guard_model = await _cost_guard_check(user_id, profile, premium)
+    if blocked_reply:
+        return {"reply": blocked_reply, "risk_assessment": None, "tickers": [], "actions": None}
     has_images = bool(body.images or body.image_data)
 
     # Diego, 2026-09-19 (root cause of every "still recommends" report that
@@ -797,7 +859,7 @@ async def chat_message(
     # narrow cacheable-generic case; anything else (including "basic"
     # questions that just happened to fail the mini call) gets Sonnet.
     is_generic_question = cache_key is not None
-    chat_model = "claude-haiku-4-5-20251001" if (not premium or is_generic_question) else None
+    chat_model = "claude-haiku-4-5-20251001" if (not premium or is_generic_question) else guard_model
 
     enrich_timeout = 4.0 if premium else 2.5
     tickers  = await asyncio.to_thread(detect_tickers, body.message)
@@ -845,6 +907,7 @@ async def chat_message(
         is_premium=premium,
         model=chat_model,
         live_market_context=live_ctx,
+        raw_message=body.message,
         positions=positions,
         quotes=quotes,
     ):
