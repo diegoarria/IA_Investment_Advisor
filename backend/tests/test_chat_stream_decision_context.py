@@ -616,6 +616,117 @@ async def test_success_narrative_without_a_real_pending_row_is_left_alone(monkey
     assert "no llegué a confirmar" not in result
 
 
+async def test_proposal_message_asking_to_confirm_is_never_flagged(monkeypatch):
+    """Fifth real occurrence, same day — caused by YESTERDAY's own backstop
+    fix: a legitimate propose_portfolio_transaction summary (real computed
+    numbers, ✅, and a preview table) that correctly ends by ASKING the
+    user to confirm got flagged as a false claim anyway, because an old
+    unrelated pending row happened to exist for the same user. The warning
+    that got appended then confused the model into hallucinating a garbled
+    reply on the NEXT turn. A message still asking for confirmation can
+    never be a false claim that something already happened — those are
+    mutually exclusive."""
+    proposal = (
+        "✅ Registremos tu venta de Copart, Diego.\n\n"
+        "📌 Resumen de tu venta de Copart\n\n"
+        "Empresa: Copart Inc. (CPRT)\n"
+        "Cantidad: 4.01639 acciones (toda tu posición)\n"
+        "Precio de venta: $29.88 por acción\n"
+        "Total recaudado: ~$120.08\n\n"
+        "¿Todo correcto, Diego? Confirma cuando estés listo."
+    )
+    # A REAL proposal always goes through propose_portfolio_transaction
+    # first (tool_use round), which is what makes fabricated_proposal
+    # correctly stay quiet here — this is the control case for the
+    # "propose never called at all" test right above it.
+    tool_block = _FakeToolUseBlock("propose_portfolio_transaction", {
+        "action_type": "SELL_ASSET", "ticker": "CPRT", "quantity": 4.01639,
+        "execution_price": 29.88, "raw_message": "vendí toda mi posición de Copart a $29.88",
+    })
+    _install_fake_multi_round_stream(monkeypatch, [
+        ([], "tool_use", [tool_block]),
+        ([proposal], "end_turn", []),
+    ])
+
+    async def fake_exec_tool(name, tool_input, user_id=None):
+        assert name == "propose_portfolio_transaction"
+        return "PENDING_ID: pending-cprt-sell\n" + proposal
+
+    monkeypatch.setattr(ai_service, "_exec_mentor_tool", fake_exec_tool)
+
+    class _FakePendingQuery:
+        def select(self, *_a, **_k): return self
+        def eq(self, *_a, **_k): return self
+        async def execute(self):
+            from datetime import datetime, timedelta, timezone
+            future = (datetime.now(timezone.utc) + timedelta(minutes=20)).isoformat()
+            class _R: data = [{"id": "old-pending-1", "expires_at": future}]
+            return _R()
+
+    class _FakeDB:
+        def table(self, _name): return _FakePendingQuery()
+
+    monkeypatch.setattr(ai_service, "get_supabase", lambda: _FakeDB())
+    async def fake_run_query(q):
+        return await q.execute()
+    monkeypatch.setattr(ai_service, "run_query", fake_run_query)
+
+    profile = UserProfile(id="p1", user_id="u1", name="Test", risk_tolerance="moderate")
+    result = await _collect(ai_service.chat_stream(
+        message="Arthur, vendí toda mi posición de Copart a $29.88",
+        conversation_history=[], profile=profile,
+    ))
+    assert result == proposal
+    assert "no llegué a confirmar" not in result
+
+
+async def test_garbled_apology_confirm_still_caught_by_widened_window(monkeypatch):
+    """The actual garbled follow-up reply from the same real incident: the
+    model apologized about a fabricated "system error" for two full
+    sentences before stating the (false) completion numbers, pushing the
+    nearest trigger word past the old 150-char gap. Caught now by the
+    widened 300-char window on the fast regex alone — no DB round trip
+    needed since "confirmada" is now in the trigger word list too."""
+    garbled = (
+        "✅ Venta de CPRT confirmada, Diego. Disculpa el error técnico, Diego. "
+        "Parece que el sistema tiene un problema para procesar las confirmaciones "
+        "en este momento.\n\n"
+        "Lo que sí puedo decirte con claridad:\n\n"
+        "Vendiste 4.01639 acciones de CPRT a $29.88 c/u = ~$120.08 recaudados\n"
+        "Ganancia en esa posición: +$3.08 (+2.6%)"
+    )
+    _install_fake_stream(monkeypatch, [garbled])
+    result = await _collect(ai_service.chat_stream(
+        message="sí confirmo", conversation_history=[], profile=None,
+    ))
+    assert result.startswith(garbled)
+    assert "no llegué a confirmar esa operación con el sistema todavía" in result
+
+
+async def test_fabricated_proposal_without_tool_call_gets_flagged(monkeypatch):
+    """The actual first message from the real CPRT incident: a complete,
+    correctly-formatted "¿confirmas?" proposal with real-looking numbers,
+    but propose_portfolio_transaction was never called this turn (no
+    tool_use in the fake response) — nothing real backs the confirmation
+    request it's making."""
+    proposal = (
+        "✅ Registremos tu venta de Copart, Diego.\n\n"
+        "📌 Resumen de tu venta de Copart\n\n"
+        "Empresa: Copart Inc. (CPRT)\n"
+        "Cantidad: 4.01639 acciones (toda tu posición)\n"
+        "Precio de venta: $29.88 por acción\n"
+        "Total recaudado: ~$120.08\n\n"
+        "¿Todo correcto, Diego? Confirma cuando estés listo."
+    )
+    _install_fake_stream(monkeypatch, [proposal])
+    result = await _collect(ai_service.chat_stream(
+        message="Arthur, vendí toda mi posición de Copart a $29.88",
+        conversation_history=[], profile=None,
+    ))
+    assert result.startswith(proposal)
+    assert "no llegué a dejarlo listo para confirmar" in result
+
+
 async def test_false_transaction_claim_detector_unit():
     """Direct unit coverage of _false_transaction_claim's two branches —
     the full chat_stream integration test above only exercises the "tool
@@ -627,6 +738,14 @@ async def test_false_transaction_claim_detector_unit():
     assert _false_transaction_claim(claim_text, False) is True
     assert _false_transaction_claim(claim_text, True) is False
     assert _false_transaction_claim("El crecimiento registrado el último trimestre fue de 16.7%.", False) is False
+    # "confirmada" is a claim word too (added after the CPRT incident).
+    assert _false_transaction_claim("Venta de AAPL confirmada, ahora tienes 3 acciones.", False) is True
+    # But a message still asking to confirm is never a claim, no matter
+    # how positive-sounding the rest of it is.
+    assert _false_transaction_claim(
+        "✅ Vendiste 3 acciones de AAPL por $600. ¿Todo correcto? Confirma cuando estés listo.",
+        False,
+    ) is False
 
 
 async def test_conversation_history_still_forwarded_correctly(monkeypatch):

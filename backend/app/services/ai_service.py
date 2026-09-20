@@ -2122,10 +2122,38 @@ _TRANSACTION_SUCCESS_CLAIM_RE = re.compile(
     # including newlines, since the success word and the transaction
     # details are almost always on separate lines in a real confirmation
     # summary (e.g. "Registrado, Diego:\n\nGOOGL: 3 acciones\n...").
-    r"\b(registrad[oa]s?|aplicad[oa]s?|qued(?:[oó]|an|aron) registrad[oa]s?|"
+    r"\b(registrad[oa]s?|aplicad[oa]s?|confirmad[oa]s?|qued(?:[oó]|an|aron) registrad[oa]s?|"
     r"ya (se )?(actualic[eé]|actualiz(?:[oó]|aron)|registr(?:[oó]|aron))|"
-    r"applied|registered|recorded)\b"
-    r"[\s\S]{0,150}(acci[oó]n(es)?|shares?|\$\s?\d|portafolio|portfolio)",
+    r"applied|registered|recorded|confirmed)\b"
+    # Diego, 2026-09-20 (fifth occurrence): 150 chars was too tight for a
+    # real garbled reply ("Venta de CPRT confirmada, Diego. Disculpa el
+    # error técnico..." — two full apology sentences before the actual
+    # numbers), which pushed the nearest trigger word 200+ chars away and
+    # let it slip through uncaught. Widened to 300 — still bounded, so an
+    # unrelated later "$" or "acciones" several paragraphs down still
+    # doesn't associate with an unrelated earlier "registrado".
+    r"[\s\S]{0,300}(acci[oó]n(es)?|shares?|\$\s?\d|portafolio|portfolio)",
+    re.IGNORECASE,
+)
+
+# Diego, 2026-09-20 (FIFTH occurrence, same day — this one caused by
+# yesterday's own backstop fix below): a legitimate PROPOSAL message
+# ("Registremos tu venta... ¿Todo correcto, Diego? Confirma cuando estés
+# listo.") got flagged as a false claim, because it both sounds positive
+# (✅, a preview table with real computed numbers) AND happens to run
+# while the user has some OTHER old, abandoned pending row sitting around.
+# The warning that got appended then confused the model on the NEXT turn
+# into hallucinating a garbled "confirmada... pero hay un error técnico"
+# reply. A message that's still explicitly ASKING the user to confirm
+# cannot simultaneously be a false claim that the operation already
+# happened — those are mutually exclusive by construction (see
+# propose_portfolio_transaction's own returned instructions: it always
+# tells the model to end by asking, never to claim success). Checked
+# BEFORE both the narrow regex and the broad backstop below.
+_PENDING_CONFIRMATION_REQUEST_RE = re.compile(
+    r"¿confirmas|confirma cuando|¿todo correcto|antes de (aplicarlo|eliminarlo|"
+    r"registrarlo)|para que (lo )?confirmes|do you confirm|confirm when|"
+    r"before I (apply|delete) (it|this)",
     re.IGNORECASE,
 )
 
@@ -2144,8 +2172,13 @@ def _false_transaction_claim(text: str, confirm_tool_applied: bool) -> bool:
     only thing that counts as a genuine confirmation. A miss here just
     means the claim goes uncorrected, same fail-open posture as the other
     guards; a false positive would only ever add a harmless clarifying
-    note, never hide real content."""
+    note, never hide real content. Diego, 2026-09-20: never flags a message
+    that's still explicitly asking the user to confirm — see
+    _PENDING_CONFIRMATION_REQUEST_RE's docstring for why those two are
+    mutually exclusive."""
     if confirm_tool_applied:
+        return False
+    if _PENDING_CONFIRMATION_REQUEST_RE.search(text or ""):
         return False
     return bool(_TRANSACTION_SUCCESS_CLAIM_RE.search(text or ""))
 
@@ -2174,20 +2207,61 @@ _SUCCESS_NARRATIVE_RE = re.compile(
 
 
 async def _has_unconfirmed_pending_action(user_id: str | None) -> bool:
-    """True if this user has a real pending_financial_actions row still
-    sitting unconfirmed — the ground truth a false success claim can be
-    checked against, independent of however the model chose to phrase it."""
+    """True if this user has a real, still-LIVE pending_financial_actions row
+    — the ground truth a false success claim can be checked against,
+    independent of however the model chose to phrase it. Diego, 2026-09-20:
+    scoped to expires_at in the future — an old, abandoned proposal from a
+    past test session (status still literally 'pending' because nothing
+    ever confirmed OR cancelled it, and it only gets lazily flipped to
+    'expired' the next time someone proposes the SAME exact operation
+    again — see _propose_portfolio_transaction) must never count here, or
+    ANY unrelated reply this user gets while that stale row exists risks
+    tripping the backstop, same bug class that caused the false positive
+    on a legitimate proposal message."""
     if not user_id:
         return False
     try:
         db = get_supabase()
         res = await run_query(
-            db.table("pending_financial_actions").select("id")
-            .eq("user_id", user_id).eq("status", "pending").limit(1)
+            db.table("pending_financial_actions").select("id, expires_at")
+            .eq("user_id", user_id).eq("status", "pending")
         )
-        return bool(res.data)
+        now_iso = datetime.now(timezone.utc).isoformat()
+        return any((row.get("expires_at") or "") > now_iso for row in (res.data or []))
     except Exception:
         return False  # never let this safety net itself break the response
+
+
+def _fabricated_proposal(text: str, propose_pending_id_returned: bool) -> bool:
+    """True when the response reads like a transaction proposal asking the
+    user to confirm a buy/sell, but propose_portfolio_transaction (or
+    update_/delete_portfolio_transaction) never actually returned a real
+    PENDING_ID this turn — meaning there's nothing real for the user's next
+    "sí" to confirm. Diego, 2026-09-20: real incident — Arthur presented a
+    complete, well-formatted "vender toda tu posición de CPRT" proposal
+    with real numbers it already had from portfolio context, without ever
+    calling the tool; no pending_financial_actions row was ever created,
+    and the next turn's confirmation hallucinated a garbled apology
+    instead of a real result. Mirrors _false_transaction_claim's structure
+    for the other half of the same flow."""
+    if propose_pending_id_returned:
+        return False
+    if not _PENDING_CONFIRMATION_REQUEST_RE.search(text or ""):
+        return False
+    return bool(re.search(r"acci[oó]n(es)?|shares?|\$\s?\d|portafolio|portfolio", text or "", re.IGNORECASE))
+
+
+_FABRICATED_PROPOSAL_WARNING_ES = (
+    "\n\n⚠️ Espera — antes de que confirmes, ese resumen no quedó realmente preparado en el "
+    "sistema todavía (no llegué a dejarlo listo para confirmar). Dime de nuevo, completo, qué "
+    "compraste o vendiste (empresa, cantidad o monto, y precio) para prepararlo correctamente "
+    "esta vez antes de confirmar."
+)
+_FABRICATED_PROPOSAL_WARNING_EN = (
+    "\n\n⚠️ Wait — before you confirm, that summary wasn't actually staged in the system yet. "
+    "Tell me again, in full, what you bought or sold (company, quantity or amount, and price) so "
+    "I can prepare it correctly this time before you confirm."
+)
 
 
 _TRANSACTION_CLAIM_WARNING_ES = (
@@ -3625,6 +3699,16 @@ async def chat_stream(
     # the check after the loop can tell a REAL "Aplicado." confirmation
     # apart from a merely-claimed one.
     confirm_tool_applied = False
+    # Diego, 2026-09-20: symmetric gap on the OTHER end of the same flow —
+    # a user asked to sell their whole CPRT position, Arthur showed a
+    # complete, correctly-formatted "¿confirmas?" proposal with real
+    # numbers (4.01639 shares, $120.08) it already had from portfolio
+    # context, but NEVER called propose_portfolio_transaction at all — no
+    # pending_financial_actions row was ever created. The next turn's
+    # "confirmo" had nothing real to confirm, and the model hallucinated a
+    # garbled "confirmada... pero hay un error técnico" reply instead.
+    # Tracked here the same way as confirm_tool_applied above.
+    propose_pending_id_returned = False
     for _round in range(_MAX_TOOL_ROUNDS):
         # Calls the client directly (not _claude()) since this streams —
         # check the breaker manually before each round (2026-08-21 audit:
@@ -3660,14 +3744,32 @@ async def chat_stream(
             # docstring) — only hit when the fast word-list regex above
             # already came back clean AND the tool never truly applied,
             # so this DB round trip is rare, not on every turn.
-            if not false_claim and not confirm_tool_applied and user_id:
+            if (
+                not false_claim and not confirm_tool_applied and user_id
+                and not _PENDING_CONFIRMATION_REQUEST_RE.search(full_response_text)
+            ):
                 if _SUCCESS_NARRATIVE_RE.search(full_response_text) and await _has_unconfirmed_pending_action(user_id):
                     false_claim = True
+            # Symmetric check for the OTHER half of the flow (see
+            # _fabricated_proposal's docstring) — mutually exclusive with
+            # false_claim by construction (one requires asking to confirm,
+            # the other requires NOT asking to confirm).
+            fabricated_proposal = (
+                not false_claim
+                and _fabricated_proposal(full_response_text, propose_pending_id_returned)
+            )
             is_en_lang = getattr(profile, "preferred_language", None) == "en"
             if false_claim:
                 _log.warning(
                     "chat_stream: response claims a portfolio transaction was applied but "
                     "confirm_pending_financial_action was never called this turn (user=%s) — flagging",
+                    user_id,
+                )
+            if fabricated_proposal:
+                _log.warning(
+                    "chat_stream: response presents a transaction proposal asking to confirm, "
+                    "but propose_portfolio_transaction never returned a real PENDING_ID this "
+                    "turn (user=%s) — flagging",
                     user_id,
                 )
             if buffered_mode:
@@ -3686,6 +3788,8 @@ async def chat_stream(
                     full_response_text = strip_prescriptive_sentences(full_response_text)
                 if false_claim:
                     full_response_text += _TRANSACTION_CLAIM_WARNING_EN if is_en_lang else _TRANSACTION_CLAIM_WARNING_ES
+                if fabricated_proposal:
+                    full_response_text += _FABRICATED_PROPOSAL_WARNING_EN if is_en_lang else _FABRICATED_PROPOSAL_WARNING_ES
                 yield full_response_text
                 return
 
@@ -3726,6 +3830,10 @@ async def chat_stream(
                 warning = _TRANSACTION_CLAIM_WARNING_EN if is_en_lang else _TRANSACTION_CLAIM_WARNING_ES
                 full_response_text += warning
                 yield warning
+            if fabricated_proposal:
+                warning = _FABRICATED_PROPOSAL_WARNING_EN if is_en_lang else _FABRICATED_PROPOSAL_WARNING_ES
+                full_response_text += warning
+                yield warning
             return
 
         # Model asked to call one or more tools — execute them, feed the results
@@ -3738,6 +3846,10 @@ async def chat_stream(
         for b, r in zip(tool_blocks, results):
             if b.name == "confirm_pending_financial_action" and r.startswith("Aplicado."):
                 confirm_tool_applied = True
+            if b.name in (
+                "propose_portfolio_transaction", "update_portfolio_transaction", "delete_portfolio_transaction",
+            ) and r.startswith("PENDING_ID:"):
+                propose_pending_id_returned = True
         messages.append({
             "role": "user",
             "content": [
