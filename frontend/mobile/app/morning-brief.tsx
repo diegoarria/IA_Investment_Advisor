@@ -56,7 +56,16 @@ export default function MorningBriefScreen() {
   return (
     <SafeAreaView style={[st.container, { backgroundColor: colors.bg }]}>
       <ScrollView contentContainerStyle={st.content}>
-        <Text style={[st.title, { color: colors.text }]}>🧠 {t("morningBrief.title")}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <Text style={[st.title, { color: colors.text, marginBottom: 0 }]}>🧠 {t("morningBrief.title")}</Text>
+          <TouchableOpacity
+            onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home" as any))}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Cerrar"
+          >
+            <Ionicons name="close" size={24} color={colors.textMuted} />
+          </TouchableOpacity>
+        </View>
 
         {loading ? (
           <ActivityIndicator color={colors.accentLight} style={{ marginTop: 40 }} />

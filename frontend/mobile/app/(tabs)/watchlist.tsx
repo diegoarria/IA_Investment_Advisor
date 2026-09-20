@@ -145,7 +145,7 @@ function WatchlistRow({ item, index, itemCount, prices, fxRate, displayCurrency,
   const primaryPctColor = showPre ? "#f59e0b" : showPost ? "#818cf8" : dayCol;
 
   return (
-    <View style={[rw.row, { borderTopColor: colors.border }]}>
+    <View style={[rw.row, { backgroundColor: colors.card, borderColor: colors.border }]}>
       {editMode ? (
         <View style={rw.reorderCol}>
           <TouchableOpacity
@@ -172,7 +172,7 @@ function WatchlistRow({ item, index, itemCount, prices, fxRate, displayCurrency,
         onPress={() => router.push(`/stock/${item.ticker}` as any)}
         activeOpacity={0.6}
       >
-        <StockAvatar ticker={item.ticker} size={42} />
+        <StockAvatar ticker={item.ticker} size={44} />
 
         <View style={{ flex: 1, marginLeft: 12 }}>
           <View style={rw.tickerRow}>
@@ -202,7 +202,7 @@ function WatchlistRow({ item, index, itemCount, prices, fxRate, displayCurrency,
             {primaryPrice != null ? fmtPrice(primaryPrice, displayCurrency) : "—"}
           </Text>
           {primaryPct != null && (
-            <View style={rw.pctRow}>
+            <View style={[rw.pctRow, { backgroundColor: primaryPctColor + "1f" }]}>
               <Ionicons
                 name={(primaryPct ?? 0) >= 0 ? "caret-up" : "caret-down"}
                 size={9}
@@ -239,11 +239,11 @@ function WatchlistRow({ item, index, itemCount, prices, fxRate, displayCurrency,
       </TouchableOpacity>
 
       {!editMode && (
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <View style={{ alignItems: "center", justifyContent: "center", gap: 10, paddingRight: 10, paddingLeft: 2 }}>
           <TouchableOpacity
             onPress={() => onAlert(item.ticker, prices[item.ticker]?.price ?? null)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            style={{ paddingHorizontal: 8 }}
+            
           >
             <Ionicons
               name={hasAlert ? "notifications" : "notifications-outline"}
@@ -254,7 +254,7 @@ function WatchlistRow({ item, index, itemCount, prices, fxRate, displayCurrency,
           <TouchableOpacity
             onPress={() => onRemove(item.ticker)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            style={{ paddingHorizontal: 6, paddingRight: 4 }}
+            
           >
             <Ionicons name="close-outline" size={17} color={colors.textDim} />
           </TouchableOpacity>
@@ -265,18 +265,21 @@ function WatchlistRow({ item, index, itemCount, prices, fxRate, displayCurrency,
 }
 
 const rw = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", minHeight: 76, borderTopWidth: StyleSheet.hairlineWidth, paddingLeft: 14 },
+  row: {
+    flexDirection: "row", alignItems: "center", minHeight: 80, borderWidth: 1, borderRadius: 20, paddingLeft: 14, overflow: "hidden",
+    shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+  },
   reorderCol: { width: 32, alignItems: "center", justifyContent: "center", gap: 0 },
   arrowBtn: { paddingVertical: 4, paddingHorizontal: 4 },
   inner: { flex: 1, flexDirection: "row", alignItems: "center", paddingRight: 8, paddingVertical: 12 },
   tickerRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
-  ticker: { fontSize: 15, fontFamily: "DMSans_700Bold", letterSpacing: -0.1 },
+  ticker: { fontSize: 16, fontFamily: "DMSans_700Bold", letterSpacing: -0.1 },
   name: { fontSize: 12, marginBottom: 1 },
   dayChangeRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
   dayChangeText: { fontSize: 10, fontWeight: "600" },
   rightCol: { alignItems: "flex-end", gap: 2, marginLeft: 8 },
-  price: { fontSize: 14.5, fontFamily: "DMSans_700Bold" },
-  pctRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 3 },
+  price: { fontSize: 16, fontFamily: "DMSans_700Bold", letterSpacing: -0.2 },
+  pctRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   changePct: { fontSize: 12.5, fontWeight: "700" },
   closeLabel: { fontSize: 10, marginTop: 1 },
 });
@@ -441,6 +444,14 @@ export default function WatchlistScreen() {
     });
   }, [items, sortMode, prices]);
 
+  const summary = React.useMemo(() => {
+    const vals = items.map((i) => prices[i.ticker]?.change_pct).filter((v): v is number => typeof v === "number");
+    if (vals.length === 0) return null;
+    const up = vals.filter((v) => v >= 0).length;
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    return { up, down: vals.length - up, avg };
+  }, [items, prices]);
+
   const freePct  = Math.min((items.length / FREE_LIMIT) * 100, 100);
   const freeFull = !isPremium && items.length >= FREE_LIMIT;
 
@@ -530,72 +541,95 @@ export default function WatchlistScreen() {
             </View>
           )}
 
+          {/* Summary */}
+          {items.length > 0 && summary && (
+            <View style={[s.heroCard, { backgroundColor: colors.card, borderColor: summary.avg >= 0 ? "rgba(0,212,126,0.28)" : "rgba(255,92,92,0.28)" }]}>
+              <View style={[s.heroGlow, { backgroundColor: summary.avg >= 0 ? "rgba(0,212,126,0.10)" : "rgba(255,92,92,0.10)" }]} />
+              <Text style={[s.heroLabel, { color: colors.textMuted }]}>{t("watchlist.summary.today", "TU WATCHLIST HOY")}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name={summary.avg >= 0 ? "trending-up" : "trending-down"} size={24} color={summary.avg >= 0 ? "#00d47e" : "#ff5c5c"} />
+                <Text style={[s.heroValue, { color: summary.avg >= 0 ? "#00d47e" : "#ff5c5c" }]}>{fmtPct(summary.avg)}</Text>
+                <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 8 }}>{t("watchlist.summary.avg", "promedio")}</Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+                <View style={[s.heroChip, { backgroundColor: "rgba(0,212,126,0.12)" }]}>
+                  <Ionicons name="caret-up" size={10} color="#00d47e" />
+                  <Text style={[s.heroChipText, { color: "#00d47e" }]}>{summary.up} {t("watchlist.summary.up", "suben")}</Text>
+                </View>
+                <View style={[s.heroChip, { backgroundColor: "rgba(255,92,92,0.12)" }]}>
+                  <Ionicons name="caret-down" size={10} color="#ff5c5c" />
+                  <Text style={[s.heroChipText, { color: "#ff5c5c" }]}>{summary.down} {t("watchlist.summary.down", "bajan")}</Text>
+                </View>
+                <View style={[s.heroChip, { backgroundColor: colors.bgRaised }]}>
+                  <Text style={[s.heroChipText, { color: colors.textMuted }]}>{items.length} {t("watchlist.summary.stocks", "acciones")}</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
           {/* Watchlist */}
           {items.length > 0 && (
-            <View style={[s.listCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={{ gap: 10 }}>
               <View style={s.listHeader}>
-                <Ionicons name="eye-outline" size={14} color="#00d47e" />
                 <Text style={[s.listHeaderText, { color: colors.text }]}>{t("watchlist.tabs.watchlist")}</Text>
+                <View style={{ marginLeft: "auto" }}>
+                  {pricesLoading
+                    ? <ActivityIndicator size="small" color="#00d47e" />
+                    : (
+                      <TouchableOpacity
+                        style={[s.refreshPill, { backgroundColor: colors.card, borderColor: colors.border }]}
+                        onPress={() => { loadPrices(); setSecondsLeft(60); }}
+                      >
+                        <View style={s.liveDot} />
+                        <Ionicons name="refresh-outline" size={12} color={colors.textDim} />
+                        <Text style={[s.counterText, { color: colors.textDim }]}>{secondsLeft}s</Text>
+                      </TouchableOpacity>
+                    )
+                  }
+                </View>
+              </View>
 
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
                 {items.length > 1 && !editMode && (
-                  <View style={s.sortRow}>
+                  <>
                     <TouchableOpacity
                       onPress={() => setSortMode((v) => v === "gainers" ? "default" : "gainers")}
-                      style={[s.sortBtn, { borderColor: colors.borderStrong, backgroundColor: colors.bgRaised }, sortMode === "gainers" && { backgroundColor: "#00d47e22", borderColor: "#00d47e" }]}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      style={[s.sortBtn, { borderColor: colors.border, backgroundColor: colors.card }, sortMode === "gainers" && { backgroundColor: "#00d47e22", borderColor: "#00d47e" }]}
                     >
                       <Ionicons name="arrow-up" size={11} color={sortMode === "gainers" ? "#00d47e" : colors.textDim} />
                       <Text style={[s.sortBtnText, { color: sortMode === "gainers" ? "#00d47e" : colors.textDim }]}>{t("watchlist.sort.gainers")}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => setSortMode((v) => v === "losers" ? "default" : "losers")}
-                      style={[s.sortBtn, { borderColor: colors.borderStrong, backgroundColor: colors.bgRaised }, sortMode === "losers" && { backgroundColor: "#ff5c5c22", borderColor: "#ff5c5c" }]}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      style={[s.sortBtn, { borderColor: colors.border, backgroundColor: colors.card }, sortMode === "losers" && { backgroundColor: "#ff5c5c22", borderColor: "#ff5c5c" }]}
                     >
                       <Ionicons name="arrow-down" size={11} color={sortMode === "losers" ? "#ff5c5c" : colors.textDim} />
                       <Text style={[s.sortBtnText, { color: sortMode === "losers" ? "#ff5c5c" : colors.textDim }]}>{t("watchlist.sort.losers")}</Text>
                     </TouchableOpacity>
-                  </View>
+                  </>
                 )}
-
                 {items.length > 1 && sortMode === "default" && (
                   <TouchableOpacity
                     onPress={() => setEditMode((v) => !v)}
-                    style={[s.editBtn, { backgroundColor: editMode ? "rgba(0,212,126,0.12)" : colors.bgRaised, borderColor: editMode ? "#00d47e" : colors.border }]}
+                    style={[s.sortBtn, { backgroundColor: editMode ? "rgba(0,212,126,0.12)" : colors.card, borderColor: editMode ? "#00d47e" : colors.border }]}
                   >
                     <Ionicons name={editMode ? "checkmark" : "reorder-three-outline"} size={13} color={editMode ? "#00d47e" : colors.textDim} />
-                    <Text style={[s.editBtnText, { color: editMode ? "#00d47e" : colors.textDim }]}>
+                    <Text style={[s.sortBtnText, { color: editMode ? "#00d47e" : colors.textDim }]}>
                       {editMode ? t("watchlist.edit.done") : t("watchlist.edit.reorder")}
                     </Text>
                   </TouchableOpacity>
                 )}
-
                 {!editMode && (
-                  <View style={{ marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <TouchableOpacity
-                      onPress={toggleViewMode}
-                      style={[s.sortBtn, { borderColor: colors.borderStrong, backgroundColor: colors.bgRaised }, viewMode === "advanced" && { backgroundColor: "rgba(99,102,241,0.12)", borderColor: "#6366f1" }]}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    >
-                      <Text style={[s.sortBtnText, { color: viewMode === "advanced" ? "#818cf8" : colors.textDim }]}>
-                        {viewMode === "basic" ? t("watchlist.viewMode.basic") : t("watchlist.viewMode.advanced")}
-                      </Text>
-                    </TouchableOpacity>
-                    {pricesLoading
-                      ? <ActivityIndicator size="small" color="#00d47e" />
-                      : (
-                        <TouchableOpacity
-                          style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-                          onPress={() => { loadPrices(); setSecondsLeft(60); }}
-                        >
-                          <Ionicons name="refresh-outline" size={13} color={colors.textDim} />
-                          <Text style={[s.counterText, { color: colors.textDim }]}>{secondsLeft}s</Text>
-                        </TouchableOpacity>
-                      )
-                    }
-                  </View>
+                  <TouchableOpacity
+                    onPress={toggleViewMode}
+                    style={[s.sortBtn, { borderColor: colors.border, backgroundColor: colors.card }, viewMode === "advanced" && { backgroundColor: "rgba(99,102,241,0.12)", borderColor: "#6366f1" }]}
+                  >
+                    <Text style={[s.sortBtnText, { color: viewMode === "advanced" ? "#818cf8" : colors.textDim }]}>
+                      {viewMode === "basic" ? t("watchlist.viewMode.basic") : t("watchlist.viewMode.advanced")}
+                    </Text>
+                  </TouchableOpacity>
                 )}
-              </View>
+              </ScrollView>
 
               {sortedItems.map((item, index) => (
                 <WatchlistRow
@@ -706,7 +740,7 @@ const s = StyleSheet.create({
   searchWrap: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingHorizontal: 14, paddingVertical: 12,
-    borderRadius: 16,
+    borderRadius: 18,
   },
   searchInput: { flex: 1, fontSize: 14, fontWeight: "500" },
 
@@ -731,9 +765,16 @@ const s = StyleSheet.create({
   emptySub: { fontSize: 13, textAlign: "center", lineHeight: 20 },
 
   // List card
-  listCard: { borderRadius: 22, borderWidth: 1, overflow: "hidden" },
-  listHeader: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 14 },
-  listHeaderText: { fontSize: 14, fontFamily: "DMSans_700Bold" },
+  heroCard: { borderRadius: 24, borderWidth: 1, padding: 18, overflow: "hidden" },
+  heroGlow: { position: "absolute", top: -60, right: -40, width: 180, height: 180, borderRadius: 90 },
+  heroLabel: { fontSize: 10, fontWeight: "800", letterSpacing: 0.8, marginBottom: 6 },
+  heroValue: { fontSize: 32, fontFamily: "DMSans_700Bold", letterSpacing: -0.8 },
+  heroChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  heroChipText: { fontSize: 11, fontWeight: "700" },
+  listHeader: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 2, marginTop: 4 },
+  listHeaderText: { fontSize: 18, fontFamily: "DMSans_700Bold", letterSpacing: -0.3 },
+  refreshPill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#00d47e" },
   editBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
   editBtnText: { fontSize: 11, fontWeight: "700" },
   counterText: { fontSize: 11 },

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { Loader2, TrendingUp, TrendingDown, Newspaper, CalendarClock, Lock } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, Newspaper, CalendarClock, Lock, X } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import StockAvatar from "@/components/StockAvatar";
 import PaywallModal from "@/components/PaywallModal";
@@ -69,8 +69,11 @@ export default function MorningBriefPage() {
             </div>
           ) : (
             <>
-              <div className="px-5 pt-5 pb-3 border-b" style={{ borderColor: "var(--border)" }}>
+              <div className="px-5 pt-5 pb-3 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
                 <span className="text-xs font-black" style={{ color: "#00d47e" }}>🧠 {t("morningBrief.title")}</span>
+                <button onClick={() => router.push("/home")} aria-label="Cerrar" className="p-1 -mr-1 rounded-full" style={{ color: "var(--muted)" }}>
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
               <div className="p-5 space-y-4">
