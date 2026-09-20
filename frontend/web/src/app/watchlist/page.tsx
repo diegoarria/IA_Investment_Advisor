@@ -716,10 +716,22 @@ export default function WatchlistPage() {
 
   // ── Delete ─────────────────────────────────────────────────────────────
   // Deletes instantly and optimistically — the trash icon removes the row
-  // right away, no confirmation step and no error toast ever shown. The
-  // actual server call is retried with backoff in the background; the
-  // backend delete is idempotent (a ticker already gone is still "deleted"
-  // from the user's point of view), so this effectively never fails visibly.
+  // right away, no confirmation step. The actual server call is retried
+  // with backoff in the background; the backend delete is idempotent (a
+  // ticker already gone is still "deleted" from the user's point of view),
+  // so this effectively never fails visibly on a healthy connection.
+  //
+  // Diego, 2026-09-20 (watchlist audit): if all 3 retries genuinely fail
+  // (a real outage, not a transient blip), the old code just cleared
+  // pendingDeletesRef in .finally() and moved on — the ticker stayed
+  // hidden locally, but the server still had it. The NEXT fetch (60s
+  // auto-refresh, a manual refresh, another tab) would then silently bring
+  // it back with no explanation, reading to the user as "I deleted this
+  // and it came back on its own." Now: on exhausted retries, resync
+  // immediately with the real server state (bringing the item back right
+  // away, not 60s later) and show a clear error explaining why — matches
+  // this page's own rule elsewhere that a fetch error must never silently
+  // masquerade as "it's just gone."
   const handleConfirmDelete = (ticker: string) => {
     pendingDeletesRef.current.add(ticker);
     setItems((prev) => {
@@ -733,11 +745,18 @@ export default function WatchlistPage() {
           await watchlistApi.remove(ticker);
           return;
         } catch (e) {
-          if (attempt === 2) console.error("Failed to remove from watchlist on server:", e);
-          else await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+          if (attempt === 2) {
+            console.error("Failed to remove from watchlist on server:", e);
+            showToast(t("watchlist.toast.deleteError", { ticker }));
+          } else {
+            await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+          }
         }
       }
-    })().finally(() => pendingDeletesRef.current.delete(ticker));
+    })().finally(() => {
+      pendingDeletesRef.current.delete(ticker);
+      fetchWatchlist(true); // resync with real server state right away, success or failure
+    });
   };
 
   // ── Drag-and-drop reorder (basic view only) ──────────────────────────────

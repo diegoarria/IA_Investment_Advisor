@@ -1861,7 +1861,7 @@
       "alertDeleted": "Alerta eliminada",
       "alreadyInWatchlist": "{{ticker}} ya está en tu watchlist",
       "addError": "Error al agregar el ticker",
-      "deleteError": "Error al eliminar"
+      "deleteError": "No pudimos eliminar {{ticker}} — sigue en tu watchlist. Intenta de nuevo."
     },
     "tour": {
       "title": "Busca una acción para seguir",

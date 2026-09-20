@@ -1861,7 +1861,7 @@
       "alertDeleted": "Alert deleted",
       "alreadyInWatchlist": "{{ticker}} is already in your watchlist",
       "addError": "Couldn't add the ticker",
-      "deleteError": "Couldn't delete it"
+      "deleteError": "Couldn't delete {{ticker}} — it's still in your watchlist. Try again."
     },
     "tour": {
       "title": "Search for a stock to follow",
