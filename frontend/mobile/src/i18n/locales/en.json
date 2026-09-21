@@ -551,12 +551,10 @@
       "tierN_other": "Invite {{count}} friends",
       "tier1Reward": "14 days of premium",
       "tier2Reward": "14 days of premium + 1 free 1:1 session",
-      "tier3Reward": "30 days of premium + 1 free 1:1 session + 1 free deep research",
+      "tier3Reward": "30 days of premium + 1 free 1:1 session",
       "redeemSession": "Request my free 1:1 session ({{count}} available)",
       "redeemSession_other": "Request my free 1:1 session ({{count}} available)",
       "redeemSessionMsg": "I want to request the free 1:1 session I earned by inviting friends to Nuvos AI.",
-      "redeemResearch": "Use my free deep research ({{count}} available)",
-      "redeemResearch_other": "Use my free deep research reports ({{count}} available)",
       "loading": "Loading...",
       "share": "Share invite",
       "note": "Rewards activate automatically as soon as your friends sign up with your code.",
@@ -1788,15 +1786,6 @@
             "We review your progress in the app",
             "We adjust your learning path",
             "We answer your questions as you go"
-          ]
-        },
-        {
-          "title": "Nuvos Deep Research",
-          "features": [
-            "Open-ended research: compare companies, not just a fixed report",
-            "Real financial analysis, valuation and risks",
-            "Personalized with your current portfolio",
-            "Saved, searchable and downloadable as PDF"
           ]
         }
       ]
@@ -3597,54 +3586,6 @@
       "profile": "Profile",
       "support": "Support",
       "watchlist": "Watchlist"
-    }
-  },
-  "research": {
-    "title": "Nuvos Deep Research",
-    "subtitle": "Delegate a full investment research task to the AI — results in 2 to 5 minutes.",
-    "compose": {
-      "placeholder": "E.g. Compare Amazon, MercadoLibre and Alibaba and tell me which best fits my portfolio...",
-      "submit": "Research",
-      "planError": "Couldn't interpret your request. Try again.",
-      "tickerPrefill": "Deep research on {{ticker}}"
-    },
-    "plan": {
-      "title": "Here's what we'll research",
-      "useFreeCredit": "Use my free deep research ({{count}} available)",
-      "useFreeCredit_other": "Use my free deep research reports ({{count}} available)",
-      "confirm": "Confirm and pay",
-      "back": "Change my request",
-      "checkoutError": "Couldn't start checkout. Try again.",
-      "freePrice": "Price (Free account)",
-      "premiumPrice": "Price (Premium, discounted)",
-      "premiumUpsell": "With Premium you'd pay only ${{price}}",
-      "checkoutOpened": "Complete payment in your browser. Come back to this screen when you're done."
-    },
-    "progress": {
-      "starting": "Starting research...",
-      "elapsed": "{{seconds}}s elapsed",
-      "estimate": "Estimated time: 2-5 minutes",
-      "genericError": "Something went wrong during the research.",
-      "tryAgain": "Try again"
-    },
-    "report": {
-      "downloadPdf": "Download PDF",
-      "back": "Research History",
-      "loading": "Loading report...",
-      "notFound": "Report not found"
-    },
-    "history": {
-      "title": "Research History",
-      "empty": "You don't have any saved research yet."
-    },
-    "tools": {
-      "title": "Nuvos Deep Research",
-      "description": "Delegate a full research task — comparisons, valuation, personalization with your portfolio."
-    },
-    "banner": {
-      "title": "Want deep research on {{ticker}}?",
-      "subtitle": "Nuvos Deep Research compares, values and personalizes with your portfolio in minutes.",
-      "cta": "Research"
     }
   },
   "weeklyRitual": {

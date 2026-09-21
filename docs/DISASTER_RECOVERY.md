@@ -46,7 +46,7 @@ Layer 2 is new. **Setup required before it's actually running**:
 ## 4. Post-restore verification (do not skip)
 
 A restore that "completes without error" is not the same as a restore that actually recovered usable data. Before declaring recovery complete:
-- Spot-check row counts on the highest-value tables (`user_profiles`, `user_portfolio`, `research_reports`) against the last known-good count.
+- Spot-check row counts on the highest-value tables (`user_profiles`, `user_portfolio`, `investment_decisions`) against the last known-good count.
 - Log in as a real test account and confirm portfolio/watchlist data renders correctly.
 - Confirm RLS policies are present (`\d+ <table>` in `psql`, or the Supabase dashboard's policy view) — a restored dump does NOT include `pg_dump --no-owner --no-privileges`-excluded role grants automatically; migrations 032/033 must be re-applied if they predate the dump, since they're what makes RLS reproducible from a clean database (see `backend/migrations/032_rls_hardening.sql`'s own header comment).
 - Run `GET /health/ready` against the restored backend and confirm it reports healthy (see `main.py` — this now checks real Supabase connectivity, not just process liveness).

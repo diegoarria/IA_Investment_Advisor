@@ -16,7 +16,7 @@ import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
 import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, ChevronRight, NotebookPen, SlidersHorizontal, Star, BarChart,
-  Loader2, Copy, Check, Gift, Users, Share2, Trash2, Phone, Video, FileSearch, Lock,
+  Loader2, Copy, Check, Gift, Users, Share2, Trash2, Phone, Video, Lock,
   Bell, HeadphonesIcon, Download,
 } from "lucide-react";
 import { getUserLevel, LEVEL_COLOR, getLevelLabel, LEVEL_EMOJI } from "@/lib/userLevel";
@@ -190,7 +190,6 @@ export default function ProfilePage() {
     referred_count: number;
     reward_tier: number;
     free_1on1_sessions: number;
-    free_deep_research_credits: number;
   } | null>(null);
   const [redeemingSession, setRedeemingSession] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -1472,7 +1471,7 @@ export default function ProfilePage() {
                       {[
                         { friends: 1, reward: t("profile.referralTier1Reward"), icon: null },
                         { friends: 2, reward: t("profile.referralTier2Reward"), icon: <Video className="w-3 h-3" /> },
-                        { friends: 3, reward: t("profile.referralTier3Reward"), icon: <FileSearch className="w-3 h-3" /> },
+                        { friends: 3, reward: t("profile.referralTier3Reward"), icon: <Video className="w-3 h-3" /> },
                       ].map((tier) => {
                         const done = (referralStats?.referred_count ?? 0) >= tier.friends;
                         return (
@@ -1496,7 +1495,7 @@ export default function ProfilePage() {
                     </div>
 
                     {/* Redeem earned credits */}
-                    {referralStats && (referralStats.free_1on1_sessions > 0 || referralStats.free_deep_research_credits > 0) && (
+                    {referralStats && referralStats.free_1on1_sessions > 0 && (
                       <div className="p-4 space-y-2 border-b" style={{ borderColor: "var(--border)" }}>
                         {referralStats.free_1on1_sessions > 0 && (
                           <button
@@ -1516,16 +1515,6 @@ export default function ProfilePage() {
                           >
                             {redeemingSession ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Video className="w-3.5 h-3.5" />}
                             {t("profile.referralRedeemSession", { count: referralStats.free_1on1_sessions })}
-                          </button>
-                        )}
-                        {referralStats.free_deep_research_credits > 0 && (
-                          <button
-                            onClick={() => router.push("/research")}
-                            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold"
-                            style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)", color: "#22c55e" }}
-                          >
-                            <FileSearch className="w-3.5 h-3.5" />
-                            {t("profile.referralRedeemResearch", { count: referralStats.free_deep_research_credits })}
                           </button>
                         )}
                       </div>

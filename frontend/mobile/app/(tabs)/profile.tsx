@@ -195,7 +195,6 @@ export default function ProfileScreen() {
     referred_count: number;
     reward_tier: number;
     free_1on1_sessions: number;
-    free_deep_research_credits: number;
   } | null>(null);
   const [redeemingSession, setRedeemingSession] = useState(false);
   const subStore = useSubscriptionStore();
@@ -1195,7 +1194,7 @@ if (!profile) {
               })}
             </View>
 
-            {referralStats && (referralStats.free_1on1_sessions > 0 || referralStats.free_deep_research_credits > 0) && (
+            {referralStats && referralStats.free_1on1_sessions > 0 && (
               <View style={{ padding: 14, gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
                 {referralStats.free_1on1_sessions > 0 && (
                   <TouchableOpacity
@@ -1215,17 +1214,6 @@ if (!profile) {
                     <Ionicons name="videocam-outline" size={15} color="#6366f1" />
                     <Text style={{ fontSize: 12, fontWeight: "700", color: "#6366f1" }}>
                       {t("profile.referral.redeemSession", { count: referralStats.free_1on1_sessions })}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                {referralStats.free_deep_research_credits > 0 && (
-                  <TouchableOpacity
-                    onPress={() => router.push("/research")}
-                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 11, borderRadius: 12, backgroundColor: "#22c55e1f", borderWidth: 1, borderColor: "#22c55e4d" }}
-                  >
-                    <Ionicons name="document-text-outline" size={15} color="#22c55e" />
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#22c55e" }}>
-                      {t("profile.referral.redeemResearch", { count: referralStats.free_deep_research_credits })}
                     </Text>
                   </TouchableOpacity>
                 )}

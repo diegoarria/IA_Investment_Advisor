@@ -1,5 +1,5 @@
 """AI kill switch — lets Diego pause every AI feature (Arthur chat, support,
-paper-trading analysis, learn debates, deep research planning, screen
+paper-trading analysis, learn debates, screen
 explanations, profile insights) from /admin/ai-toggle without a deploy: a
 suspected attack, planned maintenance, or any other reason. Durable in
 Supabase (migration 090) so it survives a restart;

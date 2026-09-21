@@ -568,7 +568,7 @@ async def ai_status(user: dict = Depends(get_current_user)):
 async def ai_toggle(body: AiToggleBody, user: dict = Depends(get_current_user)):
     """Flips the AI kill switch. Takes effect within ~10s across every
     backend process (see feature_flags.py's cache TTL), pausing Arthur/
-    support/paper-trading analysis/learn debates/deep research/screen
+    support/paper-trading analysis/learn debates/screen
     explanations/profile insights with a friendly maintenance message
     instead of reaching the model. Logged to security_events as
     'ai_toggled' for an audit trail."""

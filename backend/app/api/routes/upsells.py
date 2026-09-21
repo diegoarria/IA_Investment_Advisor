@@ -1,5 +1,5 @@
 """
-Upsell system: Family Plan, 1:1 Session with Diego, Deep Research.
+Upsell system: Family Plan, 1:1 Session with Diego.
 Trigger evaluation runs server-side; frontend decides when to call based on user events.
 """
 import asyncio
@@ -31,7 +31,6 @@ def _effective_tier(raw_tier: str, trial_started_at: str | None, streak_bonus_pr
 PRICES = {
     "session":       {"free": 149.0, "premium": 99.0, "bundle": 247.0},
     "family_plan":   {"monthly": 23.99, "yearly": 224.99},
-    "deep_research": {"free": 19.99, "premium": 9.99},
 }
 
 DISMISS_COOLDOWN_DAYS = 14
@@ -47,8 +46,6 @@ _UPSELL_PRICE_ENV_VARS = {
     "STRIPE_PRICE_SESSION_BUNDLE": settings.stripe_price_session_bundle,
     "STRIPE_PRICE_FAMILY_MONTHLY": settings.stripe_price_family_monthly,
     "STRIPE_PRICE_FAMILY_YEARLY": settings.stripe_price_family_yearly,
-    "STRIPE_PRICE_DEEP_RESEARCH_FREE": settings.stripe_price_deep_research_free,
-    "STRIPE_PRICE_DEEP_RESEARCH_PREMIUM": settings.stripe_price_deep_research_premium,
 }
 _missing_upsell_prices = [k for k, v in _UPSELL_PRICE_ENV_VARS.items() if not v]
 if _missing_upsell_prices and settings.stripe_secret_key:
@@ -66,8 +63,6 @@ def _price_id_for(offer: str, tier: str, variant: str = "default") -> str:
         ("session", "bundle"):        settings.stripe_price_session_bundle,
         ("family_plan", "monthly"):   settings.stripe_price_family_monthly,
         ("family_plan", "yearly"):    settings.stripe_price_family_yearly,
-        ("deep_research", "free"):    settings.stripe_price_deep_research_free,
-        ("deep_research", "premium"): settings.stripe_price_deep_research_premium,
     }
     if offer == "family_plan":
         key = variant          # "monthly" or "yearly"
@@ -196,7 +191,7 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
     offer = body.get("offer")
     variant = body.get("variant", "default")  # 'bundle' | 'monthly' | 'yearly' | tier
 
-    if offer not in ("session", "family_plan", "deep_research"):
+    if offer not in ("session", "family_plan"):
         return {"error": "Invalid offer"}
 
     if not settings.stripe_secret_key:
@@ -254,16 +249,7 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
     base = settings.frontend_url.rstrip("/") if settings.frontend_url not in ("*", "") else "https://nuvosai.com"
     mode = "subscription" if offer == "family_plan" else "payment"
     metadata = {"offer": offer, "variant": key, "user_tier": tier}
-    # Deep Research's plan is already persisted as a research_jobs row before
-    # checkout (see /api/research/plan) — carry its id through so the success
-    # redirect can resume the exact request that was priced/confirmed, rather
-    # than re-deriving anything from Stripe metadata alone.
-    if offer == "deep_research":
-        job_id = body.get("job_id", "")
-        metadata["job_id"] = job_id
-        success_url = f"{base}/research?job_id={job_id}&session_id={{CHECKOUT_SESSION_ID}}"
-    else:
-        success_url = f"{base}/upsell-success?offer={offer}&session_id={{CHECKOUT_SESSION_ID}}"
+    success_url = f"{base}/upsell-success?offer={offer}&session_id={{CHECKOUT_SESSION_ID}}"
     params: dict = {
         "mode": mode,
         "payment_method_types": ["card"],
@@ -289,15 +275,14 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
 @router.post("/checkout-embedded")
 async def upsell_checkout_embedded(body: dict, user_id: str = Depends(get_current_user_id)):
     """Diego, 2026-09-15: "lo quiero para todos los productos de Nuvos" —
-    the embedded-Elements counterpart to /upsells/checkout for all three
-    offers: "session" (1:1, one-time payment), "family_plan" (Duo,
-    subscription), and "deep_research" (one-time payment, tied to a
-    job_id). Returns a client_secret to mount Stripe's Payment Element
+    the embedded-Elements counterpart to /upsells/checkout for both
+    offers: "session" (1:1, one-time payment) and "family_plan" (Duo,
+    subscription). Returns a client_secret to mount Stripe's Payment Element
     instead of a Stripe-hosted redirect URL."""
     offer = body.get("offer")
     variant = body.get("variant", "default")
 
-    if offer not in ("session", "family_plan", "deep_research"):
+    if offer not in ("session", "family_plan"):
         return {"error": "Invalid offer"}
     if not settings.stripe_secret_key:
         return {"error": "Pagos no configurados"}
@@ -361,8 +346,6 @@ async def upsell_checkout_embedded(body: dict, user_id: str = Depends(get_curren
         )
 
     metadata = {"offer": offer, "variant": key, "user_tier": tier, "user_id": user_id}
-    if offer == "deep_research":
-        metadata["job_id"] = body.get("job_id", "")
 
     try:
         if offer == "family_plan":
@@ -377,7 +360,7 @@ async def upsell_checkout_embedded(body: dict, user_id: str = Depends(get_curren
             )
             client_secret = subscription.latest_invoice.payment_intent.client_secret
         else:
-            # session / deep_research — one-time payment. The PaymentIntent
+            # session — one-time payment. The PaymentIntent
             # needs an explicit amount+currency (unlike Checkout Sessions,
             # which take a price id directly) — retrieved from the Price
             # object so Stripe stays the single source of truth for amounts,
@@ -436,7 +419,7 @@ async def upsell_checkout_adaptive(body: dict, user_id: str = Depends(get_curren
 
     Anchored on the MXN price (see app/services/adaptive_pricing.py). 404 when
     the feature is off / the product has no MXN price / the offer isn't
-    supported (deep_research), so the client falls back to /checkout-embedded.
+    supported, so the client falls back to /checkout-embedded.
 
     Everything the existing fulfilment keys on is carried over: the session
     AND its payment_intent/subscription get the same metadata, plus
@@ -524,8 +507,7 @@ async def upsell_checkout_adaptive(body: dict, user_id: str = Depends(get_curren
 # 2026-08-20 audit: 100% manual reconciliation against the Stripe
 # dashboard). These two endpoints close that gap: verify grants a durable
 # credit the instant the user lands back from checkout (same live
-# stripe.checkout.Session.retrieve pattern as research.py's /research/start,
-# not the async webhook, so there's no race with Stripe's webhook delivery
+# stripe.checkout.Session.retrieve lookup, not the async webhook, so there's no race with Stripe's webhook delivery
 # delay), and redeem spends exactly one credit before the frontend reveals
 # the Calendly booking link.
 

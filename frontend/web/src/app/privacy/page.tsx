@@ -65,7 +65,7 @@ export default function PrivacyPage() {
               <li>Sincronizar tu portafolio y estado entre dispositivos (web y móvil)</li>
               <li>Enviarte notificaciones push relevantes (movimientos de precio, earnings, resumen semanal)</li>
               <li>Procesar pagos de suscripción Premium, Plan Dúo y productos de pago único</li>
-              <li>Generar reportes y análisis que solicitas (reporte anual, Deep Research, análisis de portafolio)</li>
+              <li>Generar reportes y análisis que solicitas (reporte anual, análisis de portafolio)</li>
               <li>Mejorar la experiencia de la app y detectar errores</li>
               <li>Cumplir con obligaciones legales</li>
             </ul>
@@ -84,7 +84,7 @@ export default function PrivacyPage() {
               </div>
               <div className="p-4 bg-white/5 rounded-xl border border-white/10">
                 <p className="font-semibold text-white/90">Perplexity</p>
-                <p>Provee búsqueda web en tiempo real usada en notificaciones y en los reportes de Deep Research. Consulta <span className="text-[#22c55e]">perplexity.ai/privacy</span>.</p>
+                <p>Provee búsqueda web en tiempo real usada en notificaciones. Consulta <span className="text-[#22c55e]">perplexity.ai/privacy</span>.</p>
               </div>
               <div className="p-4 bg-white/5 rounded-xl border border-white/10">
                 <p className="font-semibold text-white/90">ElevenLabs</p>

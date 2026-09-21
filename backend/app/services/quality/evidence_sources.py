@@ -17,9 +17,8 @@ real search result with a real citation URL, a real scraped page excerpt)
 or explicitly absent (None/empty) — this module never fabricates content
 to fill a gap. Consistent with the same standard already established
 throughout this codebase (capital_allocation_engine.ACQUISITIONS_NOTE,
-earnings_quality_engine.ACQUISITIONS_GROWTH_NOTE, and the explicit
-guardrail research_service.py already had against claiming to have read a
-filing verbatim).
+earnings_quality_engine.ACQUISITIONS_GROWTH_NOTE — the explicit guardrail against
+claiming to have read a filing verbatim).
 """
 
 from __future__ import annotations

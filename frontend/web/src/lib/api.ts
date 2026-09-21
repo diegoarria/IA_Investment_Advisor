@@ -428,30 +428,8 @@ export const upsells = {
   redeem1on1Session: () => api.post("/api/upsells/redeem-1on1-session"),
 };
 
-export const researchApi = {
-  createPlan: (requestText: string) =>
-    api.post("/api/research/plan", { request_text: requestText }),
-  start: (jobId: string, idOrParams: string | { stripeSessionId?: string; paymentIntentId?: string }) =>
-    api.post("/api/research/start", {
-      job_id: jobId,
-      ...(typeof idOrParams === "string"
-        ? { stripe_session_id: idOrParams }
-        : { stripe_session_id: idOrParams.stripeSessionId, stripe_payment_intent_id: idOrParams.paymentIntentId }),
-    }),
-  startFree: (jobId: string) => api.post("/api/research/start-free", { job_id: jobId }),
-  getJob: (jobId: string) => api.get(`/api/research/jobs/${jobId}`),
-  getActiveJob: () => api.get("/api/research/jobs/active"),
-  listReports: () => api.get("/api/research/reports"),
-  getReport: (id: string) => api.get(`/api/research/reports/${id}`),
-  // Protected endpoint — needs the auth header, so this fetches a blob and
-  // triggers the download client-side rather than linking directly to the URL.
-  downloadPdf: (id: string) => api.get(`/api/research/reports/${id}/pdf`, { responseType: "blob" }),
-};
-
 // Fase 3's Investment Research Engine (backend/app/api/routes/research_engine.py)
-// — deliberately a separate object from `researchApi` above, which is the
-// unrelated Deep Research paid one-off report feature (`/api/research/...`).
-// These target `/api/research-engine/...`.
+// — targets `/api/research-engine/...`.
 export const researchEngineApi = {
   getDossier: (ticker: string, lang?: string) =>
     api.get(`/api/research-engine/company/${ticker}/dossier`, { params: { lang }, timeout: 30000 }),

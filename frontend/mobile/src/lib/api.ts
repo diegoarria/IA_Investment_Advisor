@@ -240,17 +240,6 @@ export const upsellsApi = {
     api.post("/api/upsells/checkout", { offer, variant, trigger_source, ...extra }),
 };
 
-export const researchApi = {
-  createPlan: (requestText: string) =>
-    api.post("/api/research/plan", { request_text: requestText }),
-  startFree: (jobId: string) => api.post("/api/research/start-free", { job_id: jobId }),
-  getActiveJob: () => api.get("/api/research/jobs/active"),
-  getJob: (jobId: string) => api.get(`/api/research/jobs/${jobId}`),
-  listReports: () => api.get("/api/research/reports"),
-  getReport: (id: string) => api.get(`/api/research/reports/${id}`),
-  downloadPdfUrl: (id: string) => `${BASE_URL}/api/research/reports/${id}/pdf`,
-};
-
 export const learnApi = {
   getScenario: (difficulty: string) => api.post("/api/learn/scenario", { difficulty }),
   submitScenarioResult: (scenarioId: string, choice: string, difficulty: string) =>

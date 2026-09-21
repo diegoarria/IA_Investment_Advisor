@@ -613,9 +613,7 @@ def fetch_filing_text_sections(ticker: str, form_type: str = "10-K") -> dict | N
     """Real primary-source text from the company's own most recent filing
     of `form_type` — fetched directly from SEC EDGAR. This is genuine
     evidence (the company's own filed words), never an AI narrative
-    pretending to have read the filing (see the explicit guardrail this
-    exact gap used to require in `research_service.py` before this
-    function existed). Returns None if the ticker has no real CIK mapping,
+    pretending to have read the filing. Returns None if the ticker has no real CIK mapping,
     no filing of `form_type` is found, or the document couldn't be fetched
     — never a fabricated/partial result presented as complete.
 

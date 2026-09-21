@@ -4,11 +4,7 @@ Investment Research Engine — Fase 3, Incremento 10 (see
 
 Routes for the NEW Investment Research Engine (Business/Competitive/
 Industry/Management Intelligence, Thesis Engine, Investment Memo, company
-Timeline). Deliberately a SEPARATE router/file/prefix from `research.py`
-(the existing Deep Research feature — `research_jobs`/`research_reports`,
-a per-user paid one-off report pipeline) to avoid any naming collision —
-these are two unrelated features that happen to share the English word
-"research."
+Timeline).
 
 Every route follows `investment_graph.py`'s simpler style (auth-gated via
 `get_current_user_id`, no free-text ticker resolution) rather than

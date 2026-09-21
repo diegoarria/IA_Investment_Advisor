@@ -26,8 +26,7 @@ interface Props {
 // suscripciones y como el de ChatGPT" — same visual language as
 // PaywallModal (hero emoji, feature checklist, trust-building framing)
 // instead of the compact inline card, for the one-time products (1:1
-// session, session pack). Deep Research isn't routed through this modal —
-// it already has its own full screen (app/research/index.tsx).
+// session, session pack).
 //
 // Payment flow, per Diego: card entry is web-only (Apple 3.1.1 — no
 // purchase CTA on mobile at all, see pricingModal.manageOnWeb elsewhere

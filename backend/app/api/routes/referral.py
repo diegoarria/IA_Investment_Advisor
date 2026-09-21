@@ -25,14 +25,13 @@ router = APIRouter(prefix="/referral", tags=["referral"])
 WELCOME_BONUS_DAYS = 14
 
 # The referrer's reward ladder: (referred_count threshold, premium days
-# granted at that tier, grants a free 1:1 session, grants a free deep
-# research report). Each tier pays out exactly once — see
+# granted at that tier, grants a free 1:1 session). Each tier pays out exactly once — see
 # referral_reward_tier, the highest tier already paid — even if
 # referred_count keeps climbing past 3.
 REFERRAL_TIERS = [
-    (1, 14, False, False),
-    (2, 14, True, False),
-    (3, 30, True, True),
+    (1, 14, False),
+    (2, 14, True),
+    (3, 30, True),
 ]
 
 
@@ -80,7 +79,7 @@ async def _extend_premium(user_id: str, days: int, db) -> None:
     cache_delete(f"sync:all:{user_id}")
 
 
-async def _grant_tier_rewards(referrer_id: str, new_count: int, db) -> list[tuple[int, int, bool, bool]]:
+async def _grant_tier_rewards(referrer_id: str, new_count: int, db) -> list[tuple[int, int, bool]]:
     """Pay out every tier newly crossed by `new_count` that the referrer
     hasn't already been paid for — additive (a referrer who reaches tier 3
     has been paid tier 1 + tier 2 + tier 3's rewards, not just tier 3's).
@@ -88,33 +87,29 @@ async def _grant_tier_rewards(referrer_id: str, new_count: int, db) -> list[tupl
     so the caller can tell the referrer what they actually just earned."""
     row = await run_query(
         db.table("user_profiles")
-        .select("referral_reward_tier, free_1on1_sessions, free_deep_research_credits")
+        .select("referral_reward_tier, free_1on1_sessions")
         .eq("user_id", referrer_id)
         .maybe_single()
     )
     data = (row.data if row else None) or {}
     current_tier = int(data.get("referral_reward_tier") or 0)
     sessions = int(data.get("free_1on1_sessions") or 0)
-    research_credits = int(data.get("free_deep_research_credits") or 0)
     highest = current_tier
-    newly_crossed: list[tuple[int, int, bool, bool]] = []
+    newly_crossed: list[tuple[int, int, bool]] = []
 
-    for tier, days, grants_session, grants_research in REFERRAL_TIERS:
+    for tier, days, grants_session in REFERRAL_TIERS:
         if new_count >= tier and current_tier < tier:
             await _extend_premium(referrer_id, days, db)
             if grants_session:
                 sessions += 1
-            if grants_research:
-                research_credits += 1
             highest = tier
-            newly_crossed.append((tier, days, grants_session, grants_research))
+            newly_crossed.append((tier, days, grants_session))
 
     if highest > current_tier:
         await run_query(
             db.table("user_profiles").update({
                 "referral_reward_tier": highest,
                 "free_1on1_sessions": sessions,
-                "free_deep_research_credits": research_credits,
             }).eq("user_id", referrer_id)
         )
 
@@ -166,7 +161,7 @@ async def get_stats(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
     row = await run_query(
         db.table("user_profiles")
-        .select("referral_code, referred_count, referral_reward_tier, free_1on1_sessions, free_deep_research_credits")
+        .select("referral_code, referred_count, referral_reward_tier, free_1on1_sessions")
         .eq("user_id", user_id)
         .maybe_single()
     )
@@ -179,10 +174,9 @@ async def get_stats(user_id: str = Depends(get_current_user_id)):
         "referred_count": count,
         "reward_tier": int(data.get("referral_reward_tier") or 0),
         "free_1on1_sessions": int(data.get("free_1on1_sessions") or 0),
-        "free_deep_research_credits": int(data.get("free_deep_research_credits") or 0),
         "tiers": [
-            {"friends": tier, "days": days, "session": grants_session, "research": grants_research}
-            for tier, days, grants_session, grants_research in REFERRAL_TIERS
+            {"friends": tier, "days": days, "session": grants_session}
+            for tier, days, grants_session in REFERRAL_TIERS
         ],
     }
 
@@ -283,7 +277,7 @@ async def apply_referral(body: dict, user_id: str = Depends(get_current_user_id)
     return {"ok": True, "referred_count": new_count, "bonus_days": WELCOME_BONUS_DAYS}
 
 
-async def _notify_referrer(referrer_id: str, new_count: int, newly_crossed: list[tuple[int, int, bool, bool]], db) -> None:
+async def _notify_referrer(referrer_id: str, new_count: int, newly_crossed: list[tuple[int, int, bool]], db) -> None:
     from app.services.notification_engine import send_push
     lang_row = await run_query(
         db.table("user_profiles").select("preferred_language").eq("user_id", referrer_id).maybe_single()
@@ -291,12 +285,10 @@ async def _notify_referrer(referrer_id: str, new_count: int, newly_crossed: list
     is_en = (((lang_row.data if lang_row else None) or {}).get("preferred_language")) == "en"
 
     if newly_crossed:
-        _, days, grants_session, grants_research = newly_crossed[-1]
+        _, days, grants_session = newly_crossed[-1]
         extras = []
         if grants_session:
             extras.append("a free 1:1 session" if is_en else "una sesión 1:1 gratis")
-        if grants_research:
-            extras.append("a free deep research report" if is_en else "un reporte de deep research gratis")
         extra_str = (" + " + " and ".join(extras)) if is_en and extras else (" + " + " y ".join(extras)) if extras else ""
         if is_en:
             title = "🎁 Referral reward unlocked!"

@@ -16,7 +16,7 @@ async def stripe_call(fn, *args, **kwargs):
     error, pero luego si recargo ya aparece bien" — that pattern (works on
     manual retry, not misconfiguration) is exactly what this class of
     error looks like. Every checkout path in the app (Premium/Duo
-    subscription in billing.py, and session/family_plan/deep_research in
+    subscription in billing.py, and session/family_plan in
     upsells.py) had zero retry logic on its Stripe calls before this,
     unlike every DB call in this codebase — shared here instead of
     duplicated per-file so a future checkout path gets this for free.

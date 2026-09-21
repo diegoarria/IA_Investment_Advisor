@@ -136,7 +136,7 @@ async def notify_admin_purchase(user_id: str, product: str, detail: str = "") ->
     usuario compra el premium... y que me llegue a mi correo" — fire-and-
     forget email to Diego himself on every real purchase: Premium/Duo
     subscription (which plan) or a one-time product (session, session
-    pack, Deep Research, paid broker call). Mirrors support.py's
+    pack, paid broker call). Mirrors support.py's
     ADMIN_EMAIL notification (same fire-and-forget shape) — never raises,
     never blocks the webhook/route that calls it. Call this ONLY from a
     code path that already guarantees "this is a genuinely new purchase,

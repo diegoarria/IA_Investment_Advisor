@@ -28,7 +28,7 @@ def test_availability_needs_the_flag_and_the_specific_mxn_price():
     assert ap.available("family_plan", "monthly", cfg())
     assert not ap.available("family_plan", "monthly", cfg(checkout_adaptive_pricing=False))
     assert not ap.available("family_plan", "monthly", cfg(stripe_price_family_monthly_mxn=""))
-    assert not ap.available("deep_research", "free", cfg())         # no MXN price exists for it
+    assert not ap.available("broker_call", "default", cfg())         # no MXN price exists for it
 
 
 async def _call(body, settings_obj=None, tier="free", stripe_side_effect=None):
@@ -82,7 +82,7 @@ async def test_sessions_are_one_time_payment_sessions_with_the_right_mxn_price(t
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("body,settings_obj", [
-    ({"offer": "deep_research", "variant": "free"}, None),                      # unsupported offer
+    ({"offer": "broker_call", "variant": "default"}, None),                        # unsupported offer
     ({"offer": "family_plan", "variant": "monthly"}, cfg(checkout_adaptive_pricing=False)),
     ({"offer": "family_plan", "variant": "monthly"}, cfg(stripe_price_family_monthly_mxn="")),
     ({"offer": "session", "variant": "bundle"}, cfg(stripe_price_session_bundle_mxn="")),
@@ -112,7 +112,7 @@ async def test_check_returns_mxn_amounts_only_when_every_variant_has_an_mxn_pric
          patch("app.core.cache.cache_get", return_value=None), patch("app.core.cache.cache_set"):
         assert await upsells._adaptive_prices_for("family_plan") == {"monthly": 419.0, "yearly": 3899.0}
         assert await upsells._adaptive_prices_for("session") == {"free": 2399.0, "premium": 1699.0, "bundle": 4249.0}
-        assert await upsells._adaptive_prices_for("deep_research") is None
+        assert await upsells._adaptive_prices_for("broker_call") is None
     with patch("app.api.routes.upsells.settings", cfg(stripe_price_session_bundle_mxn="")):
         assert await upsells._adaptive_prices_for("session") is None       # partial config -> stay on USD
     with patch("app.api.routes.upsells.settings", cfg(checkout_adaptive_pricing=False)):

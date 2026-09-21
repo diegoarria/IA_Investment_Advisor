@@ -5480,7 +5480,7 @@ async def generate_quick_valuation_summary(data: dict, lang: str = "es") -> dict
     """Quick-search valuation summary — a SHORT (80-130 word) narrative around
     the real numbers already computed by fundamental_analysis_service, for
     the ad-hoc ticker search on the Acciones Subvaluadas screen. Deliberately
-    NOT the full 20-section Arthur report or Deep Research — just enough
+    NOT the full 20-section Arthur report — just enough
     narrative to make the real numbers make sense at a glance. Haiku-tier:
     this is a short, cheap call, not a full analysis.
 

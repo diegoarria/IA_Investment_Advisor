@@ -56,15 +56,6 @@ function getOneTimeItems(t: TFunction): OneTimeItem[] {
       offer: "session",
       variant: "bundle",
     },
-    {
-      emoji: "🔬",
-      title: items[2].title,
-      features: items[2].features,
-      priceFree: "$19.99 USD",
-      pricePremium: "$9.99 USD",
-      offer: "deep_research",
-      variant: "default",
-    },
   ];
 }
 
@@ -204,7 +195,7 @@ export default function ProductsScreen() {
               <TouchableOpacity
                 key={i}
                 activeOpacity={0.85}
-                onPress={() => p.offer === "deep_research" ? router.push("/research") : setSelectedProduct(p)}
+                onPress={() => setSelectedProduct(p)}
                 style={{ borderRadius: 18, borderWidth: 1, padding: 14, backgroundColor: colors.card, borderColor: colors.border }}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
@@ -230,8 +221,7 @@ export default function ProductsScreen() {
                 {/* First feature as a teaser — full list + the paywall
                     (price recap, "pay on web" info, Calendly-after-pay
                     note for sessions) lives in OneTimeProductModal, tapped
-                    open from anywhere on this card. Deep Research skips
-                    the modal and goes straight to its own screen. */}
+                    open from anywhere on this card. */}
                 <Text style={{ fontSize: 11.5, color: colors.textMuted, marginTop: 4 }} numberOfLines={1}>
                   {p.features[0]}
                 </Text>

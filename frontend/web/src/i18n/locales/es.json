@@ -456,12 +456,10 @@
     "referralTierN_other": "Invita a {{count}} amigos",
     "referralTier1Reward": "14 días de premium",
     "referralTier2Reward": "14 días de premium + 1 sesión 1:1 gratis",
-    "referralTier3Reward": "30 días de premium + 1 sesión 1:1 + 1 deep research gratis",
+    "referralTier3Reward": "30 días de premium + 1 sesión 1:1 gratis",
     "referralRedeemSession": "Solicitar mi sesión 1:1 gratis ({{count}} disponible)",
     "referralRedeemSession_other": "Solicitar mi sesión 1:1 gratis ({{count}} disponibles)",
     "referralRedeemSessionMsg": "Quiero solicitar mi sesión 1:1 gratis que gané por invitar amigos a Nuvos AI.",
-    "referralRedeemResearch": "Usar mi deep research gratis ({{count}} disponible)",
-    "referralRedeemResearch_other": "Usar mis deep research gratis ({{count}} disponibles)",
     "referralLink": "Tu enlace de referido",
     "referralShareText": "Estoy usando Nuvos AI — el mejor mentor de inversiones con IA. Únete gratis 👉 {{link}}",
     "shareInvite": "Compartir invitación",
@@ -2394,15 +2392,6 @@
           "Resolvemos dudas conforme avanzas"
         ],
         "note": "Solo disponible para Premium"
-      },
-      {
-        "title": "Nuvos Deep Research",
-        "features": [
-          "Investigación abierta: compara empresas, no solo un reporte fijo",
-          "Análisis financiero real, valuación y riesgos",
-          "Personalizado con tu portafolio actual",
-          "Guardado, buscable y descargable en PDF"
-        ]
       }
     ],
     "comingSoon": [
@@ -4212,59 +4201,6 @@
         "market_holiday": "Feriado 🇺🇸",
         "market_early_close": "Medio Día 🕐"
       }
-    }
-  },
-  "research": {
-    "title": "Nuvos Deep Research",
-    "subtitle": "Delega una investigación de inversión completa a la IA — resultados en 2 a 5 minutos.",
-    "compose": {
-      "placeholder": "Ej. Compara Amazon, MercadoLibre y Alibaba y dime cuál encaja mejor con mi portafolio...",
-      "submit": "Investigar",
-      "planError": "No se pudo interpretar tu solicitud. Intenta de nuevo.",
-      "tickerPrefill": "Investiga {{ticker}} a fondo"
-    },
-    "plan": {
-      "title": "Esto es lo que vamos a investigar",
-      "useFreeCredit": "Usar mi deep research gratis ({{count}} disponible)",
-      "useFreeCredit_other": "Usar mi deep research gratis ({{count}} disponibles)",
-      "confirm": "Confirmar y pagar",
-      "back": "← Cambiar mi solicitud",
-      "checkoutError": "No se pudo iniciar el pago. Intenta de nuevo.",
-      "freePrice": "Precio (cuenta Free)",
-      "premiumPrice": "Precio (Premium, con descuento)",
-      "premiumUpsell": "Con Premium pagarías solo ${{price}}"
-    },
-    "progress": {
-      "starting": "Iniciando investigación...",
-      "elapsed": "{{seconds}}s transcurridos",
-      "estimate": "Tiempo estimado: 2-5 minutos",
-      "genericError": "Algo salió mal durante la investigación.",
-      "tryAgain": "Intentar de nuevo"
-    },
-    "report": {
-      "downloadPdf": "Descargar PDF",
-      "backToHistory": "← Historial de investigaciones",
-      "loading": "Cargando reporte...",
-      "notFound": "Reporte no encontrado"
-    },
-    "history": {
-      "title": "Historial de Investigaciones",
-      "empty": "Todavía no tienes investigaciones guardadas.",
-      "newResearch": "Nueva investigación"
-    },
-    "tools": {
-      "title": "Nuvos Deep Research",
-      "tagline": "Tu propio analista de investigación",
-      "description": "Delega una investigación de inversión completa — comparaciones, valuación, personalización con tu portafolio — y recibe un reporte a fondo en minutos.",
-      "benefit1": "Compara empresas completas, no solo un ticker",
-      "benefit2": "Valuación, riesgos y catalizadores reales",
-      "benefit3": "Personalizado con tu portafolio actual",
-      "benefit4": "Guardado, buscable y descargable en PDF"
-    },
-    "banner": {
-      "title": "¿Quieres una investigación a fondo de {{ticker}}?",
-      "subtitle": "Nuvos Deep Research compara, valora y personaliza con tu portafolio en minutos.",
-      "cta": "Investigar"
     }
   },
   "onboarding": {

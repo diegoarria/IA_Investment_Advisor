@@ -53,7 +53,7 @@ def test_missing_mxn_price_falls_back_to_usd():
     ("family_plan", "monthly", "usd_dm", "mxn_dm"), ("family_plan", "yearly", "usd_dy", "mxn_dy"),
     ("session", "free", "usd_sf", "mxn_sf"), ("session", "premium", "usd_sp", "mxn_sp"),
     ("session", "bundle", "usd_sb", "mxn_sb"),
-    ("deep_research", "free", "usd_dr", "usd_dr"),       # no MXN price exists for it -> stays USD
+    ("broker_call", "default", "usd_bc", "usd_bc"),       # no MXN price exists for it -> stays USD
 ])
 def test_upsell_price_selection(offer, key, usd, expected):
     assert pr.upsell_price_id(offer, key, usd, True, cfg()) == expected

@@ -50,7 +50,6 @@ function getOneTimeProducts(t: TFunction) {
   const meta = [
     { icon: "📱", price_free: "$149 USD", price_premium: "$99 USD", offer: "session", variant: "default" },
     { icon: "📦", price_premium: "$247 USD", offer: "session", variant: "bundle" },
-    { icon: "🔬", price_free: "$19.99 USD", price_premium: "$9.99 USD", offer: "deep_research", variant: "default" },
   ];
   return items.map((item, i) => ({ ...item, ...meta[i], available: true }));
 }
@@ -273,7 +272,7 @@ export default function ProductsPage() {
                     )}
 
                     <button
-                      onClick={() => p.offer === "deep_research" ? router.push("/research") : handleCheckout(p.offer, p.variant ?? "default")}
+                      onClick={() => handleCheckout(p.offer, p.variant ?? "default")}
                       className={`w-full py-2 rounded-xl text-xs font-black transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-1 ${p.note ? "" : "mb-4"}`}
                       style={{ background: "#00d47e", color: "#000" }}
                     >
@@ -335,7 +334,7 @@ export default function ProductsPage() {
             <div className="pt-5">
               <EmbeddedCheckout
                 createIntent={() => upsells.checkoutEmbedded(checkoutOffer.offer, checkoutOffer.variant, "products_page").then((r) => r.data)}
-                adaptive={checkoutOffer.offer === "deep_research" ? undefined : {
+                adaptive={{
                   createSession: () => upsells.checkoutAdaptive(checkoutOffer.offer, checkoutOffer.variant, "products_page").then((r) => r.data),
                 }}
                 returnUrl={`${window.location.origin}/upsell-success?offer=${checkoutOffer.offer}`}

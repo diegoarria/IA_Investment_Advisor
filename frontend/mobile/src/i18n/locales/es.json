@@ -551,12 +551,10 @@
       "tierN_other": "Invita a {{count}} amigos",
       "tier1Reward": "14 días de premium",
       "tier2Reward": "14 días de premium + 1 sesión 1:1 gratis",
-      "tier3Reward": "30 días de premium + 1 sesión 1:1 + 1 deep research gratis",
+      "tier3Reward": "30 días de premium + 1 sesión 1:1 gratis",
       "redeemSession": "Solicitar mi sesión 1:1 gratis ({{count}} disponible)",
       "redeemSession_other": "Solicitar mi sesión 1:1 gratis ({{count}} disponibles)",
       "redeemSessionMsg": "Quiero solicitar mi sesión 1:1 gratis que gané por invitar amigos a Nuvos AI.",
-      "redeemResearch": "Usar mi deep research gratis ({{count}} disponible)",
-      "redeemResearch_other": "Usar mis deep research gratis ({{count}} disponibles)",
       "loading": "Cargando...",
       "share": "Compartir invitación",
       "note": "Las recompensas se activan automáticamente en cuanto tus amigos se registran con tu código.",
@@ -1788,15 +1786,6 @@
             "Revisamos tu progreso en la app",
             "Ajustamos tu ruta de aprendizaje",
             "Resolvemos dudas conforme avanzas"
-          ]
-        },
-        {
-          "title": "Nuvos Deep Research",
-          "features": [
-            "Investigación abierta: compara empresas, no solo un reporte fijo",
-            "Análisis financiero real, valuación y riesgos",
-            "Personalizado con tu portafolio actual",
-            "Guardado, buscable y descargable en PDF"
           ]
         }
       ]
@@ -3597,54 +3586,6 @@
       "profile": "Perfil",
       "support": "Soporte",
       "watchlist": "Watchlist"
-    }
-  },
-  "research": {
-    "title": "Nuvos Deep Research",
-    "subtitle": "Delega una investigacion de inversion completa a la IA — resultados en 2 a 5 minutos.",
-    "compose": {
-      "placeholder": "Ej. Compara Amazon, MercadoLibre y Alibaba y dime cual encaja mejor con mi portafolio...",
-      "submit": "Investigar",
-      "planError": "No se pudo interpretar tu solicitud. Intenta de nuevo.",
-      "tickerPrefill": "Investiga {{ticker}} a fondo"
-    },
-    "plan": {
-      "title": "Esto es lo que vamos a investigar",
-      "useFreeCredit": "Usar mi deep research gratis ({{count}} disponible)",
-      "useFreeCredit_other": "Usar mi deep research gratis ({{count}} disponibles)",
-      "confirm": "Confirmar y pagar",
-      "back": "Cambiar mi solicitud",
-      "checkoutError": "No se pudo iniciar el pago. Intenta de nuevo.",
-      "freePrice": "Precio (cuenta Free)",
-      "premiumPrice": "Precio (Premium, con descuento)",
-      "premiumUpsell": "Con Premium pagarias solo ${{price}}",
-      "checkoutOpened": "Completa el pago en el navegador. Cuando termines, vuelve a esta pantalla."
-    },
-    "progress": {
-      "starting": "Iniciando investigacion...",
-      "elapsed": "{{seconds}}s transcurridos",
-      "estimate": "Tiempo estimado: 2-5 minutos",
-      "genericError": "Algo salio mal durante la investigacion.",
-      "tryAgain": "Intentar de nuevo"
-    },
-    "report": {
-      "downloadPdf": "Descargar PDF",
-      "back": "Historial de investigaciones",
-      "loading": "Cargando reporte...",
-      "notFound": "Reporte no encontrado"
-    },
-    "history": {
-      "title": "Historial de Investigaciones",
-      "empty": "Todavia no tienes investigaciones guardadas."
-    },
-    "tools": {
-      "title": "Nuvos Deep Research",
-      "description": "Delega una investigacion completa — comparaciones, valuacion, personalizacion con tu portafolio."
-    },
-    "banner": {
-      "title": "Quieres una investigacion a fondo de {{ticker}}?",
-      "subtitle": "Nuvos Deep Research compara, valora y personaliza con tu portafolio en minutos.",
-      "cta": "Investigar"
     }
   },
   "weeklyRitual": {

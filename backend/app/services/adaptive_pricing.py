@@ -5,8 +5,8 @@ account settles only in MXN — multi-currency settlement isn't available in
 Mexico — and Adaptive Pricing requires the price currency to be a settlement
 currency); Stripe presents the customer's local currency at checkout.
 
-Only products that HAVE an MXN price are eligible. Anything else (Deep
-Research, the broker call) stays on the legacy USD flow.
+Only products that HAVE an MXN price are eligible. Anything else (e.g.
+the broker call) stays on the legacy USD flow.
 """
 from app.core.config import settings
 

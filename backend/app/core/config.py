@@ -105,8 +105,6 @@ class Settings(BaseSettings):
     stripe_price_session_bundle: str = ""         # $247 (3 sessions, premium only)
     stripe_price_family_monthly: str = ""         # $23.99/month
     stripe_price_family_yearly: str = ""          # $224.99/year
-    stripe_price_deep_research_free: str = ""     # $19.99
-    stripe_price_deep_research_premium: str = ""  # $9.99
     stripe_price_broker_call: str = ""            # $20 flat — 1:1 broker onboarding call, after the 24h free window
     # PostHog — read-only Personal API Key for the admin business-overview
     # dashboard (DAU/WAU/top events). Distinct from the mobile/web client's
