@@ -147,7 +147,7 @@ export default function UpsellModal({ offer, prices, currency, triggerSource, on
           >
             <EmbeddedCheckout
               createIntent={() => upsells.checkoutEmbedded(offer, purchaseVariant, triggerSource ?? "").then((r) => r.data)}
-              adaptive={offer === "deep_research" ? undefined : {
+              adaptive={{
                 createSession: () => upsells.checkoutAdaptive(offer, purchaseVariant, triggerSource ?? "").then((r) => r.data),
               }}
               returnUrl={`${window.location.origin}${offer === "family_plan" ? "/upsell-success?offer=family_plan" : "/upsell-success?offer=session"}`}
