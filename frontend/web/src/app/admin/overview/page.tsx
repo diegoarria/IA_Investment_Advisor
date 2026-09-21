@@ -78,6 +78,20 @@ interface HistoryRow {
   margin_pct: number | null;
 }
 
+interface LlmUsage {
+  window_days: number;
+  total_cost_usd: number;
+  total_calls: number;
+  unit_economics: null | {
+    active_user_count: number;
+    premium_distribution_usd?: { count: number; mean: number; median: number; p95: number; p99: number; max: number };
+    cache?: { calls_using_cache: number; avg_cache_write_tokens_per_cached_call: number; avg_cache_read_tokens_per_cached_call: number };
+    cost_guard_thresholds_usd?: { warning: number; high_usage: number; cost_protection: number; hard_stop: number; daily_cap: number };
+  };
+  by_endpoint: { endpoint: string; cost_usd: number; calls: number; pct_of_total: number }[];
+  by_user: { user_id: string; cost_usd: number; calls: number }[];
+}
+
 const fmtNum = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("en-US"));
 const fmtUSD = (n: number | null | undefined) =>
   n == null ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -112,6 +126,84 @@ function Card({
   );
 }
 
+function guardLevel(cost: number, t: NonNullable<NonNullable<LlmUsage["unit_economics"]>["cost_guard_thresholds_usd"]>) {
+  if (cost >= t.hard_stop) return { label: "Pausa", color: "#f87171" };
+  if (cost >= t.cost_protection) return { label: "Protección", color: "#fb923c" };
+  if (cost >= t.high_usage) return { label: "Uso alto", color: "#fbbf24" };
+  if (cost >= t.warning) return { label: "Aviso", color: "#facc15" };
+  return { label: "Normal", color: "#34d399" };
+}
+
+function CostGuardSection({ usage }: { usage: LlmUsage }) {
+  const ue = usage.unit_economics;
+  const t = ue?.cost_guard_thresholds_usd;
+  const dist = ue?.premium_distribution_usd;
+  return (
+    <section className="space-y-3">
+      <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>AI Cost Guard — costo de IA por usuario ({usage.window_days} días)</p>
+      {t && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <Card label="Aviso" value={fmtUSD(t.warning)} sub="/mes · solo log" />
+          <Card label="Uso alto" value={fmtUSD(t.high_usage)} sub="/mes · tu techo de COGS" />
+          <Card label="Protección" value={fmtUSD(t.cost_protection)} sub="/mes · Arthur usa modelo barato" />
+          <Card label="Pausa mensual" value={fmtUSD(t.hard_stop)} sub="/mes · pausa amable" />
+          <Card label="Pausa diaria" value={fmtUSD(t.daily_cap)} sub="por día" />
+        </div>
+      )}
+      {dist && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <Card label="Premium: promedio" value={fmtUSD(dist.mean)} sub={`${dist.count} usuarios`} icon={<DollarSign className="w-3.5 h-3.5" />} />
+          <Card label="Premium: mediana" value={fmtUSD(dist.median)} />
+          <Card label="Premium: P95" value={fmtUSD(dist.p95)} />
+          <Card label="Premium: P99" value={fmtUSD(dist.p99)} />
+          <Card label="Premium: máximo" value={fmtUSD(dist.max)} />
+        </div>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+          <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>Usuarios que más gastan (nivel según el gasto de {usage.window_days} días)</p>
+          <div className="space-y-1.5">
+            {usage.by_user.filter((u) => u.user_id !== "unknown").slice(0, 8).map((u) => {
+              const lvl = t ? guardLevel(u.cost_usd, t) : null;
+              return (
+                <div key={u.user_id} className="flex items-center justify-between text-sm gap-2">
+                  <span className="truncate" style={{ color: "var(--text)" }}>{u.user_id.slice(0, 8)}…</span>
+                  <span className="shrink-0 flex items-center gap-2" style={{ color: "var(--muted)" }}>
+                    {fmtUSD(u.cost_usd)} · {fmtNum(u.calls)} llamadas
+                    {lvl && <span className="font-bold" style={{ color: lvl.color }}>{lvl.label}</span>}
+                  </span>
+                </div>
+              );
+            })}
+            {usage.by_user.filter((u) => u.user_id !== "unknown").length === 0 && (
+              <p className="text-xs" style={{ color: "var(--muted)" }}>Sin uso de IA atribuido a usuarios en este período.</p>
+            )}
+          </div>
+        </div>
+        <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+          <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>Costo por función (total {fmtUSD(usage.total_cost_usd)})</p>
+          <div className="space-y-1.5">
+            {usage.by_endpoint.slice(0, 8).map((e) => (
+              <div key={e.endpoint} className="flex items-center justify-between text-sm gap-2">
+                <span className="truncate" style={{ color: "var(--text)" }}>{e.endpoint}</span>
+                <span className="shrink-0" style={{ color: "var(--muted)" }}>{fmtUSD(e.cost_usd)} · {e.pct_of_total}%</span>
+              </div>
+            ))}
+          </div>
+          {ue?.cache && ue.cache.calls_using_cache > 0 && (
+            <p className="text-xs mt-3" style={{ color: "var(--muted)" }}>
+              Caché por llamada: {fmtNum(ue.cache.avg_cache_write_tokens_per_cached_call)} tokens escritos · {fmtNum(ue.cache.avg_cache_read_tokens_per_cached_call)} leídos (promedio).
+            </p>
+          )}
+        </div>
+      </div>
+      <p className="text-xs" style={{ color: "var(--muted)" }}>
+        El nivel se calcula aquí con el gasto de los últimos {usage.window_days} días como aproximación del mes en curso; el Cost Guard real usa el mes calendario. Los umbrales se cambian en Railway (GUARD_*).
+      </p>
+    </section>
+  );
+}
+
 function NotConfigured({ what }: { what: string }) {
   return (
     <div className="rounded-xl border p-4 flex items-center gap-2" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
@@ -125,6 +217,7 @@ export default function AdminBusinessOverviewPage() {
   const router = useRouter();
   const { userId, isAuthenticated } = useAuthStore();
   const [data, setData] = useState<Overview | null>(null);
+  const [llmUsage, setLlmUsage] = useState<LlmUsage | null>(null);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -148,6 +241,8 @@ export default function AdminBusinessOverviewPage() {
       ]);
       setData(overviewRes.data);
       setHistory(historyRes.data ?? []);
+      // Independent of the overview call: a failure here must never blank the panel.
+      adminApi.llmUsage(30).then((r) => setLlmUsage(r.data)).catch(() => setLlmUsage(null));
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "No se pudo cargar el panel.");
     } finally {
@@ -354,6 +449,8 @@ export default function AdminBusinessOverviewPage() {
                 </div>
               </div>
             </section>
+
+            {llmUsage && <CostGuardSection usage={llmUsage} />}
 
             {/* PostHog */}
             <section className="space-y-3">
