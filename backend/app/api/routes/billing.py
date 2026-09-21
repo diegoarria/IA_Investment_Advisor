@@ -107,6 +107,20 @@ async def get_pricing(user_id: str = Depends(get_current_user_id)):
     return out
 
 
+@router.post("/sync-subscription")
+async def sync_subscription_endpoint(user: dict = Depends(get_current_user)):
+    """Activates Premium straight from Stripe for a user who has paid — the
+    safety net for a missed/unmatched webhook (see app/services/subscription_sync.py).
+    Called by the post-payment success page. Idempotent; only ever upgrades."""
+    from app.services.subscription_sync import sync_subscription
+    db = get_fresh_supabase()
+    try:
+        return await sync_subscription(db, user["id"], user.get("email"))
+    except Exception as e:
+        logger.error("sync_subscription failed for user %s: %s", user["id"], e)
+        raise HTTPException(status_code=503, detail="No se pudo verificar tu pago. Intenta de nuevo en unos segundos.")
+
+
 @router.post("/create-checkout")
 async def create_checkout(body: CheckoutRequest, user_id: str = Depends(get_current_user_id)):
     s = _stripe()
@@ -641,9 +655,31 @@ async def stripe_webhook(request: Request):
                         interval_label = {"month": "Mensual", "year": "Anual"}.get(interval, interval or "?")
                     except Exception as e:
                         logger.warning("webhook: could not check subscription %s metadata for family_plan: %s", subscription_id, e)
-            await run_query(
+            updated = await run_query(
                 db.table("user_profiles").update(update).eq("stripe_customer_id", customer_id)
             )
+            if not (updated and updated.data):
+                # No profile is linked to THIS Stripe customer — the payment came
+                # from a customer whose id was never saved on the profile (a checkout
+                # attempt created a second customer). Find the owner via the
+                # customer's own metadata.user_id (set at creation) and link it,
+                # instead of silently dropping a paid subscription.
+                try:
+                    cust = await asyncio.to_thread(stripe.Customer.retrieve, customer_id)
+                    owner_id = (cust.get("metadata") or {}).get("user_id")
+                    if not owner_id and cust.get("email"):
+                        owner_id = await _find_user_id_by_email(cust.get("email"), db)
+                    if owner_id:
+                        logger.warning("webhook: invoice.payment_succeeded for unlinked customer %s — linking to user %s", customer_id, owner_id)
+                        await run_query(
+                            db.table("user_profiles").update({**update, "stripe_customer_id": customer_id}).eq("user_id", owner_id)
+                        )
+                        cache_delete(f"profile:{owner_id}")
+                        cache_delete(f"sync:all:{owner_id}")
+                    else:
+                        logger.error("webhook: paid invoice for customer %s but no user could be resolved", customer_id)
+                except Exception as e:
+                    logger.error("webhook: could not resolve owner of paid customer %s: %s", customer_id, e)
             await _invalidate_profile_cache_by_customer(customer_id, db)
 
             if billing_reason == "subscription_create":
@@ -905,6 +941,24 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
         raise HTTPException(status_code=503, detail="No se pudo verificar tu estado de suscripción. Intenta de nuevo en unos segundos.")
 
     data            = result.data
+
+    # Self-heal for a paid-but-still-Free account (missed/unmatched webhook —
+    # see app/services/subscription_sync.py). Only for users who already have a
+    # Stripe customer (i.e. have opened checkout), and throttled per user so a
+    # free user's status polling can't turn into a Stripe call every request.
+    if data.get("subscription_tier") == "free" and data.get("stripe_customer_id"):
+        from app.core.cache import cache_get, cache_set
+        heal_key = f"sub_heal:{user_id}"
+        if not cache_get(heal_key):
+            cache_set(heal_key, 1, ttl=300)
+            try:
+                from app.services.subscription_sync import sync_subscription
+                healed = await sync_subscription(db, user_id, None)
+                if healed.get("premium"):
+                    result = await run_query(_query())
+                    data = result.data or data
+            except Exception as e:
+                logger.warning("get_status: subscription self-heal failed for %s: %s", user_id, e)
     tier            = data.get("subscription_tier", "free")
     trial_started   = data.get("trial_started_at")
     has_stripe      = bool(data.get("stripe_customer_id"))

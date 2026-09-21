@@ -397,6 +397,8 @@ export const billing = {
   // Adaptive Pricing checkout (Checkout Session, ui_mode="elements"); 404 when the feature is off.
   createAdaptiveCheckout: (plan: "monthly" | "yearly" = "monthly") =>
     api.post<{ client_secret: string; session_id: string }>("/api/billing/create-adaptive-checkout", { plan }),
+  // Asks Stripe directly whether this user has an active subscription and activates Premium — safety net for a missed webhook.
+  syncSubscription: () => api.post<{ premium: boolean }>("/api/billing/sync-subscription"),
   createPortalSession: () => api.post("/api/billing/create-portal-session"),
   getSubscriptionDetails: () => api.get("/api/billing/subscription-details"),
   cancelSubscription: () => api.post("/api/billing/cancel-subscription"),

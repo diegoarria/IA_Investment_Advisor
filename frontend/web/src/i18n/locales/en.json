@@ -2838,6 +2838,9 @@
     "codeLabel": "Code:"
   },
   "premiumSuccess": {
+    "pendingTitle": "We're confirming your payment",
+    "pendingDesc": "Your payment was received, but your account is taking a bit longer to activate. Wait a few seconds and try again; if it stays the same, contact us and we'll fix it right away.",
+    "retry": "Try again",
     "sessionBookedTitle": "Session booked successfully!",
     "welcomeTitle": "Welcome to Nuvos Premium!",
     "sessionBookedDesc": "Your payment was processed. Now pick a time for your session.",

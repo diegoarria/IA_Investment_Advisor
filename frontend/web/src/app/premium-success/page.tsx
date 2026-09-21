@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { useSubscriptionStore } from "@/lib/store";
+import { billing } from "@/lib/api";
 import { CheckCircle, Loader2 } from "lucide-react";
 
 const CALENDLY_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai";
@@ -14,6 +15,7 @@ export default function PremiumSuccessPage() {
   const fetchStatus = useSubscriptionStore((s) => s.fetchStatus);
   const tier = useSubscriptionStore((s) => s.tier);
   const [ready, setReady] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
   const [isSession, setIsSession] = useState(false);
 
   useEffect(() => {
@@ -23,17 +25,24 @@ export default function PremiumSuccessPage() {
       localStorage.removeItem("nuvos_pending_session");
     }
 
-    // Poll until the webhook has been processed and tier flips to premium
+    // Poll until Premium is active. Each round first asks the backend to verify the
+    // payment directly with Stripe (POST /billing/sync-subscription) instead of only
+    // waiting for the webhook — a paid user must NEVER stay Free because a webhook
+    // was missed or matched no profile.
     let attempts = 0;
     const poll = async () => {
+      if (!pendingSession) await billing.syncSubscription().catch(() => {});
       await fetchStatus();
       attempts++;
       const current = useSubscriptionStore.getState().tier;
-      if (current === "premium" || attempts >= 8) {
+      if (current === "premium" || pendingSession) {
         setReady(true);
         if (!pendingSession) {
           setTimeout(() => router.replace("/chat"), 2500);
         }
+      } else if (attempts >= 20) {
+        // Never claim success we couldn't confirm.
+        setTimedOut(true);
       } else {
         setTimeout(poll, 1500);
       }
@@ -115,6 +124,19 @@ export default function PremiumSuccessPage() {
               ))}
             </div>
           )}
+        </>
+      ) : timedOut ? (
+        <>
+          <div style={{ textAlign: "center", maxWidth: "380px" }}>
+            <h1 style={{ color: "#fff", fontSize: "22px", fontWeight: 800, margin: "0 0 8px" }}>{t("premiumSuccess.pendingTitle")}</h1>
+            <p style={{ color: "#9ca3af", fontSize: "15px", margin: "0 0 16px" }}>{t("premiumSuccess.pendingDesc")}</p>
+            <button
+              onClick={() => window.location.reload()}
+              style={{ background: "#00d47e", color: "#000", fontWeight: 800, fontSize: "15px", padding: "12px 24px", borderRadius: "14px", border: "none", cursor: "pointer" }}
+            >
+              {t("premiumSuccess.retry")}
+            </button>
+          </div>
         </>
       ) : (
         <>

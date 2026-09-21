@@ -2838,6 +2838,9 @@
     "codeLabel": "Código:"
   },
   "premiumSuccess": {
+    "pendingTitle": "Estamos confirmando tu pago",
+    "pendingDesc": "Tu pago se recibió, pero tu cuenta tarda un poco más en activarse. Espera unos segundos y vuelve a intentar; si sigue igual, escríbenos y lo resolvemos de inmediato.",
+    "retry": "Reintentar",
     "sessionBookedTitle": "¡Sesión reservada con éxito!",
     "welcomeTitle": "¡Bienvenido a Nuvos Premium!",
     "sessionBookedDesc": "Tu pago fue procesado. Ahora elige el horario de tu sesión.",
