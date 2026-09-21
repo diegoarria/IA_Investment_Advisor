@@ -44,7 +44,7 @@ export default function PricingModal({ visible, onClose }: Props) {
 
   // Real billing currency for this user (MXN for Mexico when configured, else USD)
   // — the paywall must show exactly what Stripe will charge.
-  const [pricing, setPricing] = useState<{ currency: string; monthly?: number; yearly?: number; duo_monthly?: number; duo_yearly?: number }>({ currency: "usd" });
+  const [pricing, setPricing] = useState<{ currency: string; adaptive?: boolean; monthly?: number; yearly?: number; duo_monthly?: number; duo_yearly?: number }>({ currency: "usd" });
   useEffect(() => {
     if (!visible) return;
     billing.getPricing().then((r) => setPricing(r.data)).catch(() => {});
@@ -134,10 +134,17 @@ export default function PricingModal({ visible, onClose }: Props) {
             <EmbeddedCheckout
               createIntent={() =>
                 checkoutMode === "duo"
-                  ? upsells.checkoutEmbedded("family_plan", plan, "pricing_modal").then((r) => r.data)
-                  : billing.createEmbeddedSubscription(plan).then((r) => r.data)
+                  ? upsells.checkoutEmbedded("family_plan", plan, "pricing_modal", { currency: duoMxn ? "mxn" : "usd" }).then((r) => r.data)
+                  : billing.createEmbeddedSubscription(plan, premiumMxn ? "mxn" : "usd").then((r) => r.data)
               }
               returnUrl={`${window.location.origin}${checkoutMode === "duo" ? "/upsell-success?offer=family_plan" : "/premium-success"}`}
+              adaptive={{
+                createSession: () =>
+                  (checkoutMode === "duo"
+                    ? upsells.checkoutAdaptive("family_plan", plan, "pricing_modal")
+                    : billing.createAdaptiveCheckout(plan)
+                  ).then((r) => r.data),
+              }}
               onBack={() => setCheckoutMode(null)}
               onSuccess={handleCheckoutSuccess}
               summary={checkoutMode === "duo" ? duoSummary : premiumSummary}
@@ -205,6 +212,9 @@ export default function PricingModal({ visible, onClose }: Props) {
               <span className="text-3xl font-black text-white">{monthlyPrice}</span>
               <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>{premiumMxn ? "MXN " : ""}{t("pricingModal.perMonthShort")}</span>
             </div>
+            {pricing.adaptive && (
+              <p className="text-[11px] mb-1 relative" style={{ color: "rgba(255,255,255,0.55)" }}>{t("pricingModal.adaptiveNote")}</p>
+            )}
             {plan === "yearly" ? (
               <>
                 <p className="text-[11px] relative" style={{ color: "rgba(255,255,255,0.55)" }}>

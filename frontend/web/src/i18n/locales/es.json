@@ -2337,6 +2337,8 @@
     "duoPlanNew": "NUEVO",
     "duoPlanPerMonth": "/ mes",
     "duoPlanPriceNote": "Anual $224.99/año",
+    "premiumPriceNoteMxn": "{{monthly}} MXN/mes · Anual {{yearly}} MXN/año",
+    "duoPlanPriceNoteMxn": "Anual {{yearly}} MXN/año",
     "hireDuoPlan": "Contratar Duo Plan",
     "duoPlanFeatures": [
       "Todo lo de Premium, para ambos",
@@ -3106,6 +3108,7 @@
     "footerNote": "Prueba gratis 30 días. Cancela cuando quieras antes de que termine y no se te cobra nada. Después del primer mes: {{price}}/mes{{billing}}.",
     "billedAnnuallySuffix": " facturado anualmente",
     "perMonthShort": "/mes",
+    "adaptiveNote": "Se convierte automáticamente a tu moneda al pagar.",
     "perYearShort": "/año"
   },
   "tourSpotlight": {

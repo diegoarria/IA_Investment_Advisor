@@ -6,6 +6,8 @@ interface UpsellState {
   activeOffer: UpsellOffer | null;
   userTier: "free" | "premium";
   prices: Record<string, number>;
+  /** "mxn" when the prices above are the MXN ones charged under Adaptive Pricing; else "usd". */
+  currency: string;
   triggerSource: string | null;
   offeredThisSession: boolean;
   setActiveOffer: (offer: UpsellOffer | null) => void;
@@ -17,6 +19,7 @@ export const useUpsellStore = create<UpsellState>((set, get) => ({
   activeOffer: null,
   userTier: "free",
   prices: {},
+  currency: "usd",
   triggerSource: null,
   offeredThisSession: false,
 
@@ -27,12 +30,13 @@ export const useUpsellStore = create<UpsellState>((set, get) => ({
     if (get().offeredThisSession) return;
     try {
       const res = await api.get(`/api/upsells/check?trigger_source=${source}`);
-      const { offer, user_tier, prices } = res.data;
+      const { offer, user_tier, prices, currency } = res.data;
       if (offer) {
         set({
           activeOffer: offer,
           userTier: user_tier,
           prices: prices ?? {},
+          currency: currency ?? "usd",
           triggerSource: source,
           offeredThisSession: true,
         });

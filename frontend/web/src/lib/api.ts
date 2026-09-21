@@ -388,11 +388,15 @@ export const notifications = {
 export const billing = {
   getStatus: () => api.get("/api/billing/status"),
   // Currency this user will actually be charged in (MXN for Mexico when configured) + real amounts.
-  getPricing: () => api.get<{ currency: string; monthly?: number; yearly?: number; duo_monthly?: number; duo_yearly?: number }>("/api/billing/pricing"),
+  getPricing: () => api.get<{ currency: string; adaptive?: boolean; monthly?: number; yearly?: number; duo_monthly?: number; duo_yearly?: number }>("/api/billing/pricing"),
   createCheckout: (plan: "monthly" | "yearly" = "monthly") =>
     api.post("/api/billing/create-checkout", { plan }),
-  createEmbeddedSubscription: (plan: "monthly" | "yearly" = "monthly") =>
-    api.post("/api/billing/create-embedded-subscription", { plan }),
+  // `currency` = what the paywall displayed, so the charge always matches it.
+  createEmbeddedSubscription: (plan: "monthly" | "yearly" = "monthly", currency?: "usd" | "mxn") =>
+    api.post("/api/billing/create-embedded-subscription", { plan, ...(currency ? { currency } : {}) }),
+  // Adaptive Pricing checkout (Checkout Session, ui_mode="elements"); 404 when the feature is off.
+  createAdaptiveCheckout: (plan: "monthly" | "yearly" = "monthly") =>
+    api.post<{ client_secret: string; session_id: string }>("/api/billing/create-adaptive-checkout", { plan }),
   createPortalSession: () => api.post("/api/billing/create-portal-session"),
   getSubscriptionDetails: () => api.get("/api/billing/subscription-details"),
   cancelSubscription: () => api.post("/api/billing/cancel-subscription"),
@@ -410,6 +414,9 @@ export const billing = {
 export const upsells = {
   checkout: (offer: string, variant: string, trigger_source: string, extra?: Record<string, unknown>) =>
     api.post("/api/upsells/checkout", { offer, variant, trigger_source, ...extra }),
+  // Adaptive Pricing (Checkout Session) for Duo and 1:1 sessions; 404 when not offered for that product.
+  checkoutAdaptive: (offer: string, variant: string, trigger_source: string, extra?: Record<string, unknown>) =>
+    api.post<{ client_secret: string; session_id: string }>("/api/upsells/checkout-adaptive", { offer, variant, trigger_source, ...extra }),
   checkoutEmbedded: (offer: string, variant: string, trigger_source: string, extra?: Record<string, unknown>) =>
     api.post("/api/upsells/checkout-embedded", { offer, variant, trigger_source, ...extra }),
   verify1on1Payment: (idOrParams: string | { stripeSessionId?: string; paymentIntentId?: string }) =>

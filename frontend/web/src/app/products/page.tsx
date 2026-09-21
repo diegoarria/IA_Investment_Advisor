@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { upsells } from "@/lib/api";
 import EmbeddedCheckout, { type CheckoutSummary } from "@/components/EmbeddedCheckout";
+import { useBillingPricing, fmtMxn } from "@/lib/pricing";
 import {
   Brain, BarChart2, TrendingUp, Shield, Zap, BookOpen,
   GraduationCap, Bell, Calendar, RefreshCw, Target, Search,
@@ -64,9 +65,23 @@ export default function ProductsPage() {
   const router = useRouter();
   const { t } = useTranslation();
   const SUBSCRIPTION_FEATURES = getSubscriptionFeatures(t);
+  const pricing = useBillingPricing();
+  const mxnPremium = pricing.currency === "mxn" && pricing.monthly != null && pricing.yearly != null;
+  const mxnDuo = pricing.currency === "mxn" && pricing.duo_monthly != null && pricing.duo_yearly != null;
   const DUO_PLAN = getDuoPlan(t);
+  if (mxnDuo) {
+    DUO_PLAN.price = fmtMxn(pricing.duo_monthly!);
+    DUO_PLAN.priceNote = t("products.duoPlanPriceNoteMxn", { yearly: fmtMxn(pricing.duo_yearly!) });
+  }
   const DUO_PLAN_FEATURES = getDuoPlanFeatures(t);
   const ONE_TIME_PRODUCTS = getOneTimeProducts(t);
+  // Sessions: show the price Stripe will actually charge (MXN) once every session price is configured.
+  if (pricing.currency === "mxn" && pricing.session_free != null && pricing.session_premium != null && pricing.session_bundle != null) {
+    const sess = ONE_TIME_PRODUCTS.find((p) => p.offer === "session" && p.variant === "default");
+    const pack = ONE_TIME_PRODUCTS.find((p) => p.offer === "session" && p.variant === "bundle");
+    if (sess) { sess.price_free = `${fmtMxn(pricing.session_free)} MXN`; sess.price_premium = `${fmtMxn(pricing.session_premium)} MXN`; }
+    if (pack) pack.price_premium = `${fmtMxn(pricing.session_bundle)} MXN`;
+  }
   const COMING_SOON = getComingSoon(t);
   const { tier: subTier, isTrialPremium, hasFetchedStatus } = useSubscriptionStore();
   const { isAuthenticated } = useAuthStore();
@@ -166,10 +181,10 @@ export default function ProductsPage() {
                     )}
                   </div>
                   <div className="relative flex items-baseline gap-1 mb-1">
-                    <span className="text-2xl font-black text-white">$14.99</span>
+                    <span className="text-2xl font-black text-white">{mxnPremium ? fmtMxn(pricing.monthly!) : "$14.99"}</span>
                     <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>{t("products.premiumPriceUnit")}</span>
                   </div>
-                  <p className="relative text-[10px] mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>{t("products.premiumPriceNote")}</p>
+                  <p className="relative text-[10px] mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>{mxnPremium ? t("products.premiumPriceNoteMxn", { monthly: fmtMxn(pricing.monthly!), yearly: fmtMxn(pricing.yearly!) }) : t("products.premiumPriceNote")}</p>
 
                   {!isPremium ? (
                     <button
@@ -320,6 +335,9 @@ export default function ProductsPage() {
             <div className="pt-5">
               <EmbeddedCheckout
                 createIntent={() => upsells.checkoutEmbedded(checkoutOffer.offer, checkoutOffer.variant, "products_page").then((r) => r.data)}
+                adaptive={checkoutOffer.offer === "deep_research" ? undefined : {
+                  createSession: () => upsells.checkoutAdaptive(checkoutOffer.offer, checkoutOffer.variant, "products_page").then((r) => r.data),
+                }}
                 returnUrl={`${window.location.origin}/upsell-success?offer=${checkoutOffer.offer}`}
                 onBack={() => setCheckoutOffer(null)}
                 onSuccess={handleCheckoutSuccess}

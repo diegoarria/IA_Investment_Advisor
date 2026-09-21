@@ -99,7 +99,8 @@ async def test_embedded_subscription_uses_the_mxn_price_for_a_mexican_profile():
 
 @pytest.mark.asyncio
 async def test_pricing_endpoint_reports_mxn_amounts_only_for_mexico_and_falls_back_to_usd():
-    prices = {"mxn_m": 25900, "mxn_y": 249900, "mxn_dm": 41900, "mxn_dy": 389900}
+    prices = {"mxn_m": 25900, "mxn_y": 249900, "mxn_dm": 41900, "mxn_dy": 389900,
+              "mxn_sf": 239900, "mxn_sp": 169900, "mxn_sb": 424900}
 
     async def fake_stripe_call(fn, price_id):
         return {"unit_amount": prices[price_id]}
@@ -112,8 +113,43 @@ async def test_pricing_endpoint_reports_mxn_amounts_only_for_mexico_and_falls_ba
          patch("app.core.cache.cache_get", return_value=None), patch("app.core.cache.cache_set"):
         rq.return_value = SimpleNamespace(data={"country": "MX", "phone_number": None})
         out = await billing.get_pricing(user_id="u1")
-        assert out == {"currency": "mxn", "monthly": 259.0, "yearly": 2499.0, "duo_monthly": 419.0, "duo_yearly": 3899.0}
+        assert out == {"currency": "mxn", "monthly": 259.0, "yearly": 2499.0, "duo_monthly": 419.0, "duo_yearly": 3899.0,
+                       "session_free": 2399.0, "session_premium": 1699.0, "session_bundle": 4249.0}
         rq.return_value = SimpleNamespace(data={"country": "US", "phone_number": None})
         assert await billing.get_pricing(user_id="u1") == {"currency": "usd"}
         rq.side_effect = Exception("db down")
         assert await billing.get_pricing(user_id="u1") == {"currency": "usd"}
+
+
+@pytest.mark.asyncio
+async def test_displayed_mxn_currency_is_honored_even_if_profile_says_not_mexico(caplog):
+    """The real bug: the paywall showed $259 MXN but the server charged $14.99 USD.
+    The client now sends the currency it displayed and the server honors it."""
+    import logging
+    fake_sub = SimpleNamespace(id="sub_1", latest_invoice=SimpleNamespace(payment_intent=SimpleNamespace(client_secret="cs")))
+    with patch("app.api.routes.billing.get_supabase", return_value=MagicMock()), \
+         patch("app.api.routes.billing.run_query", new_callable=AsyncMock) as rq, \
+         patch("app.api.routes.billing.settings", cfg()), \
+         patch("app.api.routes.billing._stripe_call", new_callable=AsyncMock) as sc, \
+         patch("app.api.routes.billing.stripe") as st:
+        rq.return_value = SimpleNamespace(data={"stripe_customer_id": "cus_1", "country": None, "phone_number": None})
+        sc.return_value = fake_sub
+        st.Subscription.create = "sub_create"
+        with caplog.at_level(logging.INFO):
+            await billing.create_embedded_subscription(
+                billing.CheckoutRequest(plan="monthly", currency="mxn"), user={"id": "u1", "email": "a@b.c"})
+        assert sc.call_args.kwargs["items"] == [{"price": "mxn_m"}]
+        assert any("price=mxn_m" in r.getMessage() for r in caplog.records)   # every attempt is now traceable
+
+        # profile lookup failing entirely (stale connection) must not flip a shown-MXN checkout to USD
+        rq.side_effect = Exception("stale connection")
+        rq.return_value = None
+        await billing.create_embedded_subscription(
+            billing.CheckoutRequest(plan="yearly", currency="mxn"), user={"id": "u1", "email": "a@b.c"})
+        assert sc.call_args.kwargs["items"] == [{"price": "mxn_y"}]
+
+
+def test_stripe_fees_in_mxn_are_not_counted_as_dollars():
+    # fee of 10,000 centavos MXN (=$100 MXN) is ~$5.78 USD, not $100
+    assert 570 < _to_usd_cents(10000, "mxn") < 590
+    assert _to_usd_cents(10000, "usd") == 10000

@@ -19,6 +19,11 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 
 class CheckoutRequest(BaseModel):
     plan: Literal["monthly", "yearly"] = "monthly"
+    # The currency the paywall SHOWED the user (from GET /billing/pricing). Honored
+    # for "mxn" so what is displayed is always what is charged, even if the
+    # server-side profile lookup below hiccups (a silent USD fallback there is
+    # exactly what charged a Mexican user $14.99 USD while the paywall said $259 MXN).
+    currency: Literal["usd", "mxn"] | None = None
 
 
 def _stripe():
@@ -38,6 +43,16 @@ def _price_id(plan: str, mexico: bool = False) -> str:
     return price_id
 
 
+def _adaptive_available() -> bool:
+    """Adaptive Pricing checkout is only offered when explicitly enabled AND the
+    MXN Premium prices it is anchored on are configured."""
+    return bool(
+        getattr(settings, "checkout_adaptive_pricing", False)
+        and getattr(settings, "stripe_price_id_monthly_mxn", "")
+        and getattr(settings, "stripe_price_id_yearly_mxn", "")
+    )
+
+
 @router.get("/pricing")
 async def get_pricing(user_id: str = Depends(get_current_user_id)):
     """Which currency this user will be charged in, plus the real amounts, so
@@ -48,13 +63,17 @@ async def get_pricing(user_id: str = Depends(get_current_user_id)):
     from app.core.cache import cache_get, cache_set
 
     usd = {"currency": "usd"}
-    db = get_supabase()
-    try:
-        res = await run_query(db.table("user_profiles").select("country, phone_number").eq("user_id", user_id).single())
-        mexico = bool(res.data and is_mexico(res.data.get("country"), res.data.get("phone_number")))
-    except Exception as e:
-        logger.warning("get_pricing: profile lookup failed for %s: %s", user_id, e)
-        return usd
+    adaptive = _adaptive_available()
+    if adaptive:
+        mexico = True  # the MXN price is the base for EVERYONE; Stripe localizes it at checkout
+    else:
+        db = get_supabase()
+        try:
+            res = await run_query(db.table("user_profiles").select("country, phone_number").eq("user_id", user_id).single())
+            mexico = bool(res.data and is_mexico(res.data.get("country"), res.data.get("phone_number")))
+        except Exception as e:
+            logger.warning("get_pricing: profile lookup failed for %s: %s", user_id, e)
+            return usd
     if not mexico:
         return usd
 
@@ -63,15 +82,19 @@ async def get_pricing(user_id: str = Depends(get_current_user_id)):
         "yearly": settings.stripe_price_id_yearly_mxn,
         "duo_monthly": settings.stripe_price_family_monthly_mxn,
         "duo_yearly": settings.stripe_price_family_yearly_mxn,
+        "session_free": getattr(settings, "stripe_price_session_free_mxn", ""),
+        "session_premium": getattr(settings, "stripe_price_session_premium_mxn", ""),
+        "session_bundle": getattr(settings, "stripe_price_session_bundle_mxn", ""),
     }
     if not ids["monthly"] or not ids["yearly"]:
         return usd  # MXN checkout isn't configured for Premium -> checkout will charge USD too
-    cached = cache_get("pricing:mxn:v1")
+    cache_key = "pricing:mxn:v2:adaptive" if adaptive else "pricing:mxn:v1"
+    cached = cache_get(cache_key)
     if cached:
         return cached
     try:
         s = _stripe()
-        out: dict = {"currency": "mxn"}
+        out: dict = {"currency": "mxn", **({"adaptive": True} if adaptive else {})}
         for key, price_id in ids.items():
             if not price_id:
                 continue
@@ -80,7 +103,7 @@ async def get_pricing(user_id: str = Depends(get_current_user_id)):
     except Exception as e:
         logger.warning("get_pricing: Stripe price lookup failed: %s", e)
         return usd
-    cache_set("pricing:mxn:v1", out, ttl=3600)
+    cache_set(cache_key, out, ttl=3600)
     return out
 
 
@@ -107,6 +130,7 @@ async def create_checkout(body: CheckoutRequest, user_id: str = Depends(get_curr
     customer_id = result.data.get("stripe_customer_id") if result and result.data else None
     from app.core.pricing_region import is_mexico
     mexico = bool(result and result.data and is_mexico(result.data.get("country"), result.data.get("phone_number")))
+    mexico = mexico or body.currency == "mxn"
 
     success_url = "https://nuvo.app/premium-success"
     cancel_url  = "https://nuvo.app/premium-cancel"
@@ -131,6 +155,66 @@ async def create_checkout(body: CheckoutRequest, user_id: str = Depends(get_curr
         logger.error("Stripe checkout session creation failed for user %s: %s", user_id, e)
         raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
     return {"url": session.url}
+
+
+@router.post("/create-adaptive-checkout")
+async def create_adaptive_checkout(body: CheckoutRequest, user: dict = Depends(get_current_user)):
+    """Premium individual via a Checkout Session (ui_mode="elements") with
+    Stripe Adaptive Pricing, so customers see and pay in their local currency
+    (Stripe guarantees the rate for 24h; foreign customers bear a 2-4%
+    conversion fee, not Nuvos). Unlike the embedded flow above, Adaptive
+    Pricing is NOT supported on the PaymentIntents API — hence a Checkout Session.
+
+    The price is always the MXN one: this account settles only in MXN (multi-
+    currency settlement isn't available in Mexico) and Adaptive Pricing
+    requires the price currency to be a settlement currency.
+
+    Premium is granted by the existing webhook (checkout.session.completed
+    with client_reference_id, then invoice.payment_succeeded) — no change
+    there. Returns 404 when the feature is off so the client falls back."""
+    if not _adaptive_available():
+        raise HTTPException(status_code=404, detail="Adaptive Pricing no disponible.")
+    s = _stripe()
+    db = get_supabase()
+    user_id = user["id"]
+
+    customer_id = None
+    try:
+        res = await run_query(db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single())
+        customer_id = res.data.get("stripe_customer_id") if res and res.data else None
+    except Exception as e:
+        logger.error("create_adaptive_checkout: profile lookup failed for user %s: %s", user_id, e)
+    if not customer_id:
+        try:
+            customer = await _stripe_call(s.Customer.create, email=user.get("email"), metadata={"user_id": user_id})
+        except Exception as e:
+            logger.error("Stripe customer creation failed for user %s: %s", user_id, e)
+            raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
+        customer_id = customer.id
+        try:
+            await run_query(db.table("user_profiles").update({"stripe_customer_id": customer_id}).eq("user_id", user_id))
+        except Exception as e:
+            logger.error("create_adaptive_checkout: failed to persist stripe_customer_id for user %s: %s", user_id, e)
+
+    price_id = _price_id(body.plan, True)
+    base = settings.frontend_url.rstrip("/") if settings.frontend_url not in ("*", "", None) else "https://nuvosai.com"
+    logger.info("create_adaptive_checkout: user=%s plan=%s price=%s", user_id, body.plan, price_id)
+    try:
+        session = await _stripe_call(
+            s.checkout.Session.create,
+            stripe_version=settings.stripe_checkout_api_version,
+            mode="subscription",
+            ui_mode="elements",
+            customer=customer_id,
+            client_reference_id=user_id,
+            line_items=[{"price": price_id, "quantity": 1}],
+            adaptive_pricing={"enabled": True},
+            return_url=f"{base}/premium-success?session_id={{CHECKOUT_SESSION_ID}}",
+        )
+    except Exception as e:
+        logger.error("Stripe adaptive checkout session creation failed for user %s: %s", user_id, e)
+        raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
+    return {"client_secret": session.client_secret, "session_id": session.id}
 
 
 @router.post("/create-embedded-subscription")
@@ -175,6 +259,7 @@ async def create_embedded_subscription(body: CheckoutRequest, user: dict = Depen
     customer_id = result.data.get("stripe_customer_id") if result and result.data else None
     from app.core.pricing_region import is_mexico
     mexico = bool(result and result.data and is_mexico(result.data.get("country"), result.data.get("phone_number")))
+    mexico = mexico or body.currency == "mxn"
 
     if not customer_id:
         try:
@@ -201,10 +286,15 @@ async def create_embedded_subscription(body: CheckoutRequest, user: dict = Depen
             logger.error("create_embedded_subscription: failed to persist stripe_customer_id for user %s: %s", user_id, e)
 
     try:
+        price_id = _price_id(body.plan, mexico)
+        logger.info(
+            "create_embedded_subscription: user=%s plan=%s mexico=%s requested_currency=%s price=%s",
+            user_id, body.plan, mexico, body.currency, price_id,
+        )
         subscription = await _stripe_call(
             s.Subscription.create,
             customer=customer_id,
-            items=[{"price": _price_id(body.plan, mexico)}],
+            items=[{"price": price_id}],
             payment_behavior="default_incomplete",
             payment_settings={"save_default_payment_method": "on_subscription"},
             expand=["latest_invoice.payment_intent"],

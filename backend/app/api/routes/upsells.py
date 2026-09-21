@@ -154,10 +154,15 @@ async def check_upsell(
             continue
         if _is_eligible(offer, tier, account_days, sub_days, trigger_source):
             prices = PRICES[offer].copy()
+            currency = "usd"
+            adaptive_prices = await _adaptive_prices_for(offer)
+            if adaptive_prices:
+                prices, currency = adaptive_prices, "mxn"
             return {
                 "offer": offer,
                 "user_tier": tier,
                 "prices": prices,
+                "currency": currency,
                 "trigger_source": trigger_source,
             }
 
@@ -229,7 +234,12 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
         key = tier
     price_id = _price_id_for(offer, tier, key)
     from app.core.pricing_region import is_mexico, upsell_price_id
-    price_id = upsell_price_id(offer, key, price_id, is_mexico(profile.get("country"), profile.get("phone_number")), settings)
+    price_id = upsell_price_id(
+        offer, key, price_id,
+        is_mexico(profile.get("country"), profile.get("phone_number")) or str(body.get("currency") or "").lower() == "mxn",
+        settings,
+    )
+    logger.info("upsell checkout: user=%s offer=%s key=%s requested_currency=%s price=%s", user_id, offer, key, body.get("currency"), price_id)
     if not price_id:
         # Was silent — a blank Stripe price env var for this specific
         # offer/variant combo (e.g. STRIPE_PRICE_SESSION_BUNDLE) meant this
@@ -322,7 +332,12 @@ async def upsell_checkout_embedded(body: dict, user_id: str = Depends(get_curren
         key = tier
     price_id = _price_id_for(offer, tier, key)
     from app.core.pricing_region import is_mexico, upsell_price_id
-    price_id = upsell_price_id(offer, key, price_id, is_mexico(profile.get("country"), profile.get("phone_number")), settings)
+    price_id = upsell_price_id(
+        offer, key, price_id,
+        is_mexico(profile.get("country"), profile.get("phone_number")) or str(body.get("currency") or "").lower() == "mxn",
+        settings,
+    )
+    logger.info("upsell checkout: user=%s offer=%s key=%s requested_currency=%s price=%s", user_id, offer, key, body.get("currency"), price_id)
     if not price_id:
         # Was silent — see the identical fix + comment in upsell_checkout
         # above. This exact gap (STRIPE_PRICE_SESSION_BUNDLE unset) is what
@@ -383,6 +398,122 @@ async def upsell_checkout_embedded(body: dict, user_id: str = Depends(get_curren
 
     await _track(db, user_id, "upsell_converted", offer, tier, body.get("trigger_source"), {"variant": key})
     return {"client_secret": client_secret}
+
+
+async def _adaptive_prices_for(offer: str) -> dict | None:
+    """MXN amounts (read from Stripe, cached 1h) when EVERY variant of `offer`
+    has an MXN price and Adaptive Pricing is on; else None (USD as before)."""
+    from app.services import adaptive_pricing as ap
+    from app.core.cache import cache_get, cache_set
+    keys = {"family_plan": ("monthly", "yearly"), "session": ("free", "premium", "bundle")}.get(offer)
+    if not keys or not all(ap.available(offer, k, settings) for k in keys):
+        return None
+    cache_key = f"adaptive_prices:{offer}:v1"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+    if not settings.stripe_secret_key:
+        return None
+    stripe.api_key = settings.stripe_secret_key
+    try:
+        out = {}
+        for k in keys:
+            price = await _stripe_call(stripe.Price.retrieve, ap.mxn_price_id(offer, k, settings))
+            out[k] = (price.get("unit_amount") or 0) / 100
+    except Exception as e:
+        logger.warning("_adaptive_prices_for(%s): Stripe lookup failed, falling back to USD: %s", offer, e)
+        return None
+    cache_set(cache_key, out, ttl=3600)
+    return out
+
+
+@router.post("/checkout-adaptive")
+async def upsell_checkout_adaptive(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Duo (subscription) and 1:1 sessions / 3-session pack (one-time payment)
+    through a Checkout Session (ui_mode="elements") with Stripe Adaptive
+    Pricing — customers see and pay in their local currency. Adaptive Pricing
+    isn't supported on the PaymentIntents API /checkout-embedded uses.
+
+    Anchored on the MXN price (see app/services/adaptive_pricing.py). 404 when
+    the feature is off / the product has no MXN price / the offer isn't
+    supported (deep_research), so the client falls back to /checkout-embedded.
+
+    Everything the existing fulfilment keys on is carried over: the session
+    AND its payment_intent/subscription get the same metadata, plus
+    client_reference_id, so the webhook (Duo) and /verify-1on1-payment
+    (sessions, via stripe_session_id) work unchanged."""
+    from app.services import adaptive_pricing as ap
+    offer = body.get("offer")
+    variant = body.get("variant", "default")
+    if offer not in ("family_plan", "session"):
+        raise HTTPException(status_code=404, detail="Adaptive Pricing no disponible para este producto.")
+    if not settings.stripe_secret_key:
+        raise HTTPException(status_code=503, detail="Pagos no configurados")
+    stripe.api_key = settings.stripe_secret_key
+
+    db = get_supabase()
+    try:
+        profile_res = await run_query(
+            db.table("user_profiles")
+            .select("stripe_customer_id, subscription_tier, trial_started_at, streak_bonus_premium_until")
+            .eq("user_id", user_id).single()
+        )
+    except Exception as e:
+        logger.error("upsell_checkout_adaptive: profile lookup failed for user %s: %s", user_id, e)
+        raise HTTPException(status_code=503, detail="No se pudo procesar el pago. Intenta de nuevo en unos segundos.")
+    profile = profile_res.data or {}
+    tier = _effective_tier(profile.get("subscription_tier", "free"), profile.get("trial_started_at"), profile.get("streak_bonus_premium_until"))
+    customer_id = profile.get("stripe_customer_id")
+
+    if offer == "family_plan":
+        key = variant if variant in ("monthly", "yearly") else "monthly"
+    elif variant == "bundle":
+        key = "bundle"
+    else:
+        key = tier
+    if not ap.available(offer, key, settings):
+        raise HTTPException(status_code=404, detail="Adaptive Pricing no disponible para este producto.")
+    price_id = ap.mxn_price_id(offer, key, settings)
+
+    if not customer_id:
+        try:
+            customer = await _stripe_call(stripe.Customer.create, metadata={"user_id": user_id})
+        except Exception as e:
+            logger.error("Stripe customer creation failed for user %s: %s", user_id, e)
+            raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
+        customer_id = customer.id
+        try:
+            await run_query(db.table("user_profiles").update({"stripe_customer_id": customer_id}).eq("user_id", user_id))
+        except Exception as e:
+            logger.error("upsell_checkout_adaptive: failed to persist stripe_customer_id for user %s: %s", user_id, e)
+
+    base = settings.frontend_url.rstrip("/") if settings.frontend_url not in ("*", "", None) else "https://nuvosai.com"
+    metadata = {"offer": offer, "variant": key, "user_tier": tier, "user_id": user_id}
+    params: dict = dict(
+        stripe_version=settings.stripe_checkout_api_version,
+        ui_mode="elements",
+        customer=customer_id,
+        client_reference_id=user_id,
+        metadata=metadata,
+        line_items=[{"price": price_id, "quantity": 1}],
+        adaptive_pricing={"enabled": True},
+        return_url=f"{base}/upsell-success?offer={offer}&session_id={{CHECKOUT_SESSION_ID}}",
+    )
+    if offer == "family_plan":
+        params["mode"] = "subscription"
+        params["subscription_data"] = {"metadata": metadata}
+    else:
+        params["mode"] = "payment"
+        params["payment_intent_data"] = {"metadata": metadata}
+    logger.info("upsell_checkout_adaptive: user=%s offer=%s key=%s price=%s", user_id, offer, key, price_id)
+    try:
+        session = await _stripe_call(stripe.checkout.Session.create, **params)
+    except Exception as e:
+        logger.error("Stripe adaptive upsell checkout failed for user %s (offer=%s): %s", user_id, offer, e)
+        raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
+
+    await _track(db, user_id, "upsell_converted", offer, tier, body.get("trigger_source"), {"variant": key})
+    return {"client_secret": session.client_secret, "session_id": session.id}
 
 
 # ── 1:1 session payment verification (migration 081) ───────────────────────

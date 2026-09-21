@@ -5,7 +5,7 @@ import { useUpsellStore } from "@/lib/upsellStore";
 import UpsellModal from "@/components/UpsellModal";
 
 export default function UpsellProvider() {
-  const { trigger, activeOffer, userTier, prices, triggerSource, dismiss } = useUpsellStore();
+  const { trigger, activeOffer, userTier, prices, currency, triggerSource, dismiss } = useUpsellStore();
 
   useEffect(() => {
     // Delay session_start check so auth can load first
@@ -20,6 +20,7 @@ export default function UpsellProvider() {
       offer={activeOffer}
       userTier={userTier}
       prices={prices}
+      currency={currency}
       triggerSource={triggerSource ?? undefined}
       onClose={dismiss}
     />

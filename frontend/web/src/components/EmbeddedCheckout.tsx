@@ -16,6 +16,7 @@ import { Elements, PaymentElement, AddressElement, useStripe, useElements } from
 import { Loader2, ArrowLeft, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useThemeStore } from "@/lib/store";
+import AdaptiveCheckout from "./AdaptiveCheckout";
 
 // Plan/price recap shown alongside the payment form — same info the user
 // already saw on the plan-selection cards, kept visible here instead of
@@ -35,7 +36,7 @@ export interface CheckoutSummary {
   accentColor: string;
 }
 
-function OrderSummary({ summary }: { summary: CheckoutSummary }) {
+export function OrderSummary({ summary }: { summary: CheckoutSummary }) {
   const { t } = useTranslation();
   return (
     <div className="order-first sm:order-last rounded-2xl border p-5 h-fit" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
@@ -71,7 +72,7 @@ function OrderSummary({ summary }: { summary: CheckoutSummary }) {
   );
 }
 
-const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+export const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
 
@@ -85,7 +86,7 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 // exactly the mismatch Diego reported 2026-09-15 from a screenshot.
 const FONT_FAMILY = "DM Sans, -apple-system, BlinkMacSystemFont, sans-serif";
 
-function getAppearance(theme: "dark" | "light") {
+export function getAppearance(theme: "dark" | "light") {
   return theme === "light"
     ? {
         theme: "stripe" as const,
@@ -179,7 +180,7 @@ function CheckoutForm({
 }
 
 export default function EmbeddedCheckout({
-  createIntent, onBack, onSuccess, returnUrl, summary, payCtaLabel,
+  createIntent, onBack, onSuccess, returnUrl, summary, payCtaLabel, adaptive,
 }: {
   /** Fetches this product's client_secret — e.g.
    * `() => billing.createEmbeddedSubscription(plan).then(r => r.data)`. */
@@ -201,13 +202,20 @@ export default function EmbeddedCheckout({
    * is simply wrong. Diego, 2026-09-15: "no debería ser 'Paga y
    * suscribirme' debería ser 'Paga y agenda tu llamada'". */
   payCtaLabel?: string;
+  /** Stripe Adaptive Pricing (customer pays in their own currency). When given, tried FIRST;
+   * any failure — including the server answering 404 because the feature is off or this
+   * product has no MXN price — silently falls back to the regular flow below. */
+  adaptive?: { createSession: () => Promise<{ client_secret: string }> };
 }) {
   const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [adaptiveFailed, setAdaptiveFailed] = useState(false);
+  const useAdaptive = !!adaptive && !adaptiveFailed;
 
   useEffect(() => {
+    if (useAdaptive) return;   // the regular Payment Intent is only created if adaptive isn't (or is no longer) in play
     let cancelled = false;
     createIntent()
       .then((res) => {
@@ -218,9 +226,21 @@ export default function EmbeddedCheckout({
       .catch(() => { if (!cancelled) setError(t("pricingModal.paymentError")); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [useAdaptive]);
 
   let body: React.ReactNode;
+  if (useAdaptive) {
+    // Renders its own layout (form + live total), so it bypasses the summary wrapper below.
+    return (
+      <AdaptiveCheckout
+        createSession={adaptive!.createSession}
+        onBack={onBack}
+        onFallback={() => setAdaptiveFailed(true)}
+        summary={summary}
+        payCtaLabel={payCtaLabel}
+      />
+    );
+  }
   if (!stripePromise) {
     body = <p className="text-sm" style={{ color: "#ef4444" }}>Stripe no está configurado (falta NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY).</p>;
   } else if (error) {

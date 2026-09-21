@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { X, Check } from "lucide-react";
 import posthog from "posthog-js";
 import { billing, upsells } from "@/lib/api";
+import { useBillingPricing, fmtMxn } from "@/lib/pricing";
 import { useTranslation } from "react-i18next";
 import { useSubscriptionStore } from "@/lib/store";
 import EmbeddedCheckout from "./EmbeddedCheckout";
@@ -49,6 +50,9 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
     if (visible) posthog.capture("premium_paywall_viewed", { reason: reason ?? null });
   }, [visible, reason]);
 
+  // Hook must run before the early return below (rules of hooks).
+  const pricing = useBillingPricing();
+
   if (!visible) return null;
 
   const HERO_FEATURES = [
@@ -63,8 +67,16 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
   // Same monthly-equivalent-price-up-top convention PricingModal uses —
   // the real annual charge + savings are called out just below, never the
   // annual total as the headline number.
-  const monthlyPrice = plan === "monthly" ? "$14.99" : "$12.08";
-  const duoPrice = plan === "monthly" ? "$23.99" : "$18.75";
+  const premiumMxn = pricing.currency === "mxn" && pricing.monthly != null && pricing.yearly != null;
+  const duoMxn = pricing.currency === "mxn" && pricing.duo_monthly != null && pricing.duo_yearly != null;
+  const monthlyPrice = premiumMxn
+    ? (plan === "monthly" ? fmtMxn(pricing.monthly!) : fmtMxn(pricing.yearly! / 12))
+    : (plan === "monthly" ? "$14.99" : "$12.08");
+  const duoPrice = duoMxn
+    ? (plan === "monthly" ? fmtMxn(pricing.duo_monthly!) : fmtMxn(pricing.duo_yearly! / 12))
+    : (plan === "monthly" ? "$23.99" : "$18.75");
+  const premiumAnnualTotal = premiumMxn ? fmtMxn(pricing.yearly!) : "$144.99";
+  const duoAnnualTotal = duoMxn ? fmtMxn(pricing.duo_yearly!) : "$224.99";
 
   function handleUpgrade() {
     posthog.capture("premium_paywall_clicked", { reason: reason ?? null, plan });
@@ -124,6 +136,13 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
                     : billing.createEmbeddedSubscription(plan).then((r) => r.data)
                 }
                 returnUrl={`${window.location.origin}${checkoutMode === "duo" ? "/upsell-success?offer=family_plan" : "/premium-success"}`}
+                adaptive={{
+                  createSession: () =>
+                    (checkoutMode === "duo"
+                      ? upsells.checkoutAdaptive("family_plan", plan, "paywall_modal")
+                      : billing.createAdaptiveCheckout(plan)
+                    ).then((r) => r.data),
+                }}
                 onBack={() => setCheckoutMode(null)}
                 onSuccess={handleCheckoutSuccess}
               />
@@ -183,7 +202,7 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
               {plan === "yearly" ? (
                 <>
                   <p className="text-[11px] relative" style={{ color: "rgba(255,255,255,0.55)" }}>
-                    {t("pricingModal.billedAnnuallyAmount", { amount: "$144.99" })}
+                    {t("pricingModal.billedAnnuallyAmount", { amount: premiumAnnualTotal })}
                   </p>
                   <p className="text-[10px] mb-3 relative" style={{ color: "#00d47e" }}>{t("pricingModal.premiumSavings")}</p>
                 </>
@@ -237,7 +256,7 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
               {plan === "yearly" ? (
                 <>
                   <p className="text-[11px] relative" style={{ color: "rgba(255,255,255,0.55)" }}>
-                    {t("pricingModal.billedAnnuallyAmount", { amount: "$224.99" })}
+                    {t("pricingModal.billedAnnuallyAmount", { amount: duoAnnualTotal })}
                   </p>
                   <p className="text-[10px] mb-3 relative" style={{ color: "#818cf8" }}>{t("pricingModal.duoSavings")}</p>
                 </>

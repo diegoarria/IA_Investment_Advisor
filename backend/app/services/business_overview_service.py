@@ -206,7 +206,10 @@ async def _get_stripe_fees_30d() -> dict:
     try:
         def _list_fees():
             txns = stripe.BalanceTransaction.list(created={"gte": since}, limit=100).auto_paging_iter()
-            return sum((t.get("fee") or 0) for t in txns)
+            # A balance transaction's `fee` is in the account's SETTLEMENT
+            # currency — MXN for a Mexican Stripe account. Summing it raw
+            # counted pesos as dollars (~17x too high); convert per currency.
+            return sum(_to_usd_cents((t.get("fee") or 0), t.get("currency")) for t in txns)
         fee_cents = await asyncio.to_thread(_list_fees)
     except Exception as e:
         logger.warning("_get_stripe_fees_30d failed: %s", e)

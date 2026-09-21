@@ -85,6 +85,17 @@ class Settings(BaseSettings):
     stripe_price_session_free_mxn: str = ""
     stripe_price_session_premium_mxn: str = ""
     stripe_price_session_bundle_mxn: str = ""
+    # Stripe Adaptive Pricing (Checkout Sessions, ui_mode="elements"). OFF by
+    # default: with it on, Premium individual is charged through a Checkout
+    # Session whose price is the MXN one (this Stripe account settles ONLY in
+    # MXN, and Adaptive Pricing requires prices in a settlement currency);
+    # Stripe then presents the customer's local currency at checkout.
+    # Env: CHECKOUT_ADAPTIVE_PRICING=true. Any failure falls back to the
+    # existing embedded Payment Element flow on the client.
+    checkout_adaptive_pricing: bool = False
+    # ui_mode="elements" needs a newer API version than the pinned SDK default
+    # (2024-12-18.acacia); it's sent per request, so nothing else is affected.
+    stripe_checkout_api_version: str = "2026-08-26.dahlia"
     # Approximate MXN per USD used ONLY to express MXN subscriptions in USD in
     # the admin MRR figure (real charges are settled by Stripe at its own rate).
     reporting_mxn_per_usd: float = 17.3

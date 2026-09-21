@@ -8,6 +8,7 @@ import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import EmbeddedCheckout, { type CheckoutSummary } from "./EmbeddedCheckout";
+import { fmtMxn } from "@/lib/pricing";
 
 export type UpsellOffer = "family_plan" | "session";
 
@@ -15,6 +16,7 @@ interface UpsellModalProps {
   offer: UpsellOffer | null;
   userTier?: "free" | "premium"; // kept for API compat but overridden by store
   prices: Record<string, number>;
+  currency?: string;
   triggerSource?: string;
   onClose: () => void;
 }
@@ -42,7 +44,7 @@ function getOfferMeta(t: TFunction) {
   };
 }
 
-export default function UpsellModal({ offer, prices, triggerSource, onClose }: UpsellModalProps) {
+export default function UpsellModal({ offer, prices, currency, triggerSource, onClose }: UpsellModalProps) {
   const { t } = useTranslation();
   const router = useRouter();
   const { tier, isTrialPremium, hasFetchedStatus } = useSubscriptionStore();
@@ -61,11 +63,13 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
   // onto is_premium_active() server-side; this frontend spot slipped through.
   const isPremium = hasPremiumAccess({ tier, isTrialPremium, hasFetchedStatus });
 
+  // Under Adaptive Pricing the prices are the MXN ones actually charged (Stripe then localizes at checkout).
+  const money = (n: number) => (currency === "mxn" ? `${fmtMxn(n)} MXN` : `$${n}`);
   const displayPrice = offer === "family_plan"
-    ? duoVariant === "monthly" ? `$${prices.monthly ?? 23.99}${t("upsellModal.perMonth")}` : `$${prices.yearly ?? 224.99}${t("upsellModal.perYear")}`
+    ? duoVariant === "monthly" ? `${money(prices.monthly ?? 23.99)}${t("upsellModal.perMonth")}` : `${money(prices.yearly ?? 224.99)}${t("upsellModal.perYear")}`
     : isPremium
-    ? `$${variant === "bundle" ? (prices.bundle ?? 247) : (prices.premium ?? 0)}`
-    : `$${prices.free ?? 0}`;
+    ? money(variant === "bundle" ? (prices.bundle ?? 247) : (prices.premium ?? 0))
+    : money(prices.free ?? 0);
 
   const purchaseVariant = offer === "family_plan" ? duoVariant : variant === "bundle" ? "bundle" : tier;
 
@@ -143,6 +147,9 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
           >
             <EmbeddedCheckout
               createIntent={() => upsells.checkoutEmbedded(offer, purchaseVariant, triggerSource ?? "").then((r) => r.data)}
+              adaptive={offer === "deep_research" ? undefined : {
+                createSession: () => upsells.checkoutAdaptive(offer, purchaseVariant, triggerSource ?? "").then((r) => r.data),
+              }}
               returnUrl={`${window.location.origin}${offer === "family_plan" ? "/upsell-success?offer=family_plan" : "/upsell-success?offer=session"}`}
               onBack={() => setShowCheckout(false)}
               onSuccess={handleCheckoutSuccess}
@@ -209,7 +216,7 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
                     {v === "default" ? t("upsellModal.oneSession") : t("upsellModal.pack3Sessions")}
                   </p>
                   <p className="text-sm font-black mt-0.5" style={{ color: variant === v ? "#fff" : "var(--sub)" }}>
-                    {v === "default" ? `$${prices.premium ?? 99}` : `$${prices.bundle ?? 247}`}
+                    {v === "default" ? money(prices.premium ?? 99) : money(prices.bundle ?? 247)}
                   </p>
                   {v === "bundle" && (
                     <p className="text-[10px] mt-0.5" style={{ color: variant === v ? "rgba(255,255,255,0.75)" : "var(--dim)" }}>
@@ -238,7 +245,7 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
                     {v === "monthly" ? t("upsellModal.monthly") : t("upsellModal.annual")}
                   </p>
                   <p className="text-sm font-black mt-0.5" style={{ color: duoVariant === v ? "#fff" : "var(--sub)" }}>
-                    {v === "monthly" ? `$${prices.monthly ?? 23.99}/mes` : `$${prices.yearly ?? 224.99}/año`}
+                    {v === "monthly" ? `${money(prices.monthly ?? 23.99)}/mes` : `${money(prices.yearly ?? 224.99)}/año`}
                   </p>
                   {v === "yearly" && (
                     <p className="text-[10px] mt-0.5" style={{ color: duoVariant === v ? "rgba(255,255,255,0.75)" : "var(--dim)" }}>
