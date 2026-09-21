@@ -488,10 +488,28 @@ async def stripe_webhook(request: Request):
     if not settings.stripe_webhook_secret:
         raise HTTPException(status_code=503, detail="Webhook no configurado")
 
+    # An env var pasted with a trailing space/newline or wrapped in quotes fails
+    # signature verification exactly like a wrong secret — tolerate both.
+    webhook_secret = settings.stripe_webhook_secret.strip().strip("\"'").strip()
     try:
         stripe.api_key = settings.stripe_secret_key
-        event = stripe.Webhook.construct_event(payload, sig, settings.stripe_webhook_secret)
-    except stripe.error.SignatureVerificationError:
+        event = stripe.Webhook.construct_event(payload, sig, webhook_secret)
+    except stripe.error.SignatureVerificationError as e:
+        # Say WHY without exposing the secret, so a 400 in Stripe's delivery log can be
+        # diagnosed from the Railway logs instead of guessed at.
+        import time as _time
+        ts = None
+        try:
+            ts = int(dict(p.split("=", 1) for p in sig.split(",") if "=" in p).get("t", ""))
+        except Exception:
+            pass
+        logger.error(
+            "stripe webhook signature FAILED: %s | secret_len=%d starts_with_whsec=%s had_outer_whitespace_or_quotes=%s "
+            "signature_header_present=%s timestamp_skew_s=%s body_bytes=%d",
+            e, len(webhook_secret), webhook_secret.startswith("whsec_"),
+            webhook_secret != settings.stripe_webhook_secret, bool(sig),
+            (int(_time.time()) - ts) if ts else None, len(payload),
+        )
         raise HTTPException(status_code=400, detail="Firma inválida")
 
     db = get_supabase()

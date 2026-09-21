@@ -208,3 +208,44 @@ class TestGetStatusUsesFreshClientForMsgCount:
         mock_fresh.assert_called_once()
         mock_singleton.assert_not_called()
         assert result["msg_count"] == 15
+
+
+class TestStripeWebhookSecretHandling:
+    """A webhook secret pasted into Railway with stray whitespace or quotes must
+    still verify, and a bad signature must leave a diagnosable log line."""
+
+    @staticmethod
+    def _signed(secret, body):
+        import hashlib, hmac, time
+        ts = int(time.time())
+        return f"t={ts},v1=" + hmac.new(secret.encode(), f"{ts}.".encode() + body, hashlib.sha256).hexdigest()
+
+    @staticmethod
+    async def _post(secret_setting, header_secret, caplog=None):
+        import json
+        from unittest.mock import MagicMock, patch
+        from fastapi.testclient import TestClient
+        import main
+        from app.core.config import settings
+        body = json.dumps({"id": "evt_1", "object": "event", "type": "customer.created", "data": {"object": {"id": "cus_1"}}}).encode()
+        with patch.object(settings, "stripe_webhook_secret", secret_setting), \
+             patch("app.api.routes.billing.get_supabase", return_value=MagicMock()):
+            return TestClient(main.app).post(
+                "/api/billing/webhook", content=body,
+                headers={"stripe-signature": TestStripeWebhookSecretHandling._signed(header_secret, body)},
+            )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("stored", ["whsec_abc", "whsec_abc ", " whsec_abc\n", '"whsec_abc"', "'whsec_abc'"])
+    async def test_stray_whitespace_or_quotes_still_verify(self, stored):
+        assert (await self._post(stored, "whsec_abc")).status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_wrong_secret_is_rejected_and_logged_without_leaking_it(self, caplog):
+        import logging
+        with caplog.at_level(logging.ERROR):
+            r = await self._post("whsec_stored", "whsec_other")
+        assert r.status_code == 400
+        line = next(m.getMessage() for m in caplog.records if "signature FAILED" in m.getMessage())
+        assert "secret_len=12" in line and "starts_with_whsec=True" in line
+        assert "whsec_stored" not in line and "whsec_other" not in line
