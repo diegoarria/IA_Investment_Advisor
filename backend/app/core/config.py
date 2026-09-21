@@ -73,6 +73,21 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str = ""
     stripe_price_id_monthly: str = ""
     stripe_price_id_yearly: str = ""
+    # MXN counterparts (Stripe Price IDs created in MXN) used for users in
+    # Mexico — many Mexican cards, especially debit, reject USD charges
+    # ("Your card doesn't support this currency"). Every one is OPTIONAL: if
+    # blank, that product silently falls back to its USD price (see
+    # app/core/pricing_region.py), so setting them can never break checkout.
+    stripe_price_id_monthly_mxn: str = ""
+    stripe_price_id_yearly_mxn: str = ""
+    stripe_price_family_monthly_mxn: str = ""
+    stripe_price_family_yearly_mxn: str = ""
+    stripe_price_session_free_mxn: str = ""
+    stripe_price_session_premium_mxn: str = ""
+    stripe_price_session_bundle_mxn: str = ""
+    # Approximate MXN per USD used ONLY to express MXN subscriptions in USD in
+    # the admin MRR figure (real charges are settled by Stripe at its own rate).
+    reporting_mxn_per_usd: float = 17.3
     # Upsell one-time prices (create in Stripe dashboard as one-time products)
     stripe_price_session_free: str = ""           # $149
     stripe_price_session_premium: str = ""        # $99

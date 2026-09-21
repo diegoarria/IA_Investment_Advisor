@@ -83,11 +83,22 @@ async def _get_user_metrics() -> dict:
     }
 
 
+def _to_usd_cents(amount: float, currency: str | None) -> float:
+    """MRR/plan amounts are reported in USD. MXN prices (offered to Mexican
+    users) would otherwise be summed as if they were dollars — $259 MXN
+    counted as $259 USD. Uses the approximate reporting rate in settings; real
+    settlement is done by Stripe at its own rate."""
+    if (currency or "usd").lower() == "mxn":
+        from app.core.config import settings
+        return amount / settings.reporting_mxn_per_usd
+    return amount
+
+
 def _monthly_amount_cents(price: dict, quantity: int) -> float:
     """Normalizes any recurring price (monthly, yearly, every-N-months) to
     a monthly amount so mixed monthly/yearly subscribers can be summed into
     one real MRR figure."""
-    amount = (price.get("unit_amount") or 0) * quantity
+    amount = _to_usd_cents((price.get("unit_amount") or 0) * quantity, price.get("currency"))
     recurring = price.get("recurring") or {}
     interval = recurring.get("interval")
     interval_count = recurring.get("interval_count") or 1
@@ -142,7 +153,7 @@ async def _get_stripe_metrics() -> dict:
     for ev in cancel_events[:10]:
         sub = ev["data"]["object"]
         items = (sub.get("items") or {}).get("data") or []
-        plan_amount = (items[0]["price"].get("unit_amount") or 0) / 100 if items else 0
+        plan_amount = _to_usd_cents((items[0]["price"].get("unit_amount") or 0), items[0]["price"].get("currency")) / 100 if items else 0
         recent.append({
             "customer_id":  sub.get("customer"),
             "canceled_at":  sub.get("canceled_at") or ev.get("created"),

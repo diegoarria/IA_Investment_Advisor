@@ -387,6 +387,8 @@ export const notifications = {
 
 export const billing = {
   getStatus: () => api.get("/api/billing/status"),
+  // Currency this user will actually be charged in (MXN for Mexico when configured) + real amounts.
+  getPricing: () => api.get<{ currency: string; monthly?: number; yearly?: number; duo_monthly?: number; duo_yearly?: number }>("/api/billing/pricing"),
   createCheckout: (plan: "monthly" | "yearly" = "monthly") =>
     api.post("/api/billing/create-checkout", { plan }),
   createEmbeddedSubscription: (plan: "monthly" | "yearly" = "monthly") =>

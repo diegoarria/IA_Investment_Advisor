@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { X, Check, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -42,6 +42,14 @@ export default function PricingModal({ visible, onClose }: Props) {
   const PREMIUM_FEATURES = t("pricingModal.premiumFeatures", { returnObjects: true }) as string[];
   const DUO_FEATURES = t("pricingModal.duoFeatures", { returnObjects: true }) as string[];
 
+  // Real billing currency for this user (MXN for Mexico when configured, else USD)
+  // — the paywall must show exactly what Stripe will charge.
+  const [pricing, setPricing] = useState<{ currency: string; monthly?: number; yearly?: number; duo_monthly?: number; duo_yearly?: number }>({ currency: "usd" });
+  useEffect(() => {
+    if (!visible) return;
+    billing.getPricing().then((r) => setPricing(r.data)).catch(() => {});
+  }, [visible]);
+
   if (!visible) return null;
 
   function handleCheckoutSuccess() {
@@ -64,10 +72,18 @@ export default function PricingModal({ visible, onClose }: Props) {
   // (what the user actually compares against the monthly plan), with the
   // real annual charge + savings called out just below — never the annual
   // total as the headline number.
-  const monthlyPrice = plan === "monthly" ? "$14.99" : "$12.08";
-  const duoPrice     = plan === "monthly" ? "$23.99" : "$18.75";
-  const premiumAnnualTotal = "$144.99";
-  const duoAnnualTotal     = "$224.99";
+  const mxn = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
+  const premiumMxn = pricing.currency === "mxn" && pricing.monthly != null && pricing.yearly != null;
+  const duoMxn = pricing.currency === "mxn" && pricing.duo_monthly != null && pricing.duo_yearly != null;
+  const monthlyPrice = premiumMxn
+    ? (plan === "monthly" ? mxn(pricing.monthly!) : mxn(pricing.yearly! / 12))
+    : (plan === "monthly" ? "$14.99" : "$12.08");
+  const duoPrice = duoMxn
+    ? (plan === "monthly" ? mxn(pricing.duo_monthly!) : mxn(pricing.duo_yearly! / 12))
+    : (plan === "monthly" ? "$23.99" : "$18.75");
+  const premiumAnnualTotal = premiumMxn ? mxn(pricing.yearly!) : "$144.99";
+  const duoAnnualTotal     = duoMxn ? mxn(pricing.duo_yearly!) : "$224.99";
+  const duoCurrency = duoMxn ? "MXN" : "USD";
 
   // Recap shown next to the payment form in checkout — same price/features
   // the plan cards below already show, just kept visible past the click
@@ -187,7 +203,7 @@ export default function PricingModal({ visible, onClose }: Props) {
 
             <div className="flex items-baseline gap-2 mb-1 relative">
               <span className="text-3xl font-black text-white">{monthlyPrice}</span>
-              <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>{t("pricingModal.perMonthShort")}</span>
+              <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>{premiumMxn ? "MXN " : ""}{t("pricingModal.perMonthShort")}</span>
             </div>
             {plan === "yearly" ? (
               <>
@@ -236,7 +252,7 @@ export default function PricingModal({ visible, onClose }: Props) {
 
             <div className="flex items-baseline gap-1 mb-1 relative">
               <span className="text-3xl font-black text-white">{duoPrice}</span>
-              <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>USD {t("pricingModal.perMonthShort")}</span>
+              <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>{duoCurrency} {t("pricingModal.perMonthShort")}</span>
             </div>
             {plan === "yearly" ? (
               <>

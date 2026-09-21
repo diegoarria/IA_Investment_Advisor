@@ -203,7 +203,7 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
     try:
         profile_res = await run_query(
             db.table("user_profiles")
-            .select("stripe_customer_id, subscription_tier, trial_started_at, streak_bonus_premium_until")
+            .select("stripe_customer_id, subscription_tier, trial_started_at, streak_bonus_premium_until, country, phone_number")
             .eq("user_id", user_id)
             .single()
         )
@@ -228,6 +228,8 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
     else:
         key = tier
     price_id = _price_id_for(offer, tier, key)
+    from app.core.pricing_region import is_mexico, upsell_price_id
+    price_id = upsell_price_id(offer, key, price_id, is_mexico(profile.get("country"), profile.get("phone_number")), settings)
     if not price_id:
         # Was silent — a blank Stripe price env var for this specific
         # offer/variant combo (e.g. STRIPE_PRICE_SESSION_BUNDLE) meant this
@@ -296,7 +298,7 @@ async def upsell_checkout_embedded(body: dict, user_id: str = Depends(get_curren
     try:
         profile_res = await run_query(
             db.table("user_profiles")
-            .select("stripe_customer_id, subscription_tier, trial_started_at, streak_bonus_premium_until")
+            .select("stripe_customer_id, subscription_tier, trial_started_at, streak_bonus_premium_until, country, phone_number")
             .eq("user_id", user_id)
             .single()
         )
@@ -319,6 +321,8 @@ async def upsell_checkout_embedded(body: dict, user_id: str = Depends(get_curren
     else:
         key = tier
     price_id = _price_id_for(offer, tier, key)
+    from app.core.pricing_region import is_mexico, upsell_price_id
+    price_id = upsell_price_id(offer, key, price_id, is_mexico(profile.get("country"), profile.get("phone_number")), settings)
     if not price_id:
         # Was silent — see the identical fix + comment in upsell_checkout
         # above. This exact gap (STRIPE_PRICE_SESSION_BUNDLE unset) is what

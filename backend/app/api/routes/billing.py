@@ -28,14 +28,60 @@ def _stripe():
     return stripe
 
 
-def _price_id(plan: str) -> str:
-    if plan == "yearly":
-        price_id = settings.stripe_price_id_yearly
-    else:
-        price_id = settings.stripe_price_id_monthly
+def _price_id(plan: str, mexico: bool = False) -> str:
+    # Mexican users get the MXN price (falls back to USD if not configured) —
+    # see app/core/pricing_region.py for why.
+    from app.core.pricing_region import subscription_price_id
+    price_id = subscription_price_id(plan, mexico, settings)
     if not price_id:
         raise HTTPException(status_code=503, detail="Precio no configurado")
     return price_id
+
+
+@router.get("/pricing")
+async def get_pricing(user_id: str = Depends(get_current_user_id)):
+    """Which currency this user will be charged in, plus the real amounts, so
+    the paywall shows what Stripe will actually bill. Mexican users are
+    charged in MXN when the MXN prices are configured (many Mexican cards
+    reject USD); everyone else — and any failure here — gets USD."""
+    from app.core.pricing_region import is_mexico
+    from app.core.cache import cache_get, cache_set
+
+    usd = {"currency": "usd"}
+    db = get_supabase()
+    try:
+        res = await run_query(db.table("user_profiles").select("country, phone_number").eq("user_id", user_id).single())
+        mexico = bool(res.data and is_mexico(res.data.get("country"), res.data.get("phone_number")))
+    except Exception as e:
+        logger.warning("get_pricing: profile lookup failed for %s: %s", user_id, e)
+        return usd
+    if not mexico:
+        return usd
+
+    ids = {
+        "monthly": settings.stripe_price_id_monthly_mxn,
+        "yearly": settings.stripe_price_id_yearly_mxn,
+        "duo_monthly": settings.stripe_price_family_monthly_mxn,
+        "duo_yearly": settings.stripe_price_family_yearly_mxn,
+    }
+    if not ids["monthly"] or not ids["yearly"]:
+        return usd  # MXN checkout isn't configured for Premium -> checkout will charge USD too
+    cached = cache_get("pricing:mxn:v1")
+    if cached:
+        return cached
+    try:
+        s = _stripe()
+        out: dict = {"currency": "mxn"}
+        for key, price_id in ids.items():
+            if not price_id:
+                continue
+            price = await _stripe_call(s.Price.retrieve, price_id)
+            out[key] = (price.get("unit_amount") or 0) / 100
+    except Exception as e:
+        logger.warning("get_pricing: Stripe price lookup failed: %s", e)
+        return usd
+    cache_set("pricing:mxn:v1", out, ttl=3600)
+    return out
 
 
 @router.post("/create-checkout")
@@ -45,7 +91,7 @@ async def create_checkout(body: CheckoutRequest, user_id: str = Depends(get_curr
 
     try:
         result = await run_query(
-            db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
+            db.table("user_profiles").select("stripe_customer_id, country, phone_number").eq("user_id", user_id).single()
         )
     except Exception as e:
         # Was unguarded — a real Postgrest error here (or `.single()`
@@ -59,6 +105,8 @@ async def create_checkout(body: CheckoutRequest, user_id: str = Depends(get_curr
         logger.error("create_checkout: profile lookup failed for user %s: %s", user_id, e)
         result = None
     customer_id = result.data.get("stripe_customer_id") if result and result.data else None
+    from app.core.pricing_region import is_mexico
+    mexico = bool(result and result.data and is_mexico(result.data.get("country"), result.data.get("phone_number")))
 
     success_url = "https://nuvo.app/premium-success"
     cancel_url  = "https://nuvo.app/premium-cancel"
@@ -69,7 +117,7 @@ async def create_checkout(body: CheckoutRequest, user_id: str = Depends(get_curr
     params: dict = {
         "mode": "subscription",
         "payment_method_types": ["card"],
-        "line_items": [{"price": _price_id(body.plan), "quantity": 1}],
+        "line_items": [{"price": _price_id(body.plan, mexico), "quantity": 1}],
         "client_reference_id": user_id,
         "success_url": success_url + "?session_id={CHECKOUT_SESSION_ID}",
         "cancel_url": cancel_url,
@@ -108,7 +156,7 @@ async def create_embedded_subscription(body: CheckoutRequest, user: dict = Depen
 
     try:
         result = await run_query(
-            db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
+            db.table("user_profiles").select("stripe_customer_id, country, phone_number").eq("user_id", user_id).single()
         )
     except Exception as e:
         # Was unguarded — a real Postgrest error here (or `.single()`
@@ -125,6 +173,8 @@ async def create_embedded_subscription(body: CheckoutRequest, user: dict = Depen
         logger.error("create_embedded_subscription: profile lookup failed for user %s: %s", user_id, e)
         result = None
     customer_id = result.data.get("stripe_customer_id") if result and result.data else None
+    from app.core.pricing_region import is_mexico
+    mexico = bool(result and result.data and is_mexico(result.data.get("country"), result.data.get("phone_number")))
 
     if not customer_id:
         try:
@@ -154,7 +204,7 @@ async def create_embedded_subscription(body: CheckoutRequest, user: dict = Depen
         subscription = await _stripe_call(
             s.Subscription.create,
             customer=customer_id,
-            items=[{"price": _price_id(body.plan)}],
+            items=[{"price": _price_id(body.plan, mexico)}],
             payment_behavior="default_incomplete",
             payment_settings={"save_default_payment_method": "on_subscription"},
             expand=["latest_invoice.payment_intent"],
