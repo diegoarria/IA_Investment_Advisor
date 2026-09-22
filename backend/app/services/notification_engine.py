@@ -195,8 +195,17 @@ async def can_send_push(user_id: str, category: str, db) -> tuple[bool, Optional
     # "user:category:day" ever proceeds; every other concurrent or later
     # caller that day sees the slot already taken and skips, with no window
     # where both could have passed the check.
+    # 2026-09-24, Diego: AutoZone's earnings push fired 4 times in one day
+    # (confirmed live in notification_log — long correct "dedup_lock"
+    # streaks, then a "sent" slipping through, repeatedly). fail_closed_on_
+    # redis_error=True — see acquire_lock's own docstring for why: a lone
+    # Redis hiccup on this specific check must never silently fall back to
+    # a per-process in-memory lock that's never seen this key (every prior
+    # successful acquire that day went through Redis, not here) and so
+    # always looks "free," granting a spammy duplicate. A missed push here
+    # is far less harmful than a duplicate one.
     dedup_key = f"pushdedup:{user_id}:{category}:{today}"
-    if acquire_lock(dedup_key, ttl=26 * 3600) is None:
+    if acquire_lock(dedup_key, ttl=26 * 3600, fail_closed_on_redis_error=True) is None:
         return False, "dedup_lock"
 
     return True, None
