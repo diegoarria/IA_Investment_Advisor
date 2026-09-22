@@ -2676,7 +2676,21 @@ async def nif_dashboard(query: str, lang: str | None = None, user_id: str = Depe
     return _with_live_price(result, ticker)
 
 
-_COMPANY_DIAGNOSTIC_CACHE_TTL = _QUICK_ANALYSIS_CACHE_TTL  # same 90-day ceiling philosophy
+# Diego, 2026-09-23: "si ya anteriormente abriste Apple, Meta, Google o
+# cualquier otra acción, pues déjala ya siempre abierta." A 90-day ceiling
+# meant a ticker nobody viewed for 3 months got silently evicted from
+# Redis — so the stale-cache fallback just below (which needs `cached` to
+# still exist) had nothing left to fall back to, and a provider outage on
+# that ticker's next view showed "no disponible" even though a perfectly
+# real diagnostic had existed for it before. This is decoupled from
+# _QUICK_ANALYSIS_CACHE_TTL (kept at 90 days — cheaper to rebuild, less
+# reason to hoard) so this one specific safety net can be much longer
+# without changing quick-analysis's own cache behavior. The real
+# invalidation trigger stays exactly the same (a NEW reported earnings
+# period, checked on every view) — this only controls how long a
+# still-good diagnostic survives as a last-resort fallback once nobody's
+# looked at it in a while; a long ceiling here costs storage, not correctness.
+_COMPANY_DIAGNOSTIC_CACHE_TTL = 2 * 365 * 24 * 3600  # 2 years
 
 
 def _company_diagnostic_cache_key(ticker: str, lang: str, tier: str = "free") -> str:
@@ -2804,11 +2818,44 @@ async def _company_diagnostic_result(query: str, lang: str | None, user_id: str 
         logger.warning("company_diagnostic(%s): first attempt failed (had_data=%s), retrying once", ticker, bool(data))
         await asyncio.sleep(2.5)
         data, diagnostic = await _attempt_build()
-    if not data:
-        logger.warning("company_diagnostic(%s): get_fundamental_analysis returned falsy on both attempts", ticker)
+    if not data or not diagnostic:
+        # Diego, 2026-09-23: "esta pantalla NUNCA debe fallar, SIEMPRE debe
+        # abrir" — the 2 attempts above already cover a transient blip, but
+        # confirmed live: when EVERY financial-data provider (FMP + Fiscal.ai
+        # + yfinance) is simultaneously rate-limited/down, both attempts fail
+        # for even a completely normal, liquid ticker like AAPL. `cached`
+        # above (this cache's own 90-day ceiling, see
+        # _COMPANY_DIAGNOSTIC_CACHE_TTL) already held a perfectly good,
+        # previously-computed diagnostic for this exact ticker — it was only
+        # skipped above because a NEW earnings period was reported since,
+        # not because it's wrong. A real, slightly-stale diagnostic is
+        # always better than a hard failure: serve it, clearly marked as
+        # stale, instead of discarding it and 404ing.
+        if cached:
+            logger.warning(
+                "company_diagnostic(%s): rebuild failed after retry, falling back to stale cache (earnings period changed)",
+                ticker,
+            )
+            stale = dict(cached)
+            stale["stale"] = True
+            stale["staleAsOf"] = stale.get("_earnings_period")
+            # Price/quote come from Finnhub, an entirely separate provider
+            # from the one that just failed (FMP/Fiscal.ai/yfinance) — worth
+            # a fresh attempt even on the fallback path, never fabricated,
+            # falls back to the cached price unchanged if this also fails.
+            try:
+                fresh_quote = await asyncio.to_thread(fh_quote, ticker)
+            except Exception:
+                fresh_quote = None
+            return _apply_live_quote_diagnostic(stale, fresh_quote, lang)
+        logger.warning(
+            "company_diagnostic(%s): get_fundamental_analysis/build_company_diagnostic returned falsy on both "
+            "attempts, and no previously-cached diagnostic exists to fall back to", ticker,
+        )
         raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para diagnosticar {ticker}")
-    if not diagnostic:
-        raise HTTPException(status_code=404, detail=f"No hay suficientes datos financieros reales para diagnosticar {ticker}")
+    # (data and diagnostic are both guaranteed non-None past this point —
+    # either the rebuild succeeded, or the stale-cache fallback above
+    # already returned, or the 404 above already raised.)
 
     narrative = None
     if use_ai:

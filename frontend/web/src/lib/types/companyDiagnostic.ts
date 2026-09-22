@@ -201,6 +201,15 @@ export interface CompanyDiagnosticData {
   // frontend just blurs everything but name/logo/price and shows an
   // upgrade CTA instead of the backend hard-blocking the search entirely.
   locked?: boolean;
+  // Diego, 2026-09-23: "esta pantalla NUNCA debe fallar, SIEMPRE debe
+  // abrir" — set when every real financial-data provider (FMP/Fiscal.ai/
+  // yfinance) was simultaneously unavailable and the backend served the
+  // last real, previously-computed diagnostic for this ticker instead of
+  // a hard failure. Still 100% real data, never fabricated — just not
+  // necessarily reflecting the most recent reported quarter.
+  // staleAsOf carries the fiscal period ("2026-Q2") that data reflects.
+  stale?: boolean;
+  staleAsOf?: string | null;
   ticker: string;
   companyName: string;
   sector: string;
