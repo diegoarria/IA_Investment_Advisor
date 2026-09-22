@@ -333,8 +333,16 @@ export default function HomePage() {
       }
 
       if (tickers.length) {
-        const newsRes = await marketApi.getNews(tickers.slice(0, 6)).catch(() => null);
-        if (newsRes) setNews((newsRes.data?.articles ?? newsRes.data?.news ?? []).slice(0, 6));
+        // Diego, 2026-09-23: "máximo 3 segundos" — news isn't gated behind
+        // `loading` anywhere in this page (renders on its own `news.length`
+        // check below), so awaiting it here before setLoading(false) was
+        // pure wasted latency: the whole screen sat on its loading skeleton
+        // waiting for an aggregated-articles fetch nothing above the fold
+        // actually needed. Fire-and-forget, same as the portfolio-chart
+        // calls right below it.
+        marketApi.getNews(tickers.slice(0, 6)).then((newsRes) => {
+          setNews((newsRes.data?.articles ?? newsRes.data?.news ?? []).slice(0, 6));
+        }).catch(() => {});
 
         // Must match Portfolio page's posPayload exactly (including purchase_date) —
         // the backend uses purchase_date to adjust the base for mid-period buys, so
