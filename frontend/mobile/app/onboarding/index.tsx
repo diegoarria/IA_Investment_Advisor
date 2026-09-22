@@ -16,20 +16,7 @@ import type { TFunction } from "i18next";
 import { useAppStore } from "../../src/lib/profileStore";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import { useChatStore } from "../../src/lib/chatStore";
-
-// E.164 dial codes for the phone step.
-function getDialCodes(t: TFunction) {
-  return [
-    { value: "MX", code: "+52", label: t("onboarding.countries.MX"), emoji: "🇲🇽" },
-    { value: "US", code: "+1",  label: t("onboarding.countries.US"), emoji: "🇺🇸" },
-    { value: "CO", code: "+57", label: t("onboarding.countries.CO"), emoji: "🇨🇴" },
-    { value: "AR", code: "+54", label: t("onboarding.countries.AR"), emoji: "🇦🇷" },
-    { value: "VE", code: "+58", label: t("onboarding.countries.VE"), emoji: "🇻🇪" },
-    { value: "PE", code: "+51", label: t("onboarding.countries.PE"), emoji: "🇵🇪" },
-    { value: "CL", code: "+56", label: t("onboarding.countries.CL"), emoji: "🇨🇱" },
-    { value: "ES", code: "+34", label: t("onboarding.countries.ES"), emoji: "🇪🇸" },
-  ];
-}
+import { getDialCodes } from "../../src/lib/dialCodes";
 
 function getGoals(t: TFunction) {
   return [
@@ -506,6 +493,12 @@ export default function OnboardingScreen() {
       // save must never look identical to a successful one to the user.
       setProfile(profileData as unknown as import("../../src/lib/profileStore").UserProfile);
       if (draftKeyRef.current) AsyncStorage.removeItem(draftKeyRef.current).catch(() => {});
+      // Diego, 2026-09-24: this onboarding flow already asked for the phone
+      // number a moment ago — mark the once-ever existing-user prompt
+      // (PhoneNumberPromptCard) as already-seen so a brand new account is
+      // never asked the same question again right after finishing
+      // onboarding, whether they filled it in or left it blank.
+      profileApi.markPhonePromptSeen().catch(() => {});
       // The trial starts server-side the instant this profile row is
       // created (see backend profile.py) — refresh subscription status now
       // that it's actually confirmed created.

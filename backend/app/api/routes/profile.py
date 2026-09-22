@@ -370,6 +370,32 @@ async def mark_welcome_card_seen(user_id: str = Depends(get_current_user_id)):
     return {"ok": True}
 
 
+@router.post("/phone-prompt-seen")
+async def mark_phone_prompt_seen(user_id: str = Depends(get_current_user_id)):
+    """Diego, 2026-09-24: one-time phone-number prompt for EXISTING users
+    (new users already get asked during onboarding's phone step) — phone_
+    number feeds app/core/pricing_region.py's is_mexico() check, which
+    decides whether to show the MXN Stripe price instead of USD (many
+    Mexican debit cards decline USD charges). "SOLO 1 VEZ EN TODA LA
+    HISTORIA" — same persisted-server-side, never-twice pattern as
+    has_seen_welcome_card (migration 098), and called regardless of
+    whether the user actually submitted a number or dismissed the card:
+    a declined prompt must never come back and ask again either."""
+    db = get_supabase()
+    try:
+        await run_query(
+            db.table("user_profiles").update({"has_seen_phone_prompt": True}).eq("user_id", user_id)
+        )
+    except Exception as e:
+        # Same "never block the user" discipline as mark_welcome_card_seen
+        # above — worst case the card shows once more next session.
+        logger.error("mark_phone_prompt_seen failed for user %s: %s", user_id, e)
+        return {"ok": False}
+    cache_delete(f"profile:{user_id}")
+    cache_delete(f"sync:all:{user_id}")
+    return {"ok": True}
+
+
 @router.get("/insights")
 async def get_ai_insights(lang: str | None = None, user_id: str = Depends(get_current_user_id), _ai_gate: None = Depends(require_ai_enabled)):
     """Analyze chat history to detect behavioral patterns and suggest profile updates.
