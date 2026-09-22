@@ -447,17 +447,39 @@ function SubvaluadasPageInner() {
   const [companyDiagnosticError, setCompanyDiagnosticError] = useState<{ status?: number; code?: string } | null>(null);
   useEffect(() => {
     let cancelled = false;
+    // Diego, 2026-09-23: "máximo 3 segundos." This fetch had NO local cache
+    // at all — every single visit, even to a ticker whose diagnostic the
+    // backend already had sitting in a (now 2-year) cache, sat on a full
+    // network round trip before painting anything. Same stale-while-
+    // revalidate pattern the quick-analysis effect above already uses:
+    // paint instantly from the last real payload we have for this exact
+    // ticker+lang, then quietly refresh in the background.
+    const diagCacheKey = `vi_company_diagnostic:${ticker}:${i18n.language}`;
+    let hadCache = false;
+    try {
+      const cached = localStorage.getItem(diagCacheKey);
+      if (cached) {
+        setCompanyDiagnostic(JSON.parse(cached));
+        setCompanyDiagnosticError(null);
+        setCompanyDiagnosticLoading(false);
+        hadCache = true;
+      }
+    } catch { /* localStorage unavailable — fall through to network */ }
+
     // Same auth-rehydration race as the fetch effect above — wait for a
     // real session snapshot before deciding guest-vs-authenticated. Keep
     // reporting "loading" (not the default false) so resolveValuationPanelMode
-    // doesn't briefly resolve to "unavailable" during this window.
+    // doesn't briefly resolve to "unavailable" during this window — unless
+    // we already have a real cached payload to show meanwhile.
     if (authRestoring) {
-      setCompanyDiagnosticLoading(true);
+      if (!hadCache) setCompanyDiagnosticLoading(true);
       return () => { cancelled = true; };
     }
-    setCompanyDiagnostic(null);
-    setCompanyDiagnosticError(null);
-    setCompanyDiagnosticLoading(true);
+    if (!hadCache) {
+      setCompanyDiagnostic(null);
+      setCompanyDiagnosticError(null);
+      setCompanyDiagnosticLoading(true);
+    }
     // Free/guest users get the same real diagnostic Premium sees for their
     // first weekly free searches (Diego: "vamos a asustar a todos los
     // usuarios si no mostramos valor") — the backend, not isPremium, is the
@@ -474,7 +496,10 @@ function SubvaluadasPageInner() {
         : screenerApi.companyDiagnostic(ticker, i18n.language);
       try {
         const res = await req;
-        if (!cancelled) setCompanyDiagnostic(res.data);
+        if (cancelled) return;
+        setCompanyDiagnostic(res.data);
+        setCompanyDiagnosticError(null);
+        try { localStorage.setItem(diagCacheKey, JSON.stringify(res.data)); } catch { /* ignore */ }
       } catch (err) {
         const status = (err as { response?: { status?: number; data?: { detail?: { code?: string } | string } } })?.response?.status;
         const isDefinitive = status !== undefined && status !== 503;
@@ -482,7 +507,7 @@ function SubvaluadasPageInner() {
           await new Promise((r) => setTimeout(r, 800 * (n + 1)));
           return cancelled ? undefined : attempt(n + 1);
         }
-        if (cancelled) return;
+        if (cancelled || hadCache) return; // already showing the cached result — don't rip it away
         setCompanyDiagnostic(null);
         const detail = (err as { response?: { data?: { detail?: { code?: string } | string } } })?.response?.data?.detail;
         const code = typeof detail === "object" ? detail?.code : undefined;
