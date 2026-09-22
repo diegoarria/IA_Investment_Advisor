@@ -1842,6 +1842,11 @@
       "askMentor": "Ask your AI mentor",
       "searchHint": "Or search for any company above by name or ticker (e.g. \"Apple\" or \"AAPL\")"
     },
+    "pagination": {
+      "prev": "Previous page",
+      "next": "Next page",
+      "showing": "{{from}}–{{to}} of {{total}}"
+    },
     "alertModal": {
       "title": "Price alert",
       "currentPrice": "Current price:",
@@ -2494,7 +2499,8 @@
       "markets": "Markets",
       "mexico": "Mexico",
       "companies": "Companies"
-    }
+    },
+    "flashcardError": "Could not load. Try again."
   },
   "chat": {
     "newChat": "New",

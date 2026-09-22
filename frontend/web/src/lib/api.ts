@@ -281,6 +281,10 @@ export const learn = {
   claimMilestone: (days: number) =>
     api.post("/api/learn/streak/milestone-claim", { days }),
   getHallOfFame: () => api.get("/api/learn/hall-of-fame"),
+  // Direct, minimal Haiku call — no Arthur context/personalization needed
+  // for a fixed topic definition, so this skips the full chat pipeline
+  // entirely and comes back in ~1s instead of several seconds.
+  getFlashcard: (title: string) => api.post("/api/learn/flashcard", { title }),
 };
 
 export const insights = {

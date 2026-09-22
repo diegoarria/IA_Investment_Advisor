@@ -486,6 +486,53 @@ RESPUESTA DEL USUARIO: "{user_response}"
     return {"response": response, "round": round_num + 1, "difficulty": difficulty}
 
 
+# ─── Flashcards ─────────────────────────────────────────────────────────
+#
+# 2026-09-22, Diego: flashcards were routed through /api/chat/message (the
+# full Arthur pipeline — deep user context, portfolio snapshot, memory
+# retrieval, the whole guardrailed system prompt) for a fixed, generic
+# ~70-word definition that never depends on any of that. Made every
+# flashcard open take several seconds. Same fix pattern as /learn/debate
+# above: a direct, minimal Haiku call with no context building, no
+# personalization — just the topic in, the flashcard out.
+_FLASHCARD_SYSTEM = """Eres un mentor de finanzas. Responde en formato FLASHCARD — exactamente esta estructura, máximo 70 palabras en total, en español:
+
+**{Título}**
+[Definición en 1 oración directa]
+
+• [Clave 1]
+• [Clave 2]
+• [Clave 3]
+
+💡 *Ejemplo:* [1 oración concreta con dato real]
+
+Responde solo con la flashcard, sin texto adicional antes o después."""
+
+
+@router.post("/flashcard")
+@limiter.limit("30/minute")
+async def get_flashcard(request: Request, body: dict, user_id: str = Depends(get_current_user_id), _ai_gate: None = Depends(require_ai_enabled)):
+    title = (body.get("title") or "").strip()
+    if not title:
+        raise HTTPException(status_code=422, detail="title required")
+
+    from app.services.ai_service import check_daily_spend_cap, LLMDailySpendCapExceeded
+    from app.services.llm_usage import log_llm_usage
+    try:
+        check_daily_spend_cap()
+    except LLMDailySpendCapExceeded:
+        raise HTTPException(status_code=503, detail="Esta función no está disponible en este momento. Intenta más tarde.")
+
+    result = await _debate_client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=250,
+        system=[{"type": "text", "text": _FLASHCARD_SYSTEM, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": f'Tema: "{title}"'}],
+    )
+    asyncio.create_task(log_llm_usage(user_id, "flashcard", "claude-haiku-4-5-20251001", result.usage))
+    return {"content": result.content[0].text}
+
+
 # ─── Streak & Hall of Fame ─────────────────────────────────────────────────
 
 @router.post("/streak/milestone-claim")

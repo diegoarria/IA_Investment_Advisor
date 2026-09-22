@@ -9,6 +9,7 @@ import type { TFunction } from "i18next";
 import {
   Eye, X, RefreshCw, Search, Menu, LogOut,
   TrendingUp, TrendingDown, Lock, Plus, GripVertical, Bell, BellOff,
+  ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
 } from "lucide-react";
 import { watchlist as watchlistApi, market as marketApi, sync as syncApi, priceAlerts as priceAlertsApi } from "@/lib/api";
 import { useAuthStore, useSubscriptionStore, useProfileStore, usePersonalizationStore, hasPremiumAccess } from "@/lib/store";
@@ -407,6 +408,13 @@ export default function WatchlistPage() {
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [secondsSince, setSecondsSince] = useState(0);
 
+  // Pagination — Diego, 2026-09-22: "por pantalla muestra máximo 20, para
+  // no tener que hacer demasiado scroll hacia abajo". Applies to both the
+  // basic card list and the advanced table; drag-to-reorder still works
+  // within a page (index math below offsets by the page's start).
+  const WATCHLIST_PAGE_SIZE = 20;
+  const [page, setPage] = useState(0);
+
   const [dragIndex, setDragIndex]     = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
@@ -606,6 +614,15 @@ export default function WatchlistPage() {
   }, [lastRefreshed]);
 
   const handleRefresh = () => fetchWatchlist(true);
+
+  // Clamp the current page whenever the list shrinks (e.g. a delete leaves
+  // the last page empty) so the user is never stranded on a blank page.
+  const pageCount = Math.max(1, Math.ceil(items.length / WATCHLIST_PAGE_SIZE));
+  useEffect(() => {
+    if (page > pageCount - 1) setPage(pageCount - 1);
+  }, [page, pageCount]);
+  const pageStart = page * WATCHLIST_PAGE_SIZE;
+  const pagedItems = items.slice(pageStart, pageStart + WATCHLIST_PAGE_SIZE);
 
   // ── Toast helper ──────────────────────────────────────────────────────
   const showToast = (msg: string) => {
@@ -953,7 +970,7 @@ export default function WatchlistPage() {
                 userLevel={userLevel}
                 fxRate={fxRate}
                 minMarginOfSafetyPct={minMarginOfSafetyPct}
-                rows={items.map((i): AdvancedRow => {
+                rows={pagedItems.map((i): AdvancedRow => {
                   const s = scores[i.ticker];
                   return {
                     ticker: i.ticker,
@@ -1025,34 +1042,86 @@ export default function WatchlistPage() {
               )
             ) : (
               <div className="space-y-1.5">
-                {items.map((item, index) => (
-                  <div key={item.ticker}>
-                    {/* Drop indicator line above this card */}
-                    {dragOverIndex === index && dragIndex !== index && dragIndex !== index - 1 && (
-                      <div className="mx-2 mb-1.5 rounded-full" style={{ height: 2, background: "var(--accent-l)" }} />
-                    )}
-                    <StockCard
-                      item={item}
-                      fxRate={fxRate}
-                      displayCurrency={portfolioCurrency}
-                      onDelete={handleConfirmDelete}
-                      onSelect={setSelectedStock}
-                      onAlert={openAlertModal}
-                      hasAlert={!!alerts[item.ticker]}
-                      draggable
-                      isDragging={dragIndex === index}
-                      isDragOver={dragOverIndex === index}
-                      onDragStart={(e) => handleDragStart(e, index)}
-                      onDragOver={(e) => handleDragOver(e, index)}
-                      onDrop={handleDrop}
-                      onDragEnd={handleDragEnd}
-                    />
-                  </div>
-                ))}
-                {/* Drop indicator at the very end */}
-                {dragOverIndex === items.length && (
+                {pagedItems.map((item, localIndex) => {
+                  // Drag/drop reorders the full `items` array (persisted
+                  // order spans all pages), so the index passed to the drag
+                  // handlers is the item's absolute position, not its
+                  // position within this page.
+                  const index = pageStart + localIndex;
+                  return (
+                    <div key={item.ticker}>
+                      {/* Drop indicator line above this card */}
+                      {dragOverIndex === index && dragIndex !== index && dragIndex !== index - 1 && (
+                        <div className="mx-2 mb-1.5 rounded-full" style={{ height: 2, background: "var(--accent-l)" }} />
+                      )}
+                      <StockCard
+                        item={item}
+                        fxRate={fxRate}
+                        displayCurrency={portfolioCurrency}
+                        onDelete={handleConfirmDelete}
+                        onSelect={setSelectedStock}
+                        onAlert={openAlertModal}
+                        hasAlert={!!alerts[item.ticker]}
+                        draggable
+                        isDragging={dragIndex === index}
+                        isDragOver={dragOverIndex === index}
+                        onDragStart={(e) => handleDragStart(e, index)}
+                        onDragOver={(e) => handleDragOver(e, index)}
+                        onDrop={handleDrop}
+                        onDragEnd={handleDragEnd}
+                      />
+                    </div>
+                  );
+                })}
+                {/* Drop indicator at the very end of THIS page */}
+                {dragOverIndex === pageStart + pagedItems.length && (
                   <div className="mx-2 mt-1.5 rounded-full" style={{ height: 2, background: "var(--accent-l)" }} />
                 )}
+              </div>
+            )}
+
+            {/* ── Pagination — max 20 per screen ── */}
+            {!loading && items.length > WATCHLIST_PAGE_SIZE && (
+              <div className="flex items-center justify-center gap-1.5 mt-4">
+                <button
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center border disabled:opacity-30 transition-opacity hover:opacity-70"
+                  style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                  aria-label={t("watchlist.pagination.prev")}
+                >
+                  <ChevronLeftIcon className="w-4 h-4" />
+                </button>
+                {Array.from({ length: pageCount }, (_, i) => i).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className="min-w-[2rem] h-8 px-2 rounded-lg text-xs font-bold border transition-opacity hover:opacity-80"
+                    style={{
+                      borderColor: p === page ? "var(--accent-l)" : "var(--border)",
+                      background: p === page ? "rgba(0,212,126,0.12)" : "transparent",
+                      color: p === page ? "var(--accent-l)" : "var(--muted)",
+                    }}
+                  >
+                    {p + 1}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                  disabled={page === pageCount - 1}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center border disabled:opacity-30 transition-opacity hover:opacity-70"
+                  style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                  aria-label={t("watchlist.pagination.next")}
+                >
+                  <ChevronRightIcon className="w-4 h-4" />
+                </button>
+                <span className="ml-2 text-[11px]" style={{ color: "var(--dim)" }}>
+                  {t("watchlist.pagination.showing", {
+                    from: pageStart + 1,
+                    to: Math.min(pageStart + WATCHLIST_PAGE_SIZE, items.length),
+                    total: items.length,
+                  })}
+                </span>
               </div>
             )}
 

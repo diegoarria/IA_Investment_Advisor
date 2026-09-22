@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { chat as chatApi, learn as learnApi } from "@/lib/api";
+import { learn as learnApi } from "@/lib/api";
 import { useAuthStore, useLearnStore, useSubscriptionStore, useProfileStore, getUnclaimedMilestones, type StreakMilestone } from "@/lib/store";
 import { getUserLevel, LEVEL_COLOR, getLevelLabel, type UserLevel } from "@/lib/userLevel";
 import { QUIZ_DATA } from "@/lib/quizData";
@@ -330,24 +330,17 @@ export default function LearnPage() {
       markTopicCompleted();
       if (topicId) markTopicId(topicId);
     }
-    // Prompt flashcard: breve, estructurado, ~70 palabras → respuesta en <3 seg
-    const flashcard = `Eres un mentor de finanzas. Explica "${title}" en formato FLASHCARD — exactamente esta estructura, máximo 70 palabras en total, en español:
-
-**${title}**
-[Definición en 1 oración directa]
-
-• [Clave 1]
-• [Clave 2]
-• [Clave 3]
-
-💡 *Ejemplo:* [1 oración concreta con dato real]`;
-    let full = "";
-    await chatApi.stream(
-      flashcard,
-      [],
-      (chunk) => { full += chunk; setContent(full); },
-      () => setStreaming(false)
-    );
+    // Dedicated flashcard endpoint — a direct, minimal Haiku call with no
+    // Arthur context/personalization, instead of the full chat pipeline
+    // (was routing through chatApi.stream, several seconds per open).
+    try {
+      const res = await learnApi.getFlashcard(title);
+      setContent(res.data?.content ?? "");
+    } catch {
+      setContent(t("learn.flashcardError") || "No se pudo cargar. Intenta de nuevo.");
+    } finally {
+      setStreaming(false);
+    }
   };
 
   const handleSearch = (term?: string) => {
