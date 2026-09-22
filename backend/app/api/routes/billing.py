@@ -152,10 +152,11 @@ async def create_checkout(body: CheckoutRequest, user_id: str = Depends(get_curr
         success_url = f"{settings.frontend_url}/premium-success"
         cancel_url  = f"{settings.frontend_url}/premium-cancel"
 
+    price_id = _price_id(body.plan, mexico)
     params: dict = {
         "mode": "subscription",
         "payment_method_types": ["card"],
-        "line_items": [{"price": _price_id(body.plan, mexico), "quantity": 1}],
+        "line_items": [{"price": price_id, "quantity": 1}],
         "client_reference_id": user_id,
         "success_url": success_url + "?session_id={CHECKOUT_SESSION_ID}",
         "cancel_url": cancel_url,
@@ -166,8 +167,30 @@ async def create_checkout(body: CheckoutRequest, user_id: str = Depends(get_curr
     try:
         session = await _stripe_call(s.checkout.Session.create, **params)
     except Exception as e:
-        logger.error("Stripe checkout session creation failed for user %s: %s", user_id, e)
-        raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
+        # 2026-09-24, Diego: a real Premium checkout failed outright ("Pagos
+        # temporalmente no disponibles") right after the MXN price path
+        # started being selected for him (this fix's own is_mexico() check
+        # matching country/phone_number for the first time) — the MXN price
+        # id itself was bad/misconfigured in Stripe, a real, permanent
+        # InvalidRequestError, not the transient blip stripe_call already
+        # retries. Never let a broken/misconfigured MXN price hard-block a
+        # sale when the USD price is right there and known-good: retry once
+        # with USD before giving up, same "a real number beats a hard
+        # failure" instinct as everywhere else this session.
+        if mexico:
+            logger.error(
+                "create_checkout: MXN price %s failed for user %s, retrying with USD: %s",
+                price_id, user_id, e,
+            )
+            try:
+                params["line_items"] = [{"price": _price_id(body.plan, False), "quantity": 1}]
+                session = await _stripe_call(s.checkout.Session.create, **params)
+            except Exception as e2:
+                logger.error("create_checkout: USD fallback also failed for user %s: %s", user_id, e2)
+                raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
+        else:
+            logger.error("Stripe checkout session creation failed for user %s: %s", user_id, e)
+            raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
     return {"url": session.url}
 
 
@@ -299,12 +322,12 @@ async def create_embedded_subscription(body: CheckoutRequest, user: dict = Depen
             # real Stripe customer created.
             logger.error("create_embedded_subscription: failed to persist stripe_customer_id for user %s: %s", user_id, e)
 
+    price_id = _price_id(body.plan, mexico)
+    logger.info(
+        "create_embedded_subscription: user=%s plan=%s mexico=%s requested_currency=%s price=%s",
+        user_id, body.plan, mexico, body.currency, price_id,
+    )
     try:
-        price_id = _price_id(body.plan, mexico)
-        logger.info(
-            "create_embedded_subscription: user=%s plan=%s mexico=%s requested_currency=%s price=%s",
-            user_id, body.plan, mexico, body.currency, price_id,
-        )
         subscription = await _stripe_call(
             s.Subscription.create,
             customer=customer_id,
@@ -313,11 +336,38 @@ async def create_embedded_subscription(body: CheckoutRequest, user: dict = Depen
             payment_settings={"save_default_payment_method": "on_subscription"},
             expand=["latest_invoice.payment_intent"],
         )
-        client_secret = subscription.latest_invoice.payment_intent.client_secret
     except Exception as e:
-        logger.error("Stripe embedded subscription creation failed for user %s: %s", user_id, e)
-        raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
+        # 2026-09-24, Diego: a real Premium checkout failed outright right
+        # after the MXN price path started being selected for him (this
+        # fix's own is_mexico() check matching country/phone_number for the
+        # first time) — this IS the endpoint behind the main paywall (see
+        # this function's own docstring). Never let a broken/misconfigured
+        # MXN price hard-block a sale when the USD price is right there and
+        # known-good — retry once with USD before giving up, same fallback
+        # already added to /create-checkout above.
+        if mexico:
+            logger.error(
+                "create_embedded_subscription: MXN price %s failed for user %s, retrying with USD: %s",
+                price_id, user_id, e,
+            )
+            try:
+                price_id = _price_id(body.plan, False)
+                subscription = await _stripe_call(
+                    s.Subscription.create,
+                    customer=customer_id,
+                    items=[{"price": price_id}],
+                    payment_behavior="default_incomplete",
+                    payment_settings={"save_default_payment_method": "on_subscription"},
+                    expand=["latest_invoice.payment_intent"],
+                )
+            except Exception as e2:
+                logger.error("create_embedded_subscription: USD fallback also failed for user %s: %s", user_id, e2)
+                raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
+        else:
+            logger.error("Stripe embedded subscription creation failed for user %s: %s", user_id, e)
+            raise HTTPException(status_code=503, detail="Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos.")
 
+    client_secret = subscription.latest_invoice.payment_intent.client_secret
     return {"client_secret": client_secret, "subscription_id": subscription.id}
 
 

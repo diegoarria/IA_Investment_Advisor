@@ -227,13 +227,10 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
         key = "bundle"
     else:
         key = tier
-    price_id = _price_id_for(offer, tier, key)
+    usd_price_id = _price_id_for(offer, tier, key)
     from app.core.pricing_region import is_mexico, upsell_price_id
-    price_id = upsell_price_id(
-        offer, key, price_id,
-        is_mexico(profile.get("country"), profile.get("phone_number")) or str(body.get("currency") or "").lower() == "mxn",
-        settings,
-    )
+    mexico = is_mexico(profile.get("country"), profile.get("phone_number")) or str(body.get("currency") or "").lower() == "mxn"
+    price_id = upsell_price_id(offer, key, usd_price_id, mexico, settings)
     logger.info("upsell checkout: user=%s offer=%s key=%s requested_currency=%s price=%s", user_id, offer, key, body.get("currency"), price_id)
     if not price_id:
         # Was silent — a blank Stripe price env var for this specific
@@ -265,8 +262,23 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
     try:
         session = await _stripe_call(stripe.checkout.Session.create, **params)
     except Exception as e:
-        logger.error("Stripe upsell checkout failed for user %s (offer=%s): %s", user_id, offer, e)
-        return {"error": "Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos."}
+        # 2026-09-24, Diego: a real checkout failed outright right after the
+        # MXN price path started being selected (is_mexico() matching
+        # country/phone_number for the first time) — a broken/misconfigured
+        # MXN price must never hard-block a sale when the USD price is
+        # right there and known-good. Same fallback added to billing.py's
+        # Premium checkouts.
+        if mexico and usd_price_id and usd_price_id != price_id:
+            logger.error("upsell_checkout: MXN price %s failed for user %s (offer=%s), retrying with USD: %s", price_id, user_id, offer, e)
+            params["line_items"] = [{"price": usd_price_id, "quantity": 1}]
+            try:
+                session = await _stripe_call(stripe.checkout.Session.create, **params)
+            except Exception as e2:
+                logger.error("upsell_checkout: USD fallback also failed for user %s (offer=%s): %s", user_id, offer, e2)
+                return {"error": "Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos."}
+        else:
+            logger.error("Stripe upsell checkout failed for user %s (offer=%s): %s", user_id, offer, e)
+            return {"error": "Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos."}
 
     await _track(db, user_id, "upsell_converted", offer, tier, body.get("trigger_source"), {"variant": key})
     return {"url": session.url}
@@ -315,13 +327,10 @@ async def upsell_checkout_embedded(body: dict, user_id: str = Depends(get_curren
         key = "bundle"
     else:
         key = tier
-    price_id = _price_id_for(offer, tier, key)
+    usd_price_id = _price_id_for(offer, tier, key)
     from app.core.pricing_region import is_mexico, upsell_price_id
-    price_id = upsell_price_id(
-        offer, key, price_id,
-        is_mexico(profile.get("country"), profile.get("phone_number")) or str(body.get("currency") or "").lower() == "mxn",
-        settings,
-    )
+    mexico = is_mexico(profile.get("country"), profile.get("phone_number")) or str(body.get("currency") or "").lower() == "mxn"
+    price_id = upsell_price_id(offer, key, usd_price_id, mexico, settings)
     logger.info("upsell checkout: user=%s offer=%s key=%s requested_currency=%s price=%s", user_id, offer, key, body.get("currency"), price_id)
     if not price_id:
         # Was silent — see the identical fix + comment in upsell_checkout
@@ -347,37 +356,52 @@ async def upsell_checkout_embedded(body: dict, user_id: str = Depends(get_curren
 
     metadata = {"offer": offer, "variant": key, "user_tier": tier, "user_id": user_id}
 
-    try:
+    async def _charge(pid: str) -> str:
+        """Runs the actual Subscription/PaymentIntent creation for a given
+        price id — extracted so a bad MXN price can retry with the USD one
+        below without duplicating both branches."""
         if offer == "family_plan":
             subscription = await _stripe_call(
                 stripe.Subscription.create,
                 customer=customer_id,
-                items=[{"price": price_id}],
+                items=[{"price": pid}],
                 payment_behavior="default_incomplete",
                 payment_settings={"save_default_payment_method": "on_subscription"},
                 expand=["latest_invoice.payment_intent"],
                 metadata=metadata,
             )
-            client_secret = subscription.latest_invoice.payment_intent.client_secret
-        else:
-            # session — one-time payment. The PaymentIntent
-            # needs an explicit amount+currency (unlike Checkout Sessions,
-            # which take a price id directly) — retrieved from the Price
-            # object so Stripe stays the single source of truth for amounts,
-            # never hardcoded here.
-            price = await _stripe_call(stripe.Price.retrieve, price_id)
-            intent = await _stripe_call(
-                stripe.PaymentIntent.create,
-                amount=price.unit_amount,
-                currency=price.currency,
-                customer=customer_id,
-                metadata=metadata,
-                automatic_payment_methods={"enabled": True},
-            )
-            client_secret = intent.client_secret
+            return subscription.latest_invoice.payment_intent.client_secret
+        # session — one-time payment. The PaymentIntent needs an explicit
+        # amount+currency (unlike Checkout Sessions, which take a price id
+        # directly) — retrieved from the Price object so Stripe stays the
+        # single source of truth for amounts, never hardcoded here.
+        price = await _stripe_call(stripe.Price.retrieve, pid)
+        intent = await _stripe_call(
+            stripe.PaymentIntent.create,
+            amount=price.unit_amount,
+            currency=price.currency,
+            customer=customer_id,
+            metadata=metadata,
+            automatic_payment_methods={"enabled": True},
+        )
+        return intent.client_secret
+
+    try:
+        client_secret = await _charge(price_id)
     except Exception as e:
-        logger.error("Stripe embedded upsell checkout failed for user %s (offer=%s): %s", user_id, offer, e)
-        return {"error": "Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos."}
+        # 2026-09-24, Diego: see upsell_checkout's identical fallback above
+        # — a broken/misconfigured MXN price must never hard-block a sale
+        # when the USD price is right there and known-good.
+        if mexico and usd_price_id and usd_price_id != price_id:
+            logger.error("upsell_checkout_embedded: MXN price %s failed for user %s (offer=%s), retrying with USD: %s", price_id, user_id, offer, e)
+            try:
+                client_secret = await _charge(usd_price_id)
+            except Exception as e2:
+                logger.error("upsell_checkout_embedded: USD fallback also failed for user %s (offer=%s): %s", user_id, offer, e2)
+                return {"error": "Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos."}
+        else:
+            logger.error("Stripe embedded upsell checkout failed for user %s (offer=%s): %s", user_id, offer, e)
+            return {"error": "Pagos temporalmente no disponibles. Intenta de nuevo en unos minutos."}
 
     await _track(db, user_id, "upsell_converted", offer, tier, body.get("trigger_source"), {"variant": key})
     return {"client_secret": client_secret}
