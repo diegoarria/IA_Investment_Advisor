@@ -45,21 +45,43 @@ const TOOL_COLOR = "#8b5cf6";
 // a transient failure after retries still shows last week's real picks
 // instead of an empty "no suggestions" card until the user manually hits
 // retry.
+//
+// Diego, 2026-09-24: "solo me dio 1 acción cuando deberían ser las 5."
+// The backend guarantees exactly 5 for Premium (screener.py's own
+// backfill logic never lets it fall short) — so a cached value with
+// fewer than 5 can only be a corrupted/partial entry (e.g. an old
+// truncated response from before that guardrail, or a value written
+// during a genuine backend hiccup), and this cache never expired or
+// validated what it stored, so a bad entry would keep rendering forever
+// until a fresh fetch happened to overwrite it. Now: never persist a
+// non-5 Premium result, ignore one on read (falls through to a real
+// fetch instead), and time-box every entry to 8 days (a week's cache
+// ceiling server-side is 7) so a stale entry can't outlive its week
+// indefinitely even if it once looked valid.
+const WEEKLY_CACHE_MAX_AGE_MS = 8 * 24 * 3600 * 1000;
 function weeklyCacheKey(userId: string | null): string | null {
   return userId ? `nuvos_weekly_screener_cache__${userId}` : null;
+}
+function isValidWeeklyPayload(data: WeeklyData | null | undefined): data is WeeklyData {
+  // `locked` (Free/guest teaser) is real but intentionally has fewer than
+  // 5 rows — only Premium's full result is held to "must be exactly 5."
+  return !!data && (!!(data as { locked?: boolean }).locked || (data.picks?.length ?? 0) >= 5);
 }
 function readWeeklyCache(userId: string | null): WeeklyData | null {
   const key = weeklyCacheKey(userId);
   if (!key) return null;
   try {
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { data?: WeeklyData; cachedAt?: number };
+    if (!parsed.cachedAt || Date.now() - parsed.cachedAt > WEEKLY_CACHE_MAX_AGE_MS) return null;
+    return isValidWeeklyPayload(parsed.data) ? parsed.data! : null;
   } catch { return null; }
 }
 function writeWeeklyCache(userId: string | null, data: WeeklyData) {
   const key = weeklyCacheKey(userId);
-  if (!key) return;
-  try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
+  if (!key || !isValidWeeklyPayload(data)) return;
+  try { localStorage.setItem(key, JSON.stringify({ data, cachedAt: Date.now() })); } catch {}
 }
 
 export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] }: Props) {
