@@ -1842,6 +1842,11 @@
       "askMentor": "Preguntarle al mentor IA",
       "searchHint": "O busca cualquier empresa arriba por nombre o símbolo (ej: \"Apple\" o \"AAPL\")"
     },
+    "pagination": {
+      "prev": "Página anterior",
+      "next": "Página siguiente",
+      "showing": "{{from}}–{{to}} de {{total}}"
+    },
     "alertModal": {
       "title": "Alerta de precio",
       "currentPrice": "Precio actual:",
@@ -2494,7 +2499,8 @@
       "markets": "Mercados",
       "mexico": "México",
       "companies": "Empresas"
-    }
+    },
+    "flashcardError": "No se pudo cargar. Intenta de nuevo."
   },
   "chat": {
     "newChat": "Nuevo",
