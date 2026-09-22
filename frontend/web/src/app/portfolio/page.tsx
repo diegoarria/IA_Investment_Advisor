@@ -952,7 +952,23 @@ export default function PortfolioPage() {
     id: string; amount: number; currency: string; instrument: "cetes" | "bank" | "bonds" | "other"; label: string | null;
     accrued_amount?: number; rate_pct?: number | null;
   }
-  const [cashList, setCashList] = useState<CashHolding[]>([]);
+  // 2026-09-23, Diego: "Efectivo disponible y dividendos SIEMPRE VISIBLE, NO
+  // PUEDE DESAPARECER". Both totals used to start every mount/navigation at
+  // []/0 and only fill in once their fetch resolved, so the summary line
+  // below blanked out for a moment on every single visit to this page even
+  // when the user has real cash/dividends — read the last known values from
+  // localStorage (same pattern the portfolio positions cache above already
+  // uses) so they render immediately, then get overwritten by the fresh
+  // fetch when it lands.
+  const cashCacheKey = userId ? `nuvos_cash_cache__${userId}` : null;
+  const dividendCacheKey = userId ? `nuvos_dividend_cache__${userId}` : null;
+  const [cashList, setCashList] = useState<CashHolding[]>(() => {
+    if (!cashCacheKey) return [];
+    try {
+      const raw = localStorage.getItem(cashCacheKey);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
   const [cashListLoaded, setCashListLoaded] = useState(false);
   const [cashFormOpen, setCashFormOpen] = useState(false);
   const [cashEditingId, setCashEditingId] = useState<string | null>(null);
@@ -970,7 +986,13 @@ export default function PortfolioPage() {
     let cancelled = false;
     const load = (isRetry: boolean) => {
       cashHoldingsApi.list()
-        .then((res) => { if (!cancelled) { setCashList(res.data?.holdings ?? []); setCashListLoaded(true); } })
+        .then((res) => {
+          if (cancelled) return;
+          const list = res.data?.holdings ?? [];
+          setCashList(list);
+          setCashListLoaded(true);
+          if (cashCacheKey) { try { localStorage.setItem(cashCacheKey, JSON.stringify(list)); } catch {} }
+        })
         .catch(() => {
           if (cancelled) return;
           if (!isRetry) setTimeout(() => load(true), 1500);
@@ -979,12 +1001,18 @@ export default function PortfolioPage() {
     };
     load(false);
     return () => { cancelled = true; };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, cashCacheKey]);
 
   // Dividends actually paid (worker.py records these the day they're paid,
   // forward-tracking only — see migrations/054_dividend_income.sql) — real
   // cash the user received, so it counts toward the total same as cash.
-  const [dividendTotalUSD, setDividendTotalUSD] = useState(0);
+  const [dividendTotalUSD, setDividendTotalUSD] = useState(() => {
+    if (!dividendCacheKey) return 0;
+    try {
+      const raw = localStorage.getItem(dividendCacheKey);
+      return raw ? JSON.parse(raw) : 0;
+    } catch { return 0; }
+  });
   useEffect(() => {
     // Same gating + retry discipline as the cash fetch above (Diego,
     // 2026-09-12: cash/dividends must never silently drop out of the total)
@@ -992,9 +1020,12 @@ export default function PortfolioPage() {
     // .catch() left this stuck at 0 with no retry.
     if (!isAuthenticated) return;
     fetchWithRetry(() => dividendsApi.getIncome()).then((res) => {
-      if (res) setDividendTotalUSD(res.data?.total ?? 0);
+      if (!res) return;
+      const total = res.data?.total ?? 0;
+      setDividendTotalUSD(total);
+      if (dividendCacheKey) { try { localStorage.setItem(dividendCacheKey, JSON.stringify(total)); } catch {} }
     });
-  }, [isAuthenticated]);
+  }, [isAuthenticated, dividendCacheKey]);
   const dividendTotal = portfolioCurrency === "USD" ? dividendTotalUSD : dividendTotalUSD * fxRate;
 
   const CASH_APPROX_TO_USD: Record<string, number> = { MXN: 18.5, EUR: 0.92, GBP: 0.79, CAD: 1.38, BRL: 5.7, JPY: 155, AUD: 1.55, CHF: 0.89 };

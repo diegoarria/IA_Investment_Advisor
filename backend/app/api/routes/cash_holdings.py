@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
-from app.core.database import get_supabase, run_query
+from app.core.database import get_supabase, run_query, run_query_verified_nonempty
 from app.core.cache import cache_get, cache_set
 
 router = APIRouter(prefix="/cash-holdings", tags=["cash-holdings"])
@@ -161,9 +161,14 @@ def _parse_manual_rate(body: dict) -> float | None:
 
 @router.get("")
 async def list_cash_holdings(user_id: str = Depends(get_current_user_id)):
-    db = get_supabase()
-    result = await run_query(
-        db.table("cash_holdings").select("*").eq("user_id", user_id).order("created_at")
+    # 2026-09-23, Diego: "Efectivo disponible ... SIEMPRE VISIBLE, NO PUEDE
+    # DESAPARECER" — this read had none of the false-empty protection the
+    # same stale-Supabase-singleton bug already got on watchlist/portfolio/
+    # paper trading (see database.py's run_query_verified_nonempty docstring).
+    # A real cash holding could silently read back as [] on some page loads
+    # and not others, which is exactly the "aparece y desaparece" report.
+    result = await run_query_verified_nonempty(
+        lambda db: db.table("cash_holdings").select("*").eq("user_id", user_id).order("created_at")
     )
     return {"holdings": [_with_accrued(h) for h in (result.data or [])]}
 
