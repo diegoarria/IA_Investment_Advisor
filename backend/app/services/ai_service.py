@@ -4796,6 +4796,20 @@ def _finalize_weekly_picks_result(raw: str, risk: str, existing: list[str], rece
 
     result["picks"] = picks
 
+    # Diego, 2026-09-24: "solo me dio 1 acción cuando deberían ser las 5" —
+    # the backfill above is supposed to make fewer than 5 impossible as
+    # long as `candidates` had enough real, unblocked tickers. If it still
+    # happens, that means the candidate pool itself was too small (or
+    # empty) for this call — worth knowing about immediately rather than
+    # silently shipping a partial result and only finding out from a user
+    # report days later.
+    if len(picks) < 5:
+        _log.warning(
+            "_finalize_weekly_picks_result: only %d picks after backfill (candidates=%d, blocked=%d) — "
+            "candidate pool was too small for this user/risk tier",
+            len(picks), len(candidates), len(block),
+        )
+
     # Always guarantee disclaimer
     if "disclaimer" not in result:
         result["disclaimer"] = (

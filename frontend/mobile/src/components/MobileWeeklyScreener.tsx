@@ -23,18 +23,35 @@ const TOOL_COLOR = "#8b5cf6";
 // suffix convention as lib/userScopedStorage.ts), so a transient failure
 // still shows last week's real picks instead of a blank "no suggestions"
 // card that used to explicitly wipe whatever was already showing.
+// Diego, 2026-09-24: "solo me dio 1 acción cuando deberían ser las 5." The
+// backend guarantees exactly 5 for Premium (screener.py's own backfill
+// logic never lets it fall short) — so a cached value with fewer than 5
+// can only be a corrupted/partial entry, and this cache never expired or
+// validated what it stored, so a bad entry would keep rendering forever
+// until a fresh fetch happened to overwrite it. Never persist a non-5
+// Premium result, ignore one on read, and time-box every entry to 8 days
+// (server-side cache ceiling is 7) so a stale entry can't outlive its
+// week even if it once looked valid.
 const WEEKLY_CACHE_KEY = "nuvos_weekly_screener_cache";
+const WEEKLY_CACHE_MAX_AGE_MS = 8 * 24 * 3600 * 1000;
+function isValidWeeklyPayload(data: any): boolean {
+  return !!data && (!!data.locked || (data.picks?.length ?? 0) >= 5);
+}
 async function readWeeklyCache(): Promise<any | null> {
   try {
     const uid = (await SecureStore.getItemAsync("user_id")) ?? "guest";
     const raw = await AsyncStorage.getItem(`${WEEKLY_CACHE_KEY}__${uid}`);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed.cachedAt || Date.now() - parsed.cachedAt > WEEKLY_CACHE_MAX_AGE_MS) return null;
+    return isValidWeeklyPayload(parsed.data) ? parsed.data : null;
   } catch { return null; }
 }
 async function writeWeeklyCache(data: any) {
+  if (!isValidWeeklyPayload(data)) return;
   try {
     const uid = (await SecureStore.getItemAsync("user_id")) ?? "guest";
-    await AsyncStorage.setItem(`${WEEKLY_CACHE_KEY}__${uid}`, JSON.stringify(data));
+    await AsyncStorage.setItem(`${WEEKLY_CACHE_KEY}__${uid}`, JSON.stringify({ data, cachedAt: Date.now() }));
   } catch { /* best-effort — session still has it in memory */ }
 }
 
