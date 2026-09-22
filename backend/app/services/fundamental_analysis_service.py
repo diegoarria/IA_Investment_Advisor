@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import statistics
+from datetime import datetime, timezone
 from dataclasses import asdict
 from typing import Optional
 
@@ -792,6 +793,11 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
 
     income, balance, cashflow = income[-n:], balance[-n:], cashflow[-n:]
     years = [str(row.get("period", ""))[:4] for row in income]
+
+    # 2026-09-23, Diego: "TTM vs año anterior, año dinámico" — real trailing-
+    # twelve-months from FMP's own quarterly statements (get_financials
+    # already fetches 8 real quarters), never a hardcoded/guessed year.
+    ttm_data = _compute_ttm(fin)
 
     # Cross-validation summary — each period's Revenue-COGS-OpEx≈Operating
     # Income check was already computed per-period in financial_data_service.
@@ -3135,6 +3141,7 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
         "sector": profile.get("finnhubIndustry"),
         "segments": segments,
         "years": years,
+        "ttm": ttm_data,
         "current_price": price,
         "change_pct": _num(quote.get("change_pct")),
         "exchange": profile.get("exchange"),
@@ -3219,6 +3226,60 @@ def get_fundamental_analysis(ticker: str, _compute_peer_dependent_data: bool = T
     }
 
 
+def _compute_ttm(fin: dict) -> Optional[dict]:
+    """Real trailing-twelve-months, built from FMP's own quarterly income/
+    cash-flow statements (get_financials already fetches the last 8 real
+    quarters) — never estimated, never a stale annual figure passed off as
+    current. TTM = sum of the 4 most recent real quarters; the comparison
+    period is the 4 real quarters immediately before that (i.e. the SAME
+    trailing-12-month window a year earlier), not a calendar year. Diego,
+    2026-09-23: "si estamos en el 2026, el TTM es 2026 vs 2025" — the label
+    years below come from the real report dates, not from today's date, so
+    a company with an off-calendar fiscal year still gets a correct label;
+    for a normal Dec-fiscal-year company mid-2026 this naturally reads as
+    "TTM 2026 vs 2025" exactly as described.
+    Returns None (never a fabricated/partial result) if fewer than 4 real
+    quarters are available — callers must show "TTM no disponible", not
+    guess one from annual data."""
+    income_q = fin.get("incomeStatement", {}).get("quarterly", [])
+    cf_q     = fin.get("cashFlow", {}).get("quarterly", [])
+    if len(income_q) < 4:
+        return None
+
+    def _sum4(rows: list[dict], key: str) -> Optional[float]:
+        vals = [_num(r.get(key)) for r in rows]
+        vals = [v for v in vals if v is not None]
+        return round(sum(vals), 2) if len(vals) == 4 else None
+
+    # Oldest→newest (see FMPProvider.get_income's own `result[::-1]`), so the
+    # last 4 rows are the current TTM and the 4 before that are the prior one.
+    curr = income_q[-4:]
+    prior = income_q[-8:-4] if len(income_q) >= 8 else []
+    cf_curr = cf_q[-4:] if len(cf_q) >= 4 else []
+    cf_prior = cf_q[-8:-4] if len(cf_q) >= 8 else []
+
+    curr_end_date = curr[-1].get("period", "")
+    prior_end_date = prior[-1].get("period", "") if prior else ""
+    current_label = curr_end_date[:4] or str(datetime.now(timezone.utc).year)
+    prior_label = prior_end_date[:4] or str(int(current_label) - 1)
+
+    return {
+        "current_label": current_label,
+        "prior_label": prior_label,
+        "quarters_used": len(curr),
+        "prior_quarters_used": len(prior),
+        "as_of_date": curr_end_date or None,
+        "revenue":            _sum4(curr, "Total Revenue"),
+        "net_income":         _sum4(curr, "Net Income"),
+        "eps_diluted":        _sum4(curr, "Diluted EPS"),
+        "prior_revenue":      _sum4(prior, "Total Revenue") if prior else None,
+        "prior_net_income":   _sum4(prior, "Net Income") if prior else None,
+        "prior_eps_diluted":  _sum4(prior, "Diluted EPS") if prior else None,
+        "fcf":                _sum4(cf_curr, "Free Cash Flow") if cf_curr else None,
+        "prior_fcf":          _sum4(cf_prior, "Free Cash Flow") if cf_prior else None,
+    }
+
+
 def _fmt_money(v: Optional[float]) -> str:
     if v is None:
         return "N/D"
@@ -3252,6 +3313,15 @@ def _fmt_yoy_trend(years: list[str], values: list[Optional[float]]) -> str:
     return ", ".join(pairs) if pairs else "N/D"
 
 
+def _yoy_pct(curr: Optional[float], prev: Optional[float]) -> str:
+    """Single YoY % change, for the TTM-vs-prior-TTM comparison — same
+    "never fabricate" convention as everything else here: N/D when either
+    side (or a zero denominator) is missing, rather than a misleading 0%."""
+    if curr is None or prev is None or prev == 0:
+        return "N/D"
+    return f"{(curr - prev) / abs(prev) * 100:+.1f}%"
+
+
 def format_segments_summary(segments: list[dict]) -> str:
     """Renders the company's real revenue-segment breakdown (`segments`,
     already computed above from `financial_data_service.
@@ -3283,6 +3353,26 @@ def format_fundamental_analysis_for_prompt(data: dict) -> str:
         f"Años con datos reales disponibles: {data['data_years_available']} (fuente: {data.get('data_source', 'N/D')})",
         "",
     ]
+    ttm = data.get("ttm")
+    if ttm:
+        lines.append(
+            f"TTM {ttm['current_label']} vs TTM {ttm['prior_label']} (suma de los últimos 4 trimestres reales reportados "
+            f"vía FMP, corte al {ttm.get('as_of_date') or 'N/D'} — esta es la comparación MÁS ACTUAL, úsala cuando "
+            f"te pregunten \"cómo le va ahora\"/\"últimos resultados\", no solo la serie anual de abajo):"
+        )
+        lines.append(f"  - Ingresos: {_fmt_money(ttm['revenue'])} vs {_fmt_money(ttm['prior_revenue'])} ({_yoy_pct(ttm['revenue'], ttm['prior_revenue'])})")
+        lines.append(f"  - Utilidad neta: {_fmt_money(ttm['net_income'])} vs {_fmt_money(ttm['prior_net_income'])} ({_yoy_pct(ttm['net_income'], ttm['prior_net_income'])})")
+        if ttm.get("eps_diluted") is not None:
+            lines.append(f"  - EPS diluido: ${ttm['eps_diluted']:.2f} vs ${ttm['prior_eps_diluted']:.2f}" if ttm.get("prior_eps_diluted") is not None else f"  - EPS diluido: ${ttm['eps_diluted']:.2f} vs N/D")
+        if ttm.get("fcf") is not None:
+            lines.append(f"  - Free Cash Flow: {_fmt_money(ttm['fcf'])} vs {_fmt_money(ttm['prior_fcf'])} ({_yoy_pct(ttm['fcf'], ttm['prior_fcf'])})")
+        lines.append("")
+    else:
+        lines.append(
+            "TTM (últimos 12 meses reales): no disponible para esta empresa (menos de 4 trimestres reales en FMP) — "
+            "no lo inventes ni lo estimes, dilo explícitamente y usa la serie anual de abajo en su lugar."
+        )
+        lines.append("")
     liquidity_gate = data.get("liquidity_gate")
     if liquidity_gate and not liquidity_gate.get("paso"):
         lines.append(
