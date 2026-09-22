@@ -1379,6 +1379,8 @@
     }
   },
   "companyDiagnostic": {
+    "staleNotice": "Estos datos podrían estar desactualizados (corresponden al período {{period}}) — no pudimos actualizarlos justo ahora porque nuestras fuentes de datos externas no respondieron. Son reales, solo no los más recientes.",
+    "staleNoticeUnknownPeriod": "más reciente disponible",
     "locked": {
       "title": "Usaste tus 3 búsquedas gratis de esta semana",
       "body": "Este es el diagnóstico real de esta empresa. Actívate Premium para verlo completo, sin límites.",

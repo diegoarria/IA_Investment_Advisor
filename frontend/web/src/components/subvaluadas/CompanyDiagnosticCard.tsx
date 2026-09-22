@@ -74,6 +74,19 @@ export function CompanyDiagnosticCard({
     >
       <CompanyDiagnosticHero data={data} locked={locked} onUnlock={onUnlock} />
 
+      {/* Diego, 2026-09-23: "esta pantalla NUNCA debe fallar, SIEMPRE debe
+          abrir" — shown only when every real data provider was
+          simultaneously unavailable and the backend fell back to the last
+          real, previously-computed diagnostic instead of a hard failure.
+          Real data, never fabricated — just says so plainly. */}
+      {data.stale && (
+        <div className="rounded-xl px-3 py-2.5 mt-5" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)" }}>
+          <p className="text-[11.5px] leading-relaxed" style={{ color: "#f59e0b" }}>
+            {t("companyDiagnostic.staleNotice", { period: data.staleAsOf || t("companyDiagnostic.staleNoticeUnknownPeriod") })}
+          </p>
+        </div>
+      )}
+
       {data.sectorModelNote && (
         <div className="rounded-xl px-3 py-2.5 mt-5" style={{ background: "rgba(212,162,76,0.08)", border: "1px solid rgba(212,162,76,0.2)" }}>
           <p className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--accent-l)" }}>

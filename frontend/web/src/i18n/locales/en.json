@@ -1379,6 +1379,8 @@
     }
   },
   "companyDiagnostic": {
+    "staleNotice": "This data may be out of date (from period {{period}}) — we couldn't refresh it right now because our external data sources didn't respond. It's real, just not the most recent.",
+    "staleNoticeUnknownPeriod": "latest available",
     "locked": {
       "title": "You used your 3 free searches this week",
       "body": "This is the real diagnostic for this company. Go Premium to see it in full, with no limits.",
