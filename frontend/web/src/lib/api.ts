@@ -551,12 +551,13 @@ export const earningsApi = {
 export const screenerApi = {
   screen: (sector: string | null, query: string) =>
     api.post("/api/market/screener", { sector, query }),
-  getWeekly: (existingTickers: string[] = []) =>
-    // Explicit timeout so a cache-miss (rare — the backend pre-warms this
-    // weekly for every Premium user) fails fast into a real error state
-    // instead of spinning indefinitely, same reasoning as the other
-    // heavier screener calls below.
-    api.get("/api/market/screener/weekly", { params: { tickers: existingTickers.join(",") }, timeout: 25000 }),
+  // Diego, 2026-09-23: "necesito que abra en máximo 10 segundos" — the
+  // caller controls the timeout so it can try a short, budget-respecting
+  // attempt first (WeeklyScreenerCard.tsx) and fall back to a longer
+  // best-effort background attempt without ever blocking the UI past 10s.
+  // Was a flat 25s that alone could blow the whole budget on a cache miss.
+  getWeekly: (existingTickers: string[] = [], timeoutMs = 25000) =>
+    api.get("/api/market/screener/weekly", { params: { tickers: existingTickers.join(",") }, timeout: timeoutMs }),
   getUndervalued: (sector?: string, limit = 10, lang?: string, browse?: boolean) =>
     api.get("/api/market/screener/undervalued", { params: { sector, limit, lang, browse } }),
   // Full sector directory (every company, no margin-of-safety filter) —
