@@ -168,7 +168,7 @@ end
 _locks_mem: dict[str, tuple[str, float]] = {}  # key -> (token, expires_at) — in-memory fallback
 
 
-def acquire_lock(key: str, ttl: int = 30) -> str | None:
+def acquire_lock(key: str, ttl: int = 30, fail_closed_on_redis_error: bool = False) -> str | None:
     """Distributed single-flight lock. Returns a token to pass to release_lock()
     if acquired, or None if someone else already holds it.
 
@@ -180,17 +180,44 @@ def acquire_lock(key: str, ttl: int = 30) -> str | None:
     single worker process, which is still a meaningful reduction (most
     request storms hit whichever process/thread pool is under load) but not
     a full guarantee under multiple gunicorn workers without Redis.
+
+    2026-09-24, Diego: AutoZone's earnings push went out 4 times in one day
+    (notification_log showed long correct "dedup_lock" streaks, then a
+    "sent" slipping through — confirmed live). Root cause: a lone, transient
+    Redis error on ONE acquire_lock() call used to fall straight through to
+    the in-memory dict with zero retry — and that dict is per-process and
+    had never seen this key before (every prior successful acquire that day
+    went through Redis, not here), so it always looked "free" during a
+    hiccup and silently granted a second, duplicate lock. One retry with a
+    short pause absorbs the vast majority of transient blips before ever
+    touching the fallback; the exception itself is now logged instead of
+    silently swallowed, so a real outage is visible in Railway logs instead
+    of only showing up as a user-facing duplicate. `fail_closed_on_redis_
+    error=True` additionally makes a genuine (non-transient, post-retry)
+    Redis failure return None instead of falling back at all — for a caller
+    like push-notification dedup, a missed send is far less harmful than a
+    duplicate one, so "unsure" should mean "don't grant," not "grant
+    locally and hope." Left False (the original behavior) for other
+    call sites where the in-memory fallback's weaker guarantee is an
+    acceptable, deliberate tradeoff (e.g. best-effort fetch deduplication).
     """
     import uuid
     token = uuid.uuid4().hex
     r = _get_redis()
     if r:
-        try:
-            if r.set(key, token, nx=True, ex=ttl):
-                return token
+        for attempt in range(2):
+            try:
+                if r.set(key, token, nx=True, ex=ttl):
+                    return token
+                return None
+            except Exception as exc:
+                if attempt == 0:
+                    time.sleep(0.15)
+                    continue
+                logger.warning("acquire_lock(%s): Redis error after retry, %s: %s",
+                                key, "failing closed" if fail_closed_on_redis_error else "falling back to in-memory", exc)
+        if fail_closed_on_redis_error:
             return None
-        except Exception:
-            pass
     now = time.time()
     held = _locks_mem.get(key)
     if held is None or now > held[1]:

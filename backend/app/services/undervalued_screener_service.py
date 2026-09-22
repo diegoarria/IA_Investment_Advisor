@@ -855,7 +855,14 @@ async def refresh_undervalued_screener(submit_blurbs: bool = True) -> None:
     # submitter" guarantee elsewhere (e.g. screener.py's sector-roster
     # scan lock) — held for the same TTL as the pending-batch record so a
     # crashed submitter can't wedge this lock forever.
-    submit_lock_token = acquire_lock(f"{_PENDING_BATCH_CACHE_KEY}:lock", ttl=_PENDING_BATCH_TTL)
+    # fail_closed_on_redis_error=True — a Redis hiccup on this exact check
+    # must never fall back to a per-process in-memory lock (which has never
+    # seen this key, since every prior real acquire went through Redis) and
+    # silently allow a second submitter through: that's a real duplicate
+    # paid Claude Batch, not just wasted CPU. See acquire_lock's own
+    # docstring (2026-09-24, the AutoZone duplicate-push incident) for the
+    # same reasoning applied to push-notification dedup.
+    submit_lock_token = acquire_lock(f"{_PENDING_BATCH_CACHE_KEY}:lock", ttl=_PENDING_BATCH_TTL, fail_closed_on_redis_error=True)
     try:
         if submit_lock_token is None:
             # Another process is mid-way through this exact decision right
