@@ -37,6 +37,7 @@ function getAge(birthDate: string | null | undefined): number | null {
 }
 import PaywallModal from "@/components/PaywallModal";
 import WelcomeCard from "@/components/WelcomeCard";
+import PhoneNumberPromptCard from "@/components/PhoneNumberPromptCard";
 import EmbeddedCheckout from "@/components/EmbeddedCheckout";
 import { upsells } from "@/lib/api";
 
@@ -598,6 +599,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
       {isAuthenticated && <WelcomeCard />}
+      {isAuthenticated && <PhoneNumberPromptCard />}
 
       {sessionCheckoutOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>

@@ -25,6 +25,7 @@ import Sidebar from "../src/components/Sidebar";
 import { useSubscriptionStore, hasPremiumAccess } from "../src/lib/subscriptionStore";
 import PaywallModal from "../src/components/PaywallModal";
 import WelcomeCard from "../src/components/WelcomeCard";
+import PhoneNumberPromptCard from "../src/components/PhoneNumberPromptCard";
 import * as Notifications from "expo-notifications";
 
 const HIDE_SIDEBAR_ROUTES = ["/", "/onboarding"];
@@ -308,6 +309,7 @@ function AppStack() {
       {showSidebar && <Sidebar />}
       <TrialExpiredModal />
       <WelcomeCard />
+      <PhoneNumberPromptCard />
     </View>
   );
 }

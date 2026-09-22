@@ -3463,6 +3463,15 @@
     "continue": "Continue",
     "noCardRequired": "No card required to start"
   },
+  "phonePromptCard": {
+    "title": "One last thing",
+    "subtitle": "It helps us show you the right payment method for your country, so activating Premium goes smoothly.",
+    "phoneLabel": "Phone number",
+    "save": "Save",
+    "saving": "Saving...",
+    "skip": "Not now",
+    "error": "Couldn't save. Please try again."
+  },
   "quizModal": {
     "passed": "Quiz passed!",
     "almostThere": "Almost there",

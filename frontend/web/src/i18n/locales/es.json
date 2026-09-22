@@ -3351,6 +3351,15 @@
     "continue": "Continuar",
     "noCardRequired": "Sin tarjeta requerida para empezar"
   },
+  "phonePromptCard": {
+    "title": "Un último dato",
+    "subtitle": "Nos ayuda a mostrarte la forma de pago correcta según tu país, para que no tengas problemas al activar Premium.",
+    "phoneLabel": "Número de teléfono",
+    "save": "Guardar",
+    "saving": "Guardando...",
+    "skip": "Ahora no",
+    "error": "No se pudo guardar. Intenta de nuevo."
+  },
   "themeProvider": {
     "newVersionAvailable": "Hay una nueva versión disponible",
     "reload": "Recargar",

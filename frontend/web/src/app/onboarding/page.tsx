@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useTranslation } from "react-i18next";
 import { profile as profileApi } from "@/lib/api";
 import { useProfileStore, useAuthStore, useChatStore, useLanguageStore, useSubscriptionStore } from "@/lib/store";
+import { DIAL_CODES } from "@/lib/dialCodes";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 
 // ─── Static data (language-neutral metadata; labels resolved via t() at render) ─
@@ -16,18 +17,6 @@ const GOALS = [
   { value: "retirement",        labelKey: "onboarding.goals.retirement",       emoji: "👴" },
   { value: "financial_freedom", labelKey: "onboarding.goals.financialFreedom",emoji: "🦅" },
   { value: "long_term_wealth",  labelKey: "onboarding.goals.longTermWealth",  emoji: "🏛️" },
-];
-
-// E.164 dial codes for the phone step's country selector.
-const DIAL_CODES = [
-  { value: "MX", code: "+52", flag: "🇲🇽", labelKey: "onboarding.countries.mx" },
-  { value: "US", code: "+1",  flag: "🇺🇸", labelKey: "onboarding.countries.us" },
-  { value: "CO", code: "+57", flag: "🇨🇴", labelKey: "onboarding.countries.co" },
-  { value: "AR", code: "+54", flag: "🇦🇷", labelKey: "onboarding.countries.ar" },
-  { value: "VE", code: "+58", flag: "🇻🇪", labelKey: "onboarding.countries.ve" },
-  { value: "PE", code: "+51", flag: "🇵🇪", labelKey: "onboarding.countries.pe" },
-  { value: "CL", code: "+56", flag: "🇨🇱", labelKey: "onboarding.countries.cl" },
-  { value: "ES", code: "+34", flag: "🇪🇸", labelKey: "onboarding.countries.es" },
 ];
 
 // "¿Qué has escuchado de la bolsa?" — multi-select, fully optional. Picking
@@ -567,6 +556,13 @@ export default function OnboardingPage() {
       // screen already knows the user is in their 30-day trial, instead of
       // waiting on whichever page happens to mount AppSidebar first.
       useSubscriptionStore.getState().fetchStatus();
+
+      // Diego, 2026-09-24: this onboarding flow already asked for the phone
+      // number a moment ago (the step above) — mark the once-ever existing-
+      // user prompt (PhoneNumberPromptCard) as already-seen so a brand new
+      // account is never asked the same question again right after
+      // finishing onboarding, whether they filled it in or left it blank.
+      profileApi.markPhonePromptSeen().catch(() => {});
 
       // ── Inyectar mensaje de bienvenida del mentor en el chat ──────────────
       // The onboarding is short on purpose now — Arthur doesn't know the

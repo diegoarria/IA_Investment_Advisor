@@ -30,6 +30,10 @@ export interface UserProfile {
   has_broker?: boolean | null;
   broker_name?: string | null;
   has_investments?: boolean | null;
+  phone_number?: string | null;
+  // migration 106, 2026-09-24 — one-time phone-number prompt for existing
+  // users. See PhoneNumberPromptCard.tsx.
+  has_seen_phone_prompt?: boolean | null;
   created_at: string;
   updated_at: string;
 }

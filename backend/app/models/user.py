@@ -110,6 +110,10 @@ class UserProfile(BaseModel):
     broker_name: Optional[str] = None
     has_investments: Optional[bool] = None
     phone_number: Optional[str] = None
+    # migration 106, 2026-09-24 — one-time phone-number prompt for existing
+    # users (new users get asked during onboarding). See profile.py's
+    # mark_phone_prompt_seen for the "never twice" write.
+    has_seen_phone_prompt: Optional[bool] = None
     market_perception: Optional[list[str]] = None
     market_perception_other: Optional[str] = None
     net_worth_usd: Optional[float] = None
