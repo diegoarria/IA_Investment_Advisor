@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { screenerApi } from "@/lib/api";
 import { useTranslation } from "react-i18next";
+import { useAuthStore } from "@/lib/store";
 
 interface Pick {
   ticker: string;
@@ -38,25 +39,73 @@ interface Props {
 
 const TOOL_COLOR = "#8b5cf6";
 
+// Diego, 2026-09-23: "Screener Semanal SIEMPRE SIEMPRE SIEMPRE debe abrir
+// ... en web app no abre nada." Same-week picks (server cache is 7 days,
+// one set per user, refreshed every Sunday) cached per-user here too, so
+// a transient failure after retries still shows last week's real picks
+// instead of an empty "no suggestions" card until the user manually hits
+// retry.
+function weeklyCacheKey(userId: string | null): string | null {
+  return userId ? `nuvos_weekly_screener_cache__${userId}` : null;
+}
+function readWeeklyCache(userId: string | null): WeeklyData | null {
+  const key = weeklyCacheKey(userId);
+  if (!key) return null;
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function writeWeeklyCache(userId: string | null, data: WeeklyData) {
+  const key = weeklyCacheKey(userId);
+  if (!key) return;
+  try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
+}
+
 export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] }: Props) {
   const { t } = useTranslation();
+  const { isAuthenticated, authRestoring, userId } = useAuthStore();
   const [open, setOpen]          = useState(false);
-  const [data, setData]          = useState<WeeklyData | null>(null);
+  const [data, setData]          = useState<WeeklyData | null>(() => readWeeklyCache(userId));
   const [loading, setLoading]    = useState(false);
   const [expanded, setExpanded]  = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    // Same auth-rehydration race fixed elsewhere in this app (watchlist,
+    // subvaluadas, portfolio's cash/dividends): firing before the session
+    // cookie is attached used to 401, and the old bare `catch {}` below
+    // swallowed that silently with no retry — permanently empty until a
+    // manual reload, which is exactly "en web app nunca se ve."
+    if (authRestoring || !isAuthenticated) return;
     setLoading(true);
+    // Diego, 2026-09-09: Free users now fetch too — the backend returns 3
+    // real (never fabricated) teaser tickers for them instead of the full
+    // AI-personalized picks (see screener.py's /weekly route), so the
+    // blurred preview below shows real data, not hardcoded placeholders.
+    //
+    // Diego, 2026-09-23: "necesito que abra en máximo 10 segundos." The
+    // normal case (Sunday's batch already pre-warmed this user's cache) is
+    // a sub-second Redis read — this budget only matters on a cache miss,
+    // which can otherwise take 15s+ (a live 200-ticker scan + a real
+    // Claude call). One bounded attempt (8s, leaves margin for render +
+    // network) decides what the user sees within the 10s ceiling — either
+    // fresh data or whatever's already on screen (this week's cache-first
+    // value, or last week's cached picks). If that attempt doesn't make
+    // it, a second, longer-budget attempt keeps trying quietly in the
+    // background so a first-time user still gets real personalized picks
+    // without having to tap retry, it just doesn't hold the screen open
+    // waiting for it.
     try {
-      // Diego, 2026-09-09: Free users now fetch too — the backend returns 3
-      // real (never fabricated) teaser tickers for them instead of the full
-      // AI-personalized picks (see screener.py's /weekly route), so the
-      // blurred preview below shows real data, not hardcoded placeholders.
-      const res = await screenerApi.getWeekly(tickers);
+      const res = await screenerApi.getWeekly(tickers, 8000);
       setData(res.data);
+      if (isPremium) writeWeeklyCache(userId, res.data);
     } catch {
-    } finally { setLoading(false); }
-  }, [isPremium, tickers.join(",")]); // eslint-disable-line
+      screenerApi.getWeekly(tickers, 25000)
+        .then((res) => { setData(res.data); if (isPremium) writeWeeklyCache(userId, res.data); })
+        .catch(() => {}); // still nothing — the empty/cached state below already covers this
+    }
+    setLoading(false);
+  }, [isPremium, tickers.join(","), authRestoring, isAuthenticated, userId]); // eslint-disable-line
 
   useEffect(() => { load(); }, [load]);
 

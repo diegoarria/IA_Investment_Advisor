@@ -373,11 +373,13 @@ export const earningsApi = {
 };
 
 export const screenerWeeklyApi = {
-  getWeekly: (existingTickers: string[] = []) =>
-    // Explicit timeout so a cache-miss (rare — the backend pre-warms this
-    // weekly for every Premium user) fails fast into a real error state
-    // instead of spinning indefinitely, same reasoning as quickAnalysis below.
-    api.get("/api/market/screener/weekly", { params: { tickers: existingTickers.join(",") }, timeout: 25000 }),
+  // Diego, 2026-09-23: "necesito que abra en máximo 10 segundos" — the
+  // caller controls the timeout so it can try a short, budget-respecting
+  // attempt first (MobileWeeklyScreener.tsx) and fall back to a longer
+  // best-effort background attempt without blocking the screen past 10s.
+  // Was a flat 25s that alone could blow the whole budget on a cache miss.
+  getWeekly: (existingTickers: string[] = [], timeoutMs = 25000) =>
+    api.get("/api/market/screener/weekly", { params: { tickers: existingTickers.join(",") }, timeout: timeoutMs }),
   getUndervalued: (sector?: string, limit = 10, lang?: string) =>
     api.get("/api/market/screener/undervalued", { params: { sector, limit, lang } }),
   quickAnalysis: (query: string, lang?: string, isDefaultView?: boolean) =>

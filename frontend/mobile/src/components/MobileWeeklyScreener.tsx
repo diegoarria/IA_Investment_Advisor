@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TouchableOpacity, ActivityIndicator, StyleSheet,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
@@ -15,6 +17,27 @@ interface Props {
 
 const TOOL_COLOR = "#8b5cf6";
 
+// Diego, 2026-09-23: "Screener Semanal SIEMPRE SIEMPRE SIEMPRE debe abrir
+// ... en mobile app tampoco o a veces sí." Same-week picks (server cache
+// is 7 days, one set per user) cached on-device too, per user (same
+// suffix convention as lib/userScopedStorage.ts), so a transient failure
+// still shows last week's real picks instead of a blank "no suggestions"
+// card that used to explicitly wipe whatever was already showing.
+const WEEKLY_CACHE_KEY = "nuvos_weekly_screener_cache";
+async function readWeeklyCache(): Promise<any | null> {
+  try {
+    const uid = (await SecureStore.getItemAsync("user_id")) ?? "guest";
+    const raw = await AsyncStorage.getItem(`${WEEKLY_CACHE_KEY}__${uid}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+async function writeWeeklyCache(data: any) {
+  try {
+    const uid = (await SecureStore.getItemAsync("user_id")) ?? "guest";
+    await AsyncStorage.setItem(`${WEEKLY_CACHE_KEY}__${uid}`, JSON.stringify(data));
+  } catch { /* best-effort — session still has it in memory */ }
+}
+
 export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTickers = [] }: Props) {
   const { colors } = useTheme();
   const { t } = useTranslation();
@@ -22,16 +45,40 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
   const [loading, setLoading] = useState(false);
   const s = styles();
 
-  const load = useCallback(() => {
+  useEffect(() => {
+    let cancelled = false;
+    readWeeklyCache().then((cached) => { if (cached && !cancelled) setData(cached); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const load = useCallback(async () => {
     // Diego, 2026-09-09: Free now fetches too — the backend returns 3 real
     // (never fabricated) teaser tickers for Free instead of the full
     // AI-personalized picks (see screener.py's /weekly route), so the
     // dimmed preview below shows real data instead of an abstract skeleton.
+    //
+    // Diego, 2026-09-23: "necesito que abra en máximo 10 segundos." Normal
+    // case (Sunday's batch already pre-warmed this user's cache) is a
+    // sub-second Redis read — this budget only matters on a cache miss,
+    // which can otherwise take 15s+ (a live scan + a real Claude call).
+    // One bounded attempt (8s) decides what's on screen within the 10s
+    // ceiling — fresh data, or whatever's already there (this week's
+    // cache-first value from above, or last week's on-device cache). If
+    // that doesn't make it, a second, longer-budget attempt keeps trying
+    // quietly in the background so a first-time user still gets real
+    // personalized picks without tapping retry — it just doesn't hold the
+    // screen open waiting for it.
     setLoading(true);
-    screenerWeeklyApi.getWeekly(existingTickers)
-      .then((res: any) => setData(res.data))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
+    try {
+      const res = await screenerWeeklyApi.getWeekly(existingTickers, 8000);
+      setData(res.data);
+      if (isPremium) writeWeeklyCache(res.data);
+    } catch {
+      screenerWeeklyApi.getWeekly(existingTickers, 25000)
+        .then((res: any) => { setData(res.data); if (isPremium) writeWeeklyCache(res.data); })
+        .catch(() => {}); // still nothing — the empty/cached state below already covers this
+    }
+    setLoading(false);
   }, [isPremium]);
 
   useEffect(() => { load(); }, [load]);

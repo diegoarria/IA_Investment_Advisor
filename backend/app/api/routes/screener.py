@@ -1007,6 +1007,9 @@ UNIVERSE = [
 
 _TTL        = 4 * 3600   # 4 hours — individual ticker cache
 _WEEKLY_TTL = 7 * 86400  # 7 days — weekly picks cache (one set per week per user)
+# Per-user in-flight lock for the on-demand generation path in weekly_picks()
+# below — see its own 2026-09-23 comment for why this exists.
+_weekly_picks_inflight: dict[str, asyncio.Lock] = {}
 
 # asyncio.create_task() only holds a WEAK reference to the Task via the
 # event loop's internal bookkeeping — per the stdlib docs, "the event loop
@@ -3073,6 +3076,27 @@ async def weekly_picks(
     if cached:
         return cached
 
+    # Diego, 2026-09-23: "necesito que abra en máximo 10 segundos" — the
+    # frontend now fires a short-timeout attempt first and, if that alone
+    # can't make the budget, a second background attempt with more room.
+    # Both hit this exact route for the same user on a real cache miss,
+    # which without a lock meant two separate live generations (two full
+    # Claude calls) running in parallel for one person's one weekly
+    # request. Dedupe per user: whichever request gets here first does the
+    # real work; any other concurrent request for the same user just waits
+    # on it and reuses its result instead of paying for its own.
+    lock = _weekly_picks_inflight.setdefault(user_id, asyncio.Lock())
+    async with lock:
+        cached = cache_get(cache_key)  # a concurrent request may have just finished while we waited
+        if cached:
+            return cached
+        try:
+            return await _build_and_cache_weekly_picks(user_id, existing, cache_key)
+        finally:
+            _weekly_picks_inflight.pop(user_id, None)
+
+
+async def _build_and_cache_weekly_picks(user_id: str, existing: list[str], cache_key: str) -> dict:
     # Rare path (Sunday's job already pre-warms every Premium user's cache —
     # see job_weekly_screener_generate) — but it still needs to answer FAST
     # when it does happen, not stall the request on a full ~556-ticker scan.
