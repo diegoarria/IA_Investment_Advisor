@@ -3342,9 +3342,33 @@ async def job_weekly_opportunities_push():
             await send_push(uid, "weekly_opportunities", title, body, {"screen": "subvaluadas"}, db)
 
             try:
+                # Diego, 2026-09-24: "si el domingo me diste una lista de 5
+                # posiciones" (then didn't see them in-app) — the in-app
+                # screen used to re-join these tickers against the CURRENT
+                # live undervalued-screener cache, which only holds
+                # tickers passing the margin-of-safety gate RIGHT NOW. A
+                # real pick can silently drop out of that live list days
+                # later (price moved, the cache refreshed) even though it
+                # was completely real when sent. Snapshotting the actual
+                # picked values here makes the display permanently
+                # independent of what happens to the live universe
+                # afterward — see migration 107.
                 await run_query(
                     db.table("weekly_opportunities_history").upsert(
-                        [{"user_id": uid, "ticker": p["ticker"]} for p in picks],
+                        [{
+                            "user_id": uid, "ticker": p["ticker"],
+                            "snapshot": {
+                                "ticker": p.get("ticker"),
+                                "company_name": p.get("company_name"),
+                                "sector": p.get("sector"),
+                                "price": p.get("price"),
+                                "intrinsic_value_base": p.get("intrinsic_value_base"),
+                                "intrinsic_value_conservative": p.get("intrinsic_value_conservative"),
+                                "intrinsic_value_optimistic": p.get("intrinsic_value_optimistic"),
+                                "margin_of_safety_pct": p.get("margin_of_safety_pct"),
+                                "thesis_scores": p.get("thesis_scores"),
+                            },
+                        } for p in picks],
                         on_conflict="user_id,ticker",
                     )
                 )
