@@ -840,12 +840,10 @@ function PortfolioHistoryChart({
   );
 }
 
-// Tutorial video shown next to "Importar captura o PDF" — set this to the
-// real direct video URL (mp4) once it's recorded; the modal shows a
-// "próximamente" placeholder while it's empty, so this ships safely before
-// the video exists. Mirrors frontend/mobile's PORTFOLIO_TUTORIAL_VIDEO_URL —
-// keep both in sync.
-const PORTFOLIO_TUTORIAL_VIDEO_URL = "";
+// Tutorial video shown next to "Importar captura o PDF" — YouTube embed URL.
+// The modal shows a "próximamente" placeholder while it's empty, so this
+// shipped safely before the video existed.
+const PORTFOLIO_TUTORIAL_VIDEO_URL = "https://www.youtube.com/embed/IMVv5gdsdh4?autoplay=1&rel=0";
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
@@ -1988,8 +1986,14 @@ export default function PortfolioPage() {
             </button>
           </div>
           {PORTFOLIO_TUTORIAL_VIDEO_URL ? (
-            // eslint-disable-next-line jsx-a11y/media-has-caption
-            <video src={PORTFOLIO_TUTORIAL_VIDEO_URL} controls autoPlay className="w-full aspect-video block" style={{ background: "#000" }} />
+            <iframe
+              src={PORTFOLIO_TUTORIAL_VIDEO_URL}
+              title={t("portfolio.actions.watchTutorial")}
+              className="w-full aspect-video block"
+              style={{ background: "#000" }}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
           ) : (
             <div className="aspect-video flex flex-col items-center justify-center gap-2 px-6 text-center" style={{ background: "var(--raised)" }}>
               <PlayCircle className="w-10 h-10" style={{ color: "var(--muted)" }} />
