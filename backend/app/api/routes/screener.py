@@ -1202,7 +1202,19 @@ async def weekly_opportunities(lang: str | None = None, user_id: str = Depends(g
     fewer than 5 — never fabricated, see pick_weekly_opportunities_for_
     user's own docstring), or computes+records one now (the rare on-demand
     fallback) for a Premium user who has never had this job run for them
-    yet (new signup, or missed a run)."""
+    yet (new signup, or missed a run).
+
+    Diego, 2026-09-24: "Cómo noooooo???? Si el domingo me diste una lista
+    de 5 posiciones" — this used to re-join the sent tickers against the
+    CURRENT live undervalued-screener cache (get_undervalued), which only
+    holds tickers passing the margin-of-safety gate RIGHT NOW. A completely
+    real pick from Sunday can silently drop out of that live list days
+    later (its price moved, or the cache simply refreshed since) — showing
+    an empty screen for data that was genuinely sent. Now reads the real
+    `snapshot` persisted at send time (migration 107) instead, so what's
+    shown is permanently independent of what happens to the live universe
+    afterward. Falls back to the live-cache join only for pre-migration
+    rows that have no snapshot yet."""
     from app.api.routes.chat import _is_premium
     from app.services.undervalued_screener_service import get_undervalued, pick_weekly_opportunities_for_user, bootstrap_fill_if_empty_sync
     profile = await _get_user_profile_safe(user_id)
@@ -1214,21 +1226,33 @@ async def weekly_opportunities(lang: str | None = None, user_id: str = Depends(g
 
     db = get_supabase()
     hist = await run_query(
-        db.table("weekly_opportunities_history").select("ticker, sent_at").eq("user_id", user_id).order("sent_at", desc=True)
+        db.table("weekly_opportunities_history").select("ticker, sent_at, snapshot").eq("user_id", user_id).order("sent_at", desc=True)
     )
     rows = hist.data or []
 
     if not rows:
         # Never sent to this user before (new Premium, or their first run
         # was missed) — compute one now with the exact same picker the
-        # Sunday job uses, and record it so it's never resent later.
+        # Sunday job uses, and record it (with a snapshot) so it's never
+        # resent later and displays correctly from here on.
         risk_tolerance = getattr(profile, "risk_tolerance", None)
         picks = await asyncio.to_thread(pick_weekly_opportunities_for_user, risk_tolerance, set(), 5)
         if picks:
             try:
                 await run_query(
                     db.table("weekly_opportunities_history").upsert(
-                        [{"user_id": user_id, "ticker": p["ticker"]} for p in picks],
+                        [{
+                            "user_id": user_id, "ticker": p["ticker"],
+                            "snapshot": {
+                                "ticker": p.get("ticker"), "company_name": p.get("company_name"),
+                                "sector": p.get("sector"), "price": p.get("price"),
+                                "intrinsic_value_base": p.get("intrinsic_value_base"),
+                                "intrinsic_value_conservative": p.get("intrinsic_value_conservative"),
+                                "intrinsic_value_optimistic": p.get("intrinsic_value_optimistic"),
+                                "margin_of_safety_pct": p.get("margin_of_safety_pct"),
+                                "thesis_scores": p.get("thesis_scores"),
+                            },
+                        } for p in picks],
                         on_conflict="user_id,ticker",
                     )
                 )
@@ -1243,21 +1267,26 @@ async def weekly_opportunities(lang: str | None = None, user_id: str = Depends(g
     # short (an honest, documented case — see pick_weekly_opportunities_
     # for_user's own docstring).
     latest_date = rows[0]["sent_at"][:10]
-    this_week_tickers = [r["ticker"] for r in rows if r["sent_at"][:10] == latest_date]
+    this_week = [r for r in rows if r["sent_at"][:10] == latest_date]
 
-    try:
-        full = get_undervalued(limit=10_000, sector=None, lang=lang, per_sector_cap=None)
-        if not full["results"]:
-            await asyncio.to_thread(bootstrap_fill_if_empty_sync)
+    results = [r["snapshot"] for r in this_week if r.get("snapshot")]
+    missing = [r["ticker"] for r in this_week if not r.get("snapshot")]
+    if missing:
+        # Pre-migration-107 rows with no snapshot — fall back to the old
+        # live-cache join for those specific tickers only, same honest
+        # "drop it, never fabricate" behavior as before if it's no longer
+        # in the live universe either.
+        try:
             full = get_undervalued(limit=10_000, sector=None, lang=lang, per_sector_cap=None)
-    except Exception as exc:
-        logger.error("weekly_opportunities: get_undervalued failed: %s", exc, exc_info=True)
-        full = {"results": []}
-    by_ticker = {r["ticker"]: r for r in full["results"]}
-    # A ticker sent that week but no longer in the live universe (delisted,
-    # dropped below the data-quality gate since) is dropped rather than
-    # shown with stale/missing data — never fabricated.
-    results = [by_ticker[t] for t in this_week_tickers if t in by_ticker]
+            if not full["results"]:
+                await asyncio.to_thread(bootstrap_fill_if_empty_sync)
+                full = get_undervalued(limit=10_000, sector=None, lang=lang, per_sector_cap=None)
+        except Exception as exc:
+            logger.error("weekly_opportunities: get_undervalued fallback failed: %s", exc, exc_info=True)
+            full = {"results": []}
+        by_ticker = {r["ticker"]: r for r in full["results"]}
+        results.extend(by_ticker[t] for t in missing if t in by_ticker)
+
     return {"is_premium": True, "results": results, "generated_at": rows[0]["sent_at"]}
 
 
