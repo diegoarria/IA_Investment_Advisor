@@ -60,27 +60,23 @@ export default function ExplainButton({
   const [text, setText] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
-  // Was in-memory only (useState(false)) — dismissing just collapsed the
-  // button to a small re-openable icon that came right back full-size on
-  // the next page load, which from the user's side looked exactly like the
-  // X doing nothing at all (Diego: "le he dado clic a la X mil veces...
-  // pero sigue apareciendo"). Persisted per screen, but NOT forever — a
-  // permanent dismiss meant the button silently vanished from that screen
-  // for good the first time anyone tapped X (Diego, 2026-08-21: "tienen
-  // que funcionar SIEMPRE, en todas las pantallas"), which is exactly as
-  // broken-looking as the original complaint, just delayed. It comes back
-  // after a week instead — long enough not to nag right after a dismiss,
-  // never gone for good. null (not yet loaded) renders nothing so there's
-  // no flash of the full button before the stored value resolves.
-  const DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  // Two earlier attempts at this both read as "broken" from the user's
+  // side: in-memory-only dismiss came right back full-size on every page
+  // load (Diego: "le he dado clic a la X mil veces... pero sigue
+  // apareciendo"); a 7-day localStorage dismiss fixed that but rendered
+  // `null` while suppressed — zero visual trace, indistinguishable from
+  // the button being gone/broken (Diego, 2026-09-22, re: Nuvos Radar:
+  // "necesito que los hagas funcionar siempre"). Now dismissing never
+  // fully hides it: it collapses to a small re-openable icon (persisted
+  // per screen so it doesn't re-nag full-size on reload) that's always
+  // tappable to bring the full button back — solves both complaints at
+  // once instead of trading one for the other.
   const [dismissed, setDismissed] = useState<boolean | null>(null);
   const dismissKey = `nuvos_explain_dismissed:${screen}`;
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(dismissKey);
-      const dismissedAt = raw ? Number(raw) : null;
-      setDismissed(!!dismissedAt && Date.now() - dismissedAt < DISMISS_TTL_MS);
+      setDismissed(localStorage.getItem(dismissKey) === "1");
     } catch {
       setDismissed(false);
     }
@@ -95,7 +91,12 @@ export default function ExplainButton({
   const handleDismiss = () => {
     if (state === "playing") stop();
     setDismissed(true);
-    try { localStorage.setItem(dismissKey, String(Date.now())); } catch { /* ignore */ }
+    try { localStorage.setItem(dismissKey, "1"); } catch { /* ignore */ }
+  };
+
+  const handleRestore = () => {
+    setDismissed(false);
+    try { localStorage.removeItem(dismissKey); } catch { /* ignore */ }
   };
 
   const handleClick = async () => {
@@ -149,10 +150,25 @@ export default function ExplainButton({
   };
 
   // dismissed === null: still reading the persisted value — render nothing
-  // rather than flash the full button and then hide it a beat later.
-  // dismissed === true: the user closed it on this screen before — gone
-  // for good, not just collapsed to a re-openable icon.
-  if (dismissed !== false) return null;
+  // rather than flash the full button and then collapse it a beat later.
+  if (dismissed === null) return null;
+
+  // dismissed === true: collapsed to a small icon, never fully gone — tap
+  // it to bring the full "explícame esto" button back on this screen.
+  if (dismissed) {
+    return (
+      <div className={`fixed bottom-6 right-6 z-30 ${className}`}>
+        <button
+          onClick={handleRestore}
+          aria-label={t("explainButton.cta") ?? undefined}
+          className="w-9 h-9 rounded-full flex items-center justify-center shadow-lg transition-opacity hover:opacity-80"
+          style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}
+        >
+          <span className="text-sm">{mentor?.emoji ?? "🎙️"}</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>
