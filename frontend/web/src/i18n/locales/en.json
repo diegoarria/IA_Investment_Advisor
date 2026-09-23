@@ -4338,7 +4338,7 @@
       "phoneLabel": "Your phone number",
       "phoneCode": "Code",
       "phonePlaceholder": "55 1234 5678",
-      "phoneHint": "We'll use it for future features like mentor calls and important alerts. You can leave it blank and continue."
+      "phoneHint": "We'll use it for future features like mentor calls and important alerts. It's required to continue."
     },
     "step3": {
       "subtitle": "OPTIONAL",

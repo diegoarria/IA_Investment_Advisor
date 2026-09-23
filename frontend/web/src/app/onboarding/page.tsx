@@ -148,7 +148,7 @@ export default function OnboardingPage() {
   const phoneValid  = !!form.phone_dial_code && phoneDigits.length >= 7 && (dialDigits + phoneDigits.length) <= 15;
   // Phone is optional — only block progress if they started filling it in
   // but left it incomplete/invalid, never if they left it untouched.
-  const phoneStepValid = (!form.phone_dial_code && !form.phone_local) || phoneValid;
+  const phoneStepValid = phoneValid; // mandatory (Diego, 2026-09-23)
 
   const toggleMarketPerception = (value: string) => {
     setForm((f) => {

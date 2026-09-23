@@ -34,20 +34,15 @@ export default function PhoneNumberPromptCard() {
   // one first; this one waits its turn on their next visit instead of two
   // modals fighting for the same screen.
   const welcomeCardShowing = !!trialStartedAt && !hasSeenWelcomeCard;
-  const visible = !!profile && !profile.phone_number && !profile.has_seen_phone_prompt && !welcomeCardShowing;
+  // Diego, 2026-09-23: MANDATORY — no skip, and has_seen_phone_prompt no
+  // longer suppresses it: anyone without a phone number on file is blocked
+  // by this modal until they save one; anyone who has one is never asked.
+  const visible = !!profile && !profile.phone_number && !welcomeCardShowing;
   if (!visible) return null;
 
   const digits = localNumber.replace(/\D/g, "");
   const dialDigits = dialCode.replace(/\D/g, "").length;
   const valid = !!dialCode && digits.length >= 7 && (dialDigits + digits.length) <= 15;
-
-  const markSeen = () => {
-    // Same "never block the user, best-effort server write" discipline as
-    // WelcomeCard's markWelcomeCardSeen — flips local state instantly so
-    // the card closes right away regardless of network conditions.
-    setProfile({ ...profile!, has_seen_phone_prompt: true });
-    profileApi.markPhonePromptSeen().catch(() => {});
-  };
 
   const handleSubmit = async () => {
     if (!valid || saving) return;
@@ -134,13 +129,6 @@ export default function PhoneNumberPromptCard() {
             style={{ background: "var(--grad-green)", color: "var(--bg)", boxShadow: "0 4px 20px rgba(0,185,109,0.35)" }}
           >
             {saving ? t("phonePromptCard.saving") : t("phonePromptCard.save")}
-          </button>
-          <button
-            onClick={markSeen}
-            className="w-full py-2 text-center text-[12.5px] font-semibold"
-            style={{ color: "var(--muted)" }}
-          >
-            {t("phonePromptCard.skip")}
           </button>
         </div>
       </div>
