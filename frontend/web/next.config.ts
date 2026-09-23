@@ -79,7 +79,10 @@ const nextConfig: NextConfig = {
       // once the script itself loads. hcaptcha.com — the widget's captcha
       // challenge renders in its own iframe the same way. cdn.plaid.com —
       // Plaid Link's OAuth step (some banks) renders in its own iframe too.
-      "frame-src https://js.stripe.com https://hooks.stripe.com https://hcaptcha.com https://cdn.plaid.com",
+      // youtube.com — the "how to import your portfolio" tutorial video
+      // (portfolio/page.tsx's PORTFOLIO_TUTORIAL_VIDEO_URL iframe); without
+      // it Chrome silently blocks the embed with "This content is blocked."
+      "frame-src https://js.stripe.com https://hooks.stripe.com https://hcaptcha.com https://cdn.plaid.com https://www.youtube.com https://youtube.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "object-src 'none'",
