@@ -597,22 +597,19 @@
     },
     "paywall": {
       "title": "Personalized Weekly Screener",
-      "desc": "Every Monday, our AI analyzes the market and picks 5 opportunities that fit your risk profile and investing philosophy exactly.",
+      "desc": "Every Sunday, Nuvos Radar analyzes the real market (DCF, margin of safety, Business Quality) and picks 5 possibly undervalued stocks that fit your risk profile.",
       "reason": "Upgrade to Premium to get your personalized weekly screener.",
       "teaser": "This week Nuvos found {{count}} companies that could be undervalued. Activate Premium to discover which ones.",
       "cta": "Upgrade to Premium"
     },
-    "loading": "Analyzing the market for you...",
+    "empty": "No weekly screener data yet — check back later.",
+    "card": {
+      "price": "Price",
+      "intrinsicValue": "Intrinsic value"
+    },
     "weekTheme": {
       "label": "🗓 THEME OF THE WEEK",
       "updated": "Updated: {{date}}"
-    },
-    "pick": {
-      "catalyst": "Catalyst",
-      "risk": "⚠️ Risk"
-    },
-    "mentorNote": {
-      "label": "NOTE FROM YOUR MENTOR"
     }
   },
   "earnings": {
@@ -3303,25 +3300,21 @@
   },
   "weeklyScreenerCard": {
     "title": "Weekly Screener",
-    "tagline": "5 suggestions personalized to your profile",
-    "description": "AI analyzes the market and suggests 5 ideas that fit the type of business you're looking for, your mentor, and your risk profile.",
-    "benefit1": "Business type adapted to your mentor and profile",
-    "benefit2": "Concrete catalyst and risk for each idea",
+    "tagline": "5 possibly undervalued picks for your profile",
+    "description": "Nuvos Radar analyzes the real market (DCF, margin of safety, Business Quality) and picks 5 candidates that fit your risk profile.",
+    "benefit1": "Adapted to your risk profile",
+    "benefit2": "Real margin of safety, computed with DCF",
     "benefit3": "Never suggests what you already own",
-    "benefit4": "Educational suggestions to research further",
-    "featureAdapted": "Adapted to your mentor and risk profile",
-    "featureCatalyst": "Concrete catalyst and risk for each idea",
-    "featureEducational": "Educational suggestions to research further",
+    "benefit4": "Never repeats an idea already sent",
+    "featureAdapted": "Adapted to your risk profile",
+    "featureDcf": "Real margin of safety, computed with DCF",
+    "featureEducational": "Never repeats an idea already sent",
     "viewSuggestions": "View Suggestions",
-    "analyzingMarket": "Analyzing the market based on your profile...",
-    "catalyst": "Catalyst",
-    "mainRisk": "Main risk",
+    "analyzingMarket": "Finding your 5 ideas for the week...",
+    "updated": "Updated: {{date}}",
     "defaultDisclaimer": "These are educational ideas to research, not buy recommendations or financial advice. Research each company deeply before investing a single dollar.",
     "noSuggestions": "No suggestions available yet.",
     "retry": "Retry",
-    "previewWhy1": "Personalized analysis based on your risk profile and mentor...",
-    "previewWhy2": "A concrete catalyst to watch in the coming weeks...",
-    "previewWhy3": "Matched to your investment horizon and risk tolerance...",
     "previewRowHint": "Full analysis available with Premium...",
     "unlockPreview": "Unlock your 5 ideas for the week",
     "unlockCta": "Unlock with Premium"
@@ -3350,6 +3343,10 @@
     "featuresLabel": "With Premium you get",
     "continue": "Continue",
     "noCardRequired": "No card required to start"
+  },
+  "weeklyOpportunityCard": {
+    "priceNow": "Current price",
+    "intrinsicValue": "Intrinsic value"
   },
   "phonePromptCard": {
     "title": "One last thing",

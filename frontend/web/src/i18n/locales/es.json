@@ -597,22 +597,19 @@
     },
     "paywall": {
       "title": "Screener Semanal Personalizado",
-      "desc": "Cada lunes la IA analiza el mercado y selecciona 5 oportunidades que encajan exactamente con tu perfil de riesgo y filosofía de inversión.",
+      "desc": "Cada domingo Nuvos Radar analiza el mercado real (DCF, margen de seguridad, Business Quality) y selecciona 5 posibles subvaloradas que encajan con tu perfil de riesgo.",
       "reason": "Activa Premium para recibir tu screener semanal personalizado.",
       "teaser": "Esta semana Nuvos encontró {{count}} empresas que podrían estar infravaloradas. Activa Premium para descubrir cuáles son.",
       "cta": "Activar Premium"
     },
-    "loading": "Analizando el mercado para ti...",
+    "empty": "Todavía no hay datos del screener semanal — vuelve más tarde.",
+    "card": {
+      "price": "Precio",
+      "intrinsicValue": "Valor intrínseco"
+    },
     "weekTheme": {
       "label": "🗓 TEMA DE LA SEMANA",
       "updated": "Actualizado: {{date}}"
-    },
-    "pick": {
-      "catalyst": "Catalizador",
-      "risk": "⚠️ Riesgo"
-    },
-    "mentorNote": {
-      "label": "NOTA DE TU MENTOR"
     }
   },
   "earnings": {
@@ -3303,25 +3300,21 @@
   },
   "weeklyScreenerCard": {
     "title": "Screener Semanal",
-    "tagline": "5 sugerencias personalizadas según tu perfil",
-    "description": "La IA analiza el mercado y sugiere 5 ideas que encajan con el tipo de negocio que buscas, tu mentor y tu perfil de riesgo.",
-    "benefit1": "Tipo de negocio adaptado a tu mentor y perfil",
-    "benefit2": "Catalizador concreto y riesgo por cada idea",
+    "tagline": "5 posibles subvaloradas según tu perfil",
+    "description": "Nuvos Radar analiza el mercado real (DCF, margen de seguridad, Business Quality) y elige 5 candidatas que encajan con tu perfil de riesgo.",
+    "benefit1": "Adaptado a tu perfil de riesgo",
+    "benefit2": "Margen de seguridad real, calculado con DCF",
     "benefit3": "Nunca sugiere lo que ya tienes",
-    "benefit4": "Sugerencias educativas para investigar más",
-    "featureAdapted": "Adaptado a tu mentor y perfil de riesgo",
-    "featureCatalyst": "Catalizador concreto y riesgo por cada idea",
-    "featureEducational": "Sugerencias educativas para investigar más",
+    "benefit4": "Nunca repite una idea ya enviada",
+    "featureAdapted": "Adaptado a tu perfil de riesgo",
+    "featureDcf": "Margen de seguridad real, calculado con DCF",
+    "featureEducational": "Nunca repite una idea ya enviada",
     "viewSuggestions": "Ver Sugerencias",
-    "analyzingMarket": "Analizando el mercado según tu perfil...",
-    "catalyst": "Catalizador",
-    "mainRisk": "Riesgo principal",
+    "analyzingMarket": "Buscando tus 5 ideas de la semana...",
+    "updated": "Actualizado: {{date}}",
     "defaultDisclaimer": "Estas son ideas educativas para investigar, no recomendaciones de compra ni asesoría financiera. Investiga a fondo cada empresa antes de invertir un solo dólar.",
     "noSuggestions": "No hay sugerencias disponibles aún.",
     "retry": "Reintentar",
-    "previewWhy1": "Análisis personalizado según tu perfil de riesgo y tu mentor...",
-    "previewWhy2": "Catalizador concreto a vigilar en las próximas semanas...",
-    "previewWhy3": "Ideal para tu horizonte de inversión y tolerancia al riesgo...",
     "previewRowHint": "Análisis completo disponible con Premium...",
     "unlockPreview": "Desbloquea tus 5 ideas de la semana",
     "unlockCta": "Desbloquear con Premium"
@@ -3350,6 +3343,10 @@
     "featuresLabel": "Con Premium tienes acceso a",
     "continue": "Continuar",
     "noCardRequired": "Sin tarjeta requerida para empezar"
+  },
+  "weeklyOpportunityCard": {
+    "priceNow": "Precio actual",
+    "intrinsicValue": "Valor intrínseco"
   },
   "phonePromptCard": {
     "title": "Un último dato",

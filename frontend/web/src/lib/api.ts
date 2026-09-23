@@ -561,6 +561,11 @@ export const screenerApi = {
     api.get("/api/market/screener/weekly", { params: { tickers: existingTickers.join(",") }, timeout: timeoutMs }),
   getUndervalued: (sector?: string, limit = 10, lang?: string, browse?: boolean) =>
     api.get("/api/market/screener/undervalued", { params: { sector, limit, lang, browse } }),
+  // Diego, 2026-09-24: "el único" Screener Semanal — the real, DCF-backed,
+  // per-user picks (same engine + same 5 tickers as the Sunday "Nuvos
+  // Radar detectó..." push), not the AI-narrative getWeekly() above.
+  getWeeklyOpportunities: (lang?: string) =>
+    api.get("/api/market/screener/weekly-opportunities", { params: { lang } }),
   // Full sector directory (every company, no margin-of-safety filter) —
   // separate from getUndervalued, which stays scoped to real opportunities.
   // Diego, 2026-09-09: a cold sector's live scan (up to ~170 tickers) used

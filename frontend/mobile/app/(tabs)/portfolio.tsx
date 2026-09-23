@@ -2183,7 +2183,7 @@ export default function PortfolioScreen() {
 
             {/* ── SCREENER SEMANAL ── */}
             {isPremiumAccess
-              ? <MobileWeeklyScreener isPremium={true} onUpgrade={() => setPaywallOpen(true)} existingTickers={positions.map(p => p.ticker)} />
+              ? <MobileWeeklyScreener isPremium={true} onUpgrade={() => setPaywallOpen(true)} />
               : <PremiumToolCard
                   title={t("portfolio.premiumTools.weeklyScreener.title")}
                   tagline={t("portfolio.premiumTools.weeklyScreener.tagline")}

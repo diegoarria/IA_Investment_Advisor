@@ -2,70 +2,49 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
-  Search, TrendingUp, TrendingDown, Loader2, RefreshCw,
-  ChevronDown, ChevronUp, Zap, AlertTriangle, Info, Lock, X, Sparkles,
+  Search, Loader2, RefreshCw, Lock, X, Sparkles, Info,
 } from "lucide-react";
 import { screenerApi } from "@/lib/api";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@/lib/store";
+import WeeklyOpportunityCard, { type WeeklyOpportunity } from "@/components/WeeklyOpportunityCard";
 
-interface Pick {
-  ticker: string;
-  name?: string;
-  sector: string;
-  price: number | null;
-  // null for Free's real-but-unlabeled teaser rows (screener.py's /weekly
-  // route) — only Premium's AI-generated picks carry a narrative.
-  change_pct?: number | null;
-  score?: number;
-  why?: string | null;
-  catalyst?: string | null;
-  risk?: string | null;
-}
+// Diego, 2026-09-24: "Acciones subvaluadas (DCF) ... ese es el que quiero
+// que sea el Screener Semanal, el único." Real, DCF-backed candidates —
+// same engine and same 5 tickers as the Sunday "Nuvos Radar detectó..."
+// push (GET /screener/weekly-opportunities), never an AI narrative.
+type Pick = WeeklyOpportunity;
 
 interface WeeklyData {
-  week_theme?: string;
-  business_profile?: string;
-  picks?: Pick[];
-  mentor_note?: string;
-  disclaimer?: string;
+  results?: Pick[];
+  generated_at?: string | null;
 }
 
 interface Props {
   isPremium: boolean;
   onUpgrade: () => void;
-  tickers?: string[];
 }
 
 const TOOL_COLOR = "#8b5cf6";
 
 // Diego, 2026-09-23: "Screener Semanal SIEMPRE SIEMPRE SIEMPRE debe abrir
-// ... en web app no abre nada." Same-week picks (server cache is 7 days,
-// one set per user, refreshed every Sunday) cached per-user here too, so
-// a transient failure after retries still shows last week's real picks
-// instead of an empty "no suggestions" card until the user manually hits
-// retry.
+// ... en web app no abre nada." Same-week picks (server-side, read back
+// from weekly_opportunities_history — never recomputed on every visit)
+// cached per-user here too, so a transient failure after retries still
+// shows last week's real picks instead of an empty "no suggestions" card
+// until the user manually hits retry.
 //
-// Diego, 2026-09-24: "solo me dio 1 acción cuando deberían ser las 5."
-// The backend guarantees exactly 5 for Premium (screener.py's own
-// backfill logic never lets it fall short) — so a cached value with
-// fewer than 5 can only be a corrupted/partial entry (e.g. an old
-// truncated response from before that guardrail, or a value written
-// during a genuine backend hiccup), and this cache never expired or
-// validated what it stored, so a bad entry would keep rendering forever
-// until a fresh fetch happened to overwrite it. Now: never persist a
-// non-5 Premium result, ignore one on read (falls through to a real
-// fetch instead), and time-box every entry to 8 days (a week's cache
-// ceiling server-side is 7) so a stale entry can't outlive its week
-// indefinitely even if it once looked valid.
+// Diego, 2026-09-24: cache entries never expired or validated what they
+// stored before, so a corrupted/empty entry could render forever. Never
+// persist an empty result, ignore one on read, and time-box every entry
+// to 8 days (server-side history is read fresh each Sunday) so a stale
+// entry can't outlive its week even if it once looked valid.
 const WEEKLY_CACHE_MAX_AGE_MS = 8 * 24 * 3600 * 1000;
 function weeklyCacheKey(userId: string | null): string | null {
   return userId ? `nuvos_weekly_screener_cache__${userId}` : null;
 }
 function isValidWeeklyPayload(data: WeeklyData | null | undefined): data is WeeklyData {
-  // `locked` (Free/guest teaser) is real but intentionally has fewer than
-  // 5 rows — only Premium's full result is held to "must be exactly 5."
-  return !!data && (!!(data as { locked?: boolean }).locked || (data.picks?.length ?? 0) >= 5);
+  return !!data && (data.results?.length ?? 0) > 0;
 }
 function readWeeklyCache(userId: string | null): WeeklyData | null {
   const key = weeklyCacheKey(userId);
@@ -84,13 +63,13 @@ function writeWeeklyCache(userId: string | null, data: WeeklyData) {
   try { localStorage.setItem(key, JSON.stringify({ data, cachedAt: Date.now() })); } catch {}
 }
 
-export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] }: Props) {
-  const { t } = useTranslation();
+export default function WeeklyScreenerCard({ isPremium, onUpgrade }: Props) {
+  const { t, i18n } = useTranslation();
   const { isAuthenticated, authRestoring, userId } = useAuthStore();
   const [open, setOpen]          = useState(false);
   const [data, setData]          = useState<WeeklyData | null>(() => readWeeklyCache(userId));
   const [loading, setLoading]    = useState(false);
-  const [expanded, setExpanded]  = useState<string | null>(null);
+  const [previewRows, setPreviewRows] = useState<Pick[]>([]);
 
   const load = useCallback(async () => {
     // Same auth-rehydration race fixed elsewhere in this app (watchlist,
@@ -98,38 +77,37 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
     // cookie is attached used to 401, and the old bare `catch {}` below
     // swallowed that silently with no retry — permanently empty until a
     // manual reload, which is exactly "en web app nunca se ve."
-    if (authRestoring || !isAuthenticated) return;
+    if (authRestoring || !isAuthenticated || !isPremium) return;
     setLoading(true);
-    // Diego, 2026-09-09: Free users now fetch too — the backend returns 3
-    // real (never fabricated) teaser tickers for them instead of the full
-    // AI-personalized picks (see screener.py's /weekly route), so the
-    // blurred preview below shows real data, not hardcoded placeholders.
-    //
-    // Diego, 2026-09-23: "necesito que abra en máximo 10 segundos." The
-    // normal case (Sunday's batch already pre-warmed this user's cache) is
-    // a sub-second Redis read — this budget only matters on a cache miss,
-    // which can otherwise take 15s+ (a live 200-ticker scan + a real
-    // Claude call). One bounded attempt (8s, leaves margin for render +
-    // network) decides what the user sees within the 10s ceiling — either
-    // fresh data or whatever's already on screen (this week's cache-first
-    // value, or last week's cached picks). If that attempt doesn't make
-    // it, a second, longer-budget attempt keeps trying quietly in the
-    // background so a first-time user still gets real personalized picks
-    // without having to tap retry, it just doesn't hold the screen open
-    // waiting for it.
+    // Diego, 2026-09-23: "necesito que abra en máximo 10 segundos." This is
+    // a plain DB read (weekly_opportunities_history), normally instant —
+    // the budget only matters on the rare on-demand fallback (a brand new
+    // Premium user this job hasn't run for yet). One bounded attempt (8s)
+    // decides what's on screen within the 10s ceiling; a second, longer
+    // attempt keeps trying quietly in the background if that doesn't land.
     try {
-      const res = await screenerApi.getWeekly(tickers, 8000);
+      const res = await screenerApi.getWeeklyOpportunities(i18n.language);
       setData(res.data);
-      if (isPremium) writeWeeklyCache(userId, res.data);
+      writeWeeklyCache(userId, res.data);
     } catch {
-      screenerApi.getWeekly(tickers, 25000)
-        .then((res) => { setData(res.data); if (isPremium) writeWeeklyCache(userId, res.data); })
+      screenerApi.getWeeklyOpportunities(i18n.language)
+        .then((res) => { setData(res.data); writeWeeklyCache(userId, res.data); })
         .catch(() => {}); // still nothing — the empty/cached state below already covers this
     }
     setLoading(false);
-  }, [isPremium, tickers.join(","), authRestoring, isAuthenticated, userId]); // eslint-disable-line
+  }, [isPremium, authRestoring, isAuthenticated, userId, i18n.language]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Free/guest preview — real (never fabricated) candidates from the same
+  // DCF universe, just not personalized (that part is Premium-only). Zero
+  // AI cost, same source /screener page's own free-tier teaser uses.
+  useEffect(() => {
+    if (isPremium) return;
+    screenerApi.getUndervalued(undefined, 3)
+      .then((res) => setPreviewRows((res.data?.results ?? []) as Pick[]))
+      .catch(() => {});
+  }, [isPremium]);
 
   const handleOpen = () => {
     if (!isPremium) { onUpgrade(); return; }
@@ -137,12 +115,7 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
   };
 
   if (!isPremium) {
-    // Diego, 2026-09-09: blurred preview of 3 REAL tickers (never
-    // fabricated) — the backend's /weekly route returns real, zero-AI-cost
-    // candidates for Free (see screener.py's docstring: reuses the same
-    // real DCF-backed picker the Sunday push uses), so what's blurred here
-    // is genuinely this user's own data, not a generic placeholder.
-    const previewRows = data?.picks?.length ? data.picks.slice(0, 3) : [null, null, null];
+    const rows: (Pick | null)[] = previewRows.length ? previewRows.slice(0, 3) : [null, null, null];
     return (
       <div
         onClick={onUpgrade}
@@ -177,7 +150,7 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
           {/* Blurred preview */}
           <div className="relative rounded-2xl border overflow-hidden mb-5" style={{ borderColor: "var(--border)" }}>
             <div className="pointer-events-none select-none" style={{ filter: "blur(6px)" }} aria-hidden="true">
-              {previewRows.map((pick, i, arr) => (
+              {rows.map((pick, i, arr) => (
                 <div key={pick?.ticker ?? i}
                      className="flex items-center gap-3 px-4 py-3.5"
                      style={{ borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none" }}>
@@ -193,7 +166,7 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
-                      {pick?.price != null ? `$${pick.price.toFixed(2)}` : "$—.—"}
+                      {pick?.margin_of_safety_pct != null ? `+${pick.margin_of_safety_pct}%` : "+—%"}
                     </p>
                   </div>
                 </div>
@@ -260,7 +233,7 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
           <div className="rounded-2xl border overflow-hidden mb-5" style={{ borderColor: "var(--border)" }}>
             {[
               { emoji: "🎯", text: t("weeklyScreenerCard.featureAdapted") },
-              { emoji: "⚡", text: t("weeklyScreenerCard.featureCatalyst") },
+              { emoji: "📐", text: t("weeklyScreenerCard.featureDcf") },
               { emoji: "📚", text: t("weeklyScreenerCard.featureEducational") },
             ].map((f, i, arr) => (
               <div key={f.text}
@@ -306,12 +279,6 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
                 <Search className="w-4 h-4 shrink-0" style={{ color: TOOL_COLOR }} />
                 <span className="font-bold text-sm truncate" style={{ color: "var(--text)" }}>
                   {t("weeklyScreenerCard.title")}
-                  {data?.week_theme && (
-                    <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                          style={{ background: TOOL_COLOR + "20", color: TOOL_COLOR }}>
-                      {data.week_theme}
-                    </span>
-                  )}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -333,79 +300,21 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
                 </div>
               )}
 
-              {!loading && data?.business_profile && (
+              {!loading && data?.generated_at && (
                 <div className="px-5 py-3 border-b" style={{ borderColor: "var(--border)" }}>
-                  <p className="text-[11px] leading-snug" style={{ color: "var(--muted)" }}>{data.business_profile}</p>
-                </div>
-              )}
-
-              {!loading && data?.picks && (
-                <div className="divide-y" style={{ borderColor: "var(--border)" }}>
-                  {data.picks.slice(0, 5).map((pick, i) => {
-                    const isOpen = expanded === pick.ticker;
-                    const up = (pick.change_pct ?? 0) >= 0;
-                    return (
-                      <div key={pick.ticker}>
-                        <button
-                          className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.02] transition-colors"
-                          onClick={() => setExpanded(isOpen ? null : pick.ticker)}
-                        >
-                          <span className="text-xs font-black w-4 text-center shrink-0" style={{ color: "var(--dim)" }}>{i + 1}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{pick.ticker}</span>
-                              <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--raised)", color: "var(--muted)" }}>{pick.sector}</span>
-                            </div>
-                            <p className={`text-[11px] mt-0.5 leading-snug ${isOpen ? "" : "truncate"}`} style={{ color: "var(--sub)" }}>
-                              {pick.why}
-                            </p>
-                          </div>
-                          <div className="text-right shrink-0 flex flex-col items-end gap-0.5">
-                            <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
-                              {pick.price != null ? `$${pick.price.toFixed(2)}` : "—"}
-                            </p>
-                            <p className="text-[10px] flex items-center gap-0.5" style={{ color: up ? "#22c55e" : "#ef4444" }}>
-                              {up ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                              {up ? "+" : ""}{pick.change_pct?.toFixed(1) ?? 0}%
-                            </p>
-                          </div>
-                          <span className="shrink-0 ml-1" style={{ color: "var(--dim)" }}>
-                            {isOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                          </span>
-                        </button>
-                        {isOpen && (
-                          <div className="px-4 pb-3 space-y-2" style={{ borderTop: "1px solid var(--border)", background: "var(--raised)" }}>
-                            {pick.catalyst && (
-                              <div className="flex items-start gap-2 pt-2">
-                                <Zap className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "#f59e0b" }} />
-                                <div>
-                                  <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#f59e0b" }}>{t("weeklyScreenerCard.catalyst")}</span>
-                                  <p className="text-[11px] leading-snug mt-0.5" style={{ color: "var(--sub)" }}>{pick.catalyst}</p>
-                                </div>
-                              </div>
-                            )}
-                            {pick.risk && (
-                              <div className="flex items-start gap-2">
-                                <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "#ef4444" }} />
-                                <div>
-                                  <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#ef4444" }}>{t("weeklyScreenerCard.mainRisk")}</span>
-                                  <p className="text-[11px] leading-snug mt-0.5" style={{ color: "var(--sub)" }}>{pick.risk}</p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {!loading && data?.mentor_note && (
-                <div className="px-5 py-3 border-t" style={{ borderColor: "var(--border)", background: TOOL_COLOR + "06" }}>
-                  <p className="text-[11px] leading-relaxed italic" style={{ color: "var(--muted)" }}>
-                    &ldquo;{data.mentor_note}&rdquo;
+                  <p className="text-[11px] leading-snug" style={{ color: "var(--muted)" }}>
+                    {t("weeklyScreenerCard.updated", {
+                      date: new Date(data.generated_at).toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", { day: "numeric", month: "long" }),
+                    })}
                   </p>
+                </div>
+              )}
+
+              {!loading && data?.results && data.results.length > 0 && (
+                <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+                  {data.results.slice(0, 5).map((pick, i) => (
+                    <WeeklyOpportunityCard key={pick.ticker} pick={pick} rank={i + 1} />
+                  ))}
                 </div>
               )}
 
@@ -413,12 +322,12 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
                 <div className="flex items-start gap-2 px-5 py-3 border-t" style={{ borderColor: "var(--border)" }}>
                   <Info className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "var(--dim)" }} />
                   <p className="text-[10px] leading-relaxed" style={{ color: "var(--dim)" }}>
-                    {data.disclaimer ?? t("weeklyScreenerCard.defaultDisclaimer")}
+                    {t("weeklyScreenerCard.defaultDisclaimer")}
                   </p>
                 </div>
               )}
 
-              {!loading && (!data || !data.picks || data.picks.length === 0) && (
+              {!loading && (!data || !data.results || data.results.length === 0) && (
                 <div className="p-5 flex flex-col items-center gap-3 text-center">
                   <span className="text-xs" style={{ color: "var(--muted)" }}>{t("weeklyScreenerCard.noSuggestions")}</span>
                   <button

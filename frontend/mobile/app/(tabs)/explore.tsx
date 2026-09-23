@@ -11,6 +11,7 @@ import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
+import WeeklyOpportunityCard, { type WeeklyOpportunity } from "../../src/components/WeeklyOpportunityCard";
 
 const SECTORS = ["Todos", "Tech", "Finance", "Salud", "Consumo", "Energía", "ETF"];
 
@@ -135,8 +136,10 @@ export default function ExploreScreen() {
   const [searched, setSearched]   = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
 
-  // Weekly picks
-  const [weekly, setWeekly]         = useState<any>(null);
+  // Diego, 2026-09-24: "el único" Screener Semanal — real, DCF-backed,
+  // per-user picks (same engine + same 5 tickers as the Sunday "Nuvos
+  // Radar detectó..." push), not the old AI narrative.
+  const [weekly, setWeekly]         = useState<{ results?: WeeklyOpportunity[]; generated_at?: string | null } | null>(null);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [weeklyExpanded, setWeeklyExpanded] = useState(false);
 
@@ -144,7 +147,7 @@ export default function ExploreScreen() {
     if (!isPremium || weekly) return;
     setWeeklyLoading(true);
     try {
-      const res: any = await screenerWeeklyApi.getWeekly([]);
+      const res: any = await screenerWeeklyApi.getWeeklyOpportunities();
       setWeekly(res.data);
     } catch {}
     setWeeklyLoading(false);
@@ -195,8 +198,10 @@ export default function ExploreScreen() {
                 <Ionicons name="star-outline" size={16} color={colors.accent} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>{t("explore.weeklyPicks.title")}</Text>
-                  {weekly?.week_theme && weeklyExpanded && (
-                    <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>{weekly.week_theme}</Text>
+                  {weekly?.generated_at && weeklyExpanded && (
+                    <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>
+                      {t("explore.weeklyPicks.updated", { date: new Date(weekly.generated_at).toLocaleDateString("es-MX", { day: "numeric", month: "long" }) })}
+                    </Text>
                   )}
                 </View>
                 {!isPremium && (
@@ -210,41 +215,11 @@ export default function ExploreScreen() {
                 }
               </TouchableOpacity>
 
-              {weeklyExpanded && weekly?.picks && (
-                <View style={{ marginTop: 8, gap: 8 }}>
-                  {weekly.picks.map((pick: any, i: number) => (
-                    <View key={pick.ticker} style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 12 }}>
-                      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-                        <View style={{ width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: i === 0 ? "#fbbf2420" : colors.bgRaised }}>
-                          <Text style={{ fontSize: 11, fontWeight: "800", color: i === 0 ? "#fbbf24" : colors.textMuted }}>{i + 1}</Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
-                            <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text }}>{pick.ticker}</Text>
-                            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>${pick.price?.toFixed(2) ?? "—"}</Text>
-                          </View>
-                          <Text style={{ fontSize: 11, color: colors.textMuted, marginBottom: 6 }}>{pick.name} · {pick.sector}</Text>
-                          <Text style={{ fontSize: 12, color: colors.textSub, lineHeight: 17, marginBottom: 6 }}>{pick.why}</Text>
-                          <View style={{ flexDirection: "row", gap: 8 }}>
-                            <View style={{ flex: 1, borderRadius: 8, padding: 8, backgroundColor: "#22c55e0A", borderWidth: 1, borderColor: "#22c55e20" }}>
-                              <Text style={{ fontSize: 9, fontWeight: "800", color: "#22c55e", marginBottom: 2 }}>{t("explore.weeklyPicks.catalyst")}</Text>
-                              <Text style={{ fontSize: 10, color: colors.textSub }}>{pick.catalyst}</Text>
-                            </View>
-                            <View style={{ flex: 1, borderRadius: 8, padding: 8, backgroundColor: "#ef44440A", borderWidth: 1, borderColor: "#ef444420" }}>
-                              <Text style={{ fontSize: 9, fontWeight: "800", color: "#ef4444", marginBottom: 2 }}>{t("explore.weeklyPicks.risk")}</Text>
-                              <Text style={{ fontSize: 10, color: colors.textSub }}>{pick.risk}</Text>
-                            </View>
-                          </View>
-                        </View>
-                      </View>
-                    </View>
+              {weeklyExpanded && weekly?.results && weekly.results.length > 0 && (
+                <View style={{ marginTop: 8, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, overflow: "hidden" }}>
+                  {weekly.results.map((pick, i) => (
+                    <WeeklyOpportunityCard key={pick.ticker} pick={pick} rank={i + 1} />
                   ))}
-                  {weekly.mentor_note && (
-                    <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.accent + "40", backgroundColor: colors.accent + "0D", padding: 12 }}>
-                      <Text style={{ fontSize: 10, fontWeight: "800", color: colors.accent, marginBottom: 6 }}>{t("explore.weeklyPicks.mentorNote")}</Text>
-                      <Text style={{ fontSize: 12, color: colors.textSub, lineHeight: 18 }}>{weekly.mentor_note}</Text>
-                    </View>
-                  )}
                 </View>
               )}
             </View>

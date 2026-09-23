@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search, RefreshCw, Loader2, TrendingUp, TrendingDown, Star, Lock } from "lucide-react";
+import { Search, RefreshCw, Loader2, Lock } from "lucide-react";
 import posthog from "posthog-js";
 import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
@@ -10,41 +10,26 @@ import { useSubscriptionStore, useProfileStore, hasPremiumAccess } from "@/lib/s
 import { getUserLevel, isAtLeast } from "@/lib/userLevel";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-
-interface Pick {
-  ticker: string;
-  name: string;
-  sector: string;
-  price: number;
-  change_pct: number;
-  score: number;
-  why: string;
-  catalyst: string;
-  risk: string;
-}
-
-interface WeeklyData {
-  week_theme?: string;
-  picks?: Pick[];
-  mentor_note?: string;
-  generated_at?: string;
-}
-
-interface UndervaluedResult {
-  ticker: string;
-  company_name: string | null;
-  sector: string | null;
-  price: number | null;
-  intrinsic_value_base: number | null;
-  margin_of_safety_pct: number | null;
-  thesis_scores: Record<string, number> | null;
-}
+import WeeklyOpportunityCard, { type WeeklyOpportunity } from "@/components/WeeklyOpportunityCard";
 
 interface UndervaluedResponse {
   is_premium: boolean;
-  results?: UndervaluedResult[];
+  results?: WeeklyOpportunity[];
   generated_at?: number;
   teaser_count?: number;
+}
+
+// Diego, 2026-09-24: "el único" Screener Semanal — real, DCF-backed,
+// per-user picks (same engine + same 5 tickers as the Sunday push,
+// GET /screener/weekly-opportunities), not an AI narrative. This
+// response has no `results`/`generated_at` timestamp shape difference
+// from UndervaluedResponse above (generated_at is an ISO string here,
+// a unix timestamp there) — kept as its own type instead of reusing
+// UndervaluedResponse so that difference stays explicit.
+interface WeeklyOpportunitiesResponse {
+  is_premium: boolean;
+  results?: WeeklyOpportunity[];
+  generated_at?: string | null;
 }
 
 function getEtfByRisk(t: TFunction): Record<string, { ticker: string; name: string; desc: string; color: string }[]> {
@@ -68,55 +53,51 @@ function getEtfByRisk(t: TFunction): Record<string, { ticker: string; name: stri
 }
 
 export default function ScreenerPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const ETF_BY_RISK = getEtfByRisk(t);
   const sub          = useSubscriptionStore();
   const isPremium = hasPremiumAccess(sub);
   const { profile }  = useProfileStore();
   const userLevel    = getUserLevel(profile);
-  const [weekly, setWeekly]         = useState<WeeklyData | null>(null);
-  const [loading, setLoading]       = useState(false);
   const [paywallOpen, setPaywall]   = useState(false);
   const [paywallReason, setPaywallReason] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [undervalued, setUndervalued] = useState<UndervaluedResult[]>([]);
-  const [undervaluedGeneratedAt, setUndervaluedGeneratedAt] = useState<number>(0);
-  const [undervaluedLoading, setUndervaluedLoading] = useState(false);
+
+  const [weekly, setWeekly] = useState<WeeklyOpportunity[]>([]);
+  const [weeklyGeneratedAt, setWeeklyGeneratedAt] = useState<string | null>(null);
+  const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [opportunitiesTeaserCount, setOpportunitiesTeaserCount] = useState<number | null>(null);
 
   const loadWeekly = useCallback(async () => {
     if (!isPremium) return;
-    setLoading(true);
+    setWeeklyLoading(true);
     try {
-      const res = await screenerApi.getWeekly([]);
-      setWeekly(res.data);
+      const res = await screenerApi.getWeeklyOpportunities(i18n.language);
+      const data = res.data as WeeklyOpportunitiesResponse;
+      setWeekly(data.results ?? []);
+      setWeeklyGeneratedAt(data.generated_at ?? null);
     } catch {
+      // Keep whatever was already showing — never wipe a real list on a
+      // transient failure.
     } finally {
-      setLoading(false);
+      setWeeklyLoading(false);
     }
-  }, [isPremium]);
+  }, [isPremium, i18n.language]);
 
   useEffect(() => { loadWeekly(); }, [loadWeekly]);
 
   useEffect(() => {
-    // Fetched regardless of tier now — 100% Premium (Diego's Aug 16 spec,
-    // §5), but Free must still see a REAL, never-hardcoded count of how
-    // many candidates exist this week; the backend returns a teaser-only
-    // shape (no tickers/content) for Free instead of 403ing.
-    setUndervaluedLoading(true);
+    // Free/guest users still see a REAL, never-hardcoded count of how many
+    // candidates exist this week, sourced from the same real DCF universe
+    // (not personalized — that's Premium-only) — zero extra AI/API cost.
+    if (isPremium) return;
     screenerApi.getUndervalued(undefined, 10)
       .then((res: { data: UndervaluedResponse }) => {
-        if (res.data?.is_premium) {
-          setUndervalued(res.data.results || []);
-          setUndervaluedGeneratedAt(res.data.generated_at || 0);
-        } else {
-          const count = res.data?.teaser_count ?? 0;
-          setOpportunitiesTeaserCount(count);
-          posthog.capture("opportunities_teaser_viewed", { count });
-        }
+        const count = res.data?.teaser_count ?? 0;
+        setOpportunitiesTeaserCount(count);
+        posthog.capture("opportunities_teaser_viewed", { count });
       })
-      .catch(() => setUndervalued([]))
-      .finally(() => setUndervaluedLoading(false));
+      .catch(() => {});
   }, [isPremium]);
 
   const handleUpgrade = (reason: string) => {
@@ -183,10 +164,10 @@ export default function ScreenerPage() {
               </p>
             </div>
             {isPremium && (
-              <button onClick={loadWeekly} disabled={loading}
+              <button onClick={loadWeekly} disabled={weeklyLoading}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium"
                       style={{ borderColor: "var(--border)", color: "var(--sub)" }}>
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+                <RefreshCw className={`w-3.5 h-3.5 ${weeklyLoading ? "animate-spin" : ""}`} />
                 {t("screener.header.refresh")}
               </button>
             )}
@@ -218,150 +199,29 @@ export default function ScreenerPage() {
             </div>
           )}
 
-
-          {/* Loading */}
-          {isPremium && loading && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent-l)" }} />
-              <p className="text-sm" style={{ color: "var(--muted)" }}>{t("screener.loading")}</p>
-            </div>
-          )}
-
-          {/* Weekly content */}
-          {isPremium && !loading && weekly && (
-            <>
-              {/* Week theme */}
-              {weekly.week_theme && (
-                <div className="p-4 rounded-xl border"
-                     style={{ borderColor: "rgba(0,168,94,0.3)", background: "rgba(0,168,94,0.06)" }}>
-                  <p className="text-[10px] font-bold mb-1" style={{ color: "var(--accent-l)" }}>{t("screener.weekTheme.label")}</p>
-                  <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{weekly.week_theme}</p>
-                  {weekly.generated_at && (
-                    <p className="text-[10px] mt-1" style={{ color: "var(--muted)" }}>
-                      {t("screener.weekTheme.updated", { date: new Date(weekly.generated_at).toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" }) })}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Picks */}
-              <div className="space-y-3">
-                {(weekly.picks ?? []).map((pick, i) => (
-                  <div key={pick.ticker} className="rounded-xl border p-4"
-                       style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                    <div className="flex items-start gap-3">
-                      {/* Rank */}
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
-                           style={{ background: i === 0 ? "rgba(251,191,36,0.15)" : "var(--raised)",
-                                    color: i === 0 ? "#fbbf24" : "var(--muted)" }}>
-                        {i === 0 ? <Star className="w-3.5 h-3.5" /> : `${i + 1}`}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        {/* Ticker + price */}
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <div>
-                            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{pick.ticker}</span>
-                            <span className="text-xs ml-2" style={{ color: "var(--muted)" }}>{pick.name}</span>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
-                              ${pick.price?.toFixed(2) ?? "—"}
-                            </p>
-                            <p className="text-[10px] flex items-center gap-0.5 justify-end"
-                               style={{ color: (pick.change_pct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
-                              {(pick.change_pct ?? 0) >= 0
-                                ? <TrendingUp className="w-2.5 h-2.5" />
-                                : <TrendingDown className="w-2.5 h-2.5" />}
-                              {(pick.change_pct ?? 0) >= 0 ? "+" : ""}{pick.change_pct?.toFixed(2) ?? 0}%
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Sector + score */}
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full"
-                                style={{ background: "var(--raised)", color: "var(--muted)" }}>
-                            {pick.sector}
-                          </span>
-                          <div className="flex items-center gap-1">
-                            <div className="h-1.5 rounded-full w-16 overflow-hidden" style={{ background: "var(--border)" }}>
-                              <div className="h-full rounded-full"
-                                   style={{ width: `${pick.score}%`, background: "var(--accent-l)" }} />
-                            </div>
-                            <span className="text-[10px] font-medium" style={{ color: "var(--accent-l)" }}>
-                              {pick.score}/100
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Why */}
-                        <p className="text-xs leading-relaxed mb-2" style={{ color: "var(--sub)" }}>{pick.why}</p>
-
-                        {/* Catalyst + Risk */}
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="p-2 rounded-lg" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.15)" }}>
-                            <p className="text-[10px] font-bold mb-0.5" style={{ color: "#22c55e" }}>{t("screener.pick.catalyst")}</p>
-                            <p className="text-[10px]" style={{ color: "var(--sub)" }}>{pick.catalyst}</p>
-                          </div>
-                          <div className="p-2 rounded-lg" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>
-                            <p className="text-[10px] font-bold mb-0.5" style={{ color: "#ef4444" }}>{t("screener.pick.risk")}</p>
-                            <p className="text-[10px]" style={{ color: "var(--sub)" }}>{pick.risk}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Mentor note */}
-              {weekly.mentor_note && (
-                <div className="p-4 rounded-xl border"
-                     style={{ borderColor: "rgba(0,168,94,0.3)", background: "rgba(0,168,94,0.06)" }}>
-                  <p className="text-[10px] font-bold mb-1.5" style={{ color: "var(--accent-l)" }}>{t("screener.mentorNote.label")}</p>
-                  <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{weekly.mentor_note}</p>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Undervalued screener — real DCF-backed candidates, refreshed weekly */}
+          {/* The one, real, DCF-backed Screener Semanal — same tickers as
+              the Sunday "Nuvos Radar detectó..." push, read back from
+              weekly_opportunities_history so it never drifts from what was
+              actually sent. */}
           {isPremium && (
-            <div className="pt-2">
-              <h2 className="text-sm font-bold mb-0.5" style={{ color: "var(--text)" }}>Acciones subvaluadas (DCF)</h2>
-              <p className="text-[11px] mb-3" style={{ color: "var(--muted)" }}>
-                Candidatas con margen de seguridad positivo real, del mismo motor de valor intrínseco de Arthur.
-                {undervaluedGeneratedAt > 0 && (
-                  <> Actualizado: {new Date(undervaluedGeneratedAt * 1000).toLocaleDateString("es-MX", { day: "numeric", month: "long" })}.</>
-                )}
-              </p>
-              {undervaluedLoading ? (
+            <div>
+              {weeklyGeneratedAt && (
+                <p className="text-[11px] mb-3" style={{ color: "var(--muted)" }}>
+                  {t("screener.weekTheme.updated", { date: new Date(weeklyGeneratedAt).toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", { day: "numeric", month: "long" }) })}
+                </p>
+              )}
+              {weeklyLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent-l)" }} />
                 </div>
-              ) : undervalued.length === 0 ? (
+              ) : weekly.length === 0 ? (
                 <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>Todavía no hay datos del screener semanal — vuelve más tarde.</p>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>{t("screener.empty")}</p>
                 </div>
               ) : (
-                <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--border)" }}>
-                  {undervalued.map((u, i) => (
-                    <div key={u.ticker} className="px-4 py-3 flex items-center justify-between gap-3"
-                         style={{ background: "var(--card)", borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold truncate" style={{ color: "var(--text)" }}>
-                          {u.ticker} {u.company_name ? `· ${u.company_name}` : ""}
-                        </p>
-                        <p className="text-[11px]" style={{ color: "var(--dim)" }}>
-                          Precio ${u.price} · Valor intrínseco ${u.intrinsic_value_base} · Business Quality {u.thesis_scores?.business_quality ?? "N/D"}/100
-                        </p>
-                      </div>
-                      <span className="shrink-0 text-xs font-black px-2 py-1 rounded-lg"
-                            style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e" }}>
-                        +{u.margin_of_safety_pct}%
-                      </span>
-                    </div>
+                <div className="rounded-2xl border overflow-hidden divide-y" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                  {weekly.map((u, i) => (
+                    <WeeklyOpportunityCard key={u.ticker} pick={u} rank={i + 1} />
                   ))}
                 </div>
               )}

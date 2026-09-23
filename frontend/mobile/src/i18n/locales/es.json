@@ -1131,9 +1131,7 @@
     "weeklyPicks": {
       "title": "Picks de la Semana",
       "premiumBadge": "PREMIUM",
-      "catalyst": "⚡ CATALIZADOR",
-      "risk": "⚠️ RIESGO",
-      "mentorNote": "🎓 NOTA DE TU MENTOR"
+      "updated": "Actualizado: {{date}}"
     },
     "search": {
       "placeholder": "ej. tech con P/E bajo y dividendo…",
@@ -2842,13 +2840,18 @@
   },
   "mobileWeeklyScreener": {
     "title": "Screener Semanal",
-    "tagline": "5 oportunidades personalizadas cada domingo",
-    "searching": "Buscando oportunidades...",
+    "tagline": "5 posibles subvaloradas cada domingo",
+    "searching": "Buscando tus 5 ideas de la semana...",
+    "updated": "Actualizado: {{date}}",
     "noPicks": "No hay picks disponibles aún.",
     "defaultDisclaimer": "Estas son ideas educativas para investigar, no recomendaciones de compra ni asesoría financiera. Investiga a fondo cada empresa antes de invertir un solo dólar.",
     "retry": "Reintentar",
     "unlockPreview": "Desbloquea tus 5 ideas de la semana",
     "unlockCta": "Desbloquear con Premium"
+  },
+  "weeklyOpportunityCard": {
+    "priceNow": "Precio actual",
+    "intrinsicValue": "Valor intrínseco"
   },
   "mobileOnboardingChecklist": {
     "title": "Configura tu Nuvos",
