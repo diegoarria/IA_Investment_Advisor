@@ -562,11 +562,14 @@ export default function WatchlistPage() {
   // (a stale/false-empty read must never make the watchlist vanish).
   const itemsRef = useRef<WatchlistItem[]>(items);
   itemsRef.current = items;
-  const emptyStreakRef = useRef(0);
+  const retryRef = useRef(0);
+  const pendingAddsRef = useRef<Set<string>>(new Set());
+  const missStreakRef = useRef<Map<string, number>>(new Map());
 
   // ── Fetch watchlist ─────────────────────────────────────────────────────
   const fetchWatchlist = useCallback(async (isRefresh = false) => {
     const myFetchId = ++fetchIdRef.current;
+    let retrying = false;
     if (isRefresh) setRefreshing(true);
     try {
       // Diego, 2026-09-09 (perf audit): these two reads are independent
@@ -580,32 +583,48 @@ export default function WatchlistPage() {
       if (myFetchId !== fetchIdRef.current) return; // superseded by a newer fetch — discard this stale response
       if (!Array.isArray(res.data)) return; // malformed response — keep what is shown
       const data = res.data as WatchlistItem[];
-      if (data.length === 0 && itemsRef.current.length > 0 && pendingDeletesRef.current.size === 0) {
-        emptyStreakRef.current += 1;
-        if (emptyStreakRef.current < 3) {
-          // Suspicious empty: keep the list on screen and re-check shortly.
-          setTimeout(() => fetchWatchlist(false), 3000);
-          return;
-        }
+      // A ticker the user is looking at is never dropped because ONE server
+      // read didn't include it (stale node, partial read, blip). It stays
+      // until the server has omitted it on 3 consecutive reads — a real
+      // remote delete still converges within seconds.
+      const serverTickers = new Set(data.map((i) => i.ticker));
+      const misses = missStreakRef.current;
+      let merged = data;
+      let anyKept = false;
+      const nextMisses = new Map<string, number>();
+      for (const p of itemsRef.current) {
+        if (serverTickers.has(p.ticker) || pendingDeletesRef.current.has(p.ticker)) continue;
+        if (pendingAddsRef.current.has(p.ticker)) { merged = [...merged, p]; continue; }
+        const n = (misses.get(p.ticker) ?? 0) + 1;
+        if (n < 3) { nextMisses.set(p.ticker, n); merged = [...merged, p]; anyKept = true; }
       }
-      emptyStreakRef.current = 0;
+      missStreakRef.current = nextMisses;
+      if (anyKept) setTimeout(() => fetchWatchlist(false), 3000);
       // Server is the source of truth — including an empty list, which may
       // be exactly what another device/tab just made true by deleting. Don't
       // trust a stale local cache over a real 200 response.
       // Prefer server-persisted order; fall back to localStorage
       const serverOrder: string[] = syncRes?.data?.watchlist_order ?? [];
       const order = serverOrder.length ? serverOrder : readOrder();
-      const ordered = applyOrder(applyTombstones(useAuthStore.getState().userId, data), order)
+      const ordered = applyOrder(applyTombstones(useAuthStore.getState().userId, merged), order)
         .filter((i) => !pendingDeletesRef.current.has(i.ticker));
       if (serverOrder.length) writeOrder(serverOrder);
+      retryRef.current = 0;
       setItems(ordered);
       writeCache(ordered);
       setLastRefreshed(new Date());
       setSecondsSince(0);
     } catch {
-      // On network/server error keep whatever items are already shown
+      // On network/server error keep whatever items are already shown. If
+      // there is nothing to show yet, never fall through to the "empty
+      // watchlist" state — keep the skeleton and retry until it loads.
+      if (itemsRef.current.length === 0 && myFetchId === fetchIdRef.current && retryRef.current < 10) {
+        retryRef.current += 1;
+        retrying = true;
+        setTimeout(() => fetchWatchlist(false), Math.min(2000 * retryRef.current, 15000));
+      }
     } finally {
-      if (myFetchId === fetchIdRef.current) {
+      if (myFetchId === fetchIdRef.current && !retrying) {
         if (isRefresh) setRefreshing(false);
         setLoading(false);
       }
@@ -614,6 +633,24 @@ export default function WatchlistPage() {
 
   useEffect(() => {
     fetchWatchlist();
+  }, [fetchWatchlist]);
+
+  // Auth hydrates after first render: re-read this user's cache and refetch
+  // when the user id becomes known/changes, and refresh when the tab regains
+  // focus, so the list is never left blank/stale from an early failed load.
+  const authUserId = useAuthStore((st) => st.userId);
+  useEffect(() => {
+    if (!authUserId) return;
+    if (itemsRef.current.length === 0) {
+      const cached = readCache();
+      if (cached.length) setItems(cached);
+    }
+    fetchWatchlist();
+  }, [authUserId, fetchWatchlist]);
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") fetchWatchlist(true); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [fetchWatchlist]);
 
   // Auto-refresh every 60s
@@ -717,17 +754,40 @@ export default function WatchlistPage() {
     // premium (the local flag was just stale), retry the add once more
     // instead of showing the free-tier paywall to a paying user.
     let revalidatedPremium = false;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    const upper = ticker.toUpperCase();
+    // Optimistic: the stock appears in the list the instant the user picks
+    // it; the server call is retried patiently in the background.
+    const removeOptimistic = () => {
+      pendingAddsRef.current.delete(upper);
+      setItems((prev) => { const u = prev.filter((i) => i.ticker !== upper); writeCache(u); return u; });
+    };
+    if (!itemsRef.current.some((i) => i.ticker === upper)) {
+      pendingAddsRef.current.add(upper);
+      setItems((prev) => {
+        const u = [...prev, {
+          ticker: upper, name, logo_url: null, price: null, prev_close: null, change: 0,
+          change_pct: 0, market_state: "REGULAR", currency: "USD", pre_market_price: null,
+          pre_market_change_pct: null, post_market_price: null, post_market_change_pct: null,
+          added_at: new Date().toISOString(),
+        } as WatchlistItem];
+        writeCache(u);
+        return u;
+      });
+    }
+    for (let attempt = 0; attempt < 6; attempt++) {
       try {
         clearTombstone(useAuthStore.getState().userId, ticker);
         await watchlistApi.add(ticker, name);
+        pendingAddsRef.current.delete(upper);
         await fetchWatchlist();
         return;
       } catch (err: unknown) {
         const status = (err as { response?: { status?: number } })?.response?.status;
         const code = (err as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail?.code;
         if (status === 409) {
+          pendingAddsRef.current.delete(upper);
           showToast(t("watchlist.toast.alreadyInWatchlist", { ticker }));
+          fetchWatchlist();
           return;
         }
         if (status === 403 && code === "limit_reached") {
@@ -738,14 +798,16 @@ export default function WatchlistPage() {
             const freshIsTrialPremium = useSubscriptionStore.getState().isTrialPremium;
             if (freshTier === "premium" || freshIsTrialPremium) continue; // was stale — retry the add for real
           }
+          removeOptimistic();
           setPaywallOpen(true);
           return;
         }
-        if (attempt === 2) {
+        if (attempt === 5) {
+          removeOptimistic();
           showToast(t("watchlist.toast.addError"));
           return;
         }
-        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
       }
     }
   };
@@ -777,16 +839,16 @@ export default function WatchlistPage() {
       return updated;
     });
     (async () => {
-      for (let attempt = 0; attempt < 3; attempt++) {
+      for (let attempt = 0; attempt < 6; attempt++) {
         try {
           await watchlistApi.remove(ticker);
           return;
         } catch (e) {
-          if (attempt === 2) {
+          if (attempt === 5) {
+            // Stays hidden (tombstone) and is re-deleted on every later read.
             console.error("Failed to remove from watchlist on server:", e);
-            showToast(t("watchlist.toast.deleteError", { ticker }));
           } else {
-            await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+            await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
           }
         }
       }
