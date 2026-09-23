@@ -201,7 +201,13 @@ export default function ExplainButton({
             <X className="w-3 h-3" />
           </button>
 
-          {(errorMsg || (text && state !== "idle")) && (
+          {/* Was gated on `state !== "idle"` — playAudio() reverts state to
+              "idle" the instant playback ends OR fails (onerror/.catch), so
+              a blocked/failed audio load hid the already-generated text at
+              the same moment, with nothing on screen to show for the tap at
+              all. Text now stays visible on its own once generated, and is
+              only cleared when a fresh explanation starts loading. */}
+          {(errorMsg || text) && (
             <div
               className="absolute z-20 bottom-full right-0 mb-2 w-64 rounded-xl p-3 text-xs leading-relaxed shadow-lg"
               style={{ background: "var(--card)", border: `1px solid ${errorMsg ? "#ef4444" : "var(--border)"}`, color: errorMsg ? "#ef4444" : "var(--sub)" }}

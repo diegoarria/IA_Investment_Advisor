@@ -64,6 +64,15 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data: https://fonts.gstatic.com",
+      // media-src had no entry at all, so it fell back to default-src
+      // 'self' — which does NOT cover the blob: URLs ExplainButton.tsx
+      // creates from the base64 TTS audio it gets back (URL.createObjectURL,
+      // then <audio src={blobUrl}>.play()). The browser silently blocked
+      // playback, audio.onerror/.catch reverted state to "idle", and
+      // idle is exactly the state the explanation text box is hidden in
+      // too — so "Explícame esto" looked completely broken (no voice, no
+      // text, no error) on every screen that uses it, not just one.
+      "media-src 'self' blob:",
       // widget-api/widget-customization.belvo.com — the widget's own runtime
       // API calls (institution data, step config) made directly from the
       // browser, not proxied through our backend. api-js.mixpanel.com and
