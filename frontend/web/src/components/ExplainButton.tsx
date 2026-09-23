@@ -94,15 +94,18 @@ export default function ExplainButton({
     try { localStorage.setItem(dismissKey, "1"); } catch { /* ignore */ }
   };
 
-  const handleRestore = () => {
-    setDismissed(false);
-    try { localStorage.removeItem(dismissKey); } catch { /* ignore */ }
-  };
-
   const handleClick = async () => {
     // Unlock synchronously inside the click handler (before any await) —
     // otherwise iOS Safari blocks the later programmatic .play() call.
     unlockAudioPlayback();
+
+    // A single tap on the collapsed icon must both restore the full button
+    // AND generate the explanation — restoring without also explaining
+    // read as "I tapped it and nothing happened" (Diego, re: Nuvos Radar).
+    if (dismissed) {
+      setDismissed(false);
+      try { localStorage.removeItem(dismissKey); } catch { /* ignore */ }
+    }
 
     if (!isPremium) { setPaywallOpen(true); return; }
     if (state === "playing") { stop(); return; }
@@ -153,13 +156,13 @@ export default function ExplainButton({
   // rather than flash the full button and then collapse it a beat later.
   if (dismissed === null) return null;
 
-  // dismissed === true: collapsed to a small icon, never fully gone — tap
-  // it to bring the full "explícame esto" button back on this screen.
+  // dismissed === true: collapsed to a small icon, never fully gone — one
+  // tap both restores the full button and generates the explanation.
   if (dismissed) {
     return (
       <div className={`fixed bottom-6 right-6 z-30 ${className}`}>
         <button
-          onClick={handleRestore}
+          onClick={handleClick}
           aria-label={t("explainButton.cta") ?? undefined}
           className="w-9 h-9 rounded-full flex items-center justify-center shadow-lg transition-opacity hover:opacity-80"
           style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}
