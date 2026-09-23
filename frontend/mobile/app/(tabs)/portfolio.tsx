@@ -4,7 +4,7 @@ import { useFocusEffect, useLocalSearchParams, router } from "expo-router";
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
   StyleSheet, ActivityIndicator, SafeAreaView, Alert,
-  RefreshControl, Image, Modal, Share,
+  RefreshControl, Image, Modal, Share, Linking,
   AppState, AppStateStatus, PanResponder,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,7 +12,6 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import Svg, { Path, Defs, Stop, LinearGradient, Circle, Line as SvgLine } from "react-native-svg";
 import * as ImagePicker from "expo-image-picker";
-import { useVideoPlayer, VideoView } from "expo-video";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { marketApi, cashHoldingsApi, dividendsApi, screenerWeeklyApi } from "../../src/lib/api";
@@ -948,12 +947,12 @@ function PortfolioHistoryChart({
   );
 }
 
-// Tutorial video shown next to "Importar captura" — set this to the real
-// direct video URL (mp4) once it's recorded; the modal shows a "próximamente"
-// placeholder while it's empty, so this ships safely before the video
-// exists. Mirrors frontend/web's PORTFOLIO_TUTORIAL_VIDEO_URL — keep both
-// in sync.
-const PORTFOLIO_TUTORIAL_VIDEO_URL = "";
+// Tutorial video shown next to "Importar captura" — the watch button opens
+// this YouTube link externally (Linking.openURL) rather than embedding it
+// in-app, since there's no in-app YouTube player here (frontend/web embeds
+// it directly via an iframe instead). The modal below still shows a
+// "próximamente" placeholder while this is empty.
+const PORTFOLIO_TUTORIAL_VIDEO_URL = "https://youtu.be/IMVv5gdsdh4";
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
@@ -999,17 +998,10 @@ export default function PortfolioScreen() {
   const [portfolioCreating, setPortfolioCreating] = useState(false);
   const [showNewPortfolioModal, setShowNewPortfolioModal] = useState(false);
   const [tutorialVideoOpen, setTutorialVideoOpen] = useState(false);
-  // expo-video (SDK 57 migration, 2026-09-13, replacing expo-av's <Video>,
-  // whose native module Expo Go no longer ships) — the player must be
-  // created unconditionally at the top level (Rules of Hooks), which is
-  // fine here since PORTFOLIO_TUTORIAL_VIDEO_URL is a static module-level
-  // constant, not derived from render state.
-  const tutorialVideoPlayer = useVideoPlayer(PORTFOLIO_TUTORIAL_VIDEO_URL || null);
-  useEffect(() => {
-    if (!PORTFOLIO_TUTORIAL_VIDEO_URL) return;
-    if (tutorialVideoOpen) tutorialVideoPlayer.play();
-    else tutorialVideoPlayer.pause();
-  }, [tutorialVideoOpen, tutorialVideoPlayer]);
+  const handleWatchTutorial = () => {
+    if (PORTFOLIO_TUTORIAL_VIDEO_URL) Linking.openURL(PORTFOLIO_TUTORIAL_VIDEO_URL);
+    else setTutorialVideoOpen(true);
+  };
   const [newPortfolioName, setNewPortfolioName] = useState("");
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renamingPortfolioId, setRenamingPortfolioId] = useState<string | null>(null);
@@ -2048,20 +2040,13 @@ export default function PortfolioScreen() {
                   <Ionicons name="close" size={20} color={colors.textMuted} />
                 </TouchableOpacity>
               </View>
-              {PORTFOLIO_TUTORIAL_VIDEO_URL ? (
-                <VideoView
-                  player={tutorialVideoPlayer}
-                  style={{ width: "100%", aspectRatio: 16 / 9, backgroundColor: "#000" }}
-                  nativeControls
-                  contentFit="contain"
-                />
-              ) : (
-                <View style={{ width: "100%", aspectRatio: 16 / 9, backgroundColor: colors.bgRaised, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 24 }}>
-                  <Ionicons name="play-circle-outline" size={40} color={colors.textMuted} />
-                  <Text style={{ color: colors.textSub, fontSize: 13, fontWeight: "700", textAlign: "center" }}>{t("portfolio.buttons.tutorialComingSoonTitle")}</Text>
-                  <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: "center" }}>{t("portfolio.buttons.tutorialComingSoonBody")}</Text>
-                </View>
-              )}
+              {/* Only rendered when PORTFOLIO_TUTORIAL_VIDEO_URL is empty — otherwise
+                  handleWatchTutorial opens the link externally and this modal never opens. */}
+              <View style={{ width: "100%", aspectRatio: 16 / 9, backgroundColor: colors.bgRaised, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 24 }}>
+                <Ionicons name="play-circle-outline" size={40} color={colors.textMuted} />
+                <Text style={{ color: colors.textSub, fontSize: 13, fontWeight: "700", textAlign: "center" }}>{t("portfolio.buttons.tutorialComingSoonTitle")}</Text>
+                <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: "center" }}>{t("portfolio.buttons.tutorialComingSoonBody")}</Text>
+              </View>
             </View>
           </View>
         </Modal>
@@ -2343,7 +2328,7 @@ export default function PortfolioScreen() {
         {/* Tutorial de 1 min — junto al botón de importar, momento exacto en que se necesita */}
         <TouchableOpacity
           style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, marginBottom: 10 }}
-          onPress={() => setTutorialVideoOpen(true)}
+          onPress={handleWatchTutorial}
           activeOpacity={0.7}>
           <Ionicons name="play-circle-outline" size={16} color={colors.accentLight} />
           <Text style={{ fontSize: 12, fontWeight: "700", color: colors.accentLight }}>{t("portfolio.buttons.watchTutorial")}</Text>
