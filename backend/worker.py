@@ -6799,6 +6799,16 @@ async def main():
     scheduler.add_job(job_monthly_report_email, "cron", day="1-4",             hour=9,       minute=0,     timezone="America/New_York")
     # Dec 15, 9:00am ET — same moment job_wrapped_notify_available pushes its
     # opt-in users, but this email reaches every user (see docstring).
+    # ── Official launch emails — 2026-09-24 only, 11:00 / 15:00 / 20:00 ET ──
+    # Idempotent per user via notification_log (app/services/launch_emails.py),
+    # so a restart/misfire re-run never double-sends. 1h misfire grace.
+    from app.services.launch_emails import send_launch_email_job
+    for _n, _h in ((1, 11), (2, 15), (3, 20)):
+        scheduler.add_job(
+            send_launch_email_job, "cron", args=[_n], year=2026, month=9, day=24,
+            hour=_h, minute=0, timezone="America/New_York",
+            id=f"launch_email_{_n}", misfire_grace_time=3600,
+        )
     scheduler.add_job(job_wrapped_email,        "cron", month=12, day=15,      hour=9,       minute=0,     timezone="America/New_York")
 
     # ── DISABLED, Diego 2026-09-24: "el único" Screener Semanal is now the
