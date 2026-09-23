@@ -6809,6 +6809,21 @@ async def main():
             hour=_h, minute=0, timezone="America/New_York",
             id=f"launch_email_{_n}", misfire_grace_time=3600,
         )
+    # ── Post-launch: 7 daily recap emails (12:00 ET, 2026-09-25..10-01) plus the
+    # two automatic launch promos (+7 Premium days, checked every 30 min from
+    # 2026-09-25 to 2026-10-03). Idempotent per user (app/services/recap_emails.py).
+    from app.services.recap_emails import send_recap_email_job, run_promo_grants, RECAP_DAYS
+    for _day, (_mo, _dd) in RECAP_DAYS.items():
+        scheduler.add_job(
+            send_recap_email_job, "cron", args=[_day], year=2026, month=_mo, day=_dd,
+            hour=12, minute=0, timezone="America/New_York",
+            id=f"recap_email_{_day}", misfire_grace_time=3600,
+        )
+    scheduler.add_job(
+        run_promo_grants, "interval", minutes=30,
+        start_date="2026-09-25 00:00:00", end_date="2026-10-03 23:59:59",
+        timezone="America/New_York", id="launch_promo_grants", misfire_grace_time=600,
+    )
     scheduler.add_job(job_wrapped_email,        "cron", month=12, day=15,      hour=9,       minute=0,     timezone="America/New_York")
 
     # ── DISABLED, Diego 2026-09-24: "el único" Screener Semanal is now the
