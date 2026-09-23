@@ -119,9 +119,7 @@ async def test_pricing_endpoint_reports_adaptive_for_everyone_when_enabled():
 
 
 @pytest.mark.asyncio
-async def test_pricing_endpoint_not_adaptive_when_flag_off():
+async def test_pricing_endpoint_falls_back_to_usd_when_mxn_prices_not_configured():
     with patch("app.api.routes.billing.get_supabase", return_value=MagicMock()), \
-         patch("app.api.routes.billing.run_query", new_callable=AsyncMock) as rq, \
-         patch("app.api.routes.billing.settings", cfg(checkout_adaptive_pricing=False)):
-        rq.return_value = SimpleNamespace(data={"country": "US", "phone_number": None})
+         patch("app.api.routes.billing.settings", cfg(checkout_adaptive_pricing=False, stripe_price_id_monthly_mxn="", stripe_price_id_yearly_mxn="")):
         assert await billing.get_pricing(user_id="u1") == {"currency": "usd"}

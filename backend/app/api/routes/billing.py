@@ -59,29 +59,22 @@ async def get_pricing(user_id: str = Depends(get_current_user_id)):
     the paywall shows what Stripe will actually bill. Mexican users are
     charged in MXN when the MXN prices are configured (many Mexican cards
     reject USD); everyone else — and any failure here — gets USD."""
-    from app.core.pricing_region import is_mexico
     from app.core.cache import cache_get, cache_set
 
     usd = {"currency": "usd"}
     adaptive = _adaptive_available()
-    if adaptive:
-        mexico = True  # the MXN price is the base for EVERYONE; Stripe localizes it at checkout
-    else:
-        db = get_supabase()
-        try:
-            res = await run_query(db.table("user_profiles").select("country, phone_number").eq("user_id", user_id).single())
-            mexico = bool(res.data and is_mexico(res.data.get("country"), res.data.get("phone_number")))
-        except Exception as e:
-            logger.warning("get_pricing: profile lookup failed for %s: %s", user_id, e)
-            return usd
-    if not mexico:
-        return usd
+    # Diego, 2026-09-23: the paywall shows MXN by default for EVERYONE, not
+    # just Mexican users. The client echoes the shown currency back on
+    # checkout (CheckoutRequest.currency == "mxn" is honored below), so what
+    # is displayed is what is charged. If the MXN prices aren't configured
+    # or the Stripe lookup fails, this still falls back to USD (display and
+    # charge stay consistent either way).
 
     ids = {
         "monthly": settings.stripe_price_id_monthly_mxn,
         "yearly": settings.stripe_price_id_yearly_mxn,
-        "duo_monthly": settings.stripe_price_family_monthly_mxn,
-        "duo_yearly": settings.stripe_price_family_yearly_mxn,
+        "duo_monthly": getattr(settings, "stripe_price_family_monthly_mxn", ""),
+        "duo_yearly": getattr(settings, "stripe_price_family_yearly_mxn", ""),
         "session_free": getattr(settings, "stripe_price_session_free_mxn", ""),
         "session_premium": getattr(settings, "stripe_price_session_premium_mxn", ""),
         "session_bundle": getattr(settings, "stripe_price_session_bundle_mxn", ""),

@@ -98,7 +98,7 @@ async def test_embedded_subscription_uses_the_mxn_price_for_a_mexican_profile():
 
 
 @pytest.mark.asyncio
-async def test_pricing_endpoint_reports_mxn_amounts_only_for_mexico_and_falls_back_to_usd():
+async def test_pricing_endpoint_reports_mxn_amounts_for_everyone():
     prices = {"mxn_m": 25900, "mxn_y": 249900, "mxn_dm": 41900, "mxn_dy": 389900,
               "mxn_sf": 239900, "mxn_sp": 169900, "mxn_sb": 424900}
 
@@ -115,10 +115,12 @@ async def test_pricing_endpoint_reports_mxn_amounts_only_for_mexico_and_falls_ba
         out = await billing.get_pricing(user_id="u1")
         assert out == {"currency": "mxn", "monthly": 259.0, "yearly": 2499.0, "duo_monthly": 419.0, "duo_yearly": 3899.0,
                        "session_free": 2399.0, "session_premium": 1699.0, "session_bundle": 4249.0}
+        # 2026-09-23: MXN is the default paywall currency for EVERYONE, and
+        # never depends on the profile lookup.
         rq.return_value = SimpleNamespace(data={"country": "US", "phone_number": None})
-        assert await billing.get_pricing(user_id="u1") == {"currency": "usd"}
+        assert (await billing.get_pricing(user_id="u1"))["currency"] == "mxn"
         rq.side_effect = Exception("db down")
-        assert await billing.get_pricing(user_id="u1") == {"currency": "usd"}
+        assert (await billing.get_pricing(user_id="u1"))["currency"] == "mxn"
 
 
 @pytest.mark.asyncio

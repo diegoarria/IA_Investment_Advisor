@@ -132,8 +132,8 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
               <EmbeddedCheckout
                 createIntent={() =>
                   checkoutMode === "duo"
-                    ? upsells.checkoutEmbedded("family_plan", plan, "paywall_modal").then((r) => r.data)
-                    : billing.createEmbeddedSubscription(plan).then((r) => r.data)
+                    ? upsells.checkoutEmbedded("family_plan", plan, "paywall_modal", { currency: duoMxn ? "mxn" : "usd" }).then((r) => r.data)
+                    : billing.createEmbeddedSubscription(plan, premiumMxn ? "mxn" : "usd").then((r) => r.data)
                 }
                 returnUrl={`${window.location.origin}${checkoutMode === "duo" ? "/upsell-success?offer=family_plan" : "/premium-success"}`}
                 adaptive={{
