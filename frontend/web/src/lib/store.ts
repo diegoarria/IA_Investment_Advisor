@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { UserProfile, ChatMessage, Notification } from "./types";
 import { sync as syncApi } from "./api";
+import { addTombstone, clearTombstone, applyTombstones } from "./watchlistTombstones";
 import { DEFAULT_DETAIL_LEVEL, isValidDetailLevel, type DetailLevel } from "./detailLevel";
 import {
   isValidDiscountRateMethod, resolveDashboardSectionOrder, sanitizeFavoriteMetrics,
@@ -1216,6 +1217,7 @@ export const useWatchlistStore = create<WatchlistState>()(
         // refresh, and it's gone" report (2026-09-15). Retry with backoff
         // before giving up, and guard against loadFromServer() stomping
         // the optimistic item while a retry is still in flight.
+        clearTombstone(useAuthStore.getState().userId, t);
         set((s) => ({ items: [...s.items, { ticker: t, name, addedAt: Date.now() }] }));
         beginPending();
         (async () => {
@@ -1245,6 +1247,7 @@ export const useWatchlistStore = create<WatchlistState>()(
         // app-wide 30s resync in ThemeProvider) must never land mid-delete
         // and resurrect this item from a response fetched before the
         // delete committed server-side.
+        addTombstone(useAuthStore.getState().userId, t);
         set((s) => ({ items: s.items.filter((i) => i.ticker !== t) }));
         beginPending();
         (async () => {
@@ -1285,7 +1288,7 @@ export const useWatchlistStore = create<WatchlistState>()(
           if (serverItems.length === 0 && get().items.length > 0) {
             serverItems = toItems(await watchlist.get());
           }
-          set({ items: serverItems });
+          set({ items: applyTombstones(useAuthStore.getState().userId, serverItems) });
         } catch {}
       },
       };

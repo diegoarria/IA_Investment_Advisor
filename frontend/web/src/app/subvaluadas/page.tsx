@@ -27,6 +27,7 @@ import type { CompanyDiagnosticData } from "@/lib/types/companyDiagnostic";
 import { Card } from "@/components/ui/Card";
 import { resolveValuationPanelMode } from "@/lib/valuationPanelMode";
 import { screenerApi, watchlist } from "@/lib/api";
+import { clearTombstone } from "@/lib/watchlistTombstones";
 import { useSubscriptionStore, useThemeStore, useAuthStore, isGuestUser, getGuestId, hasPremiumAccess } from "@/lib/store";
 
 // Whether to call the no-auth /public routes instead of the authenticated
@@ -548,6 +549,7 @@ function SubvaluadasPageInner() {
   const handleFollow = async () => {
     if (!data || watchlisted) return;
     try {
+      clearTombstone(useAuthStore.getState().userId, data.ticker);
       await watchlist.add(data.ticker, data.company_name || undefined);
       setWatchlisted(true);
     } catch (err) {

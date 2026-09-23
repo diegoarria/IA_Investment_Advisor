@@ -1,5 +1,6 @@
 "use client";
 
+import { addTombstone, clearTombstone, applyTombstones } from "@/lib/watchlistTombstones";
 import { useState, useEffect, useRef, useCallback } from "react";
 import TourSpotlight from "@/components/TourSpotlight";
 import { useRouter } from "next/navigation";
@@ -594,7 +595,7 @@ export default function WatchlistPage() {
       // Prefer server-persisted order; fall back to localStorage
       const serverOrder: string[] = syncRes?.data?.watchlist_order ?? [];
       const order = serverOrder.length ? serverOrder : readOrder();
-      const ordered = applyOrder(data, order)
+      const ordered = applyOrder(applyTombstones(useAuthStore.getState().userId, data), order)
         .filter((i) => !pendingDeletesRef.current.has(i.ticker));
       if (serverOrder.length) writeOrder(serverOrder);
       setItems(ordered);
@@ -718,6 +719,7 @@ export default function WatchlistPage() {
     let revalidatedPremium = false;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
+        clearTombstone(useAuthStore.getState().userId, ticker);
         await watchlistApi.add(ticker, name);
         await fetchWatchlist();
         return;
@@ -768,6 +770,7 @@ export default function WatchlistPage() {
   // masquerade as "it's just gone."
   const handleConfirmDelete = (ticker: string) => {
     pendingDeletesRef.current.add(ticker);
+    addTombstone(useAuthStore.getState().userId, ticker);
     setItems((prev) => {
       const updated = prev.filter((i) => i.ticker !== ticker);
       writeCache(updated);
