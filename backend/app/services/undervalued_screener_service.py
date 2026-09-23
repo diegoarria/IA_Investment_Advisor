@@ -275,9 +275,18 @@ def _primary_valuation(dcf: dict) -> dict:
     list is a worse outcome than showing the best available real number."""
     gqv = dcf.get("gqv_fair_value")
     if gqv and gqv.get("status") == "ok" and gqv.get("scenarios"):
+        s = gqv["scenarios"]
+        # Diego, 2026-09-24: "escenarios pesimistas, base y optimista" —
+        # bear/bull pulled from the SAME scenario set `base` and
+        # margin_of_safety_pct already come from, instead of the
+        # unrelated `fair_value_range` (a DIFFERENT valuation engine's
+        # output — could genuinely disagree with GQV's own base value,
+        # exactly the "los datos deben coincidir" problem from earlier).
         return {
-            "intrinsic_value_base": gqv["scenarios"]["base"]["fair_value_per_share"],
-            "margin_of_safety_pct": gqv["scenarios"].get("margin_of_safety_pct"),
+            "intrinsic_value_base": s["base"]["fair_value_per_share"],
+            "intrinsic_value_conservative": (s.get("bear") or {}).get("fair_value_per_share"),
+            "intrinsic_value_optimistic": (s.get("bull") or {}).get("fair_value_per_share"),
+            "margin_of_safety_pct": s.get("margin_of_safety_pct"),
             "confidence_meter": gqv.get("confidence_meter"),
             "valuation_source": "gqv",
         }
@@ -285,8 +294,14 @@ def _primary_valuation(dcf: dict) -> dict:
     # be None (GQV-without-DCF fallback path, e.g. MU, when GQV ALSO
     # couldn't produce a result) — `.get()` chains, never direct indexing,
     # so a double-failure degrades to honest Nones instead of a KeyError.
+    # Here (GQV unavailable), fair_value_range IS the same DCF engine that
+    # produced `base` below — low/high are its real bear/bull, not a
+    # mismatched second model.
+    fvr = dcf.get("fair_value_range") or {}
     return {
         "intrinsic_value_base": (dcf.get("scenarios") or {}).get("base", {}).get("intrinsic_value_per_share"),
+        "intrinsic_value_conservative": fvr.get("low"),
+        "intrinsic_value_optimistic": fvr.get("high"),
         "margin_of_safety_pct": dcf.get("margin_of_safety_pct"),
         "confidence_meter": dcf.get("confidence_meter"),
         "valuation_source": "dcf",
@@ -320,6 +335,8 @@ def _build_candidate(entry: dict, data: Optional[dict]) -> Optional[dict]:
         "exchange": data.get("exchange"),
         "market_cap": market_cap,
         "intrinsic_value_base": primary["intrinsic_value_base"],
+        "intrinsic_value_conservative": primary.get("intrinsic_value_conservative"),
+        "intrinsic_value_optimistic": primary.get("intrinsic_value_optimistic"),
         "margin_of_safety_pct": mos,
         "valuation_source": primary["valuation_source"],
         "composite_score": data.get("composite_score"),

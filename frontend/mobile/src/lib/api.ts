@@ -383,6 +383,11 @@ export const screenerWeeklyApi = {
     api.get("/api/market/screener/weekly", { params: { tickers: existingTickers.join(",") }, timeout: timeoutMs }),
   getUndervalued: (sector?: string, limit = 10, lang?: string) =>
     api.get("/api/market/screener/undervalued", { params: { sector, limit, lang } }),
+  // Diego, 2026-09-24: "el único" Screener Semanal — the real, DCF-backed,
+  // per-user picks (same engine + same 5 tickers as the Sunday "Nuvos
+  // Radar detectó..." push), not the AI-narrative getWeekly() above.
+  getWeeklyOpportunities: (lang?: string, timeoutMs = 25000) =>
+    api.get("/api/market/screener/weekly-opportunities", { params: { lang }, timeout: timeoutMs }),
   quickAnalysis: (query: string, lang?: string, isDefaultView?: boolean) =>
     api.get("/api/market/screener/quick-analysis", { params: { query, lang, is_default_view: isDefaultView }, timeout: 25000 }),
   nifDashboard: (query: string, lang?: string) =>

@@ -1185,6 +1185,82 @@ async def undervalued(
     return {"is_premium": True, **result}
 
 
+@router.get("/weekly-opportunities")
+async def weekly_opportunities(lang: str | None = None, user_id: str = Depends(get_current_user_id)):
+    """Diego, 2026-09-24: "ese es el que quiero que sea el Screener Semanal,
+    el único" — the real, DCF-backed, per-user-personalized picks (same
+    engine and same 5 tickers as worker.py's job_weekly_opportunities_push,
+    "Nuvos Radar detectó N posibles subvaloradas"), not the AI-narrative
+    weekly_picks() above. This is the read side of that exact push: never
+    recomputes a fresh random pick on every page load (which would both
+    show something different from what was actually pushed AND burn new
+    candidates out of the user's future "never repeat" pool) — reads back
+    the SAME tickers that were actually sent, from weekly_opportunities_
+    history's real sent_at record.
+
+    Returns whatever was sent on the user's most recent send-day (could be
+    fewer than 5 — never fabricated, see pick_weekly_opportunities_for_
+    user's own docstring), or computes+records one now (the rare on-demand
+    fallback) for a Premium user who has never had this job run for them
+    yet (new signup, or missed a run)."""
+    from app.api.routes.chat import _is_premium
+    from app.services.undervalued_screener_service import get_undervalued, pick_weekly_opportunities_for_user, bootstrap_fill_if_empty_sync
+    profile = await _get_user_profile_safe(user_id)
+    if lang not in ("es", "en"):
+        lang = getattr(profile, "preferred_language", None) or "es"
+
+    if not _is_premium(profile):
+        return {"is_premium": False}
+
+    db = get_supabase()
+    hist = await run_query(
+        db.table("weekly_opportunities_history").select("ticker, sent_at").eq("user_id", user_id).order("sent_at", desc=True)
+    )
+    rows = hist.data or []
+
+    if not rows:
+        # Never sent to this user before (new Premium, or their first run
+        # was missed) — compute one now with the exact same picker the
+        # Sunday job uses, and record it so it's never resent later.
+        risk_tolerance = getattr(profile, "risk_tolerance", None)
+        picks = await asyncio.to_thread(pick_weekly_opportunities_for_user, risk_tolerance, set(), 5)
+        if picks:
+            try:
+                await run_query(
+                    db.table("weekly_opportunities_history").upsert(
+                        [{"user_id": user_id, "ticker": p["ticker"]} for p in picks],
+                        on_conflict="user_id,ticker",
+                    )
+                )
+            except Exception as exc:
+                logger.warning("weekly_opportunities: failed to record history for %s: %s", user_id, exc)
+        return {"is_premium": True, "results": picks, "generated_at": None}
+
+    # `rows` is sorted newest-first — everything sent on the same real
+    # calendar day as the most recent entry is "this week's" batch. Never
+    # blindly take "the last 5 rows", which could silently blend in older
+    # tickers from a prior week on a week the real candidate pool came up
+    # short (an honest, documented case — see pick_weekly_opportunities_
+    # for_user's own docstring).
+    latest_date = rows[0]["sent_at"][:10]
+    this_week_tickers = [r["ticker"] for r in rows if r["sent_at"][:10] == latest_date]
+
+    try:
+        full = get_undervalued(limit=10_000, sector=None, lang=lang, per_sector_cap=None)
+        if not full["results"]:
+            await asyncio.to_thread(bootstrap_fill_if_empty_sync)
+            full = get_undervalued(limit=10_000, sector=None, lang=lang, per_sector_cap=None)
+    except Exception as exc:
+        logger.error("weekly_opportunities: get_undervalued failed: %s", exc, exc_info=True)
+        full = {"results": []}
+    by_ticker = {r["ticker"]: r for r in full["results"]}
+    # A ticker sent that week but no longer in the live universe (delisted,
+    # dropped below the data-quality gate since) is dropped rather than
+    # shown with stale/missing data — never fabricated.
+    results = [by_ticker[t] for t in this_week_tickers if t in by_ticker]
+    return {"is_premium": True, "results": results, "generated_at": rows[0]["sent_at"]}
+
+
 @router.get("/sector-roster")
 async def sector_roster(sector: str, user_id: str = Depends(get_current_user_id)):
     """Every real company in one GICS sector for the Oportunidades sector-

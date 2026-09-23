@@ -4117,7 +4117,7 @@ export default function PortfolioPage() {
                 {t("portfolio.toolsTab.subtitle")}
               </p>
 
-              <WeeklyScreenerCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} tickers={positions.map(p => p.ticker)} />
+              <WeeklyScreenerCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />
 
               {/* Análisis de Earnings — desglose por segmento + rating real,
                   grounded en Finnhub/FMP + búsqueda web en vivo. The /earnings

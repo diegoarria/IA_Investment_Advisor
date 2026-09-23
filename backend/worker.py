@@ -6777,17 +6777,18 @@ async def main():
     # opt-in users, but this email reaches every user (see docstring).
     scheduler.add_job(job_wrapped_email,        "cron", month=12, day=15,      hour=9,       minute=0,     timezone="America/New_York")
 
-    # ── Sunday 8:00am ET: Screener Semanal — submits ONE Message Batch for
-    # every premium user (2026-08-21 cost optimization), see
-    # job_weekly_screener_generate's docstring. Replaces the old Wed/Sat
-    # "Oportunidades para ti" push — single weekly cadence.
-    scheduler.add_job(job_weekly_screener_generate, "cron", day_of_week="sun", hour=8,  minute=0, timezone="America/New_York")
-
-    # ── Every 10 min: finalize the Screener Semanal batch once Anthropic
-    # reports it done, then cache + push + email every user — mirrors
-    # job_poll_undervalued_screener_batch below. Near-instant no-op when
-    # nothing is pending, which is almost always.
-    scheduler.add_job(job_poll_weekly_screener_batch, "interval", minutes=10)
+    # ── DISABLED, Diego 2026-09-24: "el único" Screener Semanal is now the
+    # real DCF engine (GET /screener/weekly-opportunities, fed by
+    # job_weekly_opportunities_push below) — both web and mobile were
+    # switched over, so this AI-narrative pipeline has zero remaining
+    # consumers. Left unregistered rather than deleted, matching job_
+    # prewarm_nif_dashboard_default's own precedent, in case a stale
+    # not-yet-updated mobile install still calls GET /screener/weekly
+    # directly — that on-demand fallback path still works even with the
+    # scheduled bulk generation off, just uncached (rare, self-resolving
+    # as those installs update).
+    # scheduler.add_job(job_weekly_screener_generate, "cron", day_of_week="sun", hour=8,  minute=0, timezone="America/New_York")
+    # scheduler.add_job(job_poll_weekly_screener_batch, "interval", minutes=10)
 
     # ── Sunday 12:05pm ET: undervalued-stocks screener cache refresh (real
     # DCF engine) — no notification, just keeps the in-app Oportunidades

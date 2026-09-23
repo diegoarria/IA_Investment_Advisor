@@ -8,36 +8,41 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { screenerWeeklyApi } from "../lib/api";
+import WeeklyOpportunityCard, { type WeeklyOpportunity } from "./WeeklyOpportunityCard";
 
 interface Props {
   isPremium: boolean;
   onUpgrade: () => void;
-  existingTickers?: string[];
 }
 
 const TOOL_COLOR = "#8b5cf6";
 
+interface WeeklyData {
+  results?: WeeklyOpportunity[];
+  generated_at?: string | null;
+}
+
+// Diego, 2026-09-24: "Acciones subvaluadas (DCF) ... ese es el que quiero
+// que sea el Screener Semanal, el único." Real, DCF-backed candidates —
+// same engine and same 5 tickers as the Sunday "Nuvos Radar detectó..."
+// push (GET /screener/weekly-opportunities), never the old AI narrative.
+//
 // Diego, 2026-09-23: "Screener Semanal SIEMPRE SIEMPRE SIEMPRE debe abrir
-// ... en mobile app tampoco o a veces sí." Same-week picks (server cache
-// is 7 days, one set per user) cached on-device too, per user (same
-// suffix convention as lib/userScopedStorage.ts), so a transient failure
-// still shows last week's real picks instead of a blank "no suggestions"
-// card that used to explicitly wipe whatever was already showing.
-// Diego, 2026-09-24: "solo me dio 1 acción cuando deberían ser las 5." The
-// backend guarantees exactly 5 for Premium (screener.py's own backfill
-// logic never lets it fall short) — so a cached value with fewer than 5
-// can only be a corrupted/partial entry, and this cache never expired or
-// validated what it stored, so a bad entry would keep rendering forever
-// until a fresh fetch happened to overwrite it. Never persist a non-5
-// Premium result, ignore one on read, and time-box every entry to 8 days
-// (server-side cache ceiling is 7) so a stale entry can't outlive its
+// ... en mobile app tampoco o a veces sí." Same-week picks (read back from
+// weekly_opportunities_history, never recomputed on every visit) cached
+// on-device too, per user (same suffix convention as lib/userScopedStorage.
+// ts), so a transient failure still shows last week's real picks instead
+// of a blank "no suggestions" card.
+//
+// Diego, 2026-09-24: never persist an empty result, ignore one on read,
+// and time-box every entry to 8 days so a stale entry can't outlive its
 // week even if it once looked valid.
 const WEEKLY_CACHE_KEY = "nuvos_weekly_screener_cache";
 const WEEKLY_CACHE_MAX_AGE_MS = 8 * 24 * 3600 * 1000;
-function isValidWeeklyPayload(data: any): boolean {
-  return !!data && (!!data.locked || (data.picks?.length ?? 0) >= 5);
+function isValidWeeklyPayload(data: WeeklyData | null | undefined): boolean {
+  return !!data && (data.results?.length ?? 0) > 0;
 }
-async function readWeeklyCache(): Promise<any | null> {
+async function readWeeklyCache(): Promise<WeeklyData | null> {
   try {
     const uid = (await SecureStore.getItemAsync("user_id")) ?? "guest";
     const raw = await AsyncStorage.getItem(`${WEEKLY_CACHE_KEY}__${uid}`);
@@ -47,7 +52,7 @@ async function readWeeklyCache(): Promise<any | null> {
     return isValidWeeklyPayload(parsed.data) ? parsed.data : null;
   } catch { return null; }
 }
-async function writeWeeklyCache(data: any) {
+async function writeWeeklyCache(data: WeeklyData) {
   if (!isValidWeeklyPayload(data)) return;
   try {
     const uid = (await SecureStore.getItemAsync("user_id")) ?? "guest";
@@ -55,10 +60,11 @@ async function writeWeeklyCache(data: any) {
   } catch { /* best-effort — session still has it in memory */ }
 }
 
-export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTickers = [] }: Props) {
+export default function MobileWeeklyScreener({ isPremium, onUpgrade }: Props) {
   const { colors } = useTheme();
-  const { t } = useTranslation();
-  const [data, setData]       = useState<any>(null);
+  const { t, i18n } = useTranslation();
+  const [data, setData]       = useState<WeeklyData | null>(null);
+  const [previewRows, setPreviewRows] = useState<WeeklyOpportunity[]>([]);
   const [loading, setLoading] = useState(false);
   const s = styles();
 
@@ -69,45 +75,43 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
   }, []);
 
   const load = useCallback(async () => {
-    // Diego, 2026-09-09: Free now fetches too — the backend returns 3 real
-    // (never fabricated) teaser tickers for Free instead of the full
-    // AI-personalized picks (see screener.py's /weekly route), so the
-    // dimmed preview below shows real data instead of an abstract skeleton.
-    //
-    // Diego, 2026-09-23: "necesito que abra en máximo 10 segundos." Normal
-    // case (Sunday's batch already pre-warmed this user's cache) is a
-    // sub-second Redis read — this budget only matters on a cache miss,
-    // which can otherwise take 15s+ (a live scan + a real Claude call).
-    // One bounded attempt (8s) decides what's on screen within the 10s
-    // ceiling — fresh data, or whatever's already there (this week's
-    // cache-first value from above, or last week's on-device cache). If
-    // that doesn't make it, a second, longer-budget attempt keeps trying
-    // quietly in the background so a first-time user still gets real
-    // personalized picks without tapping retry — it just doesn't hold the
-    // screen open waiting for it.
+    if (!isPremium) return;
+    // Diego, 2026-09-23: "necesito que abra en máximo 10 segundos." This is
+    // a plain DB read (weekly_opportunities_history), normally instant —
+    // the budget only matters on the rare on-demand fallback (a brand new
+    // Premium user this job hasn't run for yet). One bounded attempt (8s)
+    // decides what's on screen within the 10s ceiling; a second, longer
+    // attempt keeps trying quietly in the background if that doesn't land.
     setLoading(true);
     try {
-      const res = await screenerWeeklyApi.getWeekly(existingTickers, 8000);
+      const res = await screenerWeeklyApi.getWeeklyOpportunities(i18n.language, 8000);
       setData(res.data);
-      if (isPremium) writeWeeklyCache(res.data);
+      writeWeeklyCache(res.data);
     } catch {
-      screenerWeeklyApi.getWeekly(existingTickers, 25000)
-        .then((res: any) => { setData(res.data); if (isPremium) writeWeeklyCache(res.data); })
+      screenerWeeklyApi.getWeeklyOpportunities(i18n.language, 25000)
+        .then((res: any) => { setData(res.data); writeWeeklyCache(res.data); })
         .catch(() => {}); // still nothing — the empty/cached state below already covers this
     }
     setLoading(false);
-  }, [isPremium]);
+  }, [isPremium, i18n.language]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Free/guest preview — real (never fabricated) candidates from the same
+  // DCF universe, just not personalized (that part is Premium-only). Zero
+  // AI cost.
+  useEffect(() => {
+    if (isPremium) return;
+    screenerWeeklyApi.getUndervalued(undefined, 3)
+      .then((res: any) => setPreviewRows((res.data?.results ?? []) as WeeklyOpportunity[]))
+      .catch(() => {});
+  }, [isPremium]);
 
   if (!isPremium) {
     // Diego, 2026-08-30: locked "blurred" preview (skeleton bars, not real
     // text — RN has no reliable text-blur filter) instead of a plain
-    // locked card. The backend itself refuses to generate/send real
-    // Screener Semanal data to a Free user (see screener.py's /weekly
-    // route), so there's no real data here to protect — this is purely a
-    // "there's something real here" visual cue. Whole card taps to the
-    // paywall.
+    // locked card. Whole card taps to the paywall.
+    const rows = previewRows.length ? previewRows.slice(0, 3) : [];
     return (
       <TouchableOpacity activeOpacity={0.85} onPress={onUpgrade} style={[s.card, { backgroundColor: colors.card }]}>
         <View style={[s.hero, { backgroundColor: TOOL_COLOR + "18" }]}>
@@ -125,7 +129,7 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
         <View style={s.content}>
           <View style={[s.lockedPreview, { borderColor: colors.border }]}>
             <View style={{ opacity: 0.4 }}>
-              {(data?.picks?.length ? data.picks.slice(0, 3) : [null, null, null]).map((pick: any, i: number) => (
+              {(rows.length ? rows : [null, null, null]).map((pick, i) => (
                 <View key={pick?.ticker ?? i} style={[s.pickRow, { borderTopColor: colors.border, borderTopWidth: i > 0 ? StyleSheet.hairlineWidth : 0 }]}>
                   <View style={[s.rankBox, { backgroundColor: TOOL_COLOR + "15" }]}>
                     <Text style={[s.rank, { color: TOOL_COLOR }]}>{i + 1}</Text>
@@ -142,7 +146,9 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
                     <View style={[s.skeletonBar, { width: "80%", height: 9, backgroundColor: colors.border }]} />
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
-                    <Text style={[s.price, { color: colors.text }]}>{pick?.price != null ? `$${pick.price.toFixed(2)}` : "$—.—"}</Text>
+                    <Text style={[s.price, { color: colors.text }]}>
+                      {pick?.margin_of_safety_pct != null ? `+${pick.margin_of_safety_pct.toFixed(1)}%` : "+—%"}
+                    </Text>
                   </View>
                 </View>
               ))}
@@ -177,12 +183,14 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
           </View>
         </View>
         <Text style={[s.heroTitle, { color: colors.text }]}>{t("mobileWeeklyScreener.title")}</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
-          <Text style={[s.heroTagline, { color: TOOL_COLOR }]}>{t("mobileWeeklyScreener.tagline")}</Text>
-        </View>
-        {data?.week_theme && (
+        <Text style={[s.heroTagline, { color: TOOL_COLOR }]}>{t("mobileWeeklyScreener.tagline")}</Text>
+        {data?.generated_at && (
           <View style={[s.themeBadge, { backgroundColor: TOOL_COLOR + "20", borderColor: TOOL_COLOR + "40" }]}>
-            <Text style={[s.themeBadgeText, { color: TOOL_COLOR }]}>{data.week_theme}</Text>
+            <Text style={[s.themeBadgeText, { color: TOOL_COLOR }]}>
+              {t("mobileWeeklyScreener.updated", {
+                date: new Date(data.generated_at).toLocaleDateString(i18n.language === "en" ? "en-US" : "es-MX", { day: "numeric", month: "long" }),
+              })}
+            </Text>
           </View>
         )}
       </View>
@@ -196,32 +204,11 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
           </View>
         )}
 
-        {!loading && data?.picks?.map((pick: any, i: number) => (
-          <View key={pick.ticker} style={[s.pickRow, { borderTopColor: colors.border }]}>
-            <View style={[s.rankBox, { backgroundColor: TOOL_COLOR + "15" }]}>
-              <Text style={[s.rank, { color: TOOL_COLOR }]}>{i + 1}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={[s.ticker, { color: colors.text }]}>{pick.ticker}</Text>
-                {pick.sector && (
-                  <View style={[s.sectorBadge, { backgroundColor: colors.bgRaised }]}>
-                    <Text style={[s.sector, { color: colors.textMuted }]}>{pick.sector}</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={[s.why, { color: colors.textSub }]} numberOfLines={2}>{pick.why}</Text>
-            </View>
-            <View style={{ alignItems: "flex-end" }}>
-              <Text style={[s.price, { color: colors.text }]}>${pick.price?.toFixed(2) ?? "—"}</Text>
-              <Text style={[s.change, { color: (pick.change_pct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }]}>
-                {(pick.change_pct ?? 0) >= 0 ? "+" : ""}{pick.change_pct?.toFixed(1) ?? 0}%
-              </Text>
-            </View>
-          </View>
+        {!loading && data?.results?.map((pick, i) => (
+          <WeeklyOpportunityCard key={pick.ticker} pick={pick} rank={i + 1} />
         ))}
 
-        {!loading && (!data || !data.picks || data.picks.length === 0) && (
+        {!loading && (!data || !data.results || data.results.length === 0) && (
           <View style={s.emptyWrap}>
             <Text style={{ fontSize: 28 }}>🔍</Text>
             <Text style={[s.emptyText, { color: colors.textMuted }]}>{t("mobileWeeklyScreener.noPicks")}</Text>
@@ -235,11 +222,11 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
           </View>
         )}
 
-        {!loading && data?.picks?.length > 0 && (
+        {!loading && data?.results && data.results.length > 0 && (
           <View style={[s.disclaimerRow, { borderTopColor: colors.border }]}>
             <Ionicons name="information-circle-outline" size={13} color={colors.textDim ?? colors.textMuted} style={{ marginTop: 1 }} />
             <Text style={[s.disclaimerText, { color: colors.textDim ?? colors.textMuted }]}>
-              {data.disclaimer ?? t("mobileWeeklyScreener.defaultDisclaimer")}
+              {t("mobileWeeklyScreener.defaultDisclaimer")}
             </Text>
           </View>
         )}
@@ -264,7 +251,6 @@ const styles = () => StyleSheet.create({
 
   // Content
   content:    { paddingHorizontal: 16, paddingBottom: 16 },
-  sectionTitle: { fontSize: 13, fontWeight: "800", marginTop: 12, marginBottom: 4 },
   loadingRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 18, justifyContent: "center" },
   loadingText:{ fontSize: 13 },
   emptyWrap:  { alignItems: "center", paddingVertical: 20, gap: 8 },
@@ -280,16 +266,14 @@ const styles = () => StyleSheet.create({
   unlockBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 13 },
   unlockBtnText: { fontSize: 14, fontWeight: "800", color: "#fff" },
 
-  // Picks
-  pickRow:    { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 11, borderTopWidth: StyleSheet.hairlineWidth },
+  // Locked preview rows (Free tier skeleton — Premium rows are WeeklyOpportunityCard)
+  pickRow:    { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 11 },
   rankBox:    { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   rank:       { fontSize: 12, fontWeight: "900" },
   ticker:     { fontSize: 14, fontWeight: "800" },
   sectorBadge:{ borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   sector:     { fontSize: 10, fontWeight: "600" },
-  why:        { fontSize: 11, marginTop: 2, lineHeight: 15 },
   price:      { fontSize: 13, fontWeight: "700" },
-  change:     { fontSize: 10, fontWeight: "700" },
 
   // Disclaimer
   disclaimerRow:  { flexDirection: "row", alignItems: "flex-start", gap: 6, paddingTop: 12, marginTop: 4, borderTopWidth: StyleSheet.hairlineWidth },
