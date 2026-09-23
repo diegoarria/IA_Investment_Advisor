@@ -555,6 +555,13 @@ export default function WatchlistPage() {
   // yet; the optimistic local removal is authoritative until the retry
   // loop itself gives up.
   const pendingDeletesRef = useRef<Set<string>>(new Set());
+  // Mirror of `items` for use inside fetchWatchlist without re-creating it,
+  // plus a counter of consecutive empty responses. An empty 200 that
+  // contradicts a non-empty visible list is NOT trusted until it repeats
+  // (a stale/false-empty read must never make the watchlist vanish).
+  const itemsRef = useRef<WatchlistItem[]>(items);
+  itemsRef.current = items;
+  const emptyStreakRef = useRef(0);
 
   // ── Fetch watchlist ─────────────────────────────────────────────────────
   const fetchWatchlist = useCallback(async (isRefresh = false) => {
@@ -570,7 +577,17 @@ export default function WatchlistPage() {
         syncApi.getAll().catch(() => null),
       ]);
       if (myFetchId !== fetchIdRef.current) return; // superseded by a newer fetch — discard this stale response
+      if (!Array.isArray(res.data)) return; // malformed response — keep what is shown
       const data = res.data as WatchlistItem[];
+      if (data.length === 0 && itemsRef.current.length > 0 && pendingDeletesRef.current.size === 0) {
+        emptyStreakRef.current += 1;
+        if (emptyStreakRef.current < 3) {
+          // Suspicious empty: keep the list on screen and re-check shortly.
+          setTimeout(() => fetchWatchlist(false), 3000);
+          return;
+        }
+      }
+      emptyStreakRef.current = 0;
       // Server is the source of truth — including an empty list, which may
       // be exactly what another device/tab just made true by deleting. Don't
       // trust a stale local cache over a real 200 response.
