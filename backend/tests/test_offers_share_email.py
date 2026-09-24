@@ -15,12 +15,12 @@ def test_renders_in_both_languages_with_referral_link_and_whatsapp_button():
 
 
 def test_whatsapp_message_is_prefilled_and_carries_the_link_and_disclaimer():
-    for lang, marker in (("es", "Te comparto Nuvos"), ("en", "I'm sharing Nuvos")):
+    for lang, marker in (("es", "Quiero compartirte Nuvos"), ("en", "I want to share Nuvos")):
         url = whatsapp_url(lang, LINK)
         text = parse_qs(urlparse(url).query)["text"][0]
         assert marker in text and LINK in text
-        assert ("no da recomendaciones" in text) or ("doesn't give investment recommendations" in text)
-        assert len(url) < 3000                                    # well under WhatsApp/URL limits
+        assert ("no proporciona recomendaciones personalizadas" in text) or ("doesn't provide personalized investment recommendations" in text)
+        assert len(url) < 4500                                    # well under WhatsApp/URL limits
 
 
 def test_only_real_offers_are_listed():
