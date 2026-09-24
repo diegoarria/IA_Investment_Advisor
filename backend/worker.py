@@ -892,6 +892,12 @@ async def job_market_open():
 
         prices = await _finnhub_prices_batch(list(all_tickers)) if all_tickers else {}
 
+        # Anyone with no position in any portfolio (free OR premium) gets the
+        # no-portfolio copy below — the free copy used to say "see how your
+        # portfolio is doing" to people who don't have one (2026-09-23).
+        from app.services.nudge_pushes import users_with_positions
+        users_with_port = await users_with_positions(db)
+
         # "S&P 500: 7,538 (+0.58% hoy)" when we have real index points, or the
         # old "S&P 500 +0.58%" style if the ^GSPC/^IXIC fetch failed today.
         sp_line_es, nq_line_es = _market_open_lines(sp500_pct, sp500_points, nasdaq_pct, nasdaq_points, "es")
@@ -909,7 +915,13 @@ async def job_market_open():
             sp_line, nq_line = (sp_line_en, nq_line_en) if is_en else (sp_line_es, nq_line_es)
             title = f"{first}, the market is open 🔔" if is_en else f"{first}, el mercado ha abierto 🔔"
 
-            if is_premium:
+            if uid not in users_with_port:
+                body = (
+                    f"{sp_line}\n{nq_line}\n\nYou don't have investments in Nuvos yet. When you decide to take the first step, you'll follow them here."
+                    if is_en else
+                    f"{sp_line}\n{nq_line}\n\nAún no tienes inversiones en Nuvos. Cuando decidas dar el primer paso, aquí las sigues."
+                )
+            elif is_premium:
                 user_pct = _calc_portfolio_pct(portfolio_map.get(uid, []), prices)
                 if user_pct is not None:
                     body = (
@@ -1321,6 +1333,17 @@ async def job_market_close():
                             push_body  = f"S&P 500 {sp_cl} · Nasdaq {nq_cl}"
                         await send_push(uid, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
                         sent_push += 1
+
+                elif uid in push_capable and not has_portfolio:
+                    # No portfolio (free or premium): a two-line, jargon-free
+                    # explainer of how the market did — educational, no advice.
+                    if is_en:
+                        body = f"The market closed. {indices}. In short: the S&P 500 tracks the 500 largest US companies — when it rises, they were generally doing well that day."
+                        await send_push(uid, "market_close", "📊 How the market closed today", body, {"screen": "home"}, db)
+                    else:
+                        body = f"El mercado cerró. {indices}. En corto: el S&P 500 mide a las 500 empresas más grandes de EE. UU.; cuando sube, en general les fue bien ese día."
+                        await send_push(uid, "market_close", "📊 Así cerró el mercado hoy", body, {"screen": "home"}, db)
+                    sent_push += 1
 
                 elif uid in push_capable:
                     # Free: generic push only, no portfolio data, subtle upgrade nudge
@@ -6807,6 +6830,10 @@ async def main():
     scheduler.add_job(job_monthly_report_email, "cron", day="1-3",             hour=9,       minute=0,     timezone="America/New_York")
     # Dec 15, 9:00am ET — same moment job_wrapped_notify_available pushes its
     # opt-in users, but this email reaches every user (see docstring).
+    # ── 13:00 ET weekdays: rotating nudge for users WITHOUT a portfolio
+    # (app/services/nudge_pushes.py — skips holidays / early-close days itself).
+    from app.services.nudge_pushes import job_midday_nudge
+    scheduler.add_job(job_midday_nudge, "cron", day_of_week="mon-fri", hour=13, minute=0, timezone="America/New_York")
     # ── Official launch: fresh 30-day trial for every non-paying user, once,
     # 2026-09-24 00:05 ET (app/services/trial_reset.py, idempotent per user).
     from app.services.trial_reset import reset_trials_for_launch, send_trial_reset_emails
