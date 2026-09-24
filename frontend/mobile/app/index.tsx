@@ -144,6 +144,11 @@ export default function AuthScreen() {
             quiz_answers: p.quiz_answers as UserProfile["quiz_answers"],
             mentor: p.mentor ?? null,
             avatarUri: p.avatar_url ?? existingAvatar ?? null,
+            // Without these two the phone prompt saw every account as "no phone"
+            // on each boot (bug report 2026-09-23) and re-asked even after the
+            // number was saved on web or another device.
+            phone_number: p.phone_number ?? null,
+            has_seen_phone_prompt: p.has_seen_phone_prompt ?? null,
           });
         }
         if (syncRes.status === "fulfilled") {
@@ -264,6 +269,8 @@ export default function AuthScreen() {
           quiz_answers: p.quiz_answers as UserProfile["quiz_answers"],
           mentor: p.mentor ?? null,
           avatarUri: p.avatar_url ?? useAppStore.getState().profile?.avatarUri ?? null,
+          phone_number: p.phone_number ?? null,
+          has_seen_phone_prompt: p.has_seen_phone_prompt ?? null,
         });
         posthog.identify(userId, {
           $set: { name: p.name, risk_tolerance: p.risk_tolerance as string, knowledge_level: (p.knowledge_level as string) ?? null },

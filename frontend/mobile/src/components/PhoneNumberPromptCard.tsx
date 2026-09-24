@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, ScrollView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
@@ -38,20 +38,15 @@ export default function PhoneNumberPromptCard() {
   // that one first; this one waits its turn on their next visit instead of
   // two modals fighting for the same screen.
   const welcomeCardShowing = trialStartDate !== null && !hasSeenWelcomeCard;
-  const visible = hasFetchedStatus && !!profile && !profile.phone_number && !profile.has_seen_phone_prompt && !welcomeCardShowing;
+  // MANDATORY (Diego, 2026-09-23): shown to anyone signed in without a phone
+  // number on file, no skip; anyone who has one (saved on ANY device — it is
+  // stored on the account) is never asked.
+  const visible = hasFetchedStatus && !!profile && !profile.phone_number && !welcomeCardShowing;
   if (!visible) return null;
 
   const digits = localNumber.replace(/\D/g, "");
   const dialDigits = dialCode.replace(/\D/g, "").length;
   const valid = !!dialCode && digits.length >= 7 && (dialDigits + digits.length) <= 15;
-
-  const markSeen = () => {
-    // Same "never block the user, best-effort server write" discipline as
-    // WelcomeCard's markWelcomeCardSeen — flips local state instantly so
-    // the card closes right away regardless of network conditions.
-    setProfile({ ...profile!, has_seen_phone_prompt: true });
-    profileApi.markPhonePromptSeen().catch(() => {});
-  };
 
   const handleSubmit = async () => {
     if (!valid || saving) return;
@@ -72,9 +67,9 @@ export default function PhoneNumberPromptCard() {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={() => {}}>
-      <View style={s.overlay}>
+      <KeyboardAvoidingView style={s.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={[s.sheet, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-          <ScrollView style={s.scrollFlex} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+          <ScrollView style={s.scrollFlex} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
             <View style={s.header}>
               <View style={[s.iconBox, { backgroundColor: colors.accent, shadowColor: colors.accent }]}>
@@ -110,7 +105,6 @@ export default function PhoneNumberPromptCard() {
               placeholder={t("onboarding.step0.phonePlaceholder")}
               placeholderTextColor={colors.textMuted}
               keyboardType="phone-pad"
-              autoFocus
             />
             {!!error && <Text style={{ color: "#ef4444", fontSize: 12, marginTop: 8 }}>{error}</Text>}
 
@@ -122,13 +116,10 @@ export default function PhoneNumberPromptCard() {
             >
               <Text style={[s.ctaText, { color: colors.bg }]}>{saving ? t("phonePromptCard.saving") : t("phonePromptCard.save")}</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={markSeen} style={s.skipBtn} activeOpacity={0.7}>
-              <Text style={[s.skipText, { color: colors.textMuted }]}>{t("phonePromptCard.skip")}</Text>
-            </TouchableOpacity>
 
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
