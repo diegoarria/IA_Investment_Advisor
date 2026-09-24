@@ -29,10 +29,21 @@ def _fmp_key() -> str:
     return settings.fmp_api_key or os.getenv("FMP_API_KEY", "")
 
 
+# Paths this API key's plan is not allowed to call (HTTP 403 — e.g.
+# /stock/price-target on the free plan). After _FORBIDDEN_STRIKES consecutive
+# 403s a path is skipped for the rest of the process's life instead of being
+# re-called for every ticker on every cycle (one stray 403 never disables an
+# important endpoint); a restart re-detects it, so upgrading the plan is
+# picked up on the next deploy.
+_FORBIDDEN_STRIKES = 3
+_forbidden_paths: set[str] = set()
+_forbidden_counts: dict[str, int] = {}
+
+
 def _get(path: str, params: dict) -> dict | None:
     """Make a GET request to Finnhub. Returns parsed JSON or None on failure."""
     k = _key()
-    if not k:
+    if not k or path in _forbidden_paths:
         return None
     try:
         r = httpx.get(
@@ -40,8 +51,15 @@ def _get(path: str, params: dict) -> dict | None:
             params={**params, "token": k},
             timeout=8,
         )
+        if r.status_code == 403:
+            _forbidden_counts[path] = _forbidden_counts.get(path, 0) + 1
+            if _forbidden_counts[path] >= _FORBIDDEN_STRIKES:
+                _forbidden_paths.add(path)
+                logger.warning("Finnhub %s returned 403 %d times (not included in this plan) — skipping it from now on", path, _FORBIDDEN_STRIKES)
+            return None
         if r.status_code != 200:
             return None
+        _forbidden_counts.pop(path, None)
         return r.json()
     except Exception as e:
         logger.debug("Finnhub %s error: %s", path, e)

@@ -115,6 +115,9 @@ from app.services.email_service import (
 from app.services.paper_service import notify_rank_changes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+# httpx logs every request URL at INFO — including ?token=<API key> — so keep it quiet.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 

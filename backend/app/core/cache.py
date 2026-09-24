@@ -26,10 +26,20 @@ _mem: dict[str, tuple[Any, float]] = {}  # key → (value, expires_at)
 # ── Redis client (lazy init) ───────────────────────────────────────────────
 _redis = None
 
+# When Redis is unreachable (e.g. the private hostname doesn't resolve), every
+# cache call used to re-attempt the connection and log a warning — hundreds of
+# lines a second and a wasted DNS lookup per call. Retry at most once a minute;
+# in between, behave exactly as "Redis not configured" (in-memory fallback).
+_REDIS_RETRY_SECONDS = 60
+_redis_retry_at = 0.0
+
+
 def _get_redis():
-    global _redis
+    global _redis, _redis_retry_at
     if _redis is not None:
         return _redis
+    if time.time() < _redis_retry_at:
+        return None
     try:
         from app.core.config import settings
         if not settings.redis_url:
@@ -47,8 +57,9 @@ def _get_redis():
         logger.info("Redis cache connected: %s", settings.redis_url)
         return _redis
     except Exception as e:
-        logger.warning("Redis unavailable (%s), using in-memory cache", e)
+        logger.warning("Redis unavailable (%s), using in-memory cache (retrying in %ds)", e, _REDIS_RETRY_SECONDS)
         _redis = None
+        _redis_retry_at = time.time() + _REDIS_RETRY_SECONDS
         return None
 
 

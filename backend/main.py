@@ -74,6 +74,9 @@ app.add_middleware(
 
 
 logger = logging.getLogger("uvicorn.error")
+# httpx logs every request URL at INFO — including ?token=<API key> — so keep it quiet.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 # Security headers on every response — an audit found none of these were set
