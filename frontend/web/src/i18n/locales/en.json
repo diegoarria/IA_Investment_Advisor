@@ -2868,9 +2868,10 @@
         "note": "Example with made-up data. Fair value is an estimate to compare with the price; it's not a promise or a recommendation."
       },
       "watch": {
-        "a": "Company A",
-        "b": "Company B",
-        "c": "Company C",
+        "a": "Apple",
+        "b": "Tesla",
+        "c": "Coca-Cola",
+        "note": "Example moves, not real data.",
         "alert": "{{name}} {{dir}} {{pct}}% today",
         "up": "rose",
         "down": "fell"

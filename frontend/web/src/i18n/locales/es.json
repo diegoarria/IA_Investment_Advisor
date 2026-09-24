@@ -2868,9 +2868,10 @@
         "note": "Ejemplo con datos inventados. El valor justo es una estimación para comparar con el precio; no es una promesa ni una recomendación."
       },
       "watch": {
-        "a": "Empresa A",
-        "b": "Empresa B",
-        "c": "Empresa C",
+        "a": "Apple",
+        "b": "Tesla",
+        "c": "Coca-Cola",
+        "note": "Movimientos de ejemplo, no son datos reales.",
         "alert": "{{name}} {{dir}} {{pct}}% hoy",
         "up": "subió",
         "down": "bajó"

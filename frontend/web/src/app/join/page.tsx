@@ -135,13 +135,14 @@ function WatchlistDemo({ t }: { t: (k: string, o?: Record<string, unknown>) => s
         return (
           <div key={r.name} className="flex items-center gap-3 rounded-xl px-3.5 py-3 transition-all duration-500"
                style={{ background: "var(--card-2)", border: `1px solid ${idx === hot ? col + "88" : "var(--border)"}`, transform: idx === hot ? "scale(1.015)" : "none" }}>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-black" style={{ background: col + "1f", color: col }}>{r.name.slice(-1)}</div>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-black" style={{ background: col + "1f", color: col }}>{r.name.charAt(0)}</div>
             <div className="flex-1 text-[13px] font-bold" style={{ color: "var(--text)" }}>{r.name}</div>
             <svg width="84" height="28" viewBox="0 0 84 28" className="shrink-0"><path d={r.spark} fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
             <div className="w-14 text-right text-[13px] font-black" style={{ color: col }}>{up ? "+" : ""}{r.pct}%</div>
           </div>
         );
       })}
+      <p className="text-[11px] text-center" style={{ color: "var(--muted)" }}>{t("join.demo.watch.note")}</p>
       <div key={hot} className="jn-toast flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 mt-1"
            style={{ background: "rgba(0,232,135,0.08)", border: "1px solid rgba(0,232,135,0.3)" }}>
         <Bell className="w-4 h-4 shrink-0" style={{ color: "var(--accent-l)" }} />
