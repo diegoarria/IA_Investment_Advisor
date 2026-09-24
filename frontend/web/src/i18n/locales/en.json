@@ -2838,7 +2838,114 @@
     "termsOfUse": "Terms of Use",
     "and": "and",
     "privacyPolicy": "Privacy Policy",
-    "codeLabel": "Code:"
+    "codeLabel": "Code:",
+    "hero": {
+      "title": "Your friend invited you to understand your money better",
+      "sub": "Nuvos is your AI investing mentor: it helps you analyze, understand the risks and decide with clarity. It never tells you what to buy.",
+      "gift": "14 days of Premium, free",
+      "note": "Free · No card · Takes 1 minute"
+    },
+    "demo": {
+      "title": "See it in action",
+      "sub": "Tap and try. These are illustrative examples, not recommendations.",
+      "tabs": {
+        "arthur": "Arthur",
+        "fair": "Fair value",
+        "watch": "Watchlist"
+      },
+      "arthur": {
+        "question": "I have $50,000 saved. What should I do with it?",
+        "reply": "I won't tell you what to buy, but I can help you think it through. Let's start with three questions:\n\n1. When might you need that money?\n2. How much would it bother you to see it drop 20% for a while?\n3. Do you have a separate emergency fund?\n\nWith your answers I'll show you scenarios and risks so you decide.",
+        "replay": "Watch again"
+      },
+      "fair": {
+        "conservative": "Conservative",
+        "base": "Base",
+        "optimistic": "Optimistic",
+        "price": "Price today",
+        "fairValue": "Fair value",
+        "vsPrice": "vs. today's price",
+        "note": "Example with made-up data. Fair value is an estimate to compare with the price; it's not a promise or a recommendation."
+      },
+      "watch": {
+        "a": "Company A",
+        "b": "Company B",
+        "c": "Company C",
+        "alert": "{{name}} {{dir}} {{pct}}% today",
+        "up": "rose",
+        "down": "fell"
+      }
+    },
+    "worry": {
+      "title": "What holds you back from investing?",
+      "sub": "Pick the one that sounds most like you",
+      "chips": {
+        "start": "I don't know where to start",
+        "risk": "I'm afraid of losing money",
+        "choose": "I don't know what to invest in",
+        "time": "I don't have time",
+        "fees": "I worry about fees"
+      },
+      "answers": {
+        "start": "Arthur asks a few questions about your goals and situation, and from there walks you through the first steps in plain language.",
+        "risk": "Nuvos shows you the risks and different scenarios before you decide, so you know what can happen, even the bad.",
+        "choose": "Nuvos doesn't tell you what to invest in. It teaches you to analyze a company (fair value, risks, scenarios) so the decision is yours.",
+        "time": "Your watchlist and alerts work for you: you find out what matters without staring at a screen.",
+        "fees": "Nuvos doesn't handle your money or charge fees on your investments: it's a tool to understand and analyze."
+      }
+    },
+    "steps": {
+      "title": "How to start",
+      "items": [
+        {
+          "title": "Create your account",
+          "desc": "In a minute, no card needed."
+        },
+        {
+          "title": "Tell Arthur your goals",
+          "desc": "So everything adapts to you."
+        },
+        {
+          "title": "Explore and decide",
+          "desc": "Analyze, compare scenarios and decide."
+        }
+      ]
+    },
+    "gift": {
+      "title": "Your welcome gift",
+      "body": "With your friend's invitation you get 14 days of Premium free. With Premium you get:",
+      "items": [
+        "Arthur, your AI mentor, with no limits",
+        "Smart alerts on what you follow",
+        "Deep analysis of every company"
+      ]
+    },
+    "faq": {
+      "title": "Frequently asked questions",
+      "items": [
+        {
+          "q": "Does it cost anything?",
+          "a": "Creating your account is free and needs no card. With your invitation you get 14 days of Premium free."
+        },
+        {
+          "q": "Does Nuvos tell me what to buy?",
+          "a": "No. Nuvos is an educational tool: it helps you understand and compare, and the decision is always yours."
+        },
+        {
+          "q": "Does Nuvos handle my money?",
+          "a": "Never. Nuvos doesn't hold or move your money; it only helps you analyze and understand."
+        },
+        {
+          "q": "Do I need to know about investing?",
+          "a": "No. Arthur explains everything in plain language, at your pace."
+        }
+      ]
+    },
+    "final": {
+      "trust": "Nuvos never touches your money",
+      "title": "Start today, with 14 days of Premium free",
+      "disclaimer": "Nuvos is an educational and analysis tool; it doesn't provide personalized investment recommendations."
+    }
   },
   "premiumSuccess": {
     "pendingTitle": "We're confirming your payment",

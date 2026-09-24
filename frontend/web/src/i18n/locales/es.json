@@ -2838,7 +2838,114 @@
     "termsOfUse": "Términos de uso",
     "and": "y",
     "privacyPolicy": "Política de privacidad",
-    "codeLabel": "Código:"
+    "codeLabel": "Código:",
+    "hero": {
+      "title": "Tu amigo te invitó a entender mejor tu dinero",
+      "sub": "Nuvos es tu mentor de inversiones con IA: te ayuda a analizar, entender los riesgos y decidir con claridad. Nunca te dice qué comprar.",
+      "gift": "14 días de Premium gratis",
+      "note": "Gratis · Sin tarjeta · Te toma 1 minuto"
+    },
+    "demo": {
+      "title": "Míralo en acción",
+      "sub": "Toca y prueba. Son ejemplos ilustrativos, no recomendaciones.",
+      "tabs": {
+        "arthur": "Arthur",
+        "fair": "Valor justo",
+        "watch": "Watchlist"
+      },
+      "arthur": {
+        "question": "Tengo $50,000 ahorrados. ¿Qué hago con ellos?",
+        "reply": "No te voy a decir qué comprar, pero sí te ayudo a pensarlo. Empecemos por tres preguntas:\n\n1. ¿Cuándo podrías necesitar ese dinero?\n2. ¿Qué tanto te incomoda ver que baje 20% por un tiempo?\n3. ¿Tienes un fondo de emergencia aparte?\n\nCon tus respuestas te muestro escenarios y riesgos para que decidas tú.",
+        "replay": "Ver otra vez"
+      },
+      "fair": {
+        "conservative": "Conservador",
+        "base": "Base",
+        "optimistic": "Optimista",
+        "price": "Precio hoy",
+        "fairValue": "Valor justo",
+        "vsPrice": "vs. el precio de hoy",
+        "note": "Ejemplo con datos inventados. El valor justo es una estimación para comparar con el precio; no es una promesa ni una recomendación."
+      },
+      "watch": {
+        "a": "Empresa A",
+        "b": "Empresa B",
+        "c": "Empresa C",
+        "alert": "{{name}} {{dir}} {{pct}}% hoy",
+        "up": "subió",
+        "down": "bajó"
+      }
+    },
+    "worry": {
+      "title": "¿Qué te frena para invertir?",
+      "sub": "Elige lo que más se parezca a ti",
+      "chips": {
+        "start": "No sé por dónde empezar",
+        "risk": "Me da miedo perder dinero",
+        "choose": "No sé en qué invertir",
+        "time": "No tengo tiempo",
+        "fees": "Me preocupan las comisiones"
+      },
+      "answers": {
+        "start": "Arthur te hace unas preguntas sobre tus metas y tu situación, y desde ahí te explica los primeros pasos en lenguaje sencillo.",
+        "risk": "Nuvos te muestra los riesgos y distintos escenarios antes de que decidas, para que sepas qué puede pasar, incluso lo malo.",
+        "choose": "Nuvos no te dice en qué invertir. Te enseña a analizar una empresa (valor justo, riesgos, escenarios) para que la decisión sea tuya.",
+        "time": "Tu watchlist y tus avisos trabajan por ti: te enteras de lo importante sin estar pegado a la pantalla.",
+        "fees": "Nuvos no maneja tu dinero ni cobra comisiones por tus inversiones: es una herramienta para entender y analizar."
+      }
+    },
+    "steps": {
+      "title": "Cómo empezar",
+      "items": [
+        {
+          "title": "Crea tu cuenta",
+          "desc": "En un minuto y sin tarjeta."
+        },
+        {
+          "title": "Cuéntale a Arthur tus metas",
+          "desc": "Para que todo se adapte a ti."
+        },
+        {
+          "title": "Explora y decide",
+          "desc": "Analiza, compara escenarios y decide tú."
+        }
+      ]
+    },
+    "gift": {
+      "title": "Tu regalo de bienvenida",
+      "body": "Con la invitación de tu amigo recibes 14 días de Premium gratis. Con Premium tienes:",
+      "items": [
+        "Arthur, tu mentor de IA, sin límites",
+        "Alertas inteligentes de lo que sigues",
+        "Análisis profundo de cada empresa"
+      ]
+    },
+    "faq": {
+      "title": "Preguntas frecuentes",
+      "items": [
+        {
+          "q": "¿Cuesta algo?",
+          "a": "Crear tu cuenta es gratis y no pide tarjeta. Con tu invitación recibes 14 días de Premium gratis."
+        },
+        {
+          "q": "¿Nuvos me dice qué comprar?",
+          "a": "No. Nuvos es una herramienta educativa: te ayuda a entender y comparar, y la decisión siempre es tuya."
+        },
+        {
+          "q": "¿Nuvos maneja mi dinero?",
+          "a": "Nunca. Nuvos no guarda ni mueve tu dinero; solo te ayuda a analizar y entender."
+        },
+        {
+          "q": "¿Necesito saber de inversiones?",
+          "a": "No. Arthur te explica todo en lenguaje sencillo, a tu ritmo."
+        }
+      ]
+    },
+    "final": {
+      "trust": "Nuvos nunca toca tu dinero",
+      "title": "Empieza hoy, con 14 días de Premium gratis",
+      "disclaimer": "Nuvos es una herramienta educativa y de análisis; no proporciona recomendaciones personalizadas de inversión."
+    }
   },
   "premiumSuccess": {
     "pendingTitle": "Estamos confirmando tu pago",
