@@ -309,7 +309,10 @@ function AppStack() {
       {showSidebar && <Sidebar />}
       <TrialExpiredModal />
       <WelcomeCard />
-      <PhoneNumberPromptCard />
+      {/* Never over login/onboarding: those routes hide the sidebar, and a stale
+          persisted profile without a phone made this modal (+ number pad) cover the
+          login screen (2026-09-23 bug report). */}
+      {showSidebar && <PhoneNumberPromptCard />}
     </View>
   );
 }

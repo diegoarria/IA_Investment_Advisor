@@ -26,7 +26,7 @@ export default function PhoneNumberPromptCard() {
   const { t } = useTranslation();
   const profile = useAppStore((s) => s.profile);
   const setProfile = useAppStore((s) => s.setProfile);
-  const { trialStartDate, hasSeenWelcomeCard } = useSubscriptionStore();
+  const { trialStartDate, hasSeenWelcomeCard, hasFetchedStatus } = useSubscriptionStore();
   const [dialCode, setDialCode] = useState("");
   const [localNumber, setLocalNumber] = useState("");
   const [saving, setSaving] = useState(false);
@@ -38,7 +38,7 @@ export default function PhoneNumberPromptCard() {
   // that one first; this one waits its turn on their next visit instead of
   // two modals fighting for the same screen.
   const welcomeCardShowing = trialStartDate !== null && !hasSeenWelcomeCard;
-  const visible = !!profile && !profile.phone_number && !profile.has_seen_phone_prompt && !welcomeCardShowing;
+  const visible = hasFetchedStatus && !!profile && !profile.phone_number && !profile.has_seen_phone_prompt && !welcomeCardShowing;
   if (!visible) return null;
 
   const digits = localNumber.replace(/\D/g, "");
