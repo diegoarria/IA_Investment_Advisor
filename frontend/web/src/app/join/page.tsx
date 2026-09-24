@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, Users, Gift, Brain, Bell, Check, ChevronDown, RotateCcw, Sparkles, ShieldCheck } from "lucide-react";
 import { setPendingReferralCode } from "@/lib/referral";
+import StockAvatar from "@/components/StockAvatar";
 
 // ─── small helpers ───────────────────────────────────────────────────────────
 
@@ -121,9 +122,9 @@ function FairValueDemo({ t }: { t: (k: string) => string }) {
 
 function WatchlistDemo({ t }: { t: (k: string, o?: Record<string, unknown>) => string }) {
   const rows = [
-    { name: t("join.demo.watch.a"), pct: 2.4, spark: "M0 22 L14 18 L28 20 L42 12 L56 14 L70 6 L84 8" },
-    { name: t("join.demo.watch.b"), pct: -1.1, spark: "M0 8 L14 10 L28 6 L42 14 L56 12 L70 18 L84 20" },
-    { name: t("join.demo.watch.c"), pct: 0.6, spark: "M0 16 L14 18 L28 12 L42 14 L56 10 L70 12 L84 9" },
+    { ticker: "AAPL", name: t("join.demo.watch.a"), pct: 2.4, spark: "M0 22 L14 18 L28 20 L42 12 L56 14 L70 6 L84 8" },
+    { ticker: "TSLA", name: t("join.demo.watch.b"), pct: -1.1, spark: "M0 8 L14 10 L28 6 L42 14 L56 12 L70 18 L84 20" },
+    { ticker: "KO", name: t("join.demo.watch.c"), pct: 0.6, spark: "M0 16 L14 18 L28 12 L42 14 L56 10 L70 12 L84 9" },
   ];
   const [tick, setTick] = useState(0);
   useEffect(() => { const id = setInterval(() => setTick((v) => v + 1), 3200); return () => clearInterval(id); }, []);
@@ -135,7 +136,7 @@ function WatchlistDemo({ t }: { t: (k: string, o?: Record<string, unknown>) => s
         return (
           <div key={r.name} className="flex items-center gap-3 rounded-xl px-3.5 py-3 transition-all duration-500"
                style={{ background: "var(--card-2)", border: `1px solid ${idx === hot ? col + "88" : "var(--border)"}`, transform: idx === hot ? "scale(1.015)" : "none" }}>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-black" style={{ background: col + "1f", color: col }}>{r.name.charAt(0)}</div>
+            <StockAvatar ticker={r.ticker} size="md" />
             <div className="flex-1 text-[13px] font-bold" style={{ color: "var(--text)" }}>{r.name}</div>
             <svg width="84" height="28" viewBox="0 0 84 28" className="shrink-0"><path d={r.spark} fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
             <div className="w-14 text-right text-[13px] font-black" style={{ color: col }}>{up ? "+" : ""}{r.pct}%</div>
@@ -162,7 +163,8 @@ function JoinContent() {
   const params = useSearchParams();
   const ref = params.get("ref") ?? "";
   const [saved, setSaved] = useState(false);
-  const [tab, setTab] = useState<"arthur" | "fair" | "watch">("arthur");
+  const tabParam = params.get("tab");
+  const [tab, setTab] = useState<"arthur" | "fair" | "watch">(tabParam === "fair" || tabParam === "watch" ? tabParam : "arthur");
   const [worry, setWorry] = useState<string | null>(null);
   const [faqOpen, setFaqOpen] = useState<number | null>(0);
   const [stickyOn, setStickyOn] = useState(false);
