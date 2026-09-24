@@ -106,6 +106,9 @@ class Settings(BaseSettings):
     stripe_price_family_monthly: str = ""         # $23.99/month
     stripe_price_family_yearly: str = ""          # $224.99/year
     stripe_price_broker_call: str = ""            # $20 flat — 1:1 broker onboarding call, after the 24h free window
+    # Public TestFlight beta link shown as a secondary line in the launch emails;
+    # set TESTFLIGHT_URL="" in Railway to hide it (e.g. if the beta fills up).
+    testflight_url: str = "https://testflight.apple.com/join/TJ3zZkX4"
     stripe_price_broker_call_mxn: str = ""        # same call, MXN price (falls back to USD when unset)
     # PostHog — read-only Personal API Key for the admin business-overview
     # dashboard (DAU/WAU/top events). Distinct from the mobile/web client's

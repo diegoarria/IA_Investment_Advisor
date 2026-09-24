@@ -78,6 +78,11 @@ _COPY = {
     },
 }
 
+_BETA = {
+    "es": ("¿Tienes iPhone?", "Prueba la app en beta →"),
+    "en": ("Have an iPhone?", "Try the beta app →"),
+}
+
 _PROMO = {
     "es": {"title": "Invita a 1 amigo y gana 14 días de Premium gratis",
            "body": "Tu amigo también recibe 14 días de Premium al unirse con tu enlace.",
@@ -113,6 +118,11 @@ def build_launch_email(n: int, name: str | None, language: str | None, referral_
         if rows else ""
     )
     home = "https://nuvosai.com/home"
+    beta_html = ""
+    if settings.testflight_url:
+        q, label = _BETA[lang]
+        beta_html = (f'<p style="text-align:center;margin:14px 0 0;color:#9aa0ac;font-size:13px">{q} '
+                     f'<a href="{settings.testflight_url}" style="color:#00d47e;font-weight:800;text-decoration:none">{label}</a></p>')
     return c["subject"], f"""<!DOCTYPE html>
 <html lang="{lang}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -125,6 +135,7 @@ def build_launch_email(n: int, name: str | None, language: str | None, referral_
       <p style="color:#9aa0ac;font-size:14.5px;margin:0 0 24px;line-height:1.7;text-align:center">{(greeting + ' ') if greeting else ''}{c['body']}</p>
       {features_html}
       <a href="{home}" style="display:block;text-align:center;background:linear-gradient(135deg,#00a85e,#00d47e);color:#04140b;font-weight:900;font-size:15.5px;padding:15px 24px;border-radius:14px;text-decoration:none;box-shadow:0 8px 24px rgba(0,168,94,0.25)">{c['cta']}</a>
+      {beta_html}
       <div style="background:#111318;border:1px solid rgba(0,212,126,0.35);border-radius:16px;padding:20px;margin-top:26px;text-align:center">
         <div style="font-size:26px;margin-bottom:6px">🎁</div>
         <div style="color:#f4f5f7;font-size:16px;font-weight:900;margin-bottom:6px">{p['title']}</div>
