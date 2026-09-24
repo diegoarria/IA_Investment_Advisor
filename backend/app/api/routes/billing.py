@@ -82,7 +82,8 @@ async def get_pricing(user_id: str = Depends(get_current_user_id)):
     }
     if not ids["monthly"] or not ids["yearly"]:
         return usd  # MXN checkout isn't configured for Premium -> checkout will charge USD too
-    cache_key = "pricing:mxn:v2:adaptive" if adaptive else "pricing:mxn:v1"
+    # v3: added "broker_call" — bumping the key makes old cached blobs (without it) miss immediately.
+    cache_key = "pricing:mxn:v3:adaptive" if adaptive else "pricing:mxn:v3"
     cached = cache_get(cache_key)
     if cached:
         return cached
