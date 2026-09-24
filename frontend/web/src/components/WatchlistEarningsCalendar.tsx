@@ -186,7 +186,8 @@ export default function WatchlistEarningsCalendar({
   // hides the ticker events that DID load fine.
   const [macroLoadError, setMacroLoadError] = useState(false);
 
-  const allTickers   = [...new Set([...watchlistTickers, ...portfolioTickers])].filter(Boolean);
+  // Portfolio tickers first: they are the ones that must ALWAYS be on the calendar.
+  const allTickers   = [...new Set([...portfolioTickers, ...watchlistTickers])].filter(Boolean);
   const portfolioSet = new Set(portfolioTickers);
 
   // Retries transient failures (network blip, slow response, a 500) up to

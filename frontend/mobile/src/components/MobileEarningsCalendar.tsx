@@ -140,7 +140,8 @@ export default function MobileEarningsCalendar({
   const [macroImpact, setMacroImpact]       = useState<Record<string, string>>({});
   const [analyzingMacro, setAnalyzingMacro] = useState<string | null>(null);
 
-  const allTickers   = [...new Set([...watchlistTickers, ...portfolioTickers])].filter(Boolean);
+  // Portfolio tickers first: they are the ones that must ALWAYS be on the calendar.
+  const allTickers   = [...new Set([...portfolioTickers, ...watchlistTickers])].filter(Boolean);
   const portfolioSet = new Set(portfolioTickers);
 
   useEffect(() => {

@@ -283,7 +283,12 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
     if not has_earnings:
         events.append({"ticker": symbol, "event_date": None, "event_type": "earnings", "status": "unknown"})
 
-    cache_set(key, events, ttl=_TTL_CALENDAR)
+    # A result with no real date at all is very often a transient upstream miss
+    # (Finnhub/Yahoo hiccup, rate limit), not a true "nothing to report": cache
+    # it only briefly so the real dates come back within minutes instead of
+    # staying missing for the whole calendar TTL.
+    has_real_dates = any(e.get("event_date") for e in events)
+    cache_set(key, events, ttl=_TTL_CALENDAR if has_real_dates else 300)
     return events
 
 
@@ -291,7 +296,18 @@ def _fetch_earnings_calendar(symbols: list[str]) -> list[dict]:
     """Return all calendar events for a list of symbols (earnings + dividends), fetched concurrently."""
     if not symbols:
         return []
-    results = list(_EARNINGS_POOL.map(_fetch_events_for_symbol, symbols))
+    # One bad/failed ticker must never drop every other ticker's events (Diego,
+    # 2026-09-24: portfolio stocks must ALWAYS show ex-dividend / payment /
+    # earnings dates). A ticker that raises degrades to the "unknown"
+    # placeholder for that ticker only.
+    def _safe(sym: str) -> list[dict]:
+        try:
+            return _fetch_events_for_symbol(sym)
+        except Exception as e:
+            logger.warning("calendar events failed for %s: %s", sym, e)
+            return [{"ticker": sym, "event_date": None, "event_type": "earnings", "status": "unknown"}]
+
+    results = list(_EARNINGS_POOL.map(_safe, symbols))
     all_events: list[dict] = []
     for evts in results:
         all_events.extend(evts)
@@ -511,7 +527,10 @@ async def get_earnings_calendar(
     if not ticker_list:
         return {"earnings": []}
 
-    results = await asyncio.to_thread(_fetch_earnings_calendar, ticker_list[:50])
+    # The web/mobile clients request in batches of <=40, so this cap is only a
+    # safety net (it used to be 50 with the watchlist first, which silently
+    # dropped portfolio tickers for anyone with a big watchlist + portfolio).
+    results = await asyncio.to_thread(_fetch_earnings_calendar, ticker_list[:100])
     # Sort: upcoming/today first, then past, then unknown; secondary by date
     order = {"upcoming": 0, "today": 0, "past": 1, "unknown": 2}
     results.sort(key=lambda x: (order.get(x["status"], 2), x.get("event_date") or ""))

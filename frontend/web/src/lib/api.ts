@@ -528,8 +528,26 @@ export const paperApi = {
 };
 
 export const earningsApi = {
-  getCalendar: (symbols: string[]) =>
-    api.get("/api/earnings/calendar", { params: { symbols: symbols.join(",") } }),
+  // Batches of 40 (the server caps one request), each retried once, results
+  // merged: a big watchlist + portfolio can never push a portfolio ticker out,
+  // and one failed batch never hides the rest. Throws only if EVERY batch fails.
+  getCalendar: async (symbols: string[]) => {
+    const unique = [...new Set(symbols.map((s) => s.trim().toUpperCase()).filter(Boolean))];
+    const chunks: string[][] = [];
+    for (let i = 0; i < unique.length; i += 40) chunks.push(unique.slice(i, i + 40));
+    const fetchChunk = async (chunk: string[]) => {
+      try {
+        return await api.get("/api/earnings/calendar", { params: { symbols: chunk.join(",") } });
+      } catch {
+        await new Promise((r) => setTimeout(r, 700));
+        return api.get("/api/earnings/calendar", { params: { symbols: chunk.join(",") } });
+      }
+    };
+    const settled = await Promise.allSettled(chunks.map(fetchChunk));
+    const ok = settled.filter((s): s is PromiseFulfilledResult<any> => s.status === "fulfilled");
+    if (chunks.length > 0 && ok.length === 0) throw (settled[0] as PromiseRejectedResult).reason;
+    return { data: { earnings: ok.flatMap((s) => s.value.data?.earnings ?? []) } };
+  },
   // 45s — on a cache miss this chains a Perplexity web search (backend
   // budgets it up to 35s) + a Sonnet call; every other heavy AI-backed
   // call in this file sets an explicit timeout, this one didn't (Diego,
