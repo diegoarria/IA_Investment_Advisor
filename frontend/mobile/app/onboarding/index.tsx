@@ -392,14 +392,14 @@ export default function OnboardingScreen() {
                   keeps the checkbox from also toggling on this tap. */}
               <Text
                 style={{ color: "#00d47e", textDecorationLine: "underline" }}
-                onPress={(e) => { e.stopPropagation(); Linking.openURL("https://nuvosai.app/terms"); }}
+                onPress={(e) => { e.stopPropagation(); Linking.openURL("https://nuvosai.com/terms"); }}
               >
                 {t("onboarding.step9.termsOfUse")}
               </Text>
               {" "}{t("onboarding.step9.and")}{" "}
               <Text
                 style={{ color: "#00d47e", textDecorationLine: "underline" }}
-                onPress={(e) => { e.stopPropagation(); Linking.openURL("https://nuvosai.app/privacy"); }}
+                onPress={(e) => { e.stopPropagation(); Linking.openURL("https://nuvosai.com/privacy"); }}
               >
                 {t("onboarding.step9.privacyPolicy")}
               </Text>.

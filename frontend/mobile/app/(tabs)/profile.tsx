@@ -1663,11 +1663,11 @@ if (!profile) {
           </View>
 
           <View style={{ flexDirection: "row", justifyContent: "center", gap: 20, paddingVertical: 4 }}>
-            <TouchableOpacity onPress={() => Linking.openURL("https://nuvosai.app/privacy")}>
+            <TouchableOpacity onPress={() => Linking.openURL("https://nuvosai.com/privacy")}>
               <Text style={[s.legalLink, { color: colors.textDim }]}>{t("profile.bottom.privacyPolicy")}</Text>
             </TouchableOpacity>
             <Text style={{ color: colors.textDim, fontSize: 11 }}>·</Text>
-            <TouchableOpacity onPress={() => Linking.openURL("https://nuvosai.app/terms")}>
+            <TouchableOpacity onPress={() => Linking.openURL("https://nuvosai.com/terms")}>
               <Text style={[s.legalLink, { color: colors.textDim }]}>{t("profile.bottom.termsOfUse")}</Text>
             </TouchableOpacity>
           </View>
