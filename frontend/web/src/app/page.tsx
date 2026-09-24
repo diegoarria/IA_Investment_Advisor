@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { auth, profile as profileApi } from "@/lib/api";
 import { applyPendingReferralIfAny } from "@/lib/referral";
+import { consumeReturnTo } from "@/lib/returnTo";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useAuthStore, useProfileStore, useLanguageStore, enterGuestMode } from "@/lib/store";
 import { Eye, EyeOff, ArrowRight, User } from "lucide-react";
@@ -116,7 +117,7 @@ function HomeContent() {
         setAuth("", res.data.user_id);
         setProfile(res.data);
         setExistingUserName(res.data.name || res.data.email || t("landing.yourAccount"));
-        router.push("/home");
+        router.push(consumeReturnTo() ?? "/home");
       })
       .catch((err: unknown) => {
         clearTimeout(fallback);
@@ -228,7 +229,7 @@ function HomeContent() {
       try {
         const p = await profileApi.get();
         setProfile(p.data);
-        window.location.href = "/home";
+        window.location.href = consumeReturnTo() ?? "/home";
       } catch (err: any) {
         // A 404 here is authoritative — this account genuinely has no profile
         // yet, so it always means onboarding. (Previously this was gated by a

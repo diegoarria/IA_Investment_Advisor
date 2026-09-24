@@ -30,6 +30,8 @@ self.addEventListener("notificationclick", (event) => {
   // instead carry a msg/prefill so chat/page.tsx opens Arthur with that
   // question pre-filled (never auto-sent — see chat page's own ?msg= effect).
   let url = self.location.origin + "/" + screen;
+  // Friday 1:1-call upsell -> straight into the session checkout on the web app.
+  if (screen === "products_session") url = self.location.origin + "/products?open=session";
   if (screen === "watchlist" && eventId) url += `?macroEventId=${encodeURIComponent(eventId)}`;
   else if (screen === "chat" && msg) url += `?msg=${encodeURIComponent(msg)}`;
   event.waitUntil(

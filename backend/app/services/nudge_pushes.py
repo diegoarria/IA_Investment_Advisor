@@ -146,20 +146,37 @@ async def job_midday_nudge() -> None:
         profiles = await _paged(lambda: db.table("user_profiles").select("user_id,name,preferred_language,push_token").order("user_id"))
         web = await _paged(lambda: db.table("web_push_subscriptions").select("id,user_id").order("id"))
         web_uids = {r["user_id"] for r in web}
-        recipients = [
+        push_capable = [
             p for p in profiles
-            if (p.get("push_token") or p["user_id"] in web_uids)
-            and p["user_id"] not in disabled and p["user_id"] not in has_pos
+            if (p.get("push_token") or p["user_id"] in web_uids) and p["user_id"] not in disabled
         ]
+        # Fridays: anyone who qualifies for the 1:1-call upsell (see
+        # session_upsell.py) gets THAT instead of the nudge — never both.
+        upsell_by_uid: dict[str, dict] = {}
+        if today.weekday() == 4:
+            from app.services.session_upsell import eligible_profiles, PUSH_CATEGORY
+            try:
+                upsell_by_uid = {p["user_id"]: p for p in await eligible_profiles(db, PUSH_CATEGORY)}
+            except Exception as e:
+                logger.warning("job_midday_nudge: upsell audience failed, sending plain nudges only: %s", e)
         sent = 0
+        recipients = [p for p in push_capable if p["user_id"] in upsell_by_uid or p["user_id"] not in has_pos]
         for i, prof in enumerate(recipients):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.1))
             try:
-                first = (prof.get("name") or "Inversor").split()[0]
-                title, body, data = build_nudge(kind, prof.get("preferred_language") or "es", first, today)
-                await send_push(prof["user_id"], NUDGE_CATEGORY, title, body, data, db)
+                uid = prof["user_id"]
+                lang = prof.get("preferred_language") or "es"
+                if uid in upsell_by_uid:
+                    from app.services.session_upsell import build_upsell_push, PUSH_CATEGORY
+                    free_credit = int(upsell_by_uid[uid].get("free_1on1_sessions") or 0) > 0
+                    title, body, data = build_upsell_push(lang, free_credit)
+                    await send_push(uid, PUSH_CATEGORY, title, body, data, db)
+                else:
+                    first = (prof.get("name") or "Inversor").split()[0]
+                    title, body, data = build_nudge(kind, lang, first, today)
+                    await send_push(uid, NUDGE_CATEGORY, title, body, data, db)
                 sent += 1
             except Exception as e:
                 logger.warning("job_midday_nudge failed for %s: %s", prof["user_id"], e)

@@ -130,6 +130,9 @@ function AppStack() {
         // Premium earnings-report push (see worker.py's _job_earnings_dispatch)
         // — deep-links straight into that ticker's real analysis screen.
         router.navigate(`/${data.screen}` as any);
+      } else if (data.screen === "products_session") {
+        // Friday 1:1-call upsell: Products screen with the session sheet open.
+        router.navigate({ pathname: "/(tabs)/products", params: { open: "session" } } as any);
       } else if (data.screen === "subvaluadas") {
         // Weekly Oportunidades rotation push (see worker.py's
         // _notify_undervalued_screener_updated).

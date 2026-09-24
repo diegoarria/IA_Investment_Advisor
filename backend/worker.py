@@ -6834,6 +6834,10 @@ async def main():
     # (app/services/nudge_pushes.py — skips holidays / early-close days itself).
     from app.services.nudge_pushes import job_midday_nudge
     scheduler.add_job(job_midday_nudge, "cron", day_of_week="mon-fri", hour=13, minute=0, timezone="America/New_York")
+    # Fridays 10:00 ET: email side of the 1:1-call upsell (same audience rules as
+    # the 13:00 push; app/services/session_upsell.py).
+    from app.services.session_upsell import job_session_upsell_email
+    scheduler.add_job(job_session_upsell_email, "cron", day_of_week="fri", hour=10, minute=0, timezone="America/New_York", misfire_grace_time=3600)
     # ── Official launch: fresh 30-day trial for every non-paying user, once,
     # 2026-09-24 00:05 ET (app/services/trial_reset.py, idempotent per user).
     from app.services.trial_reset import reset_trials_for_launch, send_trial_reset_emails

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
@@ -13,6 +13,7 @@ import type { TFunction } from "i18next";
 import { upsells, billing } from "@/lib/api";
 import EmbeddedCheckout, { type CheckoutSummary } from "@/components/EmbeddedCheckout";
 import { useBillingPricing, fmtMxn } from "@/lib/pricing";
+import { setReturnTo } from "@/lib/returnTo";
 import {
   Brain, BarChart2, TrendingUp, Shield, Zap, BookOpen,
   GraduationCap, Bell, Calendar, RefreshCw, Target, Search,
@@ -100,6 +101,26 @@ export default function ProductsPage() {
   // Diego, 2026-09-15: card entry happens INSIDE a modal (Stripe Elements)
   // instead of redirecting to a Stripe-hosted page.
   const [checkoutOffer, setCheckoutOffer] = useState<{ offer: string; variant: string } | null>(null);
+
+  // Deep link from the Friday 1:1-call email: /products?open=session opens the
+  // session checkout directly, on phone or desktop. Not signed in on this
+  // device -> remember the destination, send to login, and login brings the
+  // user straight back here (lib/returnTo). The 1s wait lets the persisted
+  // auth store finish hydrating so a logged-in user is never bounced to login.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("open") !== "session") return;
+    const timer = setTimeout(() => {
+      if (!useAuthStore.getState().isAuthenticated) {
+        setReturnTo("/products?open=session");
+        router.push("/");
+        return;
+      }
+      setCheckoutOffer({ offer: "session", variant: "default" });
+      window.history.replaceState(null, "", "/products");
+    }, 1000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleCheckout(offer: string, variant: string) {
     if (!isAuthenticated) { router.push("/login"); return; }
