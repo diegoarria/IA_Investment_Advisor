@@ -648,13 +648,21 @@ function currentYearMonth() {
   return { year: now.getFullYear(), month: now.getMonth() + 1 };
 }
 
+// Only open on days 1-3 of each month, when the month that matters is the one
+// that JUST ended — that is the default, not the barely-started current one.
+function defaultYearMonth() {
+  const { year, month } = currentYearMonth();
+  return month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
+}
+
 export default function MonthlyReportScreen() {
   const { t } = useTranslation();
-  const [{ year, month }, setYearMonth] = useState(currentYearMonth);
+  const [{ year, month }, setYearMonth] = useState(defaultYearMonth);
   const [data, setData] = useState<MonthlyReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [premiumLocked, setPremiumLocked] = useState<string | null>(null);
+  const [windowClosed, setWindowClosed] = useState(false);
   const [index, setIndex] = useState(0);
   const [sharing, setSharing] = useState(false);
   const shareRef = useRef<View>(null);
@@ -663,12 +671,15 @@ export default function MonthlyReportScreen() {
     setLoading(true);
     setError(null);
     setPremiumLocked(null);
+    setWindowClosed(false);
     api.get("/api/monthly-report", { params: { year: y, month: m }, timeout: 30000 })
       .then((r) => setData(r.data))
       .catch((e) => {
         const detail = e?.response?.data?.detail;
         if (e?.response?.status === 403 && detail?.code === "premium_required") {
           setPremiumLocked(detail.message);
+        } else if (e?.response?.status === 404 && detail?.code === "monthly_report_window_closed") {
+          setWindowClosed(true);
         } else {
           setError(String(detail ?? e?.response?.status ?? e?.message ?? t("monthlyReport.unknownError")));
         }
@@ -723,6 +734,17 @@ export default function MonthlyReportScreen() {
     <View style={ldg.container}>
       <ActivityIndicator color={WT.accentL} size="large" />
       <Text style={ldg.text}>{t("monthlyReport.loadingText")}</Text>
+    </View>
+  );
+
+  if (windowClosed) return (
+    <View style={ldg.container}>
+      <Text style={{ fontSize: 34, marginBottom: 6 }}>🔒</Text>
+      <Text style={[ldg.text, { fontWeight: "800", color: WT.text, fontSize: 16, textAlign: "center", paddingHorizontal: 32 }]}>{t("monthlyReport.closedTitle")}</Text>
+      <Text style={{ color: "#9ca3af", fontSize: 13, marginTop: 6, textAlign: "center", paddingHorizontal: 32 }}>{t("monthlyReport.closedBody")}</Text>
+      <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 16 }}>
+        <Text style={{ color: WT.accentL, fontSize: 14 }}>{t("monthlyReport.back")}</Text>
+      </TouchableOpacity>
     </View>
   );
 

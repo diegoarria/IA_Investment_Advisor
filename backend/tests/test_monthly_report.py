@@ -250,6 +250,25 @@ class TestMonthlyReportRouteFreeSummary:
         "habits": {"active_days": 10},
     }
 
+    @pytest.fixture(autouse=True)
+    def _window_open(self):
+        # The route is only accessible on days 1-3 of the month; these tests
+        # are about tier shaping, not the date, so pin the window open.
+        from unittest.mock import patch
+        with patch("app.core.monthly_report_window.is_monthly_report_window_open", return_value=True):
+            yield
+
+    @pytest.mark.asyncio
+    async def test_closed_window_returns_404_with_the_locked_code(self):
+        from unittest.mock import patch
+        from fastapi import HTTPException
+        from app.api.routes.monthly_report import get_monthly_report_route
+        with patch("app.core.monthly_report_window.is_monthly_report_window_open", return_value=False):
+            with pytest.raises(HTTPException) as exc:
+                await get_monthly_report_route(year=2026, month=9, user_id="u")
+        assert exc.value.status_code == 404
+        assert exc.value.detail["code"] == "monthly_report_window_closed"
+
     @pytest.mark.asyncio
     async def test_free_gets_summary_never_the_full_breakdown(self):
         from unittest.mock import AsyncMock, patch

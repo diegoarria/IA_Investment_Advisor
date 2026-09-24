@@ -2352,6 +2352,8 @@
     "unknownError": "Error desconocido",
     "loadingText": "Preparando tu Monthly Report…",
     "loadFailedText": "No se pudo cargar tu Monthly Report.",
+    "closedTitle": "Tu Monthly Report abre del 1 al 3 de cada mes",
+    "closedBody": "Vuelve el próximo día 1 para ver cómo te fue este mes.",
     "retry": "Reintentar",
     "back": "Volver",
     "premiumTitle": "Monthly Report es Premium",

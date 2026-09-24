@@ -2345,6 +2345,8 @@
     "unknownError": "Unknown error",
     "loadingText": "Preparing your Monthly Report…",
     "loadFailedText": "Could not load your Monthly Report.",
+    "closedTitle": "Your Monthly Report opens on the 1st through the 3rd of each month",
+    "closedBody": "Come back on the 1st to see how your month went.",
     "retry": "Retry",
     "back": "Back",
     "premiumTitle": "Monthly Report is Premium",

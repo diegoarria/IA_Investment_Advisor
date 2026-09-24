@@ -2101,7 +2101,15 @@ async def job_monthly_report_email():
     if not settings.resend_api_key:
         return
     today = datetime.now(pytz.timezone("America/New_York")).date()
-    if not _is_first_trading_day_of_month(today):
+    # The report is only accessible on days 1-3 (app/core/monthly_report_window.py),
+    # so the email can't wait for a first trading day that lands on the 4th
+    # (e.g. the 1st is a Saturday and Monday the 3rd is a holiday): in that
+    # case it goes out on the 3rd, the last day the link still works.
+    from app.services.market_holidays import is_trading_day
+    no_trading_day_yet = today.day == 3 and not any(
+        is_trading_day(today.replace(day=d)) for d in (1, 2, 3)
+    )
+    if not (_is_first_trading_day_of_month(today) or no_trading_day_yet):
         return
 
     from app.core.database import get_supabase, run_query
@@ -6792,11 +6800,11 @@ async def main():
     scheduler.add_job(job_refresh_smart_alerts_sources, "cron", day_of_week="mon-fri", hour=13, minute=0, timezone="America/New_York")
     scheduler.add_job(job_smart_alerts,           "cron", day_of_week="mon-fri", hour=16,    minute=20,    timezone="America/New_York")
     scheduler.add_job(job_daily_email,          "cron", day_of_week="fri",     hour=18,      minute=0,     timezone="America/New_York")
-    # 9:00am ET, days 1-4 — job_monthly_report_email's own
+    # 9:00am ET, days 1-3 (the report's access window) — job_monthly_report_email's own
     # _is_first_trading_day_of_month gate makes this fire exactly once per
     # month even when the 1st is a weekend/holiday (same idiom as
     # job_weekly_open_snapshot's day-of-week cron + internal gate).
-    scheduler.add_job(job_monthly_report_email, "cron", day="1-4",             hour=9,       minute=0,     timezone="America/New_York")
+    scheduler.add_job(job_monthly_report_email, "cron", day="1-3",             hour=9,       minute=0,     timezone="America/New_York")
     # Dec 15, 9:00am ET — same moment job_wrapped_notify_available pushes its
     # opt-in users, but this email reaches every user (see docstring).
     # ── Official launch: fresh 30-day trial for every non-paying user, once,

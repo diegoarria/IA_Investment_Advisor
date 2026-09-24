@@ -40,6 +40,14 @@ async def get_monthly_report_route(
     user_id: str = Depends(get_current_user_id),
 ):
     from app.core.subscription import is_premium_active
+    from app.core.monthly_report_window import is_monthly_report_window_open
+    # Only accessible on days 1-3 of every month (Diego, 2026-09-23). 404, not
+    # 403, same contract as Wrapped: "not available yet", not "forbidden".
+    if not is_monthly_report_window_open():
+        raise HTTPException(status_code=404, detail={
+            "code": "monthly_report_window_closed",
+            "message": "Tu Nuvos Monthly Report está disponible del 1 al 3 de cada mes.",
+        })
     profile = await _get_profile_safe(user_id)
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
