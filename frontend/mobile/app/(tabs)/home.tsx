@@ -1119,6 +1119,35 @@ export default function HomeScreen() {
             tintColor={colors.accentLight} colors={[colors.accentLight]} />
         }
       >
+        {/* Moved to the very top of Home (Diego, 2026-09-23) — small gap under the
+            header. Diego, 2026-09-11 — "Decide mejor" audit: real decision-hook for
+            Home, mirroring web (frontend/web/src/app/home/page.tsx). Only
+            rendered when there's genuinely something real to say. */}
+        {topMoverInsight && !topMoverDismissed && (
+          <View style={{ paddingHorizontal: 16, paddingTop: 8, marginBottom: 12 }}>
+            <InsightCallout
+              colors={colors}
+              icon="flash"
+              title={t("home.topMoverInsight.title", { ticker: topMoverInsight.ticker })}
+              body={t(
+                topMoverInsight.dollarImpact >= 0
+                  ? "home.topMoverInsight.bodyPositive"
+                  : "home.topMoverInsight.bodyNegative",
+                {
+                  amount: balanceHidden ? "••••" : fmt(Math.abs(topMoverInsight.dollarImpact) * fxRate, portfolioCurrency),
+                  pct: fmtPct(topMoverInsight.pct),
+                },
+              )}
+              ctaLabel={t("home.topMoverInsight.cta", { ticker: topMoverInsight.ticker })}
+              onPressCta={() => router.push(`/subvaluadas?ticker=${topMoverInsight.ticker}` as any)}
+              onDismiss={() => {
+                dismissToday(TOP_MOVER_INSIGHT_DISMISS_KEY);
+                setTopMoverDismissed(true);
+              }}
+            />
+          </View>
+        )}
+
         {!welcomeCardDismissed && (
           <View style={{
             marginHorizontal: 16, marginBottom: 12, borderRadius: 16, overflow: "hidden",
@@ -1574,34 +1603,6 @@ export default function HomeScreen() {
             onPress={() => router.navigate("/(tabs)/academy")} colors={colors} />
 
         </View>
-
-        {/* Diego, 2026-09-11 — "Decide mejor" audit: real decision-hook for
-            Home, mirroring web (frontend/web/src/app/home/page.tsx). Only
-            rendered when there's genuinely something real to say. */}
-        {topMoverInsight && !topMoverDismissed && (
-          <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
-            <InsightCallout
-              colors={colors}
-              icon="flash"
-              title={t("home.topMoverInsight.title", { ticker: topMoverInsight.ticker })}
-              body={t(
-                topMoverInsight.dollarImpact >= 0
-                  ? "home.topMoverInsight.bodyPositive"
-                  : "home.topMoverInsight.bodyNegative",
-                {
-                  amount: balanceHidden ? "••••" : fmt(Math.abs(topMoverInsight.dollarImpact) * fxRate, portfolioCurrency),
-                  pct: fmtPct(topMoverInsight.pct),
-                },
-              )}
-              ctaLabel={t("home.topMoverInsight.cta", { ticker: topMoverInsight.ticker })}
-              onPressCta={() => router.push(`/subvaluadas?ticker=${topMoverInsight.ticker}` as any)}
-              onDismiss={() => {
-                dismissToday(TOP_MOVER_INSIGHT_DISMISS_KEY);
-                setTopMoverDismissed(true);
-              }}
-            />
-          </View>
-        )}
 
         {/* ── Top Movers ───────────────────────────────────────────────────── */}
         {(loading || movers.length > 0) && (
