@@ -217,8 +217,13 @@ export default function NotificationsScreen() {
 
   // Sorted positions for "Hoy en tu portafolio"
   const sortedPositions = useMemo(() => {
-    if (portSort === "default") return positions;
-    return [...positions].sort((a, b) => {
+    // One row per ticker: the same ticker can sit in several portfolios/lots,
+    // which showed it twice and crashed React's list keys ("two children with
+    // the same key"). This list only shows today's move per ticker, so the
+    // first occurrence is enough.
+    const unique = positions.filter((p, i) => positions.findIndex((q) => q.ticker === p.ticker) === i);
+    if (portSort === "default") return unique;
+    return [...unique].sort((a, b) => {
       const pa = portPrices[a.ticker]?.change_pct ?? null;
       const pb = portPrices[b.ticker]?.change_pct ?? null;
       if (pa === null && pb === null) return 0;
