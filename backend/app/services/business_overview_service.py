@@ -344,9 +344,75 @@ async def _get_posthog_metrics() -> dict:
     }
 
 
+# Diego, 2026-09-24: "SIEMPRE debe abrir, sin fallar jamás". The admin panel is
+# the one place that must always render, so get_business_overview() below can
+# never raise: it falls back to the last good result, then to an empty-but-
+# well-shaped payload (the page shows what it has and says what is missing).
+_LAST_GOOD: dict | None = None
+
+
+def _degraded_overview(reason: str) -> dict:
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "degraded": True,
+        "degraded_reason": reason,
+        "users": {"error": reason},
+        "stripe": {"available": False, "reason": "error"},
+        "posthog": {"available": False, "reason": "error"},
+        "costs": {
+            "llm_usd_30d": None, "stripe_fees_usd_30d": None,
+            "fixed_costs": {"items": [], "total_monthly_usd": 0.0},
+            "total_cost_usd_30d": None, "margin_usd": None, "margin_pct": None,
+        },
+    }
+
+
 async def get_business_overview(force_refresh: bool = False) -> dict:
+    """Never raises. See _LAST_GOOD's comment."""
+    global _LAST_GOOD
+    try:
+        result = await _compute_business_overview(force_refresh)
+        if not result.get("degraded"):
+            _LAST_GOOD = result
+        return result
+    except Exception as e:
+        logger.error("get_business_overview failed, serving fallback: %s", e, exc_info=True)
+        if _LAST_GOOD is not None:
+            return {**_LAST_GOOD, "stale": True, "stale_reason": str(e)}
+        return _degraded_overview(str(e))
+
+
+def _safe_cache_get(key: str):
+    try:
+        return cache_get(key)
+    except Exception as e:
+        logger.warning("business overview cache_get failed: %s", e)
+        return None
+
+
+def _safe_cache_set(key: str, value: dict, ttl: int) -> None:
+    try:
+        cache_set(key, value, ttl)
+    except Exception as e:
+        logger.warning("business overview cache_set failed (result still returned): %s", e)
+
+
+def _safe_cache_delete(key: str) -> None:
+    try:
+        cache_delete(key)
+    except Exception as e:
+        logger.warning("business overview cache_delete failed: %s", e)
+
+
+def _as_dict(value, default: dict) -> dict:
+    """Any section that came back as the wrong shape (None, list, ...) is
+    replaced by its safe default instead of raising further down."""
+    return value if isinstance(value, dict) else default
+
+
+async def _compute_business_overview(force_refresh: bool = False) -> dict:
     if not force_refresh:
-        cached = cache_get(_CACHE_KEY)
+        cached = _safe_cache_get(_CACHE_KEY)
         if cached is not None:
             return cached
 
@@ -381,6 +447,14 @@ async def get_business_overview(force_refresh: bool = False) -> dict:
     if isinstance(fixed_costs, Exception):
         logger.warning("_get_fixed_costs failed: %s", fixed_costs)
         fixed_costs = {"items": [], "total_monthly_usd": 0.0}
+    users         = _as_dict(users, {"error": "invalid_shape"})
+    stripe_metrics = _as_dict(stripe_metrics, {"available": False, "reason": "error"})
+    posthog_metrics = _as_dict(posthog_metrics, {"available": False, "reason": "error"})
+    stripe_fees   = _as_dict(stripe_fees, {"available": False, "reason": "error"})
+    llm_cost      = _as_dict(llm_cost, {"cost_usd_30d": None})
+    fixed_costs   = _as_dict(fixed_costs, {"items": [], "total_monthly_usd": 0.0})
+    fixed_costs.setdefault("items", [])
+    fixed_costs.setdefault("total_monthly_usd", 0.0)
 
     # Margin: MRR minus every real cost we can account for over the same
     # ~30-day window (LLM/token spend, Stripe's own processing fees, and
@@ -417,9 +491,9 @@ async def get_business_overview(force_refresh: bool = False) -> dict:
         "costs":   costs,
     }
     if had_failure:
-        cache_delete(_CACHE_KEY)
+        _safe_cache_delete(_CACHE_KEY)
     else:
-        cache_set(_CACHE_KEY, result, _CACHE_TTL)
+        _safe_cache_set(_CACHE_KEY, result, _CACHE_TTL)
     return result
 
 
@@ -432,6 +506,12 @@ async def snapshot_business_overview() -> None:
     (or the job firing twice) can't create duplicate rows for one date."""
     import pytz
     overview = await get_business_overview(force_refresh=True)
+    # Never bake a fallback/degraded payload (or a failed users read) into the
+    # history as a row of zeros — skip today and try again tomorrow.
+    if overview.get("degraded") or overview.get("stale") or "error" in (overview.get("users") or {}):
+        logger.warning("snapshot_business_overview: skipped, overview is degraded/stale (%s)",
+                       overview.get("degraded_reason") or overview.get("stale_reason") or "users read failed")
+        return
     users = overview["users"]
     stripe_metrics = overview["stripe"]
     posthog_metrics = overview["posthog"]
@@ -471,12 +551,18 @@ async def get_business_overview_history(days: int = 56) -> list[dict]:
     trend charts. Not cached: this is a small, indexed, once-a-day-written
     table, cheap enough to always read fresh."""
     from datetime import date
-    db = get_supabase()
-    since = (date.today() - timedelta(days=days)).isoformat()
-    res = await run_query(
-        db.table("business_overview_snapshots")
-        .select("*")
-        .gte("snapshot_date", since)
-        .order("snapshot_date", desc=False)
-    )
-    return res.data or []
+    try:
+        db = get_supabase()
+        since = (date.today() - timedelta(days=days)).isoformat()
+        res = await run_query(
+            db.table("business_overview_snapshots")
+            .select("*")
+            .gte("snapshot_date", since)
+            .order("snapshot_date", desc=False)
+        )
+        return res.data or []
+    except Exception as e:
+        # The trend charts are optional; a failure here must never take the
+        # whole panel down with it.
+        logger.warning("get_business_overview_history failed, returning no history: %s", e)
+        return []

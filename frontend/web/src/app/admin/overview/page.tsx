@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, RefreshCw, Users, Crown, TrendingDown, Activity, Lock, DollarSign, Trash2, Plus } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
@@ -66,6 +66,11 @@ interface Overview {
   stripe: StripeMetrics;
   posthog: PosthogMetrics;
   costs: CostsMetrics;
+  // Set by the server when it had to fall back (see business_overview_service).
+  degraded?: boolean;
+  degraded_reason?: string;
+  stale?: boolean;
+  stale_reason?: string;
 }
 
 interface HistoryRow {
@@ -231,24 +236,38 @@ export default function AdminBusinessOverviewPage() {
     if (userId !== ADMIN_UID) router.push("/");
   }, [userId, isAuthenticated, router]);
 
+  // Diego, 2026-09-24: this panel must ALWAYS open with whatever data exists.
+  // The overview and the history are fetched independently (allSettled): the
+  // history failing used to reject a Promise.all and blank the whole page even
+  // though the overview had loaded fine. A failed overview keeps whatever is
+  // already on screen, shows a small notice, and retries on its own.
+  const retryRef = useRef(0);
   const load = useCallback(async (forceRefresh: boolean) => {
     forceRefresh ? setRefreshing(true) : setLoading(true);
     setError(null);
-    try {
-      const [overviewRes, historyRes] = await Promise.all([
-        adminApi.businessOverview(forceRefresh),
-        adminApi.businessOverviewHistory(56),
-      ]);
-      setData(overviewRes.data);
-      setHistory(historyRes.data ?? []);
-      // Independent of the overview call: a failure here must never blank the panel.
-      adminApi.llmUsage(30).then((r) => setLlmUsage(r.data)).catch(() => setLlmUsage(null));
-    } catch (err: any) {
-      setError(err?.response?.data?.detail ?? "No se pudo cargar el panel.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+    const [overviewRes, historyRes] = await Promise.allSettled([
+      adminApi.businessOverview(forceRefresh),
+      adminApi.businessOverviewHistory(56),
+    ]);
+    if (overviewRes.status === "fulfilled" && overviewRes.value.data?.users) {
+      setData(overviewRes.value.data);
+      retryRef.current = 0;
+    } else {
+      const err: any = overviewRes.status === "rejected" ? overviewRes.reason : null;
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === "string" ? detail : "Reintentando cargar el panel…");
+      if (retryRef.current < 4) {
+        retryRef.current += 1;
+        setTimeout(() => load(false), 3000 * retryRef.current);
+      } else {
+        setError("No se pudo actualizar el panel. Mostrando lo último que se cargó; pulsa Actualizar para reintentar.");
+      }
     }
+    if (historyRes.status === "fulfilled") setHistory(historyRes.value.data ?? []);
+    // Independent of the overview call: a failure here must never blank the panel.
+    adminApi.llmUsage(30).then((r) => setLlmUsage(r.data)).catch(() => {});
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useEffect(() => {
@@ -314,6 +333,13 @@ export default function AdminBusinessOverviewPage() {
 
         {loading && <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent)" }} />}
         {error && <p className="text-sm" style={{ color: "#f87171" }}>{error}</p>}
+        {data && (data.degraded || data.stale) && (
+          <p className="text-xs rounded-xl border p-3" style={{ borderColor: "#f59e0b", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
+            {data.stale
+              ? "Algunos datos son de la última carga exitosa; el servidor no pudo actualizarlos ahora mismo."
+              : "El servidor no pudo leer los datos ahora mismo. Se reintentará solo; también puedes pulsar Actualizar."}
+          </p>
+        )}
 
         {data && (
           <>

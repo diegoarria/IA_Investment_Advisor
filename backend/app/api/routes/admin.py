@@ -320,8 +320,12 @@ async def business_overview(force_refresh: bool = False, user: dict = Depends(ge
     app/services/business_overview_service.py for the real logic — this
     route is intentionally thin (auth only)."""
     await _require_admin(user)
-    from app.services.business_overview_service import get_business_overview
-    return await get_business_overview(force_refresh=force_refresh)
+    from app.services.business_overview_service import get_business_overview, _degraded_overview
+    try:
+        return await get_business_overview(force_refresh=force_refresh)
+    except Exception as e:  # get_business_overview already never raises; belt and braces
+        logger.error("business_overview route failed: %s", e, exc_info=True)
+        return _degraded_overview(str(e))
 
 
 @router.get("/business-overview/history")
@@ -331,7 +335,11 @@ async def business_overview_history(days: int = 56, user: dict = Depends(get_cur
     whether things are getting better or worse."""
     await _require_admin(user)
     from app.services.business_overview_service import get_business_overview_history
-    return await get_business_overview_history(days=days)
+    try:
+        return await get_business_overview_history(days=days)
+    except Exception as e:
+        logger.error("business_overview_history route failed: %s", e, exc_info=True)
+        return []
 
 
 @router.get("/operating-costs")
