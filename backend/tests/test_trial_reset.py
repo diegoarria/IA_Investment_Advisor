@@ -27,3 +27,10 @@ async def test_resets_only_non_paying_users_not_already_reset():
     assert db.table.return_value.update.call_args.args[0].keys() == {"trial_started_at"}
     assert sorted(db.table.return_value.update.return_value.in_.call_args.args[1]) == ["free1", "none1"]
     assert rq.await_count == 2
+
+
+def test_trial_reset_email_renders_in_both_languages():
+    for lang in ("es", "en", None):
+        subject, html = trial_reset.build_trial_reset_email("Diego Arria", lang)
+        assert subject and "30" in html and "nuvosai.com/home" in html
+        assert "asesor" not in html.lower() and "advisor" not in html.lower()

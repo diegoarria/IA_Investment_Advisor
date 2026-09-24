@@ -6801,7 +6801,11 @@ async def main():
     # opt-in users, but this email reaches every user (see docstring).
     # ── Official launch: fresh 30-day trial for every non-paying user, once,
     # 2026-09-24 00:05 ET (app/services/trial_reset.py, idempotent per user).
-    from app.services.trial_reset import reset_trials_for_launch
+    from app.services.trial_reset import reset_trials_for_launch, send_trial_reset_emails
+    scheduler.add_job(
+        send_trial_reset_emails, "cron", year=2026, month=9, day=24, hour=9, minute=0,
+        timezone="America/New_York", id="launch_trial_reset_email", misfire_grace_time=3600,
+    )
     scheduler.add_job(
         reset_trials_for_launch, "cron", year=2026, month=9, day=24, hour=0, minute=5,
         timezone="America/New_York", id="launch_trial_reset", misfire_grace_time=6 * 3600,
