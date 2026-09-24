@@ -6799,6 +6799,13 @@ async def main():
     scheduler.add_job(job_monthly_report_email, "cron", day="1-4",             hour=9,       minute=0,     timezone="America/New_York")
     # Dec 15, 9:00am ET — same moment job_wrapped_notify_available pushes its
     # opt-in users, but this email reaches every user (see docstring).
+    # ── Official launch: fresh 30-day trial for every non-paying user, once,
+    # 2026-09-24 00:05 ET (app/services/trial_reset.py, idempotent per user).
+    from app.services.trial_reset import reset_trials_for_launch
+    scheduler.add_job(
+        reset_trials_for_launch, "cron", year=2026, month=9, day=24, hour=0, minute=5,
+        timezone="America/New_York", id="launch_trial_reset", misfire_grace_time=6 * 3600,
+    )
     # ── Official launch emails — 2026-09-24 only, 11:00 / 15:00 / 20:00 ET ──
     # Idempotent per user via notification_log (app/services/launch_emails.py),
     # so a restart/misfire re-run never double-sends. 1h misfire grace.
