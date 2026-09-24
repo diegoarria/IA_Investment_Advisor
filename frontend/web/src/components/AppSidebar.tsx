@@ -1,5 +1,6 @@
 "use client";
 
+import { useBillingPricing, fmtMxn } from "@/lib/pricing";
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useTranslation } from "react-i18next";
@@ -194,6 +195,18 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
   const orderedNav = navOrder.map((href) => MAIN_NAV.find((n) => n.href === href)!).filter(Boolean);
   const userLevel  = getUserLevel(profile);
   const isPremium      = hasPremiumAccess(subStore);
+
+  // Same price + copy as the Products screen's "Sesión 1:1" card: MXN once
+  // every session price is configured (that page's own rule), else USD.
+  const sessionPricing = useBillingPricing();
+  const sessionMxn = sessionPricing.currency === "mxn" && sessionPricing.session_free != null
+    && sessionPricing.session_premium != null && sessionPricing.session_bundle != null;
+  const sessionAmount = sessionMxn
+    ? fmtMxn(isPremium ? sessionPricing.session_premium! : sessionPricing.session_free!)
+    : (isPremium ? "$99" : "$149");
+  const sessionSuffix = sessionMxn ? " MXN" : " USD";
+  const sessionItem = (t("products.oneTimeProducts", { returnObjects: true }) as { title: string; features: string[] }[])[0];
+
 
   const navigate = (href: string) => { router.push(href); onClose(); };
 
@@ -614,17 +627,20 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
           >
             <div className="pt-5">
               <EmbeddedCheckout
-                createIntent={() => upsells.checkoutEmbedded("session", "default", "sidebar").then((r) => r.data)}
+                createIntent={() => upsells.checkoutEmbedded("session", "default", "sidebar", { currency: sessionMxn ? "mxn" : "usd" }).then((r) => r.data)}
+                adaptive={{
+                  createSession: () => upsells.checkoutAdaptive("session", "default", "sidebar").then((r) => r.data),
+                }}
                 returnUrl={`${window.location.origin}/upsell-success?offer=session`}
                 onBack={() => setSessionCheckoutOpen(false)}
                 onSuccess={handleSessionCheckoutSuccess}
                 payCtaLabel={t("pricingModal.payCtaSession")}
                 summary={{
-                  planName: t("upsellModal.session.title"),
-                  priceLabel: isPremium ? "$99" : "$149",
-                  priceSuffix: " USD",
-                  dueTodayLabel: isPremium ? "$99 USD" : "$149 USD",
-                  features: t("upsellModal.session.features", { returnObjects: true }) as string[],
+                  planName: sessionItem?.title ?? t("upsellModal.session.title"),
+                  priceLabel: sessionAmount,
+                  priceSuffix: sessionSuffix,
+                  dueTodayLabel: `${sessionAmount}${sessionSuffix}`,
+                  features: sessionItem?.features ?? (t("upsellModal.session.features", { returnObjects: true }) as string[]),
                   accentColor: "#00d47e",
                 }}
               />

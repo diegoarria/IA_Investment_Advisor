@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useBillingPricing, fmtMxn, type BillingPricing } from "../../src/lib/billingPricing";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -82,7 +82,10 @@ export default function ProductsScreen() {
   const { t } = useTranslation();
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
-  const [selectedProduct, setSelectedProduct] = useState<OneTimeProduct | null>(null);
+  // Keyed (not the item itself) so the open sheet always reflects the current
+  // price — MXN amounts arrive async after the sheet may already be open.
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const { open } = useLocalSearchParams<{ open?: string }>();
 
   const FREE_FEATURES = getFreeFeatures(t);
   const PREMIUM_FEATURES = getPremiumFeatures(t);
@@ -92,6 +95,16 @@ export default function ProductsScreen() {
   const mxnDuo = pricing.currency === "mxn" && pricing.duo_monthly != null && pricing.duo_yearly != null;
   const ONE_TIME = getOneTimeItems(t, pricing);
   const COMING_SOON = getComingSoonItems(t);
+  const selectedProduct: OneTimeProduct | null = ONE_TIME.find((p) => `${p.offer}:${p.variant}` === selectedKey) ?? null;
+
+  // Sidebar "Sesión 1:1" lands here with ?open=session — same as tapping that
+  // product's card, then clear the param so going back/reopening works normally.
+  useEffect(() => {
+    if (open === "session") {
+      setSelectedKey("session:default");
+      router.setParams({ open: undefined } as any);
+    }
+  }, [open]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -208,7 +221,7 @@ export default function ProductsScreen() {
               <TouchableOpacity
                 key={i}
                 activeOpacity={0.85}
-                onPress={() => setSelectedProduct(p)}
+                onPress={() => setSelectedKey(`${p.offer}:${p.variant}`)}
                 style={{ borderRadius: 18, borderWidth: 1, padding: 14, backgroundColor: colors.card, borderColor: colors.border }}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
@@ -270,7 +283,7 @@ export default function ProductsScreen() {
 
       <OneTimeProductModal
         visible={!!selectedProduct}
-        onClose={() => setSelectedProduct(null)}
+        onClose={() => setSelectedKey(null)}
         product={selectedProduct}
       />
     </View>

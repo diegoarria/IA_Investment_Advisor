@@ -454,7 +454,7 @@ function WebSidebar() {
             {/* 1:1 coaching CTA */}
             <TouchableOpacity
               style={[styles.coachingBtn, { backgroundColor: "rgba(0,168,94,0.08)", borderColor: "rgba(0,212,126,0.25)" }]}
-              onPress={() => Linking.openURL("https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai")}
+              onPress={() => router.push({ pathname: "/(tabs)/products", params: { open: "session" } } as any)}
               activeOpacity={0.75}
             >
               <View style={[styles.coachingIcon, { backgroundColor: "rgba(0,212,126,0.15)" }]}>
@@ -560,7 +560,7 @@ function MobileSidebar() {
           {/* 1:1 coaching CTA */}
           <TouchableOpacity
             style={[styles.coachingBtn, { backgroundColor: "rgba(0,168,94,0.08)", borderColor: "rgba(0,212,126,0.25)" }]}
-            onPress={() => { closeSidebar(); Linking.openURL("https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"); }}
+            onPress={() => { closeSidebar(); router.push({ pathname: "/(tabs)/products", params: { open: "session" } } as any); }}
             activeOpacity={0.75}
           >
             <View style={[styles.coachingIcon, { backgroundColor: "rgba(0,212,126,0.15)" }]}>
