@@ -249,3 +249,31 @@ class TestStripeWebhookSecretHandling:
         line = next(m.getMessage() for m in caplog.records if "signature FAILED" in m.getMessage())
         assert "secret_len=12" in line and "starts_with_whsec=True" in line
         assert "whsec_stored" not in line and "whsec_other" not in line
+
+
+class TestBrokerCallCurrency:
+    async def _run(self, body, **settings_kw):
+        mock_db = MagicMock()
+        fake_price = SimpleNamespace(unit_amount=34900, currency="mxn")
+        fake_intent = SimpleNamespace(client_secret="pi_secret")
+        with patch("app.api.routes.billing.get_supabase", return_value=mock_db), \
+             patch("app.api.routes.billing.run_query", new_callable=AsyncMock,
+                   return_value=SimpleNamespace(data={"stripe_customer_id": "cus_1", "country": "US", "phone_number": None})), \
+             patch("app.api.routes.billing.settings", _mock_settings(**settings_kw)), \
+             patch("app.api.routes.billing._stripe_call", new_callable=AsyncMock) as sc:
+            sc.side_effect = [fake_price, fake_intent]
+            out = await create_embedded_broker_call(body=body, user_id="user1")
+        assert out == {"client_secret": "pi_secret"}
+        return sc.call_args_list[0].args[1]  # the price id that was retrieved
+
+    @pytest.mark.asyncio
+    async def test_uses_mxn_price_when_client_shows_mxn_and_it_is_configured(self):
+        assert await self._run({"currency": "mxn"}, stripe_price_broker_call_mxn="price_broker_mxn") == "price_broker_mxn"
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_usd_when_mxn_price_not_configured(self):
+        assert await self._run({"currency": "mxn"}) == "price_broker"
+
+    @pytest.mark.asyncio
+    async def test_usd_when_client_did_not_ask_for_mxn(self):
+        assert await self._run(None, stripe_price_broker_call_mxn="price_broker_mxn") == "price_broker"

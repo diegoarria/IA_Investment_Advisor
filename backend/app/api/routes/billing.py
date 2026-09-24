@@ -78,6 +78,7 @@ async def get_pricing(user_id: str = Depends(get_current_user_id)):
         "session_free": getattr(settings, "stripe_price_session_free_mxn", ""),
         "session_premium": getattr(settings, "stripe_price_session_premium_mxn", ""),
         "session_bundle": getattr(settings, "stripe_price_session_bundle_mxn", ""),
+        "broker_call": getattr(settings, "stripe_price_broker_call_mxn", ""),
     }
     if not ids["monthly"] or not ids["yearly"]:
         return usd  # MXN checkout isn't configured for Premium -> checkout will charge USD too
@@ -889,7 +890,7 @@ async def broker_call_checkout(user_id: str = Depends(get_current_user_id)):
 
 
 @router.post("/create-embedded-broker-call")
-async def create_embedded_broker_call(user_id: str = Depends(get_current_user_id)):
+async def create_embedded_broker_call(body: dict | None = None, user_id: str = Depends(get_current_user_id)):
     """Embedded-Elements counterpart to /broker-call-checkout — same $20
     flat one-time payment, but returns a PaymentIntent client_secret
     instead of a Stripe-hosted redirect URL."""
@@ -900,7 +901,7 @@ async def create_embedded_broker_call(user_id: str = Depends(get_current_user_id
     db = get_supabase()
     try:
         result = await run_query(
-            db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
+            db.table("user_profiles").select("stripe_customer_id, country, phone_number").eq("user_id", user_id).single()
         )
     except Exception as e:
         # Was unguarded — same bug class as create_embedded_subscription
@@ -908,6 +909,14 @@ async def create_embedded_broker_call(user_id: str = Depends(get_current_user_id
         # if there's no linked Stripe customer yet.
         logger.error("create_embedded_broker_call: profile lookup failed for user %s: %s", user_id, e)
         result = None
+    # MXN when the paywall/products screen SHOWED MXN (the client echoes its
+    # currency, same contract as create_embedded_subscription) or the profile
+    # says Mexico — and only if the MXN price is configured; else USD.
+    from app.core.pricing_region import is_mexico
+    prof = (result.data if result and result.data else {}) or {}
+    wants_mxn = str((body or {}).get("currency") or "").lower() == "mxn" or is_mexico(prof.get("country"), prof.get("phone_number"))
+    mxn_price_id = getattr(settings, "stripe_price_broker_call_mxn", "")
+    broker_price_id = mxn_price_id if (wants_mxn and mxn_price_id) else settings.stripe_price_broker_call
     customer_id = result.data.get("stripe_customer_id") if result and result.data else None
 
     if not customer_id:
@@ -922,7 +931,7 @@ async def create_embedded_broker_call(user_id: str = Depends(get_current_user_id
         )
 
     try:
-        price = await _stripe_call(s.Price.retrieve, settings.stripe_price_broker_call)
+        price = await _stripe_call(s.Price.retrieve, broker_price_id)
         intent = await _stripe_call(
             s.PaymentIntent.create,
             amount=price.unit_amount,

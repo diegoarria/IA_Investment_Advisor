@@ -343,13 +343,26 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
 • [Clave 3]
 
 💡 *Ejemplo:* [1 oración concreta con dato real]`;
-    let full = "";
-    await chatApi.stream(
-      flashcard,
-      [],
-      (chunk) => { full += chunk; setContent(full); },
-      () => setStreaming(false)
-    );
+    // A dropped connection / cold backend used to surface as an uncaught
+    // "AxiosError: Network Error" red screen. Retry once, then show a
+    // friendly message instead of throwing.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let full = "";
+      try {
+        await chatApi.stream(
+          flashcard,
+          [],
+          (chunk) => { full += chunk; setContent(full); },
+          () => setStreaming(false)
+        );
+        return;
+      } catch {
+        if (full) break; // partial answer already on screen — keep it
+        if (attempt === 0) await new Promise((r) => setTimeout(r, 1200));
+      }
+    }
+    setStreaming(false);
+    setContent((c) => c || t("learn.flashcardError"));
   };
 
   const handleCustomSearch = (term?: string) => {

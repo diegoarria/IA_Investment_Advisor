@@ -684,6 +684,11 @@
         "title": "Already in your watchlist",
         "message": "{{ticker}} is already added."
       }
+    },
+    "pagination": {
+      "prev": "Previous page",
+      "next": "Next page",
+      "showing": "{{from}}–{{to}} of {{total}}"
     }
   },
   "earnings": {
@@ -1729,6 +1734,7 @@
       "yourPlan": "YOUR PLAN ✓",
       "priceUnit": "/mo",
       "thenPrice": "$14.99/mo · Annual $144.99/yr",
+      "thenPriceMxn": "{{monthly}} MXN/month · Annual {{yearly}} MXN/year",
       "claimFree": "Get Premium →",
       "active": "Active ✓",
       "features": [
@@ -1752,6 +1758,7 @@
       "new": "NEW",
       "priceUnit": "/ mo",
       "annual": "Annual $224.99/yr",
+      "annualMxn": "Annual {{yearly}} MXN/year",
       "cta": "Get Duo Plan →",
       "features": [
         "Everything in Premium, for both of you",
@@ -1767,6 +1774,7 @@
       "buy": "Buy →",
       "viewDetails": "View details →",
       "calendlyAfterPay": "Once you complete your purchase at nuvosai.com, we'll share the Calendly link so you can book your session.",
+      "bookOnWeb": "Book your call from the web app at nuvosai.com",
       "items": [
         {
           "title": "1:1 Personalized Guidance Session",
@@ -1784,6 +1792,15 @@
             "We review your progress in the app",
             "We adjust your learning path",
             "We answer your questions as you go"
+          ]
+        },
+        {
+          "title": "1:1 call to open your broker account",
+          "features": [
+            "Live call with a guide, step by step",
+            "We walk you through opening your account with confidence",
+            "We answer your questions about deposits and fees",
+            "You open and control your account; Nuvos never touches your money"
           ]
         }
       ]
@@ -2119,6 +2136,7 @@
     "coachingDesc": "45 min with an expert from our team — they'll guide you through the app and create your personalized investment plan.",
     "coaching45min": "45 min →",
     "preparingFlashcard": "Preparing flashcard... ~2 sec",
+    "flashcardError": "We couldn't load the explanation. Check your connection and try again.",
     "quizCta": "Got it? — Take the quiz →",
     "understood": "Got it ✓",
     "streakGoalsTitle": "Streak Goals",

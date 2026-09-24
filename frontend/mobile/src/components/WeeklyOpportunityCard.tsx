@@ -45,14 +45,14 @@ export default function WeeklyOpportunityCard({ pick, rank }: { pick: WeeklyOppo
               <Text style={[s.name, { color: colors.textMuted }]} numberOfLines={1}>{pick.company_name}</Text>
             )}
           </View>
-          <View style={s.tickerRow}>
+          <View style={[s.tickerRow, { flexWrap: "wrap", rowGap: 2 }]}>
             {pick.sector && (
               <View style={[s.sectorBadge, { backgroundColor: colors.bgRaised }]}>
                 <Text style={[s.sectorText, { color: colors.textMuted }]}>{pick.sector}</Text>
               </View>
             )}
             {bq != null && (
-              <Text style={[s.bqText, { color: colors.textSub }]}>Business Quality {bq}/100</Text>
+              <Text style={[s.bqText, { color: colors.textSub }]} numberOfLines={1}>Business Quality {bq}/100</Text>
             )}
           </View>
         </View>
@@ -63,59 +63,60 @@ export default function WeeklyOpportunityCard({ pick, rank }: { pick: WeeklyOppo
         )}
       </View>
 
-      {/* Current price + 3 scenarios */}
-      <View style={s.bottomRow}>
+      {/* Current price + upside, then the 3 scenarios on their own full-width row */}
+      <View style={s.priceRow}>
         <View>
           <Text style={[s.label, { color: colors.textDim ?? colors.textMuted }]}>{t("weeklyOpportunityCard.priceNow")}</Text>
           <Text style={[s.priceValue, { color: colors.text }]}>{fmt(pick.price)}</Text>
         </View>
-        {hasScenarios ? (
-          <View style={s.scenarios}>
-            <View style={[s.scenarioBox, { backgroundColor: colors.bgRaised }]}>
-              <Text style={s.scenarioLabelBear}>{t("subvaluadas.scenarios.pessimistic")}</Text>
-              <Text style={[s.scenarioValue, { color: colors.text }]}>{fmt(pick.intrinsic_value_conservative)}</Text>
-            </View>
-            <View style={[s.scenarioBox, s.scenarioBoxBase]}>
-              <Text style={s.scenarioLabelBase}>{t("subvaluadas.scenarios.base")}</Text>
-              <Text style={[s.scenarioValue, s.scenarioValueBase]}>{fmt(pick.intrinsic_value_base)}</Text>
-            </View>
-            <View style={[s.scenarioBox, { backgroundColor: colors.bgRaised }]}>
-              <Text style={s.scenarioLabelBull}>{t("subvaluadas.scenarios.optimistic")}</Text>
-              <Text style={[s.scenarioValue, { color: colors.text }]}>{fmt(pick.intrinsic_value_optimistic)}</Text>
-            </View>
-          </View>
-        ) : (
+        {!hasScenarios && (
           <View style={{ alignItems: "flex-end" }}>
             <Text style={[s.label, { color: colors.textDim ?? colors.textMuted }]}>{t("weeklyOpportunityCard.intrinsicValue")}</Text>
             <Text style={[s.priceValue, { color: colors.accentLight }]}>{fmt(pick.intrinsic_value_base)}</Text>
           </View>
         )}
       </View>
+      {hasScenarios && (
+        <View style={s.scenarios}>
+          <View style={[s.scenarioBox, { backgroundColor: colors.bgRaised }]}>
+            <Text style={s.scenarioLabelBear} numberOfLines={1}>{t("subvaluadas.scenarios.pessimistic")}</Text>
+            <Text style={[s.scenarioValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{fmt(pick.intrinsic_value_conservative)}</Text>
+          </View>
+          <View style={[s.scenarioBox, s.scenarioBoxBase]}>
+            <Text style={s.scenarioLabelBase} numberOfLines={1}>{t("subvaluadas.scenarios.base")}</Text>
+            <Text style={[s.scenarioValue, s.scenarioValueBase]} numberOfLines={1} adjustsFontSizeToFit>{fmt(pick.intrinsic_value_base)}</Text>
+          </View>
+          <View style={[s.scenarioBox, { backgroundColor: colors.bgRaised }]}>
+            <Text style={s.scenarioLabelBull} numberOfLines={1}>{t("subvaluadas.scenarios.optimistic")}</Text>
+            <Text style={[s.scenarioValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{fmt(pick.intrinsic_value_optimistic)}</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  card: { paddingVertical: 12, paddingHorizontal: 14, borderTopWidth: StyleSheet.hairlineWidth },
+  card: { paddingVertical: 16, paddingHorizontal: 14, borderTopWidth: StyleSheet.hairlineWidth },
   headerRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  rank: { fontSize: 10, fontWeight: "900", width: 14, textAlign: "center" },
+  rank: { fontSize: 11, fontWeight: "900", width: 16, textAlign: "center" },
   tickerRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
   ticker: { fontSize: 14, fontWeight: "900" },
   name: { fontSize: 11, flexShrink: 1 },
-  sectorBadge: { borderRadius: 20, paddingHorizontal: 6, paddingVertical: 1 },
-  sectorText: { fontSize: 9, fontWeight: "600" },
-  bqText: { fontSize: 9, fontWeight: "600" },
-  mosBadge: { backgroundColor: "rgba(34,197,94,0.16)", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 },
+  sectorBadge: { flexShrink: 0, borderRadius: 20, paddingHorizontal: 6, paddingVertical: 1 },
+  sectorText: { fontSize: 10, fontWeight: "600" },
+  bqText: { fontSize: 10, fontWeight: "600", flexShrink: 1 },
+  mosBadge: { flexShrink: 0, marginLeft: 6, backgroundColor: "rgba(34,197,94,0.16)", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 },
   mosText: { fontSize: 12, fontWeight: "900", color: "#22c55e" },
-  bottomRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10, gap: 8 },
-  label: { fontSize: 9, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
-  priceValue: { fontSize: 13, fontWeight: "800", marginTop: 1 },
-  scenarios: { flex: 1, flexDirection: "row", gap: 6, maxWidth: "72%" },
-  scenarioBox: { flex: 1, borderRadius: 10, paddingVertical: 6, alignItems: "center" },
+  priceRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 12 },
+  label: { fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
+  priceValue: { fontSize: 15, fontWeight: "800", marginTop: 1 },
+  scenarios: { flexDirection: "row", gap: 8, marginTop: 8 },
+  scenarioBox: { flex: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 4, alignItems: "center" },
   scenarioBoxBase: { backgroundColor: "rgba(0,168,94,0.1)", borderWidth: 1, borderColor: "rgba(0,168,94,0.3)" },
-  scenarioLabelBear: { fontSize: 7, fontWeight: "800", color: "#f87171", textTransform: "uppercase" },
-  scenarioLabelBase: { fontSize: 7, fontWeight: "800", color: "#00d47e", textTransform: "uppercase" },
-  scenarioLabelBull: { fontSize: 7, fontWeight: "800", color: "#4ade80", textTransform: "uppercase" },
-  scenarioValue: { fontSize: 11, fontWeight: "700", marginTop: 2 },
+  scenarioLabelBear: { fontSize: 9, fontWeight: "800", color: "#f87171", textTransform: "uppercase" },
+  scenarioLabelBase: { fontSize: 9, fontWeight: "800", color: "#00d47e", textTransform: "uppercase" },
+  scenarioLabelBull: { fontSize: 9, fontWeight: "800", color: "#4ade80", textTransform: "uppercase" },
+  scenarioValue: { fontSize: 13, fontWeight: "700", marginTop: 2 },
   scenarioValueBase: { color: "#00d47e", fontWeight: "900" },
 });

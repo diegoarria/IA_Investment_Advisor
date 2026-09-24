@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Image, View, Text, StyleSheet } from "react-native";
+import { BASE_URL } from "../lib/api";
 
 interface Props {
   ticker: string;
@@ -14,6 +15,9 @@ export default function StockAvatar({ ticker, logoUrl, size = 40 }: Props) {
   const sources = [
     ...(logoUrl ? [logoUrl] : []),
     `https://assets.parqet.com/logos/symbol/${clean}?format=png`,
+    // Our own proxy: cached server-side and falls back to Finnhub/Clearbit
+    // when parqet is slow, rate-limited or missing the ticker.
+    `${BASE_URL}/api/logo/${clean}?format=png`,
   ];
 
   const [failedCount, setFailedCount] = useState(0);

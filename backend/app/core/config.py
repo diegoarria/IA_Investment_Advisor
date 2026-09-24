@@ -106,6 +106,7 @@ class Settings(BaseSettings):
     stripe_price_family_monthly: str = ""         # $23.99/month
     stripe_price_family_yearly: str = ""          # $224.99/year
     stripe_price_broker_call: str = ""            # $20 flat — 1:1 broker onboarding call, after the 24h free window
+    stripe_price_broker_call_mxn: str = ""        # same call, MXN price (falls back to USD when unset)
     # PostHog — read-only Personal API Key for the admin business-overview
     # dashboard (DAU/WAU/top events). Distinct from the mobile/web client's
     # project token (POSTHOG_PROJECT_TOKEN), which only ever WRITES events —

@@ -307,7 +307,7 @@
       "bookCall": {
         "title": "Book a call and open a free broker account",
         "descFree": "Free for {{time}} more — a 1-on-1 session to open your account with confidence",
-        "descExpired": "The free window expired — $20 USD for the 1-on-1 session",
+        "descExpired": "The free window expired — {{price}} for the 1-on-1 session",
         "sessionFeature": "1-on-1 session to open your broker account with confidence",
         "alreadyHaveBroker": "I already have a broker account"
       },
@@ -2396,6 +2396,15 @@
           "We answer questions as you go"
         ],
         "note": "Premium only"
+      },
+      {
+        "title": "1:1 call to open your broker account",
+        "features": [
+          "Live call with a guide, step by step",
+          "We walk you through opening your account with confidence",
+          "We answer your questions about deposits and fees",
+          "You open and control your account; Nuvos never touches your money"
+        ]
       }
     ],
     "comingSoon": [

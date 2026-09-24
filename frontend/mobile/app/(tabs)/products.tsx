@@ -4,6 +4,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useBillingPricing, fmtMxn, type BillingPricing } from "../../src/lib/billingPricing";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
@@ -33,7 +34,8 @@ type OneTimeItem = {
   variant: string;
 };
 
-function getOneTimeItems(t: TFunction): OneTimeItem[] {
+function getOneTimeItems(t: TFunction, pr: BillingPricing): OneTimeItem[] {
+  const sessMxn = pr.currency === "mxn" && pr.session_free != null && pr.session_premium != null && pr.session_bundle != null;
   const items = t("products.oneTime.items", { returnObjects: true }) as {
     title: string; features: string[]; note?: string;
   }[];
@@ -42,8 +44,8 @@ function getOneTimeItems(t: TFunction): OneTimeItem[] {
       emoji: "📱",
       title: items[0].title,
       features: items[0].features,
-      priceFree: "$149 USD",
-      pricePremium: "$99 USD",
+      priceFree: sessMxn ? `${fmtMxn(pr.session_free!)} MXN` : "$149 USD",
+      pricePremium: sessMxn ? `${fmtMxn(pr.session_premium!)} MXN` : "$99 USD",
       offer: "session",
       variant: "default",
     },
@@ -51,10 +53,18 @@ function getOneTimeItems(t: TFunction): OneTimeItem[] {
       emoji: "📦",
       title: items[1].title,
       features: items[1].features,
-      pricePremium: "$247 USD",
+      pricePremium: sessMxn ? `${fmtMxn(pr.session_bundle!)} MXN` : "$247 USD",
       note: items[1].note,
       offer: "session",
       variant: "bundle",
+    },
+    {
+      emoji: "📞",
+      title: items[2].title,
+      features: items[2].features,
+      pricePremium: pr.currency === "mxn" && pr.broker_call != null ? `${fmtMxn(pr.broker_call)} MXN` : "$20 USD",
+      offer: "broker_call",
+      variant: "default",
     },
   ];
 }
@@ -77,7 +87,10 @@ export default function ProductsScreen() {
   const FREE_FEATURES = getFreeFeatures(t);
   const PREMIUM_FEATURES = getPremiumFeatures(t);
   const DUO_PLAN_FEATURES = getDuoPlanFeatures(t);
-  const ONE_TIME = getOneTimeItems(t);
+  const pricing = useBillingPricing();
+  const mxnPremium = pricing.currency === "mxn" && pricing.monthly != null && pricing.yearly != null;
+  const mxnDuo = pricing.currency === "mxn" && pricing.duo_monthly != null && pricing.duo_yearly != null;
+  const ONE_TIME = getOneTimeItems(t, pricing);
   const COMING_SOON = getComingSoonItems(t);
 
   return (
@@ -120,10 +133,10 @@ export default function ProductsScreen() {
                 )}
               </View>
               <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, marginBottom: 2 }}>
-                <Text style={{ fontSize: 24, fontWeight: "900", color: "#fff" }}>$14.99</Text>
+                <Text style={{ fontSize: 24, fontWeight: "900", color: "#fff" }}>{mxnPremium ? fmtMxn(pricing.monthly!) : "$14.99"}</Text>
                 <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{t("products.premium.priceUnit")}</Text>
               </View>
-              <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>{t("products.premium.thenPrice")}</Text>
+              <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>{mxnPremium ? t("products.premium.thenPriceMxn", { monthly: fmtMxn(pricing.monthly!), yearly: fmtMxn(pricing.yearly!) }) : t("products.premium.thenPrice")}</Text>
 
               {!isPremium ? (
                 // Diego, 2026-09-15: "evitarme lo de Apple IAP... tal como
@@ -164,10 +177,10 @@ export default function ProductsScreen() {
               </View>
             </View>
             <View style={{ flexDirection: "row", alignItems: "baseline", gap: 4, marginBottom: 2 }}>
-              <Text style={{ fontSize: 24, fontWeight: "900", color: "#fff" }}>$23.99</Text>
+              <Text style={{ fontSize: 24, fontWeight: "900", color: "#fff" }}>{mxnDuo ? fmtMxn(pricing.duo_monthly!) : "$23.99"}</Text>
               <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{t("products.duo.priceUnit")}</Text>
             </View>
-            <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>{t("products.duo.annual")}</Text>
+            <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>{mxnDuo ? t("products.duo.annualMxn", { yearly: fmtMxn(pricing.duo_yearly!) }) : t("products.duo.annual")}</Text>
 
             {/* Diego, 2026-09-15: "Contratar Duo Plan →" was the same kind
                 of subscribe CTA as the Premium button above — replaced

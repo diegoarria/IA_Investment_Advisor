@@ -1,5 +1,6 @@
 "use client";
 
+import { useBillingPricing, fmtMxn } from "@/lib/pricing";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
@@ -197,11 +198,14 @@ export default function HomePage() {
   // Diego, 2026-09-15: "quiero agregarle este resumen del pedido similar a
   // los productos con sus respectivos productos" — same order-summary card
   // PricingModal's checkout already shows.
+  const brokerPricing = useBillingPricing();
+  const brokerMxn = brokerPricing.currency === "mxn" && brokerPricing.broker_call != null;
+  const brokerPriceText = brokerMxn ? `${fmtMxn(brokerPricing.broker_call!)} MXN` : "$20 USD";
   const brokerCallSummary: CheckoutSummary = {
     planName: t("home.onboarding.bookCall.title"),
-    priceLabel: "$20",
-    priceSuffix: " USD",
-    dueTodayLabel: "$20 USD",
+    priceLabel: brokerMxn ? fmtMxn(brokerPricing.broker_call!) : "$20",
+    priceSuffix: brokerMxn ? " MXN" : " USD",
+    dueTodayLabel: brokerPriceText,
     features: [t("home.onboarding.bookCall.sessionFeature")],
     accentColor: "#00d47e",
   };
@@ -649,7 +653,7 @@ export default function HomePage() {
       description:
         freeWindowMsLeft === null || freeWindowMsLeft > 0
           ? t("home.onboarding.bookCall.descFree", { time: freeWindowMsLeft !== null ? fmtCountdown(freeWindowMsLeft) : "24:00:00" })
-          : t("home.onboarding.bookCall.descExpired"),
+          : t("home.onboarding.bookCall.descExpired", { price: brokerPriceText }),
       completed: !!profile?.has_broker,
       secondaryAction: { label: t("home.onboarding.bookCall.alreadyHaveBroker"), onClick: markBrokerConfigured },
     },
@@ -1554,7 +1558,7 @@ export default function HomePage() {
           >
             <div className="pt-5">
               <EmbeddedCheckout
-                createIntent={() => billing.createEmbeddedBrokerCall().then((r) => r.data)}
+                createIntent={() => billing.createEmbeddedBrokerCall(brokerMxn ? "mxn" : "usd").then((r) => r.data)}
                 returnUrl={`${window.location.origin}/upsell-success?offer=broker_call`}
                 onBack={() => setBrokerCheckoutOpen(false)}
                 onSuccess={handleBrokerCheckoutSuccess}

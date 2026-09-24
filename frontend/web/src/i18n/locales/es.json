@@ -307,7 +307,7 @@
       "bookCall": {
         "title": "Agenda una llamada y crea tu cuenta en un broker gratis",
         "descFree": "Gratis por {{time}} más — una sesión 1-a-1 para abrir tu cuenta con confianza",
-        "descExpired": "El período gratis venció — $20 USD por la sesión 1-a-1",
+        "descExpired": "El período gratis venció — {{price}} por la sesión 1-a-1",
         "sessionFeature": "Sesión 1-a-1 para abrir tu cuenta con un broker con confianza",
         "alreadyHaveBroker": "Ya tengo cuenta en broker"
       },
@@ -2396,6 +2396,15 @@
           "Resolvemos dudas conforme avanzas"
         ],
         "note": "Solo disponible para Premium"
+      },
+      {
+        "title": "Llamada 1:1 para abrir tu cuenta de broker",
+        "features": [
+          "Llamada en vivo con un guía, paso a paso",
+          "Te acompañamos a abrir tu cuenta con confianza",
+          "Resolvemos tus dudas sobre depósitos y comisiones",
+          "Tú abres y controlas tu cuenta; Nuvos nunca toca tu dinero"
+        ]
       }
     ],
     "comingSoon": [

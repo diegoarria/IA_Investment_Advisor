@@ -1,10 +1,8 @@
-"use client";
-
 import { useEffect, useState } from "react";
-import { billing } from "@/lib/api";
+import { billingApi } from "./api";
 
-// What this user will actually be charged (see GET /billing/pricing): MXN amounts
-// for Mexico or when Adaptive Pricing is on (MXN is the base price), else USD.
+// What this user will actually be charged (GET /billing/pricing): MXN for
+// Mexico / Adaptive Pricing, else USD. Same contract as web's lib/pricing.ts.
 export type BillingPricing = {
   currency: string;
   adaptive?: boolean;
@@ -20,12 +18,16 @@ export type BillingPricing = {
 
 let cached: Promise<BillingPricing> | null = null;
 
-/** Fetched once per page load and shared by every price on screen. Falls back to USD on any error. */
+/** Fetched once per app session and shared by every price on screen. Falls back to USD on any error. */
 export function useBillingPricing(): BillingPricing {
   const [pricing, setPricing] = useState<BillingPricing>({ currency: "usd" });
   useEffect(() => {
     let alive = true;
-    if (!cached) cached = billing.getPricing().then((r) => r.data as BillingPricing).catch(() => ({ currency: "usd" }));
+    if (!cached) {
+      cached = billingApi.getPricing()
+        .then((r: any) => r.data as BillingPricing)
+        .catch(() => { cached = null; return { currency: "usd" } as BillingPricing; });
+    }
     cached.then((p) => { if (alive) setPricing(p); });
     return () => { alive = false; };
   }, []);

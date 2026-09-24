@@ -444,6 +444,15 @@ export default function WatchlistScreen() {
     });
   }, [items, sortMode, prices]);
 
+  // Pagination — same as web: max 20 per page. Sorting applies to the whole
+  // list first, then the page slices it; reorder indices stay global.
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(sortedItems.length / PAGE_SIZE));
+  useEffect(() => { if (page > pageCount - 1) setPage(pageCount - 1); }, [page, pageCount]);
+  const pageStart = page * PAGE_SIZE;
+  const pagedItems = sortedItems.slice(pageStart, pageStart + PAGE_SIZE);
+
   const summary = React.useMemo(() => {
     const vals = items.map((i) => prices[i.ticker]?.change_pct).filter((v): v is number => typeof v === "number");
     if (vals.length === 0) return null;
@@ -631,11 +640,11 @@ export default function WatchlistScreen() {
                 )}
               </ScrollView>
 
-              {sortedItems.map((item, index) => (
+              {pagedItems.map((item, i) => (
                 <WatchlistRow
                   key={item.ticker}
                   item={item}
-                  index={index}
+                  index={pageStart + i}
                   itemCount={items.length}
                   prices={prices}
                   fxRate={fxRate}
@@ -650,6 +659,44 @@ export default function WatchlistScreen() {
                   colors={colors}
                 />
               ))}
+
+              {sortedItems.length > PAGE_SIZE && (
+                <View style={s.pager}>
+                  <TouchableOpacity
+                    onPress={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={page === 0}
+                    style={[s.pageBtn, { borderColor: colors.border, opacity: page === 0 ? 0.3 : 1 }]}
+                    accessibilityLabel={t("watchlist.pagination.prev")}
+                  >
+                    <Ionicons name="chevron-back" size={16} color={colors.text} />
+                  </TouchableOpacity>
+                  {Array.from({ length: pageCount }, (_, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => setPage(i)}
+                      style={[s.pageBtn, {
+                        borderColor: i === page ? "#00d47e" : colors.border,
+                        backgroundColor: i === page ? "rgba(0,212,126,0.12)" : "transparent",
+                      }]}
+                    >
+                      <Text style={[s.pageBtnText, { color: i === page ? "#00d47e" : colors.textMuted }]}>{i + 1}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    onPress={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                    disabled={page === pageCount - 1}
+                    style={[s.pageBtn, { borderColor: colors.border, opacity: page === pageCount - 1 ? 0.3 : 1 }]}
+                    accessibilityLabel={t("watchlist.pagination.next")}
+                  >
+                    <Ionicons name="chevron-forward" size={16} color={colors.text} />
+                  </TouchableOpacity>
+                </View>
+              )}
+              {sortedItems.length > PAGE_SIZE && (
+                <Text style={[s.pagerInfo, { color: colors.textDim }]}>
+                  {t("watchlist.pagination.showing", { from: pageStart + 1, to: Math.min(pageStart + PAGE_SIZE, sortedItems.length), total: sortedItems.length })}
+                </Text>
+              )}
             </View>
           )}
 
@@ -733,6 +780,10 @@ export default function WatchlistScreen() {
 }
 
 const s = StyleSheet.create({
+  pager:       { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 14, flexWrap: "wrap" },
+  pageBtn:     { minWidth: 34, height: 34, paddingHorizontal: 8, borderRadius: 10, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  pageBtnText: { fontSize: 12, fontWeight: "800" },
+  pagerInfo:   { fontSize: 11, textAlign: "center", marginTop: 8 },
   container: { flex: 1 },
   scroll: { padding: 16, gap: 12, paddingBottom: 40 },
 

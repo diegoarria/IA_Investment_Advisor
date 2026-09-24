@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { posthog } from "../config/posthog";
 import { useTheme } from "../lib/ThemeContext";
+import { useBillingPricing, fmtMxn } from "../lib/billingPricing";
 
 const getHeroFeatures = (t: TFunction): string[] => [
   t("paywallModal.heroFeature1"),
@@ -44,8 +45,18 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
     if (visible) posthog.capture("paywall_viewed", { reason: reason ?? null });
   }, [visible]);
 
-  const regularPrice = plan === "monthly" ? "$14.99" : "$12.08";
-  const duoPrice = plan === "monthly" ? "$23.99" : "$18.75";
+  // Real billing currency (MXN for Mexico when configured) — same logic as web's PricingModal.
+  const pricing = useBillingPricing();
+  const premiumMxn = pricing.currency === "mxn" && pricing.monthly != null && pricing.yearly != null;
+  const duoMxn = pricing.currency === "mxn" && pricing.duo_monthly != null && pricing.duo_yearly != null;
+  const regularPrice = premiumMxn
+    ? (plan === "monthly" ? fmtMxn(pricing.monthly!) : fmtMxn(pricing.yearly! / 12))
+    : (plan === "monthly" ? "$14.99" : "$12.08");
+  const duoPrice = duoMxn
+    ? (plan === "monthly" ? fmtMxn(pricing.duo_monthly!) : fmtMxn(pricing.duo_yearly! / 12))
+    : (plan === "monthly" ? "$23.99" : "$18.75");
+  const premiumAnnualTotal = premiumMxn ? fmtMxn(pricing.yearly!) : "$144.99";
+  const duoAnnualTotal = duoMxn ? fmtMxn(pricing.duo_yearly!) : "$224.99";
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -101,11 +112,11 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
               <Text style={s.cardTitleLight}>{t("pricingModal.premium")}</Text>
               <View style={s.priceRow}>
                 <Text style={s.priceLight}>{regularPrice}</Text>
-                <Text style={s.priceUnitLight}>{t("pricingModal.perMonthShort")}</Text>
+                <Text style={s.priceUnitLight}>{premiumMxn ? "MXN " : ""}{t("pricingModal.perMonthShort")}</Text>
               </View>
               {plan === "yearly" ? (
                 <>
-                  <Text style={s.billedLine}>{t("pricingModal.billedAnnuallyAmount", { amount: "$144.99" })}</Text>
+                  <Text style={s.billedLine}>{t("pricingModal.billedAnnuallyAmount", { amount: premiumAnnualTotal })}</Text>
                   <Text style={[s.savingsLine, { color: "#00d47e" }]}>{t("pricingModal.premiumSavings")}</Text>
                 </>
               ) : <View style={{ marginBottom: 14 }} />}
@@ -134,11 +145,11 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
               </View>
               <View style={s.priceRow}>
                 <Text style={s.priceLight}>{duoPrice}</Text>
-                <Text style={s.priceUnitLight}>{t("pricingModal.usdPeriod", { period: t("pricingModal.perMonthShort") })}</Text>
+                <Text style={s.priceUnitLight}>{duoMxn ? `MXN ${t("pricingModal.perMonthShort")}` : t("pricingModal.usdPeriod", { period: t("pricingModal.perMonthShort") })}</Text>
               </View>
               {plan === "yearly" ? (
                 <>
-                  <Text style={s.billedLine}>{t("pricingModal.billedAnnuallyAmount", { amount: "$224.99" })}</Text>
+                  <Text style={s.billedLine}>{t("pricingModal.billedAnnuallyAmount", { amount: duoAnnualTotal })}</Text>
                   <Text style={[s.savingsLine, { color: "#818cf8" }]}>{t("pricingModal.duoSavings")}</Text>
                 </>
               ) : (
@@ -190,7 +201,7 @@ const s = StyleSheet.create({
   handleRow: { alignItems: "center", paddingTop: 12, paddingBottom: 4 },
   handle: { width: 36, height: 4, borderRadius: 2 },
   closeBtn: { position: "absolute", top: 14, right: 16, padding: 6, zIndex: 10 },
-  scrollFlex: { flex: 1 },
+  scrollFlex: { flexShrink: 1 },
   scroll: { paddingHorizontal: 20, paddingBottom: 36 },
 
   title: { fontSize: 19, fontWeight: "900", textAlign: "center", marginBottom: 12 },

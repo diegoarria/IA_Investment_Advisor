@@ -409,7 +409,8 @@ export const billing = {
   cancelSubscription: () => api.post("/api/billing/cancel-subscription"),
   resumeSubscription: () => api.post("/api/billing/resume-subscription"),
   brokerCallCheckout: () => api.post("/api/billing/broker-call-checkout"),
-  createEmbeddedBrokerCall: () => api.post("/api/billing/create-embedded-broker-call"),
+  createEmbeddedBrokerCall: (currency?: "usd" | "mxn") =>
+    api.post("/api/billing/create-embedded-broker-call", currency ? { currency } : {}),
   brokerOfferSeen: () => api.post("/api/billing/broker-offer-seen"),
   duoSetup: (secondary_email: string) => api.post("/api/billing/duo-setup", { secondary_email }),
   getDuoPartner: () => api.get("/api/billing/duo-partner"),

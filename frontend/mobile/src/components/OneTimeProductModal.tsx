@@ -87,7 +87,7 @@ export default function OneTimeProductModal({ visible, onClose, product }: Props
 
             <View style={[s.ctaInfo, { backgroundColor: colors.bgRaised ?? colors.border }]}>
               <Text style={[s.ctaInfoText, { color: colors.textSub ?? colors.text }]}>
-                {t("pricingModal.manageOnWeb")}
+                {isSession || product.offer === "broker_call" ? t("products.oneTime.bookOnWeb") : t("pricingModal.manageOnWeb")}
               </Text>
             </View>
 
@@ -112,7 +112,7 @@ const s = StyleSheet.create({
   handleRow: { alignItems: "center", paddingTop: 12, paddingBottom: 4 },
   handle: { width: 36, height: 4, borderRadius: 2 },
   closeBtn: { position: "absolute", top: 14, right: 16, padding: 6, zIndex: 10 },
-  scrollFlex: { flex: 1 },
+  scrollFlex: { flexShrink: 1 },
   scroll: { paddingHorizontal: 20, paddingBottom: 36, alignItems: "center" },
 
   emoji: { fontSize: 44, marginTop: 8, marginBottom: 10 },

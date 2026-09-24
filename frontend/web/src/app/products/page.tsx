@@ -10,7 +10,7 @@ const PricingModal = dynamic(() => import("@/components/PricingModal"), { ssr: f
 import { useSubscriptionStore, useAuthStore, hasPremiumAccess } from "@/lib/store";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { upsells } from "@/lib/api";
+import { upsells, billing } from "@/lib/api";
 import EmbeddedCheckout, { type CheckoutSummary } from "@/components/EmbeddedCheckout";
 import { useBillingPricing, fmtMxn } from "@/lib/pricing";
 import {
@@ -50,6 +50,7 @@ function getOneTimeProducts(t: TFunction) {
   const meta = [
     { icon: "📱", price_free: "$149 USD", price_premium: "$99 USD", offer: "session", variant: "default" },
     { icon: "📦", price_premium: "$247 USD", offer: "session", variant: "bundle" },
+    { icon: "📞", price_premium: "$20 USD", offer: "broker_call", variant: "default" },
   ];
   return items.map((item, i) => ({ ...item, ...meta[i], available: true }));
 }
@@ -80,6 +81,11 @@ export default function ProductsPage() {
     const pack = ONE_TIME_PRODUCTS.find((p) => p.offer === "session" && p.variant === "bundle");
     if (sess) { sess.price_free = `${fmtMxn(pricing.session_free)} MXN`; sess.price_premium = `${fmtMxn(pricing.session_premium)} MXN`; }
     if (pack) pack.price_premium = `${fmtMxn(pricing.session_bundle)} MXN`;
+  }
+  // Broker-onboarding call: one price for everyone (no free/premium split here).
+  if (pricing.currency === "mxn" && pricing.broker_call != null) {
+    const call = ONE_TIME_PRODUCTS.find((p) => p.offer === "broker_call");
+    if (call) call.price_premium = `${fmtMxn(pricing.broker_call)} MXN`;
   }
   const COMING_SOON = getComingSoon(t);
   const { tier: subTier, isTrialPremium, hasFetchedStatus } = useSubscriptionStore();
@@ -333,15 +339,17 @@ export default function ProductsPage() {
           >
             <div className="pt-5">
               <EmbeddedCheckout
-                createIntent={() => upsells.checkoutEmbedded(checkoutOffer.offer, checkoutOffer.variant, "products_page").then((r) => r.data)}
-                adaptive={{
+                createIntent={() => checkoutOffer.offer === "broker_call"
+                  ? billing.createEmbeddedBrokerCall(pricing.currency === "mxn" && pricing.broker_call != null ? "mxn" : "usd").then((r) => r.data)
+                  : upsells.checkoutEmbedded(checkoutOffer.offer, checkoutOffer.variant, "products_page").then((r) => r.data)}
+                adaptive={checkoutOffer.offer === "broker_call" ? undefined : {
                   createSession: () => upsells.checkoutAdaptive(checkoutOffer.offer, checkoutOffer.variant, "products_page").then((r) => r.data),
                 }}
                 returnUrl={`${window.location.origin}/upsell-success?offer=${checkoutOffer.offer}`}
                 onBack={() => setCheckoutOffer(null)}
                 onSuccess={handleCheckoutSuccess}
                 summary={checkoutSummary}
-                payCtaLabel={checkoutOffer.offer === "session" ? t("pricingModal.payCtaSession") : undefined}
+                payCtaLabel={checkoutOffer.offer === "session" || checkoutOffer.offer === "broker_call" ? t("pricingModal.payCtaSession") : undefined}
               />
             </div>
           </div>

@@ -684,6 +684,11 @@
         "title": "Ya está en tu Watchlist",
         "message": "{{ticker}} ya está agregado."
       }
+    },
+    "pagination": {
+      "prev": "Página anterior",
+      "next": "Página siguiente",
+      "showing": "{{from}}–{{to}} de {{total}}"
     }
   },
   "earnings": {
@@ -1729,6 +1734,7 @@
       "yourPlan": "TU PLAN ✓",
       "priceUnit": "/mes",
       "thenPrice": "$14.99/mes · Anual $144.99/año",
+      "thenPriceMxn": "{{monthly}} MXN/mes · Anual {{yearly}} MXN/año",
       "claimFree": "Hazte Premium →",
       "active": "Activo ✓",
       "features": [
@@ -1752,6 +1758,7 @@
       "new": "NUEVO",
       "priceUnit": "/ mes",
       "annual": "Anual $224.99/año",
+      "annualMxn": "Anual {{yearly}} MXN/año",
       "cta": "Contratar Duo Plan →",
       "features": [
         "Todo lo de Premium, para ambos",
@@ -1767,6 +1774,7 @@
       "buy": "Comprar →",
       "viewDetails": "Ver detalles →",
       "calendlyAfterPay": "Una vez que completes tu compra en nuvosai.com, te compartimos el link de Calendly para agendar tu sesión.",
+      "bookOnWeb": "Agenda tu llamada desde la web app nuvosai.com",
       "items": [
         {
           "title": "Sesión 1:1 de Guía Personalizada",
@@ -1784,6 +1792,15 @@
             "Revisamos tu progreso en la app",
             "Ajustamos tu ruta de aprendizaje",
             "Resolvemos dudas conforme avanzas"
+          ]
+        },
+        {
+          "title": "Llamada 1:1 para abrir tu cuenta de broker",
+          "features": [
+            "Llamada en vivo con un guía, paso a paso",
+            "Te acompañamos a abrir tu cuenta con confianza",
+            "Resolvemos tus dudas sobre depósitos y comisiones",
+            "Tú abres y controlas tu cuenta; Nuvos nunca toca tu dinero"
           ]
         }
       ]
@@ -2119,6 +2136,7 @@
     "coachingDesc": "45 min con un experto de nuestro equipo — te guía por la app y crea tu plan de inversión personalizado.",
     "coaching45min": "45 min →",
     "preparingFlashcard": "Preparando flashcard... ~2 seg",
+    "flashcardError": "No pudimos cargar la explicación. Revisa tu conexión e inténtalo de nuevo.",
     "quizCta": "¿Entendido? — Haz el quiz →",
     "understood": "Entendido ✓",
     "streakGoalsTitle": "Objetivos de Racha",
