@@ -1243,8 +1243,8 @@ if (!profile) {
                   if (!referralCode) return;
                   posthog.capture("referral_link_shared", { referral_code: referralCode });
                   Share.share({
+                    // The message already contains the link; a separate `url` made iOS show it twice.
                     message: t("profile.referral.shareMessage", { url: `https://nuvosai.com/join?ref=${referralCode}` }),
-                    url: `https://nuvosai.com/join?ref=${referralCode}`,
                   });
                 }}
               >

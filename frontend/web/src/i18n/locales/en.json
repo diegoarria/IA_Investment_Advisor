@@ -461,7 +461,7 @@
     "referralRedeemSession_other": "Request my free 1:1 session ({{count}} available)",
     "referralRedeemSessionMsg": "I want to request the free 1:1 session I earned by inviting friends to Nuvos AI.",
     "referralLink": "Your referral link",
-    "referralShareText": "I'm using Nuvos AI — the best AI investment mentor. Join for free 👉 {{link}}",
+    "referralShareText": "Hi! 👋 I want to share Nuvos with you. It's an AI platform that helps you understand your investments and make better decisions with your capital.\n\nWe all start earning money, saving and building wealth, but we're rarely taught something so important:\n\nWhat should we do with our money?\n\nYou have $20,000, $50,000 or $100,000 saved and you wonder:\nDo I leave it in the bank?\nDo I invest it?\nIn what?\nWhat are the risks?\n\nThat's what Nuvos is for.\n\n🧠 You can talk to Arthur, the AI mentor, about your situation and your goals.\n📊 You can also analyze investments, companies, valuations and your portfolio.\n⚠️ And understand the risks and different scenarios before you decide.\n\nNuvos doesn't tell you what to do with your money. It helps you decide better.\n\n🎁 I'm giving you 14 days of Premium free:\n\n👉 {{link}}\n\nTry it and tell me what you think.\n\nNuvos is an educational and analysis tool; it doesn't provide personalized investment recommendations.",
     "shareInvite": "Share invite",
     "referralTerms": "Rewards activate automatically as soon as your friends sign up with your code.",
     "annualScoreboard": "Annual ScoreBoard {{year}}",

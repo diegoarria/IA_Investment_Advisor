@@ -1548,7 +1548,8 @@ export default function ProfilePage() {
                           if (!referralCode) return;
                           const text = t("profile.referralShareText", { link: `https://nuvosai.com/join?ref=${referralCode}` });
                           if (navigator.share) {
-                            navigator.share({ title: "Nuvos AI", text, url: `https://nuvosai.com/join?ref=${referralCode}` }).catch(() => {});
+                            // The message already contains the link — passing `url` too made WhatsApp show it twice.
+                            navigator.share({ title: "Nuvos AI", text }).catch(() => {});
                           } else {
                             navigator.clipboard.writeText(text);
                             setCopiedLink(true);

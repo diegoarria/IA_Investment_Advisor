@@ -461,7 +461,7 @@
     "referralRedeemSession_other": "Solicitar mi sesión 1:1 gratis ({{count}} disponibles)",
     "referralRedeemSessionMsg": "Quiero solicitar mi sesión 1:1 gratis que gané por invitar amigos a Nuvos AI.",
     "referralLink": "Tu enlace de referido",
-    "referralShareText": "Estoy usando Nuvos AI — el mejor mentor de inversiones con IA. Únete gratis 👉 {{link}}",
+    "referralShareText": "¡Hola! 👋 Quiero compartirte Nuvos, es una plataforma de IA que te ayuda a entender tus inversiones y tomar mejores decisiones con tu capital.\n\nTodos empezamos a ganar dinero, ahorrar y construir patrimonio, pero pocas veces nos enseñan algo tan importante:\n\n¿Qué hacer con nuestro dinero?\n\nTienes $20,000, $50,000 o $100,000 ahorrados y te preguntas:\n¿Lo dejo en el banco?\n¿Lo invierto?\n¿En qué?\n¿Qué riesgos hay?\n\nPara eso existe Nuvos.\n\n🧠 Puedes hablar con Arthur, el mentor de IA, sobre tu situación y tus objetivos.\n📊 También puedes analizar inversiones, empresas, valuaciones y tu portafolio.\n⚠️ Y entender los riesgos y distintos escenarios antes de decidir.\n\nNuvos no te dice qué hacer con tu dinero. Te ayuda a decidir mejor.\n\n🎁 Te dejo 14 días de Premium gratis:\n\n👉 {{link}}\n\nPruébalo y dime qué opinas.\n\nNuvos es una herramienta educativa y de análisis; no proporciona recomendaciones personalizadas de inversión.",
     "shareInvite": "Compartir invitación",
     "referralTerms": "Las recompensas se activan automáticamente en cuanto tus amigos se registran con tu código.",
     "annualScoreboard": "Annual ScoreBoard {{year}}",
