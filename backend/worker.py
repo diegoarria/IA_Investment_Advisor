@@ -6803,7 +6803,7 @@ async def main():
     # 2026-09-24 00:05 ET (app/services/trial_reset.py, idempotent per user).
     from app.services.trial_reset import reset_trials_for_launch, send_trial_reset_emails
     scheduler.add_job(
-        send_trial_reset_emails, "cron", year=2026, month=9, day=24, hour=9, minute=0,
+        send_trial_reset_emails, "cron", year=2026, month=9, day=24, hour=10, minute=0,
         timezone="America/New_York", id="launch_trial_reset_email", misfire_grace_time=3600,
     )
     scheduler.add_job(

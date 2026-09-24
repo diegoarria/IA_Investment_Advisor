@@ -120,7 +120,7 @@ def build_trial_reset_email(name: str | None, language: str | None) -> tuple[str
 
 async def send_trial_reset_emails() -> None:
     """Emails exactly the users whose trial was actually reset (they have the
-    reset marker), minus email opt-outs, once each. Runs at 09:00 ET so it
+    reset marker), minus email opt-outs, once each. Runs at 10:00 ET so it
     lands in the morning rather than at the 00:05 reset itself."""
     import asyncio
     import random
