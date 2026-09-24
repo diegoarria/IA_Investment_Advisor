@@ -6862,6 +6862,20 @@ async def main():
             hour=_h, minute=0, timezone="America/New_York",
             id=f"launch_email_{_n}", misfire_grace_time=3600,
         )
+    # ── Offers + "share on WhatsApp" email — one-time, 2026-09-24 12:00 ET (10:00 AM
+    # Monterrey). Idempotent per user (app/services/offers_share_email.py). The
+    # scheduler uses an in-memory job store, so a worker that (re)starts AFTER
+    # 12:00 would silently drop a cron job whose time already passed — hence the
+    # catch-up: if we boot between 12:00 and 20:00 ET that day, run it right away.
+    from app.services.offers_share_email import send_offers_share_email_job
+    scheduler.add_job(
+        send_offers_share_email_job, "cron", year=2026, month=9, day=24, hour=12, minute=0,
+        timezone="America/New_York", id="offers_share_email", misfire_grace_time=3600,
+    )
+    import pytz as _pytz
+    _now_et = datetime.now(_pytz.timezone("America/New_York"))
+    if (_now_et.year, _now_et.month, _now_et.day) == (2026, 9, 24) and 12 <= _now_et.hour < 20:
+        scheduler.add_job(send_offers_share_email_job, id="offers_share_email_catchup", next_run_time=datetime.now())
     # ── Post-launch: 7 daily recap emails (12:00 ET, 2026-09-25..10-01) plus the
     # two automatic launch promos (+7 Premium days, checked every 30 min from
     # 2026-09-25 to 2026-10-03). Idempotent per user (app/services/recap_emails.py).
