@@ -187,11 +187,11 @@ async def eligible_profiles(db, category: str) -> list[dict]:
     profiles = await _paged(lambda: db.table("user_profiles").select(
         "user_id,name,preferred_language,push_token,created_at,paid_1on1_sessions,free_1on1_sessions").order("user_id"))
     buyers = {r["user_id"] for r in await _paged(lambda: db.table("redeemed_1on1_checkouts").select("stripe_session_id,user_id").order("stripe_session_id"))}
-    log = await _paged(lambda: db.table("notification_log").select("id,user_id,created_at").eq("category", category).eq("status", "sent").order("id"))
+    log = await _paged(lambda: db.table("notification_log").select("id,user_id,sent_at").eq("category", category).eq("status", "sent").order("id"))
     history: dict[str, list[datetime]] = {}
     for r in log:
         try:
-            history.setdefault(r["user_id"], []).append(datetime.fromisoformat(str(r["created_at"]).replace("Z", "+00:00")))
+            history.setdefault(r["user_id"], []).append(datetime.fromisoformat(str(r["sent_at"]).replace("Z", "+00:00")))
         except (KeyError, ValueError):
             continue
     return [p for p in profiles if is_eligible(p, buyers, history, now)]
