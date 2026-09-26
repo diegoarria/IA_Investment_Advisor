@@ -404,6 +404,35 @@ def _safe_cache_delete(key: str) -> None:
         logger.warning("business overview cache_delete failed: %s", e)
 
 
+_SECTION_LAST_GOOD: dict[str, dict] = {}
+_SECTION_CACHE_TTL = 7 * 24 * 3600
+
+
+def _remember(name: str, raw, ok, default: dict) -> dict:
+    """Return `raw` (and remember it) when it is a good section; otherwise the
+    last good copy of that section (memory first, then the shared cache so
+    every API process serves the same numbers), marked `_stale`."""
+    if not isinstance(raw, Exception) and ok(raw):
+        entry = {"value": raw, "at": datetime.now(timezone.utc).isoformat()}
+        _SECTION_LAST_GOOD[name] = entry
+        try:
+            cache_set(f"admin:bo:last_good:{name}", entry, _SECTION_CACHE_TTL)
+        except Exception as e:
+            logger.warning("could not persist last-good section %s: %s", name, e)
+        return raw
+    if isinstance(raw, Exception):
+        logger.warning("business overview section %s failed: %s", name, raw)
+    entry = _SECTION_LAST_GOOD.get(name)
+    if entry is None:
+        try:
+            entry = cache_get(f"admin:bo:last_good:{name}")
+        except Exception:
+            entry = None
+    if isinstance(entry, dict) and isinstance(entry.get("value"), dict):
+        return {**entry["value"], "_stale": True, "_stale_at": entry.get("at")}
+    return default
+
+
 def _as_dict(value, default: dict) -> dict:
     """Any section that came back as the wrong shape (None, list, ...) is
     replaced by its safe default instead of raising further down."""
@@ -421,7 +450,7 @@ async def _compute_business_overview(force_refresh: bool = False) -> dict:
         _get_stripe_fees_30d(), _get_llm_cost_30d(), _get_fixed_costs(),
         return_exceptions=True,
     )
-    users, stripe_metrics, posthog_metrics, stripe_fees, llm_cost, fixed_costs = raw_results
+    users_r, stripe_r, posthog_r, fees_r, llm_r, fixed_r = raw_results
     # A transient failure here (a single dropped Supabase connection, a
     # cold-start race) must never get baked into the 5-minute cache below —
     # that turned one blip into every viewer seeing "—" for up to 5 minutes
@@ -429,30 +458,26 @@ async def _compute_business_overview(force_refresh: bool = False) -> dict:
     # real"), and worse, into a permanently corrupted zero/null row if
     # snapshot_business_overview's daily cron happened to run during it.
     had_failure = any(isinstance(r, Exception) for r in raw_results)
-    if isinstance(users, Exception):
-        logger.warning("_get_user_metrics failed: %s", users)
-        users = {"error": str(users)}
-    if isinstance(stripe_metrics, Exception):
-        logger.warning("_get_stripe_metrics failed: %s", stripe_metrics)
-        stripe_metrics = {"available": False, "reason": "error"}
-    if isinstance(posthog_metrics, Exception):
-        logger.warning("_get_posthog_metrics failed: %s", posthog_metrics)
-        posthog_metrics = {"available": False, "reason": "error"}
-    if isinstance(stripe_fees, Exception):
-        logger.warning("_get_stripe_fees_30d failed: %s", stripe_fees)
-        stripe_fees = {"available": False, "reason": "error"}
-    if isinstance(llm_cost, Exception):
-        logger.warning("_get_llm_cost_30d failed: %s", llm_cost)
-        llm_cost = {"cost_usd_30d": None}
-    if isinstance(fixed_costs, Exception):
-        logger.warning("_get_fixed_costs failed: %s", fixed_costs)
-        fixed_costs = {"items": [], "total_monthly_usd": 0.0}
-    users         = _as_dict(users, {"error": "invalid_shape"})
-    stripe_metrics = _as_dict(stripe_metrics, {"available": False, "reason": "error"})
-    posthog_metrics = _as_dict(posthog_metrics, {"available": False, "reason": "error"})
-    stripe_fees   = _as_dict(stripe_fees, {"available": False, "reason": "error"})
-    llm_cost      = _as_dict(llm_cost, {"cost_usd_30d": None})
-    fixed_costs   = _as_dict(fixed_costs, {"items": [], "total_monthly_usd": 0.0})
+
+    def _is_dict(v):
+        return isinstance(v, dict)
+
+    # Diego, 2026-09-24: the panel must not flicker between numbers and "—".
+    # Every section is remembered when it loads fine; when a later load of that
+    # section fails (Stripe/PostHog blip, a dropped DB read) the last good value
+    # is served instead, marked `_stale` — never an empty/zero placeholder.
+    users = _remember("users", users_r, lambda v: _is_dict(v) and "error" not in v and "total_users" in v,
+                      {"error": str(users_r) if isinstance(users_r, Exception) else "invalid_shape"})
+    stripe_metrics = _remember("stripe", stripe_r, lambda v: _is_dict(v) and v.get("available"),
+                               {"available": False, "reason": "error"})
+    posthog_metrics = _remember("posthog", posthog_r, lambda v: _is_dict(v) and v.get("available"),
+                                {"available": False, "reason": "error"})
+    stripe_fees = _remember("stripe_fees", fees_r, lambda v: _is_dict(v) and v.get("available"),
+                            {"available": False, "reason": "error"})
+    llm_cost = _remember("llm_cost", llm_r, lambda v: _is_dict(v) and v.get("cost_usd_30d") is not None,
+                         {"cost_usd_30d": None})
+    fixed_costs = _remember("fixed_costs", fixed_r, lambda v: _is_dict(v) and "total_monthly_usd" in v,
+                            {"items": [], "total_monthly_usd": 0.0})
     fixed_costs.setdefault("items", [])
     fixed_costs.setdefault("total_monthly_usd", 0.0)
 
@@ -508,7 +533,7 @@ async def snapshot_business_overview() -> None:
     overview = await get_business_overview(force_refresh=True)
     # Never bake a fallback/degraded payload (or a failed users read) into the
     # history as a row of zeros — skip today and try again tomorrow.
-    if overview.get("degraded") or overview.get("stale") or "error" in (overview.get("users") or {}):
+    if overview.get("degraded") or overview.get("stale") or "error" in (overview.get("users") or {}) or (overview.get("users") or {}).get("_stale"):
         logger.warning("snapshot_business_overview: skipped, overview is degraded/stale (%s)",
                        overview.get("degraded_reason") or overview.get("stale_reason") or "users read failed")
         return
@@ -566,3 +591,102 @@ async def get_business_overview_history(days: int = 56) -> list[dict]:
         # whole panel down with it.
         logger.warning("get_business_overview_history failed, returning no history: %s", e)
         return []
+
+
+# ─── Today's activity (who came in today) ───────────────────────────────────
+
+_ACTIVITY_LAST_GOOD: dict | None = None
+_ACTIVITY_TZ = "America/Monterrey"
+
+
+def _to_dt(value) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None
+
+
+def _day_start_utc(now: datetime | None = None) -> datetime:
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo(_ACTIVITY_TZ)
+    local = (now or datetime.now(timezone.utc)).astimezone(tz)
+    return local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+
+def build_activity_rows(auth_users: list, chat_counts: dict[str, int], chat_last: dict[str, datetime],
+                        names: dict[str, str], start: datetime, limit: int = 200) -> list[dict]:
+    """Pure merge: who signed up / signed in / chatted with Arthur since `start`."""
+    rows = []
+    for u in auth_users:
+        uid = str(getattr(u, "id", "") or "")
+        created = _to_dt(getattr(u, "created_at", None))
+        signed_in = _to_dt(getattr(u, "last_sign_in_at", None))
+        signed_up_today = bool(created and created >= start)
+        signed_in_today = bool(signed_in and signed_in >= start)
+        chats = chat_counts.get(uid, 0)
+        if not (signed_up_today or signed_in_today or chats):
+            continue
+        stamps = [d for d in (created if signed_up_today else None, signed_in if signed_in_today else None, chat_last.get(uid)) if d]
+        last = max(stamps) if stamps else None
+        rows.append({
+            "email": getattr(u, "email", None),
+            "name": names.get(uid) or None,
+            "signed_up_today": signed_up_today,
+            "signed_in_today": signed_in_today,
+            "chat_messages": chats,
+            "last_activity": last.isoformat() if last else None,
+        })
+    rows.sort(key=lambda r: r["last_activity"] or "", reverse=True)
+    return rows[:limit]
+
+
+async def _compute_activity_today() -> dict:
+    from app.core.database import fetch_all_auth_users
+    from app.services.launch_emails import _fetch_all
+    db = get_supabase()
+    start = _day_start_utc()
+    auth_users = await fetch_all_auth_users(db)
+    chat_rows = await _fetch_all(lambda: db.table("chat_history").select("id,user_id,created_at").eq("role", "user")
+                                 .gte("created_at", start.isoformat()).order("id"))
+    chat_counts: dict[str, int] = {}
+    chat_last: dict[str, datetime] = {}
+    for r in chat_rows:
+        uid = str(r.get("user_id"))
+        chat_counts[uid] = chat_counts.get(uid, 0) + 1
+        dt = _to_dt(r.get("created_at"))
+        if dt and (uid not in chat_last or dt > chat_last[uid]):
+            chat_last[uid] = dt
+    profiles = await _fetch_all(lambda: db.table("user_profiles").select("user_id,name").order("user_id"))
+    names = {str(p["user_id"]): p.get("name") for p in profiles}
+    rows = build_activity_rows(auth_users, chat_counts, chat_last, names, start)
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "since": start.isoformat(),
+        "timezone": _ACTIVITY_TZ,
+        "total_users": len(auth_users),
+        "count": len(rows),
+        "signed_up_count": sum(1 for r in rows if r["signed_up_today"]),
+        "chatted_count": sum(1 for r in rows if r["chat_messages"]),
+        "users": rows,
+    }
+
+
+async def get_activity_today() -> dict:
+    """Never raises: on failure serves the last good list marked stale, else an
+    empty-but-well-shaped payload."""
+    global _ACTIVITY_LAST_GOOD
+    try:
+        result = await _compute_activity_today()
+        _ACTIVITY_LAST_GOOD = result
+        return result
+    except Exception as e:
+        logger.error("get_activity_today failed: %s", e, exc_info=True)
+        if _ACTIVITY_LAST_GOOD is not None:
+            return {**_ACTIVITY_LAST_GOOD, "stale": True, "stale_reason": str(e)}
+        return {"generated_at": datetime.now(timezone.utc).isoformat(), "timezone": _ACTIVITY_TZ, "count": 0,
+                "signed_up_count": 0, "chatted_count": 0, "users": [], "degraded": True, "degraded_reason": str(e)}

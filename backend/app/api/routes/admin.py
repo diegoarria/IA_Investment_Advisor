@@ -328,6 +328,15 @@ async def business_overview(force_refresh: bool = False, user: dict = Depends(ge
         return _degraded_overview(str(e))
 
 
+@router.get("/activity-today")
+async def activity_today(user: dict = Depends(get_current_user)):
+    """Who came in today (signed up / signed in / talked to Arthur), in
+    Monterrey time. Never 500s — see business_overview_service.get_activity_today."""
+    await _require_admin(user)
+    from app.services.business_overview_service import get_activity_today
+    return await get_activity_today()
+
+
 @router.get("/business-overview/history")
 async def business_overview_history(days: int = 56, user: dict = Depends(get_current_user)):
     """Daily snapshots (job_snapshot_business_overview, worker.py) for the

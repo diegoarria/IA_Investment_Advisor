@@ -73,6 +73,55 @@ interface Overview {
   stale_reason?: string;
 }
 
+interface ActivityUser {
+  email: string | null;
+  name: string | null;
+  signed_up_today: boolean;
+  signed_in_today: boolean;
+  chat_messages: number;
+  last_activity: string | null;
+}
+
+interface ActivityToday {
+  generated_at: string;
+  count: number;
+  signed_up_count: number;
+  chatted_count: number;
+  total_users?: number;
+  users: ActivityUser[];
+  stale?: boolean;
+  degraded?: boolean;
+}
+
+// The panel must never flicker between numbers and "—": the last good data is
+// kept in this browser and a fallback/degraded server answer never replaces it.
+const CACHE_KEY = "nuvos_admin_overview_v1";
+const ACTIVITY_CACHE_KEY = "nuvos_admin_activity_v1";
+const readCache = <T,>(key: string): T | null => {
+  try { const raw = localStorage.getItem(key); return raw ? (JSON.parse(raw) as T) : null; } catch { return null; }
+};
+const writeCache = (key: string, value: unknown) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ } };
+
+function mergeOverview(prev: Overview | null, next: Overview): Overview {
+  if (!prev) return next;
+  if (next.degraded) return prev;
+  const out: Overview = { ...next };
+  if (next.users?.error && prev.users && !prev.users.error) out.users = prev.users;
+  if (!next.stripe?.available && prev.stripe?.available) out.stripe = prev.stripe;
+  if (!next.posthog?.available && prev.posthog?.available) out.posthog = prev.posthog;
+  if (prev.costs && next.costs) {
+    const nc: any = next.costs, pc: any = prev.costs;
+    out.costs = { ...next.costs,
+      llm_usd_30d: nc.llm_usd_30d ?? pc.llm_usd_30d,
+      stripe_fees_usd_30d: nc.stripe_fees_usd_30d ?? pc.stripe_fees_usd_30d,
+      total_cost_usd_30d: nc.total_cost_usd_30d ?? pc.total_cost_usd_30d,
+      margin_usd: nc.margin_usd ?? pc.margin_usd,
+      margin_pct: nc.margin_pct ?? pc.margin_pct,
+    } as CostsMetrics;
+  }
+  return out;
+}
+
 interface HistoryRow {
   snapshot_date: string;
   total_users: number;
@@ -242,15 +291,51 @@ export default function AdminBusinessOverviewPage() {
   // though the overview had loaded fine. A failed overview keeps whatever is
   // already on screen, shows a small notice, and retries on its own.
   const retryRef = useRef(0);
+  const dataRef = useRef<Overview | null>(null);
+  dataRef.current = data;
+  const [activity, setActivity] = useState<ActivityToday | null>(null);
+  const activityRef = useRef<ActivityToday | null>(null);
+  activityRef.current = activity;
+
+  // Show the last good data instantly (before any request) so the panel is
+  // never empty; hydrated after mount to avoid a server/client mismatch.
+  useEffect(() => {
+    const c = readCache<{ data: Overview; history: HistoryRow[] }>(CACHE_KEY);
+    if (c?.data) { setData((cur) => cur ?? c.data); setHistory((cur) => (cur.length ? cur : c.history ?? [])); setLoading(false); }
+    const a = readCache<ActivityToday>(ACTIVITY_CACHE_KEY);
+    if (a) setActivity((cur) => cur ?? a);
+  }, []);
+
+  const loadActivity = useCallback(async () => {
+    try {
+      const res = await adminApi.activityToday();
+      const next: ActivityToday | undefined = res.data;
+      if (next && Array.isArray(next.users) && !(next.degraded && activityRef.current)) {
+        setActivity(next);
+        if (!next.degraded) writeCache(ACTIVITY_CACHE_KEY, next);
+      }
+    } catch { /* keep whatever is on screen */ }
+  }, []);
+
+  useEffect(() => {
+    if (userId !== ADMIN_UID) return;
+    loadActivity();
+    const id = setInterval(loadActivity, 60_000);
+    return () => clearInterval(id);
+  }, [userId, loadActivity]);
+
   const load = useCallback(async (forceRefresh: boolean) => {
-    forceRefresh ? setRefreshing(true) : setLoading(true);
+    // Only show the big spinner when there is nothing to show yet.
+    forceRefresh ? setRefreshing(true) : (dataRef.current ? null : setLoading(true));
     setError(null);
     const [overviewRes, historyRes] = await Promise.allSettled([
       adminApi.businessOverview(forceRefresh),
       adminApi.businessOverviewHistory(56),
     ]);
     if (overviewRes.status === "fulfilled" && overviewRes.value.data?.users) {
-      setData(overviewRes.value.data);
+      const merged = mergeOverview(dataRef.current, overviewRes.value.data);
+      setData(merged);
+      if (!overviewRes.value.data.degraded) writeCache(CACHE_KEY, { data: merged, history: [] });
       retryRef.current = 0;
     } else {
       const err: any = overviewRes.status === "rejected" ? overviewRes.reason : null;
@@ -263,7 +348,11 @@ export default function AdminBusinessOverviewPage() {
         setError("No se pudo actualizar el panel. Mostrando lo último que se cargó; pulsa Actualizar para reintentar.");
       }
     }
-    if (historyRes.status === "fulfilled") setHistory(historyRes.value.data ?? []);
+    if (historyRes.status === "fulfilled" && (historyRes.value.data?.length || !dataRef.current)) {
+      setHistory(historyRes.value.data ?? []);
+      const c = readCache<{ data: Overview }>(CACHE_KEY);
+      if (c?.data) writeCache(CACHE_KEY, { data: c.data, history: historyRes.value.data ?? [] });
+    }
     // Independent of the overview call: a failure here must never blank the panel.
     adminApi.llmUsage(30).then((r) => setLlmUsage(r.data)).catch(() => {});
     setLoading(false);
@@ -271,7 +360,12 @@ export default function AdminBusinessOverviewPage() {
   }, []);
 
   useEffect(() => {
-    if (userId === ADMIN_UID) load(false);
+    if (userId !== ADMIN_UID) return;
+    load(false);
+    // Silent refresh every 5 minutes: merges into what is on screen (no spinner,
+    // no blanking), so the numbers stay current without ever flickering.
+    const id = setInterval(() => load(false), 5 * 60_000);
+    return () => clearInterval(id);
   }, [userId, load]);
 
   const addCost = async () => {
@@ -371,6 +465,51 @@ export default function AdminBusinessOverviewPage() {
                   Las tendencias (líneas debajo de cada número) van a aparecer en cuanto se acumulen unos días de snapshots — corre una vez al día a las 7am ET.
                 </p>
               )}
+            </section>
+
+            {/* Actividad de hoy */}
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Actividad de hoy (hora de Monterrey)</p>
+                {activity && (
+                  <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+                    {activity.count} activos · {activity.signed_up_count} nuevos · {activity.chatted_count} hablaron con Arthur
+                  </p>
+                )}
+              </div>
+              {(activity?.stale || activity?.degraded) && (
+                <p className="text-[11px]" style={{ color: "#f59e0b" }}>
+                  Mostrando la última lista cargada; el servidor no pudo actualizarla ahora mismo.
+                </p>
+              )}
+              <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                {!activity && (
+                  <p className="text-xs p-4" style={{ color: "var(--muted)" }}>Cargando actividad…</p>
+                )}
+                {activity && activity.users.length === 0 && (
+                  <p className="text-xs p-4" style={{ color: "var(--muted)" }}>Todavía no hay actividad registrada hoy.</p>
+                )}
+                {activity && activity.users.map((u, i) => (
+                  <div key={(u.email ?? "") + i} className="flex items-center justify-between gap-3 px-4 py-2.5"
+                       style={{ borderTop: i === 0 ? "none" : "1px solid var(--border)" }}>
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold truncate" style={{ color: "var(--text)" }}>{u.name || u.email || "—"}</p>
+                      {u.name && <p className="text-[11px] truncate" style={{ color: "var(--muted)" }}>{u.email}</p>}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {u.signed_up_today && <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(0,232,135,0.15)", color: "#00e887" }}>Nuevo</span>}
+                      {u.signed_in_today && <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(96,165,250,0.15)", color: "#60a5fa" }}>Entró</span>}
+                      {u.chat_messages > 0 && <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa" }}>Arthur ×{u.chat_messages}</span>}
+                      <span className="text-[11px] w-14 text-right" style={{ color: "var(--muted)" }}>
+                        {u.last_activity ? new Date(u.last_activity).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", timeZone: "America/Monterrey" }) : ""}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+                Se cuenta a quien inició sesión, se registró o escribió a Arthur hoy. Quien solo abre la app con la sesión ya guardada puede no aparecer. Se actualiza cada minuto.
+              </p>
             </section>
 
             {/* Stripe */}

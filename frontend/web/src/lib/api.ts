@@ -720,6 +720,7 @@ export const adminApi = {
   undervaluedScreenerStatus: () => api.get("/api/admin/undervalued-screener-status"),
   businessOverview: (forceRefresh: boolean = false) =>
     api.get("/api/admin/business-overview", { params: { force_refresh: forceRefresh } }),
+  activityToday: () => api.get("/api/admin/activity-today"),
   businessOverviewHistory: (days: number = 56) =>
     api.get("/api/admin/business-overview/history", { params: { days } }),
   operatingCosts: () => api.get("/api/admin/operating-costs"),
