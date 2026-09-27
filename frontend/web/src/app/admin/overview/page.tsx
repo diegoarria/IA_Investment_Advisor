@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, RefreshCw, Users, Crown, TrendingDown, Activity, Lock, DollarSign, Trash2, Plus } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 import { adminApi } from "@/lib/api";
+import { setReturnTo } from "@/lib/returnTo";
 import { Sparkline, type SparklinePoint } from "@/components/ui";
 
 const ADMIN_UID = "86961402-9072-4670-9f73-b2aa91930b04";
@@ -269,7 +270,7 @@ function NotConfigured({ what }: { what: string }) {
 
 export default function AdminBusinessOverviewPage() {
   const router = useRouter();
-  const { userId, isAuthenticated } = useAuthStore();
+  const { userId, isAuthenticated, authRestoring } = useAuthStore();
   const [data, setData] = useState<Overview | null>(null);
   const [llmUsage, setLlmUsage] = useState<LlmUsage | null>(null);
   const [history, setHistory] = useState<HistoryRow[]>([]);
@@ -280,10 +281,21 @@ export default function AdminBusinessOverviewPage() {
   const [newCostAmount, setNewCostAmount] = useState("");
   const [savingCost, setSavingCost] = useState(false);
 
+  // Diego, 2026-09-27: a lost session used to leave this page stuck retrying
+  // with "Invalid token format" and no way out. Any sign the session is gone
+  // (no session after restore, or a 401 that survived the api.ts refresh
+  // attempt) now sends you to log in and brings you straight back here.
+  const goToLogin = useCallback(() => {
+    setReturnTo("/admin/overview");
+    useAuthStore.getState().clearAuth();
+    router.replace("/");
+  }, [router]);
+
   useEffect(() => {
-    if (!userId || !isAuthenticated) return;
+    if (authRestoring) return;
+    if (!isAuthenticated || !userId) { goToLogin(); return; }
     if (userId !== ADMIN_UID) router.push("/");
-  }, [userId, isAuthenticated, router]);
+  }, [userId, isAuthenticated, authRestoring, router, goToLogin]);
 
   // Diego, 2026-09-24: this panel must ALWAYS open with whatever data exists.
   // The overview and the history are fetched independently (allSettled): the
@@ -339,6 +351,7 @@ export default function AdminBusinessOverviewPage() {
       retryRef.current = 0;
     } else {
       const err: any = overviewRes.status === "rejected" ? overviewRes.reason : null;
+      if (err?.response?.status === 401) { goToLogin(); return; }
       const detail = err?.response?.data?.detail;
       setError(typeof detail === "string" ? detail : "Reintentando cargar el panel…");
       if (retryRef.current < 4) {
@@ -357,7 +370,7 @@ export default function AdminBusinessOverviewPage() {
     adminApi.llmUsage(30).then((r) => setLlmUsage(r.data)).catch(() => {});
     setLoading(false);
     setRefreshing(false);
-  }, []);
+  }, [goToLogin]);
 
   useEffect(() => {
     if (userId !== ADMIN_UID) return;
