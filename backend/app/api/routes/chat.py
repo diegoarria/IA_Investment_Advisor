@@ -143,6 +143,40 @@ _UNDERVALUED_SCREENER_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Personal capital-allocation decisions ("tengo $100,000, ¿negocio o bolsa?",
+# "¿pago mi tarjeta o invierto?") — found 2026-09-27: with no ticker in the
+# message these went to GPT-mini (generic 10-line prompt, 500 tokens), so the
+# capital-allocation toolbox + big-life-decision protocol + the user's profile
+# never reached them. The one "$100,000 MXN" example that did reach Claude
+# only did so because "MXN" was misread as a ticker. Deliberately narrower
+# than prompt_modules' capital triggers: textbook questions ("qué es una
+# afore", "cuánto rinden los CETES") stay on the cheap path; only a concrete
+# amount of the user's own money, or explicit "what do I do" / "X or Y"
+# decision wording, gets the Claude tier.
+_CAPITAL_AMOUNT_RE = re.compile(
+    r"\$\s?\d|\d\s?(mil|k)\b|\d+\s?(usd|d[oó]lares|pesos|mxn|eur)\b",
+    re.IGNORECASE,
+)
+_CAPITAL_DECISION_RE = re.compile(
+    r"qu[eé] hago|no s[eé] (qu[eé]|que) hacer|qu[eé] me conviene|me conviene m[aá]s|"
+    r"deber[ií]a (invertir|pagar|ahorrar|poner|emprender|renunciar|meter|usar)|"
+    r"\bo (mejor|lo invierto|invierto|pago|ahorro|lo ahorro|emprendo|pongo)\b|"
+    r"(poner|abrir|empezar|iniciar|arrancar) (un|mi) negocio|idea de negocio|emprend\w*|renunci\w*|"
+    r"what should i do|should i (invest|pay|save|quit|start)",
+    re.IGNORECASE,
+)
+_CAPITAL_CONTEXT_RE = re.compile(
+    r"tengo|ahorr\w*|herencia|invert\w*|inversi[oó]n|negocio|deuda|tarjeta|cr[eé]dito|hipoteca|"
+    r"casa|depa\w*|enganche|retiro|afore|cetes|bolsa|i have|saved|inheritance|invest\w*|debt",
+    re.IGNORECASE,
+)
+
+
+def _is_capital_decision(message: str) -> bool:
+    if _CAPITAL_DECISION_RE.search(message):
+        return True
+    return bool(_CAPITAL_AMOUNT_RE.search(message) and _CAPITAL_CONTEXT_RE.search(message))
+
 
 def _needs_claude_analysis(message: str, has_images: bool) -> bool:
     """True when a question needs real market data, a specific ticker/company,
@@ -163,6 +197,8 @@ def _needs_claude_analysis(message: str, has_images: bool) -> bool:
     if _STOCK_SUGGESTION_RE.search(message):
         return True
     if _UNDERVALUED_SCREENER_RE.search(message):
+        return True
+    if _is_capital_decision(message):
         return True
     return bool(_LIVE_DATA_RE.search(message))
 

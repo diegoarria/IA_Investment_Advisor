@@ -613,6 +613,13 @@ _NON_TICKER_ACRONYMS = {
     "SI", "NO", "IA", "CEO", "CFO", "CTO", "ETF", "ETFS", "PDF", "USD",
     "ROI", "DCF", "OK", "PM", "AM", "FAQ", "API", "URL", "SMS", "USA",
     "EEUU", "UK", "EPS", "P/E", "PE", "IPO", "SEC", "FCF", "YOY", "TTM",
+    # LatAm money/tax/institution acronyms (2026-09-27: "$100,000 MXN" was
+    # detected as ticker MXN — loaded the 11K-token verdict module, fetched
+    # a quote and logged an Investment Graph node for a non-company). Real
+    # tickers that collide (CAT, COP, PEN) are deliberately NOT listed.
+    "MXN", "MX", "EUR", "ARS", "CLP", "BRL", "GBP", "CAD", "UDI", "UDIS",
+    "CETES", "AFORE", "PPR", "SAT", "IVA", "ISR", "IMSS", "RFC", "CURP",
+    "INE", "CDMX", "BMV", "TIR", "VPN", "CNBV", "IPAB",
 }
 
 
