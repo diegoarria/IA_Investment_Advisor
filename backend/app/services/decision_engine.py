@@ -466,7 +466,7 @@ _RECOMMENDATION_PATTERNS = [
     r"\ble dar[ií]a\s+\d+%", r"\bla pondr[ií]a como (mi )?mayor posici[oó]n\b",
     # Spanish — bare imperative commands (tú-form), not the infinitive
     r"^\s*(compra|vende|invierte)\s+\S",
-    r"\b(compra|vende|invierte)\s+(ahora|ya|en)\s+\w",
+    r"(?<!\bde )\b(compra|vende|invierte)\s+(ahora|ya|en)\s+\w",  # not "poder/precio de compra en dólares"
     # English — direct prescriptive phrasing
     r"you should\s+(buy|sell|invest|choose|pick|do)", r"\bi recommend\b", r"my recommendation\b",
     r"the best option (is|for you)\b",

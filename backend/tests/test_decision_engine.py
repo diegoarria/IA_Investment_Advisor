@@ -415,3 +415,13 @@ def test_decision_context_concentration_is_visible_for_test_4():
     ctx = build_decision_context(message="¿Compro más NVDA?", positions=positions, quotes=quotes)
     nvda = next(p for p in ctx.portfolio if p.ticker == "NVDA")
     assert nvda.current_weight_pct == 22.0
+
+
+def test_guard_does_not_flag_noun_compra_in_currency_talk_but_still_flags_the_imperative():
+    """The new capital-allocation guide makes "poder de compra en dólares" /
+    "precio de compra en pesos" common — noun uses of "compra", not the
+    imperative "compra en X"."""
+    from app.services.decision_engine import check_recommendation_guard
+    assert check_recommendation_guard("Si el peso se deprecia, el poder de compra en dólares cae.") == []
+    assert check_recommendation_guard("Tu precio de compra en pesos fue distinto al de hoy.") == []
+    assert check_recommendation_guard("Compra en NVDA ahora, se ve bien.") != []

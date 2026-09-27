@@ -59,6 +59,9 @@ def test_no_raw_message_or_images_sends_everything():
     ("compré 3 acciones de Google a $343", "transactions"),
     ("elimina AAPL de mi portafolio", "transactions"),
     ("tengo $10,000 ahorrados, ¿qué hago?", "capital"),
+    ("¿vale la pena comprar oro?", "capital"),
+    ("qué onda con el bitcoin", "capital"),
+    ("¿me conviene rentar o comprar depa?", "capital"),
     ("¿por qué cayó Tesla hoy?", "news"),
     ("¿por qué cayó Tesla hoy?", "drawdown"),
     ("dame ideas de acciones subvaluadas", "screener"),
@@ -134,3 +137,14 @@ def test_trade_report_gets_transactions_without_verdict_or_capital_modules():
 def test_trade_report_with_real_question_still_gets_the_extra_modules():
     sel = pm.select_modules("vendí todo y ahora tengo 10k, ¿qué hago con mi dinero? ¿es buena compra AAPL?", [], has_ticker=True)
     assert {"transactions", "capital", "analysis"} <= sel
+
+
+def test_capital_module_not_pulled_in_by_everyday_spanish_or_trade_reports():
+    """"estoy seguro", "van a subir" and "a 343 dólares" must not load the
+    ~12K-token capital module."""
+    from app.services.prompt_modules import select_modules
+    import inspect
+    sig = inspect.signature(select_modules)
+    for msg in ("estoy seguro de que van a subir", "compré 3 acciones de Google a 343 dólares"):
+        sel = select_modules(msg, *([[]] if len(sig.parameters) > 1 else []))
+        assert "capital" not in sel, msg

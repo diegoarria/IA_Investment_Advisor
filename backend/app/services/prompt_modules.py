@@ -90,7 +90,15 @@ _CAPITAL_WORDS = (
     r"qu[eé] hago|que hago|c[oó]mo empiezo|por d[oó]nde|"
     r"\bmeta\b|objetivo|plan financiero|patrimonio|ingresos|gastos|"
     r"money|savings?|debt|loan|mortgage|business|\bjob\b|salary|retire\w*|inheritance|emergency fund|"
-    r"\binvest\w*|where to put|what should i do|net worth|financial plan"
+    r"\binvest\w*|where to put|what should i do|net worth|financial plan|"
+    # Capital-allocation guide topics (2026-09-26). Deliberately NOT included:
+    # bare "seguro" ("estoy seguro"), "van" ("van a subir"), "auto", and
+    # "dólares" (every trade report says "a 343 dólares" and must not pull
+    # this ~12K-token module in).
+    r"punto de equilibrio|break.?even|udibonos?|bondes|pagar[eé]s?|sofipo|\bcat\b|tarjeta|inter[eé]s compuesto|"
+    r"seguros\b|seguro (de vida|m[eé]dico|de gastos)|p[oó]liza|afore|\bppr\b|renta(r|s)?\b|enganche|plusval[ií]a|"
+    r"maestr[ií]a|\bmba\b|certificaci[oó]n|colegiatura|\boro\b|cripto\w*|bitcoin|franquicia|\bsocio|coche|carro|"
+    r"dolarizar|devaluaci[oó]n|tipo de cambio|\bvpn\b|\btir\b|payback|recuperar lo invertido"
 )
 _CAPITAL_AMOUNTS = r"\$\s?\d|\d\s?(mil|k)\b|\d+\s?(usd|d[oó]lares|dolares|pesos|mxn|eur)"
 _CAPITAL_RE = _RE(_CAPITAL_WORDS + "|" + _CAPITAL_AMOUNTS)
