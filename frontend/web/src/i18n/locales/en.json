@@ -3024,7 +3024,12 @@
     "premiumCta": "Unlock Morning Brief with Premium",
     "premiumReason": "Arthur already reviewed {{newsCount}} news items and {{eventsCount}} relevant events for your portfolio today. Activate Premium to see them.",
     "teaserNewsLabel": "Relevant news today",
-    "teaserEventsLabel": "Events to watch today"
+    "teaserEventsLabel": "Events to watch today",
+    "loadError": "We couldn't connect to get your Morning Brief. Check your connection and try again.",
+    "retry": "Try again",
+    "noPortfolio": "Add your positions to see here every morning what your portfolio is worth and how it did yesterday.",
+    "quietDay": "No major news or events for your companies today.",
+    "addPortfolio": "Add my portfolio"
   },
   "explainButton": {
     "cta": "Explain this",

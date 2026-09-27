@@ -5722,7 +5722,9 @@ async def job_morning_brief():
             lang = "en" if is_en else "es"
             try:
                 brief = await build_morning_brief(uid, lang=lang)
-                if brief is None:
+                # Same audience as before: the push is for people with a
+                # real portfolio (the flashcard itself now opens for everyone).
+                if not brief.get("has_portfolio"):
                     continue
 
                 first = (prof.get("name") or ("Investor" if is_en else "Inversor")).split()[0]

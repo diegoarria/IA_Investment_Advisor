@@ -261,6 +261,8 @@ function AppStack() {
       <Stack.Screen name="earnings" options={{ headerShown: false }} />
       <Stack.Screen name="subvaluadas" options={{ headerShown: false }} />
       <Stack.Screen name="morning-brief" options={{ headerShown: false }} />
+      {/* Own header with a real back button (RitualHeader) — the default one showed raw route names. */}
+      <Stack.Screen name="weekly-ritual" options={{ headerShown: false }} />
       <Stack.Screen name="journal" options={{ headerShown: false }} />
       <Stack.Screen name="wrapped" options={{ headerShown: false }} />
       <Stack.Screen name="monthly-report" options={{ headerShown: false }} />

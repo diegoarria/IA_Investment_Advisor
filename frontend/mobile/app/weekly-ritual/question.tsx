@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, SafeAreaView, ActivityIndicator, StyleSheet, AppState } from "react-native";
+import { View, Text, TouchableOpacity, SafeAreaView, ScrollView, ActivityIndicator, StyleSheet, AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
+import RitualHeader from "../../src/components/RitualHeader";
 import { weeklyRitualsApi } from "../../src/lib/api";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
@@ -140,7 +141,8 @@ export default function WeeklyRitualQuestionScreen() {
 
   return (
     <SafeAreaView style={[st.container, { backgroundColor: colors.bg }]}>
-      <View style={st.center}>
+      <RitualHeader />
+      <ScrollView contentContainerStyle={st.center} keyboardShouldPersistTaps="handled">
         {!data && loading ? (
           <ActivityIndicator color={GREEN} />
         ) : error || !data ? (
@@ -218,7 +220,7 @@ export default function WeeklyRitualQuestionScreen() {
             )}
           </View>
         )}
-      </View>
+      </ScrollView>
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={t("weeklyRitual.question.paywallReason")} />
     </SafeAreaView>
   );
@@ -226,7 +228,7 @@ export default function WeeklyRitualQuestionScreen() {
 
 const st = StyleSheet.create({
   container: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20 },
+  center: { flexGrow: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
   card: { width: "100%", maxWidth: 420, borderRadius: 24, borderWidth: 1, overflow: "hidden" },
   headerRow: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, borderBottomWidth: 1 },
   body: { padding: 20 },

@@ -35,8 +35,10 @@ async def _profile_lang_and_tier(user_id: str) -> tuple[str, bool]:
         lang = getattr(profile, "preferred_language", None) or "es"
         return lang, _is_premium(profile)
     except Exception as exc:
-        logger.warning("weekly_rituals: profile lookup failed for %s, defaulting es/free: %s", user_id, exc)
-        return "es", False
+        # _is_premium(None) fails open on purpose — never show a real
+        # Premium user the Free wall over a transient read error.
+        logger.warning("weekly_rituals: profile lookup failed for %s, defaulting es: %s", user_id, exc)
+        return "es", _is_premium(None)
 
 
 @router.get("/question")

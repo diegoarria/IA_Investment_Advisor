@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, SafeAreaView, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, SafeAreaView, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
+import RitualHeader from "../../src/components/RitualHeader";
 import { weeklyRitualsApi } from "../../src/lib/api";
 
 const GREEN = "#00d47e";
@@ -89,7 +90,9 @@ export default function WeeklyRitualSaturdayScreen() {
 
   return (
     <SafeAreaView style={[st.container, { backgroundColor: colors.bg }]}>
-      <View style={st.center}>
+      <RitualHeader />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView contentContainerStyle={st.center} keyboardShouldPersistTaps="handled">
         <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {done ? (
             <View style={{ padding: 24, alignItems: "center" }}>
@@ -141,14 +144,15 @@ export default function WeeklyRitualSaturdayScreen() {
             </>
           )}
         </View>
-      </View>
+      </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const st = StyleSheet.create({
   container: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20 },
+  center: { flexGrow: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
   card: { width: "100%", maxWidth: 420, borderRadius: 24, borderWidth: 1, overflow: "hidden" },
   headerRow: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, borderBottomWidth: 1 },
   input: { borderRadius: 16, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12, fontSize: 14, minHeight: 100, textAlignVertical: "top" },

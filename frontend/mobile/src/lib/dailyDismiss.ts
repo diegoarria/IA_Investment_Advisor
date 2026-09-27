@@ -20,3 +20,15 @@ export async function isDismissedToday(key: string): Promise<boolean> {
 export function dismissToday(key: string): void {
   AsyncStorage.setItem(key, todayET()).catch(() => {});
 }
+
+// Morning Brief only runs Monday-Friday (Diego, 2026-09-27) — same ET
+// calendar as the 9:15am push and the backend's per-day cache.
+export function isWeekdayET(): boolean {
+  try {
+    const wd = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short" });
+    return wd !== "Sat" && wd !== "Sun";
+  } catch {
+    const d = new Date().getDay();
+    return d !== 0 && d !== 6;
+  }
+}

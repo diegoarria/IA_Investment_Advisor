@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { notifications as notificationsApi } from "@/lib/api";
-import { isDismissedToday, dismissToday } from "@/lib/dailyDismiss";
+import { useRouter } from "next/navigation";
+import { isDismissedToday, dismissToday, isWeekdayET } from "@/lib/dailyDismiss";
 
 const DISMISS_KEY = "nuvos_morning_brief_seen";
 
@@ -17,9 +18,11 @@ export default function MorningBriefCard({ className = "" }: { className?: strin
   const { t } = useTranslation();
   const [brief, setBrief] = useState<Brief | null>(null);
   const [dismissed, setDismissed] = useState(true); // avoid a flash before the dismiss check runs
+  const router = useRouter();
 
   useEffect(() => {
-    if (isDismissedToday(DISMISS_KEY)) return;
+    // Morning Brief is a Monday-Friday feature (Diego, 2026-09-27).
+    if (!isWeekdayET() || isDismissedToday(DISMISS_KEY)) return;
     setDismissed(false);
     notificationsApi
       .getMorningBrief()
@@ -47,7 +50,7 @@ export default function MorningBriefCard({ className = "" }: { className?: strin
           <X className="w-4 h-4" />
         </button>
       </div>
-      <ul className="space-y-1.5 mb-3">
+      <ul className="space-y-1.5 mb-3 cursor-pointer" onClick={() => { close(); router.push("/morning-brief"); }}>
         {brief.bullets.map((b, i) => (
           <li key={i} className="text-sm flex items-start gap-2" style={{ color: "var(--sub)" }}>
             <span style={{ color: "var(--accent-l)" }}>•</span>

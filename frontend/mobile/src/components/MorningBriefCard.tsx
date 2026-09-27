@@ -4,7 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { notificationsApi } from "../lib/api";
-import { isDismissedToday, dismissToday } from "../lib/dailyDismiss";
+import { router } from "expo-router";
+import { isDismissedToday, dismissToday, isWeekdayET } from "../lib/dailyDismiss";
 
 const DISMISS_KEY = "nuvos_morning_brief_seen";
 
@@ -20,6 +21,8 @@ export default function MorningBriefCard({ style }: { style?: StyleProp<ViewStyl
   const [dismissed, setDismissed] = useState(true); // avoid a flash before the dismiss check resolves
 
   useEffect(() => {
+    // Morning Brief is a Monday-Friday feature (Diego, 2026-09-27).
+    if (!isWeekdayET()) return;
     isDismissedToday(DISMISS_KEY).then((already) => {
       if (already) return;
       setDismissed(false);
@@ -47,14 +50,14 @@ export default function MorningBriefCard({ style }: { style?: StyleProp<ViewStyl
           <Ionicons name="close" size={16} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
-      <View style={{ gap: 5, marginBottom: 10 }}>
+      <TouchableOpacity activeOpacity={0.7} onPress={() => { close(); router.push("/morning-brief" as any); }} style={{ gap: 5, marginBottom: 10 }}>
         {brief.bullets.map((b, i) => (
           <View key={i} style={{ flexDirection: "row", gap: 6 }}>
             <Text style={{ color: colors.accentLight, fontSize: 13 }}>•</Text>
             <Text style={{ flex: 1, fontSize: 13, color: colors.textSub }}>{b}</Text>
           </View>
         ))}
-      </View>
+      </TouchableOpacity>
       <TouchableOpacity
         onPress={close}
         style={{ alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, backgroundColor: colors.accent }}

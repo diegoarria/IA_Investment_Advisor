@@ -28,7 +28,7 @@ import { useFxRate } from "@/lib/useFxRate";
 import { isNYSEOpen } from "@/lib/marketHours";
 import { registerWebPush } from "@/lib/webPush";
 import { getUserLevel } from "@/lib/userLevel";
-import { isDismissedToday, dismissToday } from "@/lib/dailyDismiss";
+import { isDismissedToday, dismissToday, isWeekdayET } from "@/lib/dailyDismiss";
 import { fetchWithRetry } from "@/lib/fetchWithRetry";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -590,7 +590,7 @@ export default function HomePage() {
   // don't share state.
   const MORNING_BRIEF_FLASHCARD_KEY = "nuvos_morning_brief_flashcard_seen";
   useEffect(() => {
-    if (!isPremium || !isAuthenticated) return;
+    if (!isPremium || !isAuthenticated || !isWeekdayET()) return;
     if (isDismissedToday(MORNING_BRIEF_FLASHCARD_KEY)) return;
     dismissToday(MORNING_BRIEF_FLASHCARD_KEY);
     router.push("/morning-brief");

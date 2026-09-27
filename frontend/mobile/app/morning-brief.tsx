@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -13,7 +13,8 @@ interface NewsItem { ticker: string; headline: string; category: string | null; 
 interface EventItem { type: string; ticker: string | null; label: string; impact: string | null; }
 interface MorningBriefData {
   is_premium: true;
-  portfolio_value: number;
+  has_portfolio?: boolean;
+  portfolio_value: number | null;
   change_usd: number | null;
   change_pct: number | null;
   sp500_change_pct: number | null;
@@ -23,12 +24,21 @@ interface MorningBriefData {
 }
 interface MorningBriefTeaser {
   is_premium: false;
-  portfolio_value: number;
+  has_portfolio?: boolean;
+  portfolio_value: number | null;
   change_usd: number | null;
   change_pct: number | null;
   news_count: number;
   events_count: number;
 }
+
+// Diego (2026-09-27): the Morning Brief must ALWAYS open — never sit
+// spinning and then say "no hay información". The backend now always
+// returns a brief (market part even without a portfolio) within ~12s; the
+// app retries on its own and, as a last resort, offers a retry button.
+const RETRY_DELAYS_MS = [0, 1500, 4000];
+const BRIEF_TIMEOUT_MS = 45000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const fmtUsd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -42,15 +52,33 @@ export default function MorningBriefScreen() {
   const [error, setError] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
 
-  useEffect(() => {
-    morningBriefFullApi.get()
-      .then((res: { data: MorningBriefData | MorningBriefTeaser }) => setData(res.data))
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
+  const loadSeq = useRef(0);
+
+  const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
+    setLoading(true);
+    setError(false);
+    for (const delay of RETRY_DELAYS_MS) {
+      if (delay) await sleep(delay);
+      if (seq !== loadSeq.current) return;
+      try {
+        const res = await morningBriefFullApi.get(BRIEF_TIMEOUT_MS);
+        if (seq !== loadSeq.current) return;
+        setData(res.data);
+        setLoading(false);
+        return;
+      } catch {}
+    }
+    if (seq !== loadSeq.current) return;
+    setError(true);
+    setLoading(false);
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const isUp = (data?.change_usd ?? 0) >= 0;
   const isPremiumData = data?.is_premium === true;
+  const hasPortfolio = data ? data.has_portfolio !== false && data.portfolio_value !== null : false;
   const sp500Up = ((isPremiumData ? data.sp500_change_pct : null) ?? 0) >= 0;
 
   return (
@@ -71,15 +99,28 @@ export default function MorningBriefScreen() {
           <ActivityIndicator color={colors.accentLight} style={{ marginTop: 40 }} />
         ) : error || !data ? (
           <View style={[st.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: "center" }}>{t("morningBrief.empty")}</Text>
+            <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: "center", marginBottom: 14 }}>{t("morningBrief.loadError")}</Text>
+            <TouchableOpacity onPress={load} style={{ backgroundColor: "#00d47e", borderRadius: 14, paddingVertical: 10, paddingHorizontal: 24 }}>
+              <Text style={{ color: "#000", fontWeight: "900", fontSize: 13 }}>{t("morningBrief.retry")}</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <>
+            {!hasPortfolio ? (
+              <View style={[st.valueCard, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
+                <Text style={{ fontSize: 13, lineHeight: 18, color: colors.textSub }}>{t("morningBrief.noPortfolio")}</Text>
+                {isPremiumData && data.sp500_change_pct != null && (
+                  <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 8 }}>
+                    S&P 500: <Text style={{ color: sp500Up ? "#00d47e" : "#ef4444", fontWeight: "800" }}>{sp500Up ? "+" : ""}{data.sp500_change_pct}%</Text>
+                  </Text>
+                )}
+              </View>
+            ) : (
             <View style={[st.valueCard, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
               <Text style={{ fontSize: 10, fontWeight: "800", letterSpacing: 0.5, color: colors.textMuted, marginBottom: 4 }}>
                 {t("morningBrief.portfolioLabel").toUpperCase()}
               </Text>
-              <Text style={{ fontSize: 26, fontWeight: "900", color: colors.text }}>{fmtUsd(data.portfolio_value)}</Text>
+              <Text style={{ fontSize: 26, fontWeight: "900", color: colors.text }}>{fmtUsd(data.portfolio_value ?? 0)}</Text>
               {data.change_usd !== null && data.change_pct !== null && (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
                   <Ionicons name={isUp ? "trending-up" : "trending-down"} size={14} color={isUp ? "#00d47e" : "#ef4444"} />
@@ -94,6 +135,11 @@ export default function MorningBriefScreen() {
                 </Text>
               )}
             </View>
+            )}
+
+            {isPremiumData && data.news.length === 0 && data.events.length === 0 && (
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 14 }}>{t("morningBrief.quietDay")}</Text>
+            )}
 
             {isPremiumData ? (
               <>
@@ -183,7 +229,7 @@ export default function MorningBriefScreen() {
               onPress={() => router.navigate("/(tabs)/portfolio")}
               style={{ backgroundColor: "#00d47e", borderRadius: 16, paddingVertical: 14, alignItems: "center" }}
             >
-              <Text style={{ color: "#000", fontWeight: "900", fontSize: 14 }}>{t("morningBrief.seeFullPortfolio")}</Text>
+              <Text style={{ color: "#000", fontWeight: "900", fontSize: 14 }}>{t(hasPortfolio ? "morningBrief.seeFullPortfolio" : "morningBrief.addPortfolio")}</Text>
             </TouchableOpacity>
           </>
         )}

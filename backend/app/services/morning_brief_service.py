@@ -77,6 +77,51 @@ def _score_news_item(headline: str, summary: str) -> tuple[int, Optional[str]]:
     return 0, None
 
 
+# Diego (2026-09-27): the Morning Brief must ALWAYS open. It used to fetch
+# every quote, news feed and event one after another (sync Finnhub calls
+# with 8s timeouts + an 8s FMP fallback each) — one slow provider pushed
+# the whole thing past the app's 20s timeout, and a user without a
+# portfolio snapshot got a flat 404 ("no hay Morning Brief"). Now every
+# section runs in parallel under its own time budget, a slow/failed
+# section is simply left out, and nothing short of an exception in this
+# module's own code can make the brief come back empty.
+_SECTION_TIMEOUT_S = 7.0
+_BRIEF_CACHE_TTL_S = 600            # fresh complete brief, reused as-is
+_BRIEF_LAST_GOOD_TTL_S = 20 * 3600  # backfill for sections that time out later today
+
+# Own pool for the brief's blocking provider calls (quotes, news, events):
+# a portfolio of 15 tickers fans out ~50 calls, which on the shared default
+# executor queued behind — and starved — every DB query in the process, so
+# the per-section time budgets expired while calls were still waiting for
+# a thread.
+from concurrent.futures import ThreadPoolExecutor
+_BRIEF_POOL = ThreadPoolExecutor(max_workers=32, thread_name_prefix="morning_brief")
+
+
+def _in_pool(fn, *args):
+    return asyncio.get_running_loop().run_in_executor(_BRIEF_POOL, fn, *args)
+
+
+async def _guard(awaitable, default, label: str, timeout: float = _SECTION_TIMEOUT_S):
+    try:
+        return await asyncio.wait_for(awaitable, timeout)
+    except Exception as exc:
+        logger.warning("morning_brief: section %s failed/slow, left out: %r", label, exc)
+        return default
+
+
+async def _fetch_quotes(tickers: list[str]) -> dict[str, dict]:
+    """All quotes in parallel, each under its own time budget — a ticker
+    whose quote is slow or missing is just absent from the dict."""
+    from app.core.finnhub import fh_quote
+
+    async def one(t: str):
+        return t, await _guard(_in_pool(fh_quote, t), None, f"quote:{t}")
+
+    results = await asyncio.gather(*(one(t) for t in tickers))
+    return {t: q for t, q in results if q}
+
+
 def _agg_positions(rows: list[dict]) -> list[dict]:
     # Same shape as worker.py's _agg_positions, duplicated here rather
     # than imported — worker.py is a standalone script, not a module
@@ -117,19 +162,18 @@ async def _portfolio_day_change(user_id: str) -> Optional[dict]:
     return {"total_value": total, "change_usd": change_usd, "change_pct": change_pct}
 
 
-def _live_position_value(positions: list[dict]) -> float:
+def _live_position_value(positions: list[dict], quotes: dict[str, dict]) -> float:
     """Real live-price value of the user's stock positions — same per-quote
     pattern _top_mover already uses. Falls back to avgPrice (cost basis)
     only for a single position whose live quote genuinely fails, never for
     the whole portfolio."""
-    from app.core.finnhub import fh_quote
     total = 0.0
     for p in positions:
         ticker = p.get("ticker")
         shares = float(p.get("shares", 0) or 0)
         if not ticker or not shares:
             continue
-        q = fh_quote(ticker)
+        q = quotes.get(ticker)
         price = q.get("price") if q else None
         if price is None:
             price = float(p.get("avgPrice") or p.get("avg_price") or 0)
@@ -137,8 +181,9 @@ def _live_position_value(positions: list[dict]) -> float:
     return total
 
 
-async def _real_portfolio_total(user_id: str, positions: list[dict]) -> float:
-    """The TRUE total shown everywhere else in the app (Home's heroTotal,
+async def _cash_and_dividends_total(user_id: str) -> float:
+    """Real cash + real dividends — build_morning_brief adds the live
+    position value to this to get the TRUE total shown everywhere else in the app (Home's heroTotal,
     Wrapped) — live stock position value + real cash available to invest
     + real dividends received. Diego, 2026-08-30: "el monto exacto del
     valor real del portafolio, sumando valor del portafolio y el efectivo
@@ -148,29 +193,28 @@ async def _real_portfolio_total(user_id: str, positions: list[dict]) -> float:
     or dividends — so it was never the right source for "the real value."
     """
     from app.api.routes.wrapped import _cash_holdings_total_usd, _dividend_income_total
-    live_value = await asyncio.to_thread(_live_position_value, positions)
-    cash_total = await _cash_holdings_total_usd(user_id)
-    dividend_total = await _dividend_income_total(user_id)
-    return live_value + cash_total + dividend_total
+    cash_total, dividend_total = await asyncio.gather(
+        _guard(_cash_holdings_total_usd(user_id), 0.0, "cash_total"),
+        _guard(_dividend_income_total(user_id), 0.0, "dividend_total"),
+    )
+    return (cash_total or 0.0) + (dividend_total or 0.0)
 
 
-def _sp500_day_change() -> Optional[float]:
-    from app.core.finnhub import fh_quote
-    q = fh_quote("SPY")  # SPY, not ^GSPC — same Railway-IP-block workaround worker.py uses
+def _sp500_day_change(quotes: dict[str, dict]) -> Optional[float]:
+    q = quotes.get("SPY")  # SPY, not ^GSPC — same Railway-IP-block workaround worker.py uses
     if not q or not q.get("change_pct"):
         return None
     return round(q["change_pct"], 2)
 
 
-def _top_mover(positions: list[dict]) -> Optional[dict]:
-    from app.core.finnhub import fh_quote
+def _top_mover(positions: list[dict], quotes: dict[str, dict]) -> Optional[dict]:
     best = None
     for p in positions:
         ticker = p.get("ticker")
         shares = float(p.get("shares", 0) or 0)
         if not ticker or not shares:
             continue
-        q = fh_quote(ticker)
+        q = quotes.get(ticker)
         if not q or not q.get("prev_close"):
             continue
         pct = (q["price"] - q["prev_close"]) / q["prev_close"] * 100
@@ -239,13 +283,11 @@ async def _translate_headlines_to_spanish(headlines: list[str]) -> dict[str, str
 async def _top_news_for_positions(tickers: list[str], lang: str = "es") -> list[dict]:
     from app.services.price_alert_service import fetch_ticker_news
     scored: list[dict] = []
-    for ticker in tickers:
-        try:
-            items = fetch_ticker_news(ticker)
-        except Exception as exc:
-            logger.warning("morning_brief: fetch_ticker_news failed for %s: %s", ticker, exc)
-            continue
-        for item in items:
+    fetched = await asyncio.gather(
+        *(_guard(_in_pool(fetch_ticker_news, t), [], f"news:{t}") for t in tickers)
+    )
+    for ticker, items in zip(tickers, fetched):
+        for item in items or []:
             headline = item.get("headline") or ""
             summary = item.get("summary") or ""
             score, category = _score_news_item(headline, summary)
@@ -376,13 +418,11 @@ async def _top_events_for_user_today(positions: list[dict], watchlist_tickers: l
         from app.api.routes.earnings import _fetch_events_for_symbol
         today_str = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
 
-        for ticker in tickers:
-            try:
-                events_for_ticker = await asyncio.to_thread(_fetch_events_for_symbol, ticker)
-            except Exception as exc:
-                logger.warning("_top_events_for_user_today: events fetch failed for %s: %s", ticker, exc)
-                continue
-            for ev in events_for_ticker:
+        fetched = await asyncio.gather(
+            *(_guard(_in_pool(_fetch_events_for_symbol, t), [], f"events:{t}") for t in tickers)
+        )
+        for ticker, events_for_ticker in zip(tickers, fetched):
+            for ev in events_for_ticker or []:
                 if ev.get("event_date") != today_str:
                     continue
                 etype = ev.get("event_type")
@@ -586,44 +626,91 @@ async def _events_with_impact_for_user(user_id: str, positions: list[dict], lang
     ]
 
 
-async def build_morning_brief(user_id: str, lang: str = "es") -> Optional[dict]:
-    """Returns None when this user has no real portfolio yet (never a
-    fabricated brief)."""
+async def build_morning_brief(user_id: str, lang: str = "es") -> dict:
+    """Always returns a brief. `has_portfolio` is False (and the portfolio
+    fields None) for a user with no positions yet — they still get the
+    real market part (S&P 500, today's events, news for their watchlist).
+    A position-holder with no snapshot history yet gets the real value
+    with no day-over-day change, instead of nothing."""
+    from app.core.cache import cache_get, cache_set
+    from zoneinfo import ZoneInfo
+
+    today_et = datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+    cache_key = f"morning_brief_full:{user_id}:{lang}:{today_et}"
+    last_good_key = f"morning_brief_last_good:{user_id}:{lang}:{today_et}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
     db = get_supabase()
-    port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id))
-    positions = _agg_positions(port_res.data or [])
-    if not positions:
-        return None
-
-    portfolio = await _portfolio_day_change(user_id)
-    if portfolio is None:
-        return None
-
-    # The $/% change above stays anchored to fmg_portfolio_snapshots (a real
-    # day-over-day comparison), but the headline VALUE shown is the true
-    # total — live positions + real cash + real dividends — not the
-    # snapshot's cost-basis-only, cash-excluded figure.
-    real_total = await _real_portfolio_total(user_id, positions)
-
+    port_res, watch_res = await asyncio.gather(
+        _guard(run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id)), None, "portfolio"),
+        _guard(run_query(db.table("watchlist").select("ticker").eq("user_id", user_id)), None, "watchlist"),
+    )
+    degraded = port_res is None
+    positions = _agg_positions((port_res.data if port_res else None) or [])
+    watchlist_tickers = sorted({r["ticker"] for r in ((watch_res.data if watch_res else None) or []) if r.get("ticker")})
     tickers = sorted({p["ticker"] for p in positions if p.get("ticker")})
-    sp500_change_pct = _sp500_day_change()
-    top_mover = _top_mover(positions)
-    news = await _top_news_for_positions(tickers, lang)
-    events = await _events_with_impact_for_user(user_id, positions, lang, db)
 
-    return {
-        "portfolio_value": real_total if real_total > 0 else portfolio["total_value"],
-        "change_usd": portfolio["change_usd"],
-        "change_pct": portfolio["change_pct"],
-        "sp500_change_pct": sp500_change_pct,
-        "top_mover": top_mover,
-        "news": news,
-        "events": events,
+    # Worst case this whole gather takes ~12s (the events budget), well
+    # inside the app's timeout; a typical warm run is ~1-2s.
+    quotes, snapshot, cash_divs, news, events = await asyncio.gather(
+        _fetch_quotes(tickers + ["SPY"]),
+        _guard(_portfolio_day_change(user_id), None, "snapshot") if positions else _none(),
+        _cash_and_dividends_total(user_id) if positions else _none(),
+        _guard(_top_news_for_positions(tickers or watchlist_tickers, lang), None, "news", timeout=10.0),
+        _guard(_events_with_impact_for_user(user_id, positions, lang, db), None, "events", timeout=12.0),
+    )
+    degraded = degraded or news is None or events is None or "SPY" not in quotes
+
+    has_portfolio = bool(positions)
+    portfolio_value = change_usd = change_pct = None
+    if has_portfolio:
+        # The $/% change stays anchored to fmg_portfolio_snapshots (a real
+        # day-over-day comparison), but the headline VALUE shown is the true
+        # total — live positions + real cash + real dividends — not the
+        # snapshot's cost-basis-only, cash-excluded figure.
+        real_total = _live_position_value(positions, quotes) + (cash_divs or 0.0)
+        portfolio_value = real_total if real_total else (snapshot or {}).get("total_value")
+        if snapshot:
+            change_usd, change_pct = snapshot["change_usd"], snapshot["change_pct"]
+
+    brief = {
+        "has_portfolio": has_portfolio,
+        "portfolio_value": portfolio_value,
+        "change_usd": change_usd,
+        "change_pct": change_pct,
+        "sp500_change_pct": _sp500_day_change(quotes),
+        "top_mover": _top_mover(positions, quotes) if has_portfolio else None,
+        "news": news or [],
+        "events": events or [],
     }
+    if not degraded:
+        cache_set(cache_key, brief, ttl=_BRIEF_CACHE_TTL_S)
+        cache_set(last_good_key, brief, ttl=_BRIEF_LAST_GOOD_TTL_S)
+        return brief
+
+    # A section timed out this time — fill just those gaps from today's
+    # last complete brief (if any), and don't cache, so the next open
+    # tries fresh again.
+    last_good = cache_get(last_good_key) or {}
+    if news is None:
+        brief["news"] = last_good.get("news") or []
+    if events is None:
+        brief["events"] = last_good.get("events") or []
+    if brief["sp500_change_pct"] is None:
+        brief["sp500_change_pct"] = last_good.get("sp500_change_pct")
+    if has_portfolio and brief["top_mover"] is None:
+        brief["top_mover"] = last_good.get("top_mover")
+    return brief
 
 
-async def get_morning_brief(user_id: str, lang: str = "es") -> Optional[dict]:
-    """Content for the flashcard the push deep-links to — recomputed
-    live (real, free math + Finnhub calls, no AI), same convention as
-    get_sunday_prep. Returns None if this user has no real portfolio yet."""
+async def _none():
+    return None
+
+
+async def get_morning_brief(user_id: str, lang: str = "es") -> dict:
+    """Content for the flashcard the push deep-links to — real, free math
+    + Finnhub calls, no AI, cached 10 minutes per user/day (the 9:15 push
+    job warms it)."""
     return await build_morning_brief(user_id, lang=lang)

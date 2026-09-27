@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { Loader2, TrendingUp, TrendingDown, Newspaper, CalendarClock, Lock, X } from "lucide-react";
@@ -14,7 +14,8 @@ interface NewsItem { ticker: string; headline: string; category: string | null; 
 interface EventItem { type: string; ticker: string | null; label: string; impact: string | null; }
 interface MorningBriefData {
   is_premium: true;
-  portfolio_value: number;
+  has_portfolio?: boolean;
+  portfolio_value: number | null;
   change_usd: number | null;
   change_pct: number | null;
   sp500_change_pct: number | null;
@@ -24,13 +25,21 @@ interface MorningBriefData {
 }
 interface MorningBriefTeaser {
   is_premium: false;
-  portfolio_value: number;
+  has_portfolio?: boolean;
+  portfolio_value: number | null;
   change_usd: number | null;
   change_pct: number | null;
   news_count: number;
   events_count: number;
   top_headline: { ticker: string; headline: string } | null;
 }
+
+// Diego (2026-09-27): the Morning Brief must ALWAYS open — the backend
+// now always returns a brief within ~12s; retry on our own, then offer a
+// retry button instead of "no hay información".
+const RETRY_DELAYS_MS = [0, 1500, 4000];
+const BRIEF_TIMEOUT_MS = 45000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const fmtUsd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -45,15 +54,33 @@ export default function MorningBriefPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    morningBriefFullApi.get()
-      .then((res) => setData(res.data))
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
+  const loadSeq = useRef(0);
+
+  const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
+    setLoading(true);
+    setError(false);
+    for (const delay of RETRY_DELAYS_MS) {
+      if (delay) await sleep(delay);
+      if (seq !== loadSeq.current) return;
+      try {
+        const res = await morningBriefFullApi.get(BRIEF_TIMEOUT_MS);
+        if (seq !== loadSeq.current) return;
+        setData(res.data);
+        setLoading(false);
+        return;
+      } catch {}
+    }
+    if (seq !== loadSeq.current) return;
+    setError(true);
+    setLoading(false);
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const isUp = (data?.change_usd ?? 0) >= 0;
   const isPremiumData = data?.is_premium === true;
+  const hasPortfolio = data ? data.has_portfolio !== false && data.portfolio_value !== null : false;
   const sp500Up = ((isPremiumData ? data.sp500_change_pct : null) ?? 0) >= 0;
 
   return (
@@ -65,7 +92,10 @@ export default function MorningBriefPage() {
             <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent-l)" }} /></div>
           ) : error || !data ? (
             <div className="p-8 text-center">
-              <p className="text-sm" style={{ color: "var(--muted)" }}>{t("morningBrief.empty")}</p>
+              <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>{t("morningBrief.loadError")}</p>
+              <button onClick={load} className="px-6 py-2.5 rounded-2xl font-black text-sm" style={{ background: "#00d47e", color: "#000" }}>
+                {t("morningBrief.retry")}
+              </button>
             </div>
           ) : (
             <>
@@ -78,11 +108,21 @@ export default function MorningBriefPage() {
 
               <div className="p-5 space-y-4">
                 {/* 1. Portafolio vs S&P */}
+                {!hasPortfolio ? (
+                <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+                  <p className="text-sm" style={{ color: "var(--sub)" }}>{t("morningBrief.noPortfolio")}</p>
+                  {isPremiumData && data.sp500_change_pct !== null && (
+                    <p className="text-[11px] mt-2" style={{ color: "var(--muted)" }}>
+                      S&P 500: <span style={{ color: sp500Up ? "#00d47e" : "#ef4444", fontWeight: 700 }}>{sp500Up ? "+" : ""}{data.sp500_change_pct}%</span>
+                    </p>
+                  )}
+                </div>
+                ) : (
                 <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
                   <p className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--muted)" }}>
                     {t("morningBrief.portfolioLabel")}
                   </p>
-                  <p className="text-2xl font-black" style={{ color: "var(--text)" }}>{fmtUsd(data.portfolio_value)}</p>
+                  <p className="text-2xl font-black" style={{ color: "var(--text)" }}>{fmtUsd(data.portfolio_value ?? 0)}</p>
                   {data.change_usd !== null && data.change_pct !== null && (
                     <div className="flex items-center gap-1.5 mt-1.5">
                       {isUp ? <TrendingUp className="w-3.5 h-3.5" style={{ color: "#00d47e" }} /> : <TrendingDown className="w-3.5 h-3.5" style={{ color: "#ef4444" }} />}
@@ -97,6 +137,11 @@ export default function MorningBriefPage() {
                     </p>
                   )}
                 </div>
+                )}
+
+                {isPremiumData && data.news.length === 0 && data.events.length === 0 && (
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>{t("morningBrief.quietDay")}</p>
+                )}
 
                 {isPremiumData ? (
                   <>
@@ -206,7 +251,7 @@ export default function MorningBriefPage() {
                   className="w-full py-3 rounded-2xl font-black text-sm"
                   style={{ background: "#00d47e", color: "#000" }}
                 >
-                  {t("morningBrief.seeFullPortfolio")}
+                  {t(hasPortfolio ? "morningBrief.seeFullPortfolio" : "morningBrief.addPortfolio")}
                 </button>
               </div>
             </>

@@ -504,7 +504,7 @@ export const weeklyRitualsApi = {
 // Diego's richer Aug 16 spec: portfolio+S&P, top mover, news, today's
 // events, reached via its own 9:15am ET push + full flashcard screen.
 export const morningBriefFullApi = {
-  get: () => api.get("/api/morning-brief"),
+  get: (timeout?: number) => api.get("/api/morning-brief", timeout ? { timeout } : undefined),
 };
 
 export const smartAlertsApi = {

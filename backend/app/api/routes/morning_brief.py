@@ -6,9 +6,13 @@ that module's docstring for the full feature (Premium-only, Mon-Fri
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+
+from fastapi import APIRouter, Depends
 
 from app.api.deps import get_current_user_id
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/morning-brief", tags=["morning_brief"])
 
@@ -27,17 +31,24 @@ async def get_morning_brief_route(user_id: str = Depends(get_current_user_id)):
     from app.services.morning_brief_service import get_morning_brief
     from app.api.routes.chat import _get_user_profile, _is_premium  # the real async one — see weekly_rituals.py's fix for why not market.py's
 
-    profile = await _get_user_profile(user_id)
+    # Diego (2026-09-27): the Morning Brief must ALWAYS open — a profile
+    # hiccup only costs the language/tier hint, never the whole screen.
+    # get_morning_brief itself always returns a brief (no more 404 for
+    # users without a portfolio/snapshot yet — see build_morning_brief).
+    try:
+        profile = await _get_user_profile(user_id)
+    except Exception as exc:
+        logger.warning("morning_brief: profile lookup failed for %s: %s", user_id, exc)
+        profile = None
     lang = getattr(profile, "preferred_language", None) or "es"
     result = await get_morning_brief(user_id, lang=lang)
-    if result is None:
-        raise HTTPException(status_code=404, detail="No hay Morning Brief disponible todavía hoy")
 
     if not _is_premium(profile):
         news = result.get("news") or []
         top = news[0] if news else None
         return {
             "is_premium": False,
+            "has_portfolio": result.get("has_portfolio", False),
             "portfolio_value": result.get("portfolio_value"),
             "change_usd": result.get("change_usd"),
             "change_pct": result.get("change_pct"),

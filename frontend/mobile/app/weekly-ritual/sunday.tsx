@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
+import RitualHeader from "../../src/components/RitualHeader";
 import { weeklyRitualsApi } from "../../src/lib/api";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
@@ -35,8 +36,8 @@ export default function WeeklyRitualSundayScreen() {
 
   return (
     <SafeAreaView style={[st.container, { backgroundColor: colors.bg }]}>
+      <RitualHeader title={`🔭 ${t("weeklyRitual.sunday.title")}`} />
       <ScrollView contentContainerStyle={st.content}>
-        <Text style={[st.title, { color: colors.text }]}>🔭 {t("weeklyRitual.sunday.title")}</Text>
         <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 16 }}>{t("weeklyRitual.sunday.subtitle")}</Text>
 
         {loading ? (
@@ -96,7 +97,7 @@ export default function WeeklyRitualSundayScreen() {
 
 const st = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 20 },
+  content: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 32 },
   title: { fontSize: 20, fontWeight: "800", marginBottom: 2 },
   emptyCard: { borderRadius: 20, borderWidth: 1, padding: 32, alignItems: "center" },
   statsRow: { flexDirection: "row", gap: 12, marginBottom: 16 },

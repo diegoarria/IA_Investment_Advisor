@@ -50,12 +50,12 @@ class TestMorningBriefRouteGating:
         assert result["top_mover"] == FULL_RESULT["top_mover"]
 
     @pytest.mark.asyncio
-    async def test_no_brief_available_yet_raises_404_regardless_of_tier(self):
-        from fastapi import HTTPException
-
-        with patch("app.api.routes.chat._get_user_profile", new_callable=AsyncMock, return_value=object()), \
-             patch("app.api.routes.chat._is_premium", return_value=True), \
-             patch("app.services.morning_brief_service.get_morning_brief", new_callable=AsyncMock, return_value=None):
-            with pytest.raises(HTTPException) as exc_info:
-                await get_morning_brief_route(user_id="user1")
-        assert exc_info.value.status_code == 404
+    async def test_profile_lookup_failure_still_returns_the_brief(self):
+        # Diego (2026-09-27): the Morning Brief must always open — a
+        # profile hiccup falls back instead of a 500 (and _is_premium(None)
+        # fails open, so a real Premium user never sees the Free teaser).
+        with patch("app.api.routes.chat._get_user_profile", new_callable=AsyncMock, side_effect=RuntimeError("db down")), \
+             patch("app.services.morning_brief_service.get_morning_brief", new_callable=AsyncMock, return_value=FULL_RESULT):
+            result = await get_morning_brief_route(user_id="user1")
+        assert result["is_premium"] is True
+        assert result["portfolio_value"] == FULL_RESULT["portfolio_value"]

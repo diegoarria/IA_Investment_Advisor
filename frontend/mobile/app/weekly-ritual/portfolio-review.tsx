@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
+import RitualHeader from "../../src/components/RitualHeader";
 import { weeklyRitualsApi } from "../../src/lib/api";
 import PaywallModal from "../../src/components/PaywallModal";
 
@@ -39,8 +40,8 @@ export default function WeeklyRitualPortfolioReviewScreen() {
 
   return (
     <SafeAreaView style={[st.container, { backgroundColor: colors.bg }]}>
+      <RitualHeader title={`📅 ${t("weeklyRitual.portfolioReview.title")}`} />
       <ScrollView contentContainerStyle={st.content}>
-        <Text style={[st.title, { color: colors.text }]}>📅 {t("weeklyRitual.portfolioReview.title")}</Text>
 
         {loading ? (
           <ActivityIndicator color={colors.accentLight} style={{ marginTop: 40 }} />
@@ -110,7 +111,7 @@ export default function WeeklyRitualPortfolioReviewScreen() {
 
 const st = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 20 },
+  content: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 32 },
   title: { fontSize: 20, fontWeight: "800", marginBottom: 16 },
   emptyCard: { borderRadius: 20, borderWidth: 1, padding: 32, alignItems: "center" },
   valueCard: { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12 },

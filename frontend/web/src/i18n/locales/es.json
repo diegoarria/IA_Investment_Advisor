@@ -3024,7 +3024,12 @@
     "premiumCta": "Desbloquear Morning Brief con Premium",
     "premiumReason": "Arthur ya revisó {{newsCount}} noticias y {{eventsCount}} eventos relevantes para tu portafolio hoy. Activa Premium para verlos.",
     "teaserNewsLabel": "Noticias relevantes hoy",
-    "teaserEventsLabel": "Eventos que vigilar hoy"
+    "teaserEventsLabel": "Eventos que vigilar hoy",
+    "loadError": "No pudimos conectar para traer tu Morning Brief. Revisa tu conexión e inténtalo de nuevo.",
+    "retry": "Reintentar",
+    "noPortfolio": "Agrega tus posiciones para ver aquí cada mañana cuánto vale tu portafolio y cómo le fue ayer.",
+    "quietDay": "Hoy no hay noticias ni eventos importantes para tus empresas.",
+    "addPortfolio": "Agregar mi portafolio"
   },
   "explainButton": {
     "cta": "Explícame esto",

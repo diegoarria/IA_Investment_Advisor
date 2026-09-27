@@ -517,7 +517,7 @@ export const weeklyRitualsApi = {
 };
 
 export const morningBriefFullApi = {
-  get: () => api.get("/api/morning-brief"),
+  get: (timeout?: number) => api.get("/api/morning-brief", timeout ? { timeout } : undefined),
 };
 
 export const smartAlertsApi = {
