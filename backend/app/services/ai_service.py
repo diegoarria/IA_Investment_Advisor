@@ -1622,6 +1622,7 @@ def build_deep_user_context(
     watchlist: list[dict],
     reflections: list[dict] | None = None,
     pending_decisions: list[dict] | None = None,
+    question_answers: list[dict] | None = None,
 ) -> str:
     """Build a rich mentor context from all available user data — STRUCTURAL
     data only (tickers, shares, cost basis, decisions, watchlist names,
@@ -1640,8 +1641,13 @@ def build_deep_user_context(
     aprendiste / qué harías diferente), most recent first. Real user
     words, never AI-inferred — same "recuerda tus datos reales" discipline
     as the decisions diary above it.
+
+    `question_answers` (Diego, 2026-09-27) — the user's own picks on the
+    weekly "Pregunta del Día" ({date, question, choice_text}), most recent
+    first. Same discipline: what they chose, nothing inferred.
     """
     reflections = reflections or []
+    question_answers = question_answers or []
     parts = ["\n## 🧬 LO QUE SABES DE ESTE USUARIO (úsalo en CADA respuesta — eres su mentor, no un chatbot):"]
 
     # ── Portfolio real ─────────────────────────────────────────────────────────
@@ -1787,6 +1793,15 @@ def build_deep_user_context(
                 bits.append(f"haría diferente: {r['would_do_differently'][:120]}")
             if bits:
                 parts.append(f"  - [semana del {week}] " + " | ".join(bits))
+
+    # ── Pregunta semanal (ritual de domingo) ─────────────────────────────────────
+    if question_answers:
+        parts.append(f"\n### 🎯 SUS RESPUESTAS A LA PREGUNTA SEMANAL (últimas {len(question_answers)}, elegidas por el propio usuario):")
+        for a in question_answers:
+            line = f"  - [semana del {a.get('date', '')}] {a.get('question', '')[:140]} → eligió: {a.get('choice_text', '')[:120]}"
+            if a.get("other_text"):
+                line += f" (en vez de: {a['other_text'][:120]})"
+            parts.append(line)
 
     # ── Perfil conductual profundo ─────────────────────────────────────────────
     ext_lines = []

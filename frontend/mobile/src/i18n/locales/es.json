@@ -3628,7 +3628,9 @@
       "revealCta": "¿Quieres saber qué elegiría Nuvos? Ver respuesta →",
       "nuvosChoiceLabel": "Nuvos elegiría: {{option}}",
       "paywallReason": "Descubre qué elegiría Nuvos AI y por qué, en cada Pregunta del Día.",
-      "error": "No se pudo cargar la pregunta del día."
+      "error": "No pudimos conectar para traer la pregunta. Revisa tu conexión e inténtalo de nuevo.",
+      "retry": "Reintentar",
+      "voteError": "No pudimos guardar tu voto. Toca tu opción de nuevo."
     },
     "sunday": {
       "title": "Prepárate para la semana",
@@ -3654,7 +3656,8 @@
       "doneSubtitle": "Vuelve la próxima semana para seguir construyendo el hábito.",
       "seeHistory": "Ver reflexiones pasadas",
       "historyTitle": "Tus reflexiones pasadas",
-      "historyEmpty": "Todavía no tienes reflexiones guardadas."
+      "historyEmpty": "Todavía no tienes reflexiones guardadas.",
+      "saveError": "No pudimos guardar tu reflexión. Tus respuestas siguen aquí — toca Terminar para reintentar."
     },
     "portfolioReview": {
       "title": "Revisión de Portafolio Dominical",

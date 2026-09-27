@@ -113,22 +113,36 @@ def _current_question_week_key() -> str:
     return str(_week_start_monday(_today_et()))
 
 
+async def _read_week_question(db, week_key: str) -> Optional[dict]:
+    existing = await run_query(
+        db.table("daily_question_of_the_day").select("question_id").eq("date", week_key)
+    )
+    if not existing.data:
+        return None
+    q_res = await run_query(
+        db.table("daily_questions").select("*").eq("id", existing.data[0]["question_id"])
+    )
+    return q_res.data[0] if q_res.data else None
+
+
 async def ensure_todays_question() -> Optional[dict]:
     """Idempotent — if this week already has a question assigned, returns
     it; otherwise picks the next one (never-repeat), marks it used, and
     records it for the week. Safe to call from both the push job and the
-    on-demand read endpoint without double-assigning."""
+    on-demand read endpoint without double-assigning.
+
+    Diego (2026-09-27): the question screen must ALWAYS open. Two callers
+    racing on the first read of a new week (push job + a user, or two
+    users) both used to try the insert — the loser hit the
+    daily_question_of_the_day unique key and 500'd. Now the loser just
+    re-reads the winner's row. Any other bookkeeping failure still returns
+    the picked question instead of nothing."""
     db = get_supabase()
     week_key = _current_question_week_key()
 
-    existing = await run_query(
-        db.table("daily_question_of_the_day").select("question_id").eq("date", week_key)
-    )
-    if existing.data:
-        q_res = await run_query(
-            db.table("daily_questions").select("*").eq("id", existing.data[0]["question_id"])
-        )
-        return q_res.data[0] if q_res.data else None
+    assigned = await _read_week_question(db, week_key)
+    if assigned:
+        return assigned
 
     bank_res = await run_query(db.table("daily_questions").select("*").eq("active", True))
     picked = pick_next_question_row(bank_res.data or [])
@@ -136,10 +150,21 @@ async def ensure_todays_question() -> Optional[dict]:
         logger.warning("weekly_rituals: no active daily_questions rows — cannot pick this week's question")
         return None
 
+    try:
+        await run_query(db.table("daily_question_of_the_day").insert({"date": week_key, "question_id": picked["id"]}))
+    except Exception as exc:
+        winner = await _read_week_question(db, week_key)
+        if winner:
+            return winner
+        logger.error("weekly_rituals: could not record this week's question %s: %s", picked["id"], exc)
+        return picked
+
     now_iso = datetime.now(timezone.utc).isoformat()
-    await run_query(db.table("daily_questions").update({"last_used_at": now_iso}).eq("id", picked["id"]))
-    await run_query(db.table("daily_question_of_the_day").insert({"date": week_key, "question_id": picked["id"]}))
-    picked["last_used_at"] = now_iso
+    try:
+        await run_query(db.table("daily_questions").update({"last_used_at": now_iso}).eq("id", picked["id"]))
+        picked["last_used_at"] = now_iso
+    except Exception as exc:
+        logger.error("weekly_rituals: could not mark question %s used: %s", picked["id"], exc)
     return picked
 
 
@@ -168,10 +193,16 @@ async def get_today_question(user_id: str, lang: str = "es") -> Optional[dict]:
 
     db = get_supabase()
     week_key = _current_question_week_key()
-    my_vote_res = await run_query(
-        db.table("daily_question_votes").select("choice").eq("user_id", user_id).eq("date", week_key)
-    )
-    my_choice = my_vote_res.data[0]["choice"] if my_vote_res.data else None
+    try:
+        my_vote_res = await run_query(
+            db.table("daily_question_votes").select("choice").eq("user_id", user_id).eq("date", week_key)
+        )
+        my_choice = my_vote_res.data[0]["choice"] if my_vote_res.data else None
+    except Exception as exc:
+        # Still show the question — if they had already voted, the vote
+        # call answers 409 and the client reloads into the voted state.
+        logger.warning("weekly_rituals: vote lookup failed for %s: %s", user_id, exc)
+        my_choice = None
 
     is_en = lang == "en"
     payload = {
@@ -186,8 +217,10 @@ async def get_today_question(user_id: str, lang: str = "es") -> Optional[dict]:
         "nuvos_explanation": None,
     }
     if my_choice is not None:
-        counts = await _vote_counts(question["id"])
-        payload.update(counts)
+        try:
+            payload.update(await _vote_counts(question["id"]))
+        except Exception as exc:
+            logger.warning("weekly_rituals: vote counts failed for %s: %s", question["id"], exc)
         # Nuvos's own pick + explanation only reveal AFTER the user has
         # voted (matches the requested UX: "¿Quieres saber qué elegiría
         # Nuvos?" is only meaningful once you've already committed to one).

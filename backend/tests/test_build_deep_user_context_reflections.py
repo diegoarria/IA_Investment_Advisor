@@ -53,3 +53,16 @@ class TestBuildDeepUserContextReflections:
         ctx = build_deep_user_context({}, [], [], [], reflections)
         assert "x" * 121 not in ctx
         assert "x" * 120 in ctx
+
+
+class TestBuildDeepUserContextQuestionAnswers:
+    def test_includes_weekly_question_choices(self):
+        answers = [{"date": "2026-09-21", "question": "¿Qué prefieres?", "choice_text": "Invertir solo lo ahorrado", "other_text": "Apalancamiento"}]
+        ctx = build_deep_user_context({}, [], [], [], [], [], answers)
+        assert "PREGUNTA SEMANAL" in ctx
+        assert "eligió: Invertir solo lo ahorrado" in ctx
+        assert "en vez de: Apalancamiento" in ctx
+
+    def test_omits_section_when_no_answers(self):
+        assert "PREGUNTA SEMANAL" not in build_deep_user_context({}, [], [], [], [], [], [])
+        assert "PREGUNTA SEMANAL" not in build_deep_user_context({}, [], [], [], [])

@@ -1,11 +1,32 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, TextInput, SafeAreaView, ActivityIndicator, StyleSheet } from "react-native";
 import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { weeklyRitualsApi } from "../../src/lib/api";
 
 const GREEN = "#00d47e";
+
+// Diego (2026-09-27): these answers are what Arthur remembers week over
+// week, so they can never be lost. A failed save used to be swallowed
+// silently (no message, nothing stored). Now: answers are kept as a local
+// draft while typing, the save retries, and a failure says so and keeps
+// everything on screen to try again.
+const DRAFT_KEY = "weeklyRitual.saturday.draft.v1";
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Monday of the current week in US Eastern — same week the backend files the reflection under.
+function currentWeekKeyET(): string {
+  try {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const d = new Date(`${today}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return d.toISOString().slice(0, 10);
+  } catch {
+    return "";
+  }
+}
 
 const STEPS: { key: "went_well" | "learned" | "would_do_differently"; emoji: string }[] = [
   { key: "went_well", emoji: "✅" },
@@ -20,16 +41,47 @@ export default function WeeklyRitualSaturdayScreen() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   const current = STEPS[step];
   const total = STEPS.length;
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(DRAFT_KEY);
+        const draft = raw ? JSON.parse(raw) : null;
+        if (draft?.week && draft.week === currentWeekKeyET() && draft.answers) {
+          setAnswers(draft.answers);
+          setStep(Math.min(Math.max(0, draft.step || 0), STEPS.length - 1));
+        }
+      } catch {}
+      setDraftLoaded(true);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!draftLoaded || done) return;
+    AsyncStorage.setItem(DRAFT_KEY, JSON.stringify({ week: currentWeekKeyET(), step, answers })).catch(() => {});
+  }, [answers, step, draftLoaded, done]);
+
   const next = async () => {
     if (step + 1 < total) { setStep((s) => s + 1); return; }
     setSaving(true);
+    setSaveError(false);
     try {
-      await weeklyRitualsApi.saveReflection(answers);
-      setDone(true);
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          await weeklyRitualsApi.saveReflection(answers);
+          setDone(true);
+          AsyncStorage.removeItem(DRAFT_KEY).catch(() => {});
+          return;
+        } catch {
+          if (attempt < 3) await sleep(1000 * 2 ** attempt);
+        }
+      }
+      setSaveError(true);
     } finally {
       setSaving(false);
     }
@@ -76,6 +128,9 @@ export default function WeeklyRitualSaturdayScreen() {
               </View>
 
               <View style={{ paddingHorizontal: 20, paddingBottom: 20 }}>
+                {saveError && (
+                  <Text style={{ fontSize: 12, color: "#f87171", marginBottom: 10 }}>{t("weeklyRitual.saturday.saveError")}</Text>
+                )}
                 <TouchableOpacity onPress={next} disabled={saving} style={{ backgroundColor: GREEN, borderRadius: 16, paddingVertical: 12, flexDirection: "row", justifyContent: "center", gap: 8 }}>
                   {saving && <ActivityIndicator size="small" color="#000" />}
                   <Text style={{ color: "#000", fontWeight: "900", fontSize: 14 }}>

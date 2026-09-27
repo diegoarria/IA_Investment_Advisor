@@ -3628,7 +3628,9 @@
       "revealCta": "Want to know what Nuvos would choose? See answer →",
       "nuvosChoiceLabel": "Nuvos would choose: {{option}}",
       "paywallReason": "See what Nuvos AI would choose and why, on every Question of the Day.",
-      "error": "Could not load today's question."
+      "error": "We couldn't connect to get the question. Check your connection and try again.",
+      "retry": "Try again",
+      "voteError": "We couldn't save your vote. Tap your option again."
     },
     "sunday": {
       "title": "Get ready for the week",
@@ -3654,7 +3656,8 @@
       "doneSubtitle": "Come back next week to keep building the habit.",
       "seeHistory": "See past reflections",
       "historyTitle": "Your past reflections",
-      "historyEmpty": "You don't have any saved reflections yet."
+      "historyEmpty": "You don't have any saved reflections yet.",
+      "saveError": "We couldn't save your reflection. Your answers are still here — tap Finish to try again."
     },
     "portfolioReview": {
       "title": "Sunday Portfolio Review",

@@ -6,9 +6,13 @@ full feature (daily question, Sunday prep, Saturday reflection).
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_current_user_id
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/weekly-rituals", tags=["weekly_rituals"])
 
@@ -23,9 +27,16 @@ async def _profile_lang_and_tier(user_id: str) -> tuple[str, bool]:
     # unconditionally. chat.py's version is the real async one.
     from app.api.routes.chat import _is_premium, _get_user_profile
 
-    profile = await _get_user_profile(user_id)
-    lang = getattr(profile, "preferred_language", None) or "es"
-    return lang, _is_premium(profile)
+    # Diego (2026-09-27): the question/reflection screens must ALWAYS open —
+    # a profile hiccup only costs us the language/tier hint, never the
+    # whole screen (it used to propagate straight up as a 500).
+    try:
+        profile = await _get_user_profile(user_id)
+        lang = getattr(profile, "preferred_language", None) or "es"
+        return lang, _is_premium(profile)
+    except Exception as exc:
+        logger.warning("weekly_rituals: profile lookup failed for %s, defaulting es/free: %s", user_id, exc)
+        return "es", False
 
 
 @router.get("/question")

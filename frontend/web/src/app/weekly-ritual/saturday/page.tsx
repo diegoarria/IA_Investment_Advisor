@@ -1,12 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import { weeklyRitualsApi } from "@/lib/api";
 
 const GREEN = "#00d47e";
+
+// Diego (2026-09-27): these answers are what Arthur remembers week over
+// week, so they can never be lost. A failed save used to be swallowed
+// silently. Now: answers are kept as a local draft while typing, the save
+// retries, and a failure says so and keeps everything on screen.
+const DRAFT_KEY = "weeklyRitual.saturday.draft.v1";
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Monday of the current week in US Eastern — same week the backend files the reflection under.
+function currentWeekKeyET(): string {
+  try {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const d = new Date(`${today}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return d.toISOString().slice(0, 10);
+  } catch {
+    return "";
+  }
+}
 
 const STEPS: { key: "went_well" | "learned" | "would_do_differently"; emoji: string }[] = [
   { key: "went_well", emoji: "✅" },
@@ -21,9 +40,30 @@ export default function WeeklyRitualSaturdayPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   const current = STEPS[step];
   const total = STEPS.length;
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      const draft = raw ? JSON.parse(raw) : null;
+      if (draft?.week && draft.week === currentWeekKeyET() && draft.answers) {
+        setAnswers(draft.answers);
+        setStep(Math.min(Math.max(0, draft.step || 0), STEPS.length - 1));
+      }
+    } catch {}
+    setDraftLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!draftLoaded || done) return;
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ week: currentWeekKeyET(), step, answers }));
+    } catch {}
+  }, [answers, step, draftLoaded, done]);
 
   const next = async () => {
     if (step + 1 < total) {
@@ -31,9 +71,19 @@ export default function WeeklyRitualSaturdayPage() {
       return;
     }
     setSaving(true);
+    setSaveError(false);
     try {
-      await weeklyRitualsApi.saveReflection(answers);
-      setDone(true);
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          await weeklyRitualsApi.saveReflection(answers);
+          setDone(true);
+          try { localStorage.removeItem(DRAFT_KEY); } catch {}
+          return;
+        } catch {
+          if (attempt < 3) await sleep(1000 * 2 ** attempt);
+        }
+      }
+      setSaveError(true);
     } finally {
       setSaving(false);
     }
@@ -82,6 +132,9 @@ export default function WeeklyRitualSaturdayPage() {
               </div>
 
               <div className="px-5 pb-5">
+                {saveError && (
+                  <p className="text-xs mb-3" style={{ color: "#f87171" }}>{t("weeklyRitual.saturday.saveError")}</p>
+                )}
                 <button
                   onClick={next}
                   disabled={saving}

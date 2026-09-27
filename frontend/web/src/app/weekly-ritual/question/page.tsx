@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, Lock } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
@@ -12,6 +12,12 @@ import { useSubscriptionStore, hasPremiumAccess } from "@/lib/store";
 // Diego asked this to look like) — centered card, A/B option buttons that
 // color in once answered, green (#00d47e) as the primary accent.
 const GREEN = "#00d47e";
+
+// Diego (2026-09-27): this screen must ALWAYS open — one failed request
+// used to leave it on an error message for good. Retry with backoff, then
+// a real retry button.
+const RETRY_DELAYS_MS = [0, 1500, 3000, 6000, 10000];
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 interface QuestionData {
   question_id: string;
@@ -39,30 +45,55 @@ export default function WeeklyRitualQuestionPage() {
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
   const [revealNuvos, setRevealNuvos] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  const [voteError, setVoteError] = useState(false);
+  const loadSeq = useRef(0);
 
-  const load = () => {
+  const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
-    weeklyRitualsApi.getQuestion(i18n.language)
-      .then((res) => setData(res.data))
-      .catch(() => setError(t("weeklyRitual.question.error")))
-      .finally(() => setLoading(false));
-  };
+    setError(false);
+    for (const delay of RETRY_DELAYS_MS) {
+      if (delay) await sleep(delay);
+      if (seq !== loadSeq.current) return;
+      try {
+        const res = await weeklyRitualsApi.getQuestion(i18n.language);
+        if (seq !== loadSeq.current) return;
+        setData(res.data);
+        setLoading(false);
+        return;
+      } catch (e: any) {
+        // 404 = the backend truly has no question (empty bank) — retrying won't change that.
+        if (e?.response?.status === 404) break;
+      }
+    }
+    if (seq !== loadSeq.current) return;
+    setError(true);
+    setLoading(false);
+  }, [i18n.language]);
 
-  useEffect(() => { load(); }, [i18n.language]);
+  useEffect(() => { load(); }, [load]);
 
   const choose = async (choice: "a" | "b") => {
     if (voting || data?.voted) return;
     setVoting(true);
+    setVoteError(false);
     try {
-      const res = await weeklyRitualsApi.vote(choice);
-      setData((d) => d ? {
-        ...d, voted: true, my_choice: choice,
-        total_votes: res.data.total_votes, pct_a: res.data.pct_a, pct_b: res.data.pct_b,
-      } : d);
-    } catch {
-      // Already voted today (409) or a transient error — reload to show real state either way.
-      load();
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const res = await weeklyRitualsApi.vote(choice);
+          setData((d) => d ? {
+            ...d, voted: true, my_choice: choice,
+            total_votes: res.data.total_votes, pct_a: res.data.pct_a, pct_b: res.data.pct_b,
+          } : d);
+          return;
+        } catch (e: any) {
+          // 409 = already voted this week (e.g. from the phone) — reload into the real voted state.
+          if (e?.response?.status === 409) { load(); return; }
+          if (attempt < 2) await sleep(1000 * (attempt + 1));
+        }
+      }
+      setVoteError(true);
     } finally {
       setVoting(false);
     }
@@ -75,7 +106,12 @@ export default function WeeklyRitualQuestionPage() {
         {loading ? (
           <Loader2 className="w-8 h-8 animate-spin" style={{ color: GREEN }} />
         ) : error || !data ? (
-          <p className="text-sm" style={{ color: "var(--muted)" }}>{error || t("weeklyRitual.question.error")}</p>
+          <div className="flex flex-col items-center gap-4 text-center">
+            <p className="text-sm" style={{ color: "var(--muted)" }}>{t("weeklyRitual.question.error")}</p>
+            <button onClick={load} className="px-7 py-3 rounded-2xl font-black text-sm" style={{ background: GREEN, color: "#000" }}>
+              {t("weeklyRitual.question.retry")}
+            </button>
+          </div>
         ) : (
           <div className="w-full max-w-md rounded-3xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
             <div className="px-5 pt-5 pb-3 border-b" style={{ borderColor: "var(--border)" }}>
@@ -115,6 +151,10 @@ export default function WeeklyRitualQuestionPage() {
                   );
                 })}
               </div>
+
+              {voteError && !data.voted && (
+                <p className="text-[11px] mt-3" style={{ color: "#f87171" }}>{t("weeklyRitual.question.voteError")}</p>
+              )}
 
               {data.voted && (
                 <p className="text-[11px] mt-3" style={{ color: "var(--muted)" }}>
