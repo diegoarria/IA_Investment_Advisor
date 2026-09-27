@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.core.limiter import limiter
-from app.api.routes import auth, profile, chat, market, notifications, screener, billing, learn, sync, paper, referral, support, earnings, simulate, decisions, watchlist, financials, brokerage, belvo, notification_settings, price_alerts, actions, upsells, wrapped, monthly_report, push, feedback, profile_financial, library, voice_call, benchmark, admin, research_engine, investment_graph, explain, cash_holdings, dividends, checklist, weekly_rituals, morning_brief, smart_alerts, logo, telemetry, guest
+from app.api.routes import auth, profile, chat, market, notifications, screener, billing, learn, sync, paper, referral, support, earnings, simulate, decisions, watchlist, financials, brokerage, belvo, notification_settings, price_alerts, actions, upsells, wrapped, monthly_report, push, feedback, profile_financial, library, voice_call, benchmark, admin, research_engine, investment_graph, explain, cash_holdings, dividends, checklist, weekly_rituals, morning_brief, smart_alerts, logo, telemetry
 from app.core.limiter import rate_limit_exceeded_handler
 
 _is_dev = settings.environment == "development"
@@ -106,7 +106,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(auth.router, prefix="/api")
 app.include_router(profile.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
-app.include_router(guest.router, prefix="/api")
 app.include_router(market.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(screener.router,     prefix="/api")
