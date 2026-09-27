@@ -94,10 +94,34 @@ interface ActivityToday {
   degraded?: boolean;
 }
 
+interface GuestRow {
+  guest_id: string;
+  first_seen: string | null;
+  last_seen: string | null;
+  location: string | null;
+  device: string | null;
+  source: string;
+  landing_path: string | null;
+  last_path: string | null;
+  pageviews: number;
+  chat_messages: number;
+  hit_chat_limit: boolean;
+  questions: { message: string; created_at: string }[];
+}
+
+interface GuestsOverview {
+  days?: number;
+  today: { visitors?: number; chatted?: number; messages?: number };
+  period: { visitors?: number; chatted?: number; messages?: number; hit_limit?: number };
+  guests: GuestRow[];
+  degraded?: boolean;
+}
+
 // The panel must never flicker between numbers and "—": the last good data is
 // kept in this browser and a fallback/degraded server answer never replaces it.
 const CACHE_KEY = "nuvos_admin_overview_v1";
 const ACTIVITY_CACHE_KEY = "nuvos_admin_activity_v1";
+const GUESTS_CACHE_KEY = "nuvos_admin_guests_v1";
 const readCache = <T,>(key: string): T | null => {
   try { const raw = localStorage.getItem(key); return raw ? (JSON.parse(raw) as T) : null; } catch { return null; }
 };
@@ -336,6 +360,30 @@ export default function AdminBusinessOverviewPage() {
     return () => clearInterval(id);
   }, [userId, loadActivity]);
 
+  // Invitados (sin cuenta) — same keep-last-good pattern as the activity list.
+  const [guests, setGuests] = useState<GuestsOverview | null>(null);
+  const [openGuest, setOpenGuest] = useState<string | null>(null);
+  const guestsRef = useRef<GuestsOverview | null>(null);
+  guestsRef.current = guests;
+  const loadGuests = useCallback(async () => {
+    try {
+      const res = await adminApi.guests(7);
+      const next: GuestsOverview | undefined = res.data;
+      if (next && Array.isArray(next.guests) && !(next.degraded && guestsRef.current)) {
+        setGuests(next);
+        if (!next.degraded) writeCache(GUESTS_CACHE_KEY, next);
+      }
+    } catch { /* keep what is on screen */ }
+  }, []);
+  useEffect(() => {
+    if (userId !== ADMIN_UID) return;
+    const c = readCache<GuestsOverview>(GUESTS_CACHE_KEY);
+    if (c) setGuests((cur) => cur ?? c);
+    loadGuests();
+    const id = setInterval(loadGuests, 60_000);
+    return () => clearInterval(id);
+  }, [userId, loadGuests]);
+
   const load = useCallback(async (forceRefresh: boolean) => {
     // Only show the big spinner when there is nothing to show yet.
     forceRefresh ? setRefreshing(true) : (dataRef.current ? null : setLoading(true));
@@ -522,6 +570,77 @@ export default function AdminBusinessOverviewPage() {
               </div>
               <p className="text-[11px]" style={{ color: "var(--muted)" }}>
                 Se cuenta a quien inició sesión, se registró o escribió a Arthur hoy. Quien solo abre la app con la sesión ya guardada puede no aparecer. Se actualiza cada minuto.
+              </p>
+            </section>
+
+            {/* Invitados (sin cuenta) */}
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Invitados sin cuenta (últimos 7 días)</p>
+                {guests && (
+                  <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+                    Hoy: {guests.today.visitors ?? 0} visitantes · {guests.today.chatted ?? 0} hablaron con Arthur · {guests.today.messages ?? 0} mensajes
+                  </p>
+                )}
+              </div>
+              {guests && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Card label="Visitantes (7d)" value={fmtNum(guests.period.visitors)} />
+                  <Card label="Hablaron con Arthur" value={fmtNum(guests.period.chatted)} />
+                  <Card label="Mensajes a Arthur" value={fmtNum(guests.period.messages)} />
+                  <Card label="Llegaron al límite" value={fmtNum(guests.period.hit_limit)} />
+                </div>
+              )}
+              <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                {!guests && (
+                  <p className="text-xs p-4" style={{ color: "var(--muted)" }}>Cargando invitados…</p>
+                )}
+                {guests && guests.guests.length === 0 && (
+                  <p className="text-xs p-4" style={{ color: "var(--muted)" }}>Todavía no hay visitantes sin cuenta registrados.</p>
+                )}
+                {guests && guests.guests.map((g, i) => {
+                  const open = openGuest === g.guest_id;
+                  return (
+                    <div key={g.guest_id} style={{ borderTop: i === 0 ? "none" : "1px solid var(--border)" }}>
+                      <button type="button" onClick={() => setOpenGuest(open ? null : g.guest_id)}
+                              className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left">
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-bold truncate" style={{ color: "var(--text)" }}>
+                            {g.location || "Ubicación desconocida"}
+                          </p>
+                          <p className="text-[11px] truncate" style={{ color: "var(--muted)" }}>
+                            {[g.device, `llegó de ${g.source}`, `#${g.guest_id.slice(0, 6)}`].filter(Boolean).join(" · ")}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(96,165,250,0.15)", color: "#60a5fa" }}>{g.pageviews} pág.</span>
+                          {g.chat_messages > 0 && <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa" }}>Arthur ×{g.chat_messages}</span>}
+                          {g.hit_chat_limit && <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>Límite</span>}
+                          <span className="text-[11px] w-20 text-right" style={{ color: "var(--muted)" }}>
+                            {g.last_seen ? new Date(g.last_seen).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Monterrey" }) : ""}
+                          </span>
+                        </div>
+                      </button>
+                      {open && (
+                        <div className="px-4 pb-3 space-y-1.5">
+                          <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+                            Entró por {g.landing_path || "—"} · última página {g.last_path || "—"} · primera visita {g.first_seen ? new Date(g.first_seen).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Monterrey" }) : "—"}
+                          </p>
+                          {g.questions.length === 0 ? (
+                            <p className="text-[11px]" style={{ color: "var(--muted)" }}>No le escribió a Arthur.</p>
+                          ) : g.questions.map((q, j) => (
+                            <p key={j} className="text-[12px] rounded-lg px-3 py-2" style={{ background: "var(--bg)", color: "var(--text)" }}>
+                              “{q.message}”
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+                Personas que usan la web sin cuenta. Es anónimo: se sabe ubicación aproximada, dispositivo, de dónde llegaron y qué le preguntaron a Arthur, pero no quiénes son. Toca una fila para ver sus preguntas. Se actualiza cada minuto.
               </p>
             </section>
 

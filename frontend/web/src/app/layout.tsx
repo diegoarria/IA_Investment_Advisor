@@ -7,6 +7,7 @@ import SubscriptionStatusProvider from "@/components/SubscriptionStatusProvider"
 import FeedbackBanner from "@/components/FeedbackBanner";
 import SessionExpiredBanner from "@/components/SessionExpiredBanner";
 import PostHogProvider from "@/components/PostHogProvider";
+import GuestTracker from "@/components/GuestTracker";
 import GuestSignupFlashcard from "@/components/GuestSignupFlashcard";
 import GuestFlagGuard from "@/components/GuestFlagGuard";
 import ReferralApplyProvider from "@/components/ReferralApplyProvider";
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <GlobalErrorBoundary>
               {children}
               <GuestFlagGuard />
+              <GuestTracker />
               <SubscriptionStatusProvider />
               <ReferralApplyProvider />
               <UpsellProvider />

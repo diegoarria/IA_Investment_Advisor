@@ -337,6 +337,19 @@ async def activity_today(user: dict = Depends(get_current_user)):
     return await get_activity_today()
 
 
+@router.get("/guests")
+async def guests(days: int = 7, user: dict = Depends(get_current_user)):
+    """Anonymous visitors (no account): where from, device, what they asked
+    Arthur. See guest_tracking_service.py."""
+    await _require_admin(user)
+    from app.services.guest_tracking_service import get_guests_overview
+    try:
+        return await get_guests_overview(days=max(1, min(days, 30)))
+    except Exception as e:
+        logger.error("admin guests failed: %s", e, exc_info=True)
+        return {"degraded": True, "degraded_reason": str(e), "today": {}, "period": {}, "guests": []}
+
+
 @router.get("/business-overview/history")
 async def business_overview_history(days: int = 56, user: dict = Depends(get_current_user)):
     """Daily snapshots (job_snapshot_business_overview, worker.py) for the

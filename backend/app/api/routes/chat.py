@@ -313,6 +313,16 @@ async def _check_and_increment_guest_msg_limit(guest_id: str) -> None:
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
+# Strong refs so fire-and-forget guest-tracking writes aren't GC'd mid-flight.
+_guest_bg_tasks: set[asyncio.Task] = set()
+
+
+def _guest_bg(coro) -> None:
+    t = asyncio.create_task(coro)
+    _guest_bg_tasks.add(t)
+    t.add_done_callback(_guest_bg_tasks.discard)
+
+
 
 async def _get_user_profile(user_id: str) -> UserProfile | None:
     try:
@@ -953,7 +963,14 @@ async def chat_message_public(
     as screener.py's guest search limit, for the same reason (no
     user_profiles row to key a counter on)."""
     guest_id = (guest_id or "").strip()
-    await _check_and_increment_guest_msg_limit(guest_id)
+    from app.services.guest_tracking_service import record_chat as _record_guest_chat
+    try:
+        await _check_and_increment_guest_msg_limit(guest_id)
+    except HTTPException:
+        _guest_bg(_record_guest_chat(guest_id, None, hit_limit=True))
+        raise
+    # Admin panel "Invitados" (Diego, 2026-09-27): what anonymous visitors ask Arthur.
+    _guest_bg(_record_guest_chat(guest_id, body.message))
 
     has_images = bool(body.images or body.image_data)
 
