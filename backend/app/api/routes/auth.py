@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Depends, Request, Response, Header, Cookie
 from app.core.config import settings
-from app.core.database import get_supabase, run_query, run_auth
+from app.core.database import get_supabase, get_auth_session_client, run_query, run_auth
 from app.models.user import AuthRequest, TokenResponse
 from app.api.deps import get_current_user_id
 from app.core.cache import cache_get, cache_set, cache_delete
@@ -233,7 +233,7 @@ async def register(request: Request, response: Response, body: AuthRequest):
     if len(body.password) < 10:
         raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 10 caracteres.")
     try:
-        db = get_supabase()
+        db = get_auth_session_client()
         result = db.auth.sign_up({
             "email": body.email,
             "password": body.password,
@@ -272,7 +272,7 @@ async def login(request: Request, response: Response, body: AuthRequest):
     # above (which alone would still allow ~15 guesses/min indefinitely).
     check_login_lockout(email, ip)
     try:
-        db = get_supabase()
+        db = get_auth_session_client()
         result = db.auth.sign_in_with_password({
             "email": email,
             "password": body.password,
@@ -304,7 +304,7 @@ async def refresh_token(request: Request, response: Response, body: dict):
         token = body.get("refresh_token") or request.cookies.get("refresh_token") or ""
         if not token:
             raise HTTPException(status_code=401, detail="refresh_token requerido")
-        db = get_supabase()
+        db = get_auth_session_client()
         result = db.auth.refresh_session(token)
         if result.session is None:
             raise HTTPException(status_code=401, detail="Sesión inválida o expirada")

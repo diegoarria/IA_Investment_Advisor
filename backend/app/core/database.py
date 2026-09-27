@@ -42,10 +42,33 @@ _AUTH_OPTIONS = ClientOptions(auto_refresh_token=False, persist_session=False)
 _TRANSIENT_ERRORS = (httpx.RemoteProtocolError, httpx.ConnectError, httpx.ReadError, httpx.WriteError)
 
 
+def _client_is_service_role(client: Client) -> bool:
+    """supabase-py's Client listens to its own gotrue auth events: any
+    sign_in_with_password / sign_up / refresh_session made THROUGH a client
+    fires SIGNED_IN/TOKEN_REFRESHED, and the client then swaps its own
+    Authorization header from the service key to that USER's access token
+    (Client._listen_to_auth_events). On the process-wide singleton that
+    silently turned every later query — for every request — into a query
+    run as whoever last logged in, so RLS filtered everything down to that
+    one user's rows. Confirmed 2026-09-26: the admin business panel showed
+    "Total usuarios: 1" (only the admin's own profile row visible). Also the
+    most likely real cause of the 2026-09-19 "RLS errors despite correct
+    key" incident that a redeploy "fixed". Login/register/refresh now use
+    get_auth_session_client(); this check is the backstop."""
+    try:
+        expected = f"Bearer {settings.supabase_service_key}"
+        return client.options.headers.get("Authorization", expected) == expected
+    except Exception:
+        return True
+
+
 def get_supabase() -> Client:
     global _client, _client_created_at
     now = time.monotonic()
-    if _client is None or (now - _client_created_at) > _CLIENT_MAX_AGE_SECONDS:
+    if (_client is None or (now - _client_created_at) > _CLIENT_MAX_AGE_SECONDS
+            or not _client_is_service_role(_client)):
+        if _client is not None and not _client_is_service_role(_client):
+            log.error("Supabase singleton was carrying a user session token — recycling it")
         _client = create_client(settings.supabase_url, settings.supabase_service_key, options=_AUTH_OPTIONS)
         _client_created_at = now
     return _client
@@ -66,6 +89,13 @@ async def run_query_verified_nonempty(query_builder_factory, _max_attempts: int 
     if res.data:
         return res
     return await run_query(query_builder_factory(get_fresh_supabase()), _max_attempts)
+
+
+def get_auth_session_client() -> Client:
+    """Throwaway client for gotrue calls that CREATE a user session
+    (sign_up, sign_in_with_password, refresh_session). Never run those on
+    get_supabase()'s singleton — see _client_is_service_role's docstring."""
+    return create_client(settings.supabase_url, settings.supabase_service_key, options=_AUTH_OPTIONS)
 
 
 def get_fresh_supabase() -> Client:
