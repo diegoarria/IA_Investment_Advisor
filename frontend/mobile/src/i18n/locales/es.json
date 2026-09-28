@@ -1344,7 +1344,9 @@
       "error": "⚠ Error al guardar",
       "savedChecked": "✓ Guardado {{time}}",
       "saved": "Guardado {{time}}",
-      "allDevices": "Sincronizado en todos tus dispositivos"
+      "allDevices": "Sincronizado en todos tus dispositivos",
+      "errorShort": "Error al guardar",
+      "cloudShort": "En la nube"
     },
     "clear": {
       "button": "Vaciar",

@@ -2142,47 +2142,24 @@ export default function PortfolioScreen() {
   // once there are positions (they used to sit above the money).
   const portfolioFooterBlock = (
     <View style={{ marginTop: 28, paddingTop: 20, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
-        {/* ── Nube + sync status ── */}
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: "rgba(34,197,94,0.12)", alignItems: "center", justifyContent: "center" }}>
-              <Ionicons name="cloud-outline" size={16} color="#22c55e" />
-            </View>
-            <View>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>{t("portfolio.sync.title")}</Text>
-              <Text style={{ fontSize: 10, color: colors.textMuted }}>
-                {syncStatus === "syncing"
-                  ? t("portfolio.sync.saving")
-                  : syncStatus === "error"
-                  ? t("portfolio.sync.error")
-                  : lastSaved
-                  ? (syncStatus === "saved"
-                    ? t("portfolio.sync.savedChecked", { time: new Date(lastSaved).toLocaleTimeString(i18n.language === "en" ? "en-US" : "es-MX", { hour: "2-digit", minute: "2-digit" }) })
-                    : t("portfolio.sync.saved", { time: new Date(lastSaved).toLocaleTimeString(i18n.language === "en" ? "en-US" : "es-MX", { hour: "2-digit", minute: "2-digit" }) }))
-                  : t("portfolio.sync.allDevices")}
-              </Text>
-            </View>
-          </View>
-          <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
-            {!isPremiumAccess && (
-              <Text style={{ fontSize: 10, color: positions.length >= FREE_POSITION_LIMIT ? "#ef4444" : colors.textDim }}>
-                {positions.length}/{FREE_POSITION_LIMIT}
-              </Text>
-            )}
-            {positions.length > 0 && (
-              <TouchableOpacity
-                style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}
-                onPress={() => Alert.alert(
-                  t("portfolio.clear.title"),
-                  t("portfolio.clear.message", { count: positions.length }),
-                  [{ text: t("common.cancel"), style: "cancel" }, { text: t("portfolio.clear.confirm"), style: "destructive", onPress: () => clearPortfolio() }]
-                )}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: "#ef4444" }}>{t("portfolio.clear.button")}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+        {/* Cloud status now lives next to "+ Nuevo" (Diego, 2026-09-27);
+            only the free-tier counter and "Vaciar" stay down here. */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10, marginBottom: 12 }}>
+          {!isPremiumAccess && (
+            <Text style={{ fontSize: 11, color: positions.length >= FREE_POSITION_LIMIT ? "#ef4444" : colors.textDim }}>
+              {positions.length}/{FREE_POSITION_LIMIT}
+            </Text>
+          )}
+          <TouchableOpacity
+            style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}
+            onPress={() => Alert.alert(
+              t("portfolio.clear.title"),
+              t("portfolio.clear.message", { count: positions.length }),
+              [{ text: t("common.cancel"), style: "cancel" }, { text: t("portfolio.clear.confirm"), style: "destructive", onPress: () => clearPortfolio() }]
+            )}>
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#ef4444" }}>{t("portfolio.clear.title")}</Text>
+          </TouchableOpacity>
         </View>
-
         {/* ── Pasos para importar portafolio por captura ── */}
         <View style={{ borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: colors.border, marginBottom: 12 }}>
           <TouchableOpacity
@@ -2279,6 +2256,23 @@ export default function PortfolioScreen() {
               <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>{t("portfolio.switcher.lockedPortfolio")}</Text>
             </TouchableOpacity>
           )}
+          {/* Cloud sync status — small, next to "+ Nuevo" (Diego, 2026-09-27). */}
+          <View style={{ marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Ionicons
+              name={syncStatus === "error" ? "cloud-offline-outline" : syncStatus === "syncing" ? "cloud-upload-outline" : "cloud-done-outline"}
+              size={13}
+              color={syncStatus === "error" ? "#ef4444" : "#22c55e"}
+            />
+            <Text style={{ fontSize: 10.5, fontWeight: "600", color: syncStatus === "error" ? "#ef4444" : colors.textMuted }} numberOfLines={1}>
+              {syncStatus === "syncing"
+                ? t("portfolio.sync.saving")
+                : syncStatus === "error"
+                ? t("portfolio.sync.errorShort")
+                : lastSaved
+                ? t("portfolio.sync.saved", { time: new Date(lastSaved).toLocaleTimeString(i18n.language === "en" ? "en-US" : "es-MX", { hour: "2-digit", minute: "2-digit" }) })
+                : t("portfolio.sync.cloudShort")}
+            </Text>
+          </View>
         </View>
 
         {/* New portfolio modal */}
@@ -2489,47 +2483,6 @@ export default function PortfolioScreen() {
             status + "vaciar" move to the footer. */}
         {positions.length === 0 && (
           <>
-        {/* ── Nube + sync status ── */}
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: "rgba(34,197,94,0.12)", alignItems: "center", justifyContent: "center" }}>
-              <Ionicons name="cloud-outline" size={16} color="#22c55e" />
-            </View>
-            <View>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>{t("portfolio.sync.title")}</Text>
-              <Text style={{ fontSize: 10, color: colors.textMuted }}>
-                {syncStatus === "syncing"
-                  ? t("portfolio.sync.saving")
-                  : syncStatus === "error"
-                  ? t("portfolio.sync.error")
-                  : lastSaved
-                  ? (syncStatus === "saved"
-                    ? t("portfolio.sync.savedChecked", { time: new Date(lastSaved).toLocaleTimeString(i18n.language === "en" ? "en-US" : "es-MX", { hour: "2-digit", minute: "2-digit" }) })
-                    : t("portfolio.sync.saved", { time: new Date(lastSaved).toLocaleTimeString(i18n.language === "en" ? "en-US" : "es-MX", { hour: "2-digit", minute: "2-digit" }) }))
-                  : t("portfolio.sync.allDevices")}
-              </Text>
-            </View>
-          </View>
-          <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
-            {!isPremiumAccess && (
-              <Text style={{ fontSize: 10, color: positions.length >= FREE_POSITION_LIMIT ? "#ef4444" : colors.textDim }}>
-                {positions.length}/{FREE_POSITION_LIMIT}
-              </Text>
-            )}
-            {positions.length > 0 && (
-              <TouchableOpacity
-                style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}
-                onPress={() => Alert.alert(
-                  t("portfolio.clear.title"),
-                  t("portfolio.clear.message", { count: positions.length }),
-                  [{ text: t("common.cancel"), style: "cancel" }, { text: t("portfolio.clear.confirm"), style: "destructive", onPress: () => clearPortfolio() }]
-                )}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: "#ef4444" }}>{t("portfolio.clear.button")}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
         {/* ── Pasos para importar portafolio por captura ── */}
         <View style={{ borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: colors.border, marginBottom: 12 }}>
           <TouchableOpacity

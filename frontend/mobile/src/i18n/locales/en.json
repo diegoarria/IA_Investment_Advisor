@@ -1344,7 +1344,9 @@
       "error": "⚠ Error saving",
       "savedChecked": "✓ Saved {{time}}",
       "saved": "Saved {{time}}",
-      "allDevices": "Synced across all your devices"
+      "allDevices": "Synced across all your devices",
+      "errorShort": "Couldn't save",
+      "cloudShort": "In the cloud"
     },
     "clear": {
       "button": "Clear",
