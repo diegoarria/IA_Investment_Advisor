@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
-import { ExpandableSection, DiagRaisedBlock, ExplainableValue, DiagSectionScore } from "./companyDiagnosticShared";
+import { LinearGradient } from "expo-linear-gradient";
+import { ExpandableSection, DiagRaisedBlock, ExplainableValue, DiagSectionScore, DiagEyebrow } from "./companyDiagnosticShared";
 import { CompanyDiagnosticBuyZonePanel } from "./CompanyDiagnosticBuyZonePanel";
 import { valuationStatus, VERDICT_COLOR, VERDICT_EMOJI, fmtPrice } from "../../lib/types/companyDiagnostic";
 import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
@@ -58,65 +59,66 @@ export function CompanyDiagnosticValuePillar({
         }
       >
         <View>
-          <Text style={{ fontSize: 11, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 8 }}>
-            {t("companyDiagnostic.pillars.value.multiplesTitle")}
-          </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <DiagEyebrow colors={colors}>{t("companyDiagnostic.pillars.value.multiplesTitle")}</DiagEyebrow>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
             {multiples.map((m) => (
-              <DiagRaisedBlock key={m.explKey} colors={colors} style={{ width: "47%" }}>
+              <DiagRaisedBlock key={m.explKey} colors={colors} tint="#4FA695" style={{ width: "48%", flexGrow: 1 }}>
                 <ExplainableValue
                   label={t(`companyDiagnostic.explanations.${m.explKey}.title`)}
                   summary={t(`companyDiagnostic.explanations.${m.explKey}.body`)}
                   colors={colors}
                 >
-                  <Text style={{ fontSize: 10.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>
+                  <Text style={{ fontSize: 10.5, fontWeight: "900", letterSpacing: 0.4, textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>
                     {t(`companyDiagnostic.pillars.value.${m.explKey}`)}
                   </Text>
                 </ExplainableValue>
-                <Text style={{ fontSize: 15.5, fontWeight: "900", color: colors.text, marginTop: 4 }} numberOfLines={1} adjustsFontSizeToFit>{m.value}</Text>
+                <Text style={{ fontSize: 22, fontWeight: "900", color: colors.text, marginTop: 8, letterSpacing: -0.5, fontVariant: ["tabular-nums"] }} numberOfLines={1} adjustsFontSizeToFit>{m.value}</Text>
               </DiagRaisedBlock>
             ))}
           </View>
         </View>
 
         <View>
-          <Text style={{ fontSize: 11, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 8, marginTop: 5 }}>
-            {t("companyDiagnostic.pillars.value.modelsTitle")}
-          </Text>
-          <View style={{ flexDirection: "row", gap: 7 }}>
-            {scenarios.map((s) => {
-              const isSelected = s.key === selectedScenario;
+          <DiagEyebrow colors={colors}>{t("companyDiagnostic.pillars.value.modelsTitle")}</DiagEyebrow>
+          <View style={{ flexDirection: "row", gap: 6, padding: 5, borderRadius: 18, backgroundColor: colors.bgRaised }}>
+            {scenarios.map((sc) => {
+              const isSelected = sc.key === selectedScenario;
               return (
-                <TouchableOpacity
-                  key={s.key}
-                  onPress={() => setSelectedScenario(s.key)}
-                  style={{
-                    flex: 1, minWidth: 0, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 4, alignItems: "center",
-                    backgroundColor: `${s.color}${isSelected ? "33" : "1f"}`,
-                    borderWidth: isSelected ? 2 : 1, borderColor: s.color,
-                  }}
-                >
-                  <Text style={{ fontSize: 9.5, fontWeight: "800", textTransform: "uppercase", color: s.color, textAlign: "center" }} numberOfLines={2}>{s.label}</Text>
-                  <Text style={{ fontSize: 14.5, fontWeight: "900", color: colors.text, marginTop: 4 }} numberOfLines={1} adjustsFontSizeToFit>{fmtPrice(s.value)}</Text>
+                <TouchableOpacity key={sc.key} onPress={() => setSelectedScenario(sc.key)} activeOpacity={0.85} style={{ flex: 1, minWidth: 0, borderRadius: 14, overflow: "hidden" }}>
+                  <LinearGradient
+                    colors={isSelected ? [sc.color, `${sc.color}b3`] : ["transparent", "transparent"]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                    style={{ paddingVertical: 11, paddingHorizontal: 4, alignItems: "center" }}
+                  >
+                    <Text style={{ fontSize: 9.5, fontWeight: "900", letterSpacing: 0.4, textTransform: "uppercase", color: isSelected ? "#0A0F1A" : sc.color, textAlign: "center" }} numberOfLines={2}>{sc.label}</Text>
+                    <Text style={{ fontSize: 15.5, fontWeight: "900", color: isSelected ? "#0A0F1A" : colors.text, marginTop: 4, fontVariant: ["tabular-nums"] }} numberOfLines={1} adjustsFontSizeToFit>{fmtPrice(sc.value)}</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               );
             })}
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 11 }}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <ExplainableValue
-                label={t("companyDiagnostic.explanations.marginOfSafety.title")}
-                summary={t("companyDiagnostic.explanations.marginOfSafety.body")}
-                colors={colors}
-              >
-                <Text style={{ fontSize: 13, color: colors.textMuted }} numberOfLines={1}>{t("companyDiagnostic.pillars.value.marginOfSafety")}</Text>
-              </ExplainableValue>
-            </View>
-            {status && (
-              <Text style={{ fontSize: 15.5, fontWeight: "900", color: VERDICT_COLOR[status.verdict] }} numberOfLines={1}>
-                {VERDICT_EMOJI[status.verdict]} {status.pct.toFixed(1)}%
-              </Text>
-            )}
+
+          <View style={{ marginTop: 12, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: status ? `${VERDICT_COLOR[status.verdict]}55` : colors.border }}>
+            <LinearGradient
+              colors={status ? [`${VERDICT_COLOR[status.verdict]}2b`, `${VERDICT_COLOR[status.verdict]}08`] : [colors.bgRaised, colors.bgRaised]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 14 }}
+            >
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <ExplainableValue
+                  label={t("companyDiagnostic.explanations.marginOfSafety.title")}
+                  summary={t("companyDiagnostic.explanations.marginOfSafety.body")}
+                  colors={colors}
+                >
+                  <Text style={{ fontSize: 13.5, fontWeight: "700", color: colors.textSub }} numberOfLines={1}>{t("companyDiagnostic.pillars.value.marginOfSafety")}</Text>
+                </ExplainableValue>
+              </View>
+              {status && (
+                <Text style={{ fontSize: 24, fontWeight: "900", color: VERDICT_COLOR[status.verdict], letterSpacing: -0.5, fontVariant: ["tabular-nums"] }} numberOfLines={1}>
+                  {VERDICT_EMOJI[status.verdict]} {status.pct.toFixed(1)}%
+                </Text>
+              )}
+            </LinearGradient>
           </View>
         </View>
       </ExpandableSection>

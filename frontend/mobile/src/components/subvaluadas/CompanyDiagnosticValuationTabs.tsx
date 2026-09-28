@@ -36,16 +36,17 @@ function Step({
   n, label, explainer, children, last, colors,
 }: { n: number; label: string; explainer?: string; children: React.ReactNode; last?: boolean; colors: any }) {
   return (
-    <View style={{ flexDirection: "row", gap: 12 }}>
-      <View style={{ alignItems: "center", width: 30 }}>
-        <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${_GOLD}2e`, borderWidth: 2, borderColor: _GOLD }}>
-          <Text style={{ fontSize: 12, fontWeight: "900", color: _GOLD }}>{n}</Text>
-        </View>
-        {!last && <View style={{ width: 2, flex: 1, marginTop: 6, backgroundColor: colors.border, minHeight: 16 }} />}
+    <View style={{ flexDirection: "row", gap: 14 }}>
+      <View style={{ alignItems: "center", width: 34 }}>
+        <LinearGradient colors={["#F5C76B", _GOLD]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={{ width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ fontSize: 14, fontWeight: "900", color: "#0A0F1A" }}>{n}</Text>
+        </LinearGradient>
+        {!last && <LinearGradient colors={[`${_GOLD}66`, `${_GOLD}0d`]} style={{ width: 2, flex: 1, marginTop: 6, minHeight: 16, borderRadius: 1 }} />}
       </View>
-      <View style={{ flex: 1, paddingBottom: 22 }}>
-        <Text style={{ fontSize: 13.5, fontWeight: "900", color: colors.text, marginBottom: 3 }}>{label}</Text>
-        {explainer && <Text style={{ fontSize: 11.5, lineHeight: 16.5, color: colors.textSub, marginBottom: 10 }}>{explainer}</Text>}
+      <View style={{ flex: 1, paddingBottom: 26 }}>
+        <Text style={{ fontSize: 15.5, fontWeight: "900", color: colors.text, marginBottom: 4, marginTop: 6, letterSpacing: -0.2 }}>{label}</Text>
+        {explainer && <Text style={{ fontSize: 12.5, lineHeight: 18, color: colors.textSub, marginBottom: 12 }}>{explainer}</Text>}
         {children}
       </View>
     </View>
@@ -54,8 +55,10 @@ function Step({
 
 function StepCard({ children, colors }: { children: React.ReactNode; colors: any }) {
   return (
-    <View style={{ borderRadius: 12, padding: 12, backgroundColor: "rgba(255,255,255,0.035)", borderWidth: 1, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: _GOLD }}>
-      {children}
+    <View style={{ borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: `${_GOLD}33` }}>
+      <LinearGradient colors={[`${_GOLD}14`, colors.bgRaised]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 14 }}>
+        {children}
+      </LinearGradient>
     </View>
   );
 }
@@ -70,7 +73,7 @@ function ValuationTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k:
         <Step n={1} label={t("companyDiagnostic.classification.step")} explainer={t("companyDiagnostic.classification.explainer")} colors={colors}>
           <StepCard colors={colors}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
-              <Text style={{ fontSize: 13, fontWeight: "900", color: colors.text }}>
+              <Text style={{ fontSize: 16, fontWeight: "900", color: _GOLD }}>
                 {t(`companyDiagnostic.classification.category.${classification.category}`, { defaultValue: classification.category })}
               </Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
@@ -81,12 +84,17 @@ function ValuationTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k:
                 <Text style={{ fontSize: 10, fontWeight: "800", color: colors.text }}>{Math.round(classification.confidence)}/100</Text>
               </View>
             </View>
-            <View style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 8, backgroundColor: colors.bgRaised, borderLeftWidth: 3, borderLeftColor: _GOLD }}>
-              <Text style={{ fontSize: 11.5, lineHeight: 16.5, color: colors.textSub }}>{classification.reason}</Text>
+            <View style={{ borderRadius: 12, padding: 12, marginBottom: 10, backgroundColor: colors.card }}>
+              <Text style={{ fontSize: 13, lineHeight: 19, color: colors.textSub }}>{classification.reason}</Text>
             </View>
-            {classification.factors.map((f, i) => (
-              <Text key={i} style={{ fontSize: 10.5, lineHeight: 15, color: colors.textDim }}>• {f}</Text>
-            ))}
+            <View style={{ gap: 6 }}>
+              {classification.factors.map((f, i) => (
+                <View key={i} style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+                  <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: _GOLD, marginTop: 7 }} />
+                  <Text style={{ flex: 1, fontSize: 12, lineHeight: 18, color: colors.textMuted }}>{f}</Text>
+                </View>
+              ))}
+            </View>
           </StepCard>
         </Step>
       )}
@@ -104,11 +112,11 @@ function ValuationTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k:
                     waccDetails.cost_of_equity_pct != null && { key: "costOfEquity", label: t("companyDiagnostic.discountRate.costOfEquity"), value: `${waccDetails.cost_of_equity_pct.toFixed(1)}%` },
                     waccDetails.cost_of_debt_pct != null && { key: "costOfDebt", label: t("companyDiagnostic.discountRate.costOfDebt"), value: `${waccDetails.cost_of_debt_pct.toFixed(1)}%` },
                   ].filter(Boolean).map((item: any) => (
-                    <View key={item.key} style={{ width: "47%", borderRadius: 8, padding: 8, backgroundColor: colors.card }}>
+                    <View key={item.key} style={{ width: "47%", flexGrow: 1, borderRadius: 12, padding: 10, backgroundColor: colors.card }}>
                       <ExplainableValue label={t(`companyDiagnostic.explanations.${item.key}.title`)} summary={t(`companyDiagnostic.explanations.${item.key}.body`)} colors={colors}>
                         <Text style={{ fontSize: 9, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }}>{item.label}</Text>
                       </ExplainableValue>
-                      <Text style={{ fontSize: 13, fontWeight: "900", color: colors.text, marginTop: 2 }}>{item.value}</Text>
+                      <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text, marginTop: 4, fontVariant: ["tabular-nums"] }}>{item.value}</Text>
                     </View>
                   ))}
                 </View>
@@ -130,10 +138,11 @@ function ValuationTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k:
               <Text style={{ fontSize: 11, color: colors.textDim, marginBottom: 8 }}>{t("companyDiagnostic.discountRate.fallbackNote")}</Text>
             )}
             {waccDetails.wacc_pct != null && (
-              <View style={{ borderRadius: 10, paddingVertical: 12, alignItems: "center", backgroundColor: `${_GOLD}14`, borderWidth: 1, borderColor: `${_GOLD}40` }}>
-                <Text style={{ fontSize: 9.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }}>{t("companyDiagnostic.discountRate.finalWacc")}</Text>
-                <Text style={{ fontSize: 20, fontWeight: "900", color: _GOLD }}>{waccDetails.wacc_pct.toFixed(1)}%</Text>
-              </View>
+              <LinearGradient colors={[`${_GOLD}3d`, `${_GOLD}12`]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={{ borderRadius: 14, paddingVertical: 14, alignItems: "center", borderWidth: 1, borderColor: `${_GOLD}66` }}>
+                <Text style={{ fontSize: 10.5, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase", color: colors.textSub }}>{t("companyDiagnostic.discountRate.finalWacc")}</Text>
+                <Text style={{ fontSize: 30, fontWeight: "900", color: _GOLD, letterSpacing: -0.5, marginTop: 2 }}>{waccDetails.wacc_pct.toFixed(1)}%</Text>
+              </LinearGradient>
             )}
           </StepCard>
         </Step>
@@ -168,11 +177,11 @@ function ValuationTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k:
       {fairPeBreakdown && scenarioBreakdown?.base?.eps != null && (
         <Step n={4} label={t("companyDiagnostic.fairPeBreakdown.fairValueFormula")} last={!hasShadowFcf} colors={colors}>
           <StepCard colors={colors}>
-            <Text style={{ fontSize: 13, color: colors.text }}>
+            <Text style={{ fontSize: 15, lineHeight: 22, color: colors.text }}>
               EPS <Text style={{ fontWeight: "900" }}>${scenarioBreakdown.base.eps.toFixed(2)}</Text>
               {" × "}{t("companyDiagnostic.fairPeBreakdown.finalPe")} <Text style={{ fontWeight: "900" }}>{fairPeBreakdown.fair_pe.toFixed(1)}x</Text>
               {" = "}
-              <Text style={{ color: "#4FA695", fontWeight: "900" }}>{fmtPrice(scenarioBreakdown.base.eps * fairPeBreakdown.fair_pe)}</Text>
+              <Text style={{ color: "#4FA695", fontWeight: "900", fontSize: 18 }}>{fmtPrice(scenarioBreakdown.base.eps * fairPeBreakdown.fair_pe)}</Text>
             </Text>
           </StepCard>
           {hasShadowFcf && (
@@ -187,9 +196,9 @@ function ValuationTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k:
         <Step n={5} label={t("companyDiagnostic.shadowDualTrack.title")} last colors={colors}>
           <StepCard colors={colors}>
             <Text style={{ fontSize: 11, lineHeight: 16, color: colors.textSub, marginBottom: 10 }}>{t("companyDiagnostic.shadowDualTrack.subtitle")}</Text>
-            <View style={{ borderRadius: 10, paddingVertical: 12, alignItems: "center", backgroundColor: colors.bgRaised, marginBottom: 8 }}>
-              <Text style={{ fontSize: 9.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }}>{t("companyDiagnostic.shadowDualTrack.fcfTrack")}</Text>
-              <Text style={{ fontSize: 20, fontWeight: "900", color: _GOLD }}>{fmtPrice(shadowDualTrack.fcfTrackValue)}</Text>
+            <View style={{ borderRadius: 14, paddingVertical: 14, alignItems: "center", backgroundColor: colors.card, marginBottom: 10 }}>
+              <Text style={{ fontSize: 10.5, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase", color: colors.textMuted }}>{t("companyDiagnostic.shadowDualTrack.fcfTrack")}</Text>
+              <Text style={{ fontSize: 26, fontWeight: "900", color: _GOLD, marginTop: 2 }}>{fmtPrice(shadowDualTrack.fcfTrackValue)}</Text>
             </View>
             {shadowDualTrack.fcfTrackNote && <Text style={{ fontSize: 11, lineHeight: 15.5, color: colors.textDim }}>{shadowDualTrack.fcfTrackNote}</Text>}
           </StepCard>
@@ -209,26 +218,25 @@ function ScenariosTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k:
   ];
   return (
     <View>
-      <Text style={{ fontSize: 11.5, lineHeight: 16.5, color: colors.textSub, marginBottom: 12 }}>{t("companyDiagnostic.scenariosTab.explainer")}</Text>
+      <Text style={{ fontSize: 13, lineHeight: 19, color: colors.textSub, marginBottom: 14 }}>{t("companyDiagnostic.scenariosTab.explainer")}</Text>
       <View style={{ gap: 10 }}>
         {rows.map(({ key, label }) => {
           const s = sb[key];
           const color = SCENARIO_COLOR[key];
           const isBase = key === "base";
           return (
-            <View
-              key={key}
-              style={{
-                borderRadius: 10, padding: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-                backgroundColor: isBase ? `${color}1a` : "rgba(255,255,255,0.035)",
-                borderWidth: 1, borderColor: isBase ? `${color}70` : colors.border, borderLeftWidth: 3, borderLeftColor: color,
-              }}
-            >
-              <View>
-                <Text style={{ fontSize: 11, fontWeight: "800", textTransform: "uppercase", color }}>{label}</Text>
-                <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>EPS ${s.eps?.toFixed(2) ?? "—"} × {s.fair_pe.toFixed(1)}x</Text>
-              </View>
-              <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text }}>{fmtPrice(s.fair_value_per_share ?? 0)}</Text>
+            <View key={key} style={{ borderRadius: 18, overflow: "hidden", borderWidth: isBase ? 1.5 : 1, borderColor: isBase ? `${color}99` : `${color}40` }}>
+              <LinearGradient colors={[`${color}${isBase ? "33" : "1a"}`, colors.bgRaised]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={{ padding: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                  <View style={{ width: 10, height: 36, borderRadius: 5, backgroundColor: color }} />
+                  <View>
+                    <Text style={{ fontSize: 12, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase", color }}>{label}</Text>
+                    <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 3, fontVariant: ["tabular-nums"] }}>EPS ${s.eps?.toFixed(2) ?? "—"} × {s.fair_pe.toFixed(1)}x</Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 22, fontWeight: "900", color: colors.text, letterSpacing: -0.5, fontVariant: ["tabular-nums"] }}>{fmtPrice(s.fair_value_per_share ?? 0)}</Text>
+              </LinearGradient>
             </View>
           );
         })}
@@ -242,37 +250,37 @@ function ComparablesTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (
   const { sectorComparison, competitorComparison } = data;
   return (
     <View style={{ gap: 16 }}>
-      <Text style={{ fontSize: 11.5, lineHeight: 16.5, color: colors.textSub }}>{t("companyDiagnostic.diagTabs.comparablesExplainer")}</Text>
+      <Text style={{ fontSize: 13, lineHeight: 19, color: colors.textSub }}>{t("companyDiagnostic.diagTabs.comparablesExplainer")}</Text>
 
       {sectorComparison && (
-        <View style={{ borderRadius: 10, padding: 12, backgroundColor: "rgba(255,255,255,0.035)", borderWidth: 1, borderColor: colors.border }}>
-          <Text style={{ fontSize: 11, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 8 }}>
+        <View style={{ borderRadius: 18, padding: 16, backgroundColor: colors.bgRaised }}>
+          <Text style={{ fontSize: 11.5, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase", color: _GOLD, marginBottom: 10 }}>
             {sectorComparison.sector} · {sectorComparison.peerCount} {t("companyDiagnostic.diagTabs.peers")}
           </Text>
           {sectorComparison.rows.map((r) => (
-            <View key={r.metricName} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
-              <Text style={{ flex: 1, fontSize: 11, color: colors.textSub }}>{r.metricName}</Text>
-              <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text, width: 70, textAlign: "right" }}>{r.companyValue}</Text>
-              <Text style={{ fontSize: 11, color: colors.textMuted, width: 70, textAlign: "right" }}>{r.sectorValue}</Text>
+            <View key={r.metricName} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 11, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <Text style={{ flex: 1, fontSize: 13, color: colors.textSub }}>{r.metricName}</Text>
+              <Text style={{ fontSize: 13.5, fontWeight: "900", color: colors.text, width: 76, textAlign: "right" }}>{r.companyValue}</Text>
+              <Text style={{ fontSize: 13, color: colors.textMuted, width: 76, textAlign: "right" }}>{r.sectorValue}</Text>
             </View>
           ))}
-          {sectorComparison.insight && <Text style={{ fontSize: 11, lineHeight: 16, color: colors.textSub, marginTop: 8 }}>{sectorComparison.insight}</Text>}
+          {sectorComparison.insight && <Text style={{ fontSize: 12.5, lineHeight: 18.5, color: colors.textSub, marginTop: 10 }}>{sectorComparison.insight}</Text>}
         </View>
       )}
 
       {competitorComparison && (
-        <View style={{ borderRadius: 10, padding: 12, backgroundColor: "rgba(255,255,255,0.035)", borderWidth: 1, borderColor: colors.border }}>
-          <Text style={{ fontSize: 11, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 8 }}>
+        <View style={{ borderRadius: 18, padding: 16, backgroundColor: colors.bgRaised }}>
+          <Text style={{ fontSize: 11.5, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase", color: _GOLD, marginBottom: 10 }}>
             {data.ticker} vs. {competitorComparison.competitorName}
           </Text>
           {competitorComparison.rows.map((r) => (
-            <View key={r.metricName} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
-              <Text style={{ flex: 1, fontSize: 11, color: colors.textSub }}>{r.metricName}</Text>
-              <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text, width: 70, textAlign: "right" }}>{r.targetCompanyValue}</Text>
-              <Text style={{ fontSize: 11, color: colors.textMuted, width: 70, textAlign: "right" }}>{r.competitorValue}</Text>
+            <View key={r.metricName} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 11, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <Text style={{ flex: 1, fontSize: 13, color: colors.textSub }}>{r.metricName}</Text>
+              <Text style={{ fontSize: 13.5, fontWeight: "900", color: colors.text, width: 76, textAlign: "right" }}>{r.targetCompanyValue}</Text>
+              <Text style={{ fontSize: 13, color: colors.textMuted, width: 76, textAlign: "right" }}>{r.competitorValue}</Text>
             </View>
           ))}
-          {competitorComparison.conclusion && <Text style={{ fontSize: 11, lineHeight: 16, color: colors.textSub, marginTop: 8 }}>{competitorComparison.conclusion}</Text>}
+          {competitorComparison.conclusion && <Text style={{ fontSize: 12.5, lineHeight: 18.5, color: colors.textSub, marginTop: 10 }}>{competitorComparison.conclusion}</Text>}
         </View>
       )}
 
@@ -294,19 +302,19 @@ function HistoryTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k: s
 
   return (
     <View>
-      <Text style={{ fontSize: 14, fontWeight: "900", color: colors.text, marginBottom: 4 }}>
+      <Text style={{ fontSize: 18, lineHeight: 24, fontWeight: "900", color: colors.text, marginBottom: 6, letterSpacing: -0.3 }}>
         {t(`companyDiagnostic.priceHistoryTab.headline.${todayBucket}`, { ticker: data.ticker })}
       </Text>
-      <Text style={{ fontSize: 11.5, lineHeight: 16.5, color: colors.textSub, marginBottom: 16 }}>
+      <Text style={{ fontSize: 13, lineHeight: 19, color: colors.textSub, marginBottom: 16 }}>
         {t(`companyDiagnostic.priceHistoryTab.subheadline.${todayBucket}`, { pct: Math.round(percentileCheaperThan), days: daysUsed })}
       </Text>
 
       <View style={{ marginTop: 20, marginBottom: 8 }}>
-        <View style={{ height: 7, borderRadius: 4, flexDirection: "row", overflow: "hidden" }}>
-          <View style={{ flex: 1, backgroundColor: _BUCKET_COLOR.cheap }} />
-          <View style={{ flex: 1, backgroundColor: colors.textDim }} />
-          <View style={{ flex: 1, backgroundColor: _BUCKET_COLOR.expensive }} />
-        </View>
+        <LinearGradient
+          colors={[_BUCKET_COLOR.cheap, colors.textDim, _BUCKET_COLOR.expensive]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+          style={{ height: 12, borderRadius: 6 }}
+        />
         <View style={{ position: "absolute", top: -22, left: `${markerPct}%`, transform: [{ translateX: -18 }], alignItems: "center" }}>
           <View style={{ borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: colors.text }}>
             <Text style={{ fontSize: 9, fontWeight: "900", textTransform: "uppercase", color: colors.bg ?? "#0a0f1a" }}>{t("companyDiagnostic.priceHistory.today")}</Text>
@@ -336,9 +344,9 @@ function HistoryTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k: s
             <View
               key={key}
               style={{
-                borderRadius: 10, padding: 11,
-                backgroundColor: isToday ? `${_BUCKET_COLOR[key]}1a` : "rgba(255,255,255,0.035)",
-                borderWidth: 1, borderColor: isToday ? _BUCKET_COLOR[key] : colors.border,
+                borderRadius: 16, padding: 14,
+                backgroundColor: isToday ? `${_BUCKET_COLOR[key]}1f` : colors.bgRaised,
+                borderWidth: 1, borderColor: isToday ? `${_BUCKET_COLOR[key]}99` : "transparent",
               }}
             >
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 3 }}>
@@ -352,7 +360,7 @@ function HistoryTab({ data, t, colors }: { data: CompanyDiagnosticData; t: (k: s
                 )}
               </View>
               {b ? (
-                <Text style={{ fontSize: 11.5, color: colors.textSub }}>
+                <Text style={{ fontSize: 13, lineHeight: 19, color: colors.textSub, marginTop: 4 }}>
                   {t("companyDiagnostic.priceHistoryTab.timesHigher", { n: b.timesHigherLater, total: b.daysCount })}
                   {" · "}{t("companyDiagnostic.priceHistoryTab.typicalReturn")}:{" "}
                   <Text style={{ fontWeight: "800", color: b.medianReturnPct >= 0 ? "#4FA695" : "#DD6E63" }}>

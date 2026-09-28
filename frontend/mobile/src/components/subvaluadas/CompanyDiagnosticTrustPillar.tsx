@@ -41,21 +41,21 @@ export function CompanyDiagnosticTrustPillar({
         />
       }
     >
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
         {rows.map((row) => {
           const label = t(`companyDiagnostic.pillars.trust.${row.explKey}`);
           return (
-            <DiagRaisedBlock key={row.explKey} colors={colors} style={{ width: "47%" }}>
+            <DiagRaisedBlock key={row.explKey} colors={colors} tint="#6366F1" style={{ width: "48%", flexGrow: 1 }}>
               <ExplainableValue
                 label={t(`companyDiagnostic.explanations.${row.explKey}.title`)}
                 summary={t(`companyDiagnostic.explanations.${row.explKey}.body`)}
                 colors={colors}
               >
-                <Text style={{ fontSize: 10.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>{label}</Text>
+                <Text style={{ fontSize: 10.5, fontWeight: "900", letterSpacing: 0.4, textTransform: "uppercase", color: colors.textMuted }} numberOfLines={1}>{label}</Text>
               </ExplainableValue>
-              <Text style={{ fontSize: 15.5, fontWeight: "900", color: colors.text, marginTop: 4 }} numberOfLines={2} adjustsFontSizeToFit>{row.value}</Text>
+              <Text style={{ fontSize: 19, fontWeight: "900", color: colors.text, marginTop: 8, letterSpacing: -0.3, fontVariant: ["tabular-nums"] }} numberOfLines={2} adjustsFontSizeToFit>{row.value}</Text>
               {row.explKey === "roic" && roicAdjustedForBuybacks && (
-                <Text style={{ fontSize: 9.5, lineHeight: 13, color: colors.textMuted, marginTop: 4 }}>
+                <Text style={{ fontSize: 10, lineHeight: 14, color: colors.textMuted, marginTop: 6 }}>
                   {t("companyDiagnostic.pillars.trust.roicAdjustedNote")}
                 </Text>
               )}

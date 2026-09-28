@@ -2,7 +2,8 @@ import React from "react";
 import { View, Text } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
-import { ExpandableSection, DiagSectionScore } from "./companyDiagnosticShared";
+import { LinearGradient } from "expo-linear-gradient";
+import { ExpandableSection, DiagSectionScore, DiagRaisedBlock, DiagEyebrow, DiagIconDot } from "./companyDiagnosticShared";
 import type { CompanyDiagnosticData } from "../../lib/types/companyDiagnostic";
 
 // Mirror of web's CompanyDiagnosticSimplicityPillar.tsx.
@@ -33,33 +34,43 @@ export function CompanyDiagnosticSimplicityPillar({
       }
     >
       {noiseVsReality && (
-        <View style={{ gap: 8 }}>
-          <View style={{ borderRadius: 12, padding: 12, backgroundColor: "#ef44441a", borderWidth: 1, borderColor: "#ef4444" }}>
-            <Text style={{ fontSize: 11.5, fontWeight: "800", textTransform: "uppercase", color: "#ef4444", marginBottom: 6 }}>
-              🔴 {t("companyDiagnostic.pillars.simplicity.marketSaw")}
-            </Text>
-            <Text style={{ fontSize: 13.5, lineHeight: 19.5, color: colors.text }}>{noiseVsReality.marketSaw}</Text>
-          </View>
-          <View style={{ borderRadius: 12, padding: 12, backgroundColor: "#22c55e1a", borderWidth: 1, borderColor: "#22c55e" }}>
-            <Text style={{ fontSize: 11.5, fontWeight: "800", textTransform: "uppercase", color: "#22c55e", marginBottom: 6 }}>
-              🟢 {t("companyDiagnostic.pillars.simplicity.nuvosReality")}
-            </Text>
-            <Text style={{ fontSize: 13.5, lineHeight: 19.5, color: colors.text }}>{noiseVsReality.nuvosReality}</Text>
-          </View>
+        <View style={{ gap: 10 }}>
+          {([
+            { key: "marketSaw", color: "#ef4444", icon: "megaphone-outline", text: noiseVsReality.marketSaw },
+            { key: "nuvosReality", color: "#22c55e", icon: "checkmark-done", text: noiseVsReality.nuvosReality },
+          ] as const).map((b) => (
+            <View key={b.key} style={{ borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: `${b.color}55` }}>
+              <LinearGradient colors={[`${b.color}26`, `${b.color}08`]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 16 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <DiagIconDot name={b.icon} color={b.color} size={30} />
+                  <Text style={{ flex: 1, fontSize: 12, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase", color: b.color }}>
+                    {t(`companyDiagnostic.pillars.simplicity.${b.key}`)}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 14.5, lineHeight: 21.5, color: colors.text }}>{b.text}</Text>
+              </LinearGradient>
+            </View>
+          ))}
         </View>
       )}
 
       {actionPlan && (
         <View>
-          <Text style={{ fontSize: 11.5, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted, marginBottom: 8 }}>
-            {t("companyDiagnostic.pillars.simplicity.actionPlanTitle")}
-          </Text>
-          <View style={{ borderRadius: 12, padding: 12, backgroundColor: colors.bgRaised }}>
-            <Text style={{ fontSize: 11, color: colors.textMuted }}>{t("companyDiagnostic.pillars.simplicity.profile")}</Text>
-            <Text style={{ fontSize: 14.5, fontWeight: "800", color: colors.text, marginBottom: 8 }}>{actionPlan.profile}</Text>
-            <Text style={{ fontSize: 11, color: colors.textMuted }}>{t("companyDiagnostic.pillars.simplicity.strategy")}</Text>
-            <Text style={{ fontSize: 14.5, fontWeight: "800", color: colors.text }}>{actionPlan.strategy}</Text>
-          </View>
+          <DiagEyebrow colors={colors}>{t("companyDiagnostic.pillars.simplicity.actionPlanTitle")}</DiagEyebrow>
+          <DiagRaisedBlock colors={colors} tint="#f59e0b">
+            {([
+              { icon: "person-circle-outline", label: t("companyDiagnostic.pillars.simplicity.profile"), value: actionPlan.profile },
+              { icon: "navigate-circle-outline", label: t("companyDiagnostic.pillars.simplicity.strategy"), value: actionPlan.strategy },
+            ] as const).map((row, i) => (
+              <View key={i} style={{ flexDirection: "row", gap: 12, alignItems: "flex-start", paddingTop: i ? 14 : 0, marginTop: i ? 14 : 0, borderTopWidth: i ? 1 : 0, borderTopColor: colors.border }}>
+                <DiagIconDot name={row.icon} color="#f59e0b" size={34} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 11.5, fontWeight: "700", color: colors.textMuted }}>{row.label}</Text>
+                  <Text style={{ fontSize: 15.5, lineHeight: 21, fontWeight: "800", color: colors.text, marginTop: 2 }}>{row.value}</Text>
+                </View>
+              </View>
+            ))}
+          </DiagRaisedBlock>
         </View>
       )}
     </ExpandableSection>

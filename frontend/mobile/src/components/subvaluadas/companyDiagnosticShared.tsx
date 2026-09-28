@@ -66,10 +66,36 @@ export function RingGauge({
   );
 }
 
-export function DiagRaisedBlock({ children, colors, style }: { children: ReactNode; colors: any; style?: any }) {
+// Metric tile inside the diagnostic tabs — same gradient language as
+// GlowCard, smaller: faint tint (or white sheen) → raised surface.
+export function DiagRaisedBlock({ children, colors, style, tint }: { children: ReactNode; colors: any; style?: any; tint?: string }) {
   return (
-    <View style={[{ borderRadius: 12, padding: 12, backgroundColor: colors.bgRaised }, style]}>
+    <View style={[{ borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: tint ? `${tint}33` : colors.border }, style]}>
+      <LinearGradient
+        colors={[tint ? `${tint}1f` : "rgba(255,255,255,0.05)", colors.bgRaised]}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={{ padding: 14 }}
+      >
+        {children}
+      </LinearGradient>
+    </View>
+  );
+}
+
+// Small uppercase section label used inside every tab/pillar body.
+export function DiagEyebrow({ children, colors, color }: { children: ReactNode; colors: any; color?: string }) {
+  return (
+    <Text style={{ fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase", color: color ?? colors.textMuted, marginBottom: 10 }}>
       {children}
+    </Text>
+  );
+}
+
+// Icon in a tinted circle — the bullet/marker used across tab bodies.
+export function DiagIconDot({ name, color, size = 30 }: { name: keyof typeof Ionicons.glyphMap; color: string; size?: number }) {
+  return (
+    <View style={{ width: size, height: size, borderRadius: size / 2, alignItems: "center", justifyContent: "center", backgroundColor: `${color}24` }}>
+      <Ionicons name={name} size={Math.round(size * 0.5)} color={color} />
     </View>
   );
 }
